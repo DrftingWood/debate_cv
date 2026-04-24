@@ -13,7 +13,7 @@ You sign in with Google. The app reads your Gmail (read-only), pulls Tabbycat pr
 - **Prisma** against Postgres
 - **googleapis** SDK for Gmail
 - **cheerio** for HTML parsing
-- **Vercel Cron** to drain the ingest queue every 2 minutes
+- **Vercel Cron** drains the ingest queue once per day (Hobby-tier compatible); manual scans drain inline
 
 ## Deploy to Vercel (the "just chill" path)
 
@@ -49,9 +49,11 @@ You sign in with Google. The app reads your Gmail (read-only), pulls Tabbycat pr
 ### 3. Use it
 
 1. Visit your Vercel URL, click **Sign in with Google**, grant Gmail read access.
-2. On the dashboard, click **Scan Gmail**. Private URLs appear as rows with status `pending`.
-3. Wait ~2 minutes for the cron to drain the queue (or click **Ingest now** on any row).
+2. On the dashboard, click **Scan Gmail**. The same request auto-drains the queue, so rows go straight from `pending` to `done` (up to ~50 seconds of ingestion per click).
+3. If anything's still `pending` after that, click **Process queued** to continue, or **Ingest now** on a single row.
 4. Open **My CV** (`/cv`).
+
+A daily cron at `0 3 * * *` also drains anything left in the queue as a safety net (Hobby-tier compatible; Pro users can tighten the schedule in `vercel.json`).
 
 ## Local development
 
