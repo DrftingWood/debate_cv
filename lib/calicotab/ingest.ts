@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { fetchHtml, fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
+import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
 import { parsePrivateUrlPage } from './parseNav';
 import {
   parseTeamTab,
@@ -37,19 +37,25 @@ export async function ingestPrivateUrl(
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
 
   // Landing page fetch — with provenance so every parse has a stable source.
-  const landingDoc = await fetchHtmlWithProvenance(normalized);
+  const landingResult = await fetchHtmlWithProvenance(normalized);
+  if (!landingResult.ok) {
+    // Surface the HTTP failure as the job's error so it shows up on the
+    // dashboard and in ParserRun history. `bodyPreview` gives the operator
+    // a hint when the upstream serves an HTML error page (e.g. Cloudflare).
+    throw new Error(
+      `fetch landing ${normalized} → HTTP ${landingResult.status}: ${landingResult.bodyPreview
+        .replace(/\s+/g, ' ')
+        .slice(0, 180)}`,
+    );
+  }
+  const landingDoc = landingResult;
   const landingHtml = landingDoc.html;
+  // Collected across the whole ingest and attached to the landing ParserRun.
+  const fetchWarnings: string[] = [];
 
   const parseStart = Date.now();
   const snapshot = parsePrivateUrlPage(landingHtml, normalized);
   const landingWarnings = collectRegistrationWarnings(snapshot);
-  await recordParserRun({
-    sourceDocumentId: landingDoc.sourceDocumentId,
-    parserName: 'parseNav',
-    success: !!snapshot.tournamentName || snapshot.navigation.resultsRounds.length > 0,
-    warnings: landingWarnings,
-    durationMs: Date.now() - parseStart,
-  });
 
   const year = extractYearFromName(snapshot.tournamentName);
   const fingerprint = computeFingerprint({
@@ -67,6 +73,13 @@ export async function ingestPrivateUrl(
     // parser run for this tournament's landing page, skip the cache and re-ingest.
     const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
     if (fresh && parserUpToDate) {
+      await recordParserRun({
+        sourceDocumentId: landingDoc.sourceDocumentId,
+        parserName: 'parseNav',
+        success: true,
+        warnings: landingWarnings,
+        durationMs: Date.now() - parseStart,
+      });
       const claimedPersonId = await linkRegistrationPerson(
         existing.id,
         snapshot.registration.personName,
@@ -87,18 +100,43 @@ export async function ingestPrivateUrl(
     }
   }
 
-  // Fetch and parse tabs in parallel (bounded: these are same host, so fetchHtml throttles).
+  // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
   const nav = snapshot.navigation;
+  // Build a shared fetch helper for this ingest that records failures into
+  // the fetchWarnings buffer so the landing ParserRun tells the operator
+  // exactly which tabs upstream refused to serve.
+  const fetchTab = async (targetUrl: string, label: string): Promise<string | null> => {
+    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized });
+    if (r.ok) return r.html;
+    fetchWarnings.push(
+      `fetch: ${label} HTTP ${r.status}${r.bodyPreview ? ` — ${r.bodyPreview.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`,
+    );
+    return null;
+  };
+  const fetchRound = async (
+    targetUrl: string,
+  ): Promise<{ url: string; html: string } | null> => {
+    const r = await fetchRoundWithProvenance(targetUrl, { referer: normalized });
+    if (r.ok) return { url: r.url, html: r.html };
+    fetchWarnings.push(`fetch: round ${targetUrl} HTTP ${r.status}`);
+    return null;
+  };
+
   const [teamHtml, speakerHtml, participantsHtml] = await Promise.all([
-    nav.teamTab ? safeFetch(nav.teamTab) : Promise.resolve(null),
-    nav.speakerTab ? safeFetch(nav.speakerTab) : Promise.resolve(null),
-    nav.participants ? safeFetch(nav.participants) : Promise.resolve(null),
+    nav.teamTab ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
+    nav.speakerTab ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
+    nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and
   // adjudicators are scoped to their own debate (sidesteps double-counting
   // that the by-team pivot can introduce).
-  const roundHtmls = await Promise.all(nav.resultsRounds.map((u) => safeFetchRound(u)));
-  const breakHtmls = await Promise.all(nav.breakTabs.map((u) => safeFetchPair(u)));
+  const roundHtmls = await Promise.all(nav.resultsRounds.map((u) => fetchRound(u)));
+  const breakHtmls = await Promise.all(
+    nav.breakTabs.map(async (u) => {
+      const html = await fetchTab(u, 'break');
+      return html ? { url: u, html } : null;
+    }),
+  );
 
   const teamRows = teamHtml ? parseTeamTab(teamHtml) : [];
   const speakerRows = speakerHtml ? parseSpeakerTab(speakerHtml) : [];
@@ -122,6 +160,20 @@ export async function ingestPrivateUrl(
     if (row.entityType !== 'team' || row.rank == null) continue;
     if (!teamBreakRankByTeam.has(row.entityName)) teamBreakRankByTeam.set(row.entityName, row.rank);
   }
+
+  // Record the full ParserRun once all tab fetches + parses are done so
+  // both landing warnings and per-tab fetch failures (fetchWarnings) land
+  // in the same row. Lets /cv/verify surface "tab fetch returned 403" next
+  // to the tournament card rather than showing silent empty tables.
+  await recordParserRun({
+    sourceDocumentId: landingDoc.sourceDocumentId,
+    parserName: 'parseNav',
+    success:
+      (!!snapshot.tournamentName || snapshot.navigation.resultsRounds.length > 0) &&
+      fetchWarnings.length === 0,
+    warnings: [...landingWarnings, ...fetchWarnings],
+    durationMs: Date.now() - parseStart,
+  });
 
   const tournamentId = await prisma.$transaction(async (tx) => {
     const t = await tx.tournament.upsert({
@@ -480,37 +532,6 @@ async function isLatestParserRun(sourceDocumentId: string): Promise<boolean> {
     select: { parserVersion: true },
   });
   return latest?.parserVersion === PARSER_VERSION;
-}
-
-async function safeFetch(url: string): Promise<string | null> {
-  try {
-    return await fetchHtml(url);
-  } catch {
-    return null;
-  }
-}
-
-async function safeFetchPair(url: string): Promise<{ url: string; html: string } | null> {
-  try {
-    const html = await fetchHtml(url);
-    return { url, html };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Like safeFetchPair but prefers `<round>by-debate/` when it exists. The
- * returned `url` reflects whichever variant we actually parsed, so the
- * outround regex in parseRoundResults still sees the right path.
- */
-async function safeFetchRound(url: string): Promise<{ url: string; html: string } | null> {
-  try {
-    const doc = await fetchRoundWithProvenance(url);
-    return { url: doc.url, html: doc.html };
-  } catch {
-    return null;
-  }
 }
 
 async function upsertPerson(
