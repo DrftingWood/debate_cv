@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sparkles, UserCheck, UserX } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 
 export type ReviewItem = {
@@ -19,21 +22,26 @@ export function IdentityReview({
 }) {
   if (items.length === 0) return null;
   return (
-    <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
-      <header className="flex items-baseline justify-between">
-        <h2 className="text-base font-semibold text-amber-900">
-          {hasExistingClaims ? 'Confirm your aliases' : 'Confirm your identity'}
-        </h2>
-        <span className="text-xs text-amber-700">
+    <section className="rounded-lg border border-primary-100 bg-primary-50/60 p-4 md:p-5">
+      <header className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex items-center gap-2 text-primary-900">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-bg text-primary-700">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+          </span>
+          <h2 className="text-base font-semibold">
+            {hasExistingClaims ? 'Confirm your aliases' : 'Confirm your identity'}
+          </h2>
+        </div>
+        <span className="text-xs text-primary-700">
           {items.length} {items.length === 1 ? 'name' : 'names'} to review
         </span>
       </header>
-      <p className="mt-1 text-sm text-amber-900">
+      <p className="mt-2 text-sm text-ink-2">
         {hasExistingClaims
           ? 'These names showed up on your private URLs but you haven\'t claimed them yet. Mark each as an alias of you, or "Not me" so we don\'t ask again.'
           : 'A private URL was sent to your inbox addressed to the person below. Confirm whether that\'s you so we can build your CV.'}
       </p>
-      <ul className="mt-3 space-y-2">
+      <ul className="mt-4 space-y-2">
         {items.map((item) => (
           <ReviewCard key={item.personId} item={item} hasExistingClaims={hasExistingClaims} />
         ))}
@@ -50,8 +58,8 @@ function ReviewCard({
   hasExistingClaims: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   const tournamentSummary =
     item.tournaments.length === 0
@@ -65,54 +73,57 @@ function ReviewCard({
   const claimLabel = hasExistingClaims ? 'Yes — alias of me' : 'Yes — this is me';
 
   return (
-    <li className="rounded-md border border-amber-200 bg-white p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <div className="font-medium text-ink">{item.displayName}</div>
+    <li className="rounded-md border border-primary-100 bg-bg p-3 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-ink-1">{item.displayName}</div>
           {tournamentSummary ? (
-            <div className="text-xs text-gray-600">{tournamentSummary}</div>
+            <div className="truncate text-xs text-ink-3">{tournamentSummary}</div>
           ) : null}
         </div>
-        <div className="flex gap-2">
-          <button
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
             type="button"
-            disabled={isPending}
+            size="sm"
+            variant="primary"
+            loading={isPending}
+            leftIcon={!isPending ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : undefined}
             onClick={() => {
-              setError(null);
               startTransition(async () => {
                 const result = await postJson(`/api/persons/${item.personId}/claim`);
                 if (!result.ok) {
-                  setError(result.error);
+                  toast.show({ kind: 'error', title: 'Claim failed', description: result.error });
                   return;
                 }
+                toast.show({ kind: 'success', title: 'Claimed', description: item.displayName });
                 router.refresh();
               });
             }}
-            className="rounded-md bg-accent px-3 py-1 text-xs text-white font-medium hover:opacity-90 disabled:opacity-50"
           >
-            {isPending ? 'Saving…' : claimLabel}
-          </button>
-          <button
+            {claimLabel}
+          </Button>
+          <Button
             type="button"
-            disabled={isPending}
+            size="sm"
+            variant="secondary"
+            loading={isPending}
+            leftIcon={!isPending ? <UserX className="h-3.5 w-3.5" aria-hidden /> : undefined}
             onClick={() => {
-              setError(null);
               startTransition(async () => {
                 const result = await postJson(`/api/persons/${item.personId}/reject`);
                 if (!result.ok) {
-                  setError(result.error);
+                  toast.show({ kind: 'error', title: 'Reject failed', description: result.error });
                   return;
                 }
+                toast.show({ kind: 'info', title: 'Dismissed', description: item.displayName });
                 router.refresh();
               });
             }}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Not me
-          </button>
+          </Button>
         </div>
       </div>
-      {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}
     </li>
   );
 }

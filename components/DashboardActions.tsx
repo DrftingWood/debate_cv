@@ -2,6 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Search, Play, RotateCw } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 
 type DrainResponse = { processed: number; remaining: number };
@@ -25,133 +28,136 @@ async function drainUntilEmpty(
 
 export function ScanButton() {
   const router = useRouter();
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [phase, setPhase] = useState<'idle' | 'scanning' | 'ingesting'>('idle');
-  const [summary, setSummary] = useState<
-    { found: number; scanned: number; processed?: number; remaining?: number } | null
-  >(null);
-  const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          setSummary(null);
-          startTransition(async () => {
-            try {
-              setPhase('scanning');
-              const scan = await postJson<ScanResponse>('/api/ingest/gmail');
-              if (!scan.ok) throw new Error(scan.error);
-              setSummary({ found: scan.data.found, scanned: scan.data.scanned });
-              router.refresh();
+    <Button
+      type="button"
+      variant="primary"
+      loading={isPending}
+      leftIcon={!isPending ? <Search className="h-4 w-4" aria-hidden /> : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          try {
+            setPhase('scanning');
+            const scan = await postJson<ScanResponse>('/api/ingest/gmail');
+            if (!scan.ok) throw new Error(scan.error);
+            toast.show({
+              kind: 'success',
+              title: 'Gmail scan complete',
+              description: `Found ${scan.data.found} private URLs in ${scan.data.scanned} messages.`,
+            });
+            router.refresh();
 
-              if (scan.data.found > 0) {
-                setPhase('ingesting');
-                const drain = await drainUntilEmpty((progress) => {
-                  setSummary((s) => (s ? { ...s, ...progress } : s));
-                  router.refresh();
-                });
-                setSummary((s) => (s ? { ...s, ...drain } : s));
-                router.refresh();
-              }
-              setPhase('idle');
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Scan failed');
-              setPhase('idle');
+            if (scan.data.found > 0) {
+              setPhase('ingesting');
+              const drain = await drainUntilEmpty(() => router.refresh());
+              toast.show({
+                kind: 'success',
+                title: 'Ingest complete',
+                description: drain.remaining
+                  ? `Ingested ${drain.processed}. ${drain.remaining} still queued — click "Ingest all" to continue.`
+                  : `Ingested ${drain.processed} private URLs.`,
+              });
+              router.refresh();
             }
-          });
-        }}
-        className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-white font-medium hover:opacity-90 disabled:opacity-50"
-      >
-        {phase === 'scanning' ? 'Scanning Gmail…' : phase === 'ingesting' ? 'Ingesting URLs…' : 'Scan Gmail'}
-      </button>
-      {summary ? (
-        <span className="text-xs text-gray-600">
-          Found {summary.found} in {summary.scanned} messages
-          {summary.processed != null ? ` · Ingested ${summary.processed}` : ''}
-          {summary.remaining ? ` · ${summary.remaining} left` : ''}
-        </span>
-      ) : null}
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
-    </div>
+            setPhase('idle');
+          } catch (e) {
+            setPhase('idle');
+            toast.show({
+              kind: 'error',
+              title: 'Scan failed',
+              description: e instanceof Error ? e.message : 'Unknown error',
+            });
+          }
+        });
+      }}
+    >
+      {phase === 'scanning' ? 'Scanning Gmail…' : phase === 'ingesting' ? 'Ingesting URLs…' : 'Scan Gmail'}
+    </Button>
   );
 }
 
-export function IngestAllButton() {
+export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
   const router = useRouter();
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
-  const [summary, setSummary] = useState<{ processed: number; remaining: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ processed: number; remaining: number } | null>(null);
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          setSummary(null);
-          startTransition(async () => {
-            try {
-              const drain = await drainUntilEmpty((progress) => {
-                setSummary(progress);
-                router.refresh();
-              });
-              setSummary(drain);
+    <Button
+      type="button"
+      variant="secondary"
+      loading={isPending}
+      leftIcon={!isPending ? <Play className="h-4 w-4" aria-hidden /> : undefined}
+      onClick={() => {
+        setProgress(null);
+        startTransition(async () => {
+          try {
+            const drain = await drainUntilEmpty((p) => {
+              setProgress(p);
               router.refresh();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Ingest failed');
-            }
-          });
-        }}
-        className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-ink hover:bg-gray-50 disabled:opacity-50"
-      >
-        {isPending
-          ? summary
-            ? `Ingesting… (${summary.processed} done, ${summary.remaining} left)`
-            : 'Ingesting…'
+            });
+            toast.show({
+              kind: 'success',
+              title: 'Done',
+              description: drain.remaining
+                ? `Ingested ${drain.processed} · ${drain.remaining} queued for later.`
+                : `Ingested ${drain.processed} private URLs.`,
+            });
+            router.refresh();
+          } catch (e) {
+            toast.show({
+              kind: 'error',
+              title: 'Ingest failed',
+              description: e instanceof Error ? e.message : 'Unknown error',
+            });
+          }
+        });
+      }}
+    >
+      {isPending && progress
+        ? `Ingesting… ${progress.processed}/${progress.processed + progress.remaining}`
+        : pendingCount
+          ? `Ingest all (${pendingCount})`
           : 'Ingest all'}
-      </button>
-      {!isPending && summary ? (
-        <span className="text-xs text-gray-600">
-          Ingested {summary.processed}{summary.remaining ? ` · ${summary.remaining} left` : ''}
-        </span>
-      ) : null}
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
-    </div>
+    </Button>
   );
 }
 
 export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: boolean }) {
   const router = useRouter();
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
-  const label = alreadyDone ? 'Re-ingest' : 'Ingest now';
+  const label = alreadyDone ? 'Re-ingest' : 'Ingest';
+
   return (
-    <div className="flex flex-col">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          startTransition(async () => {
-            const result = await postJson('/api/ingest/url', { url, force: alreadyDone });
-            if (!result.ok) {
-              setError(result.error);
-              return;
-            }
-            router.refresh();
-          });
-        }}
-        className="text-xs text-accent hover:underline disabled:opacity-50"
-      >
-        {isPending ? 'Ingesting…' : label}
-      </button>
-      {error ? <span className="text-xs text-red-600 mt-1 max-w-xs truncate" title={error}>{error}</span> : null}
-    </div>
+    <Button
+      type="button"
+      variant="link"
+      size="sm"
+      loading={isPending}
+      leftIcon={!isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await postJson('/api/ingest/url', { url, force: alreadyDone });
+          if (!result.ok) {
+            toast.show({
+              kind: 'error',
+              title: `${label} failed`,
+              description: result.error,
+            });
+            return;
+          }
+          toast.show({ kind: 'success', title: `${label}ed`, description: new URL(url).host });
+          router.refresh();
+        });
+      }}
+    >
+      {label}
+    </Button>
   );
 }
