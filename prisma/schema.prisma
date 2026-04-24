@@ -4,8 +4,11 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  // Vercel Postgres / Neon auto-inject both. When bringing your own Postgres,
+  // set POSTGRES_PRISMA_URL (pooled; add `?pgbouncer=true&connection_limit=1`
+  // if using a pooler) and POSTGRES_URL_NON_POOLING (direct, for migrations).
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 // -------------------- NextAuth core --------------------

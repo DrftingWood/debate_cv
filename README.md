@@ -34,7 +34,7 @@ You sign in with Google. The app reads your Gmail (read-only), pulls Tabbycat pr
 ### 2. Vercel: import the repo and attach Postgres
 
 1. Log in to Vercel → **Add New → Project** → import `DrftingWood/debate_cv`.
-2. Before the first deploy, open **Storage** → **Create Database** → **Postgres** (or attach an existing Vercel Postgres / Neon). Vercel auto-injects `DATABASE_URL` and `DIRECT_URL`.
+2. Before the first deploy, open **Storage** → **Create Database** → **Postgres** (or attach an existing Vercel Postgres / Neon). Vercel auto-injects the full set of Postgres env vars including `POSTGRES_PRISMA_URL` (pooled, used at runtime) and `POSTGRES_URL_NON_POOLING` (direct, used by `prisma migrate deploy`) — no manual DB env vars to copy.
 3. Under **Settings → Environment Variables**, add:
    - `AUTH_GOOGLE_ID` – from GCP step 1.
    - `AUTH_GOOGLE_SECRET` – from GCP step 1.
@@ -63,8 +63,10 @@ pnpm install
 
 # 2. Environment
 cp .env.example .env
-# Fill in AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_SECRET, DATABASE_URL (+ DIRECT_URL), CRON_SECRET.
-# Any Postgres works — local Docker, Neon branch DB, Supabase project.
+# Fill in AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, AUTH_SECRET, POSTGRES_PRISMA_URL,
+# POSTGRES_URL_NON_POOLING, CRON_SECRET. Any Postgres works — local Docker,
+# Neon branch DB, Supabase project. For local dev you can set both URLs to the
+# same connection string.
 
 # 3. Migrate
 pnpm prisma migrate dev
