@@ -69,3 +69,22 @@ export async function fetchHtml(url: string): Promise<string> {
   const doc = await fetchHtmlWithProvenance(url);
   return doc.html;
 }
+
+/**
+ * For a given round results URL, prefer the "by-debate" variant when it
+ * exists. That view lays out each debate as one row with adjudicators
+ * cleanly scoped to their debate — which sidesteps the double-count
+ * ambiguity we otherwise see when the "by-team" pivot mixes team and
+ * adjudicator rows.
+ */
+export async function fetchRoundWithProvenance(
+  url: string,
+): Promise<FetchedDocument> {
+  const trimmed = url.replace(/\/+$/, '') + '/';
+  const byDebateUrl = `${trimmed}by-debate/`;
+  try {
+    return await fetchHtmlWithProvenance(byDebateUrl);
+  } catch {
+    return await fetchHtmlWithProvenance(trimmed);
+  }
+}

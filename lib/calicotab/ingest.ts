@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { fetchHtml, fetchHtmlWithProvenance } from './fetch';
+import { fetchHtml, fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
 import { parsePrivateUrlPage } from './parseNav';
 import {
   parseTeamTab,
@@ -15,6 +15,7 @@ import {
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
+import { aggregateJudgeStats } from './judgeStats';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -93,7 +94,10 @@ export async function ingestPrivateUrl(
     nav.speakerTab ? safeFetch(nav.speakerTab) : Promise.resolve(null),
     nav.participants ? safeFetch(nav.participants) : Promise.resolve(null),
   ]);
-  const roundHtmls = await Promise.all(nav.resultsRounds.map((u) => safeFetchPair(u)));
+  // Round results: prefer the by-debate view so each row is one debate and
+  // adjudicators are scoped to their own debate (sidesteps double-counting
+  // that the by-team pivot can introduce).
+  const roundHtmls = await Promise.all(nav.resultsRounds.map((u) => safeFetchRound(u)));
   const breakHtmls = await Promise.all(nav.breakTabs.map((u) => safeFetchPair(u)));
 
   const teamRows = teamHtml ? parseTeamTab(teamHtml) : [];
@@ -254,13 +258,21 @@ export async function ingestPrivateUrl(
       }
     }
 
-    // Adjudicators from participants list
+    // Adjudicators from the participants list.
+    // Write only the adjudicator-specific columns on update so we don't
+    // clobber speaker fields for swings (who show up in both lists).
     for (const p of participantRows) {
       if (p.role !== 'adjudicator') continue;
       const person = await upsertPerson(tx, p.name);
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId: person.id } },
-        update: { teamName: p.teamName, judgeTypeTag: p.judgeTag },
+        update: {
+          judgeTypeTag: p.judgeTag,
+          // Only overwrite teamName when the participants list actually tells
+          // us one — adjudicator rows typically have a null team and we don't
+          // want to erase a speaker's team affiliation.
+          ...(p.teamName ? { teamName: p.teamName } : {}),
+        },
         create: {
           tournamentId: t.id,
           personId: person.id,
@@ -280,59 +292,72 @@ export async function ingestPrivateUrl(
       });
     }
 
-    // Judge assignments from round result pages.
-    const judgeStats = new Map<
-      string,
-      { chairedPrelimRounds: number; lastOutroundChaired: string | null; lastOutroundPaneled: string | null }
-    >();
+    // Raw judge_assignments table: one row per (tournament, person, stage, role, round).
+    // First resolve names to personIds once so the pure aggregator can key by id.
+    const personIdByName = new Map<string, bigint>();
     for (const round of rounds) {
       for (const j of round.judgeAssignments) {
+        if (personIdByName.has(j.personName)) continue;
         const person = await upsertPerson(tx, j.personName);
-        await tx.judgeAssignment.upsert({
+        personIdByName.set(j.personName, person.id);
+      }
+    }
+    for (const round of rounds) {
+      for (const j of round.judgeAssignments) {
+        const personId = personIdByName.get(j.personName)!;
+        // The @@unique on JudgeAssignment covers three nullable columns
+        // (stage, panelRole, roundNumber), which Prisma's compound-unique
+        // filter type doesn't accept as null. Use findFirst + create for
+        // a nullable-safe idempotent insert.
+        const existing = await tx.judgeAssignment.findFirst({
           where: {
-            tournamentId_personId_stage_panelRole_roundNumber: {
-              tournamentId: t.id,
-              personId: person.id,
-              stage: round.roundLabel,
-              panelRole: j.panelRole,
-              roundNumber: round.roundNumber,
-            },
-          },
-          update: {},
-          create: {
             tournamentId: t.id,
-            personId: person.id,
+            personId,
             stage: round.roundLabel,
             panelRole: j.panelRole,
             roundNumber: round.roundNumber,
           },
+          select: { id: true },
         });
-        const key = person.id.toString();
-        const stat = judgeStats.get(key) ?? {
-          chairedPrelimRounds: 0,
-          lastOutroundChaired: null,
-          lastOutroundPaneled: null,
-        };
-        if (!round.isOutround && round.roundNumber != null && round.roundNumber <= 5 && j.panelRole === 'chair') {
-          stat.chairedPrelimRounds += 1;
+        if (!existing) {
+          await tx.judgeAssignment.create({
+            data: {
+              tournamentId: t.id,
+              personId,
+              stage: round.roundLabel,
+              panelRole: j.panelRole,
+              roundNumber: round.roundNumber,
+            },
+          });
         }
-        if (round.isOutround) {
-          if (j.panelRole === 'chair') stat.lastOutroundChaired = round.roundLabel ?? `Round ${round.roundNumber ?? '?'}`;
-          if (j.panelRole === 'panel') stat.lastOutroundPaneled = round.roundLabel ?? `Round ${round.roundNumber ?? '?'}`;
-        }
-        judgeStats.set(key, stat);
       }
     }
+
+    // Aggregate per-judge stats via the pure helper (unit-tested).
+    const aggregatorInput = rounds.map((round) => ({
+      roundNumber: round.roundNumber,
+      roundLabel: round.roundLabel,
+      isOutround: round.isOutround,
+      judgeAssignments: round.judgeAssignments.map((j) => ({
+        personKey: (personIdByName.get(j.personName) ?? 0n).toString(),
+        panelRole: j.panelRole,
+      })),
+    }));
+    const judgeStats = aggregateJudgeStats(aggregatorInput);
+
     for (const [personIdText, stat] of judgeStats.entries()) {
+      if (personIdText === '0') continue; // defensive: unknown name
       const personId = BigInt(personIdText);
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        update: {},
-        create: { tournamentId: t.id, personId },
-      });
-      await tx.tournamentParticipant.update({
-        where: { id: participant.id },
-        data: {
+        update: {
+          chairedPrelimRounds: stat.chairedPrelimRounds || null,
+          lastOutroundChaired: stat.lastOutroundChaired,
+          lastOutroundPaneled: stat.lastOutroundPaneled,
+        },
+        create: {
+          tournamentId: t.id,
+          personId,
           chairedPrelimRounds: stat.chairedPrelimRounds || null,
           lastOutroundChaired: stat.lastOutroundChaired,
           lastOutroundPaneled: stat.lastOutroundPaneled,
@@ -391,24 +416,54 @@ export async function ingestPrivateUrl(
   return { tournamentId, fingerprint, cached: false, claimedPersonId, parserVersion: PARSER_VERSION };
 }
 
+/**
+ * Guess the tournament format. Signals considered, in priority order:
+ *
+ *   1. Explicit format names in the tournament title
+ *      ("British Parliamentary", "BP", "AP", "WSDC", "Worlds Schools",
+ *      "Policy", "Lincoln-Douglas", "Public Forum").
+ *   2. Known BP-format event names ("WUDC", "EUDC", "AUDC", "NAUDC").
+ *   3. Team-size from the team tab — BP = 2 speakers per team,
+ *      AP / WSDC = 3+. The old fallback that guessed BP from a 2-round
+ *      speaker-score pattern was noise (BP tournaments have 6-9 rounds too)
+ *      and was producing false "Asian Parliamentary" tags on BP events.
+ */
 function inferTournamentFormat({
   tournamentName,
   teamRows,
-  speakerRows,
 }: {
   tournamentName: string;
   teamRows: { speakers: string[] }[];
   speakerRows: { roundScores: unknown[] }[];
 }): string | null {
   const name = tournamentName.toLowerCase();
-  if (/\bbp\b|british parliamentary/.test(name)) return 'British Parliamentary';
-  if (/\bap\b|asian parliamentary/.test(name)) return 'Asian Parliamentary';
-  const maxTeamSpeakers = teamRows.reduce((m, r) => Math.max(m, r.speakers.length), 0);
-  if (maxTeamSpeakers >= 3) return 'Asian Parliamentary';
-  if (maxTeamSpeakers === 2) return 'British Parliamentary';
-  const maxScoreCols = speakerRows.reduce((m, r) => Math.max(m, r.roundScores.length), 0);
-  if (maxScoreCols >= 4) return 'Asian Parliamentary';
-  if (maxScoreCols === 2) return 'British Parliamentary';
+
+  // Explicit format keywords first — user-authored tournament names rarely
+  // lie about the format.
+  if (/british parliamentary|\bbp\b/.test(name)) return 'British Parliamentary';
+  if (/asian parliamentary|\bap\b/.test(name)) return 'Asian Parliamentary';
+  if (/worlds schools|\bwsdc\b/.test(name)) return 'World Schools';
+  if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) return 'Policy';
+  if (/lincoln[-\s]?douglas|\bld\b/.test(name)) return 'Lincoln-Douglas';
+  if (/public forum|\bpf\b/.test(name)) return 'Public Forum';
+
+  // Well-known BP-format events.
+  if (/\bwudc\b|\beudc\b|\baudc\b|\bnaudc\b|\babp\b|\bbpp\b/.test(name)) {
+    return 'British Parliamentary';
+  }
+
+  // Structural signal — ignore teams with missing / wrong speaker counts and
+  // use the median-ish max, not the outlier max.
+  const speakerCounts = teamRows
+    .map((r) => r.speakers.length)
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  if (speakerCounts.length >= 3) {
+    const mid = speakerCounts[Math.floor(speakerCounts.length / 2)]!;
+    if (mid === 2) return 'British Parliamentary';
+    if (mid >= 3) return 'Asian Parliamentary';
+  }
+
   return null;
 }
 
@@ -439,6 +494,20 @@ async function safeFetchPair(url: string): Promise<{ url: string; html: string }
   try {
     const html = await fetchHtml(url);
     return { url, html };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Like safeFetchPair but prefers `<round>by-debate/` when it exists. The
+ * returned `url` reflects whichever variant we actually parsed, so the
+ * outround regex in parseRoundResults still sees the right path.
+ */
+async function safeFetchRound(url: string): Promise<{ url: string; html: string } | null> {
+  try {
+    const doc = await fetchRoundWithProvenance(url);
+    return { url: doc.url, html: doc.html };
   } catch {
     return null;
   }

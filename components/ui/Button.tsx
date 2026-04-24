@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link';
+type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'link';
 type Size = 'sm' | 'md' | 'lg';
 
 const base =
@@ -16,6 +16,8 @@ const variants: Record<Variant, string> = {
     'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:-translate-y-[1px] active:translate-y-0',
   secondary:
     'bg-card text-foreground border border-border shadow-xs hover:bg-muted hover:border-border',
+  outline:
+    'bg-transparent text-foreground border border-border hover:bg-muted',
   ghost: 'bg-transparent text-foreground hover:bg-muted',
   danger:
     'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',

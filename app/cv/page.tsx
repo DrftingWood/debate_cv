@@ -313,12 +313,15 @@ function TournamentCard({
                   <Users className="h-3.5 w-3.5" aria-hidden />
                   {allParticipants.length} participants
                 </span>
-                {tournament.format ? <span>{tournament.format}</span> : null}
+                {tournament.format ? (
+                  <>
+                    <span aria-hidden className="text-muted-foreground/50">·</span>
+                    <Badge variant="outline">{tournament.format}</Badge>
+                  </>
+                ) : null}
                 {tournament.sourceHost ? (
                   <>
-                    <span aria-hidden className="text-muted-foreground/50">
-                      ·
-                    </span>
+                    <span aria-hidden className="text-muted-foreground/50">·</span>
                     <span>{tournament.sourceHost}</span>
                   </>
                 ) : null}
