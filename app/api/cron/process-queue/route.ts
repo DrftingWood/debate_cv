@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server';
-import { claimPendingJobs, markJobDone, markJobFailed, rescheduleJob } from '@/lib/queue';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import {
+  claimOnePending,
+  markJobDone,
+  markJobFailed,
+  rescheduleJob,
+  resetStuckRunning,
+} from '@/lib/queue';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;
-const BATCH_SIZE = 5;
+const TIME_BUDGET_MS = 55_000;
 
 function isAuthorized(req: Request): boolean {
-  // Vercel signs cron requests with x-vercel-cron: 1 and the CRON_SECRET env.
+  // Vercel signs cron requests with x-vercel-cron: 1.
   if (req.headers.get('x-vercel-cron') === '1') return true;
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
@@ -34,23 +40,23 @@ export async function POST(req: Request) {
 }
 
 async function runOnce() {
-  const jobs = await claimPendingJobs(BATCH_SIZE);
+  const started = Date.now();
   const results: Array<{ id: string; status: 'done' | 'failed' | 'retry'; error?: string }> = [];
 
-  for (const job of jobs) {
+  // Recover stuck 'running' rows from any prior invocation.
+  await resetStuckRunning({});
+
+  while (Date.now() - started < TIME_BUDGET_MS) {
+    const job = await claimOnePending();
+    if (!job) break;
+
     try {
       await ingestPrivateUrl(job.url, job.userId);
       await markJobDone(job.id);
       results.push({ id: job.id, status: 'done' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // The job was claimed with attempts+1, so current value is the attempt count including this one.
-      // Re-read attempts to decide.
-      const latest = await (await import('@/lib/db')).prisma.ingestJob.findUnique({
-        where: { id: job.id },
-        select: { attempts: true },
-      });
-      if ((latest?.attempts ?? MAX_ATTEMPTS) >= MAX_ATTEMPTS) {
+      if (job.attempts >= MAX_ATTEMPTS) {
         await markJobFailed(job.id, msg);
         results.push({ id: job.id, status: 'failed', error: msg });
       } else {
@@ -60,5 +66,5 @@ async function runOnce() {
     }
   }
 
-  return NextResponse.json({ processed: jobs.length, results });
+  return NextResponse.json({ processed: results.length, results });
 }
