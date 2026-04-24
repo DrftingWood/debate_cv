@@ -8,6 +8,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
+import { ReingestButton } from '@/components/ReingestButton';
 
 export const metadata: Metadata = {
   title: 'Extracted Data Verification',
@@ -124,14 +125,17 @@ export default async function CvVerifyPage({
                         <Badge variant="outline">Teams: {t.totalTeams ?? '—'}</Badge>
                       </div>
                     </div>
-                    <a
-                      href={t.sourceUrlRaw}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-caption text-muted-foreground hover:text-primary"
-                    >
-                      Source <ExternalLink className="h-3 w-3" aria-hidden />
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={t.sourceUrlRaw}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-caption text-muted-foreground hover:text-primary"
+                      >
+                        Source <ExternalLink className="h-3 w-3" aria-hidden />
+                      </a>
+                      <ReingestButton url={t.sourceUrlRaw} />
+                    </div>
                   </div>
 
                   {/* Participants */}

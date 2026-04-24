@@ -13,7 +13,9 @@ const COMPLETE_HTML = `
     <p>Institution: <strong>Foo U</strong></p>
     <a href="/eo2026/tab/team/">Team Tab</a>
     <a href="/eo2026/tab/speaker/">Speaker Tab</a>
+    <a href="/eo2026/participants/list/">Participants</a>
     <a href="/eo2026/results/round/1/">Round 1</a>
+    <a href="/eo2026/break/teams/open/">Open break</a>
   </body>
 </html>
 `;
@@ -32,9 +34,15 @@ describe('collectRegistrationWarnings', () => {
     const warnings = collectRegistrationWarnings(snapshot);
     expect(warnings).toContain('missing: tournamentName');
     expect(warnings).toContain('missing: registration.personName');
-    expect(warnings).toContain('missing: navigation.teamTab');
-    expect(warnings).toContain('missing: navigation.speakerTab');
-    expect(warnings).toContain('missing: navigation.resultsRounds');
+    // The new nav matcher constructs canonical paths for the core tabs when
+    // the page doesn't link to them. Those three fire the "constructed as
+    // fallback" warning. Round and break pages cannot be constructed blindly
+    // (we don't know how many rounds there are), so they stay "not found".
+    expect(warnings).toContain('nav: teamTab constructed as fallback');
+    expect(warnings).toContain('nav: speakerTab constructed as fallback');
+    expect(warnings).toContain('nav: participants constructed as fallback');
+    expect(warnings).toContain('nav: resultsRounds not found');
+    expect(warnings).toContain('nav: breakTabs not found');
   });
 });
 
