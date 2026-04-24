@@ -1,23 +1,45 @@
 {
   "name": "debate-cv",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Gmail-OAuth extractor for Tabbycat private URLs (calicotab.com / herokuapp.com).",
-  "type": "module",
-  "main": "src/server.js",
+  "description": "Debate CV: Gmail -> Calicotab scrape -> Postgres -> personal tournament history.",
   "scripts": {
-    "start": "node src/server.js",
-    "extract": "node scripts/extract-local.js",
-    "test:filter": "node scripts/test-filter.js"
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-session": "^1.18.0",
+    "@auth/prisma-adapter": "^2.7.4",
+    "@prisma/client": "^6.1.0",
+    "cheerio": "^1.0.0",
     "googleapis": "^144.0.0",
-    "open": "^10.1.0"
+    "next": "^15.1.0",
+    "next-auth": "5.0.0-beta.25",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "postcss": "^8.5.0",
+    "prisma": "^6.1.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
