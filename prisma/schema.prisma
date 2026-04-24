@@ -83,21 +83,23 @@ model GmailToken {
 // -------------------- Discovered URLs + ingest queue --------------------
 
 model DiscoveredUrl {
-  id             String    @id @default(cuid())
-  userId         String
-  url            String
-  host           String
-  tournamentSlug String?
-  token          String?
-  subject        String?
-  messageId      String?
-  messageDate    DateTime?
-  tournamentId   BigInt?
-  ingestedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  id                     String    @id @default(cuid())
+  userId                 String
+  url                    String
+  host                   String
+  tournamentSlug         String?
+  token                  String?
+  subject                String?
+  messageId              String?
+  messageDate            DateTime?
+  tournamentId           BigInt?
+  registrationPersonId   BigInt?
+  ingestedAt             DateTime?
+  createdAt              DateTime  @default(now())
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament           Tournament? @relation(fields: [tournamentId], references: [id])
+  registrationPerson   Person?     @relation("DiscoveredUrlPerson", fields: [registrationPersonId], references: [id], onDelete: SetNull)
 
   @@unique([userId, url])
   @@index([userId])
@@ -161,6 +163,7 @@ model Person {
   claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
   participations    TournamentParticipant[]
   judgeAssignments  JudgeAssignment[]
+  discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
 
   @@index([claimedByUserId])
 }
