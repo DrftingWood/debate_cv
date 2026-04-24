@@ -304,9 +304,10 @@ async function upsertPerson(
 }
 
 /**
- * Upsert the Person mentioned on the private-URL landing page, link the
- * DiscoveredUrl to it, and (if no other user has claimed this Person yet)
- * mark them as claimed by the current user.
+ * Upsert the Person mentioned on the private-URL landing page, ensure a
+ * TournamentParticipant row exists for the join, and record the link on
+ * the DiscoveredUrl. We deliberately do NOT auto-claim the Person — the
+ * dashboard's identity-review panel asks the user to confirm.
  */
 async function linkRegistrationPerson(
   tournamentId: bigint,
@@ -324,22 +325,12 @@ async function linkRegistrationPerson(
     create: { displayName: personName, normalizedName },
   });
 
-  if (!person.claimedByUserId) {
-    await prisma.person.update({
-      where: { id: person.id },
-      data: { claimedByUserId: userId },
-    });
-  }
-
-  // Ensure there's a TournamentParticipant row so the CV query can join.
   await prisma.tournamentParticipant.upsert({
     where: { tournamentId_personId: { tournamentId, personId: person.id } },
     update: {},
     create: { tournamentId, personId: person.id },
   });
 
-  // Record the link on the DiscoveredUrl so the dashboard / CV can show
-  // "this URL was registered as <name>" + a "Claim as me" affordance.
   await prisma.discoveredUrl.updateMany({
     where: { userId, url },
     data: { registrationPersonId: person.id },

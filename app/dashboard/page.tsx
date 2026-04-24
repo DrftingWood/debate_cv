@@ -3,26 +3,53 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge, SignOutButton } from '@/components/SignInOut';
 import { ScanButton, IngestAllButton, IngestButton } from '@/components/DashboardActions';
+import { IdentityReview, type ReviewItem } from '@/components/IdentityReview';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
+  const userId = session.user.id;
 
-  const [urls, jobs] = await Promise.all([
+  const [urls, jobs, reviewPersons, claimsCount] = await Promise.all([
     prisma.discoveredUrl.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { messageDate: 'desc' },
       take: 100,
       include: { tournament: true },
     }),
     prisma.ingestJob.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { scheduledAt: 'desc' },
       take: 100,
     }),
+    prisma.person.findMany({
+      where: {
+        claimedByUserId: null,
+        rejections: { none: { userId } },
+        discoveredOnUrls: { some: { userId } },
+      },
+      include: {
+        discoveredOnUrls: {
+          where: { userId },
+          include: { tournament: true },
+        },
+      },
+      orderBy: { displayName: 'asc' },
+      take: 50,
+    }),
+    prisma.person.count({ where: { claimedByUserId: userId } }),
   ]);
+
+  const reviewItems: ReviewItem[] = reviewPersons.map((p) => ({
+    personId: p.id.toString(),
+    displayName: p.displayName,
+    tournaments: p.discoveredOnUrls
+      .map((u) => u.tournament)
+      .filter((t): t is NonNullable<typeof t> => !!t)
+      .map((t) => ({ id: t.id.toString(), name: t.name, year: t.year, host: t.sourceHost })),
+  }));
 
   const jobByUrl = new Map(jobs.map((j) => [j.url, j] as const));
   const pending = jobs.filter((j) => j.status === 'pending').length;
@@ -43,6 +70,8 @@ export default async function Dashboard() {
           <SignOutButton />
         </div>
       </header>
+
+      <IdentityReview items={reviewItems} hasExistingClaims={claimsCount > 0} />
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Private URLs" value={urls.length} />
