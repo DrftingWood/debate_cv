@@ -69,14 +69,16 @@ model VerificationToken {
 // -------------------- Gmail integration --------------------
 
 model GmailToken {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  accessToken  String    @db.Text
-  refreshToken String?   @db.Text
-  expiresAt    DateTime?
-  scope        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  accessToken       String    @db.Text
+  refreshToken      String?   @db.Text
+  expiresAt         DateTime?
+  scope             String?
+  /// null for legacy rows stored as plaintext; 'v1' for AES-256-GCM.
+  encryptionVersion String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -267,4 +269,42 @@ model JudgeAssignment {
   person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, personId, stage, panelRole, roundNumber])
+}
+
+// -------------------- Provenance + parser versioning --------------------
+
+/// One row per (url, contentHash) fetched from a Tabbycat page. Dedup'd on
+/// content hash so re-fetching an unchanged page is free after the first time.
+model SourceDocument {
+  id            String      @id @default(cuid())
+  url           String
+  status        Int
+  contentHash   String
+  contentLength Int
+  fetchedAt     DateTime    @default(now())
+
+  parserRuns    ParserRun[]
+
+  @@unique([url, contentHash])
+  @@index([url])
+  @@index([fetchedAt])
+}
+
+/// Records each parser invocation for a SourceDocument. Lets us re-parse
+/// old snapshots when PARSER_VERSION bumps and track selector-miss warnings
+/// as a production signal.
+model ParserRun {
+  id               String         @id @default(cuid())
+  sourceDocumentId String
+  parserName       String
+  parserVersion    String
+  success          Boolean
+  warnings         String[]       @default([])
+  durationMs       Int?
+  createdAt        DateTime       @default(now())
+
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([sourceDocumentId])
+  @@index([parserVersion, parserName])
 }

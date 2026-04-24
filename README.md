@@ -6,6 +6,49 @@ You sign in with Google. The app reads your Gmail (read-only), pulls Tabbycat pr
 (`*.calicotab.com` / `*.herokuapp.com`), scrapes each tournament's public tabs
 (team / speaker / round results / break / participants), and compiles a debate CV you can view at `/cv`.
 
+## Architecture at a glance
+
+```
+app/                               Next.js App Router — routes + API handlers
+  page.tsx                         Landing (unauth) / redirect to /dashboard (auth)
+  dashboard/                       Scan Gmail, ingest status, identity review
+  cv/                              Personal CV with roster picker fallback
+  settings/                        Disconnect, delete, export JSON
+  privacy/, terms/                 Consent-screen-required legal pages
+  api/
+    auth/[...nextauth]/            NextAuth v5 handler
+    ingest/gmail                   POST — discover URLs from Gmail, enqueue jobs
+    ingest/url                     POST — ingest a single URL synchronously
+    ingest/drain                   POST — user-scoped queue drainer (~50 s budget)
+    cron/process-queue             GET/POST — daily cron safety net
+    persons/[id]/claim | reject    POST/DELETE — identity review actions
+    account/disconnect | delete | export  Privacy controls
+lib/
+  auth.ts                          NextAuth config (Google, Prisma adapter)
+  db.ts                            Prisma client singleton
+  crypto.ts                        AES-256-GCM for token encryption
+  queue.ts                         FOR UPDATE SKIP LOCKED job helpers
+  gmail/
+    client.ts                      OAuth client factory + token encrypt/decrypt
+    extract.ts                     PRIVATE_URL_RE regex, MIME walker, dedupe
+    run.ts                         Bounded-concurrency Gmail list+get
+  calicotab/
+    fetch.ts                       Rate-limited fetch + SourceDocument provenance
+    parseNav.ts                    Private-URL landing (nav + registration)
+    parseTabs.ts                   team/speaker/round/break/participants
+    fingerprint.ts                 Tournament fingerprint + name normalization
+    provenance.ts                  ParserRun records + warnings
+    version.ts                     PARSER_VERSION (bump to invalidate cache)
+    ingest.ts                      Orchestrator: URL → full upsert in one tx
+components/
+  ui/*                             Button / Card / Badge / Toast / Skeleton / ...
+  features                         DashboardActions, IdentityReview, ClaimPersonButton
+prisma/
+  schema.prisma                    Auth + queue + calicotab + provenance
+  migrations/                      Four migrations tracked in git
+vercel.json                        Daily cron
+```
+
 ## Stack
 
 - **Next.js 15** (App Router, TypeScript) + **Tailwind**
@@ -78,10 +121,30 @@ pnpm dev   # http://localhost:3000
 ### Tests
 
 ```sh
-pnpm test        # vitest (parser + fingerprint + Gmail extract tests)
+pnpm test        # vitest (parser + fingerprint + Gmail extract + crypto + contracts)
 pnpm typecheck   # tsc --noEmit
+pnpm lint        # eslint .
 pnpm build       # next build
 ```
+
+### Token encryption at rest
+
+Set `TOKEN_ENCRYPTION_KEY` in your Vercel env (`openssl rand -base64 32`). Access +
+refresh tokens in the `GmailToken` table are stored as
+`v1:<iv>:<tag>:<ciphertext>` under AES-256-GCM. Rows written before the key was
+configured stay readable as plaintext and are marked `encryptionVersion = null`.
+
+To rotate: generate a new key, set it alongside the old one, add a new `v2`
+branch to `lib/crypto.ts`, and run a one-time re-encrypt script over the table.
+
+### Reparse when parsers change
+
+Every landing-page fetch records a `SourceDocument` row (url + content hash +
+status) and a `ParserRun` row stamped with `PARSER_VERSION`
+(`lib/calicotab/version.ts`). When you change parsers, bump `PARSER_VERSION`.
+The ingest orchestrator checks the latest `ParserRun` against the current
+version; if it's older, the 30-day freshness cache is bypassed for that URL and
+a fresh parse is performed on the next scan.
 
 ## Where things live
 

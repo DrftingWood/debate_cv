@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { fetchHtml } from './fetch';
+import { fetchHtml, fetchHtmlWithProvenance } from './fetch';
 import { parsePrivateUrlPage } from './parseNav';
 import {
   parseTeamTab,
@@ -13,6 +13,8 @@ import {
   extractYearFromName,
   normalizePersonName,
 } from './fingerprint';
+import { PARSER_VERSION } from './version';
+import { collectRegistrationWarnings, recordParserRun } from './provenance';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -21,6 +23,7 @@ type IngestResult = {
   fingerprint: string;
   cached: boolean;
   claimedPersonId: bigint | null;
+  parserVersion: string;
 };
 
 export async function ingestPrivateUrl(
@@ -32,8 +35,21 @@ export async function ingestPrivateUrl(
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
 
-  const landingHtml = await fetchHtml(normalized);
+  // Landing page fetch — with provenance so every parse has a stable source.
+  const landingDoc = await fetchHtmlWithProvenance(normalized);
+  const landingHtml = landingDoc.html;
+
+  const parseStart = Date.now();
   const snapshot = parsePrivateUrlPage(landingHtml, normalized);
+  const landingWarnings = collectRegistrationWarnings(snapshot);
+  await recordParserRun({
+    sourceDocumentId: landingDoc.sourceDocumentId,
+    parserName: 'parseNav',
+    success: !!snapshot.tournamentName || snapshot.navigation.resultsRounds.length > 0,
+    warnings: landingWarnings,
+    durationMs: Date.now() - parseStart,
+  });
+
   const year = extractYearFromName(snapshot.tournamentName);
   const fingerprint = computeFingerprint({
     host: parsedUrl.host,
@@ -45,7 +61,11 @@ export async function ingestPrivateUrl(
   const existing = await prisma.tournament.findUnique({ where: { fingerprint } });
   if (existing && !options.force) {
     const ageMs = Date.now() - existing.scrapedAt.getTime();
-    if (ageMs < FRESH_WINDOW_MS) {
+    const fresh = ageMs < FRESH_WINDOW_MS;
+    // Reparse invalidation: if PARSER_VERSION bumped since the last successful
+    // parser run for this tournament's landing page, skip the cache and re-ingest.
+    const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
+    if (fresh && parserUpToDate) {
       const claimedPersonId = await linkRegistrationPerson(
         existing.id,
         snapshot.registration.personName,
@@ -61,6 +81,7 @@ export async function ingestPrivateUrl(
         fingerprint,
         cached: true,
         claimedPersonId,
+        parserVersion: PARSER_VERSION,
       };
     }
   }
@@ -271,7 +292,22 @@ export async function ingestPrivateUrl(
     data: { tournamentId, ingestedAt: new Date() },
   });
 
-  return { tournamentId, fingerprint, cached: false, claimedPersonId };
+  return { tournamentId, fingerprint, cached: false, claimedPersonId, parserVersion: PARSER_VERSION };
+}
+
+/**
+ * Returns true when the latest ParserRun for this SourceDocument is on the
+ * current PARSER_VERSION. If the parser has been upgraded since the last
+ * successful run, we want the ingest orchestrator to skip the freshness
+ * cache and re-parse.
+ */
+async function isLatestParserRun(sourceDocumentId: string): Promise<boolean> {
+  const latest = await prisma.parserRun.findFirst({
+    where: { sourceDocumentId, success: true },
+    orderBy: { createdAt: 'desc' },
+    select: { parserVersion: true },
+  });
+  return latest?.parserVersion === PARSER_VERSION;
 }
 
 async function safeFetch(url: string): Promise<string | null> {
