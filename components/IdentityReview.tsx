@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { postJson } from '@/lib/utils/api';
 
 export type ReviewItem = {
   personId: string;
@@ -79,13 +80,12 @@ function ReviewCard({
             onClick={() => {
               setError(null);
               startTransition(async () => {
-                try {
-                  const res = await fetch(`/api/persons/${item.personId}/claim`, { method: 'POST' });
-                  if (!res.ok) throw new Error((await res.json()).error ?? `status ${res.status}`);
-                  router.refresh();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Claim failed');
+                const result = await postJson(`/api/persons/${item.personId}/claim`);
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
                 }
+                router.refresh();
               });
             }}
             className="rounded-md bg-accent px-3 py-1 text-xs text-white font-medium hover:opacity-90 disabled:opacity-50"
@@ -98,13 +98,12 @@ function ReviewCard({
             onClick={() => {
               setError(null);
               startTransition(async () => {
-                try {
-                  const res = await fetch(`/api/persons/${item.personId}/reject`, { method: 'POST' });
-                  if (!res.ok) throw new Error((await res.json()).error ?? `status ${res.status}`);
-                  router.refresh();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Reject failed');
+                const result = await postJson(`/api/persons/${item.personId}/reject`);
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
                 }
+                router.refresh();
               });
             }}
             className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"

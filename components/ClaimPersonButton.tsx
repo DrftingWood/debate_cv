@@ -2,8 +2,15 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { postJson } from '@/lib/utils/api';
 
-export function ClaimPersonButton({ personId }: { personId: string }) {
+export function ClaimPersonButton({
+  personId,
+  label = 'This is me',
+}: {
+  personId: string;
+  label?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -16,18 +23,17 @@ export function ClaimPersonButton({ personId }: { personId: string }) {
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            try {
-              const res = await fetch(`/api/persons/${personId}/claim`, { method: 'POST' });
-              if (!res.ok) throw new Error((await res.json()).error ?? `status ${res.status}`);
-              router.refresh();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Claim failed');
+            const result = await postJson(`/api/persons/${personId}/claim`);
+            if (!result.ok) {
+              setError(result.error);
+              return;
             }
+            router.refresh();
           });
         }}
         className="rounded-md bg-accent px-3 py-1 text-xs text-white font-medium hover:opacity-90 disabled:opacity-50"
       >
-        {isPending ? 'Claiming…' : 'This is me'}
+        {isPending ? 'Claiming…' : label}
       </button>
       {error ? <span className="text-xs text-red-600">{error}</span> : null}
     </div>
