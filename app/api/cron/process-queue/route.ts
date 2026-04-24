@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import {
   claimOnePending,
@@ -15,14 +16,20 @@ export const maxDuration = 60;
 const MAX_ATTEMPTS = 3;
 const TIME_BUDGET_MS = 55_000;
 
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 function isAuthorized(req: Request): boolean {
   // Vercel signs cron requests with x-vercel-cron: 1.
   if (req.headers.get('x-vercel-cron') === '1') return true;
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  const header = req.headers.get('authorization') || req.headers.get('x-cron-secret');
-  if (header === `Bearer ${secret}` || header === secret) return true;
-  return false;
+  const header = req.headers.get('authorization') || req.headers.get('x-cron-secret') || '';
+  return safeEqual(header, `Bearer ${secret}`) || safeEqual(header, secret);
 }
 
 export async function GET(req: Request) {
