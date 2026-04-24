@@ -104,19 +104,33 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
   const idx = (...needles: string[]) =>
     lowered.findIndex((h) => needles.some((n) => h.includes(n)));
 
-  const rankCol = idx('rank', '#');
-  const rankEslCol = idx('esl');
-  const rankEflCol = idx('efl');
+  // ESL/EFL rank columns first so the "open rank" resolver can exclude them.
+  // If we picked `idx('rank', '#')` directly, "ESL rank" (which contains "rank")
+  // would win and pollute speakerRankOpen.
+  const rankEslCol = lowered.findIndex((h) => /\besl\b/.test(h));
+  const rankEflCol = lowered.findIndex((h) => /\befl\b/.test(h));
+  const rankCol = lowered.findIndex((h, i) => {
+    if (i === rankEslCol || i === rankEflCol) return false;
+    if (/\b(esl|efl|break)\b/.test(h)) return false;
+    return /\brank\b/.test(h) || h === '#';
+  });
   const nameCol = idx('name', 'speaker');
   const teamCol = idx('team');
   const instCol = idx('institution');
   const totalCol = idx('total', 'score');
 
-  // remaining header cells are per-round. Keep their labels.
+  // Remaining header cells are per-round score columns. Exclude every known
+  // non-round column (including ESL/EFL rank) so we don't accidentally
+  // index a rank or a team label as a round score.
+  const nonRoundCols = new Set(
+    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol].filter(
+      (i) => i >= 0,
+    ),
+  );
   const roundIdxs: number[] = [];
   headerCells.forEach((h, i) => {
-    if ([rankCol, nameCol, teamCol, instCol, totalCol].includes(i)) return;
-    if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo)\b/i.test(h)) roundIdxs.push(i);
+    if (nonRoundCols.has(i)) return;
+    if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo|grand)\b/i.test(h)) roundIdxs.push(i);
   });
 
   table.find('tbody tr').each((_i, tr) => {
@@ -151,13 +165,23 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabel = cleanText($('h1, h2, h3, title').first().text()) || null;
+  // Classify as an outround only when the URL path or label says so. The
+  // previous `roundNumber > 5` heuristic misclassified BP tournaments with
+  // 6-9 prelim rounds.
   const isOutround =
-    /final|semi|quarter|octo|elim|break/i.test(sourceUrl) ||
-    /final|semi|quarter|octo|elim|break/i.test(roundLabel ?? '') ||
-    (roundNumber != null && roundNumber > 5);
+    /\/break\//i.test(sourceUrl) ||
+    /\/elim/i.test(sourceUrl) ||
+    /final|semi|quarter|octo|grand/i.test(roundLabel ?? '');
+
   const teamResults: RoundDebate['teamResults'] = [];
+  // Key judges by "name|role" inside the parser so two table passes over the
+  // same data don't emit duplicate entries. The by-debate view rarely needs
+  // two passes, but we stay defensive.
+  const judgeSeen = new Set<string>();
   const judgeAssignments: RoundDebate['judgeAssignments'] = [];
 
+  // Single pass over tables: per-table, figure out which columns exist and
+  // pull team rows AND adjudicator rows from the same scan.
   $('table').each((_i, table) => {
     const headers = $(table)
       .find('thead tr').first()
@@ -165,43 +189,16 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
       .map((_j, th) => cleanText($(th).text()).toLowerCase())
       .get();
     if (!headers.length) return;
+
     const teamCol = headers.findIndex((h) => h.includes('team'));
     const pointsCol = headers.findIndex((h) => h.includes('points') || h.includes('score'));
     const posCol = headers.findIndex((h) => h.includes('position') || h.includes('side'));
     const winCol = headers.findIndex((h) => h === 'win' || h.includes('result'));
-
-    if (teamCol < 0) return;
-
-    $(table)
-      .find('tbody tr')
-      .each((_j, tr) => {
-        const cells = $(tr)
-          .find('td')
-          .map((_k, td) => cleanText($(td).text()))
-          .get();
-        const teamName = cells[teamCol];
-        if (!teamName) return;
-        const winText = winCol >= 0 ? (cells[winCol] || '').toLowerCase() : '';
-        const won = winCol >= 0 ? /won|win|✓|\b1\b/.test(winText) : null;
-        teamResults.push({
-          teamName,
-          position: posCol >= 0 ? cells[posCol] || null : null,
-          points: pointsCol >= 0 ? parseNumber(cells[pointsCol]) : null,
-          won,
-        });
-      });
-  });
-
-  $('table').each((_i, table) => {
-    const headers = $(table)
-      .find('thead tr').first()
-      .find('th')
-      .map((_j, th) => cleanText($(th).text()).toLowerCase())
-      .get();
-    if (!headers.length) return;
     const adjCol = headers.findIndex((h) => h.includes('adjud') || h.includes('judge'));
-    const roleCol = headers.findIndex((h) => h.includes('chair') || h.includes('panel') || h.includes('role'));
-    if (adjCol < 0) return;
+    const roleCol = headers.findIndex(
+      (h) => h.includes('chair') || h.includes('panel') || h.includes('role'),
+    );
+
     $(table)
       .find('tbody tr')
       .each((_j, tr) => {
@@ -209,22 +206,48 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
           .find('td')
           .map((_k, td) => cleanText($(td).text()))
           .get();
-        const raw = cells[adjCol];
-        if (!raw) return;
-        const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
-        raw
-          .split(/[,;/]|\s{2,}|\n/)
-          .map((x) => cleanText(x))
-          .filter(Boolean)
-          .forEach((token) => {
-            const isChair = /\bc\b|chair|chief/.test(token.toLowerCase()) || /chair|chief/.test(roleText);
-            const cleanedName = cleanText(token.replace(/\(\s*c\s*\)$/i, '').replace(/\bc\b$/i, ''));
-            if (!cleanedName || cleanedName.length < 2) return;
-            judgeAssignments.push({
-              personName: cleanedName,
-              panelRole: isChair ? 'chair' : roleText ? 'panel' : null,
-            });
+
+        if (teamCol >= 0 && cells[teamCol]) {
+          const winText = winCol >= 0 ? (cells[winCol] || '').toLowerCase() : '';
+          const won = winCol >= 0 ? /won|win|✓|\b1\b/.test(winText) : null;
+          teamResults.push({
+            teamName: cells[teamCol]!,
+            position: posCol >= 0 ? cells[posCol] || null : null,
+            points: pointsCol >= 0 ? parseNumber(cells[pointsCol]) : null,
+            won,
           });
+        }
+
+        if (adjCol >= 0 && cells[adjCol]) {
+          const raw = cells[adjCol]!;
+          const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
+          // Names separate on "," ";" "\n" and " / " — never on arbitrary
+          // double-space, which was corrupting multi-word names.
+          const tokens = raw
+            .split(/[,;\n]|\s+\/\s+/)
+            .map((x) => cleanText(x))
+            .filter(Boolean);
+          for (const token of tokens) {
+            const lower = token.toLowerCase();
+            const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
+            const cleanedName = cleanText(
+              token
+                .replace(/\(\s*c\s*\)$/i, '')
+                .replace(/\s+\(chair\)$/i, '')
+                .replace(/\s+\(chief\)$/i, ''),
+            );
+            if (!cleanedName || cleanedName.length < 2) continue;
+            const role: 'chair' | 'panel' | null = isChair
+              ? 'chair'
+              : roleText
+                ? 'panel'
+                : null;
+            const key = `${cleanedName}|${role ?? ''}`;
+            if (judgeSeen.has(key)) continue;
+            judgeSeen.add(key);
+            judgeAssignments.push({ personName: cleanedName, panelRole: role });
+          }
+        }
       });
   });
 
@@ -306,16 +329,20 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
         const name = cells[nameCol];
         if (!name) return;
         const roleText = roleCol >= 0 ? cells[roleCol].toLowerCase() : '';
-        const judgeTag: ParticipantsRow['judgeTag'] = /subsid/i.test(roleText)
-          ? 'subsidized'
-          : /invited/i.test(roleText)
-            ? 'invited'
-            : /adjud|judge/.test(roleText)
-              ? 'normal'
-              : null;
-        const role: ParticipantsRow['role'] = /adjud|judge/.test(roleText)
+        // Judge subtype tags. Covers British ("subsidised"), American ("subsidized"),
+        // "invited" / "independent" variants, and falls back to "normal" for any
+        // other adjudicator label.
+        const judgeTag: ParticipantsRow['judgeTag'] =
+          /subsid/i.test(roleText)
+            ? 'subsidized'
+            : /invited|independent/i.test(roleText)
+              ? 'invited'
+              : /adjud|judge/i.test(roleText)
+                ? 'normal'
+                : null;
+        const role: ParticipantsRow['role'] = /adjud|judge/i.test(roleText)
           ? 'adjudicator'
-          : /speak|debat/.test(roleText)
+          : /speak|debat/i.test(roleText)
             ? 'speaker'
             : 'other';
         rows.push({
