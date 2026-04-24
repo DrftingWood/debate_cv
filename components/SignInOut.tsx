@@ -1,4 +1,6 @@
+import { LogIn, LogOut } from 'lucide-react';
 import { auth, signIn, signOut } from '@/lib/auth';
+import { Button } from '@/components/ui/Button';
 
 export async function SignInButton() {
   return (
@@ -8,12 +10,9 @@ export async function SignInButton() {
         await signIn('google', { redirectTo: '/dashboard' });
       }}
     >
-      <button
-        type="submit"
-        className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-white font-medium hover:opacity-90"
-      >
+      <Button type="submit" variant="primary" leftIcon={<LogIn className="h-4 w-4" aria-hidden />}>
         Sign in with Google
-      </button>
+      </Button>
     </form>
   );
 }
@@ -26,12 +25,14 @@ export async function SignOutButton() {
         await signOut({ redirectTo: '/' });
       }}
     >
-      <button
+      <Button
         type="submit"
-        className="text-sm text-gray-600 underline hover:text-ink"
+        variant="ghost"
+        size="sm"
+        leftIcon={<LogOut className="h-3.5 w-3.5" aria-hidden />}
       >
         Sign out
-      </button>
+      </Button>
     </form>
   );
 }
@@ -40,8 +41,8 @@ export async function SessionBadge() {
   const session = await auth();
   if (!session?.user) return null;
   return (
-    <span className="text-sm text-gray-600">
-      Signed in as {session.user.email ?? session.user.name}
+    <span className="text-sm text-ink-3">
+      Signed in as <span className="font-medium text-ink-2">{session.user.email ?? session.user.name}</span>
     </span>
   );
 }
