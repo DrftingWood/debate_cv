@@ -2,11 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
+@layer base {
+  :root {
+    color-scheme: light;
+    --radius: 6px;
+  }
 
-body {
-  background: #fafafa;
-  color: #111827;
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: theme('colors.bg.subtle');
+    color: theme('colors.ink.1');
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  /* Consistent selection color */
+  ::selection {
+    background: theme('colors.primary.100');
+    color: theme('colors.primary.900');
+  }
+
+  /* Visible focus on keyboard only */
+  :focus-visible {
+    outline: 2px solid theme('colors.primary.500');
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Skip link shown only when focused */
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    padding: 0.5rem 1rem;
+    background: theme('colors.ink.1');
+    color: white;
+    z-index: 50;
+  }
+  .skip-link:focus {
+    top: 0;
+  }
 }
