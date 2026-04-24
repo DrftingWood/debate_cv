@@ -47,31 +47,36 @@ export async function POST(req: Request) {
 }
 
 async function runOnce() {
-  const started = Date.now();
-  const results: Array<{ id: string; status: 'done' | 'failed' | 'retry'; error?: string }> = [];
+  try {
+    const started = Date.now();
+    const results: Array<{ id: string; status: 'done' | 'failed' | 'retry'; error?: string }> = [];
 
-  // Recover stuck 'running' rows from any prior invocation.
-  await resetStuckRunning({});
+    await resetStuckRunning({});
 
-  while (Date.now() - started < TIME_BUDGET_MS) {
-    const job = await claimOnePending();
-    if (!job) break;
+    while (Date.now() - started < TIME_BUDGET_MS) {
+      const job = await claimOnePending();
+      if (!job) break;
 
-    try {
-      await ingestPrivateUrl(job.url, job.userId);
-      await markJobDone(job.id);
-      results.push({ id: job.id, status: 'done' });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (job.attempts >= MAX_ATTEMPTS) {
-        await markJobFailed(job.id, msg);
-        results.push({ id: job.id, status: 'failed', error: msg });
-      } else {
-        await rescheduleJob(job.id, msg);
-        results.push({ id: job.id, status: 'retry', error: msg });
+      try {
+        await ingestPrivateUrl(job.url, job.userId);
+        await markJobDone(job.id);
+        results.push({ id: job.id, status: 'done' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (job.attempts >= MAX_ATTEMPTS) {
+          await markJobFailed(job.id, msg);
+          results.push({ id: job.id, status: 'failed', error: msg });
+        } else {
+          await rescheduleJob(job.id, msg);
+          results.push({ id: job.id, status: 'retry', error: msg });
+        }
       }
     }
-  }
 
-  return NextResponse.json({ processed: results.length, results });
+    return NextResponse.json({ processed: results.length, results });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[api/cron/process-queue]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

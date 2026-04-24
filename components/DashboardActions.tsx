@@ -2,21 +2,23 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { postJson } from '@/lib/utils/api';
+
+type DrainResponse = { processed: number; remaining: number };
+type ScanResponse = { scanned: number; found: number };
 
 async function drainUntilEmpty(
   onProgress: (summary: { processed: number; remaining: number }) => void,
 ): Promise<{ processed: number; remaining: number }> {
   let totalProcessed = 0;
   let remaining = 0;
-  // Cap at 50 rounds to avoid runaway loops if the server is pathological.
   for (let i = 0; i < 50; i++) {
-    const res = await fetch('/api/ingest/drain', { method: 'POST' });
-    if (!res.ok) throw new Error((await res.json()).error ?? `status ${res.status}`);
-    const data = (await res.json()) as { processed: number; remaining: number };
-    totalProcessed += data.processed;
-    remaining = data.remaining;
+    const result = await postJson<DrainResponse>('/api/ingest/drain');
+    if (!result.ok) throw new Error(result.error);
+    totalProcessed += result.data.processed ?? 0;
+    remaining = result.data.remaining ?? 0;
     onProgress({ processed: totalProcessed, remaining });
-    if (data.processed === 0 || remaining === 0) break;
+    if ((result.data.processed ?? 0) === 0 || remaining === 0) break;
   }
   return { processed: totalProcessed, remaining };
 }
@@ -41,23 +43,18 @@ export function ScanButton() {
           startTransition(async () => {
             try {
               setPhase('scanning');
-              const scanRes = await fetch('/api/ingest/gmail', { method: 'POST' });
-              if (!scanRes.ok) throw new Error((await scanRes.json()).error ?? `status ${scanRes.status}`);
-              const scan = await scanRes.json();
-              setSummary({ found: scan.found, scanned: scan.scanned });
+              const scan = await postJson<ScanResponse>('/api/ingest/gmail');
+              if (!scan.ok) throw new Error(scan.error);
+              setSummary({ found: scan.data.found, scanned: scan.data.scanned });
               router.refresh();
 
-              if (scan.found > 0) {
+              if (scan.data.found > 0) {
                 setPhase('ingesting');
                 const drain = await drainUntilEmpty((progress) => {
-                  setSummary((s) =>
-                    s ? { ...s, processed: progress.processed, remaining: progress.remaining } : s,
-                  );
+                  setSummary((s) => (s ? { ...s, ...progress } : s));
                   router.refresh();
                 });
-                setSummary((s) =>
-                  s ? { ...s, processed: drain.processed, remaining: drain.remaining } : s,
-                );
+                setSummary((s) => (s ? { ...s, ...drain } : s));
                 router.refresh();
               }
               setPhase('idle');
@@ -112,7 +109,11 @@ export function IngestAllButton() {
         }}
         className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-ink hover:bg-gray-50 disabled:opacity-50"
       >
-        {isPending ? (summary ? `Ingesting… (${summary.processed} done, ${summary.remaining} left)` : 'Ingesting…') : 'Ingest all'}
+        {isPending
+          ? summary
+            ? `Ingesting… (${summary.processed} done, ${summary.remaining} left)`
+            : 'Ingesting…'
+          : 'Ingest all'}
       </button>
       {!isPending && summary ? (
         <span className="text-xs text-gray-600">
@@ -138,18 +139,12 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            try {
-              const res = await fetch('/api/ingest/url', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                // Force only when the user explicitly chose to re-ingest a done URL.
-                body: JSON.stringify({ url, force: alreadyDone }),
-              });
-              if (!res.ok) throw new Error((await res.json()).error ?? `status ${res.status}`);
-              router.refresh();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : 'Ingest failed');
+            const result = await postJson('/api/ingest/url', { url, force: alreadyDone });
+            if (!result.ok) {
+              setError(result.error);
+              return;
             }
+            router.refresh();
           });
         }}
         className="text-xs text-accent hover:underline disabled:opacity-50"

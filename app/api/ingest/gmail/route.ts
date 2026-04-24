@@ -10,48 +10,54 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
 
-  const oauth = await getOAuthClientForUser(userId);
-  if (!oauth) {
-    return NextResponse.json(
-      { error: 'no_gmail_token', hint: 'Re-sign in with Google to grant Gmail access.' },
-      { status: 400 },
-    );
-  }
+    const oauth = await getOAuthClientForUser(userId);
+    if (!oauth) {
+      return NextResponse.json(
+        { error: 'no_gmail_token', hint: 'Re-sign in with Google to grant Gmail access.' },
+        { status: 400 },
+      );
+    }
 
-  const summary = await extractAllFromGmail(oauth);
+    const summary = await extractAllFromGmail(oauth);
 
-  for (const r of summary.urls) {
-    await prisma.discoveredUrl.upsert({
-      where: { userId_url: { userId, url: r.url } },
-      update: {
-        subject: r.subject,
-        messageId: r.messageId,
-        messageDate: r.messageDate ? new Date(r.messageDate) : null,
-      },
-      create: {
-        userId,
-        url: r.url,
-        host: r.host,
-        tournamentSlug: r.tournamentSlug,
-        token: r.token,
-        subject: r.subject,
-        messageId: r.messageId,
-        messageDate: r.messageDate ? new Date(r.messageDate) : null,
-      },
+    for (const r of summary.urls) {
+      await prisma.discoveredUrl.upsert({
+        where: { userId_url: { userId, url: r.url } },
+        update: {
+          subject: r.subject,
+          messageId: r.messageId,
+          messageDate: r.messageDate ? new Date(r.messageDate) : null,
+        },
+        create: {
+          userId,
+          url: r.url,
+          host: r.host,
+          tournamentSlug: r.tournamentSlug,
+          token: r.token,
+          subject: r.subject,
+          messageId: r.messageId,
+          messageDate: r.messageDate ? new Date(r.messageDate) : null,
+        },
+      });
+      await enqueueUrl(userId, r.url);
+    }
+
+    return NextResponse.json({
+      scanned: summary.scanned,
+      found: summary.total,
+      perHost: summary.perHost,
+      perTournament: summary.perTournament,
     });
-    await enqueueUrl(userId, r.url);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[api/ingest/gmail]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  return NextResponse.json({
-    scanned: summary.scanned,
-    found: summary.total,
-    perHost: summary.perHost,
-    perTournament: summary.perTournament,
-  });
 }
