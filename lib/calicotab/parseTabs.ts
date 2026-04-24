@@ -22,6 +22,8 @@ export type TeamTabRow = {
 
 export type SpeakerTabRow = {
   rank: number | null;
+  rankEsl: number | null;
+  rankEfl: number | null;
   speakerName: string;
   teamName: string | null;
   institution: string | null;
@@ -30,8 +32,11 @@ export type SpeakerTabRow = {
 };
 
 export type RoundDebate = {
+  roundLabel: string | null;
+  isOutround: boolean;
   roundNumber: number | null;
   teamResults: Array<{ teamName: string; position: string | null; points: number | null; won: boolean | null }>;
+  judgeAssignments: Array<{ personName: string; panelRole: 'chair' | 'panel' | null }>;
 };
 
 export type BreakRow = {
@@ -100,6 +105,8 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     lowered.findIndex((h) => needles.some((n) => h.includes(n)));
 
   const rankCol = idx('rank', '#');
+  const rankEslCol = idx('esl');
+  const rankEflCol = idx('efl');
   const nameCol = idx('name', 'speaker');
   const teamCol = idx('team');
   const instCol = idx('institution');
@@ -127,6 +134,8 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     }));
     rows.push({
       rank: rankCol >= 0 ? parseNumber(cells[rankCol]) : null,
+      rankEsl: rankEslCol >= 0 ? parseNumber(cells[rankEslCol]) : null,
+      rankEfl: rankEflCol >= 0 ? parseNumber(cells[rankEflCol]) : null,
       speakerName,
       teamName: teamCol >= 0 ? cells[teamCol] || null : null,
       institution: instCol >= 0 ? cells[instCol] || null : null,
@@ -141,7 +150,13 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
   const $ = cheerio.load(html);
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
+  const roundLabel = cleanText($('h1, h2, h3, title').first().text()) || null;
+  const isOutround =
+    /final|semi|quarter|octo|elim|break/i.test(sourceUrl) ||
+    /final|semi|quarter|octo|elim|break/i.test(roundLabel ?? '') ||
+    (roundNumber != null && roundNumber > 5);
   const teamResults: RoundDebate['teamResults'] = [];
+  const judgeAssignments: RoundDebate['judgeAssignments'] = [];
 
   $('table').each((_i, table) => {
     const headers = $(table)
@@ -177,7 +192,43 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
       });
   });
 
-  return { roundNumber, teamResults };
+  $('table').each((_i, table) => {
+    const headers = $(table)
+      .find('thead tr').first()
+      .find('th')
+      .map((_j, th) => cleanText($(th).text()).toLowerCase())
+      .get();
+    if (!headers.length) return;
+    const adjCol = headers.findIndex((h) => h.includes('adjud') || h.includes('judge'));
+    const roleCol = headers.findIndex((h) => h.includes('chair') || h.includes('panel') || h.includes('role'));
+    if (adjCol < 0) return;
+    $(table)
+      .find('tbody tr')
+      .each((_j, tr) => {
+        const cells = $(tr)
+          .find('td')
+          .map((_k, td) => cleanText($(td).text()))
+          .get();
+        const raw = cells[adjCol];
+        if (!raw) return;
+        const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
+        raw
+          .split(/[,;/]|\s{2,}|\n/)
+          .map((x) => cleanText(x))
+          .filter(Boolean)
+          .forEach((token) => {
+            const isChair = /\bc\b|chair|chief/.test(token.toLowerCase()) || /chair|chief/.test(roleText);
+            const cleanedName = cleanText(token.replace(/\(\s*c\s*\)$/i, '').replace(/\bc\b$/i, ''));
+            if (!cleanedName || cleanedName.length < 2) return;
+            judgeAssignments.push({
+              personName: cleanedName,
+              panelRole: isChair ? 'chair' : roleText ? 'panel' : null,
+            });
+          });
+      });
+  });
+
+  return { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments };
 }
 
 export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
@@ -225,6 +276,7 @@ export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
 export type ParticipantsRow = {
   name: string;
   role: 'speaker' | 'adjudicator' | 'other';
+  judgeTag: 'normal' | 'invited' | 'subsidized' | null;
   teamName: string | null;
   institution: string | null;
 };
@@ -254,6 +306,13 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
         const name = cells[nameCol];
         if (!name) return;
         const roleText = roleCol >= 0 ? cells[roleCol].toLowerCase() : '';
+        const judgeTag: ParticipantsRow['judgeTag'] = /subsid/i.test(roleText)
+          ? 'subsidized'
+          : /invited/i.test(roleText)
+            ? 'invited'
+            : /adjud|judge/.test(roleText)
+              ? 'normal'
+              : null;
         const role: ParticipantsRow['role'] = /adjud|judge/.test(roleText)
           ? 'adjudicator'
           : /speak|debat/.test(roleText)
@@ -262,6 +321,7 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
         rows.push({
           name,
           role,
+          judgeTag,
           teamName: teamCol >= 0 ? cells[teamCol] || null : null,
           institution: instCol >= 0 ? cells[instCol] || null : null,
         });

@@ -105,15 +105,29 @@ export async function ingestPrivateUrl(
   const breakRows = breakHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
-
   const tournamentName = snapshot.tournamentName ?? tournamentSlug ?? 'Unknown tournament';
+  const totalParticipants = participantRows.length || speakerRows.length || null;
+  const totalTeams = teamRows.length || null;
+  const format = inferTournamentFormat({
+    tournamentName,
+    teamRows,
+    speakerRows,
+  });
+  const teamBreakRankByTeam = new Map<string, number>();
+  for (const row of breakRows) {
+    if (row.entityType !== 'team' || row.rank == null) continue;
+    if (!teamBreakRankByTeam.has(row.entityName)) teamBreakRankByTeam.set(row.entityName, row.rank);
+  }
 
   const tournamentId = await prisma.$transaction(async (tx) => {
     const t = await tx.tournament.upsert({
       where: { fingerprint },
       update: {
         name: tournamentName,
+        format,
         year,
+        totalParticipants,
+        totalTeams,
         sourceUrlRaw: normalized,
         sourceHost: parsedUrl.host,
         sourceTournamentSlug: tournamentSlug,
@@ -121,7 +135,10 @@ export async function ingestPrivateUrl(
       },
       create: {
         name: tournamentName,
+        format,
         year,
+        totalParticipants,
+        totalTeams,
         sourceUrlRaw: normalized,
         sourceHost: parsedUrl.host,
         sourceTournamentSlug: tournamentSlug,
@@ -188,12 +205,20 @@ export async function ingestPrivateUrl(
         update: {
           teamName: sp.teamName,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
+          speakerRankOpen: sp.rank,
+          speakerRankEsl: sp.rankEsl,
+          speakerRankEfl: sp.rankEfl,
+          teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
         },
         create: {
           tournamentId: t.id,
           personId: person.id,
           teamName: sp.teamName,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
+          speakerRankOpen: sp.rank,
+          speakerRankEsl: sp.rankEsl,
+          speakerRankEfl: sp.rankEfl,
+          teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
         },
       });
       await tx.participantRole.upsert({
@@ -235,11 +260,82 @@ export async function ingestPrivateUrl(
       const person = await upsertPerson(tx, p.name);
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId: person.id } },
-        update: { teamName: p.teamName },
+        update: { teamName: p.teamName, judgeTypeTag: p.judgeTag },
         create: {
           tournamentId: t.id,
           personId: person.id,
           teamName: p.teamName,
+          judgeTypeTag: p.judgeTag,
+        },
+      });
+      await tx.participantRole.upsert({
+        where: {
+          tournamentParticipantId_role: {
+            tournamentParticipantId: participant.id,
+            role: 'judge',
+          },
+        },
+        update: {},
+        create: { tournamentParticipantId: participant.id, role: 'judge' },
+      });
+    }
+
+    // Judge assignments from round result pages.
+    const judgeStats = new Map<
+      string,
+      { chairedPrelimRounds: number; lastOutroundChaired: string | null; lastOutroundPaneled: string | null }
+    >();
+    for (const round of rounds) {
+      for (const j of round.judgeAssignments) {
+        const person = await upsertPerson(tx, j.personName);
+        await tx.judgeAssignment.upsert({
+          where: {
+            tournamentId_personId_stage_panelRole_roundNumber: {
+              tournamentId: t.id,
+              personId: person.id,
+              stage: round.roundLabel,
+              panelRole: j.panelRole,
+              roundNumber: round.roundNumber,
+            },
+          },
+          update: {},
+          create: {
+            tournamentId: t.id,
+            personId: person.id,
+            stage: round.roundLabel,
+            panelRole: j.panelRole,
+            roundNumber: round.roundNumber,
+          },
+        });
+        const key = person.id.toString();
+        const stat = judgeStats.get(key) ?? {
+          chairedPrelimRounds: 0,
+          lastOutroundChaired: null,
+          lastOutroundPaneled: null,
+        };
+        if (!round.isOutround && round.roundNumber != null && round.roundNumber <= 5 && j.panelRole === 'chair') {
+          stat.chairedPrelimRounds += 1;
+        }
+        if (round.isOutround) {
+          if (j.panelRole === 'chair') stat.lastOutroundChaired = round.roundLabel ?? `Round ${round.roundNumber ?? '?'}`;
+          if (j.panelRole === 'panel') stat.lastOutroundPaneled = round.roundLabel ?? `Round ${round.roundNumber ?? '?'}`;
+        }
+        judgeStats.set(key, stat);
+      }
+    }
+    for (const [personIdText, stat] of judgeStats.entries()) {
+      const personId = BigInt(personIdText);
+      const participant = await tx.tournamentParticipant.upsert({
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
+        update: {},
+        create: { tournamentId: t.id, personId },
+      });
+      await tx.tournamentParticipant.update({
+        where: { id: participant.id },
+        data: {
+          chairedPrelimRounds: stat.chairedPrelimRounds || null,
+          lastOutroundChaired: stat.lastOutroundChaired,
+          lastOutroundPaneled: stat.lastOutroundPaneled,
         },
       });
       await tx.participantRole.upsert({
@@ -293,6 +389,27 @@ export async function ingestPrivateUrl(
   });
 
   return { tournamentId, fingerprint, cached: false, claimedPersonId, parserVersion: PARSER_VERSION };
+}
+
+function inferTournamentFormat({
+  tournamentName,
+  teamRows,
+  speakerRows,
+}: {
+  tournamentName: string;
+  teamRows: { speakers: string[] }[];
+  speakerRows: { roundScores: unknown[] }[];
+}): string | null {
+  const name = tournamentName.toLowerCase();
+  if (/\bbp\b|british parliamentary/.test(name)) return 'British Parliamentary';
+  if (/\bap\b|asian parliamentary/.test(name)) return 'Asian Parliamentary';
+  const maxTeamSpeakers = teamRows.reduce((m, r) => Math.max(m, r.speakers.length), 0);
+  if (maxTeamSpeakers >= 3) return 'Asian Parliamentary';
+  if (maxTeamSpeakers === 2) return 'British Parliamentary';
+  const maxScoreCols = speakerRows.reduce((m, r) => Math.max(m, r.roundScores.length), 0);
+  if (maxScoreCols >= 4) return 'Asian Parliamentary';
+  if (maxScoreCols === 2) return 'British Parliamentary';
+  return null;
 }
 
 /**
