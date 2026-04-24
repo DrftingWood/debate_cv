@@ -15,22 +15,25 @@ export async function enqueueUrl(userId: string, url: string): Promise<void> {
  * recovery that runs at the start of every drain + cron invocation.
  */
 export async function resetStuckRunning(params: { userId?: string; olderThanMinutes?: number } = {}) {
-  const minutes = params.olderThanMinutes ?? 5;
-  const interval = Prisma.sql`(NOW() - make_interval(mins => ${minutes}))`;
+  // Multiply an int-cast parameter by a constant INTERVAL instead of calling
+  // make_interval(). Prisma serializes JS numbers as BIGINT, which make_interval
+  // rejects with "function make_interval(mins => bigint) does not exist".
+  const minutes = Math.max(0, Math.floor(params.olderThanMinutes ?? 5));
+  const threshold = Prisma.sql`(NOW() - (${minutes}::int * INTERVAL '1 minute'))`;
   if (params.userId) {
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
       SET "status" = 'pending', "startedAt" = NULL
       WHERE "userId" = ${params.userId}
         AND "status" = 'running'
-        AND ("startedAt" IS NULL OR "startedAt" < ${interval})
+        AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
     `);
   } else {
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
       SET "status" = 'pending', "startedAt" = NULL
       WHERE "status" = 'running'
-        AND ("startedAt" IS NULL OR "startedAt" < ${interval})
+        AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
     `);
   }
 }

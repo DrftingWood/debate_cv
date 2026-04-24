@@ -64,3 +64,63 @@ describe('parsePrivateUrlPage', () => {
     );
   });
 });
+
+// Tabbycat's default private_url_landing template wraps the name in <strong>.
+// The old regex-on-raw-HTML extractor missed this entirely, which is why real
+// tournament URLs produced orphan tournaments (see issue reported 2026-04-24).
+const WRAPPED_NAME_HTML = `
+<html>
+  <head><title>ILNU RR 2026 | Private URL</title></head>
+  <body>
+    <h1>Private URL for <strong>Abhishek Acharya</strong></h1>
+    <p>Team name: <strong>Viral Adidas Jacket Owners</strong></p>
+    <p>Speakers: Shishir Jha, <em>Abhishek Acharya</em></p>
+    <p>Institution: <strong>Indira Gandhi National Open University</strong></p>
+  </body>
+</html>
+`;
+
+describe('parsePrivateUrlPage with inline-tag-wrapped registration', () => {
+  const snapshot = parsePrivateUrlPage(
+    WRAPPED_NAME_HTML,
+    'https://ilnuroundrobin.calicotab.com/ilnurr2026/privateurls/rbo1rd0g/',
+  );
+
+  test('extracts name even when wrapped in <strong>', () => {
+    expect(snapshot.registration.personName).toBe('Abhishek Acharya');
+  });
+
+  test('extracts team name when the value is wrapped in <strong>', () => {
+    expect(snapshot.registration.teamName).toBe('Viral Adidas Jacket Owners');
+  });
+
+  test('extracts speakers when mixed inline formatting is present', () => {
+    expect(snapshot.registration.speakers).toEqual(['Shishir Jha', 'Abhishek Acharya']);
+  });
+
+  test('extracts institution when wrapped in <strong>', () => {
+    expect(snapshot.registration.institution).toBe(
+      'Indira Gandhi National Open University',
+    );
+  });
+});
+
+const HEADING_WITH_TEAM_HTML = `
+<html>
+  <body>
+    <h2>Private URL for <strong>Abhishek Acharya</strong> (<em>Viral Adidas</em>)</h2>
+  </body>
+</html>
+`;
+
+describe('parsePrivateUrlPage with heading + team in parens', () => {
+  const snapshot = parsePrivateUrlPage(
+    HEADING_WITH_TEAM_HTML,
+    'https://example.calicotab.com/t/privateurls/abc/',
+  );
+
+  test('extracts both name and team from heading with wrapped spans', () => {
+    expect(snapshot.registration.personName).toBe('Abhishek Acharya');
+    expect(snapshot.registration.teamName).toBe('Viral Adidas');
+  });
+});
