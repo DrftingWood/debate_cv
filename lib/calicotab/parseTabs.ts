@@ -1,7 +1,33 @@
 import * as cheerio from 'cheerio';
 
+type CheerioRoot = ReturnType<typeof cheerio.load>;
+type CheerioEl = ReturnType<CheerioRoot>;
+
 function cleanText(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Return the first table whose header row matches a predicate. Tabbycat pages
+ * often ship a small summary / filter table above the real standings; using
+ * `$('table').first()` picks that summary table and returns zero rows.
+ */
+function findTableByHeader(
+  $: CheerioRoot,
+  headerMatcher: (loweredHeaders: string[]) => boolean,
+): CheerioEl | null {
+  let found: CheerioEl | null = null;
+  $('table').each((_i, el) => {
+    if (found) return;
+    const headers = $(el)
+      .find('thead tr').first()
+      .find('th')
+      .map((_j, th) => cleanText($(th).text()).toLowerCase())
+      .get();
+    if (headers.length === 0) return;
+    if (headerMatcher(headers)) found = $(el);
+  });
+  return found;
 }
 
 function parseNumber(s: string | undefined | null): number | null {
@@ -51,7 +77,11 @@ export type BreakRow = {
 export function parseTeamTab(html: string): TeamTabRow[] {
   const $ = cheerio.load(html);
   const rows: TeamTabRow[] = [];
-  const table = $('table').first();
+  // Pick the table whose header row contains a "team" column. This skips
+  // summary/filter tables that sometimes render above the real standings.
+  const table =
+    findTableByHeader($, (headers) => headers.some((h) => h.includes('team'))) ??
+    $('table').first();
   const headers = table
     .find('thead th, tr').first()
     .find('th')
@@ -94,7 +124,12 @@ export function parseTeamTab(html: string): TeamTabRow[] {
 export function parseSpeakerTab(html: string): SpeakerTabRow[] {
   const $ = cheerio.load(html);
   const rows: SpeakerTabRow[] = [];
-  const table = $('table').first();
+  // Pick the real speaker-standings table (header row contains "name" or
+  // "speaker"), not an upstream filter/summary table.
+  const table =
+    findTableByHeader($, (headers) =>
+      headers.some((h) => h.includes('name') || h.includes('speaker')),
+    ) ?? $('table').first();
   const headerCells = table
     .find('thead tr').first()
     .find('th')

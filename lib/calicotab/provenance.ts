@@ -38,10 +38,23 @@ export function collectRegistrationWarnings(snapshot: PrivateUrlSnapshot): strin
   const w: string[] = [];
   if (!snapshot.tournamentName) w.push('missing: tournamentName');
   if (!snapshot.registration.personName) w.push('missing: registration.personName');
-  if (!snapshot.navigation.teamTab) w.push('missing: navigation.teamTab');
-  if (!snapshot.navigation.speakerTab) w.push('missing: navigation.speakerTab');
+
+  // Nav tabs: distinguish "discovered on landing page" from "constructed as
+  // fallback" from "truly missing". The extractNavigation matcher now
+  // populates `meta.discovered` and `meta.constructed` so we can write
+  // informative rows instead of a binary "missing" flag.
+  const meta = snapshot.navigation.meta ?? { discovered: [], constructed: [] };
+  const discovered = new Set(meta.discovered);
+  const constructed = new Set(meta.constructed);
+  for (const key of ['teamTab', 'speakerTab', 'participants'] as const) {
+    if (constructed.has(key)) w.push(`nav: ${key} constructed as fallback`);
+    else if (!discovered.has(key)) w.push(`nav: ${key} not found`);
+  }
   if (snapshot.navigation.resultsRounds.length === 0) {
-    w.push('missing: navigation.resultsRounds');
+    w.push('nav: resultsRounds not found');
+  }
+  if (snapshot.navigation.breakTabs.length === 0) {
+    w.push('nav: breakTabs not found');
   }
   return w;
 }

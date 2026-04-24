@@ -9,6 +9,15 @@ export type NavigationStructure = {
   breakTabs: string[];
   participants: string | null;
   institutions: string | null;
+  /**
+   * Which links were discovered on the page (by URL path) vs which were
+   * constructed from the tournament slug as a fallback. Writers of ParserRun
+   * warnings consume this to distinguish "nav not linked" from "nav present".
+   */
+  meta: {
+    discovered: string[]; // e.g. ["teamTab", "speakerTab", "resultsRounds"]
+    constructed: string[]; // e.g. ["teamTab"] when the landing page had no nav
+  };
 };
 
 export type RegistrationSnapshot = {
@@ -51,6 +60,23 @@ function absolutize(base: string, href: string): string {
   }
 }
 
+/**
+ * Extract Tabbycat navigation from a private-URL landing page.
+ *
+ * Strategy (in order, most-reliable first):
+ *   1. **URL-path match** on every `<a href>`. Tabbycat's routes
+ *      (`/tab/team/`, `/tab/speaker/`, `/results/round/<N>/`, `/break/...`,
+ *      `/participants/list/`, `/participants/institutions/`) are stable
+ *      across versions and themes — far more reliable than the visible link
+ *      text which deployments freely rename ("Team Standings", "All
+ *      Participants", etc.).
+ *   2. **Label match** as a fallback — kept for exotic deployments that
+ *      route tabs through intermediate landing pages.
+ *   3. **Constructed fallback** when a core tab still has no link —
+ *      synthesise `${baseTournamentUrl}<known-path>`. `safeFetch` in the
+ *      ingest orchestrator returns null on 404, so a wrong guess costs one
+ *      HTTP request; a right guess unblocks the entire ingest.
+ */
 export function extractNavigation(html: string, sourceUrl: string): NavigationStructure {
   const $ = cheerio.load(html);
   const base = baseTournamentUrl(sourceUrl);
@@ -63,26 +89,78 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
     breakTabs: [],
     participants: null,
     institutions: null,
+    meta: { discovered: [], constructed: [] },
   };
+  const baseHost = new URL(base).host;
+  const discovered = new Set<string>();
 
   $('a').each((_i, el) => {
     const href = $(el).attr('href');
     if (!href) return;
-    const label = cleanWhitespace($(el).text()).toLowerCase();
     const absolute = absolutize(base, href);
 
-    if (label === 'site home') nav.home = absolute;
-    else if (label === 'team tab') nav.teamTab = absolute;
-    else if (label === 'speaker tab') nav.speakerTab = absolute;
-    else if (label === 'motions tab') nav.motionsTab = absolute;
-    else if (/^round\s+\d+/.test(label) || label.includes('final')) nav.resultsRounds.push(absolute);
-    else if (label === 'open' || label === 'adjudicators') nav.breakTabs.push(absolute);
-    else if (label === 'participants') nav.participants = absolute;
-    else if (label === 'institutions') nav.institutions = absolute;
+    // Scope to the same tournament slug so external links don't leak in.
+    let pathname: string;
+    try {
+      const u = new URL(absolute);
+      if (u.host !== baseHost) return;
+      pathname = u.pathname;
+    } catch {
+      return;
+    }
+
+    // --- URL-path matching (primary signal) ---
+    if (/\/tab\/team(-standings)?\/?$/.test(pathname) || /\/tab\/overall\/?$/.test(pathname)) {
+      if (!nav.teamTab) { nav.teamTab = absolute; discovered.add('teamTab'); }
+    } else if (/\/tab\/speaker(-standings)?\/?$/.test(pathname)) {
+      if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
+    } else if (/\/tab\/motions\/?$/.test(pathname)) {
+      if (!nav.motionsTab) { nav.motionsTab = absolute; discovered.add('motionsTab'); }
+    } else if (/\/results\/round\/\d+\/?(?:by-team\/|by-debate\/)?$/.test(pathname)) {
+      nav.resultsRounds.push(absolute);
+      discovered.add('resultsRounds');
+    } else if (/\/break\/[^/]+\/?/.test(pathname)) {
+      nav.breakTabs.push(absolute);
+      discovered.add('breakTabs');
+    } else if (/\/participants\/list\/?$/.test(pathname)) {
+      if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
+    } else if (/\/participants\/institutions\/?$/.test(pathname)) {
+      if (!nav.institutions) { nav.institutions = absolute; discovered.add('institutions'); }
+    } else {
+      // --- Label matching (fallback for non-conforming URLs) ---
+      const label = cleanWhitespace($(el).text()).toLowerCase();
+      if (!label) return;
+      if (label === 'site home') nav.home = absolute;
+      else if (label === 'team tab') {
+        if (!nav.teamTab) { nav.teamTab = absolute; discovered.add('teamTab'); }
+      } else if (label === 'speaker tab') {
+        if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
+      } else if (label === 'motions tab') {
+        if (!nav.motionsTab) { nav.motionsTab = absolute; discovered.add('motionsTab'); }
+      } else if (label === 'participants') {
+        if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
+      } else if (label === 'institutions') {
+        if (!nav.institutions) { nav.institutions = absolute; discovered.add('institutions'); }
+      }
+    }
   });
 
   nav.resultsRounds = Array.from(new Set(nav.resultsRounds)).sort();
   nav.breakTabs = Array.from(new Set(nav.breakTabs)).sort();
+
+  // --- Constructed fallbacks (last resort) ---
+  // For the three canonical tabs, synthesise the URL even when the landing
+  // page didn't link to it. Tabbycat routes these paths consistently, so a
+  // blank nav still yields a fetchable ingest.
+  const constructed: string[] = [];
+  if (!nav.teamTab) { nav.teamTab = `${base}tab/team/`; constructed.push('teamTab'); }
+  if (!nav.speakerTab) { nav.speakerTab = `${base}tab/speaker/`; constructed.push('speakerTab'); }
+  if (!nav.participants) { nav.participants = `${base}participants/list/`; constructed.push('participants'); }
+
+  nav.meta = {
+    discovered: Array.from(discovered),
+    constructed,
+  };
   return nav;
 }
 
