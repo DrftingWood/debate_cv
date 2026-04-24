@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// -------------------- NextAuth core --------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  gmailToken      GmailToken?
+  discoveredUrls  DiscoveredUrl[]
+  ingestJobs      IngestJob[]
+  claimedPersons  Person[]        @relation("ClaimedByUser")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// -------------------- Gmail integration --------------------
+
+model GmailToken {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  accessToken  String    @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  scope        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// -------------------- Discovered URLs + ingest queue --------------------
+
+model DiscoveredUrl {
+  id             String    @id @default(cuid())
+  userId         String
+  url            String
+  host           String
+  tournamentSlug String?
+  token          String?
+  subject        String?
+  messageId      String?
+  messageDate    DateTime?
+  tournamentId   BigInt?
+  ingestedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+
+  @@unique([userId, url])
+  @@index([userId])
+}
+
+enum IngestJobStatus {
+  pending
+  running
+  done
+  failed
+}
+
+model IngestJob {
+  id          String          @id @default(cuid())
+  userId      String
+  url         String
+  status      IngestJobStatus @default(pending)
+  attempts    Int             @default(0)
+  lastError   String?         @db.Text
+  scheduledAt DateTime        @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, url])
+  @@index([status, scheduledAt])
+}
+
+// -------------------- Tabbycat tournament data --------------------
+
+model Tournament {
+  id                   BigInt   @id @default(autoincrement())
+  name                 String
+  format               String?
+  year                 Int?
+  sourceUrlRaw         String
+  sourceHost           String?
+  sourceTournamentSlug String?
+  fingerprint          String   @unique
+  scrapedAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  participants         TournamentParticipant[]
+  teamResults          TeamResult[]
+  eliminationResults   EliminationResult[]
+  judgeAssignments     JudgeAssignment[]
+  discoveredUrls       DiscoveredUrl[]
+
+  @@index([year])
+  @@index([format])
+}
+
+model Person {
+  id                BigInt   @id @default(autoincrement())
+  displayName       String
+  normalizedName    String   @unique
+  claimedByUserId   String?
+  createdAt         DateTime @default(now())
+
+  claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  participations    TournamentParticipant[]
+  judgeAssignments  JudgeAssignment[]
+
+  @@index([claimedByUserId])
+}
+
+model TournamentParticipant {
+  id                  BigInt   @id @default(autoincrement())
+  tournamentId        BigInt
+  personId            BigInt
+  teamName            String?
+  speakerScoreTotal   Decimal?
+  teamScoreTotal      Decimal?
+  wins                Int?
+  losses              Int?
+  eliminationReached  String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tournament          Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person              Person               @relation(fields: [personId], references: [id], onDelete: Cascade)
+  roles               ParticipantRole[]
+  speakerRoundScores  SpeakerRoundScore[]
+
+  @@unique([tournamentId, personId])
+  @@index([tournamentId])
+  @@index([personId])
+}
+
+model ParticipantRole {
+  tournamentParticipantId BigInt
+  role                    String
+
+  participant TournamentParticipant @relation(fields: [tournamentParticipantId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentParticipantId, role])
+}
+
+model SpeakerRoundScore {
+  id                      BigInt   @id @default(autoincrement())
+  tournamentParticipantId BigInt
+  roundNumber             Int
+  positionLabel           String?
+  score                   Decimal?
+
+  participant TournamentParticipant @relation(fields: [tournamentParticipantId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentParticipantId, roundNumber, positionLabel])
+}
+
+model TeamResult {
+  id            BigInt   @id @default(autoincrement())
+  tournamentId  BigInt
+  teamName      String
+  roundNumber   Int?
+  wins          Int?
+  losses        Int?
+  points        Decimal?
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamName, roundNumber])
+}
+
+model EliminationResult {
+  id           BigInt @id @default(autoincrement())
+  tournamentId BigInt
+  stage        String
+  entityType   String
+  entityName   String
+  result       String?
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, stage, entityType, entityName])
+}
+
+model JudgeAssignment {
+  id           BigInt @id @default(autoincrement())
+  tournamentId BigInt
+  personId     BigInt
+  stage        String?
+  panelRole    String?
+  roundNumber  Int?
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, personId, stage, panelRole, roundNumber])
+}
