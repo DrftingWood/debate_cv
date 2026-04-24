@@ -22,12 +22,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  gmailToken      GmailToken?
-  discoveredUrls  DiscoveredUrl[]
-  ingestJobs      IngestJob[]
-  claimedPersons  Person[]        @relation("ClaimedByUser")
+  accounts          Account[]
+  sessions          Session[]
+  gmailToken        GmailToken?
+  discoveredUrls    DiscoveredUrl[]
+  ingestJobs        IngestJob[]
+  claimedPersons    Person[]            @relation("ClaimedByUser")
+  personRejections  PersonRejection[]
 }
 
 model Account {
@@ -164,8 +165,23 @@ model Person {
   participations    TournamentParticipant[]
   judgeAssignments  JudgeAssignment[]
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
+  rejections        PersonRejection[]
 
   @@index([claimedByUserId])
+}
+
+/// Records that a user has explicitly said "this Person is not me", so we
+/// don't keep prompting them to claim it on the dashboard review panel.
+model PersonRejection {
+  userId    String
+  personId  BigInt
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([userId, personId])
+  @@index([personId])
 }
 
 model TournamentParticipant {
