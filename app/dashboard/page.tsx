@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge, SignOutButton } from '@/components/SignInOut';
-import { ScanButton, DrainButton, IngestButton } from '@/components/DashboardActions';
+import { ScanButton, IngestAllButton, IngestButton } from '@/components/DashboardActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +38,7 @@ export default async function Dashboard() {
           <SessionBadge />
         </div>
         <div className="flex items-center gap-3">
-          {pending > 0 ? <DrainButton /> : null}
+          {pending > 0 ? <IngestAllButton /> : null}
           <ScanButton />
           <SignOutButton />
         </div>
@@ -96,7 +96,7 @@ export default async function Dashboard() {
                         {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
                       </td>
                       <td className="px-3 py-2">
-                        <IngestButton url={u.url} />
+                        <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
                       </td>
                     </tr>
                   );

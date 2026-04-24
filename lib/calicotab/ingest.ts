@@ -46,11 +46,16 @@ export async function ingestPrivateUrl(
   if (existing && !options.force) {
     const ageMs = Date.now() - existing.scrapedAt.getTime();
     if (ageMs < FRESH_WINDOW_MS) {
-      const claimedPersonId = await maybeClaimPerson(
+      const claimedPersonId = await linkRegistrationPerson(
         existing.id,
         snapshot.registration.personName,
         userId,
+        normalized,
       );
+      await prisma.discoveredUrl.updateMany({
+        where: { userId, url: normalized },
+        data: { tournamentId: existing.id, ingestedAt: new Date() },
+      });
       return {
         tournamentId: existing.id,
         fingerprint,
@@ -253,13 +258,14 @@ export async function ingestPrivateUrl(
     return t.id;
   }, { maxWait: 10000, timeout: 30000 });
 
-  const claimedPersonId = await maybeClaimPerson(
+  const claimedPersonId = await linkRegistrationPerson(
     tournamentId,
     snapshot.registration.personName,
     userId,
+    normalized,
   );
 
-  // Mark the DiscoveredUrl as ingested + link to tournament
+  // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
   await prisma.discoveredUrl.updateMany({
     where: { userId, url: normalized },
     data: { tournamentId, ingestedAt: new Date() },
@@ -297,10 +303,16 @@ async function upsertPerson(
   });
 }
 
-async function maybeClaimPerson(
+/**
+ * Upsert the Person mentioned on the private-URL landing page, link the
+ * DiscoveredUrl to it, and (if no other user has claimed this Person yet)
+ * mark them as claimed by the current user.
+ */
+async function linkRegistrationPerson(
   tournamentId: bigint,
   personName: string | null,
   userId: string,
+  url: string,
 ): Promise<bigint | null> {
   if (!personName) return null;
   const normalizedName = normalizePersonName(personName);
@@ -324,6 +336,13 @@ async function maybeClaimPerson(
     where: { tournamentId_personId: { tournamentId, personId: person.id } },
     update: {},
     create: { tournamentId, personId: person.id },
+  });
+
+  // Record the link on the DiscoveredUrl so the dashboard / CV can show
+  // "this URL was registered as <name>" + a "Claim as me" affordance.
+  await prisma.discoveredUrl.updateMany({
+    where: { userId, url },
+    data: { registrationPersonId: person.id },
   });
 
   return person.id;

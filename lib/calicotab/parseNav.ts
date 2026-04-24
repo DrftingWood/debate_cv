@@ -94,10 +94,25 @@ export function extractRegistration(html: string): RegistrationSnapshot {
     institution: null,
   };
 
-  const personMatch = html.match(/Private URL\s+for\s+([^<(]+?)\s*\(([^)]+)\)/i);
-  if (personMatch) {
-    snapshot.personName = cleanWhitespace(personMatch[1]!);
-    snapshot.teamName = cleanWhitespace(personMatch[2]!);
+  // 1. Speaker layout: "Private URL for <Name> (<Team>)"
+  const personWithTeam = html.match(/Private URL\s+for\s+([^<(]+?)\s*\(([^)]+)\)/i);
+  if (personWithTeam) {
+    snapshot.personName = cleanWhitespace(personWithTeam[1]!);
+    snapshot.teamName = cleanWhitespace(personWithTeam[2]!);
+  }
+
+  // 2. Adjudicator / no-team layout: "Private URL for <Name>" up to end of line/tag.
+  if (!snapshot.personName) {
+    const personOnly = html.match(/Private URL\s+for\s+([^<\n\r]+?)\s*(?:<|$)/i);
+    if (personOnly) {
+      snapshot.personName = cleanWhitespace(personOnly[1]!).replace(/[.,;:]+$/, '');
+    }
+  }
+
+  // 3. Greeting variants Tabbycat sometimes ships.
+  if (!snapshot.personName) {
+    const hi = html.match(/(?:Hi|Hello|Welcome,?)\s+([A-Z][^,!<\n\r]{0,80}?)\s*[,!<]/);
+    if (hi) snapshot.personName = cleanWhitespace(hi[1]!);
   }
 
   const teamMatch = html.match(/Team name:\s*([^<\n\r]+)/i);
