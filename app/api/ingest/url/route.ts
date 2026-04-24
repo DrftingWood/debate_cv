@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import { PRIVATE_URL_RE } from '@/lib/gmail/extract';
+import { IngestJobStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -29,6 +31,11 @@ export async function POST(req: Request) {
     const result = await ingestPrivateUrl(parse.data.url, session.user.id, {
       force: parse.data.force,
     });
+    // Reconcile any IngestJob row so the dashboard doesn't show stale pending/failed.
+    await prisma.ingestJob.updateMany({
+      where: { userId: session.user.id, url: parse.data.url },
+      data: { status: IngestJobStatus.done, finishedAt: new Date(), lastError: null },
+    });
     return NextResponse.json({
       tournamentId: result.tournamentId.toString(),
       fingerprint: result.fingerprint,
@@ -37,6 +44,14 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';
+    await prisma.ingestJob.updateMany({
+      where: { userId: session.user.id, url: parse.data.url },
+      data: {
+        status: IngestJobStatus.failed,
+        finishedAt: new Date(),
+        lastError: msg.slice(0, 2000),
+      },
+    });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
