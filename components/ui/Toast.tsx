@@ -33,9 +33,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const dismiss = React.useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-    const timer = timers.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
+    const t = timers.current.get(id);
+    if (t) {
+      clearTimeout(t);
       timers.current.delete(id);
     }
   }, []);
@@ -54,7 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const current = timers.current;
     return () => {
-      current.forEach((timer) => clearTimeout(timer));
+      current.forEach((t) => clearTimeout(t));
       current.clear();
     };
   }, []);
@@ -93,28 +93,30 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
   const Icon = item.kind === 'success' ? CheckCircle2 : item.kind === 'error' ? AlertCircle : Info;
   const color =
     item.kind === 'success'
-      ? 'text-success-600'
+      ? 'text-success'
       : item.kind === 'error'
-        ? 'text-danger-600'
-        : 'text-primary-600';
+        ? 'text-destructive'
+        : 'text-primary';
   return (
     <div
       role={item.kind === 'error' ? 'alert' : 'status'}
       className={cn(
-        'pointer-events-auto flex items-start gap-3 rounded-lg border border-border bg-bg p-3 shadow-md animate-slide-in-up',
+        'pointer-events-auto flex items-start gap-3 rounded-card border border-border bg-card p-3.5 shadow-lg animate-fade-up',
       )}
     >
       <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', color)} aria-hidden />
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-ink-1">{item.title}</div>
+        <div className="text-[14px] font-semibold text-foreground">{item.title}</div>
         {item.description ? (
-          <div className="mt-0.5 text-xs text-ink-3 break-words">{item.description}</div>
+          <div className="mt-0.5 text-caption text-muted-foreground break-words">
+            {item.description}
+          </div>
         ) : null}
       </div>
       <button
         type="button"
         onClick={onDismiss}
-        className="text-ink-4 hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
+        className="text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" aria-hidden />

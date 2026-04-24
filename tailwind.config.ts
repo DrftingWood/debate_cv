@@ -4,78 +4,101 @@ import typography from '@tailwindcss/typography';
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
+    container: {
+      center: true,
+      padding: { DEFAULT: '1.25rem', lg: '2rem' },
+      screens: { '2xl': '1280px' },
+    },
     extend: {
       colors: {
-        // Surfaces
-        bg: {
-          DEFAULT: '#FFFFFF',
-          subtle: '#FAFAFA',
-          muted: '#F4F4F5',
-        },
-        border: {
-          DEFAULT: '#E4E4E7',
-          strong: '#A1A1AA',
-        },
-        // Text (semantic numbers: lower = stronger)
-        ink: {
-          1: '#09090B',
-          2: '#18181B',
-          3: '#3F3F46',
-          4: '#71717A',
-          5: '#A1A1AA',
-        },
-        // Brand
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
         primary: {
-          50: '#EEF2FF',
-          100: '#E0E7FF',
-          200: '#C7D2FE',
-          500: '#4F46E5',
-          600: '#4338CA',
-          700: '#3730A3',
-          900: '#1E1B4B',
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+          hover: 'hsl(var(--primary-hover))',
+          soft: 'hsl(var(--primary-soft))',
         },
-        // Semantic
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
         success: {
-          50: '#ECFDF5',
-          100: '#D1FAE5',
-          600: '#059669',
-          700: '#047857',
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
         },
         warning: {
-          50: '#FFFBEB',
-          100: '#FEF3C7',
-          600: '#D97706',
-          700: '#B45309',
-          800: '#92400E',
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
         },
-        danger: {
-          50: '#FEF2F2',
-          100: '#FEE2E2',
-          600: '#DC2626',
-          700: '#B91C1C',
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
         },
-        accent: '#4F46E5',
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
+        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'serif'],
       },
-      boxShadow: {
-        xs: '0 1px 0 0 rgba(9, 9, 11, 0.04)',
-        sm: '0 1px 2px 0 rgba(9, 9, 11, 0.06), 0 1px 3px 0 rgba(9, 9, 11, 0.04)',
-        md: '0 4px 8px -2px rgba(9, 9, 11, 0.08), 0 2px 4px -2px rgba(9, 9, 11, 0.04)',
-        lg: '0 12px 24px -6px rgba(9, 9, 11, 0.12), 0 4px 8px -4px rgba(9, 9, 11, 0.06)',
+      fontSize: {
+        caption: ['13px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
+        body: ['15px', { lineHeight: '1.6' }],
+        h3: ['20px', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
+        h2: ['28px', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
+        h1: ['40px', { lineHeight: '1.1', letterSpacing: '-0.03em' }],
+        display: ['52px', { lineHeight: '1.05', letterSpacing: '-0.035em' }],
       },
       borderRadius: {
-        sm: '3px',
-        DEFAULT: '6px',
-        md: '6px',
-        lg: '10px',
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+        card: 'var(--radius-card)',
+      },
+      boxShadow: {
+        xs: 'var(--shadow-xs)',
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        xl: 'var(--shadow-xl)',
+        glow: 'var(--shadow-glow)',
+      },
+      backgroundImage: {
+        'gradient-hero': 'var(--gradient-hero)',
+        'gradient-ink': 'var(--gradient-ink)',
+        'gradient-accent': 'var(--gradient-accent)',
+        'gradient-glass': 'var(--gradient-glass)',
+      },
+      transitionTimingFunction: {
+        soft: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
       keyframes: {
-        'slide-in-up': {
-          '0%': { opacity: '0', transform: 'translateY(6px)' },
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-400px 0' },
@@ -83,7 +106,8 @@ const config: Config = {
         },
       },
       animation: {
-        'slide-in-up': 'slide-in-up 180ms ease-out',
+        'fade-up': 'fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-in': 'fade-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both',
         shimmer: 'shimmer 1.4s linear infinite',
       },
     },
