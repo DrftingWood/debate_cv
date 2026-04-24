@@ -82,8 +82,10 @@ export default async function Dashboard() {
                         {u.tournament?.name ?? <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-3 py-2">
-                        <StatusBadge status={job?.status ?? (u.ingestedAt ? 'done' : 'pending')} />
-                        {job?.lastError ? (
+                        <StatusBadge
+                          status={u.ingestedAt ? 'done' : (job?.status ?? 'pending')}
+                        />
+                        {job?.lastError && !u.ingestedAt ? (
                           <div className="text-xs text-red-600 mt-1 max-w-xs truncate" title={job.lastError}>
                             {job.lastError}
                           </div>
