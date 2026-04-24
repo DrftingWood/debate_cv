@@ -159,6 +159,9 @@ export default async function CvPage() {
         <Badge variant="outline">{byTournament.size} tournaments</Badge>
         <Badge variant={claimedCount > 0 ? 'success' : 'neutral'}>{claimedCount} claimed</Badge>
         <Badge variant="info">{participations.length} total participations</Badge>
+        <Link href="/cv/verify">
+          <Button variant="outline" size="sm">Verify extracted fields</Button>
+        </Link>
       </div>
 
       {/* Timeline */}
@@ -264,6 +267,7 @@ function TournamentCard({
     id: bigint;
     name: string;
     year: number | null;
+    format: string | null;
     sourceHost: string | null;
     sourceUrlRaw: string;
   };
@@ -309,6 +313,7 @@ function TournamentCard({
                   <Users className="h-3.5 w-3.5" aria-hidden />
                   {allParticipants.length} participants
                 </span>
+                {tournament.format ? <span>{tournament.format}</span> : null}
                 {tournament.sourceHost ? (
                   <>
                     <span aria-hidden className="text-muted-foreground/50">
