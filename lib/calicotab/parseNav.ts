@@ -87,6 +87,7 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
 }
 
 export function extractRegistration(html: string): RegistrationSnapshot {
+  const $ = cheerio.load(html);
   const snapshot: RegistrationSnapshot = {
     personName: null,
     teamName: null,
@@ -94,40 +95,62 @@ export function extractRegistration(html: string): RegistrationSnapshot {
     institution: null,
   };
 
-  // 1. Speaker layout: "Private URL for <Name> (<Team>)"
-  const personWithTeam = html.match(/Private URL\s+for\s+([^<(]+?)\s*\(([^)]+)\)/i);
-  if (personWithTeam) {
-    snapshot.personName = cleanWhitespace(personWithTeam[1]!);
-    snapshot.teamName = cleanWhitespace(personWithTeam[2]!);
-  }
+  // 1. Find "Private URL for <Name>" (with or without a team in parens) in any
+  //    heading or paragraph. Using cheerio's .text() flattens inline children
+  //    like <strong>Name</strong> so Tabbycat's default markup works.
+  const candidates = $('h1, h2, h3, h4, h5, p').toArray();
+  for (const el of candidates) {
+    const text = cleanWhitespace($(el).text());
+    if (!/Private URL\s+for\b/i.test(text)) continue;
 
-  // 2. Adjudicator / no-team layout: "Private URL for <Name>" up to end of line/tag.
-  if (!snapshot.personName) {
-    const personOnly = html.match(/Private URL\s+for\s+([^<\n\r]+?)\s*(?:<|$)/i);
-    if (personOnly) {
-      snapshot.personName = cleanWhitespace(personOnly[1]!).replace(/[.,;:]+$/, '');
+    const withTeam = text.match(/^Private URL\s+for\s+(.+?)\s*\(([^)]+)\)\s*\.?\s*$/i);
+    if (withTeam) {
+      snapshot.personName = cleanWhitespace(withTeam[1]!);
+      snapshot.teamName = cleanWhitespace(withTeam[2]!);
+      break;
+    }
+    const nameOnly = text.match(/^Private URL\s+for\s+(.+?)\s*\.?\s*$/i);
+    if (nameOnly) {
+      snapshot.personName = cleanWhitespace(nameOnly[1]!);
+      break;
     }
   }
 
-  // 3. Greeting variants Tabbycat sometimes ships.
+  // 2. Greeting fallback ("Hi Abhishek", "Welcome, Abhishek!")
   if (!snapshot.personName) {
-    const hi = html.match(/(?:Hi|Hello|Welcome,?)\s+([A-Z][^,!<\n\r]{0,80}?)\s*[,!<]/);
-    if (hi) snapshot.personName = cleanWhitespace(hi[1]!);
+    for (const el of candidates) {
+      const text = cleanWhitespace($(el).text());
+      const m = text.match(/^(?:Hi|Hello|Welcome,?)\s+([A-Z][^,!.]{0,80}?)\s*[,!.]?\s*$/);
+      if (m) {
+        snapshot.personName = cleanWhitespace(m[1]!);
+        break;
+      }
+    }
   }
 
-  const teamMatch = html.match(/Team name:\s*([^<\n\r]+)/i);
-  if (teamMatch) snapshot.teamName = cleanWhitespace(teamMatch[1]!);
-
-  const speakersMatch = html.match(/Speakers:\s*([^<\n\r]+)/i);
-  if (speakersMatch) {
-    snapshot.speakers = speakersMatch[1]!
-      .split(',')
-      .map((x) => cleanWhitespace(x))
-      .filter(Boolean);
-  }
-
-  const instMatch = html.match(/Institution:\s*([^<\n\r]+)/i);
-  if (instMatch) snapshot.institution = cleanWhitespace(instMatch[1]!);
+  // 3. Label-value pairs ("Team name: X", "Speakers: X, Y", "Institution: X")
+  //    each typically live in their own <p> / <li> / <dt> / <dd>, so we can
+  //    scan those containers and flatten their text to sidestep inline tags.
+  $('p, li, dd').each((_i, el) => {
+    const text = cleanWhitespace($(el).text());
+    if (!snapshot.teamName) {
+      const m = text.match(/^Team name:\s*(.+)$/i);
+      if (m) snapshot.teamName = cleanWhitespace(m[1]!);
+    }
+    if (snapshot.speakers.length === 0) {
+      const m = text.match(/^Speakers?:\s*(.+)$/i);
+      if (m) {
+        snapshot.speakers = m[1]!
+          .split(',')
+          .map((x) => cleanWhitespace(x))
+          .filter(Boolean);
+      }
+    }
+    if (!snapshot.institution) {
+      const m = text.match(/^Institution:\s*(.+)$/i);
+      if (m) snapshot.institution = cleanWhitespace(m[1]!);
+    }
+  });
 
   return snapshot;
 }
