@@ -153,3 +153,19 @@ If you want, next I can generate a complete starter app (frontend + backend) wit
 - token storage abstraction
 - extraction service with regex rules
 - disconnect/revoke endpoint
+
+## 9) Calicotab-specific extraction layer (new foundation)
+
+After Gmail URL discovery, treat each Calicotab private URL as a source document and ingest:
+
+- person identity and role(s) (speaker/judge/team member)
+- tournament metadata (name, format, year)
+- team tab metrics (team score, team outcomes)
+- speaker tab metrics (speaker score, ranking, round/position stats)
+- results/outrounds (octo/quarter/semi/final progression)
+
+See:
+
+- `docs/CALICOTAB_DATA_MODEL.md`
+- `docs/INGESTION_WORKFLOW.md`
+- `sql/001_init_calicotab_schema.sql`
