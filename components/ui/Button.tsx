@@ -7,23 +7,26 @@ type Size = 'sm' | 'md' | 'lg';
 
 const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
-  'transition-colors rounded focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-primary-500 focus-visible:ring-offset-2 ' +
-  'disabled:opacity-50 disabled:cursor-not-allowed select-none';
+  'rounded-md transition-all duration-[180ms] ease-soft select-none ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
+  'disabled:opacity-50 disabled:cursor-not-allowed';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-primary-600 text-white hover:bg-primary-700 shadow-xs',
+  primary:
+    'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:-translate-y-[1px] active:translate-y-0',
   secondary:
-    'bg-bg text-ink-1 border border-border hover:bg-bg-muted hover:border-border-strong shadow-xs',
-  ghost: 'bg-transparent text-ink-2 hover:bg-bg-muted',
-  danger: 'bg-danger-600 text-white hover:bg-danger-700 shadow-xs',
-  link: 'text-primary-600 hover:text-primary-700 underline-offset-4 hover:underline p-0',
+    'bg-card text-foreground border border-border shadow-xs hover:bg-muted hover:border-border',
+  ghost: 'bg-transparent text-foreground hover:bg-muted',
+  danger:
+    'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
+  link:
+    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto',
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'text-xs h-8 px-3',
-  md: 'text-sm h-10 px-4',
-  lg: 'text-base h-11 px-5',
+  sm: 'text-[13px] h-9 px-3.5',
+  md: 'text-[14px] h-11 px-4',
+  lg: 'text-[15px] h-12 px-5',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

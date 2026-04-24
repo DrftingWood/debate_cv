@@ -20,8 +20,8 @@ export function NavLink({
       href={href}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        'relative rounded px-1 py-1 transition-colors',
-        isActive ? 'text-ink-1 font-medium' : 'text-ink-3 hover:text-ink-1',
+        'relative rounded px-0.5 py-1 transition-colors duration-[180ms] ease-soft',
+        isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
         className,
       )}
     >
@@ -29,7 +29,7 @@ export function NavLink({
       {isActive ? (
         <span
           aria-hidden
-          className="absolute -bottom-[17px] left-0 right-0 h-[2px] bg-primary-600"
+          className="absolute -bottom-[14px] left-0 right-0 h-[2px] rounded-full bg-primary"
         />
       ) : null}
     </Link>

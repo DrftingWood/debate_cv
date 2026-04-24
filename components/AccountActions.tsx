@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, LogOut, Trash2, AlertTriangle } from 'lucide-react';
-// useRouter is used in DisconnectGoogleButton below.
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -29,7 +28,9 @@ export function DisconnectGoogleButton() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-ink-3">Revoke the OAuth grant and remove tokens?</span>
+      <span className="text-[13.5px] text-muted-foreground">
+        Revoke the OAuth grant and remove tokens?
+      </span>
       <Button
         type="button"
         variant="danger"
@@ -42,7 +43,11 @@ export function DisconnectGoogleButton() {
               toast.show({ kind: 'error', title: 'Disconnect failed', description: res.error });
               return;
             }
-            toast.show({ kind: 'success', title: 'Disconnected', description: 'Google token revoked.' });
+            toast.show({
+              kind: 'success',
+              title: 'Disconnected',
+              description: 'Google token revoked.',
+            });
             router.refresh();
             router.push('/');
           });
@@ -95,16 +100,16 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
     !userEmail || typed.trim().toLowerCase() !== userEmail.toLowerCase() || isPending;
 
   return (
-    <div className="space-y-3 rounded-md border border-danger-100 bg-danger-50 p-4">
+    <div className="space-y-3 rounded-card border border-[hsl(var(--destructive)/0.22)] bg-[hsl(var(--destructive)/0.06)] p-4">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger-700" aria-hidden />
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
         <div>
-          <div className="text-sm font-medium text-danger-700">
-            This will permanently delete your account, private URL history, ingest jobs,
-            and claimed identities. Tournament data that's shared with other users stays.
+          <div className="text-[14px] font-semibold text-destructive">
+            This permanently deletes your account, URL history, jobs, and claimed identities.
           </div>
-          <div className="mt-2 text-xs text-ink-3">
-            To confirm, type <strong>{userEmail ?? 'your email'}</strong> below.
+          <div className="mt-1 text-caption text-muted-foreground">
+            To confirm, type <strong>{userEmail ?? 'your email'}</strong> below. Tournament data
+            shared across users stays (it's public tab data).
           </div>
         </div>
       </div>
@@ -114,7 +119,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
         placeholder={userEmail ?? 'email'}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
-        className="block w-full rounded-md border border-border bg-bg px-3 py-2 text-sm shadow-xs focus:border-danger-600 focus:outline-none focus:ring-2 focus:ring-danger-600"
+        className="block w-full rounded-md border border-border bg-card px-3.5 py-2.5 text-[14px] shadow-xs focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/40"
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -131,7 +136,6 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
                 return;
               }
               toast.show({ kind: 'success', title: 'Account deleted' });
-              // Push to home; the session is now invalid.
               window.location.href = '/';
             });
           }}

@@ -4,8 +4,56 @@
 
 @layer base {
   :root {
-    color-scheme: light;
-    --radius: 6px;
+    --background: 220 20% 97.5%;
+    --foreground: 222 16% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 16% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 16% 9%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 244 70% 53%;
+    --primary-soft: 243 100% 97%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 16% 9%;
+
+    --muted: 220 16% 95%;
+    --muted-foreground: 218 9% 40%;
+
+    --accent: 243 100% 97%;
+    --accent-foreground: 243 75% 45%;
+
+    --success: 138 82% 34%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 71% 42%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 60% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 19% 92%;
+    --input: 222 19% 92%;
+    --ring: 243 75% 59%;
+
+    --radius: 0.625rem;
+    --radius-card: 0.875rem;
+
+    --shadow-xs: 0 1px 2px 0 hsl(222 16% 9% / 0.04);
+    --shadow-sm: 0 1px 2px hsl(222 16% 9% / 0.04), 0 1px 3px hsl(222 16% 9% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(222 16% 9% / 0.06), 0 2px 4px -1px hsl(222 16% 9% / 0.04);
+    --shadow-lg: 0 12px 32px -8px hsl(222 16% 9% / 0.10), 0 4px 12px -2px hsl(222 16% 9% / 0.05);
+    --shadow-xl: 0 24px 56px -16px hsl(222 16% 9% / 0.14), 0 8px 24px -4px hsl(222 16% 9% / 0.06);
+    --shadow-glow: 0 24px 60px -20px hsl(243 75% 59% / 0.35);
+
+    --gradient-hero: radial-gradient(120% 80% at 50% 0%, hsl(243 100% 97%) 0%, hsl(220 20% 97.5%) 55%, hsl(220 20% 97.5%) 100%);
+    --gradient-ink: linear-gradient(180deg, hsl(222 16% 9%) 0%, hsl(222 24% 16%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(243 75% 59%) 0%, hsl(258 70% 60%) 100%);
+    --gradient-glass: linear-gradient(180deg, hsl(0 0% 100% / 0.85) 0%, hsl(0 0% 100% / 0.6) 100%);
   }
 
   html {
@@ -14,35 +62,66 @@
   }
 
   body {
-    background: theme('colors.bg.subtle');
-    color: theme('colors.ink.1');
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
     font-feature-settings: 'ss01', 'cv11';
   }
 
-  /* Consistent selection color */
   ::selection {
-    background: theme('colors.primary.100');
-    color: theme('colors.primary.900');
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
   }
 
-  /* Visible focus on keyboard only */
   :focus-visible {
-    outline: 2px solid theme('colors.primary.500');
+    outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
     border-radius: 4px;
   }
 
-  /* Skip link shown only when focused */
   .skip-link {
     position: absolute;
     top: -40px;
     left: 0;
     padding: 0.5rem 1rem;
-    background: theme('colors.ink.1');
-    color: white;
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
     z-index: 50;
   }
   .skip-link:focus {
     top: 0;
+  }
+}
+
+@layer components {
+  /* Surface tiers */
+  .surface-card {
+    @apply rounded-card border border-border bg-card shadow-sm;
+  }
+  .surface-elevated {
+    @apply rounded-card border border-border bg-card shadow-lg;
+  }
+
+  /* Glass-preview: frosted translucent card used in the landing hero */
+  .glass-card {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(0 0% 100% / 0.6);
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* Grid-paper texture for the hero backdrop */
+  .hero-texture {
+    background-image:
+      linear-gradient(hsl(222 16% 9% / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(222 16% 9% / 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Serif display heading helper */
+  .font-hero {
+    font-family: var(--font-serif);
+    font-feature-settings: 'ss01';
   }
 }

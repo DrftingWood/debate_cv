@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { Shield, Mail } from 'lucide-react';
+import { Shield, Mail, Database } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -43,65 +43,79 @@ export default async function SettingsPage() {
   const tokenEncrypted = gmailToken?.encryptionVersion === 'v1';
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-1">Settings</h1>
-        <p className="mt-1 text-sm text-ink-3">
-          Manage your Gmail connection and your data. All actions here affect your account only.
+        <h1 className="font-display text-h1 font-semibold tracking-tight text-foreground">
+          Settings
+        </h1>
+        <p className="mt-2 text-body text-muted-foreground">
+          Manage your Gmail connection and your data. Actions here affect your account only.
         </p>
       </header>
 
+      {/* Gmail */}
       <Card>
-        <CardBody className="space-y-3">
+        <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-ink-3" aria-hidden />
-            <h2 className="text-base font-semibold text-ink-1">Gmail connection</h2>
+            <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <h2 className="font-display text-h3 font-semibold text-foreground">
+              Gmail connection
+            </h2>
           </div>
-          <div className="text-sm text-ink-3">
-            Signed in as <span className="font-medium text-ink-2">{user?.email ?? user?.name ?? 'Unknown'}</span>.
+          <div className="text-[14px] text-muted-foreground">
+            Signed in as{' '}
+            <span className="font-medium text-foreground">
+              {user?.email ?? user?.name ?? 'Unknown'}
+            </span>
+            .
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={gmailToken ? 'success' : 'neutral'}>
               {gmailToken ? 'Gmail connected' : 'Gmail not connected'}
             </Badge>
             <Badge variant={tokenEncrypted ? 'success' : 'warning'}>
-              {tokenEncrypted ? 'Token encrypted at rest' : 'Token stored in plaintext'}
+              {tokenEncrypted ? 'Token encrypted at rest (AES-256-GCM)' : 'Token stored in plaintext'}
             </Badge>
             {gmailToken?.updatedAt ? (
-              <span className="text-ink-4">
+              <span className="text-caption text-muted-foreground">
                 Last refreshed {new Date(gmailToken.updatedAt).toLocaleDateString()}
               </span>
             ) : null}
           </div>
-          <div className="pt-2">
+          <div className="pt-1">
             <DisconnectGoogleButton />
           </div>
         </CardBody>
       </Card>
 
+      {/* Data */}
       <Card>
-        <CardBody className="space-y-3">
+        <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-ink-3" aria-hidden />
-            <h2 className="text-base font-semibold text-ink-1">Your data</h2>
+            <Database className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <h2 className="font-display text-h3 font-semibold text-foreground">Your data</h2>
           </div>
-          <dl className="grid grid-cols-3 gap-3 text-sm">
-            <Stat label="Private URLs" value={counts.urls} />
-            <Stat label="Ingest jobs" value={counts.jobs} />
-            <Stat label="Claimed identities" value={counts.claimed} />
+          <dl className="grid grid-cols-3 gap-3 text-[14px]">
+            <DataStat label="Private URLs" value={counts.urls} />
+            <DataStat label="Ingest jobs" value={counts.jobs} />
+            <DataStat label="Claimed identities" value={counts.claimed} />
           </dl>
-          <div className="pt-2">
+          <div className="pt-1">
             <DownloadDataButton />
           </div>
         </CardBody>
       </Card>
 
+      {/* Danger zone */}
       <Card>
-        <CardBody className="space-y-3">
-          <h2 className="text-base font-semibold text-ink-1">Delete account</h2>
-          <p className="text-sm text-ink-3">
+        <CardBody className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-destructive" aria-hidden />
+            <h2 className="font-display text-h3 font-semibold text-foreground">Delete account</h2>
+          </div>
+          <p className="text-[14px] text-muted-foreground">
             Removes your user record, Gmail tokens, discovered URLs, ingest jobs, and identity
-            claims. Tournament rows that are shared across users stay — they're public tab data.
+            claims. Tournament rows shared across users stay — they're public tab data.
           </p>
           <DeleteAccountButton userEmail={user?.email ?? null} />
         </CardBody>
@@ -110,11 +124,11 @@ export default async function SettingsPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function DataStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-border bg-bg-subtle p-3">
-      <dt className="text-xs text-ink-4">{label}</dt>
-      <dd className="text-xl font-semibold text-ink-1">{value}</dd>
+    <div className="rounded-md border border-border bg-muted/50 px-3.5 py-3">
+      <dt className="text-caption text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 font-display text-[22px] font-semibold text-foreground">{value}</dd>
     </div>
   );
 }
