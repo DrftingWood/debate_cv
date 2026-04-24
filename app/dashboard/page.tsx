@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Inbox, Clock, CheckCircle2, XCircle, ExternalLink, Link2 } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Dashboard',
+  description: 'Scan Gmail, ingest Tabbycat private URLs, and track progress.',
+  robots: { index: false, follow: false },
+};
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge, SignOutButton } from '@/components/SignInOut';

@@ -9,19 +9,42 @@ import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 import './globals.css';
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'https://debate-cv.vercel.app');
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'debate cv — your debate tournament history, from your inbox',
     template: '%s · debate cv',
   },
   description:
     'Sign in with Google and we build your debate tournament CV from the Tabbycat private URLs in your Gmail. Speaker scores, break results, team mates — all in one place.',
+  applicationName: 'debate cv',
+  authors: [{ name: 'DrftingWood', url: 'https://github.com/DrftingWood' }],
   openGraph: {
     title: 'debate cv',
     description: 'Your debate tournament history, compiled from your Gmail.',
     type: 'website',
+    siteName: 'debate cv',
+    url: siteUrl,
   },
-  robots: { index: true, follow: true },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'debate cv',
+    description: 'Your debate tournament history, compiled from your Gmail.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

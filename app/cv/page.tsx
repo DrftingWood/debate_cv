@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, ExternalLink, Users, Search } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'My CV',
+  description: 'Your debate tournament history, compiled from your Gmail.',
+  robots: { index: false, follow: false },
+};
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge } from '@/components/SignInOut';
