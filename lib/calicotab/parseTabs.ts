@@ -57,6 +57,17 @@ function extractJsonAt(html: string, marker: string): VueTable[] | null {
   return null;
 }
 
+function extractVueData(html: string): VueTable[] | null {
+  // Standard Tabbycat: window.vueData = { tablesData: [...] }
+  return (
+    extractJsonAt(html, 'window.vueData = ') ??
+    // Some forks/versions assign the array directly.
+    extractJsonAt(html, 'window.tablesData = ') ??
+    extractJsonAt(html, 'var tablesData = ') ??
+    extractJsonAt(html, 'const tablesData = ')
+  );
+}
+
 /**
  * Fallback extractor: find `"tablesData":` in the HTML and extract just the
  * JSON array, bypassing any non-strict-JSON values in the outer window.vueData
@@ -119,8 +130,6 @@ export function diagnoseVueData(html: string, colNeedles: string[]): string {
     const markerIdx = html.indexOf('window.vueData = ');
     const hasMarker = markerIdx >= 0;
 
-    // When the marker IS present, run the brace counter + JSON.parse to capture
-    // the exact error — this tells us what's breaking the full-object extraction.
     let parseError = '';
     if (hasMarker) {
       const rest = html.slice(markerIdx + 'window.vueData = '.length);
