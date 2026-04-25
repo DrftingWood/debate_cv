@@ -14,11 +14,6 @@ type VueCell = { text?: string; sort?: number | string; class?: string; popover?
 type VueTable = { head: VueHead[]; data: VueCell[][] };
 
 /**
- * Walk the HTML for `window.vueData = { tablesData: [...] }` and return the
- * tables array. Uses a string-aware brace counter so nested JSON and quoted
- * braces don't confuse the boundary detection.
- */
-/**
  * Walk `html` looking for `marker` and extract the JSON value assigned to it.
  * When the marker is followed by `[` the value is a bare array; when followed
  * by `{` it may be an object with a `tablesData` key.
@@ -62,14 +57,54 @@ function extractJsonAt(html: string, marker: string): VueTable[] | null {
   return null;
 }
 
+/**
+ * Fallback extractor: find `"tablesData":` in the HTML and extract just the
+ * JSON array, bypassing any non-strict-JSON values in the outer window.vueData
+ * object (e.g. JS-only `undefined`/`Infinity` in sort fields, or large popover
+ * HTML that contains characters that trip JSON.parse on the full object).
+ */
+function extractTablesDataDirectly(html: string): VueTable[] | null {
+  const m = /"tablesData"\s*:\s*\[/.exec(html);
+  if (!m) return null;
+  const arrayStart = html.indexOf('[', m.index);
+  if (arrayStart < 0) return null;
+
+  const rest = html.slice(arrayStart);
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let endIdx = -1;
+
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest[i]!;
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\' && inString) { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) { endIdx = i + 1; break; }
+    }
+  }
+
+  if (endIdx < 0) return null;
+  try {
+    const parsed = JSON.parse(rest.slice(0, endIdx)) as unknown;
+    if (Array.isArray(parsed)) return parsed as VueTable[];
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function extractVueData(html: string): VueTable[] | null {
-  // Standard Tabbycat: window.vueData = { tablesData: [...] }
   return (
     extractJsonAt(html, 'window.vueData = ') ??
-    // Some forks/versions assign the array directly.
     extractJsonAt(html, 'window.tablesData = ') ??
     extractJsonAt(html, 'var tablesData = ') ??
-    extractJsonAt(html, 'const tablesData = ')
+    extractJsonAt(html, 'const tablesData = ') ??
+    extractTablesDataDirectly(html)
   );
 }
 
@@ -81,28 +116,51 @@ function extractVueData(html: string): VueTable[] | null {
 export function diagnoseVueData(html: string, colNeedles: string[]): string {
   const tables = extractVueData(html);
   if (!tables) {
-    // Scan script blocks to surface what the page actually contains.
+    const markerIdx = html.indexOf('window.vueData = ');
+    const hasMarker = markerIdx >= 0;
+
+    let parseError = '';
+    if (hasMarker) {
+      const rest = html.slice(markerIdx + 'window.vueData = '.length);
+      let depth = 0, inStr = false, esc = false, endIdx = -1;
+      for (let i = 0; i < rest.length; i++) {
+        const ch = rest[i]!;
+        if (esc) { esc = false; continue; }
+        if (ch === '\\' && inStr) { esc = true; continue; }
+        if (ch === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === '{' || ch === '[') depth++;
+        else if (ch === '}' || ch === ']') { depth--; if (depth === 0) { endIdx = i + 1; break; } }
+      }
+      if (endIdx >= 0) {
+        try { JSON.parse(rest.slice(0, endIdx)); } catch (e) {
+          const preview = rest.slice(0, endIdx).replace(/\s+/g, ' ').slice(0, 80);
+          parseError = ` parseErr=${String(e).slice(0, 80)} near: ${preview}`;
+        }
+      } else {
+        parseError = ' braceCounter: endIdx not found (unbalanced JSON)';
+      }
+    }
+
     const scriptSnippets: string[] = [];
     const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/gi;
-    let m: RegExpExecArray | null;
-    while ((m = scriptRe.exec(html)) !== null) {
-      const body = (m[1] ?? '').trim();
+    let sm: RegExpExecArray | null;
+    while ((sm = scriptRe.exec(html)) !== null) {
+      const body = (sm[1] ?? '').trim();
       if (body.length < 10) continue;
-      // Only report script blocks that contain something data-like.
-      const preview = body.replace(/\s+/g, ' ').slice(0, 120);
-      scriptSnippets.push(preview);
+      scriptSnippets.push(body.replace(/\s+/g, ' ').slice(0, 120));
       if (scriptSnippets.length >= 4) break;
     }
     const hasTablesData = html.includes('tablesData');
     const hasTables = html.includes('<table');
-    const extra = [
-      hasTablesData ? 'tablesData:YES' : 'tablesData:NO',
-      hasTables ? 'html-table:YES' : 'html-table:NO',
-    ].join(' ');
     const scripts = scriptSnippets.length
       ? `\nscripts: ${scriptSnippets.map((s, i) => `[${i}]${s}`).join(' | ')}`
       : '\nscripts: none';
-    return `vueData: window.vueData not found (${html.length}b) ${extra}${scripts}`;
+    return (
+      `vueData: window.vueData not found (${html.length}b) ` +
+      `marker:${hasMarker ? 'YES' : 'NO'} tablesData:${hasTablesData ? 'YES' : 'NO'} html-table:${hasTables ? 'YES' : 'NO'}` +
+      parseError + scripts
+    );
   }
   if (tables.length === 0) return 'vueData: tablesData is an empty array';
   const t = tables[0]!;
