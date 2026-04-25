@@ -115,8 +115,12 @@ export async function ingestPrivateUrl(
   const fetchTab = async (targetUrl: string, label: string): Promise<string | null> => {
     const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized });
     if (r.ok) return r.html;
+    const hint =
+      r.status === 403 && !process.env.SCRAPER_API_KEY
+        ? ' (set SCRAPER_API_KEY to bypass Cloudflare blocking)'
+        : '';
     fetchWarnings.push(
-      `fetch: ${label} HTTP ${r.status}${r.bodyPreview ? ` — ${r.bodyPreview.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`,
+      `fetch: ${label} HTTP ${r.status}${hint}${r.bodyPreview ? ` — ${r.bodyPreview.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`,
     );
     return null;
   };

@@ -233,7 +233,10 @@ export async function fetchRoundWithProvenance(
   const trimmed = url.replace(/\/+$/, '') + '/';
   const byDebateUrl = `${trimmed}by-debate/`;
   const byDebate = await fetchHtmlWithProvenance(byDebateUrl, options);
-  if (byDebate.ok) return byDebate;
+  // Accept the by-debate response only when it actually contains round data.
+  // Tabbycat sometimes returns the generic Results overview page (200 OK) for
+  // round URLs that don't exist yet — the HTML has no window.vueData block.
+  if (byDebate.ok && byDebate.html.includes('window.vueData')) return byDebate;
   return fetchHtmlWithProvenance(trimmed, options);
 }
 
