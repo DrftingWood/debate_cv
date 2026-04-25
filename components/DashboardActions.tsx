@@ -2,13 +2,21 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw } from 'lucide-react';
+import { Search, Play, RotateCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 
 type DrainResponse = { processed: number; remaining: number };
 type ScanResponse = { scanned: number; found: number };
+type IngestUrlResponse = {
+  tournamentId: string;
+  fingerprint: string;
+  cached: boolean;
+  claimedPersonId: string | null;
+  totalTeams: number | null;
+  totalParticipants: number | null;
+};
 
 async function drainUntilEmpty(
   onProgress: (summary: { processed: number; remaining: number }) => void,
@@ -24,6 +32,13 @@ async function drainUntilEmpty(
     if ((result.data.processed ?? 0) === 0 || remaining === 0) break;
   }
   return { processed: totalProcessed, remaining };
+}
+
+function formatMetrics(totalTeams: number | null, totalParticipants: number | null): string {
+  const parts: string[] = [];
+  if (totalTeams != null && totalTeams > 0) parts.push(`${totalTeams} teams`);
+  if (totalParticipants != null && totalParticipants > 0) parts.push(`${totalParticipants} participants`);
+  return parts.join(' · ');
 }
 
 export function ScanButton() {
@@ -143,7 +158,7 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
       leftIcon={!isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined}
       onClick={() => {
         startTransition(async () => {
-          const result = await postJson('/api/ingest/url', { url, force: alreadyDone });
+          const result = await postJson<IngestUrlResponse>('/api/ingest/url', { url, force: alreadyDone });
           if (!result.ok) {
             toast.show({
               kind: 'error',
@@ -152,12 +167,59 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
             });
             return;
           }
-          toast.show({ kind: 'success', title: `${label}ed`, description: new URL(url).host });
+          const metrics = formatMetrics(result.data.totalTeams, result.data.totalParticipants);
+          const host = new URL(url).host;
+          toast.show({
+            kind: 'success',
+            title: `${label}ed`,
+            description: metrics
+              ? `${host} · ${metrics}${result.data.cached ? ' (cached)' : ''}`
+              : result.data.cached
+                ? `${host} (cached)`
+                : host,
+          });
           router.refresh();
         });
       }}
     >
       {label}
+    </Button>
+  );
+}
+
+export function ClearButton({ url }: { url: string }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      variant="link"
+      size="sm"
+      loading={isPending}
+      leftIcon={!isPending ? <Trash2 className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await postJson('/api/ingest/clear', { url });
+          if (!result.ok) {
+            toast.show({
+              kind: 'error',
+              title: 'Clear failed',
+              description: result.error,
+            });
+            return;
+          }
+          toast.show({
+            kind: 'success',
+            title: 'Cleared',
+            description: 'Ingestion reset — click Ingest to retry.',
+          });
+          router.refresh();
+        });
+      }}
+    >
+      Clear
     </Button>
   );
 }

@@ -25,6 +25,8 @@ type IngestResult = {
   cached: boolean;
   claimedPersonId: bigint | null;
   parserVersion: string;
+  totalTeams: number | null;
+  totalParticipants: number | null;
 };
 
 export async function ingestPrivateUrl(
@@ -96,6 +98,8 @@ export async function ingestPrivateUrl(
         cached: true,
         claimedPersonId,
         parserVersion: PARSER_VERSION,
+        totalTeams: existing.totalTeams,
+        totalParticipants: existing.totalParticipants,
       };
     }
   }
@@ -465,7 +469,15 @@ export async function ingestPrivateUrl(
     data: { tournamentId, ingestedAt: new Date() },
   });
 
-  return { tournamentId, fingerprint, cached: false, claimedPersonId, parserVersion: PARSER_VERSION };
+  return {
+    tournamentId,
+    fingerprint,
+    cached: false,
+    claimedPersonId,
+    parserVersion: PARSER_VERSION,
+    totalTeams: totalTeams ?? null,
+    totalParticipants: totalParticipants ?? null,
+  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { google, type gmail_v1 } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
+import type { OAuth2Client } from './client';
 import { extractFromMessage, dedupeByUrl, type PrivateUrlRecord } from './extract';
 
 export const DEFAULT_QUERY =

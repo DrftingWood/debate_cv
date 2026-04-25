@@ -12,7 +12,7 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge, SignOutButton } from '@/components/SignInOut';
-import { ScanButton, IngestAllButton, IngestButton } from '@/components/DashboardActions';
+import { ScanButton, IngestAllButton, IngestButton, ClearButton } from '@/components/DashboardActions';
 import { IdentityReview, type ReviewItem } from '@/components/IdentityReview';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
@@ -167,6 +167,7 @@ export default async function Dashboard() {
                             <div className="truncate font-display text-[14.5px] font-semibold text-foreground">
                               {u.tournament?.name ?? '—'}
                             </div>
+                            <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} />
                             <a
                               href={u.url}
                               target="_blank"
@@ -183,7 +184,10 @@ export default async function Dashboard() {
                           <span>
                             {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
                           </span>
-                          <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                          <div className="flex items-center gap-1">
+                            {status === 'failed' ? <ClearButton url={u.url} /> : null}
+                            <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                          </div>
                         </div>
                         {job?.lastError && !u.ingestedAt ? (
                           <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
@@ -214,22 +218,21 @@ export default async function Dashboard() {
                     const job = jobByUrl.get(u.url);
                     const status = statusFor(!!u.ingestedAt, job?.status);
                     return (
-                      <tr key={u.id} className="align-top transition-colors hover:bg-muted/40">
+                      <tr key={u.id} className="align-middle transition-colors hover:bg-muted/40">
                         <td className="px-5 py-3">
                           <a
                             href={u.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex max-w-[28rem] items-center gap-1 truncate align-bottom font-mono text-[12px] text-foreground transition-colors hover:text-primary"
+                            className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-[12px] text-foreground transition-colors hover:text-primary"
                           >
                             <span className="truncate">{u.url}</span>
                             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
                           </a>
                         </td>
                         <td className="px-5 py-3 text-foreground">
-                          {u.tournament?.name ?? (
-                            <span className="text-muted-foreground/60">—</span>
-                          )}
+                          <div>{u.tournament?.name ?? <span className="text-muted-foreground/60">—</span>}</div>
+                          <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} />
                         </td>
                         <td className="px-5 py-3">
                           <StatusPill status={status} />
@@ -246,7 +249,10 @@ export default async function Dashboard() {
                           {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                          <div className="flex items-center justify-end gap-1">
+                            {status === 'failed' ? <ClearButton url={u.url} /> : null}
+                            <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -257,6 +263,37 @@ export default async function Dashboard() {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+function TournamentMetrics({
+  tournament,
+  ingestedAt,
+}: {
+  tournament: { totalTeams: number | null; totalParticipants: number | null } | null | undefined;
+  ingestedAt: Date | null;
+}) {
+  if (!tournament) return null;
+  const { totalTeams, totalParticipants } = tournament;
+  const hasMetrics = (totalTeams ?? 0) > 0 || (totalParticipants ?? 0) > 0;
+
+  if (ingestedAt && !hasMetrics) {
+    return (
+      <div className="mt-0.5 text-caption text-warning">
+        ⚠ No data scraped
+      </div>
+    );
+  }
+  if (!hasMetrics) return null;
+
+  const parts: string[] = [];
+  if (totalTeams) parts.push(`${totalTeams} teams`);
+  if (totalParticipants) parts.push(`${totalParticipants} participants`);
+
+  return (
+    <div className="mt-0.5 text-caption text-muted-foreground">
+      {parts.join(' · ')}
     </div>
   );
 }
@@ -290,7 +327,7 @@ function Stat({
   };
   return (
     <Card className="transition-all duration-[180ms] ease-soft hover:shadow-md">
-      <CardBody className="flex items-start gap-3">
+      <CardBody className="flex items-center gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-md ${toneRing[tone]}`}>
           {icon}
         </div>

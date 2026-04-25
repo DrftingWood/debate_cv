@@ -20,6 +20,60 @@ const lastRequestByHost = new Map<string, number>();
 // often carry useful error text so we surface them without a retry.
 const RETRYABLE_STATUSES = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
 
+// Per-host cookie jar. Module-level so clearance cookies (cf_clearance, etc.)
+// persist across the multiple tab fetches that follow the landing page fetch
+// within a single ingest session. Cloudflare sets these on the first request
+// that passes its checks; without replaying them the subsequent tab requests
+// get re-challenged and 403.
+const cookieStore = new Map<string, Map<string, string>>();
+
+function storeCookies(host: string, response: Response): void {
+  // getSetCookie() is the multi-value variant available in Node 18+.
+  const setCookies =
+    (response.headers as Headers & { getSetCookie?(): string[] }).getSetCookie?.() ?? [];
+  if (!setCookies.length) return;
+  const jar = cookieStore.get(host) ?? new Map<string, string>();
+  for (const raw of setCookies) {
+    const pair = raw.split(';')[0] ?? '';
+    const eqIdx = pair.indexOf('=');
+    if (eqIdx < 1) continue;
+    jar.set(pair.slice(0, eqIdx).trim(), pair.slice(eqIdx + 1).trim());
+  }
+  cookieStore.set(host, jar);
+}
+
+function getCookieHeader(host: string): string | undefined {
+  const jar = cookieStore.get(host);
+  if (!jar?.size) return undefined;
+  return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+/**
+ * Cloudflare sometimes returns HTTP 200 for JS-challenge pages instead of
+ * 403/503. Detect them so we treat the response as a fetch failure rather
+ * than storing the challenge HTML as tournament data.
+ */
+function isCloudflareChallenge(html: string): boolean {
+  return (
+    html.includes('__cf_chl_') ||
+    (html.includes('Just a moment') && html.includes('cloudflare'))
+  );
+}
+
+/**
+ * If SCRAPER_API_KEY is set, route the request through ScraperAPI which
+ * rotates residential IPs and handles Cloudflare bot protection automatically.
+ * When the key is absent behaviour is identical to a direct fetch.
+ */
+function buildTargetUrl(url: string): string {
+  const key = process.env.SCRAPER_API_KEY;
+  if (!key) return url;
+  return (
+    `https://api.scraperapi.com/?api_key=${encodeURIComponent(key)}` +
+    `&url=${encodeURIComponent(url)}&render=false&keep_headers=true`
+  );
+}
+
 async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -50,10 +104,17 @@ async function throttledFetch(url: string, referer?: string): Promise<Response> 
   const gap = Date.now() - last;
   if (gap < MIN_INTERVAL_MS) await wait(MIN_INTERVAL_MS - gap);
   lastRequestByHost.set(host, Date.now());
-  return fetch(url, {
-    headers: browserHeaders(referer),
+
+  const cookie = getCookieHeader(host);
+  const res = await fetch(buildTargetUrl(url), {
+    headers: {
+      ...browserHeaders(referer),
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
     redirect: 'follow',
   });
+  storeCookies(host, res);
+  return res;
 }
 
 /**
@@ -114,6 +175,19 @@ export async function fetchHtmlWithProvenance(
       url,
       status: res.status,
       bodyPreview: html.slice(0, 300),
+      elapsedMs,
+    };
+  }
+
+  // Treat a Cloudflare JS-challenge page served with HTTP 200 as a fetch
+  // failure so callers record it as a warning rather than storing challenge
+  // HTML as tournament data.
+  if (isCloudflareChallenge(html)) {
+    return {
+      ok: false,
+      url,
+      status: 503,
+      bodyPreview: 'Cloudflare JS challenge page (requires browser execution)',
       elapsedMs,
     };
   }
@@ -192,4 +266,11 @@ export async function probeFetch(url: string): Promise<{
 }
 
 // Re-export for tests that assert on the outbound headers.
-export const __test__ = { browserHeaders, DEFAULT_USER_AGENT };
+export const __test__ = {
+  browserHeaders,
+  DEFAULT_USER_AGENT,
+  storeCookies,
+  getCookieHeader,
+  isCloudflareChallenge,
+  cookieStore,
+};
