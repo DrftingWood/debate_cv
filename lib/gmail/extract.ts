@@ -79,20 +79,25 @@ export function parsePrivateUrl(rawUrl: string): {
   tournamentSlug: string | null;
   token: string | null;
 } {
-  const u = new URL(rawUrl);
+  const url = normalizePrivateUrl(rawUrl);
+  const u = new URL(url);
   const segments = u.pathname.split('/').filter(Boolean);
   return {
-    url: rawUrl,
+    url,
     host: u.hostname,
     tournamentSlug: segments[0] ?? null,
     token: segments[2] ?? null,
   };
 }
 
+export function normalizePrivateUrl(rawUrl: string): string {
+  return rawUrl.replace(/[.,)\]\s]+$/, '').replace(/\/+$/, '') + '/';
+}
+
 export function extractUrlsFromText(text: string): string[] {
   if (!text) return [];
   const matches = text.match(PRIVATE_URL_RE) || [];
-  return matches.map((m) => m.replace(/[.,)\]\s]+$/, ''));
+  return matches.map(normalizePrivateUrl);
 }
 
 export function extractFromMessage(message: GmailMessage): PrivateUrlRecord[] {

@@ -24,8 +24,6 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function isAuthorized(req: Request): boolean {
-  // Vercel signs cron requests with x-vercel-cron: 1.
-  if (req.headers.get('x-vercel-cron') === '1') return true;
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   const header = req.headers.get('authorization') || req.headers.get('x-cron-secret') || '';

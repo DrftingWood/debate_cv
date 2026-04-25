@@ -18,6 +18,7 @@ import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount } from './judgeStats';
+import { normalizePrivateUrl } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -38,7 +39,8 @@ export async function ingestPrivateUrl(
   userId: string,
   options: { force?: boolean } = {},
 ): Promise<IngestResult> {
-  const normalized = url.replace(/\/+$/, '') + '/';
+  const normalized = normalizePrivateUrl(url);
+  const urlVariants = [...new Set([url, normalized])];
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
 
@@ -87,7 +89,7 @@ export async function ingestPrivateUrl(
         durationMs: Date.now() - parseStart,
       });
       const claimedPersonId = await withDeadlockRetry(() =>
-        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, normalized),
+        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
       );
       if (claimedPersonId) {
         const r = await recordJudgeRoundsFromLanding(
@@ -98,7 +100,7 @@ export async function ingestPrivateUrl(
         if (r.diagnostic) landingWarnings.push(r.diagnostic);
       }
       await prisma.discoveredUrl.updateMany({
-        where: { userId, url: normalized },
+        where: { userId, url: { in: urlVariants } },
         data: { tournamentId: existing.id, ingestedAt: new Date() },
       });
       return {
@@ -450,7 +452,7 @@ export async function ingestPrivateUrl(
   }, { maxWait: 10000, timeout: 30000 });
 
   const claimedPersonId = await withDeadlockRetry(() =>
-    linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, normalized),
+    linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),
   );
   if (claimedPersonId) {
     const r = await recordJudgeRoundsFromLanding(
@@ -463,7 +465,7 @@ export async function ingestPrivateUrl(
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
   await prisma.discoveredUrl.updateMany({
-    where: { userId, url: normalized },
+    where: { userId, url: { in: urlVariants } },
     data: { tournamentId, ingestedAt: new Date() },
   });
 
@@ -668,7 +670,7 @@ async function linkRegistrationPerson(
   tournamentId: bigint,
   personName: string | null,
   userId: string,
-  url: string,
+  urlVariants: string[],
 ): Promise<bigint | null> {
   if (!personName) return null;
   const normalizedName = normalizePersonName(personName);
@@ -693,7 +695,7 @@ async function linkRegistrationPerson(
   });
 
   await prisma.discoveredUrl.updateMany({
-    where: { userId, url },
+    where: { userId, url: { in: urlVariants } },
     data: { registrationPersonId: personId, registrationName: personName },
   });
 

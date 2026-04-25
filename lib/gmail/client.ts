@@ -1,9 +1,9 @@
 import { google } from 'googleapis';
 import { prisma } from '@/lib/db';
+import { decryptValue, encryptValue } from '@/lib/crypto';
 
 // Derived from the constructor so no direct dep on google-auth-library is needed.
 export type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
-import { decryptValue, encryptValue } from '@/lib/crypto';
 
 export function makeOAuthClient(): OAuth2Client {
   return new google.auth.OAuth2(
@@ -40,24 +40,35 @@ export async function persistTokensFromAccount(
   },
 ): Promise<void> {
   if (!tokens.access_token) return;
+  const existing = await prisma.gmailToken.findUnique({
+    where: { userId },
+    select: { refreshToken: true, encryptionVersion: true },
+  });
   const expiresAtMs =
     tokens.expiry_date ??
     (tokens.expires_at ? tokens.expires_at * 1000 : null);
 
   const encAccess = encryptValue(tokens.access_token);
   const encRefresh = encryptValue(tokens.refresh_token ?? null);
-  // Writer must agree on a single version; access_token decides it.
   const version = encAccess.version;
+  const refreshTokenUpdate =
+    tokens.refresh_token !== undefined
+      ? { refreshToken: encRefresh.value }
+      : existing && existing.refreshToken !== null
+        ? {
+            refreshToken: encryptValue(
+              decryptValue(existing.refreshToken, existing.encryptionVersion),
+            ).value,
+          }
+        : {};
 
   await prisma.gmailToken.upsert({
     where: { userId },
     update: {
       accessToken: encAccess.value ?? '',
-      // Preserve existing refresh_token if Google didn't send one (common on
-      // subsequent sign-ins) — don't overwrite with null.
-      ...(tokens.refresh_token !== undefined
-        ? { refreshToken: encRefresh.value }
-        : {}),
+      // If Google omits the refresh token, re-write the preserved value with
+      // this key so the row-level encryptionVersion still describes both fields.
+      ...refreshTokenUpdate,
       expiresAt: expiresAtMs ? new Date(expiresAtMs) : null,
       scope: tokens.scope ?? undefined,
       encryptionVersion: version,
