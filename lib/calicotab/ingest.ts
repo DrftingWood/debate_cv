@@ -25,6 +25,7 @@ type IngestResult = {
   fingerprint: string;
   cached: boolean;
   claimedPersonId: bigint | null;
+  claimedPersonName: string | null;
   parserVersion: string;
   totalTeams: number | null;
   totalParticipants: number | null;
@@ -84,18 +85,17 @@ export async function ingestPrivateUrl(
         warnings: landingWarnings,
         durationMs: Date.now() - parseStart,
       });
-      const claimedPersonId = await linkRegistrationPerson(
-        existing.id,
-        snapshot.registration.personName,
-        userId,
-        normalized,
+      const claimedPersonId = await withDeadlockRetry(() =>
+        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, normalized),
       );
       if (claimedPersonId && snapshot.registration.personName) {
-        await fuzzyClaimTournamentParticipants(
-          existing.id,
-          claimedPersonId,
-          normalizePersonName(snapshot.registration.personName),
-          userId,
+        await withDeadlockRetry(() =>
+          fuzzyClaimTournamentParticipants(
+            existing.id,
+            claimedPersonId,
+            normalizePersonName(snapshot.registration.personName!),
+            userId,
+          ),
         );
       }
       await prisma.discoveredUrl.updateMany({
@@ -107,6 +107,7 @@ export async function ingestPrivateUrl(
         fingerprint,
         cached: true,
         claimedPersonId,
+        claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
         parserVersion: PARSER_VERSION,
         totalTeams: existing.totalTeams,
         totalParticipants: existing.totalParticipants,
@@ -489,18 +490,17 @@ export async function ingestPrivateUrl(
     return t.id;
   }, { maxWait: 10000, timeout: 30000 });
 
-  const claimedPersonId = await linkRegistrationPerson(
-    tournamentId,
-    snapshot.registration.personName,
-    userId,
-    normalized,
+  const claimedPersonId = await withDeadlockRetry(() =>
+    linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, normalized),
   );
   if (claimedPersonId && snapshot.registration.personName) {
-    await fuzzyClaimTournamentParticipants(
-      tournamentId,
-      claimedPersonId,
-      normalizePersonName(snapshot.registration.personName),
-      userId,
+    await withDeadlockRetry(() =>
+      fuzzyClaimTournamentParticipants(
+        tournamentId,
+        claimedPersonId,
+        normalizePersonName(snapshot.registration.personName!),
+        userId,
+      ),
     );
   }
 
@@ -515,6 +515,7 @@ export async function ingestPrivateUrl(
     fingerprint,
     cached: false,
     claimedPersonId,
+    claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
     parserVersion: PARSER_VERSION,
     totalTeams: totalTeams ?? null,
     totalParticipants: totalParticipants ?? null,
@@ -573,6 +574,34 @@ function inferTournamentFormat({
   return null;
 }
 
+// ─── Deadlock resilience ──────────────────────────────────────────────────
+
+function isDeadlockError(e: unknown): boolean {
+  // PostgreSQL error code 40P01 = deadlock_detected.
+  return String(e).includes('40P01') || String(e).toLowerCase().includes('deadlock');
+}
+
+/**
+ * Retry a DB operation up to `maxAttempts` times when PostgreSQL aborts it
+ * with a deadlock (40P01). PostgreSQL automatically rolls back one of the
+ * conflicting transactions so a simple retry is always safe here.
+ */
+async function withDeadlockRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i < maxAttempts - 1 && isDeadlockError(e)) {
+        await new Promise<void>((r) => setTimeout(r, (i + 1) * 150));
+        continue;
+      }
+      throw e;
+    }
+  }
+  // unreachable — TypeScript needs the explicit throw
+  throw new Error('withDeadlockRetry: exhausted');
+}
+
 // ─── Jaro-Winkler similarity (no dependencies) ────────────────────────────
 
 function jaro(a: string, b: string): number {
@@ -620,6 +649,12 @@ const FUZZY_CLAIM_THRESHOLD = 0.95;
  * above FUZZY_CLAIM_THRESHOLD against `claimedNormalizedName`, auto-claim
  * them for the same user. Handles the common case where Tabbycat stored a
  * slightly different spelling in the tab vs the registration page.
+ *
+ * IDs are sorted ascending before updating so that concurrent calls always
+ * acquire row locks in the same order, preventing lock-ordering deadlocks.
+ * `updateMany` with `claimedByUserId: null` makes each write idempotent —
+ * a concurrent session that already claimed a row between our read and our
+ * write is silently skipped rather than overwritten.
  */
 async function fuzzyClaimTournamentParticipants(
   tournamentId: bigint,
@@ -631,14 +666,25 @@ async function fuzzyClaimTournamentParticipants(
     where: { tournamentId, personId: { not: claimedPersonId } },
     select: { person: { select: { id: true, normalizedName: true, claimedByUserId: true } } },
   });
-  for (const { person } of others) {
-    if (person.claimedByUserId) continue;
-    if (jaroWinkler(claimedNormalizedName, person.normalizedName) >= FUZZY_CLAIM_THRESHOLD) {
-      await prisma.person.update({
-        where: { id: person.id },
-        data: { claimedByUserId: userId },
-      });
-    }
+
+  // Collect matching IDs first, then sort ascending to enforce a consistent
+  // lock-acquisition order across concurrent calls.
+  const ids = others
+    .filter(
+      ({ person }) =>
+        !person.claimedByUserId &&
+        jaroWinkler(claimedNormalizedName, person.normalizedName) >= FUZZY_CLAIM_THRESHOLD,
+    )
+    .map(({ person }) => person.id)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+  for (const id of ids) {
+    // Conditional WHERE ensures we never override a claim set by a concurrent
+    // session between our findMany and this update.
+    await prisma.person.updateMany({
+      where: { id, claimedByUserId: null },
+      data: { claimedByUserId: userId },
+    });
   }
 }
 
@@ -678,6 +724,12 @@ async function upsertPerson(
  * one URL per registered participant and emails it only to that person. We
  * never override an existing claim in case two users share a Tabbycat account
  * or the record was previously claimed manually.
+ *
+ * The upsert and claim are performed in a single atomic SQL statement to
+ * prevent the deadlock that occurs when two concurrent sessions both do a
+ * two-step `upsert → update`: both see claimedByUserId = null after the
+ * upsert, both race to the update, and PostgreSQL aborts one with 40P01.
+ * COALESCE preserves an existing claim and sets a new one atomically.
  */
 async function linkRegistrationPerson(
   tournamentId: bigint,
@@ -689,32 +741,31 @@ async function linkRegistrationPerson(
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
-  // Create with claim; on conflict update display name but preserve any
-  // existing claim (another user may have already claimed this name).
-  const person = await prisma.person.upsert({
-    where: { normalizedName },
-    update: { displayName: personName },
-    create: { displayName: personName, normalizedName, claimedByUserId: userId },
-  });
-
-  // If the record already existed and is unclaimed, claim it now.
-  if (!person.claimedByUserId) {
-    await prisma.person.update({
-      where: { id: person.id },
-      data: { claimedByUserId: userId },
-    });
-  }
+  // Single atomic INSERT ... ON CONFLICT DO UPDATE replaces the previous
+  // two-step (upsert then conditional update) that was causing deadlocks.
+  // COALESCE: keep existing claim when set, otherwise apply userId.
+  const rows = await prisma.$queryRaw<{ id: bigint }[]>`
+    INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
+    VALUES (${personName}, ${normalizedName}, ${userId})
+    ON CONFLICT ("normalizedName")
+    DO UPDATE SET
+      "displayName" = EXCLUDED."displayName",
+      "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+    RETURNING id
+  `;
+  const personId = rows[0]?.id;
+  if (!personId) return null;
 
   await prisma.tournamentParticipant.upsert({
-    where: { tournamentId_personId: { tournamentId, personId: person.id } },
+    where: { tournamentId_personId: { tournamentId, personId } },
     update: {},
-    create: { tournamentId, personId: person.id },
+    create: { tournamentId, personId },
   });
 
   await prisma.discoveredUrl.updateMany({
     where: { userId, url },
-    data: { registrationPersonId: person.id },
+    data: { registrationPersonId: personId },
   });
 
-  return person.id;
+  return personId;
 }

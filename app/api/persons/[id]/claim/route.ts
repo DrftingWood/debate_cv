@@ -21,17 +21,27 @@ export async function POST(_req: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'bad_id' }, { status: 400 });
     }
 
-    const person = await prisma.person.findUnique({ where: { id: personId } });
-    if (!person) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-
-    if (person.claimedByUserId && person.claimedByUserId !== session.user.id) {
-      return NextResponse.json({ error: 'already_claimed' }, { status: 409 });
-    }
-
-    await prisma.person.update({
-      where: { id: personId },
+    // Single conditional update — avoids the TOCTOU gap between a findUnique
+    // and a subsequent update that can cause lost-update races.
+    // Case 1: row unclaimed → WHERE matches → claimed atomically.
+    // Case 2: row already claimed by this user → WHERE matches → no-op.
+    // Case 3: row claimed by someone else → WHERE fails → count = 0 → 409.
+    const updated = await prisma.person.updateMany({
+      where: { id: personId, OR: [{ claimedByUserId: null }, { claimedByUserId: session.user.id }] },
       data: { claimedByUserId: session.user.id },
     });
+
+    if (updated.count === 0) {
+      // Row doesn't exist or is claimed by a different user.
+      const exists = await prisma.person.findUnique({
+        where: { id: personId },
+        select: { id: true },
+      });
+      return NextResponse.json(
+        { error: exists ? 'already_claimed' : 'not_found' },
+        { status: exists ? 409 : 404 },
+      );
+    }
 
     return NextResponse.json({ ok: true, personId: personId.toString() });
   } catch (err) {

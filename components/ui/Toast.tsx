@@ -11,6 +11,8 @@ type ToastItem = {
   kind: ToastKind;
   title: string;
   description?: string;
+  /** Optional link rendered below the description. */
+  action?: { label: string; href: string };
 };
 
 type ToastContextValue = {
@@ -111,6 +113,14 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
           <div className="mt-0.5 text-caption text-muted-foreground break-words">
             {item.description}
           </div>
+        ) : null}
+        {item.action ? (
+          <a
+            href={item.action.href}
+            className="mt-1.5 inline-block text-caption font-medium text-primary underline-offset-2 hover:underline"
+          >
+            {item.action.label} →
+          </a>
         ) : null}
       </div>
       <button

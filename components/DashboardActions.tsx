@@ -14,6 +14,7 @@ type IngestUrlResponse = {
   fingerprint: string;
   cached: boolean;
   claimedPersonId: string | null;
+  claimedPersonName: string | null;
   totalTeams: number | null;
   totalParticipants: number | null;
   warnings?: string[];
@@ -179,6 +180,18 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
                 ? `${host} (cached)`
                 : host,
           });
+          // Show a dedicated toast when the ingest auto-identified the user,
+          // with a direct link to their CV so achievements are immediately visible.
+          if (result.data.claimedPersonId) {
+            toast.show({
+              kind: 'success',
+              title: 'Auto-identified',
+              description: result.data.claimedPersonName
+                ? `Matched as ${result.data.claimedPersonName}`
+                : 'Your identity was confirmed from the private URL.',
+              action: { label: 'View your CV', href: '/cv' },
+            });
+          }
           const warnings = result.data.warnings ?? [];
           if (warnings.length > 0) {
             toast.show({

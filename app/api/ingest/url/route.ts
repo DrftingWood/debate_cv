@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       fingerprint: result.fingerprint,
       cached: result.cached,
       claimedPersonId: result.claimedPersonId?.toString() ?? null,
+      claimedPersonName: result.claimedPersonName ?? null,
       totalTeams: result.totalTeams,
       totalParticipants: result.totalParticipants,
       warnings: result.warnings,
