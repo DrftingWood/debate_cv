@@ -233,6 +233,105 @@ export function extractRegistration(html: string): RegistrationSnapshot {
   return snapshot;
 }
 
+export type AdjudicatorRound = {
+  /** Full stage label as Tabbycat shows it: "Round 1", "Quarterfinals", etc. */
+  stage: string;
+  /** Numeric prelim round number when the stage is "Round N"; null for outrounds. */
+  roundNumber: number | null;
+  /** Role the URL owner held on this debate, derived from the adj-symbol marker. */
+  role: 'chair' | 'panellist' | 'trainee';
+  /** 1-based document order of the row in the "Debates" table. */
+  sequenceIndex: number;
+};
+
+/**
+ * Pull the URL owner's per-round judging history from the "Debates" card on
+ * the private-URL landing page.
+ *
+ * The card looks like:
+ *   <h4 class="card-title">Debates</h4>
+ *   <table>
+ *     <tbody>
+ *       <tr>
+ *         <td><div data-original-title="Round 1"><span>R1</span>…</div></td>
+ *         <td class="team-name">…OG…</td> … <td class="team-name">…CO…</td>
+ *         <td class="adjudicator-name">
+ *           <strong><span>Abhishek<i class="adj-symbol">Ⓒ</i></span></strong>,
+ *           <span>Bea Legaspi</span>
+ *         </td>
+ *         <td>…motion…</td>
+ *         <td>…ballot link…</td>
+ *       </tr>
+ *
+ * Tabbycat wraps the URL owner's name in <strong> (so they can spot
+ * themselves in the panel) and marks chairs with <i class="adj-symbol">Ⓒ</i>
+ * appended to the name. Trainees use Ⓣ; everything else is a panellist.
+ *
+ * Rows are returned in document order, which equals the prelim sequence
+ * (R1 → R2 → … → R6 → QF → SF → F).
+ */
+export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
+  const $ = cheerio.load(html);
+
+  // Locate the "Debates" card by its card-title heading. Be lenient about
+  // h-level and exact wording so newer Tabbycat versions don't quietly break.
+  let table: ReturnType<typeof $> | null = null;
+  $('h1.card-title, h2.card-title, h3.card-title, h4.card-title, h5.card-title').each(
+    (_i, el) => {
+      const text = cleanWhitespace($(el).text());
+      if (
+        /^debates$/i.test(text) ||
+        /^your\s+debates$/i.test(text) ||
+        /^your\s+rounds$/i.test(text)
+      ) {
+        const card = $(el).closest('.card-body, .card');
+        const t = card.find('table').first();
+        if (t.length > 0) table = t;
+      }
+    },
+  );
+  if (!table) return [];
+
+  const rows: AdjudicatorRound[] = [];
+  (table as ReturnType<typeof $>).find('tbody > tr').each((idx, tr) => {
+    const $tr = $(tr);
+
+    // Round cell — first <td>. The full stage name is in the
+    // data-original-title attribute of the inner tooltip div; fall back to
+    // the visible "R1"/"QF" abbreviation if that attribute is missing.
+    const roundCell = $tr.find('td').first();
+    const tooltipDiv = roundCell.find('[data-original-title]').first();
+    let stage = '';
+    if (tooltipDiv.length > 0) {
+      stage = cleanWhitespace(tooltipDiv.attr('data-original-title') ?? '');
+    }
+    if (!stage) {
+      stage = cleanWhitespace(roundCell.find('.tooltip-trigger').first().text());
+    }
+    if (!stage) return;
+
+    const roundMatch = stage.match(/^Round\s+(\d+)$/i);
+    const roundNumber = roundMatch ? Number(roundMatch[1]) : null;
+
+    // Adjudicator cell — the <td class="adjudicator-name"> that lists the
+    // panel. <strong> wraps the URL owner's own name; the chair marker is an
+    // <i class="adj-symbol"> child.
+    const adjCell = $tr.find('td.adjudicator-name').first();
+    if (adjCell.length === 0) return;
+    const userStrong = adjCell.find('strong').first();
+    if (userStrong.length === 0) return; // owner not on this panel — skip
+
+    const symbolText = cleanWhitespace(userStrong.find('.adj-symbol').text());
+    let role: 'chair' | 'panellist' | 'trainee' = 'panellist';
+    if (symbolText.includes('Ⓒ') || /chair/i.test(symbolText)) role = 'chair';
+    else if (symbolText.includes('Ⓣ') || /trainee/i.test(symbolText)) role = 'trainee';
+
+    rows.push({ stage, roundNumber, role, sequenceIndex: idx + 1 });
+  });
+
+  return rows;
+}
+
 export function parsePrivateUrlPage(html: string, sourceUrl: string): PrivateUrlSnapshot {
   const $ = cheerio.load(html);
   const title = $('title').first().text();

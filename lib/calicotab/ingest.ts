@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
-import { parsePrivateUrlPage } from './parseNav';
+import { parsePrivateUrlPage, extractAdjudicatorRounds } from './parseNav';
 import {
   parseTeamTab,
   parseSpeakerTab,
@@ -16,7 +16,6 @@ import {
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
-import { aggregateJudgeStats } from './judgeStats';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -88,6 +87,9 @@ export async function ingestPrivateUrl(
       const claimedPersonId = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, normalized),
       );
+      if (claimedPersonId) {
+        await recordJudgeRoundsFromLanding(landingHtml, existing.id, claimedPersonId);
+      }
       await prisma.discoveredUrl.updateMany({
         where: { userId, url: normalized },
         data: { tournamentId: existing.id, ingestedAt: new Date() },
@@ -352,125 +354,14 @@ export async function ingestPrivateUrl(
       }
     }
 
-    // Adjudicators from the participants list.
-    // Write only the adjudicator-specific columns on update so we don't
-    // clobber speaker fields for swings (who show up in both lists).
-    for (const p of participantRows) {
-      if (p.role !== 'adjudicator') continue;
-      const personId = personIdByNormalized.get(normalizePersonName(p.name));
-      if (!personId) continue;
-      const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        update: {
-          judgeTypeTag: p.judgeTag,
-          // Only overwrite teamName when the participants list actually tells
-          // us one — adjudicator rows typically have a null team and we don't
-          // want to erase a speaker's team affiliation.
-          ...(p.teamName ? { teamName: p.teamName } : {}),
-        },
-        create: {
-          tournamentId: t.id,
-          personId,
-          teamName: p.teamName,
-          judgeTypeTag: p.judgeTag,
-        },
-      });
-      await tx.participantRole.upsert({
-        where: {
-          tournamentParticipantId_role: {
-            tournamentParticipantId: participant.id,
-            role: 'judge',
-          },
-        },
-        update: {},
-        create: { tournamentParticipantId: participant.id, role: 'judge' },
-      });
-    }
-
-    // Raw judge_assignments table: one row per (tournament, person, stage, role, round).
-    // Resolve names to personIds via the pre-committed Person map so the pure
-    // aggregator can key by id without re-touching the Person table.
-    const personIdByName = new Map<string, bigint>();
-    for (const round of rounds) {
-      for (const j of round.judgeAssignments) {
-        if (personIdByName.has(j.personName)) continue;
-        const personId = personIdByNormalized.get(normalizePersonName(j.personName));
-        if (personId) personIdByName.set(j.personName, personId);
-      }
-    }
-    for (const round of rounds) {
-      for (const j of round.judgeAssignments) {
-        const personId = personIdByName.get(j.personName);
-        if (!personId) continue; // name didn't normalize — skip silently
-        // The @@unique on JudgeAssignment covers three nullable columns
-        // (stage, panelRole, roundNumber), which Prisma's compound-unique
-        // filter type doesn't accept as null. Use findFirst + create for
-        // a nullable-safe idempotent insert.
-        const existing = await tx.judgeAssignment.findFirst({
-          where: {
-            tournamentId: t.id,
-            personId,
-            stage: round.roundLabel,
-            panelRole: j.panelRole,
-            roundNumber: round.roundNumber,
-          },
-          select: { id: true },
-        });
-        if (!existing) {
-          await tx.judgeAssignment.create({
-            data: {
-              tournamentId: t.id,
-              personId,
-              stage: round.roundLabel,
-              panelRole: j.panelRole,
-              roundNumber: round.roundNumber,
-            },
-          });
-        }
-      }
-    }
-
-    // Aggregate per-judge stats via the pure helper (unit-tested).
-    const aggregatorInput = rounds.map((round) => ({
-      roundNumber: round.roundNumber,
-      roundLabel: round.roundLabel,
-      isOutround: round.isOutround,
-      judgeAssignments: round.judgeAssignments.map((j) => ({
-        personKey: (personIdByName.get(j.personName) ?? 0n).toString(),
-        panelRole: j.panelRole,
-      })),
-    }));
-    const judgeStats = aggregateJudgeStats(aggregatorInput);
-
-    for (const [personIdText, stat] of judgeStats.entries()) {
-      if (personIdText === '0') continue; // defensive: unknown name
-      const personId = BigInt(personIdText);
-      const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        update: {
-          chairedPrelimRounds: stat.chairedPrelimRounds || null,
-          lastOutroundChaired: stat.lastOutroundChaired,
-          lastOutroundPaneled: stat.lastOutroundPaneled,
-        },
-        create: {
-          tournamentId: t.id,
-          personId,
-          chairedPrelimRounds: stat.chairedPrelimRounds || null,
-          lastOutroundChaired: stat.lastOutroundChaired,
-          lastOutroundPaneled: stat.lastOutroundPaneled,
-        },
-      });
-      await tx.participantRole.upsert({
-        where: {
-          tournamentParticipantId_role: {
-            tournamentParticipantId: participant.id,
-            role: 'judge',
-          },
-        },
-        update: {},
-        create: { tournamentParticipantId: participant.id, role: 'judge' },
-      });
-    }
+    // Adjudicator data is intentionally NOT written from the participants
+    // list or from round-results judge panels. It now comes exclusively from
+    // the URL owner's "Debates" table on the private-URL landing page —
+    // see recordJudgeRoundsFromLanding() called below the main transaction.
+    // Reasons: (a) the user explicitly limited adjudicator scope to the
+    // private URL, and (b) round-results panels listed every adj on every
+    // debate, which depended on tab-name fuzzy matching to attribute rounds
+    // to the right person. Single-source from the private URL is exact.
 
     // Break rows -> elimination_results
     for (const row of breakRows) {
@@ -500,6 +391,9 @@ export async function ingestPrivateUrl(
   const claimedPersonId = await withDeadlockRetry(() =>
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, normalized),
   );
+  if (claimedPersonId) {
+    await recordJudgeRoundsFromLanding(landingHtml, tournamentId, claimedPersonId);
+  }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
   await prisma.discoveredUrl.updateMany({
@@ -712,4 +606,111 @@ async function linkRegistrationPerson(
   });
 
   return personId;
+}
+
+/**
+ * Score an outround stage so we can compute "deepest reached" by max rank.
+ * Mirrors the helper on /cv — kept private here to avoid a cross-package
+ * dependency on the page module.
+ */
+function outroundStageRank(stage: string | null | undefined): number | null {
+  if (!stage) return null;
+  const s = stage.toLowerCase();
+  if (/grand\s*final|\bgf\b/.test(s)) return 110;
+  if (/^finals?$|^the\s*final$/.test(s)) return 100;
+  if (/semi[-\s]?final|\bsf\b/.test(s)) return 90;
+  if (/quarter[-\s]?final|\bqf\b|quarters/.test(s)) return 80;
+  if (/octo[-\s]?final|\boctos?\b/.test(s)) return 70;
+  if (/double\s*octo|\bdoubles\b/.test(s)) return 60;
+  if (/triple\s*octo|\btriples\b/.test(s)) return 50;
+  return null;
+}
+
+/**
+ * Write the URL owner's per-round judging history straight from the "Debates"
+ * card on the landing page. Called for every successful ingest where the
+ * landing page identified a registration person. Idempotent — re-running on
+ * the same URL is safe.
+ *
+ * Why this lives outside the main transaction: the registration person is
+ * upserted by `linkRegistrationPerson` after the main tx commits, so the
+ * personId isn't known until then. Splitting the writes also keeps the
+ * landing-derived judging data on its own commit, separate from the tab data.
+ */
+async function recordJudgeRoundsFromLanding(
+  landingHtml: string,
+  tournamentId: bigint,
+  personId: bigint,
+): Promise<{ written: number; chairedPrelims: number }> {
+  const adjRounds = extractAdjudicatorRounds(landingHtml);
+  if (adjRounds.length === 0) return { written: 0, chairedPrelims: 0 };
+
+  // Idempotent insert per row. The unique key includes nullable columns so
+  // Prisma's compound-unique filter can't be used — same findFirst+create
+  // pattern the codebase uses elsewhere for that case.
+  for (const r of adjRounds) {
+    const existing = await prisma.judgeAssignment.findFirst({
+      where: {
+        tournamentId,
+        personId,
+        stage: r.stage,
+        panelRole: r.role,
+        roundNumber: r.roundNumber,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.judgeAssignment.create({
+        data: {
+          tournamentId,
+          personId,
+          stage: r.stage,
+          panelRole: r.role,
+          roundNumber: r.roundNumber,
+        },
+      });
+    }
+  }
+
+  // Aggregate stats for the participant row.
+  const chairedPrelims = adjRounds.filter(
+    (r) => r.role === 'chair' && r.roundNumber != null,
+  ).length;
+  const outrounds = adjRounds.filter((r) => r.roundNumber == null);
+  const ranked = outrounds
+    .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
+    .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
+    .sort((a, b) => b.rank - a.rank);
+  const deepestChaired = ranked.find((x) => x.r.role === 'chair')?.r.stage ?? null;
+  const deepestPaneled =
+    ranked.find((x) => x.r.role === 'panellist' || x.r.role === 'trainee')?.r.stage ?? null;
+
+  const tp = await prisma.tournamentParticipant.upsert({
+    where: { tournamentId_personId: { tournamentId, personId } },
+    update: {
+      judgeTypeTag: 'Adjudicator',
+      chairedPrelimRounds: chairedPrelims || null,
+      lastOutroundChaired: deepestChaired,
+      lastOutroundPaneled: deepestPaneled,
+    },
+    create: {
+      tournamentId,
+      personId,
+      judgeTypeTag: 'Adjudicator',
+      chairedPrelimRounds: chairedPrelims || null,
+      lastOutroundChaired: deepestChaired,
+      lastOutroundPaneled: deepestPaneled,
+    },
+  });
+  await prisma.participantRole.upsert({
+    where: {
+      tournamentParticipantId_role: {
+        tournamentParticipantId: tp.id,
+        role: 'judge',
+      },
+    },
+    update: {},
+    create: { tournamentParticipantId: tp.id, role: 'judge' },
+  });
+  return { written: adjRounds.length, chairedPrelims };
 }
