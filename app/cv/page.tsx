@@ -223,9 +223,13 @@ export default async function CvPage() {
                   {entries.map(({ tournament, registrationPersons }) => {
                     const allParticipants = participantsByTournament.get(tournament.id) ?? [];
                     const hasRegPeople = registrationPersons.size > 0;
-                    const hasClaimedMe = allParticipants.some(
-                      (p) => p.person.claimedByUserId === userId,
-                    );
+                    // hasClaimedMe: true if claimed via tab data OR via the
+                    // registration-person link (handles split-Person-record case).
+                    const hasClaimedMe =
+                      allParticipants.some((p) => p.person.claimedByUserId === userId) ||
+                      Array.from(registrationPersons.values()).some(
+                        (p) => p.claimedByUserId === userId,
+                      );
                     return (
                       <TournamentCard
                         key={tournament.id.toString()}
@@ -371,9 +375,14 @@ function TournamentCard({
         {hasRegPeople ? (
           <ul className="space-y-5">
             {registrationPersons.map((person) => {
-              const participation = partByTournamentAndPerson.get(
-                `${tournament.id}:${person.id}`,
-              );
+              // Primary lookup: exact match on registration-person ID.
+              // Fallback: any participation in this tournament claimed by the
+              // current user — covers the common case where the tab stored a
+              // slightly different name spelling than the landing page, so the
+              // two records have different Person IDs but the same user.
+              const participation =
+                partByTournamentAndPerson.get(`${tournament.id}:${person.id}`) ??
+                allParticipants.find((p) => p.person.claimedByUserId === userId);
               const isMine = person.claimedByUserId === userId;
               const claimedByOther = !!person.claimedByUserId && !isMine;
               return (
