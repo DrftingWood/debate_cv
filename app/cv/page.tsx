@@ -103,6 +103,18 @@ export default async function CvPage() {
     ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
     : null;
 
+  // Judge summary stats for the header tile.
+  const totalRoundsChaired = myParticipations.reduce(
+    (sum, p) => sum + (p.chairedPrelimRounds ?? 0),
+    0,
+  );
+  const hasJudgeHistory = myParticipations.some(
+    (p) => p.judgeTypeTag || (p.chairedPrelimRounds ?? 0) > 0,
+  );
+  const hasSpeakerHistory = myParticipations.some(
+    (p) => p.speakerScoreTotal || p.teamName,
+  );
+
   // Group tournaments by year (descending).
   const grouped = new Map<number | 'unknown', typeof byTournament extends Map<unknown, infer V> ? V[] : never>();
   for (const entry of byTournament.values()) {
@@ -148,8 +160,22 @@ export default async function CvPage() {
           </div>
           <div className="grid grid-cols-3 gap-3 md:min-w-[380px]">
             <MetricTile label="Tournaments" value={byTournament.size} />
-            <MetricTile label="Breaks" value={breaks} accent />
-            <MetricTile label="Avg speaker" value={avgScore ?? '—'} mono />
+            {hasJudgeHistory && !hasSpeakerHistory ? (
+              <>
+                <MetricTile label="Prelims chaired" value={totalRoundsChaired} accent />
+                <MetricTile label="Breaks" value={breaks} />
+              </>
+            ) : hasJudgeHistory ? (
+              <>
+                <MetricTile label="Breaks" value={breaks} accent />
+                <MetricTile label="Prelims chaired" value={totalRoundsChaired} mono />
+              </>
+            ) : (
+              <>
+                <MetricTile label="Breaks" value={breaks} accent />
+                <MetricTile label="Avg speaker" value={avgScore ?? '—'} mono />
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -283,6 +309,10 @@ function TournamentCard({
     wins: number | null;
     losses: number | null;
     eliminationReached: string | null;
+    judgeTypeTag: string | null;
+    chairedPrelimRounds: number | null;
+    lastOutroundChaired: string | null;
+    lastOutroundPaneled: string | null;
     roles: { role: string }[];
     speakerRoundScores: {
       id: bigint;
@@ -380,7 +410,9 @@ function TournamentCard({
               isMine: p.person.claimedByUserId === userId,
               claimedByOther:
                 !!p.person.claimedByUserId && p.person.claimedByUserId !== userId,
-              role: p.roles.map((r) => r.role).join(', '),
+              role:
+                p.roles.map((r) => r.role).join(', ') ||
+                (p.judgeTypeTag ? `Judge · ${p.judgeTypeTag}` : ''),
               teamName: p.teamName,
             }))}
             defaultOpen={!hasRegPeople}
@@ -491,6 +523,10 @@ function ParticipationDetails({
     wins: number | null;
     losses: number | null;
     eliminationReached: string | null;
+    judgeTypeTag: string | null;
+    chairedPrelimRounds: number | null;
+    lastOutroundChaired: string | null;
+    lastOutroundPaneled: string | null;
     roles: { role: string }[];
     speakerRoundScores: {
       id: bigint;
@@ -503,34 +539,70 @@ function ParticipationDetails({
   const rank = participation.eliminationReached
     ? rankForStage(participation.eliminationReached)
     : null;
+
+  const isJudge =
+    !!participation.judgeTypeTag || (participation.chairedPrelimRounds ?? 0) > 0;
+  const isSpeaker = !!(participation.speakerScoreTotal || participation.teamName);
+
   return (
     <>
       <dl className="mt-3 grid grid-cols-2 gap-y-3 gap-x-6 text-[14px] sm:grid-cols-4">
         {participation.roles.length > 0 ? (
           <Field label="Roles" value={participation.roles.map((r) => r.role).join(', ')} />
         ) : null}
-        {participation.teamName ? <Field label="Team" value={participation.teamName} /> : null}
-        {participation.speakerScoreTotal ? (
-          <Field label="Speaker total" value={participation.speakerScoreTotal.toString()} mono />
+
+        {/* Judge fields */}
+        {isJudge ? (
+          <>
+            {participation.judgeTypeTag ? (
+              <Field label="Judge type" value={participation.judgeTypeTag} />
+            ) : null}
+            {(participation.chairedPrelimRounds ?? 0) > 0 ? (
+              <Field label="Prelims chaired" value={String(participation.chairedPrelimRounds)} />
+            ) : null}
+            {participation.lastOutroundChaired ? (
+              <Field label="Last outround (chair)" value={participation.lastOutroundChaired} />
+            ) : null}
+            {participation.lastOutroundPaneled && !participation.lastOutroundChaired ? (
+              <Field label="Last outround (panel)" value={participation.lastOutroundPaneled} />
+            ) : null}
+          </>
         ) : null}
-        {participation.wins != null ? (
-          <Field
-            label="Record"
-            value={`${participation.wins}W${
-              participation.losses != null ? `-${participation.losses}L` : ''
-            }`}
-          />
-        ) : null}
-        {participation.eliminationReached ? (
-          <div>
-            <dt className="text-caption text-muted-foreground">Break</dt>
-            <dd className="mt-0.5 flex items-center gap-2">
-              <span className="text-foreground">{participation.eliminationReached}</span>
-              <RankBadge rank={rank} />
-            </dd>
-          </div>
+
+        {/* Speaker fields */}
+        {isSpeaker || !isJudge ? (
+          <>
+            {participation.teamName ? (
+              <Field label="Team" value={participation.teamName} />
+            ) : null}
+            {participation.speakerScoreTotal ? (
+              <Field
+                label="Speaker total"
+                value={participation.speakerScoreTotal.toString()}
+                mono
+              />
+            ) : null}
+            {participation.wins != null ? (
+              <Field
+                label="Record"
+                value={`${participation.wins}W${
+                  participation.losses != null ? `-${participation.losses}L` : ''
+                }`}
+              />
+            ) : null}
+            {participation.eliminationReached ? (
+              <div>
+                <dt className="text-caption text-muted-foreground">Break</dt>
+                <dd className="mt-0.5 flex items-center gap-2">
+                  <span className="text-foreground">{participation.eliminationReached}</span>
+                  <RankBadge rank={rank} />
+                </dd>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </dl>
+
       {participation.speakerRoundScores.length > 0 ? (
         <details className="mt-4">
           <summary className="cursor-pointer text-caption text-muted-foreground hover:text-foreground">
