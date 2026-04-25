@@ -57,17 +57,6 @@ function extractJsonAt(html: string, marker: string): VueTable[] | null {
   return null;
 }
 
-function extractVueData(html: string): VueTable[] | null {
-  // Standard Tabbycat: window.vueData = { tablesData: [...] }
-  return (
-    extractJsonAt(html, 'window.vueData = ') ??
-    // Some forks/versions assign the array directly.
-    extractJsonAt(html, 'window.tablesData = ') ??
-    extractJsonAt(html, 'var tablesData = ') ??
-    extractJsonAt(html, 'const tablesData = ')
-  );
-}
-
 /**
  * Fallback extractor: find `"tablesData":` in the HTML and extract just the
  * JSON array, bypassing any non-strict-JSON values in the outer window.vueData
