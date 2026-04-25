@@ -59,7 +59,6 @@ export async function POST(req: Request) {
       cached: result.cached,
       claimedPersonId: result.claimedPersonId?.toString() ?? null,
       claimedPersonName: result.claimedPersonName ?? null,
-      needsAliasReview: result.needsAliasReview,
       linkedTournamentsCount: linkedTournaments.length,
       totalTeams: result.totalTeams,
       totalParticipants: result.totalParticipants,

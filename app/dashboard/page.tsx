@@ -20,7 +20,6 @@ import {
   ReingestMineButton,
   ExportErrorsButton,
 } from '@/components/DashboardActions';
-import { IdentityReview, type ReviewItem } from '@/components/IdentityReview';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -38,7 +37,7 @@ export default async function Dashboard() {
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  const [urls, jobs, reviewPersons, claimsCount] = await Promise.all([
+  const [urls, jobs] = await Promise.all([
     prisma.discoveredUrl.findMany({
       where: { userId },
       orderBy: { messageDate: 'desc' },
@@ -50,19 +49,6 @@ export default async function Dashboard() {
       orderBy: { scheduledAt: 'desc' },
       take: 100,
     }),
-    prisma.person.findMany({
-      where: {
-        claimedByUserId: null,
-        rejections: { none: { userId } },
-        discoveredOnUrls: { some: { userId } },
-      },
-      include: {
-        discoveredOnUrls: { where: { userId }, include: { tournament: true } },
-      },
-      orderBy: { displayName: 'asc' },
-      take: 50,
-    }),
-    prisma.person.count({ where: { claimedByUserId: userId } }),
   ]);
 
   const jobByUrl = new Map(jobs.map((j) => [j.url, j] as const));
@@ -70,15 +56,6 @@ export default async function Dashboard() {
   const running = jobs.filter((j) => j.status === 'running').length;
   const done = jobs.filter((j) => j.status === 'done').length;
   const failed = jobs.filter((j) => j.status === 'failed').length;
-
-  const reviewItems: ReviewItem[] = reviewPersons.map((p) => ({
-    personId: p.id.toString(),
-    displayName: p.displayName,
-    tournaments: p.discoveredOnUrls
-      .map((u) => u.tournament)
-      .filter((t): t is NonNullable<typeof t> => !!t)
-      .map((t) => ({ id: t.id.toString(), name: t.name, year: t.year, host: t.sourceHost })),
-  }));
 
   return (
     <div className="space-y-10">
@@ -100,9 +77,6 @@ export default async function Dashboard() {
           <SignOutButton />
         </div>
       </header>
-
-      {/* Identity review panel */}
-      <IdentityReview items={reviewItems} hasExistingClaims={claimsCount > 0} />
 
       {/* Stats grid */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">

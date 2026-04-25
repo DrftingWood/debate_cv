@@ -26,10 +26,6 @@ type IngestResult = {
   cached: boolean;
   claimedPersonId: bigint | null;
   claimedPersonName: string | null;
-  // True when the URL's registration name didn't match any name the user has
-  // already claimed, so the dashboard's IdentityReview list will surface it
-  // for one-click alias confirmation.
-  needsAliasReview: boolean;
   parserVersion: string;
   totalTeams: number | null;
   totalParticipants: number | null;
@@ -89,7 +85,7 @@ export async function ingestPrivateUrl(
         warnings: landingWarnings,
         durationMs: Date.now() - parseStart,
       });
-      const linked = await withDeadlockRetry(() =>
+      const claimedPersonId = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, normalized),
       );
       await prisma.discoveredUrl.updateMany({
@@ -100,9 +96,8 @@ export async function ingestPrivateUrl(
         tournamentId: existing.id,
         fingerprint,
         cached: true,
-        claimedPersonId: linked?.claimed ? linked.personId : null,
-        claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
-        needsAliasReview: !!linked && !linked.claimed,
+        claimedPersonId,
+        claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
         parserVersion: PARSER_VERSION,
         totalTeams: existing.totalTeams,
         totalParticipants: existing.totalParticipants,
@@ -502,7 +497,7 @@ export async function ingestPrivateUrl(
     return t.id;
   }, { maxWait: 10000, timeout: 30000 });
 
-  const linked = await withDeadlockRetry(() =>
+  const claimedPersonId = await withDeadlockRetry(() =>
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, normalized),
   );
 
@@ -516,9 +511,8 @@ export async function ingestPrivateUrl(
     tournamentId,
     fingerprint,
     cached: false,
-    claimedPersonId: linked?.claimed ? linked.personId : null,
-    claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
-    needsAliasReview: !!linked && !linked.claimed,
+    claimedPersonId,
+    claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
     parserVersion: PARSER_VERSION,
     totalTeams: totalTeams ?? null,
     totalParticipants: totalParticipants ?? null,
@@ -671,63 +665,38 @@ async function preCommitPersons(
 
 /**
  * Upsert the Person from the private-URL landing page, link a
- * TournamentParticipant + DiscoveredUrl record, and decide whether to
- * auto-claim.
+ * TournamentParticipant + DiscoveredUrl record, and auto-claim the Person
+ * for the user.
  *
- * Auto-claim policy (intentionally simple — no fuzzy matching):
- *   - First URL ever (user has no existing claims) → auto-claim. The
- *     registration name on this URL becomes the user's canonical name.
- *   - Subsequent URLs whose registration name normalizes to one of the
- *     user's existing claims → idempotent reclaim (also auto-claim).
- *   - Subsequent URLs with a *new* name → DO NOT auto-claim. The Person
- *     is created so the row appears on the dashboard's IdentityReview
- *     list with a one-click "Yes, also me" / "Not me" prompt.
+ * Private-URL ownership is sufficient proof of identity: Tabbycat sends one
+ * URL per registered participant. Every URL the user uploads is auto-claimed
+ * unconditionally. Manual review UI was removed in the dashboard cleanup.
  *
- * COALESCE in the auto-claim branch preserves any existing claim (e.g. a
- * different user shared the URL) and prevents 40P01 deadlocks by collapsing
- * the previous two-step upsert→update pattern into one atomic statement.
+ * COALESCE preserves any pre-existing claim (e.g. another user previously
+ * shared the same URL) so we never silently steal an established claim. The
+ * single atomic INSERT … ON CONFLICT DO UPDATE collapses what was once a
+ * two-step upsert→update that produced 40P01 deadlocks under concurrent
+ * ingests.
  */
 async function linkRegistrationPerson(
   tournamentId: bigint,
   personName: string | null,
   userId: string,
   url: string,
-): Promise<{ personId: bigint; claimed: boolean } | null> {
+): Promise<bigint | null> {
   if (!personName) return null;
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
-  // Decide whether this URL's name can be auto-claimed: yes if the user has
-  // no existing claims, or if this exact normalized name is already one of
-  // their claims.
-  const existingMatch = await prisma.person.findFirst({
-    where: { claimedByUserId: userId, normalizedName },
-    select: { id: true },
-  });
-  const shouldAutoClaim =
-    !!existingMatch ||
-    !(await prisma.person.findFirst({
-      where: { claimedByUserId: userId },
-      select: { id: true },
-    }));
-
-  const rows = shouldAutoClaim
-    ? await prisma.$queryRaw<{ id: bigint }[]>`
-        INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
-        VALUES (${personName}, ${normalizedName}, ${userId})
-        ON CONFLICT ("normalizedName")
-        DO UPDATE SET
-          "displayName" = EXCLUDED."displayName",
-          "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
-        RETURNING id
-      `
-    : await prisma.$queryRaw<{ id: bigint }[]>`
-        INSERT INTO "Person" ("displayName", "normalizedName")
-        VALUES (${personName}, ${normalizedName})
-        ON CONFLICT ("normalizedName")
-        DO UPDATE SET "displayName" = EXCLUDED."displayName"
-        RETURNING id
-      `;
+  const rows = await prisma.$queryRaw<{ id: bigint }[]>`
+    INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
+    VALUES (${personName}, ${normalizedName}, ${userId})
+    ON CONFLICT ("normalizedName")
+    DO UPDATE SET
+      "displayName" = EXCLUDED."displayName",
+      "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+    RETURNING id
+  `;
   const personId = rows[0]?.id;
   if (!personId) return null;
 
@@ -742,14 +711,5 @@ async function linkRegistrationPerson(
     data: { registrationPersonId: personId },
   });
 
-  // Re-check whether the row is actually claimed by *this* user, since the
-  // existing-claim race in COALESCE could have left it owned by someone else.
-  const claimed = shouldAutoClaim
-    ? !!(await prisma.person.findFirst({
-        where: { id: personId, claimedByUserId: userId },
-        select: { id: true },
-      }))
-    : false;
-
-  return { personId, claimed };
+  return personId;
 }

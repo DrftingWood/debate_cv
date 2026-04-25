@@ -15,7 +15,6 @@ type IngestUrlResponse = {
   cached: boolean;
   claimedPersonId: string | null;
   claimedPersonName: string | null;
-  needsAliasReview: boolean;
   linkedTournamentsCount: number;
   totalTeams: number | null;
   totalParticipants: number | null;
@@ -182,8 +181,9 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
                 ? `${host} (cached)`
                 : host,
           });
-          // Surface where the ingest landed: either it's claimed (CV updated)
-          // or a new name needs alias confirmation on the dashboard.
+          // Surface where the ingest landed — every URL auto-claims the
+          // registered participant, so we always know how many tournaments
+          // are visible on the user's CV.
           if (result.data.claimedPersonId) {
             const n = result.data.linkedTournamentsCount;
             toast.show({
@@ -194,12 +194,6 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
                   ? `${n} ${n === 1 ? 'tournament' : 'tournaments'} now visible`
                   : 'Your identity was confirmed from the private URL.',
               action: { label: 'View your CV', href: '/cv' },
-            });
-          } else if (result.data.needsAliasReview) {
-            toast.show({
-              kind: 'info',
-              title: 'New name on this URL',
-              description: 'Confirm whether this is also you in the Identity panel.',
             });
           }
           const warnings = result.data.warnings ?? [];
