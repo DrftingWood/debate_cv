@@ -37,6 +37,15 @@ export default async function Dashboard() {
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
+  // First-time users (no claimed Persons) must go through /onboarding to
+  // confirm which names on their private URLs are them. Once they have at
+  // least one claim, they land on the dashboard normally; they can still
+  // visit /onboarding directly to add new aliases.
+  const claimedCount = await prisma.person.count({
+    where: { claimedByUserId: userId },
+  });
+  if (claimedCount === 0) redirect('/onboarding');
+
   const [urls, jobs] = await Promise.all([
     prisma.discoveredUrl.findMany({
       where: { userId },

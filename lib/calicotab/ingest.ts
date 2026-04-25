@@ -606,7 +606,7 @@ async function linkRegistrationPerson(
 
   await prisma.discoveredUrl.updateMany({
     where: { userId, url },
-    data: { registrationPersonId: personId },
+    data: { registrationPersonId: personId, registrationName: personName },
   });
 
   return personId;

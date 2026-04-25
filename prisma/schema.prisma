@@ -97,6 +97,7 @@ model DiscoveredUrl {
   messageDate            DateTime?
   tournamentId           BigInt?
   registrationPersonId   BigInt?
+  registrationName       String?
   ingestedAt             DateTime?
   createdAt              DateTime  @default(now())
 
