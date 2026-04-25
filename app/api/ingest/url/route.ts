@@ -44,12 +44,23 @@ export async function POST(req: Request) {
           : null,
       },
     });
+    // Count distinct tournaments now visible on this user's CV — every
+    // TournamentParticipant whose Person has been claimed by them. The
+    // dashboard surfaces this in the post-ingest toast.
+    const linkedTournaments = await prisma.tournamentParticipant.findMany({
+      where: { person: { claimedByUserId: session.user.id } },
+      select: { tournamentId: true },
+      distinct: ['tournamentId'],
+    });
+
     return NextResponse.json({
       tournamentId: result.tournamentId.toString(),
       fingerprint: result.fingerprint,
       cached: result.cached,
       claimedPersonId: result.claimedPersonId?.toString() ?? null,
       claimedPersonName: result.claimedPersonName ?? null,
+      needsAliasReview: result.needsAliasReview,
+      linkedTournamentsCount: linkedTournaments.length,
       totalTeams: result.totalTeams,
       totalParticipants: result.totalParticipants,
       warnings: result.warnings,

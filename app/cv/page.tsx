@@ -94,7 +94,10 @@ export default async function CvPage() {
   const myParticipations = participations.filter(
     (p) => p.person.claimedByUserId === userId,
   );
-  const claimedCount = myParticipations.length;
+  // Distinct tournaments where the user has been identified. Dedupes the
+  // case where both the registration-page Person (empty placeholder) and the
+  // tab-side Person (full data) are claimed for the same tournament.
+  const myTournamentIds = new Set(myParticipations.map((p) => p.tournamentId));
   const breaks = myParticipations.filter((p) => p.eliminationReached).length;
   const scores = myParticipations
     .map((p) => (p.speakerScoreTotal ? Number(p.speakerScoreTotal) : null))
@@ -114,6 +117,39 @@ export default async function CvPage() {
   const hasSpeakerHistory = myParticipations.some(
     (p) => p.speakerScoreTotal || p.teamName,
   );
+
+  // Concrete achievements list for the Highlights panel.
+  type Achievement = {
+    kind: 'break' | 'speaker' | 'judge';
+    label: string;
+    tournamentName: string;
+    year: number | null;
+  };
+  const achievements: Achievement[] = [];
+  for (const p of myParticipations) {
+    const t = byTournament.get(p.tournamentId)?.tournament;
+    if (!t) continue;
+    if (p.eliminationReached) {
+      achievements.push({ kind: 'break', label: p.eliminationReached, tournamentName: t.name, year: t.year });
+    }
+    if (p.speakerRankOpen != null && p.speakerRankOpen <= 10) {
+      achievements.push({
+        kind: 'speaker',
+        label: `Top ${p.speakerRankOpen} open speaker`,
+        tournamentName: t.name,
+        year: t.year,
+      });
+    }
+    if (p.lastOutroundChaired) {
+      achievements.push({
+        kind: 'judge',
+        label: `Chaired ${p.lastOutroundChaired}`,
+        tournamentName: t.name,
+        year: t.year,
+      });
+    }
+  }
+  achievements.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
 
   // Group tournaments by year (descending).
   const grouped = new Map<number | 'unknown', typeof byTournament extends Map<unknown, infer V> ? V[] : never>();
@@ -180,10 +216,81 @@ export default async function CvPage() {
         </div>
       </header>
 
+      {/* Achievements highlights — concrete podium results, not just totals */}
+      {byTournament.size > 0 ? (
+        myTournamentIds.size > 0 ? (
+          <section className="rounded-card border border-border bg-card/60 shadow-xs">
+            <header className="flex items-baseline justify-between gap-3 border-b border-border p-5 md:p-6">
+              <h2 className="inline-flex items-center gap-2 font-display text-h4 font-semibold text-foreground">
+                <Award className="h-4 w-4 text-primary" aria-hidden />
+                Achievements
+              </h2>
+              <span className="text-caption text-muted-foreground">
+                across {myTournamentIds.size}{' '}
+                {myTournamentIds.size === 1 ? 'tournament' : 'tournaments'}
+              </span>
+            </header>
+            {achievements.length > 0 ? (
+              <ul className="divide-y divide-border">
+                {achievements.slice(0, 8).map((a, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-3 px-5 py-3 md:px-6"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={
+                          'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' +
+                          (a.kind === 'break'
+                            ? 'bg-primary-soft text-primary-700'
+                            : a.kind === 'speaker'
+                              ? 'bg-primary-50 text-primary-700'
+                              : 'bg-muted text-muted-foreground')
+                        }
+                      >
+                        {a.kind === 'break' ? (
+                          <Trophy className="h-3.5 w-3.5" aria-hidden />
+                        ) : a.kind === 'speaker' ? (
+                          <Award className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <Users className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                      </span>
+                      <span className="truncate font-medium text-foreground">{a.label}</span>
+                    </div>
+                    <span className="whitespace-nowrap text-caption text-muted-foreground">
+                      {a.tournamentName}
+                      {a.year ? ` · ${a.year}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-5 text-caption text-muted-foreground md:p-6">
+                No podium results yet — see the tournament cards below for full participation history.
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="rounded-card border border-border bg-primary-50/60 p-5 md:p-6">
+            <h2 className="inline-flex items-center gap-2 font-display text-h4 font-semibold text-primary-900">
+              <Award className="h-4 w-4" aria-hidden />
+              Achievements
+            </h2>
+            <p className="mt-1.5 text-[14px] text-primary-900/80">
+              Your tournaments are ingested but we haven't matched you to a tab participant yet. Pick
+              yourself from a tournament roster below and your achievements will appear here.
+            </p>
+          </section>
+        )
+      ) : null}
+
       {/* Summary row */}
       <div className="flex flex-wrap items-center gap-2 text-caption">
         <Badge variant="outline">{byTournament.size} tournaments</Badge>
-        <Badge variant={claimedCount > 0 ? 'success' : 'neutral'}>{claimedCount} claimed</Badge>
+        <Badge variant={myTournamentIds.size > 0 ? 'success' : 'neutral'}>
+          {myTournamentIds.size} claimed
+        </Badge>
         <Badge variant="info">{participations.length} total participations</Badge>
         <Link href="/cv/verify">
           <Button variant="outline" size="sm">Verify extracted fields</Button>
@@ -223,13 +330,16 @@ export default async function CvPage() {
                   {entries.map(({ tournament, registrationPersons }) => {
                     const allParticipants = participantsByTournament.get(tournament.id) ?? [];
                     const hasRegPeople = registrationPersons.size > 0;
-                    // hasClaimedMe: true if claimed via tab data OR via the
-                    // registration-person link (handles split-Person-record case).
-                    const hasClaimedMe =
-                      allParticipants.some((p) => p.person.claimedByUserId === userId) ||
-                      Array.from(registrationPersons.values()).some(
-                        (p) => p.claimedByUserId === userId,
-                      );
+                    // hasClaimedMe is "have I claimed the tab-side participant
+                    // who has my actual scores in this tournament". A claim on
+                    // the registration-page Person alone doesn't count, because
+                    // that row is just an identity placeholder with no scores —
+                    // we still want the RosterPicker to surface so the user
+                    // can pick themselves from the tab roster when the tab
+                    // spelled their name differently from the landing page.
+                    const hasClaimedMe = allParticipants.some(
+                      (p) => p.person.claimedByUserId === userId,
+                    );
                     return (
                       <TournamentCard
                         key={tournament.id.toString()}
