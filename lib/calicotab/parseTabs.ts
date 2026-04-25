@@ -60,8 +60,6 @@ function extractVueData(html: string): VueTable[] | null {
 export function diagnoseVueData(html: string, colNeedles: string[]): string {
   const tables = extractVueData(html);
   if (!tables) {
-    // Include a short HTML preview so we can immediately tell whether the server
-    // returned a login page, Cloudflare block, redirect, etc.
     const preview = html.replace(/\s+/g, ' ').slice(0, 300);
     return `vueData: window.vueData not found (${html.length}b) — preview: ${preview}`;
   }
