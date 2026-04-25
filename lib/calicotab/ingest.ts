@@ -16,6 +16,8 @@ import {
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
+import { detectFormatFromTeamSize } from './format';
+import { getInroundsChairedCount } from './judgeStats';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -450,16 +452,18 @@ function inferTournamentFormat({
     return 'British Parliamentary';
   }
 
-  // Structural signal — ignore teams with missing / wrong speaker counts and
-  // use the median-ish max, not the outlier max.
+  // Structural signal — pick the median speaker count across teams and feed
+  // it through the modular detectFormatFromTeamSize() helper. Teams with
+  // missing / zero speakers are excluded so a half-imported tab doesn't
+  // skew the median to 0.
   const speakerCounts = teamRows
     .map((r) => r.speakers.length)
     .filter((n) => n > 0)
     .sort((a, b) => a - b);
   if (speakerCounts.length >= 3) {
     const mid = speakerCounts[Math.floor(speakerCounts.length / 2)]!;
-    if (mid === 2) return 'British Parliamentary';
-    if (mid >= 3) return 'Asian Parliamentary';
+    const detected = detectFormatFromTeamSize(mid);
+    if (detected !== 'unknown') return detected;
   }
 
   return null;
@@ -672,10 +676,13 @@ async function recordJudgeRoundsFromLanding(
     }
   }
 
-  // Aggregate stats for the participant row.
-  const chairedPrelims = adjRounds.filter(
-    (r) => r.role === 'chair' && r.roundNumber != null,
-  ).length;
+  // Aggregate stats for the participant row. getInroundsChairedCount classifies
+  // each round via classifyRoundLabel (numeric → inround, named → outround) so
+  // that prelims tagged with non-numeric labels in some Tabbycat installs
+  // still count, and never inflate the count from outround chairs.
+  const chairedPrelims = getInroundsChairedCount(
+    adjRounds.map((r) => ({ stage: r.stage, panelRole: r.role })),
+  );
   const outrounds = adjRounds.filter((r) => r.roundNumber == null);
   const ranked = outrounds
     .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
