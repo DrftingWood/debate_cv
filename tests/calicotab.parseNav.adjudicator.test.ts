@@ -260,3 +260,89 @@ describe('extractAdjudicatorRounds — SBS Debate 2026 (Prop/Opp, 5 prelims, all
     expect(rows[3]!.role).toBe('chair');
   });
 });
+
+// Abbreviation-only fragment — the variant where the round cell is just a
+// `.tooltip-trigger` span with no enclosing `<div data-original-title="…">`.
+// This is what some Tabbycat themes / older versions render and is the case
+// the user reported as broken on 2026-04-25. Without normalization the bare
+// "R1" makes `roundNumber` null and trips classifyRoundLabel into 'unknown',
+// so all four metrics (inrounds judged/chaired, last outround chaired/judged)
+// come out blank.
+const ABBREV_ONLY_FRAGMENT = `
+<div class="card-body pl-3 pr-0 py-2">
+  <h4 class="card-title mt-1 mb-2"> Debates </h4>
+  <div class="table-responsive-md">
+    <table class="table">
+      <tbody>
+        <tr>
+          <td><span class="tooltip-trigger">R1</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">R2</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong>, <span class="d-inline">Mohit Hooda</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">R3</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">QF</span></td>
+          <td class="adjudicator-name">
+            <span class="d-inline">Beauty Ariel<i class="adj-symbol">Ⓒ</i></span>,
+            <strong><span class="d-inline">Abhishek Lalatendu Acharya</span></strong>,
+            <span class="d-inline">Udai Kamath</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">SF</span></td>
+          <td class="adjudicator-name">
+            <strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong>,
+            <span class="d-inline">Beauty Ariel</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+describe('extractAdjudicatorRounds — abbreviation-only round labels (no data-original-title)', () => {
+  const rows = extractAdjudicatorRounds(ABBREV_ONLY_FRAGMENT);
+
+  test('returns 5 entries in document order', () => {
+    expect(rows).toHaveLength(5);
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test('normalizes "R\\d+" to "Round N" and abbreviated outrounds to canonical names', () => {
+    expect(rows.map((r) => r.stage)).toEqual([
+      'Round 1',
+      'Round 2',
+      'Round 3',
+      'Quarterfinals',
+      'Semifinals',
+    ]);
+  });
+
+  test('extracts numeric roundNumber for inrounds and null for outrounds', () => {
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, 3, null, null]);
+  });
+
+  test('preserves chair / panellist roles across the abbreviation form', () => {
+    // R1, R2, R3 chair via <strong>...Ⓒ; QF panellist (Ⓒ on Beauty Ariel); SF chair.
+    expect(rows.map((r) => r.role)).toEqual([
+      'chair',
+      'chair',
+      'chair',
+      'panellist',
+      'chair',
+    ]);
+  });
+});

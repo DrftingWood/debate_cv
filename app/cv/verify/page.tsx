@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { ReingestButton } from '@/components/ReingestButton';
+import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 
 export const metadata: Metadata = {
   title: 'Extracted Data Verification',
@@ -161,10 +162,9 @@ export default async function CvVerifyPage({
                             <th className="px-2 py-1.5">Open / ESL / EFL rank</th>
                             <th className="px-2 py-1.5">Team break rank</th>
                             <th className="px-2 py-1.5">Judge tag</th>
-                            <th className="px-2 py-1.5">Chaired prelims</th>
-                            <th className="px-2 py-1.5">
-                              Last out-round (chair / panel)
-                            </th>
+                            <th className="px-2 py-1.5">Inrounds chaired</th>
+                            <th className="px-2 py-1.5">Last outround chaired</th>
+                            <th className="px-2 py-1.5">Last outround judged</th>
                             <th className="px-2 py-1.5">Per-round scores</th>
                           </tr>
                         </thead>
@@ -195,8 +195,12 @@ export default async function CvVerifyPage({
                               <td className="px-2 py-1.5 font-mono">
                                 {p.chairedPrelimRounds ?? '—'}
                               </td>
+                              <td className="px-2 py-1.5">{p.lastOutroundChaired ?? '—'}</td>
                               <td className="px-2 py-1.5">
-                                {p.lastOutroundChaired ?? '—'} / {p.lastOutroundPaneled ?? '—'}
+                                {deepestOutroundAcrossRoles(
+                                  p.lastOutroundChaired,
+                                  p.lastOutroundPaneled,
+                                ) ?? '—'}
                               </td>
                               <td className="px-2 py-1.5">
                                 {p.speakerRoundScores.length === 0 ? (

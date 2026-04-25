@@ -270,6 +270,40 @@ export type AdjudicatorRound = {
 };
 
 /**
+ * Map a Tabbycat stage cell — possibly already canonical ("Round 1",
+ * "Quarterfinals"), possibly an abbreviation ("R1", "QF") — to a canonical
+ * form so every downstream consumer (classifier, dedup keys, schema rows,
+ * UI labels) sees one vocabulary regardless of which Tabbycat HTML variant
+ * produced it.
+ *
+ * The "R\d+" form arises when the round cell is just
+ *   <span class="tooltip-trigger">R1</span>
+ * with no enclosing `<div data-original-title="Round 1">`. Without
+ * normalization the bare "R1" makes `roundNumber` null (so prelims look
+ * like outrounds) and bypasses `classifyRoundLabel`'s inround patterns
+ * (so chair counts come out 0).
+ *
+ * Inputs that already match the canonical form pass through unchanged —
+ * the test fixtures with `data-original-title="Round 1"` keep working.
+ */
+function normalizeStageLabel(raw: string): string {
+  const t = raw.trim();
+  if (!t) return t;
+  const rMatch = t.match(/^R(\d+)$/i);
+  if (rMatch) return `Round ${Number(rMatch[1])}`;
+  const lower = t.toLowerCase();
+  // Order matters: longer prefixes first so "DOF" doesn't match "F" first.
+  if (/^gf$/i.test(t)) return 'Grand Final';
+  if (/^sf$/i.test(t) || lower === 'semis') return 'Semifinals';
+  if (/^qf$/i.test(t) || lower === 'quarters') return 'Quarterfinals';
+  if (/^dof$/i.test(t) || lower === 'doubles') return 'Double Octofinals';
+  if (/^tof$/i.test(t) || lower === 'triples') return 'Triple Octofinals';
+  if (/^of$/i.test(t) || lower === 'octos') return 'Octofinals';
+  if (/^f$/i.test(t)) return 'Final';
+  return t;
+}
+
+/**
  * Pull the URL owner's per-round judging history from the "Debates" card on
  * the private-URL landing page.
  *
@@ -350,6 +384,7 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
       stage = cleanWhitespace(roundCell.find('.tooltip-trigger').first().text());
     }
     if (!stage) return;
+    stage = normalizeStageLabel(stage);
 
     const roundMatch = stage.match(/^Round\s+(\d+)$/i);
     const roundNumber = roundMatch ? Number(roundMatch[1]) : null;
