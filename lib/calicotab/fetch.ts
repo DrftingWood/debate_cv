@@ -219,6 +219,15 @@ export async function fetchHtml(url: string): Promise<string | null> {
   return r.ok ? r.html : null;
 }
 
+/** True when the HTML contains an embedded tablesData block (any known pattern). */
+function hasEmbeddedTableData(html: string): boolean {
+  return (
+    html.includes('window.vueData') ||
+    html.includes('window.tablesData') ||
+    html.includes('tablesData')
+  );
+}
+
 /**
  * For a given round results URL, prefer the "by-debate" variant when it
  * exists. That view lays out each debate as one row with adjudicators
@@ -235,8 +244,8 @@ export async function fetchRoundWithProvenance(
   const byDebate = await fetchHtmlWithProvenance(byDebateUrl, options);
   // Accept the by-debate response only when it actually contains round data.
   // Tabbycat sometimes returns the generic Results overview page (200 OK) for
-  // round URLs that don't exist yet — the HTML has no window.vueData block.
-  if (byDebate.ok && byDebate.html.includes('window.vueData')) return byDebate;
+  // round URLs that don't exist yet — the HTML has no embedded table data.
+  if (byDebate.ok && hasEmbeddedTableData(byDebate.html)) return byDebate;
   return fetchHtmlWithProvenance(trimmed, options);
 }
 
