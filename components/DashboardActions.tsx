@@ -16,6 +16,7 @@ type IngestUrlResponse = {
   claimedPersonId: string | null;
   totalTeams: number | null;
   totalParticipants: number | null;
+  warnings?: string[];
 };
 
 async function drainUntilEmpty(
@@ -178,6 +179,14 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
                 ? `${host} (cached)`
                 : host,
           });
+          const warnings = result.data.warnings ?? [];
+          if (warnings.length > 0) {
+            toast.show({
+              kind: 'error',
+              title: '⚠ Scrape warnings',
+              description: warnings.slice(0, 3).join('\n'),
+            });
+          }
           router.refresh();
         });
       }}

@@ -189,10 +189,16 @@ export default async function Dashboard() {
                             <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
                           </div>
                         </div>
-                        {job?.lastError && !u.ingestedAt ? (
-                          <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
-                            {job.lastError}
-                          </div>
+                        {job?.lastError ? (
+                          !u.ingestedAt ? (
+                            <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
+                              {job.lastError}
+                            </div>
+                          ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
+                            <div className="rounded-md bg-[hsl(var(--warning)/0.08)] px-2.5 py-1.5 text-caption text-warning whitespace-pre-wrap break-all">
+                              {job.lastError}
+                            </div>
+                          ) : null
                         ) : null}
                       </CardBody>
                     </Card>
@@ -236,13 +242,22 @@ export default async function Dashboard() {
                         </td>
                         <td className="px-5 py-3">
                           <StatusPill status={status} />
-                          {job?.lastError && !u.ingestedAt ? (
-                            <div
-                              className="mt-1 max-w-xs truncate text-caption text-destructive"
-                              title={job.lastError}
-                            >
-                              {job.lastError}
-                            </div>
+                          {job?.lastError ? (
+                            !u.ingestedAt ? (
+                              <div
+                                className="mt-1 max-w-xs truncate text-caption text-destructive"
+                                title={job.lastError}
+                              >
+                                {job.lastError}
+                              </div>
+                            ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
+                              <div
+                                className="mt-1 max-w-xs text-caption text-warning whitespace-pre-wrap break-all"
+                                title={job.lastError}
+                              >
+                                {job.lastError}
+                              </div>
+                            ) : null
                           ) : null}
                         </td>
                         <td className="px-5 py-3 text-caption text-muted-foreground">
