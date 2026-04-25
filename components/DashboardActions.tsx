@@ -256,7 +256,7 @@ export function ClearButton({ url }: { url: string }) {
   );
 }
 
-type ReingestMineResponse = { queued: number };
+type ReingestMineResponse = { queued: number; skipped: number };
 
 export function ReingestMineButton() {
   const router = useRouter();
@@ -276,14 +276,18 @@ export function ReingestMineButton() {
             toast.show({ kind: 'error', title: 'Re-ingest failed', description: result.error });
             return;
           }
-          const n = result.data.queued;
+          const { queued: n, skipped } = result.data;
+          const skipNote =
+            skipped > 0 ? ` (${skipped} skipped — source page no longer exists)` : '';
           toast.show({
             kind: 'success',
             title: 'Queued for re-ingest',
             description:
               n > 0
-                ? `${n} ${n === 1 ? 'URL' : 'URLs'} queued — use "Ingest all" to process them.`
-                : 'Nothing to re-ingest yet.',
+                ? `${n} ${n === 1 ? 'URL' : 'URLs'} queued — use "Ingest all" to process them.${skipNote}`
+                : skipped > 0
+                  ? `Nothing to re-ingest — all ${skipped} URLs are permanently unavailable.`
+                  : 'Nothing to re-ingest yet.',
           });
           router.refresh();
         });

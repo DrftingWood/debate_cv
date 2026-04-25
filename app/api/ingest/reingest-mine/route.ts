@@ -17,7 +17,22 @@ export async function POST() {
     select: { url: true },
   });
 
+  // Skip URLs whose previous run hit a permanent HTTP 404 — the source page is
+  // gone (Heroku app shut down, tournament unpublished, token rotated). No
+  // amount of retrying recovers them; re-queueing just wastes drain time.
+  const existingJobs = await prisma.ingestJob.findMany({
+    where: { userId, url: { in: urls.map((u) => u.url) } },
+    select: { url: true, lastError: true },
+  });
+  const dead = new Set(
+    existingJobs
+      .filter((j) => j.lastError && /HTTP 404/.test(j.lastError))
+      .map((j) => j.url),
+  );
+
+  let queued = 0;
   for (const { url } of urls) {
+    if (dead.has(url)) continue;
     await prisma.ingestJob.upsert({
       where: { userId_url: { userId, url } },
       update: {
@@ -30,7 +45,8 @@ export async function POST() {
       },
       create: { userId, url, status: 'pending' },
     });
+    queued++;
   }
 
-  return NextResponse.json({ queued: urls.length });
+  return NextResponse.json({ queued, skipped: dead.size });
 }

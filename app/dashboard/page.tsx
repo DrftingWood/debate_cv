@@ -166,7 +166,7 @@ export default async function Dashboard() {
             <ul className="space-y-2 md:hidden">
               {urls.map((u) => {
                 const job = jobByUrl.get(u.url);
-                const status = statusFor(!!u.ingestedAt, job?.status);
+                const status = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
                 const noData =
                   !!u.ingestedAt &&
                   !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
@@ -234,7 +234,7 @@ export default async function Dashboard() {
                 <tbody className="divide-y divide-border">
                   {urls.map((u) => {
                     const job = jobByUrl.get(u.url);
-                    const status = statusFor(!!u.ingestedAt, job?.status);
+                    const status = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
                     const noData =
                       !!u.ingestedAt &&
                       !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
@@ -331,7 +331,20 @@ function TournamentMetrics({
   );
 }
 
-function statusFor(ingested: boolean, jobStatus: string | undefined): PillStatus {
+// HTTP 404 in the lastError text means the source page is gone — Heroku app
+// shut down, Tabbycat tournament unpublished, or private-URL token rotated.
+// Treat as permanently unavailable so we render a neutral pill instead of the
+// destructive "Failed" red, and so Re-ingest mine skips the URL.
+function isPermanentlyDead(lastError: string | null | undefined): boolean {
+  return !!lastError && /HTTP 404/.test(lastError);
+}
+
+function statusFor(
+  ingested: boolean,
+  jobStatus: string | undefined,
+  lastError: string | null | undefined,
+): PillStatus {
+  if (isPermanentlyDead(lastError)) return 'unavailable';
   if (ingested) return 'done';
   if (jobStatus === 'running') return 'running';
   if (jobStatus === 'failed') return 'failed';
