@@ -119,6 +119,26 @@ export default async function Dashboard() {
         />
       </section>
 
+      {/* Pending-queue prompt — visible whenever IngestJob rows are still
+          pending so a user who finished onboarding doesn't wonder why /cv
+          shows nothing. The Stat tile above just shows a number; this banner
+          tells them which button to click. */}
+      {pending > 0 ? (
+        <section className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 md:px-5 md:py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[14px] text-foreground">
+              <strong className="font-medium">
+                {pending} {pending === 1 ? 'URL is' : 'URLs are'} queued for ingest.
+              </strong>{' '}
+              <span className="text-muted-foreground">
+                Click <em className="not-italic font-medium">Ingest all</em> to fetch
+                tournament data — your CV stays empty until that runs.
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {/* URL table */}
       <section className="space-y-4">
         <header className="flex items-end justify-between">

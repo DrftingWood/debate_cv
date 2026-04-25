@@ -121,4 +121,15 @@ describe('getInroundsChairedCount', () => {
     ];
     expect(getInroundsChairedCount(data)).toBe(6);
   });
+
+  test('SBS Debate 2026 sample — 5 prelim chairs, no outrounds → 5', () => {
+    const data = [
+      { stage: 'Round 1', panelRole: 'chair' },
+      { stage: 'Round 2', panelRole: 'chair' },
+      { stage: 'Round 3', panelRole: 'chair' },
+      { stage: 'Round 4', panelRole: 'chair' },
+      { stage: 'Round 5', panelRole: 'chair' },
+    ];
+    expect(getInroundsChairedCount(data)).toBe(5);
+  });
 });
