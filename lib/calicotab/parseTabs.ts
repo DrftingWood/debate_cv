@@ -59,7 +59,10 @@ function extractVueData(html: string): VueTable[] | null {
  */
 export function diagnoseVueData(html: string, colNeedles: string[]): string {
   const tables = extractVueData(html);
-  if (!tables) return 'vueData: window.vueData not found in HTML';
+  if (!tables) {
+    const preview = html.replace(/\s+/g, ' ').slice(0, 300);
+    return `vueData: window.vueData not found (${html.length}b) — preview: ${preview}`;
+  }
   if (tables.length === 0) return 'vueData: tablesData is an empty array';
   const t = tables[0]!;
   const heads = (t.head ?? []).map((h) => h.key ?? h.title ?? '?');
