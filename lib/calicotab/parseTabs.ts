@@ -787,18 +787,19 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
   };
 
   const cards = $('.card-body, .card').toArray();
+  const containers = cards.length > 0 ? cards : $('table').toArray();
   // Dedupe by table — a .card-body inside a .card would otherwise process the
   // same <table> twice.
   const seenTables = new Set<unknown>();
 
-  for (const card of cards) {
+  for (const card of containers) {
     const $card = $(card);
     const heading = cleanText($card.find('.card-title').first().text()).toLowerCase();
     let sectionRole: ParticipantsRow['role'] | null = null;
     if (/^adjudicators?$/.test(heading)) sectionRole = 'adjudicator';
     else if (/^speakers?$/.test(heading)) sectionRole = 'speaker';
 
-    const $table = $card.find('table').first();
+    const $table = $card.is('table') ? $card : $card.find('table').first();
     if ($table.length === 0) continue;
     const tableEl = $table.get(0);
     if (!tableEl || seenTables.has(tableEl)) continue;

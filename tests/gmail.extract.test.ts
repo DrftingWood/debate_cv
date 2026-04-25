@@ -5,6 +5,7 @@ import {
   parsePrivateUrl,
   extractFromMessage,
   dedupeByUrl,
+  normalizePrivateUrl,
 } from '@/lib/gmail/extract';
 
 function b64url(s: string): string {
@@ -43,6 +44,13 @@ describe('extractUrlsFromText', () => {
     );
     expect(urls).toHaveLength(2);
   });
+
+  test('canonicalizes matched URLs with a trailing slash', () => {
+    const urls = extractUrlsFromText(
+      'Link: https://test.calicotab.com/test/privateurls/TOK12345)',
+    );
+    expect(urls).toEqual(['https://test.calicotab.com/test/privateurls/TOK12345/']);
+  });
 });
 
 describe('parsePrivateUrl', () => {
@@ -51,6 +59,19 @@ describe('parsePrivateUrl', () => {
     expect(r.host).toBe('wudc2024.calicotab.com');
     expect(r.tournamentSlug).toBe('wudc2024');
     expect(r.token).toBe('abcd1234');
+  });
+
+  test('returns canonical url', () => {
+    const r = parsePrivateUrl('https://wudc2024.calicotab.com/wudc2024/privateurls/abcd1234');
+    expect(r.url).toBe('https://wudc2024.calicotab.com/wudc2024/privateurls/abcd1234/');
+  });
+});
+
+describe('normalizePrivateUrl', () => {
+  test('trims punctuation and appends one trailing slash', () => {
+    expect(normalizePrivateUrl('https://x.calicotab.com/t/privateurls/abc.)')).toBe(
+      'https://x.calicotab.com/t/privateurls/abc/',
+    );
   });
 });
 
