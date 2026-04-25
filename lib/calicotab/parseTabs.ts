@@ -52,6 +52,30 @@ function extractVueData(html: string): VueTable[] | null {
   return null;
 }
 
+/**
+ * Returns a human-readable string explaining why a parser returned 0 rows.
+ * Called from ingest.ts after a 0-row result to populate fetchWarnings so
+ * the user sees exactly which column keys were present vs expected.
+ */
+export function diagnoseVueData(html: string, colNeedles: string[]): string {
+  const tables = extractVueData(html);
+  if (!tables) return 'vueData: window.vueData not found in HTML';
+  if (tables.length === 0) return 'vueData: tablesData is an empty array';
+  const t = tables[0]!;
+  const heads = (t.head ?? []).map((h) => h.key ?? h.title ?? '?');
+  const rowCount = t.data?.length ?? 0;
+  const unmatched = colNeedles.filter(
+    (n) => !heads.some((h) => h.toLowerCase().includes(n)),
+  );
+  if (rowCount === 0) {
+    return `vueData: columns=[${heads.join(',')}] but data[] is empty`;
+  }
+  if (unmatched.length > 0) {
+    return `vueData: columns=[${heads.join(',')}] rows=${rowCount} — no match for [${unmatched.join(',')}]`;
+  }
+  return `vueData: columns=[${heads.join(',')}] rows=${rowCount} — columns matched but returned 0 rows`;
+}
+
 function cellText(cell: VueCell | undefined): string {
   return String(cell?.text ?? '').replace(/\s+/g, ' ').trim();
 }

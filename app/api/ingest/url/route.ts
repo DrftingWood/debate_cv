@@ -32,9 +32,17 @@ export async function POST(req: Request) {
       force: parse.data.force,
     });
     // Reconcile any IngestJob row so the dashboard doesn't show stale pending/failed.
+    // Store parse warnings in lastError even on success so the dashboard can surface
+    // "Done but 0 teams — vueData columns=[...]" without a separate DB field.
     await prisma.ingestJob.updateMany({
       where: { userId: session.user.id, url: parse.data.url },
-      data: { status: IngestJobStatus.done, finishedAt: new Date(), lastError: null },
+      data: {
+        status: IngestJobStatus.done,
+        finishedAt: new Date(),
+        lastError: result.warnings.length > 0
+          ? result.warnings.join('\n').slice(0, 2000)
+          : null,
+      },
     });
     return NextResponse.json({
       tournamentId: result.tournamentId.toString(),
@@ -43,6 +51,7 @@ export async function POST(req: Request) {
       claimedPersonId: result.claimedPersonId?.toString() ?? null,
       totalTeams: result.totalTeams,
       totalParticipants: result.totalParticipants,
+      warnings: result.warnings,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';

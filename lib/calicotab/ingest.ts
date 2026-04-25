@@ -7,6 +7,7 @@ import {
   parseRoundResults,
   parseBreakPage,
   parseParticipantsList,
+  diagnoseVueData,
 } from './parseTabs';
 import {
   computeFingerprint,
@@ -27,6 +28,7 @@ type IngestResult = {
   parserVersion: string;
   totalTeams: number | null;
   totalParticipants: number | null;
+  warnings: string[];
 };
 
 export async function ingestPrivateUrl(
@@ -100,6 +102,7 @@ export async function ingestPrivateUrl(
         parserVersion: PARSER_VERSION,
         totalTeams: existing.totalTeams,
         totalParticipants: existing.totalParticipants,
+        warnings: landingWarnings,
       };
     }
   }
@@ -143,11 +146,29 @@ export async function ingestPrivateUrl(
   );
 
   const teamRows = teamHtml ? parseTeamTab(teamHtml) : [];
+  if (teamRows.length === 0 && teamHtml) {
+    fetchWarnings.push(`parse: teamTab → 0 rows — ${diagnoseVueData(teamHtml, ['team'])}`);
+  }
+
   const speakerRows = speakerHtml ? parseSpeakerTab(speakerHtml) : [];
+  if (speakerRows.length === 0 && speakerHtml) {
+    fetchWarnings.push(`parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`);
+  }
+
   const participantRows = participantsHtml ? parseParticipantsList(participantsHtml) : [];
+  if (participantRows.length === 0 && participantsHtml) {
+    fetchWarnings.push(`parse: participants → 0 rows — ${diagnoseVueData(participantsHtml, ['name'])}`);
+  }
+
   const rounds = roundHtmls
     .filter((x): x is { url: string; html: string } => !!x)
-    .map(({ url: u, html }) => parseRoundResults(html, u));
+    .map(({ url: u, html }) => {
+      const r = parseRoundResults(html, u);
+      if (r.teamResults.length === 0) {
+        fetchWarnings.push(`parse: round ${u} → 0 results — ${diagnoseVueData(html, ['team'])}`);
+      }
+      return r;
+    });
   const breakRows = breakHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
@@ -477,6 +498,7 @@ export async function ingestPrivateUrl(
     parserVersion: PARSER_VERSION,
     totalTeams: totalTeams ?? null,
     totalParticipants: totalParticipants ?? null,
+    warnings: fetchWarnings,
   };
 }
 

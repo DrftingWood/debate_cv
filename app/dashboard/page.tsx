@@ -158,6 +158,9 @@ export default async function Dashboard() {
               {urls.map((u) => {
                 const job = jobByUrl.get(u.url);
                 const status = statusFor(!!u.ingestedAt, job?.status);
+                const noData =
+                  !!u.ingestedAt &&
+                  !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
                 return (
                   <li key={u.id}>
                     <Card>
@@ -167,7 +170,7 @@ export default async function Dashboard() {
                             <div className="truncate font-display text-[14.5px] font-semibold text-foreground">
                               {u.tournament?.name ?? '—'}
                             </div>
-                            <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} />
+                            <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} url={u.url} />
                             <a
                               href={u.url}
                               target="_blank"
@@ -186,13 +189,19 @@ export default async function Dashboard() {
                           </span>
                           <div className="flex items-center gap-1">
                             {status === 'failed' ? <ClearButton url={u.url} /> : null}
-                            <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                            {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
                           </div>
                         </div>
-                        {job?.lastError && !u.ingestedAt ? (
-                          <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
-                            {job.lastError}
-                          </div>
+                        {job?.lastError ? (
+                          !u.ingestedAt ? (
+                            <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
+                              {job.lastError}
+                            </div>
+                          ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
+                            <div className="rounded-md bg-[hsl(var(--warning)/0.08)] px-2.5 py-1.5 text-caption text-warning whitespace-pre-wrap break-all">
+                              {job.lastError}
+                            </div>
+                          ) : null
                         ) : null}
                       </CardBody>
                     </Card>
@@ -217,6 +226,9 @@ export default async function Dashboard() {
                   {urls.map((u) => {
                     const job = jobByUrl.get(u.url);
                     const status = statusFor(!!u.ingestedAt, job?.status);
+                    const noData =
+                      !!u.ingestedAt &&
+                      !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
                     return (
                       <tr key={u.id} className="align-middle transition-colors hover:bg-muted/40">
                         <td className="px-5 py-3">
@@ -232,17 +244,26 @@ export default async function Dashboard() {
                         </td>
                         <td className="px-5 py-3 text-foreground">
                           <div>{u.tournament?.name ?? <span className="text-muted-foreground/60">—</span>}</div>
-                          <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} />
+                          <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} url={u.url} />
                         </td>
                         <td className="px-5 py-3">
                           <StatusPill status={status} />
-                          {job?.lastError && !u.ingestedAt ? (
-                            <div
-                              className="mt-1 max-w-xs truncate text-caption text-destructive"
-                              title={job.lastError}
-                            >
-                              {job.lastError}
-                            </div>
+                          {job?.lastError ? (
+                            !u.ingestedAt ? (
+                              <div
+                                className="mt-1 max-w-xs truncate text-caption text-destructive"
+                                title={job.lastError}
+                              >
+                                {job.lastError}
+                              </div>
+                            ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
+                              <div
+                                className="mt-1 max-w-xs text-caption text-warning whitespace-pre-wrap break-all"
+                                title={job.lastError}
+                              >
+                                {job.lastError}
+                              </div>
+                            ) : null
                           ) : null}
                         </td>
                         <td className="px-5 py-3 text-caption text-muted-foreground">
@@ -251,7 +272,7 @@ export default async function Dashboard() {
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             {status === 'failed' ? <ClearButton url={u.url} /> : null}
-                            <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} />
+                            {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
                           </div>
                         </td>
                       </tr>
@@ -270,9 +291,11 @@ export default async function Dashboard() {
 function TournamentMetrics({
   tournament,
   ingestedAt,
+  url,
 }: {
   tournament: { totalTeams: number | null; totalParticipants: number | null } | null | undefined;
   ingestedAt: Date | null;
+  url?: string;
 }) {
   if (!tournament) return null;
   const { totalTeams, totalParticipants } = tournament;
@@ -280,8 +303,9 @@ function TournamentMetrics({
 
   if (ingestedAt && !hasMetrics) {
     return (
-      <div className="mt-0.5 text-caption text-warning">
-        ⚠ No data scraped
+      <div className="mt-0.5 flex items-center gap-2">
+        <span className="text-caption text-warning">⚠ No data scraped</span>
+        {url ? <IngestButton url={url} alreadyDone={true} /> : null}
       </div>
     );
   }
