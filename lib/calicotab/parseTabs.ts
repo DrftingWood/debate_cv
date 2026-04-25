@@ -229,6 +229,22 @@ function cleanText(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
+function classifyParticipantRole(roleText: string): { role: ParticipantsRow['role']; judgeTag: ParticipantsRow['judgeTag'] } {
+  const lowered = roleText.toLowerCase();
+  if (/adjud|judge/.test(lowered)) {
+    return {
+      role: 'adjudicator',
+      judgeTag: /subsid/i.test(lowered)
+        ? 'subsidized'
+        : /invited|independent/i.test(lowered)
+          ? 'invited'
+          : 'normal',
+    };
+  }
+  if (/speak|debat/.test(lowered)) return { role: 'speaker', judgeTag: null };
+  return { role: 'other', judgeTag: null };
+}
+
 function findTableByHeader(
   $: CheerioRoot,
   headerMatcher: (loweredHeaders: string[]) => boolean,
@@ -722,17 +738,9 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
       let role: ParticipantsRow['role'] = 'other';
       let judgeTag: ParticipantsRow['judgeTag'] = null;
       if (roleCol >= 0) {
-        const roleText = cellText(row[roleCol]).toLowerCase();
-        if (/adjud|judge/i.test(roleText)) {
-          role = 'adjudicator';
-          judgeTag = /subsid/i.test(roleText)
-            ? 'subsidized'
-            : /invited|independent/i.test(roleText)
-              ? 'invited'
-              : 'normal';
-        } else if (/speak|debat/i.test(roleText)) {
-          role = 'speaker';
-        }
+        const classified = classifyParticipantRole(cellText(row[roleCol]));
+        role = classified.role;
+        judgeTag = classified.judgeTag;
       } else if (isSpeakerTable) {
         role = 'speaker';
       } else if (isAdjTable) {
@@ -841,17 +849,9 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
       let role: ParticipantsRow['role'] = sectionRole ?? 'other';
       let judgeTag: ParticipantsRow['judgeTag'] = null;
       if (roleCol >= 0) {
-        const roleText = cellText($(cells[roleCol])).toLowerCase();
-        if (/adjud|judge/i.test(roleText)) {
-          role = 'adjudicator';
-          judgeTag = /subsid/i.test(roleText)
-            ? 'subsidized'
-            : /invited|independent/i.test(roleText)
-              ? 'invited'
-              : 'normal';
-        } else if (/speak|debat/i.test(roleText)) {
-          role = 'speaker';
-        }
+        const classified = classifyParticipantRole(cellText($(cells[roleCol])));
+        role = classified.role;
+        judgeTag = classified.judgeTag;
       }
 
       // For adjudicators without an explicit role-column tag, infer the
@@ -874,6 +874,89 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
         instCol >= 0 ? normalizeInst(cellText($(cells[instCol]))) : null;
 
       rows.push({ name, role, judgeTag, teamName, institution });
+    });
+  }
+
+  // Legacy plain-table fallback (no card wrappers/headings).
+  if (rows.length === 0) {
+    $('table').each((_i, table) => {
+      const $table = $(table);
+      const headers = $table
+        .find('thead tr').first()
+        .find('th')
+        .map((_j, th) => cleanText($(th).text()).toLowerCase())
+        .get();
+      if (headers.length === 0) return;
+      const nameCol = headers.findIndex((h) => h.includes('name'));
+      if (nameCol < 0) return;
+      const teamCol = headers.findIndex((h) => h.includes('team'));
+      const instCol = headers.findIndex((h) => h.includes('institution'));
+      const roleCol = headers.findIndex((h) => h.includes('role'));
+
+      $table.find('tbody tr').each((_j, tr) => {
+        const cells = $(tr).find('td').toArray();
+        if (cells.length === 0) return;
+        const name = cellText($(cells[nameCol]));
+        if (!name) return;
+
+        let role: ParticipantsRow['role'] = 'other';
+        let judgeTag: ParticipantsRow['judgeTag'] = null;
+        if (roleCol >= 0) {
+          const classified = classifyParticipantRole(cellText($(cells[roleCol])));
+          role = classified.role;
+          judgeTag = classified.judgeTag;
+        } else if (teamCol >= 0) {
+          role = 'speaker';
+        }
+
+        rows.push({
+          name,
+          role,
+          judgeTag,
+          teamName: teamCol >= 0 ? cellText($(cells[teamCol])) || null : null,
+          institution: instCol >= 0 ? normalizeInst(cellText($(cells[instCol]))) : null,
+        });
+      });
+    });
+  }
+
+  // Registration-card fallback used on some private/participants pages where
+  // each participant is rendered as a <div class="list-group"> block instead
+  // of a table. Example heading: "Registration (Abhishek Acharya)" followed by
+  // role bullets such as "Independent adjudicator".
+  if (rows.length === 0) {
+    $('.list-group').each((_i, group) => {
+      const $group = $(group);
+      const title = cleanText($group.find('.card-title').first().text());
+      const m = title.match(/^Registration\s*\((.+)\)$/i);
+      const name = m ? cleanText(m[1] ?? '') : '';
+      if (!name) return;
+
+      const roleBullets = $group
+        .find('li')
+        .map((_j, li) => cleanText($(li).text()))
+        .get()
+        .filter(Boolean);
+      const roleBlob = roleBullets.join(' ');
+      let { role, judgeTag } = classifyParticipantRole(roleBlob);
+
+      // Heuristic for registration cards that don't label role textually:
+      // a single-name registration indicates an adjudicator account.
+      if (role === 'other' && roleBullets.length === 1) {
+        role = 'adjudicator';
+        judgeTag = 'normal';
+      }
+
+      let institution: string | null = null;
+      $group.find('.list-group-item').each((_j, item) => {
+        const itemText = cleanText($(item).text());
+        const instMatch = itemText.match(/^Institution:\s*(.+)$/i);
+        if (!instMatch) return;
+        const value = cleanText(instMatch[1] ?? '');
+        institution = value && value !== '—' && value !== '-' ? value : null;
+      });
+
+      rows.push({ name, role, judgeTag, teamName: null, institution });
     });
   }
   return rows;

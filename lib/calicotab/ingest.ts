@@ -172,6 +172,30 @@ export async function ingestPrivateUrl(
     fetchWarnings.push(`parse: participants → 0 rows — ${diagnoseVueData(participantsHtml, ['name'])}`);
   }
 
+  // Private URL landing pages can include a registration card whose role label
+  // (e.g. "Independent adjudicator") is the only reliable signal for some
+  // tournaments. Merge those rows in so role classification doesn't depend
+  // solely on /participants table availability/shape.
+  const landingParticipantRows = parseParticipantsList(landingHtml);
+  const participantByName = new Map<string, (typeof participantRows)[number]>();
+  for (const r of participantRows) participantByName.set(normalizePersonName(r.name), r);
+  for (const r of landingParticipantRows) {
+    const key = normalizePersonName(r.name);
+    const existing = participantByName.get(key);
+    if (!existing) {
+      participantByName.set(key, r);
+      continue;
+    }
+    // Prefer adjudicator classification from landing cards over weaker
+    // speaker defaults from table heuristics.
+    if (existing.role !== 'adjudicator' && r.role === 'adjudicator') {
+      existing.role = 'adjudicator';
+      existing.judgeTag = r.judgeTag;
+    }
+    if (!existing.institution && r.institution) existing.institution = r.institution;
+  }
+  const mergedParticipantRows = [...participantByName.values()];
+
   const rounds = roundHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .map(({ url: u, html }) => {
@@ -185,7 +209,7 @@ export async function ingestPrivateUrl(
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
   const tournamentName = snapshot.tournamentName ?? tournamentSlug ?? 'Unknown tournament';
-  const totalParticipants = participantRows.length || speakerRows.length || null;
+  const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
   const totalTeams = teamRows.length || null;
   const format = inferTournamentFormat({
     tournamentName,
@@ -218,7 +242,7 @@ export async function ingestPrivateUrl(
   // FK ShareLocks across concurrent ingests and triggered 40P01 deadlocks.
   const allPersonNames = new Set<string>();
   for (const sp of speakerRows) allPersonNames.add(sp.speakerName);
-  for (const p of participantRows) {
+  for (const p of mergedParticipantRows) {
     if (p.role === 'adjudicator') allPersonNames.add(p.name);
   }
   for (const round of rounds) {
@@ -368,7 +392,7 @@ export async function ingestPrivateUrl(
     // HISTORY (rounds judged, chaired vs paneled, deepest outround) is still
     // sourced exclusively from the URL owner's private-URL Debates table by
     // recordJudgeRoundsFromLanding() — never from round-results panels.
-    for (const p of participantRows) {
+    for (const p of mergedParticipantRows) {
       if (p.role !== 'adjudicator') continue;
       const personId = personIdByNormalized.get(normalizePersonName(p.name));
       if (!personId) continue;

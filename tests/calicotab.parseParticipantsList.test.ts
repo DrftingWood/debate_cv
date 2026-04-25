@@ -165,3 +165,40 @@ describe('parseParticipantsList — modern card-based layout (mukmem78)', () => 
     expect(new Set(names).size).toBe(names.length);
   });
 });
+
+describe('parseParticipantsList — registration card/list-group fallback', () => {
+  test('classifies "Independent adjudicator" registration as adjudicator invited', () => {
+    const html = `
+      <div class="list-group list-group-flush">
+        <div class="list-group-item">
+          <h4 class="card-title mb-0">Registration (Abhishek Acharya)</h4>
+        </div>
+        <div class="list-group-item"><ul><li><em>Independent adjudicator</em></li></ul></div>
+        <div class="list-group-item"><div><strong>Institution:</strong> <span class="text-muted">Unaffiliated</span></div></div>
+      </div>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: 'Abhishek Acharya',
+      role: 'adjudicator',
+      judgeTag: 'invited',
+      institution: 'Unaffiliated',
+    });
+  });
+
+  test('single-name registration role bullet defaults to adjudicator', () => {
+    const html = `
+      <div class="list-group list-group-flush">
+        <div class="list-group-item">
+          <h4 class="card-title mb-0">Registration (Ada Lovelace)</h4>
+        </div>
+        <div class="list-group-item"><ul><li><em>Ada Lovelace</em></li></ul></div>
+      </div>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.role).toBe('adjudicator');
+    expect(rows[0]?.judgeTag).toBe('normal');
+  });
+});
