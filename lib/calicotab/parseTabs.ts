@@ -14,9 +14,49 @@ type VueCell = { text?: string; sort?: number | string; class?: string; popover?
 type VueTable = { head: VueHead[]; data: VueCell[][] };
 
 /**
- * Walk `html` looking for `marker` and extract the JSON value assigned to it.
- * When the marker is followed by `[` the value is a bare array; when followed
- * by `{` it may be an object with a `tablesData` key.
+ * Evaluate a JS object/array literal string extracted from a trusted Tabbycat
+ * page. `new Function` is used instead of `eval` so the code runs without
+ * access to the local scope. The HTML source is always a URL that the user
+ * explicitly chose to ingest (their own private tournament page).
+ */
+function evalJsLiteral(slice: string): unknown {
+  // new Function('return <expr>') evaluates the expression in strict isolation
+  // (no access to local variables or closures).
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  return new Function('return ' + slice)();
+}
+
+/**
+ * Parse an extracted object/array slice — try strict JSON first (fast path),
+ * then fall back to JS evaluation which handles unquoted keys and JS-only
+ * values that Tabbycat embeds in its window.vueData object literal.
+ */
+function parseSlice(slice: string): VueTable[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(slice);
+  } catch {
+    // Tabbycat uses a JS object literal (unquoted keys, possible `undefined`/
+    // `Infinity` values) — fall back to JS evaluation.
+    try {
+      parsed = evalJsLiteral(slice);
+    } catch (e) {
+      console.warn('[parseTabs] evalJsLiteral failed:', String(e).slice(0, 120));
+      return null;
+    }
+  }
+  if (Array.isArray(parsed)) return parsed as VueTable[];
+  if (parsed && typeof parsed === 'object' && 'tablesData' in parsed) {
+    const td = (parsed as Record<string, unknown>).tablesData;
+    if (Array.isArray(td)) return td as VueTable[];
+  }
+  return null;
+}
+
+/**
+ * Walk `html` looking for `marker` and extract the JS value assigned to it.
+ * The brace counter correctly locates the value boundary; parseSlice() then
+ * handles both strict JSON and JS object literal syntax.
  */
 function extractJsonAt(html: string, marker: string): VueTable[] | null {
   const idx = html.indexOf(marker);
@@ -42,19 +82,7 @@ function extractJsonAt(html: string, marker: string): VueTable[] | null {
   }
 
   if (endIdx < 0) return null;
-  try {
-    const parsed = JSON.parse(rest.slice(0, endIdx)) as unknown;
-    // Bare array: some Tabbycat forks assign tablesData directly.
-    if (Array.isArray(parsed)) return parsed as VueTable[];
-    // Object wrapper: standard `window.vueData = { tablesData: [...] }`.
-    if (parsed && typeof parsed === 'object' && 'tablesData' in parsed) {
-      const td = (parsed as Record<string, unknown>).tablesData;
-      if (Array.isArray(td)) return td as VueTable[];
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  return parseSlice(rest.slice(0, endIdx));
 }
 
 /**
@@ -89,13 +117,7 @@ function extractTablesDataDirectly(html: string): VueTable[] | null {
   }
 
   if (endIdx < 0) return null;
-  try {
-    const parsed = JSON.parse(rest.slice(0, endIdx)) as unknown;
-    if (Array.isArray(parsed)) return parsed as VueTable[];
-  } catch {
-    return null;
-  }
-  return null;
+  return parseSlice(rest.slice(0, endIdx));
 }
 
 function extractVueData(html: string): VueTable[] | null {
