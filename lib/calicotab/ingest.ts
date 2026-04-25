@@ -90,6 +90,14 @@ export async function ingestPrivateUrl(
         userId,
         normalized,
       );
+      if (claimedPersonId && snapshot.registration.personName) {
+        await fuzzyClaimTournamentParticipants(
+          existing.id,
+          claimedPersonId,
+          normalizePersonName(snapshot.registration.personName),
+          userId,
+        );
+      }
       await prisma.discoveredUrl.updateMany({
         where: { userId, url: normalized },
         data: { tournamentId: existing.id, ingestedAt: new Date() },
@@ -487,6 +495,14 @@ export async function ingestPrivateUrl(
     userId,
     normalized,
   );
+  if (claimedPersonId && snapshot.registration.personName) {
+    await fuzzyClaimTournamentParticipants(
+      tournamentId,
+      claimedPersonId,
+      normalizePersonName(snapshot.registration.personName),
+      userId,
+    );
+  }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
   await prisma.discoveredUrl.updateMany({
@@ -557,6 +573,75 @@ function inferTournamentFormat({
   return null;
 }
 
+// ─── Jaro-Winkler similarity (no dependencies) ────────────────────────────
+
+function jaro(a: string, b: string): number {
+  if (a === b) return 1;
+  const win = Math.floor(Math.max(a.length, b.length) / 2) - 1;
+  if (win < 0) return 0;
+  const aM = new Array<boolean>(a.length).fill(false);
+  const bM = new Array<boolean>(b.length).fill(false);
+  let matches = 0;
+  for (let i = 0; i < a.length; i++) {
+    const lo = Math.max(0, i - win);
+    const hi = Math.min(i + win + 1, b.length);
+    for (let j = lo; j < hi; j++) {
+      if (!bM[j] && a[i] === b[j]) { aM[i] = bM[j] = true; matches++; break; }
+    }
+  }
+  if (matches === 0) return 0;
+  let t = 0, k = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (!aM[i]) continue;
+    while (!bM[k]) k++;
+    if (a[i] !== b[k]) t++;
+    k++;
+  }
+  return (matches / a.length + matches / b.length + (matches - t / 2) / matches) / 3;
+}
+
+function jaroWinkler(a: string, b: string): number {
+  const j = jaro(a, b);
+  let p = 0;
+  for (let i = 0; i < Math.min(4, a.length, b.length); i++) {
+    if (a[i] === b[i]) p++; else break;
+  }
+  return j + p * 0.1 * (1 - j);
+}
+
+// Minimum similarity to auto-claim a tab participant whose name differs
+// slightly from the registration name (e.g. "A Acharya" vs "Abhishek Acharya"
+// would score ~0.87 and be skipped; "Abhishek Acharyaa" vs "Abhishek Acharya"
+// would score ~0.99 and be caught).
+const FUZZY_CLAIM_THRESHOLD = 0.95;
+
+/**
+ * For each unclaimed Person in the tournament whose normalized name scores
+ * above FUZZY_CLAIM_THRESHOLD against `claimedNormalizedName`, auto-claim
+ * them for the same user. Handles the common case where Tabbycat stored a
+ * slightly different spelling in the tab vs the registration page.
+ */
+async function fuzzyClaimTournamentParticipants(
+  tournamentId: bigint,
+  claimedPersonId: bigint,
+  claimedNormalizedName: string,
+  userId: string,
+): Promise<void> {
+  const others = await prisma.tournamentParticipant.findMany({
+    where: { tournamentId, personId: { not: claimedPersonId } },
+    select: { person: { select: { id: true, normalizedName: true, claimedByUserId: true } } },
+  });
+  for (const { person } of others) {
+    if (person.claimedByUserId) continue;
+    if (jaroWinkler(claimedNormalizedName, person.normalizedName) >= FUZZY_CLAIM_THRESHOLD) {
+      await prisma.person.update({
+        where: { id: person.id },
+        data: { claimedByUserId: userId },
+      });
+    }
+  }
+}
+
 /**
  * Returns true when the latest ParserRun for this SourceDocument is on the
  * current PARSER_VERSION. If the parser has been upgraded since the last
@@ -585,10 +670,14 @@ async function upsertPerson(
 }
 
 /**
- * Upsert the Person mentioned on the private-URL landing page, ensure a
- * TournamentParticipant row exists for the join, and record the link on
- * the DiscoveredUrl. We deliberately do NOT auto-claim the Person — the
- * dashboard's identity-review panel asks the user to confirm.
+ * Upsert the Person from the private-URL landing page, ensure a
+ * TournamentParticipant row exists, record the link on DiscoveredUrl, and
+ * auto-claim the Person for the user.
+ *
+ * Private-URL ownership is sufficient proof of identity: Tabbycat generates
+ * one URL per registered participant and emails it only to that person. We
+ * never override an existing claim in case two users share a Tabbycat account
+ * or the record was previously claimed manually.
  */
 async function linkRegistrationPerson(
   tournamentId: bigint,
@@ -600,11 +689,21 @@ async function linkRegistrationPerson(
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
+  // Create with claim; on conflict update display name but preserve any
+  // existing claim (another user may have already claimed this name).
   const person = await prisma.person.upsert({
     where: { normalizedName },
     update: { displayName: personName },
-    create: { displayName: personName, normalizedName },
+    create: { displayName: personName, normalizedName, claimedByUserId: userId },
   });
+
+  // If the record already existed and is unclaimed, claim it now.
+  if (!person.claimedByUserId) {
+    await prisma.person.update({
+      where: { id: person.id },
+      data: { claimedByUserId: userId },
+    });
+  }
 
   await prisma.tournamentParticipant.upsert({
     where: { tournamentId_personId: { tournamentId, personId: person.id } },
