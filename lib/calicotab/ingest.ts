@@ -90,7 +90,12 @@ export async function ingestPrivateUrl(
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, normalized),
       );
       if (claimedPersonId) {
-        await recordJudgeRoundsFromLanding(landingHtml, existing.id, claimedPersonId);
+        const r = await recordJudgeRoundsFromLanding(
+          landingHtml,
+          existing.id,
+          claimedPersonId,
+        );
+        if (r.diagnostic) landingWarnings.push(r.diagnostic);
       }
       await prisma.discoveredUrl.updateMany({
         where: { userId, url: normalized },
@@ -186,6 +191,7 @@ export async function ingestPrivateUrl(
     tournamentName,
     teamRows,
     speakerRows,
+    registrationSpeakers: snapshot.registration.speakers,
   });
   const teamBreakRankByTeam = new Map<string, number>();
   for (const row of breakRows) {
@@ -423,7 +429,12 @@ export async function ingestPrivateUrl(
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, normalized),
   );
   if (claimedPersonId) {
-    await recordJudgeRoundsFromLanding(landingHtml, tournamentId, claimedPersonId);
+    const r = await recordJudgeRoundsFromLanding(
+      landingHtml,
+      tournamentId,
+      claimedPersonId,
+    );
+    if (r.diagnostic) fetchWarnings.push(r.diagnostic);
   }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
@@ -448,27 +459,29 @@ export async function ingestPrivateUrl(
 /**
  * Guess the tournament format. Signals considered, in priority order:
  *
- *   1. Explicit format names in the tournament title
- *      ("British Parliamentary", "BP", "AP", "WSDC", "Worlds Schools",
- *      "Policy", "Lincoln-Douglas", "Public Forum").
- *   2. Known BP-format event names ("WUDC", "EUDC", "AUDC", "NAUDC").
- *   3. Team-size from the team tab — BP = 2 speakers per team,
- *      AP / WSDC = 3+. The old fallback that guessed BP from a 2-round
- *      speaker-score pattern was noise (BP tournaments have 6-9 rounds too)
- *      and was producing false "Asian Parliamentary" tags on BP events.
+ *   1. Explicit format names in the tournament title.
+ *   2. Known BP-format event names (WUDC, EUDC, AUDC, NAUDC, …).
+ *   3. The URL owner's own team size from the registration block — most
+ *      reliable structural signal, available even when the team tab fails.
+ *   4. Team-size from the team tab (median speaker count per team).
+ *   5. Speaker-tab grouping fallback (group speakerRows by teamName, take
+ *      the median count) — works on installs whose team tab is missing or
+ *      didn't parse but whose speaker tab did.
  */
 function inferTournamentFormat({
   tournamentName,
   teamRows,
+  speakerRows,
+  registrationSpeakers,
 }: {
   tournamentName: string;
   teamRows: { speakers: string[] }[];
-  speakerRows: { roundScores: unknown[] }[];
+  speakerRows: { teamName: string | null; roundScores: unknown[] }[];
+  registrationSpeakers: string[];
 }): string | null {
   const name = tournamentName.toLowerCase();
 
-  // Explicit format keywords first — user-authored tournament names rarely
-  // lie about the format.
+  // (1) Explicit format keywords — user-authored tournament names rarely lie.
   if (/british parliamentary|\bbp\b/.test(name)) return 'British Parliamentary';
   if (/asian parliamentary|\bap\b/.test(name)) return 'Asian Parliamentary';
   if (/worlds schools|\bwsdc\b/.test(name)) return 'World Schools';
@@ -476,22 +489,44 @@ function inferTournamentFormat({
   if (/lincoln[-\s]?douglas|\bld\b/.test(name)) return 'Lincoln-Douglas';
   if (/public forum|\bpf\b/.test(name)) return 'Public Forum';
 
-  // Well-known BP-format events.
+  // (2) Well-known BP-format events.
   if (/\bwudc\b|\beudc\b|\baudc\b|\bnaudc\b|\babp\b|\bbpp\b/.test(name)) {
     return 'British Parliamentary';
   }
 
-  // Structural signal — pick the median speaker count across teams and feed
-  // it through the modular detectFormatFromTeamSize() helper. Teams with
-  // missing / zero speakers are excluded so a half-imported tab doesn't
-  // skew the median to 0.
-  const speakerCounts = teamRows
-    .map((r) => r.speakers.length)
-    .filter((n) => n > 0)
-    .sort((a, b) => a - b);
-  if (speakerCounts.length >= 3) {
-    const mid = speakerCounts[Math.floor(speakerCounts.length / 2)]!;
-    const detected = detectFormatFromTeamSize(mid);
+  const median = (xs: number[]): number | null => {
+    if (xs.length === 0) return null;
+    const sorted = [...xs].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)]!;
+  };
+
+  // (3) Registration block speakers — the user's own team. Most reliable
+  // small-N signal because Tabbycat populates it from the registration
+  // record itself, no parser fragility involved.
+  if (registrationSpeakers.length > 0) {
+    const detected = detectFormatFromTeamSize(registrationSpeakers.length);
+    if (detected !== 'unknown') return detected;
+  }
+
+  // (4) Team-tab median speaker count.
+  const teamTabCounts = teamRows.map((r) => r.speakers.length).filter((n) => n > 0);
+  const teamTabMedian = median(teamTabCounts);
+  if (teamTabMedian != null && teamTabCounts.length >= 3) {
+    const detected = detectFormatFromTeamSize(teamTabMedian);
+    if (detected !== 'unknown') return detected;
+  }
+
+  // (5) Speaker-tab grouping fallback. Group speakers by teamName, take the
+  // median group size. Useful when the team tab fetched / parsed empty.
+  const groupSizes = new Map<string, number>();
+  for (const sp of speakerRows) {
+    if (!sp.teamName) continue;
+    groupSizes.set(sp.teamName, (groupSizes.get(sp.teamName) ?? 0) + 1);
+  }
+  const speakerTabCounts = [...groupSizes.values()].filter((n) => n > 0);
+  const speakerTabMedian = median(speakerTabCounts);
+  if (speakerTabMedian != null && speakerTabCounts.length >= 3) {
+    const detected = detectFormatFromTeamSize(speakerTabMedian);
     if (detected !== 'unknown') return detected;
   }
 
@@ -674,9 +709,17 @@ async function recordJudgeRoundsFromLanding(
   landingHtml: string,
   tournamentId: bigint,
   personId: bigint,
-): Promise<{ written: number; chairedPrelims: number }> {
+): Promise<{ written: number; chairedPrelims: number; diagnostic: string | null }> {
   const adjRounds = extractAdjudicatorRounds(landingHtml);
-  if (adjRounds.length === 0) return { written: 0, chairedPrelims: 0 };
+  if (adjRounds.length === 0) {
+    return {
+      written: 0,
+      chairedPrelims: 0,
+      diagnostic:
+        "parse: 0 adjudicator rounds in private-URL Debates table — " +
+        "URL owner isn't on any panel, or the table heading + structure don't match the parser",
+    };
+  }
 
   // Idempotent insert per row. The unique key includes nullable columns so
   // Prisma's compound-unique filter can't be used — same findFirst+create
@@ -748,5 +791,5 @@ async function recordJudgeRoundsFromLanding(
     update: {},
     create: { tournamentParticipantId: tp.id, role: 'judge' },
   });
-  return { written: adjRounds.length, chairedPrelims };
+  return { written: adjRounds.length, chairedPrelims, diagnostic: null };
 }

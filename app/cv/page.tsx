@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -80,7 +81,7 @@ export default async function CvPage() {
     }),
     prisma.person.findMany({
       where: { claimedByUserId: userId },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, normalizedName: true },
     }),
   ]);
 
@@ -94,6 +95,21 @@ export default async function CvPage() {
   const tournamentById = new Map<bigint, TournamentMeta>();
   for (const u of urls) if (u.tournament) tournamentById.set(u.tournament.id, u.tournament);
 
+  // Per-tournament registration name from the URL the user actually uploaded,
+  // gated by whether that name is in their claimed-aliases set. Different
+  // tournaments often spell the same person differently — show the spelling
+  // that was on this tournament's private URL rather than a single canonical
+  // name plastered across every row.
+  const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
+  const myNameByTournament = new Map<bigint, string>();
+  for (const u of urls) {
+    if (!u.tournamentId) continue;
+    const reg = (u.registrationName ?? '').trim();
+    if (!reg) continue;
+    if (!claimedNormalizedNames.has(normalizePersonName(reg))) continue;
+    myNameByTournament.set(u.tournamentId, reg);
+  }
+
   // 2) All my participations across those tournaments. One per (tournament,
   // person) — when the user has both a registration placeholder Person and a
   // tab-side Person claimed for the same tournament, both show up here and
@@ -104,7 +120,12 @@ export default async function CvPage() {
           tournamentId: { in: tournamentIds },
           person: { claimedByUserId: userId },
         },
-        include: { roles: true },
+        include: {
+          roles: true,
+          // Pull the per-round scores so we can compute "average speaker
+          // score per round" — the raw total has no meaning without N.
+          speakerRoundScores: { select: { score: true } },
+        },
       })
     : [];
 
@@ -224,7 +245,8 @@ export default async function CvPage() {
     teamName: string | null;
     teamPoints: string | null;
     teamWins: number | null;
-    speakerScoreTotal: string | null;
+    speakerAvgScore: string | null;
+    prelimsSpoken: number;
     speakerRankOpen: number | null;
     speakerRankEsl: number | null;
     speakerRankEfl: number | null;
@@ -246,18 +268,40 @@ export default async function CvPage() {
     if (!t) continue;
     const teamKey = p.teamName ? `${tid}:${p.teamName}` : null;
     const tr = teamKey ? teamPointsByKey.get(teamKey) : null;
+
+    // Per-round average — the only speaker-score number that makes sense to
+    // compare across tournaments. Total varies with prelim count (5 rounds
+    // vs 9 rounds), so a 600 at WUDC and a 350 at a 5-round IV both round
+    // to ~74 average. Counts only rounds with an actual numeric score so
+    // iron-manning / DNS rounds don't skew the average down.
+    const numericScores = (p.speakerRoundScores ?? [])
+      .map((s) => (s.score == null ? null : Number(s.score)))
+      .filter((n): n is number => n != null && Number.isFinite(n));
+    const prelimsSpoken = numericScores.length;
+    const total = p.speakerScoreTotal ? Number(p.speakerScoreTotal) : null;
+    let speakerAvgScore: string | null = null;
+    if (prelimsSpoken > 0 && total != null && Number.isFinite(total)) {
+      speakerAvgScore = (total / prelimsSpoken).toFixed(1);
+    } else if (prelimsSpoken > 0 && numericScores.length > 0) {
+      // Fall back to the per-round scores' own sum when speakerScoreTotal
+      // wasn't populated by the tab parser.
+      const sum = numericScores.reduce((a, b) => a + b, 0);
+      speakerAvgScore = (sum / prelimsSpoken).toFixed(1);
+    }
+
     speakerRows.push({
       tournamentId: tid,
       tournamentName: t.name,
       year: t.year,
       format: t.format,
       sourceUrl: t.sourceUrlRaw,
-      myName: myDisplayName,
+      myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? p.wins ?? null,
-      speakerScoreTotal: p.speakerScoreTotal ? p.speakerScoreTotal.toString() : null,
+      speakerAvgScore,
+      prelimsSpoken,
       speakerRankOpen: p.speakerRankOpen,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
@@ -633,7 +677,8 @@ type SpeakingTableRow = {
   teamName: string | null;
   teamPoints: string | null;
   teamWins: number | null;
-  speakerScoreTotal: string | null;
+  speakerAvgScore: string | null;
+  prelimsSpoken: number;
   speakerRankOpen: number | null;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
@@ -656,7 +701,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="px-3 py-2.5 font-medium">Teammate(s)</th>
               <th className="px-3 py-2.5 font-medium">Team</th>
               <th className="px-3 py-2.5 font-medium">Team points</th>
-              <th className="px-3 py-2.5 font-medium">Spkr score</th>
+              <th className="px-3 py-2.5 font-medium" title="Average speaker score per prelim round spoken">Spkr avg</th>
               <th className="px-3 py-2.5 font-medium">Rank</th>
               <th className="px-3 py-2.5 font-medium">Break</th>
             </tr>
@@ -684,7 +729,16 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 <td className="px-3 py-2.5 font-mono">
                   {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
                 </td>
-                <td className="px-3 py-2.5 font-mono">{r.speakerScoreTotal ?? '—'}</td>
+                <td
+                  className="px-3 py-2.5 font-mono"
+                  title={
+                    r.speakerAvgScore
+                      ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
+                      : ''
+                  }
+                >
+                  {r.speakerAvgScore ?? '—'}
+                </td>
                 <td className="px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
                 <td className="px-3 py-2.5">{fmtBreak(r)}</td>
               </tr>
@@ -716,8 +770,12 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               {r.teammates.length ? <Field label="Teammates" value={r.teammates.join(', ')} /> : null}
               {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
               {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
-              {r.speakerScoreTotal ? (
-                <Field label="Spkr score" value={r.speakerScoreTotal} mono />
+              {r.speakerAvgScore ? (
+                <Field
+                  label={`Spkr avg (${r.prelimsSpoken} ${r.prelimsSpoken === 1 ? 'round' : 'rounds'})`}
+                  value={r.speakerAvgScore}
+                  mono
+                />
               ) : null}
               {fmtSpeakerRanks(r) !== '—' ? <Field label="Rank" value={fmtSpeakerRanks(r)} /> : null}
               {fmtBreak(r) !== '—' ? <Field label="Break" value={fmtBreak(r)} /> : null}

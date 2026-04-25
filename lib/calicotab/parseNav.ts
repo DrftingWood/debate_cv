@@ -303,11 +303,14 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
   let table: ReturnType<typeof $> | null = null;
   $('h1.card-title, h2.card-title, h3.card-title, h4.card-title, h5.card-title').each(
     (_i, el) => {
-      const text = cleanWhitespace($(el).text());
+      if (table) return;
+      const text = cleanWhitespace($(el).text()).toLowerCase();
       if (
-        /^debates$/i.test(text) ||
-        /^your\s+debates$/i.test(text) ||
-        /^your\s+rounds$/i.test(text)
+        /^(?:my\s+|your\s+)?debates?$/.test(text) ||
+        /^(?:my\s+|your\s+)?rounds?$/.test(text) ||
+        /^schedule$/.test(text) ||
+        /^panel(?:s|\s+history)?$/.test(text) ||
+        /round\s+assignments?/.test(text)
       ) {
         const card = $(el).closest('.card-body, .card');
         const t = card.find('table').first();
@@ -315,6 +318,19 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
       }
     },
   );
+
+  // Structural fallback — Tabbycat consistently uses
+  // <td class="adjudicator-name"> for the panel cell and wraps the URL
+  // owner's name in <strong> regardless of which heading the surrounding
+  // card uses. Find any table whose <tbody> contains both signals.
+  if (!table) {
+    $('table').each((_i, t) => {
+      if (table) return;
+      const $t = $(t);
+      if ($t.find('tbody td.adjudicator-name strong').length > 0) table = $t;
+    });
+  }
+
   if (!table) return [];
 
   const rows: AdjudicatorRound[] = [];
