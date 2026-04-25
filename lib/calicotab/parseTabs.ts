@@ -758,45 +758,123 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
     if (rows) return rows;
   }
 
-  // Cheerio fallback
+  // Cheerio fallback. Modern Tabbycat puts the section type in the card-title
+  // heading above each table (e.g. <h4 class="card-title">Adjudicators</h4>)
+  // rather than in a "role" column on each row, so we walk cards rather than
+  // raw <table> elements. Two tables on a page (Adjudicators + Speakers) both
+  // get parsed — the heading is the only signal that distinguishes them.
   const $ = cheerio.load(html);
   const rows: ParticipantsRow[] = [];
-  $('table').each((_i, table) => {
-    const headers = $(table)
+
+  // Pull the canonical text out of one <td>. Vue-rendered cells embed a
+  // <span hidden> with the sortable value plus visible content that mixes
+  // emoji icons, tooltip triggers, and popover bodies — flattening with
+  // .text() concatenates all of it. Prefer the hidden span; fall back to
+  // the visible .tooltip-trigger; final fallback is the raw .text().
+  const cellText = ($cell: ReturnType<typeof $>): string => {
+    const hidden = $cell.find('span[hidden]').first().text();
+    if (hidden && hidden.trim()) return cleanText(hidden);
+    const trigger = $cell.find('.tooltip-trigger').first().text();
+    if (trigger && trigger.trim()) return cleanText(trigger);
+    return cleanText($cell.text());
+  };
+
+  // Em-dash means "none stated" — normalize to null so callers don't have to.
+  const normalizeInst = (s: string): string | null => {
+    const t = s.trim();
+    if (!t || t === '—' || t === '-') return null;
+    return t;
+  };
+
+  const cards = $('.card-body, .card').toArray();
+  // Dedupe by table — a .card-body inside a .card would otherwise process the
+  // same <table> twice.
+  const seenTables = new Set<unknown>();
+
+  for (const card of cards) {
+    const $card = $(card);
+    const heading = cleanText($card.find('.card-title').first().text()).toLowerCase();
+    let sectionRole: ParticipantsRow['role'] | null = null;
+    if (/^adjudicators?$/.test(heading)) sectionRole = 'adjudicator';
+    else if (/^speakers?$/.test(heading)) sectionRole = 'speaker';
+
+    const $table = $card.find('table').first();
+    if ($table.length === 0) continue;
+    const tableEl = $table.get(0);
+    if (!tableEl || seenTables.has(tableEl)) continue;
+    seenTables.add(tableEl);
+
+    // Read column headers — prefer data-original-title (the tooltip text,
+    // which carries the full label like "Member of the Adjudication Core")
+    // over the visible text (which is just an icon).
+    const headers = $table
       .find('thead tr').first()
       .find('th')
-      .map((_j, th) => cleanText($(th).text()).toLowerCase())
+      .map((_j, th) => {
+        const $th = $(th);
+        const tooltip = ($th.attr('data-original-title') ?? '').toLowerCase();
+        const text = cleanText($th.text()).toLowerCase();
+        return tooltip || text;
+      })
       .get();
+
     const nameCol = headers.findIndex((h) => h.includes('name'));
+    if (nameCol < 0) continue;
     const teamCol = headers.findIndex((h) => h.includes('team'));
     const instCol = headers.findIndex((h) => h.includes('institution'));
     const roleCol = headers.findIndex((h) => h.includes('role'));
-    if (nameCol < 0) return;
-    $(table).find('tbody tr').each((_j, tr) => {
-      const cells = $(tr).find('td').map((_k, td) => cleanText($(td).text())).get();
-      const name = cells[nameCol];
+    const adjCoreCol = headers.findIndex(
+      (h) => h.includes('adjudication core') || h.includes('adj core'),
+    );
+    const independentCol = headers.findIndex((h) => h.includes('independent'));
+
+    $table.find('tbody tr').each((_j, tr) => {
+      const $tr = $(tr);
+      const cells = $tr.find('td').toArray();
+      if (cells.length === 0) return;
+
+      const name = cellText($(cells[nameCol]));
       if (!name) return;
-      const roleText = roleCol >= 0 ? (cells[roleCol] ?? '').toLowerCase() : '';
-      const judgeTag: ParticipantsRow['judgeTag'] = /subsid/i.test(roleText)
-        ? 'subsidized'
-        : /invited|independent/i.test(roleText)
-          ? 'invited'
-          : /adjud|judge/i.test(roleText)
-            ? 'normal'
-            : null;
-      const role: ParticipantsRow['role'] = /adjud|judge/i.test(roleText)
-        ? 'adjudicator'
-        : /speak|debat/i.test(roleText)
-          ? 'speaker'
-          : 'other';
-      rows.push({
-        name,
-        role,
-        judgeTag,
-        teamName: teamCol >= 0 ? cells[teamCol] || null : null,
-        institution: instCol >= 0 ? cells[instCol] || null : null,
-      });
+
+      // Role: explicit "role" column (legacy) wins; otherwise the card
+      // heading; otherwise unknown.
+      let role: ParticipantsRow['role'] = sectionRole ?? 'other';
+      let judgeTag: ParticipantsRow['judgeTag'] = null;
+      if (roleCol >= 0) {
+        const roleText = cellText($(cells[roleCol])).toLowerCase();
+        if (/adjud|judge/i.test(roleText)) {
+          role = 'adjudicator';
+          judgeTag = /subsid/i.test(roleText)
+            ? 'subsidized'
+            : /invited|independent/i.test(roleText)
+              ? 'invited'
+              : 'normal';
+        } else if (/speak|debat/i.test(roleText)) {
+          role = 'speaker';
+        }
+      }
+
+      // For adjudicators without an explicit role-column tag, infer the
+      // judgeTag from the Adj Core / Independent flag columns. Tabbycat
+      // shows a check-icon (.feather-check) when the flag is true; the
+      // hidden sort value alongside isn't a reliable boolean signal because
+      // its scheme has flipped between versions.
+      if (role === 'adjudicator' && judgeTag === null) {
+        const cellHasCheck = (idx: number): boolean =>
+          idx >= 0 && idx < cells.length && $(cells[idx]).find('.feather-check').length > 0;
+        const isIndependent = cellHasCheck(independentCol);
+        // Adj-core flag exists but our judgeTag union has no 'core' option;
+        // 'normal' is the closest semantic match for non-independent adjs.
+        judgeTag = isIndependent ? 'invited' : 'normal';
+      }
+
+      const teamName =
+        teamCol >= 0 ? cellText($(cells[teamCol])) || null : null;
+      const institution =
+        instCol >= 0 ? normalizeInst(cellText($(cells[instCol]))) : null;
+
+      rows.push({ name, role, judgeTag, teamName, institution });
     });
-  });
+  }
   return rows;
 }

@@ -356,14 +356,43 @@ export async function ingestPrivateUrl(
       }
     }
 
-    // Adjudicator data is intentionally NOT written from the participants
-    // list or from round-results judge panels. It now comes exclusively from
-    // the URL owner's "Debates" table on the private-URL landing page —
-    // see recordJudgeRoundsFromLanding() called below the main transaction.
-    // Reasons: (a) the user explicitly limited adjudicator scope to the
-    // private URL, and (b) round-results panels listed every adj on every
-    // debate, which depended on tab-name fuzzy matching to attribute rounds
-    // to the right person. Single-source from the private URL is exact.
+    // Adjudicator ROSTER (who's in the tournament) comes from the participants
+    // list: write a TournamentParticipant row + 'judge' role per adjudicator
+    // so the search-based claim flow on /cv can find them. Adjudicator JUDGING
+    // HISTORY (rounds judged, chaired vs paneled, deepest outround) is still
+    // sourced exclusively from the URL owner's private-URL Debates table by
+    // recordJudgeRoundsFromLanding() — never from round-results panels.
+    for (const p of participantRows) {
+      if (p.role !== 'adjudicator') continue;
+      const personId = personIdByNormalized.get(normalizePersonName(p.name));
+      if (!personId) continue;
+      const participant = await tx.tournamentParticipant.upsert({
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
+        update: {
+          judgeTypeTag: p.judgeTag,
+          // Only overwrite teamName when the participants list explicitly
+          // gave one — adjs typically have null and we don't want to clobber
+          // a speaker's team affiliation for swing participants.
+          ...(p.teamName ? { teamName: p.teamName } : {}),
+        },
+        create: {
+          tournamentId: t.id,
+          personId,
+          teamName: p.teamName,
+          judgeTypeTag: p.judgeTag,
+        },
+      });
+      await tx.participantRole.upsert({
+        where: {
+          tournamentParticipantId_role: {
+            tournamentParticipantId: participant.id,
+            role: 'judge',
+          },
+        },
+        update: {},
+        create: { tournamentParticipantId: participant.id, role: 'judge' },
+      });
+    }
 
     // Break rows -> elimination_results
     for (const row of breakRows) {
