@@ -402,8 +402,9 @@ export function OnboardingFlow({
                     !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
                   }
                   onClick={onRetryFailures}
+                  title="Clears every URL's cached name and re-fetches all landings"
                 >
-                  Reset and try again
+                  Re-extract all names
                 </Button>
               </div>
               <Button

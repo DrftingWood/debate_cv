@@ -154,6 +154,61 @@ describe('parsePrivateUrlPage with <small>for Name</small> layout', () => {
   });
 });
 
+// "for X (Team Name)" form — the parenthesized team suffix must be split off
+// of the name (otherwise the participant picker shows "Abhishek Acharya
+// (Akbar → Jahangir → Shah Jahan)" as a single line).
+const SMALL_FOR_NAME_WITH_TEAM_HTML = `
+<html>
+  <head><title>MUKMEM 78 | Private URL</title></head>
+  <body>
+    <header class="mb-4">
+      <h1 class="mb-1 d-md-inline">MUKMEM 78</h1>
+      <small class="text-muted d-md-inline d-block">
+        for Kinshuk Vasan (Akbar → Jahangir → Shah Jahan)
+
+      </small>
+    </header>
+  </body>
+</html>
+`;
+
+describe('parsePrivateUrlPage with <small>for Name (Team)</small> layout', () => {
+  const snapshot = parsePrivateUrlPage(
+    SMALL_FOR_NAME_WITH_TEAM_HTML,
+    'https://mukmem78.calicotab.com/mukmem78/privateurls/abc/',
+  );
+
+  test('strips the parenthesized team suffix from the name', () => {
+    expect(snapshot.registration.personName).toBe('Kinshuk Vasan');
+    expect(snapshot.registration.personName).not.toContain('(');
+  });
+
+  test('captures the team name from the parens when no team was set yet', () => {
+    expect(snapshot.registration.teamName).toBe('Akbar → Jahangir → Shah Jahan');
+  });
+});
+
+// "for Name." with trailing period — Tabbycat sometimes adds one. The period
+// must not become part of the name.
+const SMALL_FOR_NAME_TRAILING_PERIOD_HTML = `
+<html>
+  <body>
+    <small class="text-muted">for Abhishek Acharya.</small>
+  </body>
+</html>
+`;
+
+describe('parsePrivateUrlPage with <small>for Name.</small> (trailing period)', () => {
+  const snapshot = parsePrivateUrlPage(
+    SMALL_FOR_NAME_TRAILING_PERIOD_HTML,
+    'https://x.calicotab.com/t/privateurls/abc/',
+  );
+
+  test('trailing period is stripped from the name', () => {
+    expect(snapshot.registration.personName).toBe('Abhishek Acharya');
+  });
+});
+
 // Should NOT false-positive on prose containing the substring "for ".
 const FOR_PROSE_HTML = `
 <html><body>

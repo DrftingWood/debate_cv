@@ -212,13 +212,22 @@ export function extractRegistration(html: string): RegistrationSnapshot {
   //    <small class="text-muted ...">for Abhishek Acharya</small>. Branches 1
   //    and 2 don't catch this when the parent isn't an h-tag whose flattened
   //    text contains "Private URL for X". Match any <small> whose text is
-  //    exactly "for Name" (with optional period).
+  //    exactly "for Name" (with optional period). When the small includes a
+  //    "(Team Name)" suffix — "for Abhishek Acharya (Some Team)" — strip it
+  //    out of the name and use it as the team if we don't have one yet.
   if (!snapshot.personName) {
     $('small').each((_i, el) => {
       if (snapshot.personName) return;
       const text = cleanWhitespace($(el).text());
       const m = text.match(/^for\s+(.+?)\s*\.?$/i);
-      if (m) snapshot.personName = cleanWhitespace(m[1]!);
+      if (!m) return;
+      let name = cleanWhitespace(m[1]!);
+      const teamMatch = name.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (teamMatch) {
+        name = cleanWhitespace(teamMatch[1]!);
+        if (!snapshot.teamName) snapshot.teamName = cleanWhitespace(teamMatch[2]!);
+      }
+      snapshot.personName = name;
     });
   }
 

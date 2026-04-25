@@ -34,9 +34,15 @@ export async function POST(req: Request) {
   const retry = new URL(req.url).searchParams.get('retry') === 'true';
 
   if (retry) {
-    // Reset the failure markers so this batch picks them up again.
+    // Clear every URL's previously-extracted registration name and error so
+    // the next preflight pass re-fetches them from scratch. Necessary after
+    // a parser-bug fix — successfully-extracted-but-polluted names (e.g.
+    // "Name (Team)" from before the parens-stripping fix) wouldn't be
+    // refreshed by a failure-only reset. Rows already wired to a Person
+    // (registrationPersonId set) are left alone — those are fully ingested
+    // and the canonical Person row is the source of truth.
     await prisma.discoveredUrl.updateMany({
-      where: { userId, registrationName: '', registrationPersonId: null },
+      where: { userId, registrationPersonId: null },
       data: { registrationName: null, lastPreflightError: null },
     });
   }
