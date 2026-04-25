@@ -12,7 +12,14 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { SessionBadge, SignOutButton } from '@/components/SignInOut';
-import { ScanButton, IngestAllButton, IngestButton, ClearButton } from '@/components/DashboardActions';
+import {
+  ScanButton,
+  IngestAllButton,
+  IngestButton,
+  ClearButton,
+  ReingestMineButton,
+  ExportErrorsButton,
+} from '@/components/DashboardActions';
 import { IdentityReview, type ReviewItem } from '@/components/IdentityReview';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
@@ -88,6 +95,8 @@ export default async function Dashboard() {
         <div className="flex flex-wrap items-center gap-2">
           {pending > 0 ? <IngestAllButton pendingCount={pending} /> : null}
           <ScanButton />
+          <ReingestMineButton />
+          <ExportErrorsButton />
           <SignOutButton />
         </div>
       </header>

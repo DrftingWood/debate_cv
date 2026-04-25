@@ -118,38 +118,71 @@ export default async function CvPage() {
     (p) => p.speakerScoreTotal || p.teamName,
   );
 
-  // Concrete achievements list for the Highlights panel.
-  type Achievement = {
-    kind: 'break' | 'speaker' | 'judge';
-    label: string;
+  // Build the results table rows: one row per tournament where the user has
+  // been identified. When both the registration placeholder and the tab-side
+  // participation are claimed for the same tournament, prefer whichever has
+  // actual data (scores or judging stats) so the row isn't blank.
+  type ResultRow = {
+    tournamentId: bigint;
     tournamentName: string;
     year: number | null;
+    format: string | null;
+    sourceUrl: string;
+    teamName: string | null;
+    wins: number | null;
+    losses: number | null;
+    speakerScoreTotal: string | null;
+    speakerRankOpen: number | null;
+    eliminationReached: string | null;
+    teamBreakRank: number | null;
+    judgeTypeTag: string | null;
+    chairedPrelimRounds: number | null;
+    lastOutroundChaired: string | null;
+    roles: string[];
   };
-  const achievements: Achievement[] = [];
+  const richness = (
+    p: (typeof myParticipations)[number],
+  ): number =>
+    (p.speakerScoreTotal ? 4 : 0) +
+    (p.eliminationReached ? 2 : 0) +
+    ((p.chairedPrelimRounds ?? 0) > 0 ? 1 : 0) +
+    p.roles.length;
+  const bestPerTournament = new Map<bigint, (typeof myParticipations)[number]>();
   for (const p of myParticipations) {
-    const t = byTournament.get(p.tournamentId)?.tournament;
-    if (!t) continue;
-    if (p.eliminationReached) {
-      achievements.push({ kind: 'break', label: p.eliminationReached, tournamentName: t.name, year: t.year });
-    }
-    if (p.speakerRankOpen != null && p.speakerRankOpen <= 10) {
-      achievements.push({
-        kind: 'speaker',
-        label: `Top ${p.speakerRankOpen} open speaker`,
-        tournamentName: t.name,
-        year: t.year,
-      });
-    }
-    if (p.lastOutroundChaired) {
-      achievements.push({
-        kind: 'judge',
-        label: `Chaired ${p.lastOutroundChaired}`,
-        tournamentName: t.name,
-        year: t.year,
-      });
+    const existing = bestPerTournament.get(p.tournamentId);
+    if (!existing || richness(p) > richness(existing)) {
+      bestPerTournament.set(p.tournamentId, p);
     }
   }
-  achievements.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  const resultRows: ResultRow[] = [];
+  for (const [tid, p] of bestPerTournament.entries()) {
+    const t = byTournament.get(tid)?.tournament;
+    if (!t) continue;
+    resultRows.push({
+      tournamentId: tid,
+      tournamentName: t.name,
+      year: t.year,
+      format: t.format,
+      sourceUrl: t.sourceUrlRaw,
+      teamName: p.teamName,
+      wins: p.wins,
+      losses: p.losses,
+      speakerScoreTotal: p.speakerScoreTotal ? p.speakerScoreTotal.toString() : null,
+      speakerRankOpen: p.speakerRankOpen,
+      eliminationReached: p.eliminationReached,
+      teamBreakRank: p.teamBreakRank,
+      judgeTypeTag: p.judgeTypeTag,
+      chairedPrelimRounds: p.chairedPrelimRounds,
+      lastOutroundChaired: p.lastOutroundChaired,
+      roles: p.roles.map((r) => r.role),
+    });
+  }
+  resultRows.sort((a, b) => {
+    const ya = a.year ?? -Infinity;
+    const yb = b.year ?? -Infinity;
+    if (ya !== yb) return yb - ya;
+    return a.tournamentName.localeCompare(b.tournamentName);
+  });
 
   // Group tournaments by year (descending).
   const grouped = new Map<number | 'unknown', typeof byTournament extends Map<unknown, infer V> ? V[] : never>();
@@ -216,70 +249,20 @@ export default async function CvPage() {
         </div>
       </header>
 
-      {/* Achievements highlights — concrete podium results, not just totals */}
+      {/* Results table — every tournament you've been identified in, with all
+          the columns we have. Replaces the previous curated Highlights panel. */}
       {byTournament.size > 0 ? (
-        myTournamentIds.size > 0 ? (
-          <section className="rounded-card border border-border bg-card/60 shadow-xs">
-            <header className="flex items-baseline justify-between gap-3 border-b border-border p-5 md:p-6">
-              <h2 className="inline-flex items-center gap-2 font-display text-h4 font-semibold text-foreground">
-                <Award className="h-4 w-4 text-primary" aria-hidden />
-                Achievements
-              </h2>
-              <span className="text-caption text-muted-foreground">
-                across {myTournamentIds.size}{' '}
-                {myTournamentIds.size === 1 ? 'tournament' : 'tournaments'}
-              </span>
-            </header>
-            {achievements.length > 0 ? (
-              <ul className="divide-y divide-border">
-                {achievements.slice(0, 8).map((a, i) => (
-                  <li
-                    key={i}
-                    className="flex items-center justify-between gap-3 px-5 py-3 md:px-6"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className={
-                          'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' +
-                          (a.kind === 'break'
-                            ? 'bg-primary-soft text-primary-700'
-                            : a.kind === 'speaker'
-                              ? 'bg-primary-50 text-primary-700'
-                              : 'bg-muted text-muted-foreground')
-                        }
-                      >
-                        {a.kind === 'break' ? (
-                          <Trophy className="h-3.5 w-3.5" aria-hidden />
-                        ) : a.kind === 'speaker' ? (
-                          <Award className="h-3.5 w-3.5" aria-hidden />
-                        ) : (
-                          <Users className="h-3.5 w-3.5" aria-hidden />
-                        )}
-                      </span>
-                      <span className="truncate font-medium text-foreground">{a.label}</span>
-                    </div>
-                    <span className="whitespace-nowrap text-caption text-muted-foreground">
-                      {a.tournamentName}
-                      {a.year ? ` · ${a.year}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="p-5 text-caption text-muted-foreground md:p-6">
-                No podium results yet — see the tournament cards below for full participation history.
-              </div>
-            )}
-          </section>
+        resultRows.length > 0 ? (
+          <ResultsTable rows={resultRows} />
         ) : (
           <section className="rounded-card border border-border bg-primary-50/60 p-5 md:p-6">
             <h2 className="inline-flex items-center gap-2 font-display text-h4 font-semibold text-primary-900">
-              <Award className="h-4 w-4" aria-hidden />
-              Achievements
+              <Trophy className="h-4 w-4" aria-hidden />
+              Results
             </h2>
             <p className="mt-1.5 text-[14px] text-primary-900/80">
               Your tournaments are ingested but we haven't matched you to a tab participant yet. Pick
-              yourself from a tournament roster below and your achievements will appear here.
+              yourself from a tournament roster below and your results will appear here.
             </p>
           </section>
         )
@@ -775,5 +758,143 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
       <dt className="text-caption text-muted-foreground">{label}</dt>
       <dd className={'mt-0.5 text-foreground ' + (mono ? 'font-mono' : '')}>{value}</dd>
     </div>
+  );
+}
+
+type ResultsTableRow = {
+  tournamentId: bigint;
+  tournamentName: string;
+  year: number | null;
+  format: string | null;
+  sourceUrl: string;
+  teamName: string | null;
+  wins: number | null;
+  losses: number | null;
+  speakerScoreTotal: string | null;
+  speakerRankOpen: number | null;
+  eliminationReached: string | null;
+  teamBreakRank: number | null;
+  judgeTypeTag: string | null;
+  chairedPrelimRounds: number | null;
+  lastOutroundChaired: string | null;
+  roles: string[];
+};
+
+function ResultsTable({ rows }: { rows: ResultsTableRow[] }) {
+  const fmtRecord = (w: number | null, l: number | null) =>
+    w == null && l == null ? '—' : `${w ?? '–'}–${l ?? '–'}`;
+  const fmtBreak = (r: ResultsTableRow) =>
+    r.eliminationReached
+      ? r.teamBreakRank
+        ? `${r.eliminationReached} (#${r.teamBreakRank})`
+        : r.eliminationReached
+      : '—';
+  const fmtJudging = (r: ResultsTableRow) => {
+    const parts: string[] = [];
+    if (r.chairedPrelimRounds && r.chairedPrelimRounds > 0) {
+      parts.push(`Chaired ${r.chairedPrelimRounds}`);
+    }
+    if (r.lastOutroundChaired) parts.push(r.lastOutroundChaired);
+    if (r.judgeTypeTag) parts.push(r.judgeTypeTag);
+    return parts.length ? parts.join(' · ') : '—';
+  };
+  return (
+    <section className="space-y-3">
+      <header className="flex items-baseline justify-between gap-3">
+        <h2 className="inline-flex items-center gap-2 font-display text-h4 font-semibold text-foreground">
+          <Trophy className="h-4 w-4 text-primary" aria-hidden />
+          Results
+        </h2>
+        <span className="text-caption text-muted-foreground">
+          {rows.length} {rows.length === 1 ? 'tournament' : 'tournaments'}
+        </span>
+      </header>
+
+      {/* Desktop: wide table */}
+      <div className="hidden overflow-x-auto rounded-card border border-border bg-card shadow-xs md:block">
+        <table className="w-full text-[13.5px]">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-caption text-muted-foreground">
+              <th className="px-4 py-2.5 font-medium">Tournament</th>
+              <th className="px-3 py-2.5 font-medium">Year</th>
+              <th className="px-3 py-2.5 font-medium">Format</th>
+              <th className="px-3 py-2.5 font-medium">Team</th>
+              <th className="px-3 py-2.5 font-medium">W–L</th>
+              <th className="px-3 py-2.5 font-medium">Spkr score</th>
+              <th className="px-3 py-2.5 font-medium">Spkr rank</th>
+              <th className="px-3 py-2.5 font-medium">Break</th>
+              <th className="px-3 py-2.5 font-medium">Judging</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((r) => (
+              <tr key={r.tournamentId.toString()} className="hover:bg-muted/20">
+                <td className="px-4 py-2.5">
+                  <a
+                    href={r.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground hover:text-primary"
+                  >
+                    {r.tournamentName}
+                  </a>
+                </td>
+                <td className="px-3 py-2.5 font-mono text-muted-foreground">
+                  {r.year ?? '—'}
+                </td>
+                <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{r.teamName ?? '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{fmtRecord(r.wins, r.losses)}</td>
+                <td className="px-3 py-2.5 font-mono">
+                  {r.speakerScoreTotal ?? '—'}
+                </td>
+                <td className="px-3 py-2.5 font-mono">
+                  {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : '—'}
+                </td>
+                <td className="px-3 py-2.5">{fmtBreak(r)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{fmtJudging(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: stacked cards */}
+      <ul className="space-y-2 md:hidden">
+        {rows.map((r) => (
+          <li
+            key={r.tournamentId.toString()}
+            className="rounded-card border border-border bg-card p-3 shadow-xs"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <a
+                href={r.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate font-display text-[14.5px] font-semibold text-foreground"
+              >
+                {r.tournamentName}
+              </a>
+              <span className="whitespace-nowrap font-mono text-caption text-muted-foreground">
+                {r.year ?? '—'}
+              </span>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
+              {r.format ? <Field label="Format" value={r.format} /> : null}
+              {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
+              <Field label="W–L" value={fmtRecord(r.wins, r.losses)} mono />
+              {r.speakerScoreTotal ? (
+                <Field label="Spkr score" value={r.speakerScoreTotal} mono />
+              ) : null}
+              {r.speakerRankOpen != null ? (
+                <Field label="Spkr rank" value={`#${r.speakerRankOpen}`} mono />
+              ) : null}
+              {r.eliminationReached ? <Field label="Break" value={fmtBreak(r)} /> : null}
+              {fmtJudging(r) !== '—' ? <Field label="Judging" value={fmtJudging(r)} /> : null}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

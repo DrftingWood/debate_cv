@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw, Trash2 } from 'lucide-react';
+import { Search, Play, RotateCw, Trash2, RefreshCw, Download } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -252,6 +252,91 @@ export function ClearButton({ url }: { url: string }) {
       }}
     >
       Clear
+    </Button>
+  );
+}
+
+type ReingestMineResponse = { queued: number };
+
+export function ReingestMineButton() {
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      loading={isPending}
+      leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine');
+          if (!result.ok) {
+            toast.show({ kind: 'error', title: 'Re-ingest failed', description: result.error });
+            return;
+          }
+          const n = result.data.queued;
+          toast.show({
+            kind: 'success',
+            title: 'Queued for re-ingest',
+            description:
+              n > 0
+                ? `${n} ${n === 1 ? 'URL' : 'URLs'} queued — use "Ingest all" to process them.`
+                : 'Nothing to re-ingest yet.',
+          });
+          router.refresh();
+        });
+      }}
+    >
+      Re-ingest mine
+    </Button>
+  );
+}
+
+export function ExportErrorsButton() {
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      loading={isPending}
+      leftIcon={!isPending ? <Download className="h-4 w-4" aria-hidden /> : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          try {
+            const res = await fetch('/api/ingest/errors-export');
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({ error: 'export_failed' }));
+              throw new Error(body.error ?? `HTTP ${res.status}`);
+            }
+            // Force download via blob URL — keeps the auth cookie that
+            // window.location navigation would also send, but doesn't navigate
+            // the user away from the dashboard.
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const date = new Date().toISOString().slice(0, 10);
+            a.download = `ingest-errors-${date}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.show({ kind: 'success', title: 'Errors exported' });
+          } catch (e) {
+            toast.show({
+              kind: 'error',
+              title: 'Export failed',
+              description: e instanceof Error ? e.message : 'Unknown error',
+            });
+          }
+        });
+      }}
+    >
+      Export errors
     </Button>
   );
 }
