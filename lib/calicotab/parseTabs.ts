@@ -18,8 +18,12 @@ type VueTable = { head: VueHead[]; data: VueCell[][] };
  * tables array. Uses a string-aware brace counter so nested JSON and quoted
  * braces don't confuse the boundary detection.
  */
-function extractVueData(html: string): VueTable[] | null {
-  const marker = 'window.vueData = ';
+/**
+ * Walk `html` looking for `marker` and extract the JSON value assigned to it.
+ * When the marker is followed by `[` the value is a bare array; when followed
+ * by `{` it may be an object with a `tablesData` key.
+ */
+function extractJsonAt(html: string, marker: string): VueTable[] | null {
   const idx = html.indexOf(marker);
   if (idx < 0) return null;
 
@@ -44,12 +48,29 @@ function extractVueData(html: string): VueTable[] | null {
 
   if (endIdx < 0) return null;
   try {
-    const parsed = JSON.parse(rest.slice(0, endIdx)) as { tablesData?: unknown };
-    if (Array.isArray(parsed?.tablesData)) return parsed.tablesData as VueTable[];
+    const parsed = JSON.parse(rest.slice(0, endIdx)) as unknown;
+    // Bare array: some Tabbycat forks assign tablesData directly.
+    if (Array.isArray(parsed)) return parsed as VueTable[];
+    // Object wrapper: standard `window.vueData = { tablesData: [...] }`.
+    if (parsed && typeof parsed === 'object' && 'tablesData' in parsed) {
+      const td = (parsed as Record<string, unknown>).tablesData;
+      if (Array.isArray(td)) return td as VueTable[];
+    }
   } catch {
     return null;
   }
   return null;
+}
+
+function extractVueData(html: string): VueTable[] | null {
+  // Standard Tabbycat: window.vueData = { tablesData: [...] }
+  return (
+    extractJsonAt(html, 'window.vueData = ') ??
+    // Some forks/versions assign the array directly.
+    extractJsonAt(html, 'window.tablesData = ') ??
+    extractJsonAt(html, 'var tablesData = ') ??
+    extractJsonAt(html, 'const tablesData = ')
+  );
 }
 
 /**
@@ -60,10 +81,28 @@ function extractVueData(html: string): VueTable[] | null {
 export function diagnoseVueData(html: string, colNeedles: string[]): string {
   const tables = extractVueData(html);
   if (!tables) {
-    // Include a short HTML preview so we can immediately tell whether the server
-    // returned a login page, Cloudflare block, redirect, etc.
-    const preview = html.replace(/\s+/g, ' ').slice(0, 300);
-    return `vueData: window.vueData not found (${html.length}b) — preview: ${preview}`;
+    // Scan script blocks to surface what the page actually contains.
+    const scriptSnippets: string[] = [];
+    const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = scriptRe.exec(html)) !== null) {
+      const body = (m[1] ?? '').trim();
+      if (body.length < 10) continue;
+      // Only report script blocks that contain something data-like.
+      const preview = body.replace(/\s+/g, ' ').slice(0, 120);
+      scriptSnippets.push(preview);
+      if (scriptSnippets.length >= 4) break;
+    }
+    const hasTablesData = html.includes('tablesData');
+    const hasTables = html.includes('<table');
+    const extra = [
+      hasTablesData ? 'tablesData:YES' : 'tablesData:NO',
+      hasTables ? 'html-table:YES' : 'html-table:NO',
+    ].join(' ');
+    const scripts = scriptSnippets.length
+      ? `\nscripts: ${scriptSnippets.map((s, i) => `[${i}]${s}`).join(' | ')}`
+      : '\nscripts: none';
+    return `vueData: window.vueData not found (${html.length}b) ${extra}${scripts}`;
   }
   if (tables.length === 0) return 'vueData: tablesData is an empty array';
   const t = tables[0]!;
