@@ -14,6 +14,7 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -32,35 +33,6 @@ function initials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
-
-// Score outround stages so we can compute "deepest reached" by max rank.
-// Higher = later in the bracket. Returns null for prelim rounds and unknown
-// strings so the comparator skips them.
-function outroundRank(stage: string | null | undefined): number | null {
-  if (!stage) return null;
-  const s = stage.toLowerCase();
-  if (/grand\s*final|grand-final|\bgf\b/.test(s)) return 110;
-  if (/\bfinals?\b|\bf\b(?!our)/.test(s) && !/quarter|semi|octo|partial|round/.test(s)) return 100;
-  if (/semi[-\s]?final|semifinals?|\bsf\b/.test(s)) return 90;
-  if (/quarter[-\s]?final|quarterfinals?|\bqf\b|\bquarters\b/.test(s)) return 80;
-  if (/octo[-\s]?final|octofinals?|octofs|\bof\b|\boctos\b/.test(s)) return 70;
-  if (/double\s*octo|doubles?\b/.test(s)) return 60;
-  if (/triple\s*octo/.test(s)) return 50;
-  if (/partial\s*double/.test(s)) return 55;
-  if (/partial\s*triple/.test(s)) return 45;
-  // "Round of 16/32" generic forms
-  const ro = s.match(/round\s*of\s*(\d+)/);
-  if (ro) {
-    const n = Number(ro[1]);
-    if (n === 2) return 100;
-    if (n === 4) return 90;
-    if (n === 8) return 80;
-    if (n === 16) return 70;
-    if (n === 32) return 60;
-    if (n === 64) return 50;
-  }
-  return null;
 }
 
 export default async function CvPage() {
@@ -324,11 +296,10 @@ export default async function CvPage() {
     format: string | null;
     sourceUrl: string;
     judgeTypeTag: string | null;
-    roundsJudged: number;
-    roundsChaired: number;
-    deepestOutround: string | null;
-    lastOutround: string | null;
-    lastOutroundStatus: 'chaired' | 'paneled' | null;
+    inroundsJudged: number;
+    inroundsChaired: number;
+    lastOutroundChaired: string | null;
+    lastOutroundJudged: string | null;
   };
   const judgeByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   for (const p of myParticipations) {
@@ -355,26 +326,22 @@ export default async function CvPage() {
 
   // Aggregate judge assignments by (tournamentId, personId) for the user's
   // claimed personIds, then collapse to per-tournament across all personIds.
+  // We track inround participation distinctly so the four user-facing
+  // metrics — inrounds judged, inrounds chaired, last outround chaired,
+  // last outround judged — line up with how Tabbycat groups rounds.
   type JudgeStats = {
-    rounds: Set<string>; // distinct round identifiers
-    chaired: number;
-    deepestOutround: string | null;
-    deepestOutroundRank: number;
+    inrounds: Set<string>; // distinct inround identifiers (any role)
   };
   const judgeStatsByTournament = new Map<bigint, JudgeStats>();
   for (const a of judgeAssignmentRows) {
     if (!claimedPersonIds.has(a.personId)) continue;
     let stats = judgeStatsByTournament.get(a.tournamentId);
     if (!stats) {
-      stats = { rounds: new Set(), chaired: 0, deepestOutround: null, deepestOutroundRank: -1 };
+      stats = { inrounds: new Set() };
       judgeStatsByTournament.set(a.tournamentId, stats);
     }
-    stats.rounds.add(`${a.stage ?? ''}:${a.roundNumber ?? ''}`);
-    if ((a.panelRole ?? '').toLowerCase().startsWith('chair')) stats.chaired++;
-    const r = outroundRank(a.stage);
-    if (r != null && r > stats.deepestOutroundRank) {
-      stats.deepestOutroundRank = r;
-      stats.deepestOutround = a.stage;
+    if (classifyRoundLabel(a.stage) === 'inround') {
+      stats.inrounds.add(`${a.stage ?? ''}:${a.roundNumber ?? ''}`);
     }
   }
 
@@ -383,16 +350,6 @@ export default async function CvPage() {
     const t = tournamentById.get(tid);
     if (!t) continue;
     const stats = judgeStatsByTournament.get(tid);
-    // last outround status: prefer chaired over paneled when both exist.
-    let lastOutround: string | null = null;
-    let lastOutroundStatus: 'chaired' | 'paneled' | null = null;
-    if (p.lastOutroundChaired) {
-      lastOutround = p.lastOutroundChaired;
-      lastOutroundStatus = 'chaired';
-    } else if (p.lastOutroundPaneled) {
-      lastOutround = p.lastOutroundPaneled;
-      lastOutroundStatus = 'paneled';
-    }
     judgeRows.push({
       tournamentId: tid,
       tournamentName: t.name,
@@ -400,11 +357,13 @@ export default async function CvPage() {
       format: t.format,
       sourceUrl: t.sourceUrlRaw,
       judgeTypeTag: p.judgeTypeTag,
-      roundsJudged: stats?.rounds.size ?? 0,
-      roundsChaired: p.chairedPrelimRounds ?? stats?.chaired ?? 0,
-      deepestOutround: stats?.deepestOutround ?? lastOutround,
-      lastOutround,
-      lastOutroundStatus,
+      inroundsJudged: stats?.inrounds.size ?? 0,
+      inroundsChaired: p.chairedPrelimRounds ?? 0,
+      lastOutroundChaired: p.lastOutroundChaired ?? null,
+      lastOutroundJudged: deepestOutroundAcrossRoles(
+        p.lastOutroundChaired,
+        p.lastOutroundPaneled,
+      ),
     });
   }
   judgeRows.sort((a, b) => {
@@ -436,7 +395,7 @@ export default async function CvPage() {
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
   const breaks = speakerRows.filter((r) => r.eliminationReached).length;
-  const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.roundsChaired ?? 0), 0);
+  const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   return (
     <div className="space-y-10">
@@ -794,16 +753,13 @@ type JudgingTableRow = {
   format: string | null;
   sourceUrl: string;
   judgeTypeTag: string | null;
-  roundsJudged: number;
-  roundsChaired: number;
-  deepestOutround: string | null;
-  lastOutround: string | null;
-  lastOutroundStatus: 'chaired' | 'paneled' | null;
+  inroundsJudged: number;
+  inroundsChaired: number;
+  lastOutroundChaired: string | null;
+  lastOutroundJudged: string | null;
 };
 
 function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
-  const fmtLast = (r: JudgingTableRow) =>
-    r.lastOutround ? `${r.lastOutround} (${r.lastOutroundStatus ?? '—'})` : '—';
   return (
     <>
       <div className="hidden overflow-x-auto md:block">
@@ -814,10 +770,10 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               <th className="px-3 py-2.5 font-medium">Year</th>
               <th className="px-3 py-2.5 font-medium">Format</th>
               <th className="px-3 py-2.5 font-medium">Judge type</th>
-              <th className="px-3 py-2.5 font-medium">Rounds judged</th>
-              <th className="px-3 py-2.5 font-medium">Rounds chaired</th>
-              <th className="px-3 py-2.5 font-medium">Deepest outround</th>
-              <th className="px-3 py-2.5 font-medium">Last outround</th>
+              <th className="px-3 py-2.5 font-medium">Inrounds judged</th>
+              <th className="px-3 py-2.5 font-medium">Inrounds chaired</th>
+              <th className="px-3 py-2.5 font-medium">Last outround chaired</th>
+              <th className="px-3 py-2.5 font-medium">Last outround judged</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -836,10 +792,10 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.roundsJudged || '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.roundsChaired || '—'}</td>
-                <td className="px-3 py-2.5">{r.deepestOutround ?? '—'}</td>
-                <td className="px-3 py-2.5">{fmtLast(r)}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged || '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired || '—'}</td>
+                <td className="px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
+                <td className="px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -865,10 +821,10 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
               {r.format ? <Field label="Format" value={r.format} /> : null}
               {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              {r.roundsJudged ? <Field label="Rounds judged" value={String(r.roundsJudged)} mono /> : null}
-              {r.roundsChaired ? <Field label="Rounds chaired" value={String(r.roundsChaired)} mono /> : null}
-              {r.deepestOutround ? <Field label="Deepest outround" value={r.deepestOutround} /> : null}
-              {r.lastOutround ? <Field label="Last outround" value={fmtLast(r)} /> : null}
+              {r.inroundsJudged ? <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono /> : null}
+              {r.inroundsChaired ? <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono /> : null}
+              {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
+              {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
             </dl>
           </li>
         ))}

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { aggregateJudgeStats, outroundRank } from '@/lib/calicotab/judgeStats';
+import {
+  aggregateJudgeStats,
+  deepestOutroundAcrossRoles,
+  outroundRank,
+} from '@/lib/calicotab/judgeStats';
 
 describe('outroundRank', () => {
   test('prelim rounds rank -1', () => {
@@ -102,5 +106,32 @@ describe('aggregateJudgeStats — last outround', () => {
     const s = stats.get('A')!;
     expect(s.lastOutroundChaired).toBe('Semifinal 1');
     expect(s.lastOutroundPaneled).toBe('Grand Final');
+  });
+});
+
+describe('deepestOutroundAcrossRoles', () => {
+  test('returns null when neither role recorded an outround', () => {
+    expect(deepestOutroundAcrossRoles(null, null)).toBeNull();
+    expect(deepestOutroundAcrossRoles(undefined, undefined)).toBeNull();
+  });
+
+  test('returns the only present value when one side is null', () => {
+    expect(deepestOutroundAcrossRoles('Quarterfinals', null)).toBe('Quarterfinals');
+    expect(deepestOutroundAcrossRoles(null, 'Semifinals')).toBe('Semifinals');
+  });
+
+  test('picks the deeper round when both are populated', () => {
+    // Chaired QF, paneled SF → user reached SF as a panellist; that's deeper.
+    expect(
+      deepestOutroundAcrossRoles('Quarterfinals', 'Semifinals'),
+    ).toBe('Semifinals');
+    // Chaired Grand Final, paneled QF → GF wins.
+    expect(
+      deepestOutroundAcrossRoles('Grand Final', 'Quarterfinals'),
+    ).toBe('Grand Final');
+  });
+
+  test('chaired wins ties (e.g. both at Semifinals) — chair is preferred when ranks are equal', () => {
+    expect(deepestOutroundAcrossRoles('Semifinal 1', 'Semifinal 2')).toBe('Semifinal 1');
   });
 });
