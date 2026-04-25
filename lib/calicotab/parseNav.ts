@@ -206,7 +206,23 @@ export function extractRegistration(html: string): RegistrationSnapshot {
     }
   }
 
-  // 3. Label-value pairs ("Team name: X", "Speakers: X, Y", "Institution: X")
+  // 3. <small>for Name</small> form — modern Tabbycat splits the heading
+  //    so "Private URL" lives in a parent <h1>/<header>/<div class="card-header">
+  //    and the participant name lives in a child or sibling
+  //    <small class="text-muted ...">for Abhishek Acharya</small>. Branches 1
+  //    and 2 don't catch this when the parent isn't an h-tag whose flattened
+  //    text contains "Private URL for X". Match any <small> whose text is
+  //    exactly "for Name" (with optional period).
+  if (!snapshot.personName) {
+    $('small').each((_i, el) => {
+      if (snapshot.personName) return;
+      const text = cleanWhitespace($(el).text());
+      const m = text.match(/^for\s+(.+?)\s*\.?$/i);
+      if (m) snapshot.personName = cleanWhitespace(m[1]!);
+    });
+  }
+
+  // 4. Label-value pairs ("Team name: X", "Speakers: X, Y", "Institution: X")
   //    each typically live in their own <p> / <li> / <dt> / <dd>, so we can
   //    scan those containers and flatten their text to sidestep inline tags.
   $('p, li, dd').each((_i, el) => {

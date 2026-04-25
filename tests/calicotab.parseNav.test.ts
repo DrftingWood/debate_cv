@@ -124,3 +124,48 @@ describe('parsePrivateUrlPage with heading + team in parens', () => {
     expect(snapshot.registration.teamName).toBe('Viral Adidas');
   });
 });
+
+// Modern Tabbycat layout — "Private URL" lives in the parent header, the
+// name is in a child <small class="text-muted ...">. Real markup from the
+// SIDO 2026 deployment the user reported was failing preflight.
+const SMALL_FOR_NAME_HTML = `
+<html>
+  <head><title>SIDO 2026 | Private URL</title></head>
+  <body>
+    <header class="mb-4">
+      <h1 class="mb-1 d-md-inline">SIDO 2026</h1>
+      <small class="text-muted d-md-inline d-block">
+        for Abhishek Acharya
+
+      </small>
+    </header>
+  </body>
+</html>
+`;
+
+describe('parsePrivateUrlPage with <small>for Name</small> layout', () => {
+  const snapshot = parsePrivateUrlPage(
+    SMALL_FOR_NAME_HTML,
+    'https://sido2026.calicotab.com/sido2026/privateurls/aaf1dxnm/',
+  );
+
+  test('extracts name when only "for X" is present in a <small>', () => {
+    expect(snapshot.registration.personName).toBe('Abhishek Acharya');
+  });
+});
+
+// Should NOT false-positive on prose containing the substring "for ".
+const FOR_PROSE_HTML = `
+<html><body>
+  <p>This URL is for tournament directors only.</p>
+  <small>for Abhishek Acharya</small>
+</body></html>
+`;
+
+describe('parsePrivateUrlPage <small>for Name</small> branch is conservative', () => {
+  const snapshot = parsePrivateUrlPage(FOR_PROSE_HTML, 'https://x.calicotab.com/t/privateurls/abc/');
+
+  test('only matches small whose entire text is "for X" — picks the small, not the p', () => {
+    expect(snapshot.registration.personName).toBe('Abhishek Acharya');
+  });
+});

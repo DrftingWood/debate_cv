@@ -2,7 +2,17 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Mail, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  Search,
+  Mail,
+  UserCheck,
+  Loader2,
+  CheckCircle2,
+  ChevronLeft,
+  RefreshCw,
+  AlertTriangle,
+  ChevronDown,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -15,27 +25,20 @@ type PreflightResponse = {
   failed: number;
   processed: number;
   remaining: number;
+  errors: { url: string; error: string }[];
 };
 type NamesResponse = {
   names: { displayName: string; normalizedName: string; urlCount: number; isMine: boolean }[];
   totals: { urls: number; named: number; unknown: number; failed: number };
 };
+type ErrorsResponse = {
+  failures: { id: string; url: string; host: string; error: string }[];
+};
 
 type Phase = 'scan' | 'preflight' | 'pick' | 'done';
 
-/**
- * Three-phase onboarding wizard:
- *   1. scan      — user has 0 URLs, prompt Gmail scan.
- *   2. preflight — URLs exist but some haven't had a name extracted yet.
- *                  This phase auto-runs by polling /preflight in batches.
- *   3. pick      — every URL has a registrationName (or empty for failures).
- *                  Show unique names with URL counts; user multi-selects
- *                  which are theirs and clicks Confirm.
- *   4. done      — confirmation succeeded; redirect to /dashboard.
- *
- * Initial phase is computed server-side and passed in as `initialPhase` so
- * page loads land on the right step without flicker.
- */
+const PHASE_ORDER: Phase[] = ['scan', 'preflight', 'pick'];
+
 export function OnboardingFlow({
   initialPhase,
   initialUrlCount,
@@ -62,8 +65,12 @@ export function OnboardingFlow({
     failed: 0,
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [persistedErrors, setPersistedErrors] = useState<ErrorsResponse['failures']>([]);
+  const [recentErrors, setRecentErrors] = useState<{ url: string; error: string }[]>([]);
+  const [errorsOpen, setErrorsOpen] = useState(false);
   const [isScanning, startScan] = useTransition();
   const [isConfirming, startConfirm] = useTransition();
+  const [isResetting, startReset] = useTransition();
 
   // ── Phase 2: preflight loop ─────────────────────────────────────────────
   // Polls /api/onboarding/preflight in batches of 10 until remaining hits 0,
@@ -84,14 +91,31 @@ export function OnboardingFlow({
           extracted: p.extracted + res.data.extracted,
           failed: p.failed + res.data.failed,
         }));
+        if (res.data.errors?.length) {
+          setRecentErrors((prev) => [...res.data.errors, ...prev].slice(0, 50));
+        }
         if (res.data.remaining === 0 || res.data.processed === 0) break;
       }
       if (cancelled) return;
-      // Load names and advance.
-      const namesRes = await fetch('/api/onboarding/names').then((r) => r.json());
-      if (cancelled) return;
+      await refreshNames();
+      setPhase('pick');
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // ── Phase 3 entry: load names + persisted errors ────────────────────────
+  const refreshNames = async () => {
+    try {
+      const [namesRes, errsRes] = await Promise.all([
+        fetch('/api/onboarding/names').then((r) => r.json()),
+        fetch('/api/onboarding/errors').then((r) => r.json()),
+      ]);
       setNames(namesRes.names ?? []);
       setTotals(namesRes.totals ?? totals);
+      setPersistedErrors(errsRes.failures ?? []);
       setSelected(
         new Set(
           (namesRes.names ?? [])
@@ -99,11 +123,17 @@ export function OnboardingFlow({
             .map((n: { normalizedName: string }) => n.normalizedName),
         ),
       );
-      setPhase('pick');
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (e) {
+      toast.show({
+        kind: 'error',
+        title: 'Could not load names',
+        description: e instanceof Error ? e.message : 'unknown',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (phase === 'pick') void refreshNames();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -124,8 +154,31 @@ export function OnboardingFlow({
       setUrlCount(found);
       if (found > 0) {
         setPreflight({ remaining: found, extracted: 0, failed: 0 });
+        setRecentErrors([]);
         setPhase('preflight');
       }
+    });
+  };
+
+  // ── Retry: reset failures and re-fire preflight ────────────────────────
+  const onRetryFailures = () => {
+    startReset(async () => {
+      const res = await postJson<PreflightResponse>(
+        '/api/onboarding/preflight?retry=true',
+      );
+      if (!res.ok) {
+        toast.show({ kind: 'error', title: 'Retry failed', description: res.error });
+        return;
+      }
+      // The retry call returns the first batch's result; switch to preflight
+      // phase so the loop above keeps draining the rest.
+      setPreflight({
+        remaining: res.data.remaining,
+        extracted: res.data.extracted,
+        failed: res.data.failed,
+      });
+      setRecentErrors(res.data.errors ?? []);
+      setPhase('preflight');
     });
   };
 
@@ -167,9 +220,14 @@ export function OnboardingFlow({
     });
   };
 
+  const goToPhase = (target: Phase) => {
+    if (target === phase) return;
+    setPhase(target);
+  };
+
   return (
     <div className="space-y-6">
-      <ProgressBar phase={phase} />
+      <ProgressBar phase={phase} onJump={goToPhase} />
 
       {phase === 'scan' && (
         <Card>
@@ -195,9 +253,7 @@ export function OnboardingFlow({
                 variant="primary"
                 size="lg"
                 loading={isScanning}
-                leftIcon={
-                  !isScanning ? <Search className="h-4 w-4" aria-hidden /> : undefined
-                }
+                leftIcon={!isScanning ? <Search className="h-4 w-4" aria-hidden /> : undefined}
                 onClick={onScan}
               >
                 {isScanning ? 'Scanning Gmail…' : 'Scan Gmail'}
@@ -220,17 +276,40 @@ export function OnboardingFlow({
                 </h2>
                 <p className="text-[14px] text-muted-foreground">
                   Visiting each URL's landing page and pulling the registered participant
-                  name. This is a one-time preflight and runs in the background — no
-                  tournament data is stored yet.
+                  name. This is a one-time preflight — no tournament data is stored yet.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                   <Badge variant="info">{preflight.extracted} extracted</Badge>
                   {preflight.failed > 0 ? (
-                    <Badge variant="neutral">{preflight.failed} unreachable</Badge>
+                    <Badge variant="neutral">{preflight.failed} failed</Badge>
                   ) : null}
                   <Badge variant="warning">{preflight.remaining} remaining</Badge>
                 </div>
               </div>
+            </div>
+
+            {recentErrors.length > 0 ? (
+              <RecentErrors errors={recentErrors} />
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<ChevronLeft className="h-3.5 w-3.5" aria-hidden />}
+                onClick={() => goToPhase('scan')}
+              >
+                Back to scan
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => goToPhase('pick')}
+              >
+                Skip to picker (use what's done so far)
+              </Button>
             </div>
           </CardBody>
         </Card>
@@ -255,8 +334,8 @@ export function OnboardingFlow({
                 </p>
                 {totals.failed > 0 ? (
                   <p className="text-caption text-muted-foreground">
-                    {totals.failed} {totals.failed === 1 ? 'URL was' : 'URLs were'} unreachable
-                    (dead Heroku app / removed page) and won't appear here.
+                    {totals.failed} {totals.failed === 1 ? 'URL' : 'URLs'} couldn't be
+                    parsed — open the errors panel below to see exactly what went wrong.
                   </p>
                 ) : null}
               </div>
@@ -264,8 +343,9 @@ export function OnboardingFlow({
 
             {names.length === 0 ? (
               <p className="rounded-md border border-border bg-muted/40 p-4 text-caption text-muted-foreground">
-                No names could be extracted. The landing pages may be dead, or the
-                preflight failed. Try re-running the Gmail scan.
+                No names extracted yet. Open the errors below to see what failed,
+                then click <strong>Reset and try again</strong> to re-run preflight on
+                those URLs.
               </p>
             ) : (
               <ul className="divide-y divide-border rounded-card border border-border bg-card">
@@ -296,10 +376,36 @@ export function OnboardingFlow({
               </ul>
             )}
 
+            <ErrorsPanel
+              failures={persistedErrors}
+              open={errorsOpen}
+              onToggle={() => setErrorsOpen((v) => !v)}
+            />
+
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <p className="text-caption text-muted-foreground">
-                {selected.size} of {names.length} selected
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<ChevronLeft className="h-3.5 w-3.5" aria-hidden />}
+                  onClick={() => goToPhase('scan')}
+                >
+                  Back to scan
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={isResetting}
+                  leftIcon={
+                    !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
+                  }
+                  onClick={onRetryFailures}
+                >
+                  Reset and try again
+                </Button>
+              </div>
               <Button
                 type="button"
                 variant="primary"
@@ -314,6 +420,9 @@ export function OnboardingFlow({
                 {isConfirming ? 'Confirming…' : 'These are me — continue'}
               </Button>
             </div>
+            <p className="text-caption text-muted-foreground">
+              {selected.size} of {names.length} selected
+            </p>
           </CardBody>
         </Card>
       )}
@@ -330,7 +439,7 @@ export function OnboardingFlow({
   );
 }
 
-function ProgressBar({ phase }: { phase: Phase }) {
+function ProgressBar({ phase, onJump }: { phase: Phase; onJump: (p: Phase) => void }) {
   const steps: { key: Phase; label: string }[] = [
     { key: 'scan', label: 'Scan Gmail' },
     { key: 'preflight', label: 'Read names' },
@@ -345,26 +454,31 @@ function ProgressBar({ phase }: { phase: Phase }) {
         const active = i === current;
         return (
           <li key={s.key} className="flex flex-1 items-center gap-2">
-            <span
+            <button
+              type="button"
+              onClick={() => onJump(s.key)}
               className={
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold ' +
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold transition-colors hover:opacity-80 ' +
                 (done
                   ? 'bg-primary text-primary-foreground'
                   : active
                     ? 'bg-primary-soft text-primary ring-2 ring-primary/40'
                     : 'bg-muted text-muted-foreground')
               }
+              aria-label={`Go to step ${i + 1}: ${s.label}`}
             >
               {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : i + 1}
-            </span>
-            <span
+            </button>
+            <button
+              type="button"
+              onClick={() => onJump(s.key)}
               className={
-                'truncate text-caption ' +
+                'truncate text-left text-caption hover:underline ' +
                 (active ? 'font-medium text-foreground' : 'text-muted-foreground')
               }
             >
               {s.label}
-            </span>
+            </button>
             {i < steps.length - 1 ? (
               <span aria-hidden className="hidden flex-1 border-t border-dashed border-border md:block" />
             ) : null}
@@ -372,5 +486,75 @@ function ProgressBar({ phase }: { phase: Phase }) {
         );
       })}
     </ol>
+  );
+}
+
+function RecentErrors({ errors }: { errors: { url: string; error: string }[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-caption">
+      <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+        {errors.length} most recent {errors.length === 1 ? 'failure' : 'failures'}
+      </div>
+      <ul className="max-h-48 space-y-1 overflow-auto">
+        {errors.slice(0, 10).map((e, i) => (
+          <li key={i} className="font-mono text-[11.5px] text-muted-foreground">
+            <span className="text-foreground">{new URL(e.url).host}</span> — {e.error}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ErrorsPanel({
+  failures,
+  open,
+  onToggle,
+}: {
+  failures: { id: string; url: string; host: string; error: string }[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  if (failures.length === 0) return null;
+  return (
+    <div className="rounded-card border border-border bg-card/60">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-[13.5px] hover:bg-muted/30"
+      >
+        <span className="inline-flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden />
+          {failures.length} {failures.length === 1 ? 'URL' : 'URLs'} couldn't be parsed
+          — show details
+        </span>
+        <ChevronDown
+          className={
+            'h-4 w-4 text-muted-foreground transition-transform ' + (open ? 'rotate-180' : '')
+          }
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <ul className="max-h-72 divide-y divide-border overflow-auto">
+          {failures.map((f) => (
+            <li key={f.id} className="space-y-1 px-4 py-2.5 text-[12.5px]">
+              <div className="font-medium text-foreground">{f.host}</div>
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block break-all font-mono text-[11.5px] text-muted-foreground hover:text-primary"
+              >
+                {f.url}
+              </a>
+              <div className="font-mono text-[11.5px] text-destructive">{f.error}</div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
