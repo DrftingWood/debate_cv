@@ -213,6 +213,19 @@ export async function ingestPrivateUrl(
     durationMs: Date.now() - parseStart,
   });
 
+  // Pre-commit every Person referenced anywhere in this ingest before opening
+  // the main transaction. Doing the upserts inside the long transaction held
+  // FK ShareLocks across concurrent ingests and triggered 40P01 deadlocks.
+  const allPersonNames = new Set<string>();
+  for (const sp of speakerRows) allPersonNames.add(sp.speakerName);
+  for (const p of participantRows) {
+    if (p.role === 'adjudicator') allPersonNames.add(p.name);
+  }
+  for (const round of rounds) {
+    for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
+  }
+  const personIdByNormalized = await preCommitPersons(allPersonNames);
+
   const tournamentId = await prisma.$transaction(async (tx) => {
     const t = await tx.tournament.upsert({
       where: { fingerprint },
@@ -293,9 +306,10 @@ export async function ingestPrivateUrl(
 
     // People + participants (speakers)
     for (const sp of speakerRows) {
-      const person = await upsertPerson(tx, sp.speakerName);
+      const personId = personIdByNormalized.get(normalizePersonName(sp.speakerName));
+      if (!personId) continue;
       const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId: person.id } },
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
         update: {
           teamName: sp.teamName,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
@@ -306,7 +320,7 @@ export async function ingestPrivateUrl(
         },
         create: {
           tournamentId: t.id,
-          personId: person.id,
+          personId,
           teamName: sp.teamName,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
           speakerRankOpen: sp.rank,
@@ -353,9 +367,10 @@ export async function ingestPrivateUrl(
     // clobber speaker fields for swings (who show up in both lists).
     for (const p of participantRows) {
       if (p.role !== 'adjudicator') continue;
-      const person = await upsertPerson(tx, p.name);
+      const personId = personIdByNormalized.get(normalizePersonName(p.name));
+      if (!personId) continue;
       const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId: person.id } },
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
         update: {
           judgeTypeTag: p.judgeTag,
           // Only overwrite teamName when the participants list actually tells
@@ -365,7 +380,7 @@ export async function ingestPrivateUrl(
         },
         create: {
           tournamentId: t.id,
-          personId: person.id,
+          personId,
           teamName: p.teamName,
           judgeTypeTag: p.judgeTag,
         },
@@ -383,18 +398,20 @@ export async function ingestPrivateUrl(
     }
 
     // Raw judge_assignments table: one row per (tournament, person, stage, role, round).
-    // First resolve names to personIds once so the pure aggregator can key by id.
+    // Resolve names to personIds via the pre-committed Person map so the pure
+    // aggregator can key by id without re-touching the Person table.
     const personIdByName = new Map<string, bigint>();
     for (const round of rounds) {
       for (const j of round.judgeAssignments) {
         if (personIdByName.has(j.personName)) continue;
-        const person = await upsertPerson(tx, j.personName);
-        personIdByName.set(j.personName, person.id);
+        const personId = personIdByNormalized.get(normalizePersonName(j.personName));
+        if (personId) personIdByName.set(j.personName, personId);
       }
     }
     for (const round of rounds) {
       for (const j of round.judgeAssignments) {
-        const personId = personIdByName.get(j.personName)!;
+        const personId = personIdByName.get(j.personName);
+        if (!personId) continue; // name didn't normalize — skip silently
         // The @@unique on JudgeAssignment covers three nullable columns
         // (stage, panelRole, roundNumber), which Prisma's compound-unique
         // filter type doesn't accept as null. Use findFirst + create for
@@ -703,16 +720,53 @@ async function isLatestParserRun(sourceDocumentId: string): Promise<boolean> {
   return latest?.parserVersion === PARSER_VERSION;
 }
 
-async function upsertPerson(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  displayName: string,
-) {
-  const normalizedName = normalizePersonName(displayName);
-  return tx.person.upsert({
-    where: { normalizedName },
-    update: { displayName },
-    create: { displayName, normalizedName },
-  });
+/**
+ * Atomically upsert every unique Person up-front, *before* the main ingest
+ * transaction opens. Each row is written in its own auto-committed statement
+ * via `INSERT … ON CONFLICT DO UPDATE`, so there is no read-then-write window
+ * for two concurrent sessions to race on. Names are deduped by normalizedName
+ * and processed in sorted order, so concurrent ingests acquire the unique-
+ * index locks in the same sequence.
+ *
+ * This replaces the per-row `tx.person.upsert(...)` that used to live inside
+ * the main transaction. That pattern produced 40P01 deadlocks because each
+ * subsequent `TournamentParticipant` insert took an FK ShareLock on the other
+ * concurrent transaction (which had just touched the same Person row), and
+ * two such ingests sharing any cross-tournament debater formed a circular
+ * wait. Pre-committing the Person rows means FK validation never has to wait
+ * on another in-progress transaction.
+ *
+ * Returns a Map<normalizedName, personId> the main transaction can look up
+ * without doing any further Person writes.
+ */
+async function preCommitPersons(
+  names: Iterable<string>,
+): Promise<Map<string, bigint>> {
+  // Dedupe by normalizedName; remember the first displayName seen.
+  const unique = new Map<string, string>();
+  for (const name of names) {
+    const norm = normalizePersonName(name);
+    if (!norm) continue;
+    if (!unique.has(norm)) unique.set(norm, name);
+  }
+  const sorted = [...unique.entries()].sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+
+  const result = new Map<string, bigint>();
+  for (const [normalizedName, displayName] of sorted) {
+    const rows = await withDeadlockRetry(() =>
+      prisma.$queryRaw<{ id: bigint }[]>`
+        INSERT INTO "Person" ("displayName", "normalizedName")
+        VALUES (${displayName}, ${normalizedName})
+        ON CONFLICT ("normalizedName")
+        DO UPDATE SET "displayName" = EXCLUDED."displayName"
+        RETURNING id
+      `,
+    );
+    if (rows[0]) result.set(normalizedName, rows[0].id);
+  }
+  return result;
 }
 
 /**
