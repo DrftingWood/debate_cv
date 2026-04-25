@@ -41,6 +41,8 @@ export async function POST(req: Request) {
       fingerprint: result.fingerprint,
       cached: result.cached,
       claimedPersonId: result.claimedPersonId?.toString() ?? null,
+      totalTeams: result.totalTeams,
+      totalParticipants: result.totalParticipants,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';
