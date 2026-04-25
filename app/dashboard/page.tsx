@@ -218,13 +218,13 @@ export default async function Dashboard() {
                     const job = jobByUrl.get(u.url);
                     const status = statusFor(!!u.ingestedAt, job?.status);
                     return (
-                      <tr key={u.id} className="align-top transition-colors hover:bg-muted/40">
+                      <tr key={u.id} className="align-middle transition-colors hover:bg-muted/40">
                         <td className="px-5 py-3">
                           <a
                             href={u.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex max-w-[28rem] items-center gap-1 truncate align-bottom font-mono text-[12px] text-foreground transition-colors hover:text-primary"
+                            className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-[12px] text-foreground transition-colors hover:text-primary"
                           >
                             <span className="truncate">{u.url}</span>
                             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -327,7 +327,7 @@ function Stat({
   };
   return (
     <Card className="transition-all duration-[180ms] ease-soft hover:shadow-md">
-      <CardBody className="flex items-start gap-3">
+      <CardBody className="flex items-center gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-md ${toneRing[tone]}`}>
           {icon}
         </div>

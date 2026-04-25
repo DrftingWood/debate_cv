@@ -1,6 +1,8 @@
 import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
 import { prisma } from '@/lib/db';
+
+// Derived from the constructor so no direct dep on google-auth-library is needed.
+export type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 import { decryptValue, encryptValue } from '@/lib/crypto';
 
 export function makeOAuthClient(): OAuth2Client {
