@@ -74,6 +74,37 @@ export default async function CvVerifyPage({
     .map((id) => tournaments.find((t) => t.id === id))
     .filter((t): t is (typeof tournaments)[number] => !!t);
 
+  // Pull the latest ParserRun warnings per (tournament, parserName). When a
+  // parser silently fails (e.g. the Debates card heading doesn't match, the
+  // adjudicator <strong> marker is missing), it pushes a string into
+  // ParserRun.warnings. Surfacing those here turns silent CV blanks into
+  // diagnosable text without the user opening DevTools or DB.
+  const userUrls = discovered.map((d) => d.url);
+  const userTournamentByUrl = new Map<string, bigint>();
+  for (const d of discovered) {
+    if (d.tournamentId) userTournamentByUrl.set(d.url, d.tournamentId);
+  }
+  const parserRuns = userUrls.length
+    ? await prisma.parserRun.findMany({
+        where: { sourceDocument: { url: { in: userUrls } } },
+        include: { sourceDocument: { select: { url: true } } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const seenByTournamentParser = new Set<string>();
+  const warningsByTournamentId = new Map<bigint, string[]>();
+  for (const pr of parserRuns) {
+    const tid = userTournamentByUrl.get(pr.sourceDocument.url);
+    if (!tid) continue;
+    const key = `${tid}|${pr.parserName}`;
+    if (seenByTournamentParser.has(key)) continue;
+    seenByTournamentParser.add(key);
+    if (pr.warnings.length === 0) continue;
+    const existing = warningsByTournamentId.get(tid) ?? [];
+    const labeled = pr.warnings.map((w) => `[${pr.parserName}] ${w}`);
+    warningsByTournamentId.set(tid, [...existing, ...labeled]);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -138,6 +169,19 @@ export default async function CvVerifyPage({
                       <ReingestButton url={t.sourceUrlRaw} />
                     </div>
                   </div>
+
+                  {warningsByTournamentId.has(t.id) ? (
+                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/[0.06] p-3">
+                      <h3 className="text-[14px] font-semibold text-warning">
+                        Parser warnings ({warningsByTournamentId.get(t.id)!.length})
+                      </h3>
+                      <ul className="space-y-1 text-caption text-foreground">
+                        {warningsByTournamentId.get(t.id)!.map((w, i) => (
+                          <li key={i} className="font-mono">{w}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
 
                   {/* Participants */}
                   <section className="space-y-2">

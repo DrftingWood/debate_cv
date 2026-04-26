@@ -517,3 +517,71 @@ describe('extractSpeakerRounds — fuzzy team-name matching', () => {
     expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2]);
   });
 });
+
+// Some Tabbycat themes don't wrap the URL owner's name in <strong> in the
+// adjudicator-name cell. The parser must fall back to matching the name
+// passed in (typically pulled from the registration card on the same page).
+const NO_STRONG_FRAGMENT = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><div data-original-title="Round 1"><span class="tooltip-trigger">R1</span></div></td>
+        <td class="team-name">A</td><td class="team-name">B</td>
+        <td class="adjudicator-name">
+          <span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span>,
+          <span class="d-inline">Bea Legaspi</span>
+        </td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Quarterfinals"><span class="tooltip-trigger">QF</span></div></td>
+        <td class="team-name">C</td><td class="team-name">D</td>
+        <td class="adjudicator-name">
+          <span class="d-inline">Beauty Ariel<i class="adj-symbol">Ⓒ</i></span>,
+          <span class="d-inline">Abhishek Lalatendu Acharya</span>,
+          <span class="d-inline">Udai Kamath</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractAdjudicatorRounds — name-fallback when <strong> is missing', () => {
+  test('matches the URL owner by name and detects role from the adj-symbol', () => {
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek Lalatendu Acharya');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.role).toBe('chair');
+    expect(rows[0]!.stage).toBe('Round 1');
+    expect(rows[1]!.role).toBe('panellist');
+    expect(rows[1]!.stage).toBe('Quarterfinals');
+  });
+
+  test('registration "Abhishek Acharya" still matches cell "Abhishek Lalatendu Acharya"', () => {
+    // Common case: the registration card drops the middle name but the
+    // adjudicator cell shows the full legal name. Token-set fallback catches
+    // it since both first + last names overlap.
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek Acharya');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.role).toBe('chair');
+    expect(rows[1]!.role).toBe('panellist');
+  });
+
+  test('does NOT match a single-token first-name query', () => {
+    // "Abhishek" alone (1 token) must not match "Abhishek Lalatendu Acharya"
+    // — token-set fallback requires both names to have ≥ 2 tokens to fire,
+    // preventing first-name collisions from conflating distinct judges.
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek');
+    expect(rows).toEqual([]);
+  });
+
+  test('returns empty when no name is supplied and no <strong> exists', () => {
+    expect(extractAdjudicatorRounds(NO_STRONG_FRAGMENT)).toEqual([]);
+  });
+
+  test('different judge name does not match', () => {
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Some Other Person');
+    expect(rows).toEqual([]);
+  });
+});

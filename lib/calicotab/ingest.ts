@@ -96,6 +96,7 @@ export async function ingestPrivateUrl(
           landingHtml,
           existing.id,
           claimedPersonId,
+          snapshot.registration.personName,
         );
         if (r.diagnostic) landingWarnings.push(r.diagnostic);
         await recordSpeakerRoundsFromLanding(
@@ -498,6 +499,7 @@ export async function ingestPrivateUrl(
       landingHtml,
       tournamentId,
       claimedPersonId,
+      snapshot.registration.personName,
     );
     if (r.diagnostic) fetchWarnings.push(r.diagnostic);
     await recordSpeakerRoundsFromLanding(
@@ -780,8 +782,9 @@ async function recordJudgeRoundsFromLanding(
   landingHtml: string,
   tournamentId: bigint,
   personId: bigint,
+  knownPersonName: string | null,
 ): Promise<{ written: number; chairedPrelims: number; diagnostic: string | null }> {
-  const adjRounds = extractAdjudicatorRounds(landingHtml);
+  const adjRounds = extractAdjudicatorRounds(landingHtml, knownPersonName);
   if (adjRounds.length === 0) {
     return {
       written: 0,
