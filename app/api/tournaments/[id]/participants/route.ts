@@ -83,6 +83,18 @@ export async function GET(
     return NextResponse.json({ results: [], reason: 'query_too_short' });
   }
 
+  // Authorization: a user can only enumerate participants of a tournament
+  // they've ingested a private URL for. Without this, any logged-in user can
+  // iterate `tournamentId` and pull the participant roster of every
+  // tournament in the database — and then claim Persons via /api/persons/[id]/claim.
+  const ownership = await prisma.discoveredUrl.findFirst({
+    where: { userId: session.user.id, tournamentId },
+    select: { id: true },
+  });
+  if (!ownership) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   // Only consider participants that aren't already owned by someone else.
   // Users can re-claim Persons already claimed by themselves, so we include
   // their own claims in the candidate set.
