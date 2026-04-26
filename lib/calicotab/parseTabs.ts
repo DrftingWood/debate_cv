@@ -599,21 +599,34 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabelFallback = `Round ${roundNumber ?? '?'}`;
-  const isOutround =
+  const isOutroundFromUrl =
     /\/break\//i.test(sourceUrl) ||
     /\/elim/i.test(sourceUrl);
 
+  // Tabbycat installs route both prelims and outrounds through
+  // /results/round/N/ — the URL alone can't tell us which is which.
+  // The page heading (h1/h2/h3/title) is the reliable signal: "Quarterfinals"
+  // / "Grand Final" / "Round 5" etc. Extract it once and feed BOTH the Vue
+  // and cheerio paths so they classify consistently. This is the bug that
+  // made SIDO's QF round get labeled "Round 7" — the Vue path used the
+  // numeric fallback while the heading path was only consulted in the
+  // cheerio branch.
+  const $head = cheerio.load(html);
+  const headingLabel = cleanText($head('h1, h2, h3, title').first().text());
+  const roundLabel = headingLabel || roundLabelFallback;
+  const isOutround =
+    isOutroundFromUrl ||
+    /final|semi|quarter|octo|grand/i.test(roundLabel);
+
   const vue = extractVueData(html);
   if (vue) {
-    const result = roundResultsFromVue(vue, roundNumber, roundLabelFallback, isOutround);
+    const result = roundResultsFromVue(vue, roundNumber, roundLabel, isOutround);
     if (result) return result;
   }
 
-  // Cheerio fallback
+  // Cheerio fallback — reuse the hoisted roundLabel + isOutround so both
+  // paths agree on classification.
   const $ = cheerio.load(html);
-  const roundLabel = cleanText($('h1, h2, h3, title').first().text()) || roundLabelFallback;
-  const isOutroundFull =
-    isOutround || /final|semi|quarter|octo|grand/i.test(roundLabel);
   const teamResults: RoundDebate['teamResults'] = [];
   const judgeSeen = new Set<string>();
   const judgeAssignments: RoundDebate['judgeAssignments'] = [];
@@ -664,7 +677,7 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
       }
     });
   });
-  return { roundNumber, roundLabel, isOutround: isOutroundFull, teamResults, judgeAssignments };
+  return { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments };
 }
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
