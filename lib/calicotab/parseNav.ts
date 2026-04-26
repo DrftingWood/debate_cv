@@ -395,10 +395,34 @@ function extractRowStage(
   return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
 }
 
-export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
+/**
+ * Pull the URL owner's per-round judging history from the "Debates" card.
+ *
+ * Identifies the URL owner in each row's `<td class="adjudicator-name">` via
+ * one of two strategies, in order of confidence:
+ *   1. `<strong>` wrapper around their name — Tabbycat's default markup,
+ *      which doubles as the chair-symbol container.
+ *   2. Text match against `knownPersonName` (typically the registration
+ *      person's name from the same landing page). Themes that don't bold
+ *      the URL owner — or partial private-URL pages without `<strong>` at
+ *      all — still produce data this way. Falls through silently when
+ *      `knownPersonName` isn't supplied.
+ *
+ * Role detection (chair / panellist / trainee) requires the `<i class="adj-symbol">`
+ * marker, which Tabbycat appends to the owner's own name. Path 2 picks up
+ * the symbol the same way as path 1 — chair detection works in both.
+ */
+export function extractAdjudicatorRounds(
+  html: string,
+  knownPersonName?: string | null,
+): AdjudicatorRound[] {
   const $ = cheerio.load(html);
   const table = findDebatesTable($);
   if (!table) return [];
+
+  const wantedNorm = knownPersonName
+    ? cleanWhitespace(knownPersonName).toLowerCase()
+    : '';
 
   const rows: AdjudicatorRound[] = [];
   table.find('tbody > tr').each((idx, tr) => {
@@ -411,13 +435,77 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
     // <i class="adj-symbol"> child.
     const adjCell = $tr.find('td.adjudicator-name').first();
     if (adjCell.length === 0) return;
-    const userStrong = adjCell.find('strong').first();
-    if (userStrong.length === 0) return; // owner not on this panel — skip
 
-    const symbolText = cleanWhitespace(userStrong.find('.adj-symbol').text());
+    // Path 1: Tabbycat's <strong> marker. Path 2: name-substring match
+    // against the registration name. We do path 2 only when path 1 misses
+    // so the existing behavior is preserved for tournaments where the
+    // marker is present.
+    let ownerEl = adjCell.find('strong').first();
+    let ownerSymbolText = '';
+    if (ownerEl.length > 0) {
+      ownerSymbolText = cleanWhitespace(ownerEl.find('.adj-symbol').text());
+    } else if (wantedNorm) {
+      // Walk each separator-delimited adjudicator entry inside the cell —
+      // typically each is its own <span class="d-inline">. Match strategies,
+      // most-confident first:
+      //   1. Exact equality after lowercasing/whitespace-collapse.
+      //   2. Substring containment in either direction (handles trailing
+      //      institution suffixes like "Name (Inst.)" trimmed inconsistently).
+      //   3. Token-set match: when both names have at least two tokens and
+      //      every token of one appears in the other, accept. Catches the
+      //      "Abhishek Acharya" ↔ "Abhishek Lalatendu Acharya" middle-name
+      //      gap that strict-substring misses, without false-matching judges
+      //      who only share a first name.
+      const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
+      const wantedTokenSet = new Set(wantedTokens);
+      const candidates = adjCell.find('span.d-inline').toArray();
+      const fallbackCandidates = candidates.length > 0
+        ? candidates
+        : adjCell.find('span').toArray();
+      for (const el of fallbackCandidates) {
+        const $el = $(el);
+        const symbol = $el.find('.adj-symbol');
+        const symbolText = cleanWhitespace(symbol.text());
+        const plainText = cleanWhitespace(
+          $el
+            .clone()
+            .find('.adj-symbol')
+            .remove()
+            .end()
+            .text(),
+        ).toLowerCase();
+        if (!plainText) continue;
+
+        // Equality is always safe. Substring + token-set both require at
+        // least 2 tokens in the wanted name so a bare first name doesn't
+        // false-match a different judge's full name.
+        let matched = plainText === wantedNorm;
+        if (!matched && wantedTokens.length >= 2) {
+          matched =
+            plainText.includes(wantedNorm) ||
+            wantedNorm.includes(plainText);
+          if (!matched) {
+            const cellTokens = plainText.split(/\s+/).filter(Boolean);
+            if (cellTokens.length >= 2) {
+              const cellTokenSet = new Set(cellTokens);
+              const wantedAllInCell = wantedTokens.every((t) => cellTokenSet.has(t));
+              const cellAllInWanted = cellTokens.every((t) => wantedTokenSet.has(t));
+              matched = wantedAllInCell || cellAllInWanted;
+            }
+          }
+        }
+        if (matched) {
+          ownerEl = $el;
+          ownerSymbolText = symbolText;
+          break;
+        }
+      }
+    }
+    if (ownerEl.length === 0) return; // owner not on this panel — skip
+
     let role: 'chair' | 'panellist' | 'trainee' = 'panellist';
-    if (symbolText.includes('Ⓒ') || /chair/i.test(symbolText)) role = 'chair';
-    else if (symbolText.includes('Ⓣ') || /trainee/i.test(symbolText)) role = 'trainee';
+    if (ownerSymbolText.includes('Ⓒ') || /chair/i.test(ownerSymbolText)) role = 'chair';
+    else if (ownerSymbolText.includes('Ⓣ') || /trainee/i.test(ownerSymbolText)) role = 'trainee';
 
     rows.push({
       stage: stageInfo.stage,
