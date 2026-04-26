@@ -643,7 +643,13 @@ function breakPageFromVue(
   if (!table?.head?.length || !table?.data?.length) return null;
   const heads = table.head;
 
-  const rankCol = vueCol(heads, 'rk', 'rank', '#');
+  // Adjudicator breaks are binary in real Tabbycat data — a judge either
+  // breaks (qualifies to adjudicate outrounds) or doesn't. Some installs
+  // happen to render a row index in their break-tab table that looks like
+  // a "rank" column to a generic header matcher, but it isn't a meaningful
+  // rank. Don't extract a rank for adjudicator rows so we don't end up
+  // displaying a phantom "rank:N" badge on /cv/verify.
+  const rankCol = isAdj ? -1 : vueCol(heads, 'rk', 'rank', '#');
   const nameCol = vueCol(heads, 'team', 'adjudicator', 'name');
   const instCol = vueCol(heads, 'inst', 'school');
   const scoreCol = vueCol(heads, 'score', 'pts', 'point', 'total');
@@ -719,7 +725,9 @@ export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
     .get();
   const idx = (...needles: string[]) =>
     headers.findIndex((h) => needles.some((n) => h.includes(n)));
-  const rankCol = idx('rank', '#');
+  // See breakPageFromVue: judge breaks are binary, no rank concept — don't
+  // extract one even if a column header happens to look rank-like.
+  const rankCol = isAdj ? -1 : idx('rank', '#');
   const nameCol = idx('team', 'adjudicator', 'name');
   const instCol = idx('institution');
   const scoreCol = idx('score', 'points', 'total');
