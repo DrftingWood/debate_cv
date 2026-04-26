@@ -455,6 +455,38 @@ export type SpeakerRound = {
  *
  * Returns one entry per debate row the team was in, in document order.
  */
+/**
+ * Decide whether a team-name cell text refers to the URL owner's team.
+ *
+ * Tabbycat sometimes renders team names with a trailing team-number suffix
+ * to disambiguate multiple teams from the same institution: registration
+ * says "MIT Debate A" while the Debates table shows "MIT Debate A 1".
+ * Strict equality misses this.
+ *
+ * Match strategy, in order of confidence:
+ *   1. Exact equality (whitespace + case-normalised).
+ *   2. One name is a prefix of the other followed by " <digits>" — the
+ *      Tabbycat team-number convention. Anything else (extra letters,
+ *      punctuation, alternate suffix) is rejected as a different team.
+ *
+ * We deliberately DON'T attempt institution-prefix normalisation
+ * ("MIT Debate A" ↔ "MIT A"); that requires a token-level rewrite that
+ * risks false positives across teams with overlapping prefixes.
+ */
+function teamCellMatches(cellText: string, wantedTeam: string): boolean {
+  if (!cellText || !wantedTeam) return false;
+  if (cellText === wantedTeam) return true;
+  const [shorter, longer] =
+    cellText.length < wantedTeam.length
+      ? [cellText, wantedTeam]
+      : [wantedTeam, cellText];
+  if (!longer.startsWith(shorter)) return false;
+  // The trailing portion past the prefix must be exactly " <digits>" — the
+  // team-number suffix. Anything else is a distinct team.
+  const suffix = longer.slice(shorter.length);
+  return /^\s+\d+\s*$/.test(suffix);
+}
+
 export function extractSpeakerRounds(
   html: string,
   knownTeamName?: string | null,
@@ -483,7 +515,7 @@ export function extractSpeakerRounds(
       }
       if (wantedTeam) {
         const cellText = cleanWhitespace($td.text()).toLowerCase();
-        if (cellText && cellText === wantedTeam) owned = true;
+        if (teamCellMatches(cellText, wantedTeam)) owned = true;
       }
     });
     if (!owned) return;
