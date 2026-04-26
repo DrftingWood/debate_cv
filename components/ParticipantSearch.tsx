@@ -81,7 +81,27 @@ export function ParticipantSearch({
     startClaim(async () => {
       const result = await postJson(`/api/persons/${hit.personId}/claim`);
       if (!result.ok) {
-        toast.show({ kind: 'error', title: 'Claim failed', description: result.error });
+        // Translate API error codes into actionable messages. The most common
+        // race here is `already_claimed_by_other` — User B's search returned
+        // a Person that User A claimed mid-click. Refresh the page so the
+        // stale row disappears and the user can try again.
+        const description = (() => {
+          switch (result.error) {
+            case 'already_claimed_by_other':
+              return `${hit.displayName} was just claimed by another user. Search again to see updated results.`;
+            case 'forbidden':
+              return `You can only claim a person on a tournament you've ingested.`;
+            case 'unauthorized':
+              return `Your session expired. Sign in and try again.`;
+            default:
+              return result.error;
+          }
+        })();
+        toast.show({ kind: 'error', title: 'Claim failed', description });
+        // Drop the stale hit locally and pull fresh data — covers both the
+        // claimed-by-other case and any other server-side state drift.
+        setResults((prev) => prev.filter((h) => h.personId !== hit.personId));
+        router.refresh();
         return;
       }
       toast.show({
