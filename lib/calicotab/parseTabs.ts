@@ -664,10 +664,43 @@ function breakPageFromVue(
   return rows.length > 0 ? rows : null;
 }
 
+/**
+ * Normalize a Tabbycat break-tab URL fragment to the canonical break stage
+ * label that downstream code (outroundStageRank, EliminationResult dedup)
+ * expects:
+ *   "teams/open"   → "Open"
+ *   "teams/esl"    → "ESL"
+ *   "teams/efl"    → "EFL"
+ *   "teams/novice" → "Novice"
+ *   "teams/pro-am" → "Pro-Am"
+ *   "adjudicators" → "Adjudicators"
+ *
+ * Without this normalization, `EliminationResult.stage` ends up as raw URL
+ * fragments and the downstream stage-rank classifier (which only matches
+ * canonical names) silently rejects them.
+ */
+function normalizeBreakStage(fragment: string | null): string | null {
+  if (!fragment) return null;
+  if (fragment === 'adjudicators') return 'Adjudicators';
+  const teamMatch = fragment.match(/^teams\/(.+)$/);
+  if (!teamMatch) return fragment;
+  const slug = teamMatch[1]!.toLowerCase();
+  if (slug === 'open') return 'Open';
+  if (slug === 'esl') return 'ESL';
+  if (slug === 'efl') return 'EFL';
+  // Title-case anything else: "novice" → "Novice", "pro-am" → "Pro-Am".
+  return slug
+    .split(/([\s-])/)
+    .map((part) => (part.length > 0 && /\w/.test(part)
+      ? part.charAt(0).toUpperCase() + part.slice(1)
+      : part))
+    .join('');
+}
+
 export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
   const isAdj = /\/break\/adjudicators\//.test(sourceUrl);
   const stageMatch = sourceUrl.match(/\/break\/(teams\/[^/]+|adjudicators)/);
-  const stage = stageMatch ? stageMatch[1] : null;
+  const stage = normalizeBreakStage(stageMatch ? stageMatch[1] : null);
 
   const vue = extractVueData(html);
   if (vue) {
