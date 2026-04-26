@@ -542,21 +542,56 @@ function roundResultsFromVue(
   const posCol = vueCol(heads, 'position', 'side', 'pos');
   const ptsCol = vueCol(heads, 'point', 'score', 'pts');
 
+  // Adjudicator extraction — historically hardcoded `judgeAssignments: []`,
+  // which silently dropped every judge for modern Tabbycat instances that
+  // serve round results via the Vue data island. Mirror the cheerio
+  // fallback's logic (see parseRoundResults' fallback path below) so the
+  // round-results-derived JudgeAssignment writer (recordJudgeRoundsFromRoundResults
+  // in lib/calicotab/ingest.ts) actually has data to walk on completed
+  // tournaments where the private-URL Debates card is empty.
+  const adjCol = vueCol(heads, 'adjud', 'judge');
+  const roleCol = vueColExcluding(heads, new Set([teamCol]), 'chair', 'panel', 'role');
+
   const teamResults: RoundDebate['teamResults'] = [];
+  const judgeAssignments: RoundDebate['judgeAssignments'] = [];
+  const judgeSeen = new Set<string>();
   for (const row of table.data) {
     const teamName = cellText(row[teamCol]);
-    if (!teamName) continue;
-    const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
-    const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
-    teamResults.push({
-      teamName,
-      position: posCol >= 0 ? cellText(row[posCol]) || null : null,
-      points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
-      won,
-    });
+    if (teamName) {
+      const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
+      const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
+      teamResults.push({
+        teamName,
+        position: posCol >= 0 ? cellText(row[posCol]) || null : null,
+        points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
+        won,
+      });
+    }
+    if (adjCol >= 0) {
+      const raw = cellText(row[adjCol]);
+      if (!raw) continue;
+      const roleText = roleCol >= 0 ? cellText(row[roleCol]).toLowerCase() : '';
+      const tokens = raw.split(/[,;\n]|\s+\/\s+/).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      for (const token of tokens) {
+        const lower = token.toLowerCase();
+        const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
+        const cleanedName = token
+          .replace(/\(\s*c\s*\)$/i, '')
+          .replace(/\s+\(chair\)$/i, '')
+          .replace(/\s+\(chief\)$/i, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!cleanedName || cleanedName.length < 2) continue;
+        const role: 'chair' | 'panel' | null = isChair ? 'chair' : roleText ? 'panel' : null;
+        const key = `${cleanedName}|${role ?? ''}`;
+        if (judgeSeen.has(key)) continue;
+        judgeSeen.add(key);
+        judgeAssignments.push({ personName: cleanedName, panelRole: role });
+      }
+    }
   }
-  return teamResults.length > 0
-    ? { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments: [] }
+  return teamResults.length > 0 || judgeAssignments.length > 0
+    ? { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments }
     : null;
 }
 
