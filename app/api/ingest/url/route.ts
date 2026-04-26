@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
-import { PRIVATE_URL_RE } from '@/lib/gmail/extract';
+import { PRIVATE_URL_RE, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
@@ -27,6 +27,7 @@ export async function POST(req: Request) {
   if (!PRIVATE_URL_RE.test(parse.data.url)) {
     return NextResponse.json({ error: 'not_a_private_url' }, { status: 400 });
   }
+  const urlVariants = privateUrlVariants(parse.data.url);
   try {
     const result = await ingestPrivateUrl(parse.data.url, session.user.id, {
       force: parse.data.force,
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     // Store parse warnings in lastError even on success so the dashboard can surface
     // "Done but 0 teams — vueData columns=[...]" without a separate DB field.
     await prisma.ingestJob.updateMany({
-      where: { userId: session.user.id, url: parse.data.url },
+      where: { userId: session.user.id, url: { in: urlVariants } },
       data: {
         status: IngestJobStatus.done,
         finishedAt: new Date(),
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';
     await prisma.ingestJob.updateMany({
-      where: { userId: session.user.id, url: parse.data.url },
+      where: { userId: session.user.id, url: { in: urlVariants } },
       data: {
         status: IngestJobStatus.failed,
         finishedAt: new Date(),

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
 import { parsePrivateUrlPage, extractAdjudicatorRounds } from './parseNav';
 import {
@@ -18,7 +19,7 @@ import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount } from './judgeStats';
-import { normalizePrivateUrl } from '@/lib/gmail/extract';
+import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -40,7 +41,7 @@ export async function ingestPrivateUrl(
   options: { force?: boolean } = {},
 ): Promise<IngestResult> {
   const normalized = normalizePrivateUrl(url);
-  const urlVariants = [...new Set([url, normalized])];
+  const urlVariants = privateUrlVariants(url);
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
 
@@ -278,6 +279,10 @@ export async function ingestPrivateUrl(
         fingerprint,
       },
     });
+
+    if (options.force || (existing && fetchWarnings.length === 0)) {
+      await replaceTournamentDerivedRows(tx, t.id);
+    }
 
     // Team results
     for (const row of teamRows) {
@@ -649,6 +654,30 @@ async function preCommitPersons(
     if (rows[0]) result.set(normalizedName, rows[0].id);
   }
   return result;
+}
+
+async function replaceTournamentDerivedRows(
+  tx: Prisma.TransactionClient,
+  tournamentId: bigint,
+): Promise<void> {
+  const participants = await tx.tournamentParticipant.findMany({
+    where: { tournamentId },
+    select: { id: true },
+  });
+  const participantIds = participants.map((p) => p.id);
+
+  await tx.eliminationResult.deleteMany({ where: { tournamentId } });
+  await tx.teamResult.deleteMany({ where: { tournamentId } });
+  await tx.judgeAssignment.deleteMany({ where: { tournamentId } });
+  if (participantIds.length > 0) {
+    await tx.speakerRoundScore.deleteMany({
+      where: { tournamentParticipantId: { in: participantIds } },
+    });
+    await tx.participantRole.deleteMany({
+      where: { tournamentParticipantId: { in: participantIds } },
+    });
+  }
+  await tx.tournamentParticipant.deleteMany({ where: { tournamentId } });
 }
 
 /**

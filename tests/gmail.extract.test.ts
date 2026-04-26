@@ -6,6 +6,7 @@ import {
   extractFromMessage,
   dedupeByUrl,
   normalizePrivateUrl,
+  privateUrlVariants,
 } from '@/lib/gmail/extract';
 
 function b64url(s: string): string {
@@ -72,6 +73,21 @@ describe('normalizePrivateUrl', () => {
     expect(normalizePrivateUrl('https://x.calicotab.com/t/privateurls/abc.)')).toBe(
       'https://x.calicotab.com/t/privateurls/abc/',
     );
+  });
+});
+
+describe('privateUrlVariants', () => {
+  test('includes both submitted and canonical spellings', () => {
+    expect(privateUrlVariants('https://x.calicotab.com/t/privateurls/abc')).toEqual([
+      'https://x.calicotab.com/t/privateurls/abc',
+      'https://x.calicotab.com/t/privateurls/abc/',
+    ]);
+  });
+
+  test('dedupes already-canonical URLs', () => {
+    expect(privateUrlVariants('https://x.calicotab.com/t/privateurls/abc/')).toEqual([
+      'https://x.calicotab.com/t/privateurls/abc/',
+    ]);
   });
 });
 
