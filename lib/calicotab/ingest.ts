@@ -225,10 +225,29 @@ export async function ingestPrivateUrl(
     speakerRows,
     registrationSpeakers: snapshot.registration.speakers,
   });
+  // Multi-category breaks (BP-style: Open + ESL + EFL): a team can appear in
+  // more than one break tab. The earlier "first wins" pick was order-dependent
+  // (alphabetical URL sort: EFL before Open) — wrong because Open is the
+  // primary break for nearly every tournament. Pick by category priority
+  // instead so a team that broke Open keeps the Open rank, falling back to
+  // ESL → EFL → other only when Open is absent.
+  const breakCategoryPriority = (stage: string | null): number => {
+    if (!stage) return 0;
+    if (stage === 'Open') return 100;
+    if (stage === 'ESL') return 80;
+    if (stage === 'EFL') return 60;
+    return 40;
+  };
   const teamBreakRankByTeam = new Map<string, number>();
+  const teamBreakStageByTeam = new Map<string, string | null>();
   for (const row of breakRows) {
     if (row.entityType !== 'team' || row.rank == null) continue;
-    if (!teamBreakRankByTeam.has(row.entityName)) teamBreakRankByTeam.set(row.entityName, row.rank);
+    const newPriority = breakCategoryPriority(row.stage ?? null);
+    const existingPriority = breakCategoryPriority(teamBreakStageByTeam.get(row.entityName) ?? null);
+    if (!teamBreakRankByTeam.has(row.entityName) || newPriority > existingPriority) {
+      teamBreakRankByTeam.set(row.entityName, row.rank);
+      teamBreakStageByTeam.set(row.entityName, row.stage ?? null);
+    }
   }
 
   // Record the full ParserRun once all tab fetches + parses are done so
@@ -340,15 +359,29 @@ export async function ingestPrivateUrl(
     for (const sp of speakerRows) {
       const personId = personIdByNormalized.get(normalizePersonName(sp.speakerName));
       if (!personId) continue;
+      // Iron-manning: a speaker who substitutes into another team mid-tournament
+      // appears in `speakerRows` more than once with different `teamName`s. The
+      // unique constraint is `(tournamentId, personId)` so the second upsert
+      // would clobber `teamName` and silently break the teammate query on /cv
+      // for everyone else on the speaker's primary team. Preserve the first
+      // observed team name; subsequent rows update only the score / rank fields.
+      const existing = await tx.tournamentParticipant.findUnique({
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
+        select: { teamName: true },
+      });
+      const teamNameToWrite = existing?.teamName ?? sp.teamName;
+      const breakRankForTeam = teamNameToWrite
+        ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
+        : null;
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId } },
         update: {
-          teamName: sp.teamName,
+          teamName: teamNameToWrite,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
-          teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
+          teamBreakRank: breakRankForTeam,
         },
         create: {
           tournamentId: t.id,

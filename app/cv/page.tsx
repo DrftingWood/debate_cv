@@ -299,6 +299,10 @@ export default async function CvPage() {
   });
 
   // 6) Build judge rows. One row per tournament where the user judged.
+  // Counts are nullable: `null` means we have no data (parser couldn't find
+  // the Debates card / never re-ingested), `0` means we know the judge had
+  // zero of that metric. Rendering "0" for an unknown metric falsely claims
+  // certainty — show "—" instead.
   type JudgeRow = {
     tournamentId: bigint;
     tournamentName: string;
@@ -307,8 +311,8 @@ export default async function CvPage() {
     sourceUrl: string;
     myName: string;
     judgeTypeTag: string | null;
-    inroundsJudged: number;
-    inroundsChaired: number;
+    inroundsJudged: number | null;
+    inroundsChaired: number | null;
     lastOutroundChaired: string | null;
     lastOutroundJudged: string | null;
     /** True if the judge appeared on any outround (chair OR panel). */
@@ -375,8 +379,12 @@ export default async function CvPage() {
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       judgeTypeTag: p.judgeTypeTag,
-      inroundsJudged: stats?.inrounds.size ?? 0,
-      inroundsChaired: p.chairedPrelimRounds ?? 0,
+      // stats is undefined when no JudgeAssignment rows exist for this
+      // person+tournament — distinct from "we parsed 0 inrounds".
+      inroundsJudged: stats ? stats.inrounds.size : null,
+      // chairedPrelimRounds is null when the parser never ran or never found
+      // the Debates card; 0 means the parser ran but the judge chaired none.
+      inroundsChaired: p.chairedPrelimRounds,
       lastOutroundChaired: p.lastOutroundChaired ?? null,
       lastOutroundJudged,
       broke: !!lastOutroundJudged,
@@ -660,13 +668,11 @@ function BrokeBadge({ broke }: { broke: boolean }) {
 }
 
 function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
-  if (r.eliminationReached && r.teamBreakRank != null) {
-    return `${r.eliminationReached} · #${r.teamBreakRank}`;
-  }
+  // Show the actual outround stage (Quarterfinals, Semifinals, etc.) when
+  // we have it. The break-tab rank lives in its own column; conflating
+  // "made the break tab" with "spoke in an outround" misleads — a team can
+  // appear on the break tab but lose in their first outround room.
   if (r.eliminationReached) return r.eliminationReached;
-  // We saw the team on the break tab (rank set) but never observed them in
-  // an outround row of the Debates card — don't claim a stage we don't know.
-  if (r.teamBreakRank != null) return `On break tab · #${r.teamBreakRank}`;
   return '—';
 }
 
@@ -784,8 +790,8 @@ type JudgingTableRow = {
   sourceUrl: string;
   myName: string;
   judgeTypeTag: string | null;
-  inroundsJudged: number;
-  inroundsChaired: number;
+  inroundsJudged: number | null;
+  inroundsChaired: number | null;
   lastOutroundChaired: string | null;
   lastOutroundJudged: string | null;
   broke: boolean;
@@ -827,8 +833,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.myName}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged ?? '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired ?? '—'}</td>
                 <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
                 <td className="px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
@@ -858,8 +864,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               {r.format ? <Field label="Format" value={r.format} /> : null}
               <Field label="My name" value={r.myName} />
               {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono />
-              <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono />
+              <Field label="Inrounds judged" value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'} mono />
+              <Field label="Inrounds chaired" value={r.inroundsChaired != null ? String(r.inroundsChaired) : '—'} mono />
               <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
               {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
