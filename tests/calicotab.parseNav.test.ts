@@ -63,6 +63,23 @@ describe('parsePrivateUrlPage', () => {
       'https://ilnuroundrobin.calicotab.com/ilnurr2026/participants/list/',
     );
   });
+
+  test('captures the round label for each results URL from the link text', () => {
+    // The landing-page nav already labels each URL — Tabbycat installs route
+    // both prelims and outrounds through /results/round/N/ and the URL alone
+    // can't tell them apart. The link text is the authoritative source for
+    // what each round is actually called.
+    expect(
+      snapshot.navigation.resultsRoundLabels[
+        'https://ilnuroundrobin.calicotab.com/ilnurr2026/results/round/1/'
+      ],
+    ).toBe('Round 1');
+    expect(
+      snapshot.navigation.resultsRoundLabels[
+        'https://ilnuroundrobin.calicotab.com/ilnurr2026/results/round/6/'
+      ],
+    ).toBe('Grand Final');
+  });
 });
 
 // Tabbycat's default private_url_landing template wraps the name in <strong>.

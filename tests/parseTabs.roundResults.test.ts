@@ -167,6 +167,73 @@ describe('parseRoundResults — Vue judge extraction', () => {
   });
 });
 
+describe('parseRoundResults — round label resolution chain', () => {
+  // Resolution order: navLabel (from landing-page nav) → page heading IF
+  // it mentions a round → numeric "Round N" fallback.
+  const dataPayload = JSON.stringify([
+    {
+      head: [
+        { key: 'team', title: 'Team' },
+        { key: 'adjudicators', title: 'Adjudicators' },
+      ],
+      data: [[{ text: 'Alpha' }, { text: 'Jane Doe (c)' }]],
+    },
+  ]);
+
+  test('prefers the navLabel when supplied (the authoritative source)', () => {
+    // Page heading is the tournament name (useless), but the nav called this
+    // URL "Quarterfinals". Use the nav label.
+    const html = `
+      <html><body><h1>SIDO 2026</h1><script>window.vueData = ${dataPayload}</script></body></html>
+    `;
+    const round = parseRoundResults(
+      html,
+      'https://x.calicotab.com/t/results/round/7/',
+      'Quarterfinals',
+    );
+    expect(round.roundLabel).toBe('Quarterfinals');
+    expect(round.isOutround).toBe(true);
+  });
+
+  test('ignores a generic page heading that mentions no round', () => {
+    // No navLabel; heading is just the tournament name. Should NOT be used
+    // as the round label — falls through to the "Round N" numeric fallback.
+    // Pre-fix this would have returned roundLabel="SIDO 2026" and made
+    // every round of SIDO collapse to the same label, breaking
+    // classifyRoundLabel.
+    const html = `
+      <html><body><h1>SIDO 2026</h1><script>window.vueData = ${dataPayload}</script></body></html>
+    `;
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/3/');
+    expect(round.roundLabel).toBe('Round 3');
+    expect(round.isOutround).toBe(false);
+  });
+
+  test('uses the page heading when it mentions a round name', () => {
+    // No navLabel; heading says "Quarterfinals — SIDO 2026" — clearly
+    // round-related, so use it.
+    const html = `
+      <html><body><h1>Quarterfinals — SIDO 2026</h1><script>window.vueData = ${dataPayload}</script></body></html>
+    `;
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/7/');
+    expect(round.roundLabel).toContain('Quarterfinal');
+    expect(round.isOutround).toBe(true);
+  });
+
+  test('navLabel "Grand Final" classifies as outround even without URL hints', () => {
+    const html = `
+      <html><body><h1>Generic Heading</h1><script>window.vueData = ${dataPayload}</script></body></html>
+    `;
+    const round = parseRoundResults(
+      html,
+      'https://x.calicotab.com/t/results/round/16/',
+      'Grand Final',
+    );
+    expect(round.roundLabel).toBe('Grand Final');
+    expect(round.isOutround).toBe(true);
+  });
+});
+
 describe('parseRoundResults — judge extraction', () => {
   test('extracts chairs and panelists without double-counting across passes', () => {
     const html = `

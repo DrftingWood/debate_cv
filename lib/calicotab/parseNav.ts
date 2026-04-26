@@ -6,6 +6,16 @@ export type NavigationStructure = {
   speakerTab: string | null;
   motionsTab: string | null;
   resultsRounds: string[];
+  /**
+   * URL → human round label as it appears in the landing-page navigation.
+   * The link text in the nav (e.g. "Round 1", "Quarterfinals", "U16
+   * Semifinals") is the authoritative source for what each `/results/round/N/`
+   * URL is actually called by the tournament — Tabbycat installs route both
+   * prelims and outrounds through the same URL pattern, so the page heading
+   * alone can't tell us. Parsers that fetch round results read this map to
+   * canonically label the round.
+   */
+  resultsRoundLabels: Record<string, string>;
   breakTabs: string[];
   participants: string | null;
   institutions: string | null;
@@ -86,6 +96,7 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
     speakerTab: null,
     motionsTab: null,
     resultsRounds: [],
+    resultsRoundLabels: {},
     breakTabs: [],
     participants: null,
     institutions: null,
@@ -119,6 +130,14 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
     } else if (/\/results\/round\/\d+\/?(?:by-team\/|by-debate\/)?$/.test(pathname)) {
       nav.resultsRounds.push(absolute);
       discovered.add('resultsRounds');
+      // Capture the link text as the round's authoritative label. Same URL
+      // can appear in multiple nav sections (e.g. dropdown + sidebar) — keep
+      // the first non-empty label so we don't lose a "Quarterfinals" in
+      // favour of a later empty link.
+      const linkText = cleanWhitespace($(el).text());
+      if (linkText && !nav.resultsRoundLabels[absolute]) {
+        nav.resultsRoundLabels[absolute] = linkText;
+      }
     } else if (/\/break\/[^/]+\/?/.test(pathname)) {
       nav.breakTabs.push(absolute);
       discovered.add('breakTabs');
