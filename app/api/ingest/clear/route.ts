@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { IngestJobStatus } from '@prisma/client';
+import { privateUrlVariants } from '@/lib/gmail/extract';
 
 export const runtime = 'nodejs';
 
@@ -29,10 +30,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
   }
   const { url } = parse.data;
+  const urlVariants = privateUrlVariants(url);
 
   await prisma.$transaction([
     prisma.ingestJob.updateMany({
-      where: { userId, url },
+      where: { userId, url: { in: urlVariants } },
       data: {
         status: IngestJobStatus.pending,
         attempts: 0,
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
       },
     }),
     prisma.discoveredUrl.updateMany({
-      where: { userId, url },
+      where: { userId, url: { in: urlVariants } },
       data: {
         ingestedAt: null,
         tournamentId: null,

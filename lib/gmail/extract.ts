@@ -94,6 +94,10 @@ export function normalizePrivateUrl(rawUrl: string): string {
   return rawUrl.replace(/[.,)\]\s]+$/, '').replace(/\/+$/, '') + '/';
 }
 
+export function privateUrlVariants(rawUrl: string): string[] {
+  return [...new Set([rawUrl, normalizePrivateUrl(rawUrl)])];
+}
+
 export function extractUrlsFromText(text: string): string[] {
   if (!text) return [];
   const matches = text.match(PRIVATE_URL_RE) || [];

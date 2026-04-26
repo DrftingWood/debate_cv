@@ -82,7 +82,7 @@ vercel.json                        Daily cron
    - `AUTH_GOOGLE_ID` – from GCP step 1.
    - `AUTH_GOOGLE_SECRET` – from GCP step 1.
    - `AUTH_SECRET` – generate with `openssl rand -base64 32`.
-   - `CRON_SECRET` – any long random string required for `/api/cron/process-queue`.
+   - `CRON_SECRET` – any long random string required for `/api/cron/process-queue`; Vercel sends it as a `Bearer` token to scheduled cron requests.
 4. Click **Deploy**. The build command runs `prisma generate && next build`. The DB is migrated automatically on the first request via `prisma migrate deploy`; you can also run it once manually from the Vercel CLI:
    ```sh
    vercel env pull .env.production.local

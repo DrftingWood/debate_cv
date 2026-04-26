@@ -24,6 +24,8 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function isAuthorized(req: Request): boolean {
+  // Vercel Cron sends `Authorization: Bearer $CRON_SECRET` automatically when
+  // the project has CRON_SECRET configured. x-cron-secret is for manual probes.
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   const header = req.headers.get('authorization') || req.headers.get('x-cron-secret') || '';

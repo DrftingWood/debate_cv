@@ -5,4 +5,4 @@
  *
  * Convention: YYYYMMDD.N where N starts at 1 and increments within a day.
  */
-export const PARSER_VERSION = '20260425.8';
+export const PARSER_VERSION = '20260426.1';

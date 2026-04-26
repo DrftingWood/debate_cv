@@ -2,6 +2,17 @@ import { prisma } from '@/lib/db';
 import { IngestJobStatus, Prisma } from '@prisma/client';
 
 export async function enqueueUrl(userId: string, url: string): Promise<void> {
+  await prisma.ingestJob.updateMany({
+    where: { userId, url, status: IngestJobStatus.failed },
+    data: {
+      status: IngestJobStatus.pending,
+      attempts: 0,
+      lastError: null,
+      startedAt: null,
+      finishedAt: null,
+      scheduledAt: new Date(),
+    },
+  });
   await prisma.ingestJob.upsert({
     where: { userId_url: { userId, url } },
     update: {},
