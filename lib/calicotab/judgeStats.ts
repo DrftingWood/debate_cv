@@ -7,6 +7,9 @@ export type RoundKind = 'inround' | 'outround' | 'unknown';
 const OUTROUND_ABBREVS = /^(?:GF|F|SF|QF|OF|DOF|TOF)$/i;
 const OUTROUND_WORDS =
   /^(?:grand\s*finals?|finals?|semi[-\s]?finals?|quarter[-\s]?finals?|octo[-\s]?finals?|double\s*octo[-\s]?finals?|triple\s*octo[-\s]?finals?|partial\s*double[-\s]?octofinals?|partial\s*triple[-\s]?octofinals?|round\s*of\s*\d+)$/i;
+// Bare colloquial forms — what some Tabbycat themes render in the
+// `.tooltip-trigger` span when no `data-original-title` is present.
+const OUTROUND_BARE = /^(?:octos?|doubles?|triples?|quarters?|semis?)$/i;
 
 /**
  * Classify a round label as inround (numeric prelim) vs outround (named
@@ -24,15 +27,19 @@ export function classifyRoundLabel(stage: string | null | undefined): RoundKind 
   const trimmed = stage.trim();
   if (!trimmed) return 'unknown';
 
-  // Inrounds: pure numeric ("1", "12") or "Round N" form ("Round 5"). The
+  // Inrounds: pure numeric ("1", "12"), "Round N" form ("Round 5"), or
+  // the "R\d+" abbreviation ("R1", "R12") that Tabbycat renders in the
+  // `.tooltip-trigger` span when no `data-original-title` is present. The
   // "Round " prefix strip is anchored to a numeric body so labels like
   // "Round of 16" (an outround) aren't mis-stripped to "of 16".
   if (/^\d+$/.test(trimmed)) return 'inround';
   if (/^round\s+\d+$/i.test(trimmed)) return 'inround';
+  if (/^r\d+$/i.test(trimmed)) return 'inround';
 
   // Outrounds: standard abbreviations or full-word forms.
   if (OUTROUND_ABBREVS.test(trimmed)) return 'outround';
   if (OUTROUND_WORDS.test(trimmed)) return 'outround';
+  if (OUTROUND_BARE.test(trimmed)) return 'outround';
   return 'unknown';
 }
 
@@ -108,6 +115,31 @@ export function outroundRank(round: { roundLabel: string | null; roundNumber: nu
   if (/final/.test(label)) return 95; // plain "Final" — between grand (100) and semi (90)
   if (round.roundNumber != null) return round.roundNumber;
   return 0;
+}
+
+/**
+ * Pick the deeper outround across the URL owner's chair and panel roles.
+ *
+ * `TournamentParticipant.lastOutroundChaired` and `lastOutroundPaneled` are
+ * stored separately so that the chair-deepest and panel-deepest rounds can
+ * disagree (e.g. chaired QF, paneled SF). This helper answers the
+ * combined "Last outround judged (any role)" question by ranking both via
+ * `outroundRank` and returning the higher.
+ *
+ * Returns null when neither is set.
+ */
+export function deepestOutroundAcrossRoles(
+  chaired: string | null | undefined,
+  paneled: string | null | undefined,
+): string | null {
+  const c = chaired ?? null;
+  const p = paneled ?? null;
+  if (!c && !p) return null;
+  if (!c) return p;
+  if (!p) return c;
+  const rankFor = (label: string) =>
+    outroundRank({ roundLabel: label, roundNumber: null, isOutround: true });
+  return rankFor(p) > rankFor(c) ? p : c;
 }
 
 /**

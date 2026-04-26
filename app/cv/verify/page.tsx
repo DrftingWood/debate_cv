@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { ReingestButton } from '@/components/ReingestButton';
+import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 
 export const metadata: Metadata = {
   title: 'Extracted Data Verification',
@@ -72,6 +73,37 @@ export default async function CvVerifyPage({
   const ordered = tournamentIds
     .map((id) => tournaments.find((t) => t.id === id))
     .filter((t): t is (typeof tournaments)[number] => !!t);
+
+  // Pull the latest ParserRun warnings per (tournament, parserName). When a
+  // parser silently fails (e.g. the Debates card heading doesn't match, the
+  // adjudicator <strong> marker is missing), it pushes a string into
+  // ParserRun.warnings. Surfacing those here turns silent CV blanks into
+  // diagnosable text without the user opening DevTools or DB.
+  const userUrls = discovered.map((d) => d.url);
+  const userTournamentByUrl = new Map<string, bigint>();
+  for (const d of discovered) {
+    if (d.tournamentId) userTournamentByUrl.set(d.url, d.tournamentId);
+  }
+  const parserRuns = userUrls.length
+    ? await prisma.parserRun.findMany({
+        where: { sourceDocument: { url: { in: userUrls } } },
+        include: { sourceDocument: { select: { url: true } } },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const seenByTournamentParser = new Set<string>();
+  const warningsByTournamentId = new Map<bigint, string[]>();
+  for (const pr of parserRuns) {
+    const tid = userTournamentByUrl.get(pr.sourceDocument.url);
+    if (!tid) continue;
+    const key = `${tid}|${pr.parserName}`;
+    if (seenByTournamentParser.has(key)) continue;
+    seenByTournamentParser.add(key);
+    if (pr.warnings.length === 0) continue;
+    const existing = warningsByTournamentId.get(tid) ?? [];
+    const labeled = pr.warnings.map((w) => `[${pr.parserName}] ${w}`);
+    warningsByTournamentId.set(tid, [...existing, ...labeled]);
+  }
 
   return (
     <div className="space-y-6">
@@ -138,6 +170,19 @@ export default async function CvVerifyPage({
                     </div>
                   </div>
 
+                  {warningsByTournamentId.has(t.id) ? (
+                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/[0.06] p-3">
+                      <h3 className="text-[14px] font-semibold text-warning">
+                        Parser warnings ({warningsByTournamentId.get(t.id)!.length})
+                      </h3>
+                      <ul className="space-y-1 text-caption text-foreground">
+                        {warningsByTournamentId.get(t.id)!.map((w, i) => (
+                          <li key={i} className="font-mono">{w}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+
                   {/* Participants */}
                   <section className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -160,11 +205,12 @@ export default async function CvVerifyPage({
                             <th className="px-2 py-1.5">Speaker total</th>
                             <th className="px-2 py-1.5">Open / ESL / EFL rank</th>
                             <th className="px-2 py-1.5">Team break rank</th>
+                            <th className="px-2 py-1.5">Broken</th>
+                            <th className="px-2 py-1.5">Last outround spoken</th>
                             <th className="px-2 py-1.5">Judge tag</th>
-                            <th className="px-2 py-1.5">Chaired prelims</th>
-                            <th className="px-2 py-1.5">
-                              Last out-round (chair / panel)
-                            </th>
+                            <th className="px-2 py-1.5">Inrounds chaired</th>
+                            <th className="px-2 py-1.5">Last outround chaired</th>
+                            <th className="px-2 py-1.5">Last outround judged</th>
                             <th className="px-2 py-1.5">Per-round scores</th>
                           </tr>
                         </thead>
@@ -191,12 +237,24 @@ export default async function CvVerifyPage({
                               <td className="px-2 py-1.5 font-mono">
                                 {p.teamBreakRank ?? '—'}
                               </td>
+                              <td className="px-2 py-1.5">
+                                {p.eliminationReached || p.teamBreakRank != null ? (
+                                  <Badge variant="success">Yes</Badge>
+                                ) : (
+                                  <Badge variant="neutral">No</Badge>
+                                )}
+                              </td>
+                              <td className="px-2 py-1.5">{p.eliminationReached ?? '—'}</td>
                               <td className="px-2 py-1.5">{p.judgeTypeTag ?? '—'}</td>
                               <td className="px-2 py-1.5 font-mono">
                                 {p.chairedPrelimRounds ?? '—'}
                               </td>
+                              <td className="px-2 py-1.5">{p.lastOutroundChaired ?? '—'}</td>
                               <td className="px-2 py-1.5">
-                                {p.lastOutroundChaired ?? '—'} / {p.lastOutroundPaneled ?? '—'}
+                                {deepestOutroundAcrossRoles(
+                                  p.lastOutroundChaired,
+                                  p.lastOutroundPaneled,
+                                ) ?? '—'}
                               </td>
                               <td className="px-2 py-1.5">
                                 {p.speakerRoundScores.length === 0 ? (

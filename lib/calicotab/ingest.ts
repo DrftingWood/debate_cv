@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
-import { parsePrivateUrlPage, extractAdjudicatorRounds } from './parseNav';
+import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
 import {
   parseTeamTab,
   parseSpeakerTab,
@@ -97,8 +97,15 @@ export async function ingestPrivateUrl(
           landingHtml,
           existing.id,
           claimedPersonId,
+          snapshot.registration.personName,
         );
         if (r.diagnostic) landingWarnings.push(r.diagnostic);
+        await recordSpeakerRoundsFromLanding(
+          landingHtml,
+          existing.id,
+          claimedPersonId,
+          snapshot.registration.teamName,
+        );
       }
       await prisma.discoveredUrl.updateMany({
         where: { userId, url: { in: urlVariants } },
@@ -220,10 +227,29 @@ export async function ingestPrivateUrl(
     speakerRows,
     registrationSpeakers: snapshot.registration.speakers,
   });
+  // Multi-category breaks (BP-style: Open + ESL + EFL): a team can appear in
+  // more than one break tab. The earlier "first wins" pick was order-dependent
+  // (alphabetical URL sort: EFL before Open) — wrong because Open is the
+  // primary break for nearly every tournament. Pick by category priority
+  // instead so a team that broke Open keeps the Open rank, falling back to
+  // ESL → EFL → other only when Open is absent.
+  const breakCategoryPriority = (stage: string | null): number => {
+    if (!stage) return 0;
+    if (stage === 'Open') return 100;
+    if (stage === 'ESL') return 80;
+    if (stage === 'EFL') return 60;
+    return 40;
+  };
   const teamBreakRankByTeam = new Map<string, number>();
+  const teamBreakStageByTeam = new Map<string, string | null>();
   for (const row of breakRows) {
     if (row.entityType !== 'team' || row.rank == null) continue;
-    if (!teamBreakRankByTeam.has(row.entityName)) teamBreakRankByTeam.set(row.entityName, row.rank);
+    const newPriority = breakCategoryPriority(row.stage ?? null);
+    const existingPriority = breakCategoryPriority(teamBreakStageByTeam.get(row.entityName) ?? null);
+    if (!teamBreakRankByTeam.has(row.entityName) || newPriority > existingPriority) {
+      teamBreakRankByTeam.set(row.entityName, row.rank);
+      teamBreakStageByTeam.set(row.entityName, row.stage ?? null);
+    }
   }
 
   // Record the full ParserRun once all tab fetches + parses are done so
@@ -339,15 +365,29 @@ export async function ingestPrivateUrl(
     for (const sp of speakerRows) {
       const personId = personIdByNormalized.get(normalizePersonName(sp.speakerName));
       if (!personId) continue;
+      // Iron-manning: a speaker who substitutes into another team mid-tournament
+      // appears in `speakerRows` more than once with different `teamName`s. The
+      // unique constraint is `(tournamentId, personId)` so the second upsert
+      // would clobber `teamName` and silently break the teammate query on /cv
+      // for everyone else on the speaker's primary team. Preserve the first
+      // observed team name; subsequent rows update only the score / rank fields.
+      const existing = await tx.tournamentParticipant.findUnique({
+        where: { tournamentId_personId: { tournamentId: t.id, personId } },
+        select: { teamName: true },
+      });
+      const teamNameToWrite = existing?.teamName ?? sp.teamName;
+      const breakRankForTeam = teamNameToWrite
+        ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
+        : null;
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId } },
         update: {
-          teamName: sp.teamName,
+          teamName: teamNameToWrite,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
-          teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
+          teamBreakRank: breakRankForTeam,
         },
         create: {
           tournamentId: t.id,
@@ -464,8 +504,15 @@ export async function ingestPrivateUrl(
       landingHtml,
       tournamentId,
       claimedPersonId,
+      snapshot.registration.personName,
     );
     if (r.diagnostic) fetchWarnings.push(r.diagnostic);
+    await recordSpeakerRoundsFromLanding(
+      landingHtml,
+      tournamentId,
+      claimedPersonId,
+      snapshot.registration.teamName,
+    );
   }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
@@ -764,8 +811,9 @@ async function recordJudgeRoundsFromLanding(
   landingHtml: string,
   tournamentId: bigint,
   personId: bigint,
+  knownPersonName: string | null,
 ): Promise<{ written: number; chairedPrelims: number; diagnostic: string | null }> {
-  const adjRounds = extractAdjudicatorRounds(landingHtml);
+  const adjRounds = extractAdjudicatorRounds(landingHtml, knownPersonName);
   if (adjRounds.length === 0) {
     return {
       written: 0,
@@ -847,4 +895,45 @@ async function recordJudgeRoundsFromLanding(
     create: { tournamentParticipantId: tp.id, role: 'judge' },
   });
   return { written: adjRounds.length, chairedPrelims, diagnostic: null };
+}
+
+/**
+ * Companion to `recordJudgeRoundsFromLanding`. Same Debates table, but for
+ * the URL owner's TEAM: any row whose team-name cell is bolded (or matches
+ * the registered team name) means the speaker spoke in that debate. Used
+ * exclusively to populate `eliminationReached` — the deepest outround the
+ * team reached — which the CV uses for the "Broken" indicator and the
+ * "Last outround spoken" column.
+ *
+ * Idempotent: re-running on the same URL only updates the participant row,
+ * never inserts duplicates.
+ */
+async function recordSpeakerRoundsFromLanding(
+  landingHtml: string,
+  tournamentId: bigint,
+  personId: bigint,
+  knownTeamName: string | null | undefined,
+): Promise<{ outroundsSeen: number; deepest: string | null; diagnostic: string | null }> {
+  const speakerRounds = extractSpeakerRounds(landingHtml, knownTeamName);
+  if (speakerRounds.length === 0) {
+    return { outroundsSeen: 0, deepest: null, diagnostic: null };
+  }
+
+  const outrounds = speakerRounds.filter((r) => r.roundNumber == null);
+  const ranked = outrounds
+    .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
+    .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
+    .sort((a, b) => b.rank - a.rank);
+  const deepest = ranked[0]?.r.stage ?? null;
+
+  // Only touch eliminationReached when we actually saw an outround — leave
+  // it null for prelim-only speakers so the "Broken" derivation stays clean.
+  if (deepest) {
+    await prisma.tournamentParticipant.upsert({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      update: { eliminationReached: deepest },
+      create: { tournamentId, personId, eliminationReached: deepest },
+    });
+  }
+  return { outroundsSeen: outrounds.length, deepest, diagnostic: null };
 }

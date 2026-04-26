@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
@@ -52,6 +53,33 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
   );
 }
 
+/**
+ * Admin entry point. Same Google OAuth flow as the user sign-in — auth
+ * itself doesn't differ, only the post-login destination. The /admin route
+ * server-side `requireAdmin()`s against the ADMIN_EMAIL env var; non-admins
+ * who click this fall through to / and re-redirect to /dashboard, so the
+ * button is safe to expose publicly.
+ */
+async function AdminSignInButton() {
+  return (
+    <form
+      action={async () => {
+        'use server';
+        await signIn('google', { redirectTo: '/admin' });
+      }}
+    >
+      <Button
+        type="submit"
+        size="md"
+        variant="outline"
+        leftIcon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden />}
+      >
+        Admin sign-in
+      </Button>
+    </form>
+  );
+}
+
 function Hero() {
   return (
     <section className="relative overflow-hidden">
@@ -87,6 +115,7 @@ function Hero() {
             style={{ animationDelay: '80ms' }}
           >
             <SignInButton />
+            <AdminSignInButton />
             <Link
               href="#how"
               className="text-[14px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"

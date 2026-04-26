@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { extractAdjudicatorRounds } from '@/lib/calicotab/parseNav';
+import { extractAdjudicatorRounds, extractSpeakerRounds } from '@/lib/calicotab/parseNav';
 
 // Trimmed but structurally faithful snippet from the SIDO 2026 private URL
 // landing page — the table the user supplied. Keeps the wrapper hierarchy
@@ -258,5 +258,330 @@ describe('extractAdjudicatorRounds — SBS Debate 2026 (Prop/Opp, 5 prelims, all
     expect(rows[2]!.role).toBe('chair');
     // Round 4 has Vineet Detha as a sibling <span> with no chair symbol.
     expect(rows[3]!.role).toBe('chair');
+  });
+});
+
+// Abbreviation-only fragment — the variant where the round cell is just a
+// `.tooltip-trigger` span with no enclosing `<div data-original-title="…">`.
+// This is what some Tabbycat themes / older versions render and is the case
+// the user reported as broken on 2026-04-25. Without normalization the bare
+// "R1" makes `roundNumber` null and trips classifyRoundLabel into 'unknown',
+// so all four metrics (inrounds judged/chaired, last outround chaired/judged)
+// come out blank.
+const ABBREV_ONLY_FRAGMENT = `
+<div class="card-body pl-3 pr-0 py-2">
+  <h4 class="card-title mt-1 mb-2"> Debates </h4>
+  <div class="table-responsive-md">
+    <table class="table">
+      <tbody>
+        <tr>
+          <td><span class="tooltip-trigger">R1</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">R2</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong>, <span class="d-inline">Mohit Hooda</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">R3</span></td>
+          <td class="adjudicator-name">
+            <span class="tooltip-trigger"><strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong></span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">QF</span></td>
+          <td class="adjudicator-name">
+            <span class="d-inline">Beauty Ariel<i class="adj-symbol">Ⓒ</i></span>,
+            <strong><span class="d-inline">Abhishek Lalatendu Acharya</span></strong>,
+            <span class="d-inline">Udai Kamath</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tooltip-trigger">SF</span></td>
+          <td class="adjudicator-name">
+            <strong><span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span></strong>,
+            <span class="d-inline">Beauty Ariel</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+describe('extractAdjudicatorRounds — abbreviation-only round labels (no data-original-title)', () => {
+  const rows = extractAdjudicatorRounds(ABBREV_ONLY_FRAGMENT);
+
+  test('returns 5 entries in document order', () => {
+    expect(rows).toHaveLength(5);
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test('normalizes "R\\d+" to "Round N" and abbreviated outrounds to canonical names', () => {
+    expect(rows.map((r) => r.stage)).toEqual([
+      'Round 1',
+      'Round 2',
+      'Round 3',
+      'Quarterfinals',
+      'Semifinals',
+    ]);
+  });
+
+  test('extracts numeric roundNumber for inrounds and null for outrounds', () => {
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, 3, null, null]);
+  });
+
+  test('preserves chair / panellist roles across the abbreviation form', () => {
+    // R1, R2, R3 chair via <strong>...Ⓒ; QF panellist (Ⓒ on Beauty Ariel); SF chair.
+    expect(rows.map((r) => r.role)).toEqual([
+      'chair',
+      'chair',
+      'chair',
+      'panellist',
+      'chair',
+    ]);
+  });
+});
+
+// Speaker variant of the same Debates card. Tabbycat reuses the table on
+// every private URL; only the highlighted cell differs. For a speaker, the
+// owner's TEAM appears in one of the team-name cells. Two markups are
+// observed in the wild: bolded team name (<strong>), and unbolded with the
+// team identified only by string equality against the registration team.
+const SPEAKER_DEBATES_FRAGMENT_BOLD = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><div data-original-title="Round 1"><span class="tooltip-trigger">R1</span></div></td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team B 1</td>
+        <td class="team-name">Team C 1</td>
+        <td class="team-name">Team D 1</td>
+        <td class="adjudicator-name">Some Judge</td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Round 2"><span class="tooltip-trigger">R2</span></div></td>
+        <td class="team-name">Team E</td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team F</td>
+        <td class="team-name">Team G</td>
+        <td class="adjudicator-name">Other Judge</td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Quarterfinals"><span class="tooltip-trigger">QF</span></div></td>
+        <td class="team-name">Team H</td>
+        <td class="team-name">Team I</td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team J</td>
+        <td class="adjudicator-name">Chair Person</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — bolded team name', () => {
+  const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_BOLD);
+
+  test('returns one entry per row the team appeared in', () => {
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2', 'Quarterfinals']);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, null]);
+  });
+
+  test('sequenceIndex follows document order', () => {
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2, 3]);
+  });
+});
+
+// Same shape, but no <strong> on the team name — the team can only be
+// found by matching the registered team name passed in by the caller. This
+// is the path used when Tabbycat themes drop the bold marker.
+const SPEAKER_DEBATES_FRAGMENT_PLAIN = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><span class="tooltip-trigger">R1</span></td>
+        <td class="team-name">Team A 1</td>
+        <td class="team-name">Team B 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">R2</span></td>
+        <td class="team-name">Team C 1</td>
+        <td class="team-name">Team A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">SF</span></td>
+        <td class="team-name">Team A 1</td>
+        <td class="team-name">Team D 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — plain team name (string match fallback)', () => {
+  test('matches rows by team-name text against knownTeamName', () => {
+    const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Team A 1');
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2', 'Semifinals']);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, null]);
+  });
+
+  test('returns empty when no team name is provided and nothing is bolded', () => {
+    expect(extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN)).toEqual([]);
+  });
+
+  test('returns empty when the provided team name appears in no row', () => {
+    expect(
+      extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Nonexistent Team'),
+    ).toEqual([]);
+  });
+
+  test('match is case-insensitive on whitespace-collapsed cell text', () => {
+    const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, '  team a 1  ');
+    expect(rows).toHaveLength(3);
+  });
+});
+
+describe('extractSpeakerRounds — does not pick up adjudicator rows', () => {
+  test('SIDO fixture: returns no rows when the owner is a judge (their name lives in adjudicator-name, not team-name)', () => {
+    // Reusing the SIDO_DEBATES_FRAGMENT — the bold sits in the adjudicator
+    // cell, not any team cell, so a speaker pass over the same HTML must
+    // report no rows for the owner.
+    expect(extractSpeakerRounds(SIDO_DEBATES_FRAGMENT)).toEqual([]);
+  });
+});
+
+// Tabbycat sometimes appends a team-number suffix to differentiate multiple
+// teams from the same institution. Registration card might say "MIT Debate A"
+// but the Debates table renders "MIT Debate A 1". The fuzzy match must accept
+// the suffix without conflating distinct teams (e.g. "MIT" vs "MIT A").
+const SUFFIX_FRAGMENT = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><span class="tooltip-trigger">R1</span></td>
+        <td class="team-name">MIT Debate A 1</td>
+        <td class="team-name">Harvard A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">R2</span></td>
+        <td class="team-name">MIT Debate B 1</td>
+        <td class="team-name">MIT Debate A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — fuzzy team-name matching', () => {
+  test('registered "MIT Debate A" still matches "MIT Debate A 1" (team-number suffix)', () => {
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT Debate A');
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2']);
+  });
+
+  test('registered "MIT Debate A 1" still matches plain "MIT Debate A" (suffix dropped on display)', () => {
+    const html = SUFFIX_FRAGMENT.replace(/MIT Debate A 1/g, 'MIT Debate A');
+    const rows = extractSpeakerRounds(html, 'MIT Debate A 1');
+    expect(rows).toHaveLength(2);
+  });
+
+  test('registered "MIT" must NOT match "MIT Debate A 1" (would conflate distinct teams)', () => {
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT');
+    expect(rows).toEqual([]);
+  });
+
+  test('registered "MIT Debate A 1" must NOT match "MIT Debate B 1" (different team)', () => {
+    // Only the R1 + R2 rows where team A appears should match — R2 also has
+    // team B in the first cell, but the fuzzy matcher must reject it.
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT Debate A 1');
+    expect(rows).toHaveLength(2);
+    // Verify B's row is matched only via the A 1 cell, not the B 1 cell — by
+    // confirming we don't double-count R2 (which has both teams).
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2]);
+  });
+});
+
+// Some Tabbycat themes don't wrap the URL owner's name in <strong> in the
+// adjudicator-name cell. The parser must fall back to matching the name
+// passed in (typically pulled from the registration card on the same page).
+const NO_STRONG_FRAGMENT = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><div data-original-title="Round 1"><span class="tooltip-trigger">R1</span></div></td>
+        <td class="team-name">A</td><td class="team-name">B</td>
+        <td class="adjudicator-name">
+          <span class="d-inline">Abhishek Lalatendu Acharya<i class="adj-symbol">Ⓒ</i></span>,
+          <span class="d-inline">Bea Legaspi</span>
+        </td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Quarterfinals"><span class="tooltip-trigger">QF</span></div></td>
+        <td class="team-name">C</td><td class="team-name">D</td>
+        <td class="adjudicator-name">
+          <span class="d-inline">Beauty Ariel<i class="adj-symbol">Ⓒ</i></span>,
+          <span class="d-inline">Abhishek Lalatendu Acharya</span>,
+          <span class="d-inline">Udai Kamath</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractAdjudicatorRounds — name-fallback when <strong> is missing', () => {
+  test('matches the URL owner by name and detects role from the adj-symbol', () => {
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek Lalatendu Acharya');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.role).toBe('chair');
+    expect(rows[0]!.stage).toBe('Round 1');
+    expect(rows[1]!.role).toBe('panellist');
+    expect(rows[1]!.stage).toBe('Quarterfinals');
+  });
+
+  test('registration "Abhishek Acharya" still matches cell "Abhishek Lalatendu Acharya"', () => {
+    // Common case: the registration card drops the middle name but the
+    // adjudicator cell shows the full legal name. Token-set fallback catches
+    // it since both first + last names overlap.
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek Acharya');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.role).toBe('chair');
+    expect(rows[1]!.role).toBe('panellist');
+  });
+
+  test('does NOT match a single-token first-name query', () => {
+    // "Abhishek" alone (1 token) must not match "Abhishek Lalatendu Acharya"
+    // — token-set fallback requires both names to have ≥ 2 tokens to fire,
+    // preventing first-name collisions from conflating distinct judges.
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Abhishek');
+    expect(rows).toEqual([]);
+  });
+
+  test('returns empty when no name is supplied and no <strong> exists', () => {
+    expect(extractAdjudicatorRounds(NO_STRONG_FRAGMENT)).toEqual([]);
+  });
+
+  test('different judge name does not match', () => {
+    const rows = extractAdjudicatorRounds(NO_STRONG_FRAGMENT, 'Some Other Person');
+    expect(rows).toEqual([]);
   });
 });

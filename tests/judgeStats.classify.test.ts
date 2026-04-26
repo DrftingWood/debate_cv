@@ -20,6 +20,20 @@ describe('classifyRoundLabel', () => {
     expect(classifyRoundLabel(s)).toBe('outround');
   });
 
+  test.each(['R1', 'R2', 'r3', 'R12'])(
+    '"R\\d+" abbreviation %s → inround (Tabbycat tooltip-trigger form)',
+    (s) => {
+      expect(classifyRoundLabel(s)).toBe('inround');
+    },
+  );
+
+  test.each(['Octos', 'Doubles', 'Triples', 'Quarters', 'Semis', 'octos', 'semis'])(
+    'bare colloquial outround %s → outround',
+    (s) => {
+      expect(classifyRoundLabel(s)).toBe('outround');
+    },
+  );
+
   test.each([
     'Quarterfinals',
     'Quarter Final',
