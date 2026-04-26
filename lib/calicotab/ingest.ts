@@ -1,7 +1,12 @@
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
-import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
+import {
+  parsePrivateUrlPage,
+  extractAdjudicatorRounds,
+  extractSpeakerRounds,
+  normalizeStageLabel,
+} from './parseNav';
 import {
   parseTeamTab,
   parseSpeakerTab,
@@ -513,6 +518,18 @@ export async function ingestPrivateUrl(
       claimedPersonId,
       snapshot.registration.teamName,
     );
+    // Fallback: when the Debates card is empty (typically because the
+    // tournament finished and Tabbycat replaced the per-round table with
+    // a current-round-only widget), pull judge assignments from the
+    // /results/round/N/ pages we already fetched. Only fills fields the
+    // Debates card path didn't populate.
+    const fromResults = await recordJudgeRoundsFromRoundResults(
+      rounds,
+      tournamentId,
+      claimedPersonId,
+      snapshot.registration.personName,
+    );
+    if (fromResults.diagnostic) fetchWarnings.push(fromResults.diagnostic);
   }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
@@ -936,4 +953,175 @@ async function recordSpeakerRoundsFromLanding(
     });
   }
   return { outroundsSeen: outrounds.length, deepest, diagnostic: null };
+}
+
+/**
+ * Fallback judge-history source for tournaments where the private-URL
+ * "Debates" card no longer carries the data — most commonly because the
+ * tournament has finished, so Tabbycat shows only "In This Round: You are
+ * not adjudicating this round." instead of the full per-round table that
+ * `extractAdjudicatorRounds` parses.
+ *
+ * Round-results pages (/results/round/N/) keep the panel composition for
+ * every round, indefinitely. Cross-reference each panel against the URL
+ * owner's registration name, write a JudgeAssignment row per match, and
+ * populate `chairedPrelimRounds` / `lastOutroundChaired` /
+ * `lastOutroundPaneled` — but only when the Debates-card path didn't
+ * already populate them, so the higher-confidence source wins on
+ * tournaments where both exist.
+ *
+ * Idempotent: re-running on the same data is safe (find-then-create per
+ * row plus conditional field updates).
+ */
+async function recordJudgeRoundsFromRoundResults(
+  rounds: ReturnType<typeof parseRoundResults>[],
+  tournamentId: bigint,
+  personId: bigint,
+  knownPersonName: string | null,
+): Promise<{ written: number; matched: number; diagnostic: string | null }> {
+  if (!knownPersonName) {
+    return { written: 0, matched: 0, diagnostic: null };
+  }
+  const wantedNorm = normalizePersonName(knownPersonName);
+  if (!wantedNorm) return { written: 0, matched: 0, diagnostic: null };
+  const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
+  const wantedTokenSet = new Set(wantedTokens);
+
+  const matchesName = (candidate: string): boolean => {
+    const candidateNorm = normalizePersonName(candidate);
+    if (!candidateNorm) return false;
+    if (candidateNorm === wantedNorm) return true;
+    if (wantedTokens.length < 2) return false;
+    if (candidateNorm.includes(wantedNorm) || wantedNorm.includes(candidateNorm)) {
+      return true;
+    }
+    const candidateTokens = candidateNorm.split(/\s+/).filter(Boolean);
+    if (candidateTokens.length < 2) return false;
+    const candidateSet = new Set(candidateTokens);
+    return (
+      wantedTokens.every((t) => candidateSet.has(t)) ||
+      candidateTokens.every((t) => wantedTokenSet.has(t))
+    );
+  };
+
+  type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
+  const hits: Hit[] = [];
+  for (const round of rounds) {
+    if (!round) continue;
+    for (const j of round.judgeAssignments) {
+      if (!matchesName(j.personName)) continue;
+      const stage = normalizeStageLabel(
+        round.roundLabel ||
+          (round.isOutround
+            ? round.roundNumber != null ? `Round ${round.roundNumber}` : 'Outround'
+            : `Round ${round.roundNumber ?? '?'}`),
+      );
+      hits.push({
+        stage,
+        role: j.panelRole === 'chair' ? 'chair' : 'panellist',
+        roundNumber: round.isOutround ? null : round.roundNumber,
+      });
+    }
+  }
+
+  if (hits.length === 0) {
+    return {
+      written: 0,
+      matched: 0,
+      diagnostic: `parse: 0 round-results panels matched "${knownPersonName}" — searched ${rounds.length} round pages`,
+    };
+  }
+
+  let written = 0;
+  for (const h of hits) {
+    const existing = await prisma.judgeAssignment.findFirst({
+      where: {
+        tournamentId,
+        personId,
+        stage: h.stage,
+        panelRole: h.role,
+        roundNumber: h.roundNumber,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.judgeAssignment.create({
+        data: {
+          tournamentId,
+          personId,
+          stage: h.stage,
+          panelRole: h.role,
+          roundNumber: h.roundNumber,
+        },
+      });
+      written += 1;
+    }
+  }
+
+  // Aggregate stats for the participant row. Same logic as the landing-page
+  // path so /cv produces identical numbers regardless of which source the
+  // data came from.
+  const chairedPrelims = getInroundsChairedCount(
+    hits.map((h) => ({ stage: h.stage, panelRole: h.role })),
+  );
+  const outrounds = hits.filter((h) => h.roundNumber == null);
+  const ranked = outrounds
+    .map((h) => ({ h, rank: outroundStageRank(h.stage) }))
+    .filter((x): x is { h: typeof x.h; rank: number } => x.rank != null)
+    .sort((a, b) => b.rank - a.rank);
+  const deepestChaired = ranked.find((x) => x.h.role === 'chair')?.h.stage ?? null;
+  const deepestPaneled = ranked.find((x) => x.h.role === 'panellist')?.h.stage ?? null;
+
+  // Merge with whatever the Debates card path already wrote: only fill in
+  // null fields, never overwrite. Debates card data is more authoritative
+  // (URL owner is explicitly bolded there) so when it ran successfully its
+  // values stand.
+  const existing = await prisma.tournamentParticipant.findUnique({
+    where: { tournamentId_personId: { tournamentId, personId } },
+    select: {
+      chairedPrelimRounds: true,
+      lastOutroundChaired: true,
+      lastOutroundPaneled: true,
+    },
+  });
+  const update: {
+    judgeTypeTag: 'Adjudicator';
+    chairedPrelimRounds?: number;
+    lastOutroundChaired?: string;
+    lastOutroundPaneled?: string;
+  } = { judgeTypeTag: 'Adjudicator' };
+  if (chairedPrelims > 0 && (existing?.chairedPrelimRounds ?? null) == null) {
+    update.chairedPrelimRounds = chairedPrelims;
+  }
+  if (deepestChaired && !existing?.lastOutroundChaired) {
+    update.lastOutroundChaired = deepestChaired;
+  }
+  if (deepestPaneled && !existing?.lastOutroundPaneled) {
+    update.lastOutroundPaneled = deepestPaneled;
+  }
+
+  const tp = await prisma.tournamentParticipant.upsert({
+    where: { tournamentId_personId: { tournamentId, personId } },
+    update,
+    create: {
+      tournamentId,
+      personId,
+      judgeTypeTag: 'Adjudicator',
+      chairedPrelimRounds: chairedPrelims || null,
+      lastOutroundChaired: deepestChaired,
+      lastOutroundPaneled: deepestPaneled,
+    },
+  });
+  await prisma.participantRole.upsert({
+    where: {
+      tournamentParticipantId_role: {
+        tournamentParticipantId: tp.id,
+        role: 'judge',
+      },
+    },
+    update: {},
+    create: { tournamentParticipantId: tp.id, role: 'judge' },
+  });
+
+  return { written, matched: hits.length, diagnostic: null };
 }
