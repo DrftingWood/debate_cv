@@ -72,10 +72,17 @@ export default async function CvPage() {
   // tournaments often spell the same person differently — show the spelling
   // that was on this tournament's private URL rather than a single canonical
   // name plastered across every row.
+  //
+  // When a tournament has multiple URLs (private + public, or two private
+  // URLs with slightly different spellings), pick deterministically — sort by
+  // URL string and keep the first match — so the rendered name doesn't flip
+  // between page loads from non-deterministic findMany ordering.
   const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
   const myNameByTournament = new Map<bigint, string>();
-  for (const u of urls) {
+  const urlsForNames = [...urls].sort((a, b) => a.url.localeCompare(b.url));
+  for (const u of urlsForNames) {
     if (!u.tournamentId) continue;
+    if (myNameByTournament.has(u.tournamentId)) continue;
     const reg = (u.registrationName ?? '').trim();
     if (!reg) continue;
     if (!claimedNormalizedNames.has(normalizePersonName(reg))) continue;
@@ -224,6 +231,8 @@ export default async function CvPage() {
     speakerRankEfl: number | null;
     teamBreakRank: number | null;
     eliminationReached: string | null;
+    /** True if the team broke (on the break tab OR spoke in any outround). */
+    broke: boolean;
   };
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   for (const p of myParticipations) {
@@ -279,6 +288,7 @@ export default async function CvPage() {
       speakerRankEfl: p.speakerRankEfl,
       teamBreakRank: p.teamBreakRank,
       eliminationReached: p.eliminationReached,
+      broke: p.eliminationReached != null || p.teamBreakRank != null,
     });
   }
   speakerRows.sort((a, b) => {
@@ -295,11 +305,14 @@ export default async function CvPage() {
     year: number | null;
     format: string | null;
     sourceUrl: string;
+    myName: string;
     judgeTypeTag: string | null;
     inroundsJudged: number;
     inroundsChaired: number;
     lastOutroundChaired: string | null;
     lastOutroundJudged: string | null;
+    /** True if the judge appeared on any outround (chair OR panel). */
+    broke: boolean;
   };
   const judgeByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   for (const p of myParticipations) {
@@ -350,20 +363,23 @@ export default async function CvPage() {
     const t = tournamentById.get(tid);
     if (!t) continue;
     const stats = judgeStatsByTournament.get(tid);
+    const lastOutroundJudged = deepestOutroundAcrossRoles(
+      p.lastOutroundChaired,
+      p.lastOutroundPaneled,
+    );
     judgeRows.push({
       tournamentId: tid,
       tournamentName: t.name,
       year: t.year,
       format: t.format,
       sourceUrl: t.sourceUrlRaw,
+      myName: myNameByTournament.get(tid) ?? myDisplayName,
       judgeTypeTag: p.judgeTypeTag,
       inroundsJudged: stats?.inrounds.size ?? 0,
       inroundsChaired: p.chairedPrelimRounds ?? 0,
       lastOutroundChaired: p.lastOutroundChaired ?? null,
-      lastOutroundJudged: deepestOutroundAcrossRoles(
-        p.lastOutroundChaired,
-        p.lastOutroundPaneled,
-      ),
+      lastOutroundJudged,
+      broke: !!lastOutroundJudged,
     });
   }
   judgeRows.sort((a, b) => {
@@ -394,7 +410,7 @@ export default async function CvPage() {
 
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
-  const breaks = speakerRows.filter((r) => r.eliminationReached).length;
+  const breaks = speakerRows.filter((r) => r.broke).length;
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   return (
@@ -614,17 +630,6 @@ function fmtSpeakerRanks(r: {
   return parts.join(' · ') || '—';
 }
 
-function fmtBreak(r: {
-  eliminationReached: string | null;
-  teamBreakRank: number | null;
-}): string {
-  if (!r.eliminationReached && r.teamBreakRank == null) return '—';
-  if (r.eliminationReached && r.teamBreakRank != null) {
-    return `${r.eliminationReached} · #${r.teamBreakRank}`;
-  }
-  return r.eliminationReached ?? `#${r.teamBreakRank}`;
-}
-
 type SpeakingTableRow = {
   tournamentId: bigint;
   tournamentName: string;
@@ -643,7 +648,27 @@ type SpeakingTableRow = {
   speakerRankEfl: number | null;
   teamBreakRank: number | null;
   eliminationReached: string | null;
+  broke: boolean;
 };
+
+function BrokeBadge({ broke }: { broke: boolean }) {
+  return broke ? (
+    <Badge variant="success">Yes</Badge>
+  ) : (
+    <Badge variant="neutral">No</Badge>
+  );
+}
+
+function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
+  if (r.eliminationReached && r.teamBreakRank != null) {
+    return `${r.eliminationReached} · #${r.teamBreakRank}`;
+  }
+  if (r.eliminationReached) return r.eliminationReached;
+  // We saw the team on the break tab (rank set) but never observed them in
+  // an outround row of the Debates card — don't claim a stage we don't know.
+  if (r.teamBreakRank != null) return `On break tab · #${r.teamBreakRank}`;
+  return '—';
+}
 
 function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
   return (
@@ -662,7 +687,8 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="px-3 py-2.5 font-medium">Team points</th>
               <th className="px-3 py-2.5 font-medium" title="Average speaker score per prelim round spoken">Spkr avg</th>
               <th className="px-3 py-2.5 font-medium">Rank</th>
-              <th className="px-3 py-2.5 font-medium">Break</th>
+              <th className="px-3 py-2.5 font-medium">Broken</th>
+              <th className="px-3 py-2.5 font-medium">Last outround spoken</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -699,7 +725,8 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                   {r.speakerAvgScore ?? '—'}
                 </td>
                 <td className="px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
-                <td className="px-3 py-2.5">{fmtBreak(r)}</td>
+                <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
+                <td className="px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
               </tr>
             ))}
           </tbody>
@@ -737,7 +764,10 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 />
               ) : null}
               {fmtSpeakerRanks(r) !== '—' ? <Field label="Rank" value={fmtSpeakerRanks(r)} /> : null}
-              {fmtBreak(r) !== '—' ? <Field label="Break" value={fmtBreak(r)} /> : null}
+              <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
+              {fmtLastOutroundSpoken(r) !== '—' ? (
+                <Field label="Last outround spoken" value={fmtLastOutroundSpoken(r)} />
+              ) : null}
             </dl>
           </li>
         ))}
@@ -752,11 +782,13 @@ type JudgingTableRow = {
   year: number | null;
   format: string | null;
   sourceUrl: string;
+  myName: string;
   judgeTypeTag: string | null;
   inroundsJudged: number;
   inroundsChaired: number;
   lastOutroundChaired: string | null;
   lastOutroundJudged: string | null;
+  broke: boolean;
 };
 
 function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
@@ -769,9 +801,11 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               <th className="px-4 py-2.5 font-medium">Tournament</th>
               <th className="px-3 py-2.5 font-medium">Year</th>
               <th className="px-3 py-2.5 font-medium">Format</th>
+              <th className="px-3 py-2.5 font-medium">My name</th>
               <th className="px-3 py-2.5 font-medium">Judge type</th>
               <th className="px-3 py-2.5 font-medium">Inrounds judged</th>
               <th className="px-3 py-2.5 font-medium">Inrounds chaired</th>
+              <th className="px-3 py-2.5 font-medium">Broken</th>
               <th className="px-3 py-2.5 font-medium">Last outround chaired</th>
               <th className="px-3 py-2.5 font-medium">Last outround judged</th>
             </tr>
@@ -791,9 +825,11 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 </td>
                 <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="px-3 py-2.5">{r.myName}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged || '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired || '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired}</td>
+                <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
                 <td className="px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
               </tr>
@@ -820,9 +856,11 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
               {r.format ? <Field label="Format" value={r.format} /> : null}
+              <Field label="My name" value={r.myName} />
               {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              {r.inroundsJudged ? <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono /> : null}
-              {r.inroundsChaired ? <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono /> : null}
+              <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono />
+              <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono />
+              <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
               {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
             </dl>

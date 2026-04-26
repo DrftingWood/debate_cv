@@ -329,12 +329,18 @@ function normalizeStageLabel(raw: string): string {
  * Rows are returned in document order, which equals the prelim sequence
  * (R1 → R2 → … → R6 → QF → SF → F).
  */
-export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
-  const $ = cheerio.load(html);
+type CheerioRoot = ReturnType<typeof cheerio.load>;
+type CheerioSel = ReturnType<CheerioRoot>;
 
-  // Locate the "Debates" card by its card-title heading. Be lenient about
-  // h-level and exact wording so newer Tabbycat versions don't quietly break.
-  let table: ReturnType<typeof $> | null = null;
+/**
+ * Locate the "Debates" card's <table>. Tabbycat names the surrounding card
+ * inconsistently across themes ("Debates", "My Debates", "Schedule",
+ * "Panels"…) so we accept several headings; structural fallback finds any
+ * table whose <tbody> has the trademark `<td class="adjudicator-name">` cell
+ * — the same table that lists rooms for both the speaker and judge views.
+ */
+function findDebatesTable($: CheerioRoot): CheerioSel | null {
+  let table: CheerioSel | null = null;
   $('h1.card-title, h2.card-title, h3.card-title, h4.card-title, h5.card-title').each(
     (_i, el) => {
       if (table) return;
@@ -352,42 +358,53 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
       }
     },
   );
-
-  // Structural fallback — Tabbycat consistently uses
-  // <td class="adjudicator-name"> for the panel cell and wraps the URL
-  // owner's name in <strong> regardless of which heading the surrounding
-  // card uses. Find any table whose <tbody> contains both signals.
   if (!table) {
     $('table').each((_i, t) => {
       if (table) return;
       const $t = $(t);
-      if ($t.find('tbody td.adjudicator-name strong').length > 0) table = $t;
+      if (
+        $t.find('tbody td.adjudicator-name').length > 0 ||
+        $t.find('tbody td.team-name').length > 0
+      ) table = $t;
     });
   }
+  return table;
+}
 
+/**
+ * Pull the canonical stage label + numeric round (if applicable) from the
+ * leftmost cell of a Debates-table row. Returns null when the row has no
+ * recognisable stage marker (header rows, separators).
+ */
+function extractRowStage(
+  $: CheerioRoot,
+  $tr: CheerioSel,
+): { stage: string; roundNumber: number | null } | null {
+  const roundCell = $tr.find('td').first();
+  const tooltipDiv = roundCell.find('[data-original-title]').first();
+  let stage = '';
+  if (tooltipDiv.length > 0) {
+    stage = cleanWhitespace(tooltipDiv.attr('data-original-title') ?? '');
+  }
+  if (!stage) {
+    stage = cleanWhitespace(roundCell.find('.tooltip-trigger').first().text());
+  }
+  if (!stage) return null;
+  stage = normalizeStageLabel(stage);
+  const roundMatch = stage.match(/^Round\s+(\d+)$/i);
+  return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
+}
+
+export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
+  const $ = cheerio.load(html);
+  const table = findDebatesTable($);
   if (!table) return [];
 
   const rows: AdjudicatorRound[] = [];
-  (table as ReturnType<typeof $>).find('tbody > tr').each((idx, tr) => {
+  table.find('tbody > tr').each((idx, tr) => {
     const $tr = $(tr);
-
-    // Round cell — first <td>. The full stage name is in the
-    // data-original-title attribute of the inner tooltip div; fall back to
-    // the visible "R1"/"QF" abbreviation if that attribute is missing.
-    const roundCell = $tr.find('td').first();
-    const tooltipDiv = roundCell.find('[data-original-title]').first();
-    let stage = '';
-    if (tooltipDiv.length > 0) {
-      stage = cleanWhitespace(tooltipDiv.attr('data-original-title') ?? '');
-    }
-    if (!stage) {
-      stage = cleanWhitespace(roundCell.find('.tooltip-trigger').first().text());
-    }
-    if (!stage) return;
-    stage = normalizeStageLabel(stage);
-
-    const roundMatch = stage.match(/^Round\s+(\d+)$/i);
-    const roundNumber = roundMatch ? Number(roundMatch[1]) : null;
+    const stageInfo = extractRowStage($, $tr);
+    if (!stageInfo) return;
 
     // Adjudicator cell — the <td class="adjudicator-name"> that lists the
     // panel. <strong> wraps the URL owner's own name; the chair marker is an
@@ -402,7 +419,80 @@ export function extractAdjudicatorRounds(html: string): AdjudicatorRound[] {
     if (symbolText.includes('Ⓒ') || /chair/i.test(symbolText)) role = 'chair';
     else if (symbolText.includes('Ⓣ') || /trainee/i.test(symbolText)) role = 'trainee';
 
-    rows.push({ stage, roundNumber, role, sequenceIndex: idx + 1 });
+    rows.push({
+      stage: stageInfo.stage,
+      roundNumber: stageInfo.roundNumber,
+      role,
+      sequenceIndex: idx + 1,
+    });
+  });
+
+  return rows;
+}
+
+export type SpeakerRound = {
+  /** Full stage label as Tabbycat shows it: "Round 1", "Quarterfinals", etc. */
+  stage: string;
+  /** Numeric prelim round number when the stage is "Round N"; null for outrounds. */
+  roundNumber: number | null;
+  /** 1-based document order of the row in the "Debates" table. */
+  sequenceIndex: number;
+};
+
+/**
+ * Pull the URL owner's per-round speaking history from the "Debates" card on
+ * a speaker's private-URL landing page.
+ *
+ * Same table as `extractAdjudicatorRounds` — Tabbycat reuses one card on
+ * every private URL; the only difference is which cell highlights the owner.
+ * For speakers, the owner's TEAM name appears in one of the team-name cells
+ * (`<td class="team-name">`). Two ways to identify it, in order:
+ *   1. `<strong>` wrapper inside a team-name cell — Tabbycat's convention,
+ *      mirrors how it bolds the adjudicator's name in the panel.
+ *   2. Text match against `knownTeamName` (typically pulled from the
+ *      registration snippet on the same landing page). This is the fallback
+ *      for themes that omit the bold marker.
+ *
+ * Returns one entry per debate row the team was in, in document order.
+ */
+export function extractSpeakerRounds(
+  html: string,
+  knownTeamName?: string | null,
+): SpeakerRound[] {
+  const $ = cheerio.load(html);
+  const table = findDebatesTable($);
+  if (!table) return [];
+
+  const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
+  const rows: SpeakerRound[] = [];
+  table.find('tbody > tr').each((idx, tr) => {
+    const $tr = $(tr);
+    const stageInfo = extractRowStage($, $tr);
+    if (!stageInfo) return;
+
+    const teamCells = $tr.find('td.team-name');
+    if (teamCells.length === 0) return;
+
+    let owned = false;
+    teamCells.each((_j, td) => {
+      if (owned) return;
+      const $td = $(td);
+      if ($td.find('strong').length > 0) {
+        owned = true;
+        return;
+      }
+      if (wantedTeam) {
+        const cellText = cleanWhitespace($td.text()).toLowerCase();
+        if (cellText && cellText === wantedTeam) owned = true;
+      }
+    });
+    if (!owned) return;
+
+    rows.push({
+      stage: stageInfo.stage,
+      roundNumber: stageInfo.roundNumber,
+      sequenceIndex: idx + 1,
+    });
   });
 
   return rows;

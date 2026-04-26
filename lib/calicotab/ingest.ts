@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
-import { parsePrivateUrlPage, extractAdjudicatorRounds } from './parseNav';
+import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
 import {
   parseTeamTab,
   parseSpeakerTab,
@@ -98,6 +98,12 @@ export async function ingestPrivateUrl(
           claimedPersonId,
         );
         if (r.diagnostic) landingWarnings.push(r.diagnostic);
+        await recordSpeakerRoundsFromLanding(
+          landingHtml,
+          existing.id,
+          claimedPersonId,
+          snapshot.registration.teamName,
+        );
       }
       await prisma.discoveredUrl.updateMany({
         where: { userId, url: { in: urlVariants } },
@@ -461,6 +467,12 @@ export async function ingestPrivateUrl(
       claimedPersonId,
     );
     if (r.diagnostic) fetchWarnings.push(r.diagnostic);
+    await recordSpeakerRoundsFromLanding(
+      landingHtml,
+      tournamentId,
+      claimedPersonId,
+      snapshot.registration.teamName,
+    );
   }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
@@ -818,4 +830,45 @@ async function recordJudgeRoundsFromLanding(
     create: { tournamentParticipantId: tp.id, role: 'judge' },
   });
   return { written: adjRounds.length, chairedPrelims, diagnostic: null };
+}
+
+/**
+ * Companion to `recordJudgeRoundsFromLanding`. Same Debates table, but for
+ * the URL owner's TEAM: any row whose team-name cell is bolded (or matches
+ * the registered team name) means the speaker spoke in that debate. Used
+ * exclusively to populate `eliminationReached` — the deepest outround the
+ * team reached — which the CV uses for the "Broken" indicator and the
+ * "Last outround spoken" column.
+ *
+ * Idempotent: re-running on the same URL only updates the participant row,
+ * never inserts duplicates.
+ */
+async function recordSpeakerRoundsFromLanding(
+  landingHtml: string,
+  tournamentId: bigint,
+  personId: bigint,
+  knownTeamName: string | null | undefined,
+): Promise<{ outroundsSeen: number; deepest: string | null; diagnostic: string | null }> {
+  const speakerRounds = extractSpeakerRounds(landingHtml, knownTeamName);
+  if (speakerRounds.length === 0) {
+    return { outroundsSeen: 0, deepest: null, diagnostic: null };
+  }
+
+  const outrounds = speakerRounds.filter((r) => r.roundNumber == null);
+  const ranked = outrounds
+    .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
+    .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
+    .sort((a, b) => b.rank - a.rank);
+  const deepest = ranked[0]?.r.stage ?? null;
+
+  // Only touch eliminationReached when we actually saw an outround — leave
+  // it null for prelim-only speakers so the "Broken" derivation stays clean.
+  if (deepest) {
+    await prisma.tournamentParticipant.upsert({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      update: { eliminationReached: deepest },
+      create: { tournamentId, personId, eliminationReached: deepest },
+    });
+  }
+  return { outroundsSeen: outrounds.length, deepest, diagnostic: null };
 }
