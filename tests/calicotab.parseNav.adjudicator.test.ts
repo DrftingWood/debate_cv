@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { extractAdjudicatorRounds, extractSpeakerRounds } from '@/lib/calicotab/parseNav';
+import { getInroundsChairedCount } from '@/lib/calicotab/judgeStats';
 
 // Trimmed but structurally faithful snippet from the SIDO 2026 private URL
 // landing page — the table the user supplied. Keeps the wrapper hierarchy
@@ -105,6 +106,12 @@ describe('extractAdjudicatorRounds', () => {
 
   test('reads role from the URL owner\'s <strong> wrapper — Ⓒ marks chair', () => {
     expect(rounds.slice(0, 6).every((r) => r.role === 'chair')).toBe(true);
+  });
+
+  test('aggregates SIDO as six inrounds chaired', () => {
+    expect(
+      getInroundsChairedCount(rounds.map((r) => ({ stage: r.stage, panelRole: r.role }))),
+    ).toBe(6);
   });
 
   test('marks the QF as panellist when the chair Ⓒ is on someone else', () => {
