@@ -1006,8 +1006,10 @@ async function recordJudgeRoundsFromRoundResults(
 
   type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
   const hits: Hit[] = [];
+  let totalJudgeEntries = 0;
   for (const round of rounds) {
     if (!round) continue;
+    totalJudgeEntries += round.judgeAssignments.length;
     for (const j of round.judgeAssignments) {
       if (!matchesName(j.personName)) continue;
       const stage = normalizeStageLabel(
@@ -1025,10 +1027,15 @@ async function recordJudgeRoundsFromRoundResults(
   }
 
   if (hits.length === 0) {
+    // Distinguish "round-results parser found no judges to match against"
+    // (totalJudgeEntries === 0 — upstream parser problem) from "judges
+    // were parsed but the URL owner's name didn't match any of them"
+    // (totalJudgeEntries > 0 — name-matching problem). Each calls for a
+    // different fix.
     return {
       written: 0,
       matched: 0,
-      diagnostic: `parse: 0 round-results panels matched "${knownPersonName}" — searched ${rounds.length} round pages`,
+      diagnostic: `parse: 0 round-results panels matched "${knownPersonName}" — searched ${rounds.length} rounds, ${totalJudgeEntries} total judge entries parsed`,
     };
   }
 
