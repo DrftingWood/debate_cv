@@ -84,4 +84,23 @@ describe('parseBreakPage — stage normalization from URL fragment', () => {
     expect(teamRows[0]!.entityType).toBe('team');
     expect(adjRows[0]!.entityType).toBe('adjudicator');
   });
+
+  test('teams keep their rank from the rank column', () => {
+    const rows = parseBreakPage(
+      TABLE_HTML(ROW('5', 'MIT A')),
+      'https://x.calicotab.com/foo/break/teams/open/',
+    );
+    expect(rows[0]!.rank).toBe(5);
+  });
+
+  test('adjudicators never get a rank — judge breaks are binary', () => {
+    // Even when the source table has a rank-like column, judge breaks in
+    // Tabbycat are yes/no. Don't extract a phantom rank that the verify
+    // page would then render as a "rank:N" badge on the judge row.
+    const rows = parseBreakPage(
+      TABLE_HTML(ROW('3', 'Some Judge')),
+      'https://x.calicotab.com/foo/break/adjudicators/',
+    );
+    expect(rows[0]!.rank).toBeNull();
+  });
 });
