@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { extractAdjudicatorRounds } from '@/lib/calicotab/parseNav';
+import { extractAdjudicatorRounds, extractSpeakerRounds } from '@/lib/calicotab/parseNav';
 
 // Trimmed but structurally faithful snippet from the SIDO 2026 private URL
 // landing page — the table the user supplied. Keeps the wrapper hierarchy
@@ -344,5 +344,121 @@ describe('extractAdjudicatorRounds — abbreviation-only round labels (no data-o
       'panellist',
       'chair',
     ]);
+  });
+});
+
+// Speaker variant of the same Debates card. Tabbycat reuses the table on
+// every private URL; only the highlighted cell differs. For a speaker, the
+// owner's TEAM appears in one of the team-name cells. Two markups are
+// observed in the wild: bolded team name (<strong>), and unbolded with the
+// team identified only by string equality against the registration team.
+const SPEAKER_DEBATES_FRAGMENT_BOLD = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><div data-original-title="Round 1"><span class="tooltip-trigger">R1</span></div></td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team B 1</td>
+        <td class="team-name">Team C 1</td>
+        <td class="team-name">Team D 1</td>
+        <td class="adjudicator-name">Some Judge</td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Round 2"><span class="tooltip-trigger">R2</span></div></td>
+        <td class="team-name">Team E</td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team F</td>
+        <td class="team-name">Team G</td>
+        <td class="adjudicator-name">Other Judge</td>
+      </tr>
+      <tr>
+        <td><div data-original-title="Quarterfinals"><span class="tooltip-trigger">QF</span></div></td>
+        <td class="team-name">Team H</td>
+        <td class="team-name">Team I</td>
+        <td class="team-name"><strong>Team A 1</strong></td>
+        <td class="team-name">Team J</td>
+        <td class="adjudicator-name">Chair Person</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — bolded team name', () => {
+  const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_BOLD);
+
+  test('returns one entry per row the team appeared in', () => {
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2', 'Quarterfinals']);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, null]);
+  });
+
+  test('sequenceIndex follows document order', () => {
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2, 3]);
+  });
+});
+
+// Same shape, but no <strong> on the team name — the team can only be
+// found by matching the registered team name passed in by the caller. This
+// is the path used when Tabbycat themes drop the bold marker.
+const SPEAKER_DEBATES_FRAGMENT_PLAIN = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><span class="tooltip-trigger">R1</span></td>
+        <td class="team-name">Team A 1</td>
+        <td class="team-name">Team B 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">R2</span></td>
+        <td class="team-name">Team C 1</td>
+        <td class="team-name">Team A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">SF</span></td>
+        <td class="team-name">Team A 1</td>
+        <td class="team-name">Team D 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — plain team name (string match fallback)', () => {
+  test('matches rows by team-name text against knownTeamName', () => {
+    const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Team A 1');
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2', 'Semifinals']);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, 2, null]);
+  });
+
+  test('returns empty when no team name is provided and nothing is bolded', () => {
+    expect(extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN)).toEqual([]);
+  });
+
+  test('returns empty when the provided team name appears in no row', () => {
+    expect(
+      extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Nonexistent Team'),
+    ).toEqual([]);
+  });
+
+  test('match is case-insensitive on whitespace-collapsed cell text', () => {
+    const rows = extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, '  team a 1  ');
+    expect(rows).toHaveLength(3);
+  });
+});
+
+describe('extractSpeakerRounds — does not pick up adjudicator rows', () => {
+  test('SIDO fixture: returns no rows when the owner is a judge (their name lives in adjudicator-name, not team-name)', () => {
+    // Reusing the SIDO_DEBATES_FRAGMENT — the bold sits in the adjudicator
+    // cell, not any team cell, so a speaker pass over the same HTML must
+    // report no rows for the owner.
+    expect(extractSpeakerRounds(SIDO_DEBATES_FRAGMENT)).toEqual([]);
   });
 });

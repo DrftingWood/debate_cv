@@ -161,6 +161,8 @@ export default async function CvVerifyPage({
                             <th className="px-2 py-1.5">Speaker total</th>
                             <th className="px-2 py-1.5">Open / ESL / EFL rank</th>
                             <th className="px-2 py-1.5">Team break rank</th>
+                            <th className="px-2 py-1.5">Broken</th>
+                            <th className="px-2 py-1.5">Last outround spoken</th>
                             <th className="px-2 py-1.5">Judge tag</th>
                             <th className="px-2 py-1.5">Inrounds chaired</th>
                             <th className="px-2 py-1.5">Last outround chaired</th>
@@ -191,6 +193,14 @@ export default async function CvVerifyPage({
                               <td className="px-2 py-1.5 font-mono">
                                 {p.teamBreakRank ?? '—'}
                               </td>
+                              <td className="px-2 py-1.5">
+                                {p.eliminationReached || p.teamBreakRank != null ? (
+                                  <Badge variant="success">Yes</Badge>
+                                ) : (
+                                  <Badge variant="neutral">No</Badge>
+                                )}
+                              </td>
+                              <td className="px-2 py-1.5">{p.eliminationReached ?? '—'}</td>
                               <td className="px-2 py-1.5">{p.judgeTypeTag ?? '—'}</td>
                               <td className="px-2 py-1.5 font-mono">
                                 {p.chairedPrelimRounds ?? '—'}
