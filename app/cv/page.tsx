@@ -72,10 +72,17 @@ export default async function CvPage() {
   // tournaments often spell the same person differently — show the spelling
   // that was on this tournament's private URL rather than a single canonical
   // name plastered across every row.
+  //
+  // When a tournament has multiple URLs (private + public, or two private
+  // URLs with slightly different spellings), pick deterministically — sort by
+  // URL string and keep the first match — so the rendered name doesn't flip
+  // between page loads from non-deterministic findMany ordering.
   const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
   const myNameByTournament = new Map<bigint, string>();
-  for (const u of urls) {
+  const urlsForNames = [...urls].sort((a, b) => a.url.localeCompare(b.url));
+  for (const u of urlsForNames) {
     if (!u.tournamentId) continue;
+    if (myNameByTournament.has(u.tournamentId)) continue;
     const reg = (u.registrationName ?? '').trim();
     if (!reg) continue;
     if (!claimedNormalizedNames.has(normalizePersonName(reg))) continue;
@@ -403,7 +410,7 @@ export default async function CvPage() {
 
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
-  const breaks = speakerRows.filter((r) => r.eliminationReached).length;
+  const breaks = speakerRows.filter((r) => r.broke).length;
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   return (
@@ -657,7 +664,9 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
     return `${r.eliminationReached} · #${r.teamBreakRank}`;
   }
   if (r.eliminationReached) return r.eliminationReached;
-  if (r.teamBreakRank != null) return `Broke · #${r.teamBreakRank}`;
+  // We saw the team on the break tab (rank set) but never observed them in
+  // an outround row of the Debates card — don't claim a stage we don't know.
+  if (r.teamBreakRank != null) return `On break tab · #${r.teamBreakRank}`;
   return '—';
 }
 
@@ -818,8 +827,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.myName}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged || '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired || '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged}</td>
+                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired}</td>
                 <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
                 <td className="px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
@@ -849,8 +858,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               {r.format ? <Field label="Format" value={r.format} /> : null}
               <Field label="My name" value={r.myName} />
               {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              {r.inroundsJudged ? <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono /> : null}
-              {r.inroundsChaired ? <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono /> : null}
+              <Field label="Inrounds judged" value={String(r.inroundsJudged)} mono />
+              <Field label="Inrounds chaired" value={String(r.inroundsChaired)} mono />
               <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
               {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
