@@ -115,7 +115,7 @@ export default async function CvPage() {
     .map((p) => ({ tournamentId: p.tournamentId, teamName: p.teamName! }));
   const myTeamPairKeys = new Set(myTeamPairs.map((p) => `${p.tournamentId}:${p.teamName}`));
 
-  const [teammateRows, teamResultRows, judgeAssignmentRows] = await Promise.all([
+  const [teammateRows, teamResultRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
     myTeamPairs.length
       ? prisma.tournamentParticipant.findMany({
           where: {
@@ -181,6 +181,24 @@ export default async function CvPage() {
           panelRole: string | null;
           roundNumber: number | null;
         }>),
+    // Adjudicator break rows: judges who broke (qualified to adjudicate
+    // outrounds). Used to broaden the `Broken` column on the judging table —
+    // a judge who appears on the break tab but never showed up in the
+    // Debates card's outround rows would otherwise be marked "Broken: No"
+    // even though the tournament officially broke them.
+    tournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: {
+            tournamentId: { in: tournamentIds },
+            entityType: 'adjudicator',
+          },
+          select: { tournamentId: true, entityName: true, stage: true },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          entityName: string;
+          stage: string;
+        }>),
   ]);
 
   // 4) Index aux data by lookup key.
@@ -201,6 +219,21 @@ export default async function CvPage() {
       wins: tr.wins,
       points: tr.points ? tr.points.toString() : null,
     });
+  }
+
+  // Tournaments where the user appears on the adjudicator break tab. Match
+  // by normalized name against any of the user's claimed Person aliases.
+  // The break tab lists who broke (qualified to judge outrounds); a hit
+  // here means the judge broke even when the Debates card didn't surface
+  // any outround room for them.
+  const judgeBrokeTournaments = new Set<bigint>();
+  if (claimedPersons.length > 0 && adjudicatorBreakRows.length > 0) {
+    const myNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
+    for (const row of adjudicatorBreakRows) {
+      if (myNormalizedNames.has(normalizePersonName(row.entityName))) {
+        judgeBrokeTournaments.add(row.tournamentId);
+      }
+    }
   }
 
   // 5) Build speaker rows. One row per (tournamentId) where the user has a
@@ -387,7 +420,11 @@ export default async function CvPage() {
       inroundsChaired: p.chairedPrelimRounds,
       lastOutroundChaired: p.lastOutroundChaired ?? null,
       lastOutroundJudged,
-      broke: !!lastOutroundJudged,
+      // Broke if either source confirms it: (a) the Debates card showed
+      // them in an outround room, or (b) they're listed on the official
+      // adjudicator break tab. Some tournaments don't expose outround rooms
+      // on the private URL; the break tab is the authoritative fallback.
+      broke: !!lastOutroundJudged || judgeBrokeTournaments.has(tid),
     });
   }
   judgeRows.sort((a, b) => {
