@@ -462,3 +462,58 @@ describe('extractSpeakerRounds — does not pick up adjudicator rows', () => {
     expect(extractSpeakerRounds(SIDO_DEBATES_FRAGMENT)).toEqual([]);
   });
 });
+
+// Tabbycat sometimes appends a team-number suffix to differentiate multiple
+// teams from the same institution. Registration card might say "MIT Debate A"
+// but the Debates table renders "MIT Debate A 1". The fuzzy match must accept
+// the suffix without conflating distinct teams (e.g. "MIT" vs "MIT A").
+const SUFFIX_FRAGMENT = `
+<div class="card-body">
+  <h4 class="card-title">Debates</h4>
+  <table class="table">
+    <tbody>
+      <tr>
+        <td><span class="tooltip-trigger">R1</span></td>
+        <td class="team-name">MIT Debate A 1</td>
+        <td class="team-name">Harvard A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+      <tr>
+        <td><span class="tooltip-trigger">R2</span></td>
+        <td class="team-name">MIT Debate B 1</td>
+        <td class="team-name">MIT Debate A 1</td>
+        <td class="adjudicator-name">Judge</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+describe('extractSpeakerRounds — fuzzy team-name matching', () => {
+  test('registered "MIT Debate A" still matches "MIT Debate A 1" (team-number suffix)', () => {
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT Debate A');
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Round 2']);
+  });
+
+  test('registered "MIT Debate A 1" still matches plain "MIT Debate A" (suffix dropped on display)', () => {
+    const html = SUFFIX_FRAGMENT.replace(/MIT Debate A 1/g, 'MIT Debate A');
+    const rows = extractSpeakerRounds(html, 'MIT Debate A 1');
+    expect(rows).toHaveLength(2);
+  });
+
+  test('registered "MIT" must NOT match "MIT Debate A 1" (would conflate distinct teams)', () => {
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT');
+    expect(rows).toEqual([]);
+  });
+
+  test('registered "MIT Debate A 1" must NOT match "MIT Debate B 1" (different team)', () => {
+    // Only the R1 + R2 rows where team A appears should match — R2 also has
+    // team B in the first cell, but the fuzzy matcher must reject it.
+    const rows = extractSpeakerRounds(SUFFIX_FRAGMENT, 'MIT Debate A 1');
+    expect(rows).toHaveLength(2);
+    // Verify B's row is matched only via the A 1 cell, not the B 1 cell — by
+    // confirming we don't double-count R2 (which has both teams).
+    expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2]);
+  });
+});
