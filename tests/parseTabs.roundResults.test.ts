@@ -124,6 +124,47 @@ describe('parseRoundResults — Vue judge extraction', () => {
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/4/');
     expect(round.judgeAssignments).toHaveLength(2);
   });
+
+  test('outround pages routed through /results/round/N/ are detected via the page heading', () => {
+    // Tabbycat installs route prelims AND outrounds through /results/round/N/.
+    // The URL alone can't distinguish them — only the page heading can. Without
+    // the hoisted heading-extraction, Vue-rendered outround pages used to land
+    // with roundLabel="Round 7", isOutround=false, which made downstream
+    // classifyRoundLabel count QF as a 7th INROUND on SIDO's CV.
+    const head = [
+      { key: 'team', title: 'Team' },
+      { key: 'adjudicators', title: 'Adjudicators' },
+    ];
+    const data = [[{ text: 'Alpha' }, { text: 'Jane Doe (c), John Roe' }]];
+    const payload = JSON.stringify([{ head, data }]);
+    const html = `
+      <!doctype html>
+      <html>
+        <body>
+          <h1>Quarterfinals — Some Tournament 2026</h1>
+          <script>window.vueData = ${payload}</script>
+        </body>
+      </html>
+    `;
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/7/');
+    expect(round.isOutround).toBe(true);
+    expect(round.roundLabel).toContain('Quarterfinal');
+  });
+
+  test('prelim pages still resolve as non-outround when heading says "Round N"', () => {
+    const head = [
+      { key: 'team', title: 'Team' },
+      { key: 'adjudicators', title: 'Adjudicators' },
+    ];
+    const data = [[{ text: 'Alpha' }, { text: 'Jane Doe (c)' }]];
+    const payload = JSON.stringify([{ head, data }]);
+    const html = `
+      <html><body><h1>Round 1</h1><script>window.vueData = ${payload}</script></body></html>
+    `;
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/1/');
+    expect(round.isOutround).toBe(false);
+    expect(round.roundLabel).toBe('Round 1');
+  });
 });
 
 describe('parseRoundResults — judge extraction', () => {
