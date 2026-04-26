@@ -286,7 +286,7 @@ export type AdjudicatorRound = {
  * Inputs that already match the canonical form pass through unchanged —
  * the test fixtures with `data-original-title="Round 1"` keep working.
  */
-function normalizeStageLabel(raw: string): string {
+export function normalizeStageLabel(raw: string): string {
   const t = raw.trim();
   if (!t) return t;
   const rMatch = t.match(/^R(\d+)$/i);
