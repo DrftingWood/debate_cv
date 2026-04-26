@@ -595,7 +595,11 @@ function roundResultsFromVue(
     : null;
 }
 
-export function parseRoundResults(html: string, sourceUrl: string): RoundDebate {
+export function parseRoundResults(
+  html: string,
+  sourceUrl: string,
+  navLabel?: string | null,
+): RoundDebate {
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabelFallback = `Round ${roundNumber ?? '?'}`;
@@ -603,17 +607,27 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
     /\/break\//i.test(sourceUrl) ||
     /\/elim/i.test(sourceUrl);
 
-  // Tabbycat installs route both prelims and outrounds through
-  // /results/round/N/ — the URL alone can't tell us which is which.
-  // The page heading (h1/h2/h3/title) is the reliable signal: "Quarterfinals"
-  // / "Grand Final" / "Round 5" etc. Extract it once and feed BOTH the Vue
-  // and cheerio paths so they classify consistently. This is the bug that
-  // made SIDO's QF round get labeled "Round 7" — the Vue path used the
-  // numeric fallback while the heading path was only consulted in the
-  // cheerio branch.
+  // Resolution chain for the round's authoritative label:
+  //   1. navLabel — link text from the landing-page nav
+  //      (e.g. "Quarterfinals" for /results/round/7/). Tabbycat surfaces this
+  //      itself and it cleanly maps each URL to its actual round name.
+  //   2. Page heading — only when it ACTUALLY mentions a round. SIDO's
+  //      results pages have a generic "SIDO 2026" heading that conveyed
+  //      no per-round info; trusting it wholesale (PR #47) made every round
+  //      land with stage="SIDO 2026" and classifyRoundLabel returned
+  //      'unknown' for all of them.
+  //   3. "Round N" numeric fallback from the URL.
   const $head = cheerio.load(html);
   const headingLabel = cleanText($head('h1, h2, h3, title').first().text());
-  const roundLabel = headingLabel || roundLabelFallback;
+  const headingLooksRoundRelated =
+    /\bround\s+\d+\b|\bfinal|\bsemi|\bquarter|\bocto|\bgrand|\b(?:gf|sf|qf|of|dof|tof|r\d+)\b/i.test(
+      headingLabel,
+    );
+  const trimmedNavLabel = (navLabel ?? '').trim();
+  const roundLabel =
+    trimmedNavLabel ||
+    (headingLooksRoundRelated ? headingLabel : '') ||
+    roundLabelFallback;
   const isOutround =
     isOutroundFromUrl ||
     /final|semi|quarter|octo|grand/i.test(roundLabel);

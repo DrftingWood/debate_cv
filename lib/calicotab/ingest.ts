@@ -214,7 +214,12 @@ export async function ingestPrivateUrl(
   const rounds = roundHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .map(({ url: u, html }) => {
-      const r = parseRoundResults(html, u);
+      // Pass the landing-page nav's link text for this URL — it's the
+      // authoritative round label ("Quarterfinals" not "SIDO 2026") and
+      // protects classifyRoundLabel / outroundStageRank from a generic
+      // page heading.
+      const navLabel = nav.resultsRoundLabels?.[u];
+      const r = parseRoundResults(html, u, navLabel);
       if (r.teamResults.length === 0) {
         fetchWarnings.push(`parse: round ${u} → 0 results — ${diagnoseVueData(html, ['team'])}`);
       }
