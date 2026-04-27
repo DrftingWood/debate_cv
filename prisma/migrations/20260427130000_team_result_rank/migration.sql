@@ -1,0 +1,2 @@
+ALTER TABLE "TeamResult"
+  ADD COLUMN "rank" INTEGER;

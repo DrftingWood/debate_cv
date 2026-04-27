@@ -230,6 +230,10 @@ function vueColExcluding(heads: VueHead[], exclude: Set<number>, ...needles: str
   });
 }
 
+function isAverageHeader(s: string): boolean {
+  return /\b(avg|average|mean)\b/i.test(s);
+}
+
 // ── Cheerio helpers (fallback for server-rendered Tabbycat) ──────────────────
 
 function cleanText(s: string): string {
@@ -426,12 +430,19 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   const exclude = new Set([rankEslCol, rankEflCol].filter((i) => i >= 0));
   const rankCol = vueColExcluding(heads, exclude, 'rk', 'rank', '#');
 
+  const avgCol = heads.findIndex((h) => isAverageHeader(`${h.key ?? ''} ${h.title ?? ''}`));
   const teamCol = vueCol(heads, 'team');
   const instCol = vueCol(heads, 'inst', 'school');
-  const totalCol = vueCol(heads, 'total', 'spk', 'score');
+  const totalCol = vueColExcluding(
+    heads,
+    new Set([avgCol].filter((i) => i >= 0)),
+    'total',
+    'spk',
+    'score',
+  );
 
   const nonRound = new Set(
-    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol].filter((i) => i >= 0),
+    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter((i) => i >= 0),
   );
   const roundCols: Array<{ idx: number; label: string }> = [];
   heads.forEach((h, i) => {
@@ -448,6 +459,15 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   for (const row of table.data) {
     const speakerName = cellText(row[nameCol]);
     if (!speakerName) continue;
+    const roundScores: SpeakerTabRow['roundScores'] = roundCols.map(({ idx, label }) => ({
+      roundLabel: label,
+      score: parseNumber(cellText(row[idx])),
+      positionLabel: null,
+    }));
+    const avgScore = avgCol >= 0 ? parseNumber(cellText(row[avgCol])) : null;
+    if (roundScores.length === 0 && avgScore != null) {
+      roundScores.push({ roundLabel: 'Average', score: avgScore, positionLabel: 'average' });
+    }
     rows.push({
       rank: rankCol >= 0 ? parseNumber(cellText(row[rankCol])) : null,
       rankEsl: rankEslCol >= 0 ? parseNumber(cellText(row[rankEslCol])) : null,
@@ -456,11 +476,7 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
       teamName: teamCol >= 0 ? cellText(row[teamCol]) || null : null,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
       totalScore: totalCol >= 0 ? parseNumber(cellText(row[totalCol])) : null,
-      roundScores: roundCols.map(({ idx, label }) => ({
-        roundLabel: label,
-        score: parseNumber(cellText(row[idx])),
-        positionLabel: null,
-      })),
+      roundScores,
     });
   }
   return rows.length > 0 ? rows : null;
@@ -498,9 +514,13 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
   const nameCol = idx('name', 'speaker');
   const teamCol = idx('team');
   const instCol = idx('institution');
-  const totalCol = idx('total', 'score');
+  const avgCol = lowered.findIndex((h) => isAverageHeader(h));
+  const totalCol = lowered.findIndex((h, i) => {
+    if (i === avgCol) return false;
+    return h.includes('total') || h.includes('score');
+  });
   const nonRoundCols = new Set(
-    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol].filter((i) => i >= 0),
+    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter((i) => i >= 0),
   );
   const roundIdxs: number[] = [];
   headerCells.forEach((h, i) => {
@@ -512,6 +532,15 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     if (!cells.length) return;
     const speakerName = nameCol >= 0 ? cells[nameCol] : cells[0];
     if (!speakerName) return;
+    const roundScores: SpeakerTabRow['roundScores'] = roundIdxs.map((i) => ({
+      roundLabel: headerCells[i]!,
+      score: parseNumber(cells[i]),
+      positionLabel: null,
+    }));
+    const avgScore = avgCol >= 0 ? parseNumber(cells[avgCol]) : null;
+    if (roundScores.length === 0 && avgScore != null) {
+      roundScores.push({ roundLabel: 'Average', score: avgScore, positionLabel: 'average' });
+    }
     rows.push({
       rank: rankCol >= 0 ? parseNumber(cells[rankCol]) : null,
       rankEsl: rankEslCol >= 0 ? parseNumber(cells[rankEslCol]) : null,
@@ -520,11 +549,7 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
       teamName: teamCol >= 0 ? cells[teamCol] || null : null,
       institution: instCol >= 0 ? cells[instCol] || null : null,
       totalScore: totalCol >= 0 ? parseNumber(cells[totalCol]) : null,
-      roundScores: roundIdxs.map((i) => ({
-        roundLabel: headerCells[i]!,
-        score: parseNumber(cells[i]),
-        positionLabel: null,
-      })),
+      roundScores,
     });
   });
   return rows;
