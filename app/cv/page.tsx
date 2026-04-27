@@ -523,7 +523,13 @@ export default async function CvPage() {
         <EmptyState
           icon={<Trophy className="h-5 w-5" aria-hidden />}
           title="No tournaments ingested yet"
-          description="Run the Gmail scan on your dashboard, then come back here to see your history."
+          description={
+            <>
+              Two steps from the dashboard: <strong>Scan Gmail</strong> finds the URLs, then{' '}
+              <strong>Ingest all</strong> parses each tournament. Once that completes, your CV
+              will populate here.
+            </>
+          }
           action={
             <Link href="/dashboard">
               <Button variant="primary" leftIcon={<Search className="h-4 w-4" aria-hidden />}>
@@ -741,7 +747,12 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="px-3 py-2.5 font-medium">Team</th>
               <th className="px-3 py-2.5 font-medium">Team points</th>
               <th className="px-3 py-2.5 font-medium" title="Average speaker score per prelim round spoken">Spkr avg</th>
-              <th className="px-3 py-2.5 font-medium">Rank</th>
+              <th
+                className="px-3 py-2.5 font-medium"
+                title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language."
+              >
+                Rank
+              </th>
               <th className="px-3 py-2.5 font-medium">Broken</th>
               <th className="px-3 py-2.5 font-medium">Last outround spoken</th>
             </tr>

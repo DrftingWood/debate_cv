@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -67,7 +67,11 @@ export function OnboardingFlow({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [persistedErrors, setPersistedErrors] = useState<ErrorsResponse['failures']>([]);
   const [recentErrors, setRecentErrors] = useState<{ url: string; error: string }[]>([]);
+  // The errors panel auto-opens the first time persisted errors load (so a
+  // user with failures isn't left wondering why their CV is empty), but
+  // honours a manual close afterwards via `errorsOpenedAuto`.
   const [errorsOpen, setErrorsOpen] = useState(false);
+  const errorsAutoOpenedRef = useRef(false);
   const [isScanning, startScan] = useTransition();
   const [isConfirming, startConfirm] = useTransition();
   const [isResetting, startReset] = useTransition();
@@ -128,7 +132,15 @@ export function OnboardingFlow({
       ]);
       setNames(namesRes.names ?? []);
       setTotals(namesRes.totals ?? totals);
-      setPersistedErrors(errsRes.failures ?? []);
+      const failures: ErrorsResponse['failures'] = errsRes.failures ?? [];
+      setPersistedErrors(failures);
+      // First time we discover persisted failures, auto-open the panel so
+      // the user can see why some URLs didn't yield names. Subsequent
+      // refreshes respect the user's manual open/close state.
+      if (failures.length > 0 && !errorsAutoOpenedRef.current) {
+        errorsAutoOpenedRef.current = true;
+        setErrorsOpen(true);
+      }
       setSelected(
         new Set(
           (namesRes.names ?? [])
