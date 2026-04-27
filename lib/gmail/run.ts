@@ -8,6 +8,44 @@ export const DEFAULT_QUERY =
 const DEFAULT_MAX_MESSAGES = 500;
 const CONCURRENCY = 5;
 
+/**
+ * Wrap a Gmail API call with exponential-backoff retry on rate-limit (429)
+ * responses. Honours the `Retry-After` header when Google supplies one
+ * (typical for per-user quota hits) and falls back to exponential backoff
+ * with full jitter when not.
+ *
+ * Without this, a Gmail scan on a power user (hundreds of messages, all
+ * fetched concurrently) could trip the 250 quota-units-per-user-per-second
+ * limit and propagate a generic "ingest_failed" to the dashboard, when the
+ * fix is just to wait a second and retry.
+ */
+async function gmailRetryOn429<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 4,
+): Promise<T> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isLast = i === maxAttempts - 1;
+      const status = (err as { code?: number; response?: { status?: number } })
+        .response?.status ?? (err as { code?: number }).code;
+      if (isLast || (status !== 429 && status !== 503)) throw err;
+      // Retry-After can be seconds or HTTP-date. We only handle seconds —
+      // HTTP-date is rare for API rate limits.
+      const retryAfter = (err as { response?: { headers?: Record<string, string> } })
+        .response?.headers?.['retry-after'];
+      const headerSeconds = retryAfter ? Number(retryAfter) : NaN;
+      const waitMs = Number.isFinite(headerSeconds) && headerSeconds > 0
+        ? headerSeconds * 1000
+        : 500 * Math.pow(2, i) + Math.floor(Math.random() * 500);
+      await new Promise<void>((r) => setTimeout(r, waitMs));
+    }
+  }
+  // Unreachable — last-attempt branch threw above.
+  throw new Error('gmailRetryOn429: exhausted');
+}
+
 async function mapConcurrent<T, R>(
   items: T[],
   limit: number,
@@ -46,19 +84,23 @@ export async function extractAllFromGmail(
   const ids: string[] = [];
   let pageToken: string | undefined;
   while (ids.length < max) {
-    const { data } = await gmail.users.messages.list({
-      userId: 'me',
-      q: query,
-      maxResults: Math.min(100, max - ids.length),
-      pageToken,
-    });
+    const { data } = await gmailRetryOn429(() =>
+      gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults: Math.min(100, max - ids.length),
+        pageToken,
+      }),
+    );
     (data.messages ?? []).forEach((m) => m.id && ids.push(m.id));
     if (!data.nextPageToken) break;
     pageToken = data.nextPageToken;
   }
 
   const messages = await mapConcurrent<string, gmail_v1.Schema$Message>(ids, CONCURRENCY, async (id) => {
-    const { data } = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
+    const { data } = await gmailRetryOn429(() =>
+      gmail.users.messages.get({ userId: 'me', id, format: 'full' }),
+    );
     return data;
   });
 
