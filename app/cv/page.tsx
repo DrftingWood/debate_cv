@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { ParticipantSearch } from '@/components/ParticipantSearch';
-import { CvErrorReportForm } from '@/components/CvErrorReportForm';
+import { CvRowReportButton } from '@/components/CvRowReportButton';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -477,38 +477,6 @@ export default async function CvPage() {
       return a.name.localeCompare(b.name);
     });
 
-  const rolesByTournament = new Map<bigint, Set<string>>();
-  for (const row of speakerRows) {
-    const roles = rolesByTournament.get(row.tournamentId) ?? new Set<string>();
-    roles.add('speaker');
-    rolesByTournament.set(row.tournamentId, roles);
-  }
-  for (const row of judgeRows) {
-    const roles = rolesByTournament.get(row.tournamentId) ?? new Set<string>();
-    roles.add('judge');
-    rolesByTournament.set(row.tournamentId, roles);
-  }
-  for (const t of unmatched) {
-    const roles = rolesByTournament.get(t.id) ?? new Set<string>();
-    roles.add('unmatched');
-    rolesByTournament.set(t.id, roles);
-  }
-  const feedbackTournaments = tournamentIds
-    .map((tid) => tournamentById.get(tid))
-    .filter((t): t is TournamentMeta => !!t)
-    .sort((a, b) => {
-      const ya = a.year ?? -Infinity;
-      const yb = b.year ?? -Infinity;
-      if (ya !== yb) return yb - ya;
-      return a.name.localeCompare(b.name);
-    })
-    .map((t) => ({
-      id: t.id.toString(),
-      name: t.name,
-      year: t.year,
-      roles: [...(rolesByTournament.get(t.id) ?? new Set<string>(['ingested']))],
-    }));
-
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
   const breaks = speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
@@ -567,10 +535,6 @@ export default async function CvPage() {
           <Button variant="outline" size="sm">Export CSV</Button>
         </a>
       </div>
-
-      {totalTournaments > 0 ? (
-        <CvErrorReportForm tournaments={feedbackTournaments} />
-      ) : null}
 
       {totalTournaments === 0 ? (
         <EmptyState
@@ -791,54 +755,73 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-[13.5px]">
           <thead>
-            <tr className="border-b border-border bg-muted/30 text-left text-caption text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Tournament</th>
-              <th className="px-3 py-2.5 font-medium">Year</th>
-              <th className="px-3 py-2.5 font-medium">Format</th>
-              <th className="px-3 py-2.5 font-medium">Teams</th>
-              <th className="px-3 py-2.5 font-medium">My name</th>
-              <th className="px-3 py-2.5 font-medium">Teammate(s)</th>
-              <th className="px-3 py-2.5 font-medium">Team</th>
-              <th className="px-3 py-2.5 font-medium">Team rank</th>
-              <th className="px-3 py-2.5 font-medium">Team points</th>
-              <th className="px-3 py-2.5 font-medium" title="Average speaker score per prelim round spoken">Spkr avg</th>
+            <tr className="border-b border-border bg-muted/30 text-left align-bottom text-caption text-muted-foreground">
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teams</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">My name</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teammate(s)</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team rank</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team points</th>
               <th
-                className="px-3 py-2.5 font-medium"
+                className="whitespace-nowrap px-3 py-2.5 font-medium"
+                title="Average speaker score per prelim round spoken"
+              >
+                Spkr avg
+              </th>
+              <th
+                className="whitespace-nowrap px-3 py-2.5 font-medium"
                 title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language."
               >
                 Rank
               </th>
-              <th className="px-3 py-2.5 font-medium">Broken</th>
-              <th className="px-3 py-2.5 font-medium">Last outround spoken</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r) => (
-              <tr key={r.tournamentId.toString()} className="hover:bg-muted/20">
+              <tr key={r.tournamentId.toString()} className="align-top hover:bg-muted/20">
                 <td className="px-4 py-2.5">
                   <a
                     href={r.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-foreground hover:text-primary"
+                    className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
+                    title={r.tournamentName}
                   >
                     {r.tournamentName}
                   </a>
                 </td>
-                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
-                <td className="px-3 py-2.5">{r.myName}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">
-                  {r.teammates.length ? r.teammates.join(', ') : '—'}
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
+                <td
+                  className="px-3 py-2.5 text-muted-foreground"
+                  title={r.teammates.join(', ')}
+                >
+                  <span className="block max-w-[14rem] truncate">
+                    {r.teammates.length ? r.teammates.join(', ') : '—'}
+                  </span>
                 </td>
-                <td className="px-3 py-2.5 text-muted-foreground">{r.teamName ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.teamRank != null ? `#${r.teamRank}` : '—'}</td>
-                <td className="px-3 py-2.5 font-mono">
+                <td
+                  className="px-3 py-2.5 text-muted-foreground"
+                  title={r.teamName ?? undefined}
+                >
+                  <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono">
+                  {r.teamRank != null ? `#${r.teamRank}` : '—'}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono">
                   {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
                 </td>
                 <td
-                  className="px-3 py-2.5 font-mono"
+                  className="whitespace-nowrap px-3 py-2.5 font-mono"
                   title={
                     r.speakerAvgScore
                       ? r.prelimsSpoken > 0
@@ -849,9 +832,17 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 >
                   {r.speakerAvgScore ?? '—'}
                 </td>
-                <td className="px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
-                <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
-                <td className="px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <BrokeBadge broke={r.broke} />
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <CvRowReportButton
+                    tournamentId={r.tournamentId.toString()}
+                    tournamentName={r.tournamentName}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -900,6 +891,12 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 <Field label="Last outround spoken" value={fmtLastOutroundSpoken(r)} />
               ) : null}
             </dl>
+            <div className="pt-1">
+              <CvRowReportButton
+                tournamentId={r.tournamentId.toString()}
+                tournamentName={r.tournamentName}
+              />
+            </div>
           </li>
         ))}
       </ul>
@@ -929,43 +926,51 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-[13.5px]">
           <thead>
-            <tr className="border-b border-border bg-muted/30 text-left text-caption text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Tournament</th>
-              <th className="px-3 py-2.5 font-medium">Year</th>
-              <th className="px-3 py-2.5 font-medium">Format</th>
-              <th className="px-3 py-2.5 font-medium">Teams</th>
-              <th className="px-3 py-2.5 font-medium">My name</th>
-              <th className="px-3 py-2.5 font-medium">Judge type</th>
-              <th className="px-3 py-2.5 font-medium">Inrounds judged</th>
-              <th className="px-3 py-2.5 font-medium">Inrounds chaired</th>
-              <th className="px-3 py-2.5 font-medium">Broken</th>
-              <th className="px-3 py-2.5 font-medium">Last outround chaired</th>
-              <th className="px-3 py-2.5 font-medium">Last outround judged</th>
+            <tr className="border-b border-border bg-muted/30 text-left align-bottom text-caption text-muted-foreground">
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teams</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">My name</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Judge type</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds judged</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
+              <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r) => (
-              <tr key={r.tournamentId.toString()} className="hover:bg-muted/20">
+              <tr key={r.tournamentId.toString()} className="align-top hover:bg-muted/20">
                 <td className="px-4 py-2.5">
                   <a
                     href={r.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-foreground hover:text-primary"
+                    className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
+                    title={r.tournamentName}
                   >
                     {r.tournamentName}
                   </a>
                 </td>
-                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
-                <td className="px-3 py-2.5">{r.myName}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsJudged ?? '—'}</td>
-                <td className="px-3 py-2.5 font-mono">{r.inroundsChaired ?? '—'}</td>
-                <td className="px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
-                <td className="px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
-                <td className="px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono">{r.inroundsJudged ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono">{r.inroundsChaired ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
+                <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <CvRowReportButton
+                    tournamentId={r.tournamentId.toString()}
+                    tournamentName={r.tournamentName}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -999,6 +1004,12 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
             </dl>
+            <div className="pt-1">
+              <CvRowReportButton
+                tournamentId={r.tournamentId.toString()}
+                tournamentName={r.tournamentName}
+              />
+            </div>
           </li>
         ))}
       </ul>
