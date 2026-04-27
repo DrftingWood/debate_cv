@@ -48,6 +48,13 @@ export default withSentryConfig(config, {
   // Strip Sentry SDK's `console.log`/`console.warn` from prod bundles.
   disableLogger: true,
 
+  // Bypass browser ad-blockers / privacy extensions that block requests to
+  // *.ingest.sentry.io by default. Setting `tunnelRoute` makes the client
+  // SDK POST envelopes to `/monitoring` (same origin as the app), which
+  // Vercel proxies through to Sentry. Adds one extra serverless invocation
+  // per browser-side error report, well within free-tier limits.
+  tunnelRoute: '/monitoring',
+
   // Skip Vercel's automatic Cron Monitoring instrumentation. We have one
   // cron route (/api/cron/process-queue) and we'll instrument it manually
   // if needed; auto-instrumentation can clash with our isAuthorized check.
