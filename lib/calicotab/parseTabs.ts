@@ -549,43 +549,105 @@ function roundResultsFromVue(
   const posCol = vueCol(heads, 'position', 'side', 'pos');
   const ptsCol = vueCol(heads, 'point', 'score', 'pts');
 
+  // Adjudicator extraction — historically hardcoded `judgeAssignments: []`,
+  // which silently dropped every judge for modern Tabbycat instances that
+  // serve round results via the Vue data island. Mirror the cheerio
+  // fallback's logic (see parseRoundResults' fallback path below) so the
+  // round-results-derived JudgeAssignment writer (recordJudgeRoundsFromRoundResults
+  // in lib/calicotab/ingest.ts) actually has data to walk on completed
+  // tournaments where the private-URL Debates card is empty.
+  const adjCol = vueCol(heads, 'adjud', 'judge');
+  const roleCol = vueColExcluding(heads, new Set([teamCol]), 'chair', 'panel', 'role');
+
   const teamResults: RoundDebate['teamResults'] = [];
+  const judgeAssignments: RoundDebate['judgeAssignments'] = [];
+  const judgeSeen = new Set<string>();
   for (const row of table.data) {
     const teamName = cellText(row[teamCol]);
-    if (!teamName) continue;
-    const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
-    const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
-    teamResults.push({
-      teamName,
-      position: posCol >= 0 ? cellText(row[posCol]) || null : null,
-      points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
-      won,
-    });
+    if (teamName) {
+      const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
+      const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
+      teamResults.push({
+        teamName,
+        position: posCol >= 0 ? cellText(row[posCol]) || null : null,
+        points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
+        won,
+      });
+    }
+    if (adjCol >= 0) {
+      const raw = cellText(row[adjCol]);
+      if (!raw) continue;
+      const roleText = roleCol >= 0 ? cellText(row[roleCol]).toLowerCase() : '';
+      const tokens = raw.split(/[,;\n]|\s+\/\s+/).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      for (const token of tokens) {
+        const lower = token.toLowerCase();
+        const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
+        const cleanedName = token
+          .replace(/\(\s*c\s*\)$/i, '')
+          .replace(/\s+\(chair\)$/i, '')
+          .replace(/\s+\(chief\)$/i, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!cleanedName || cleanedName.length < 2) continue;
+        const role: 'chair' | 'panel' | null = isChair ? 'chair' : roleText ? 'panel' : null;
+        const key = `${cleanedName}|${role ?? ''}`;
+        if (judgeSeen.has(key)) continue;
+        judgeSeen.add(key);
+        judgeAssignments.push({ personName: cleanedName, panelRole: role });
+      }
+    }
   }
-  return teamResults.length > 0
-    ? { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments: [] }
+  return teamResults.length > 0 || judgeAssignments.length > 0
+    ? { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments }
     : null;
 }
 
-export function parseRoundResults(html: string, sourceUrl: string): RoundDebate {
+export function parseRoundResults(
+  html: string,
+  sourceUrl: string,
+  navLabel?: string | null,
+): RoundDebate {
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabelFallback = `Round ${roundNumber ?? '?'}`;
-  const isOutround =
+  const isOutroundFromUrl =
     /\/break\//i.test(sourceUrl) ||
     /\/elim/i.test(sourceUrl);
 
+  // Resolution chain for the round's authoritative label:
+  //   1. navLabel — link text from the landing-page nav
+  //      (e.g. "Quarterfinals" for /results/round/7/). Tabbycat surfaces this
+  //      itself and it cleanly maps each URL to its actual round name.
+  //   2. Page heading — only when it ACTUALLY mentions a round. SIDO's
+  //      results pages have a generic "SIDO 2026" heading that conveyed
+  //      no per-round info; trusting it wholesale (PR #47) made every round
+  //      land with stage="SIDO 2026" and classifyRoundLabel returned
+  //      'unknown' for all of them.
+  //   3. "Round N" numeric fallback from the URL.
+  const $head = cheerio.load(html);
+  const headingLabel = cleanText($head('h1, h2, h3, title').first().text());
+  const headingLooksRoundRelated =
+    /\bround\s+\d+\b|\bfinal|\bsemi|\bquarter|\bocto|\bgrand|\b(?:gf|sf|qf|of|dof|tof|r\d+)\b/i.test(
+      headingLabel,
+    );
+  const trimmedNavLabel = (navLabel ?? '').trim();
+  const roundLabel =
+    trimmedNavLabel ||
+    (headingLooksRoundRelated ? headingLabel : '') ||
+    roundLabelFallback;
+  const isOutround =
+    isOutroundFromUrl ||
+    /final|semi|quarter|octo|grand/i.test(roundLabel);
+
   const vue = extractVueData(html);
   if (vue) {
-    const result = roundResultsFromVue(vue, roundNumber, roundLabelFallback, isOutround);
+    const result = roundResultsFromVue(vue, roundNumber, roundLabel, isOutround);
     if (result) return result;
   }
 
-  // Cheerio fallback
+  // Cheerio fallback — reuse the hoisted roundLabel + isOutround so both
+  // paths agree on classification.
   const $ = cheerio.load(html);
-  const roundLabel = cleanText($('h1, h2, h3, title').first().text()) || roundLabelFallback;
-  const isOutroundFull =
-    isOutround || /final|semi|quarter|octo|grand/i.test(roundLabel);
   const teamResults: RoundDebate['teamResults'] = [];
   const judgeSeen = new Set<string>();
   const judgeAssignments: RoundDebate['judgeAssignments'] = [];
@@ -636,7 +698,7 @@ export function parseRoundResults(html: string, sourceUrl: string): RoundDebate 
       }
     });
   });
-  return { roundNumber, roundLabel, isOutround: isOutroundFull, teamResults, judgeAssignments };
+  return { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments };
 }
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
