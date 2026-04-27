@@ -9,9 +9,16 @@ type CheerioEl = ReturnType<CheerioRoot>;
 // HTML has no <table> elements — cheerio finds nothing. We extract the JSON
 // directly, with the cheerio path as a fallback for older deployments.
 
-type VueHead = { key?: string; title?: string; tooltip?: string };
-type VueCell = { text?: string; sort?: number | string; class?: string; popover?: string };
-type VueTable = { head: VueHead[]; data: VueCell[][] };
+export type VueHead = { key?: string; title?: string; tooltip?: string };
+export type VueCell = {
+  text?: string;
+  sort?: number | string;
+  class?: string;
+  tooltip?: string;
+  link?: string;
+  popover?: unknown;
+};
+export type VueTable = { title?: string; subtitle?: string; head: VueHead[]; data: VueCell[][] };
 
 /**
  * Evaluate a JS object/array literal string extracted from a trusted Tabbycat
@@ -120,7 +127,7 @@ function extractTablesDataDirectly(html: string): VueTable[] | null {
   return parseSlice(rest.slice(0, endIdx));
 }
 
-function extractVueData(html: string): VueTable[] | null {
+export function extractVueData(html: string): VueTable[] | null {
   return (
     extractJsonAt(html, 'window.vueData = ') ??
     extractJsonAt(html, 'window.tablesData = ') ??
@@ -835,8 +842,10 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
     return t;
   };
 
-  const cards = $('.card-body, .card').toArray();
-  const containers = cards.length > 0 ? cards : $('table').toArray();
+  const containers = [
+    ...$('.card-body, .card').toArray(),
+    ...$('table').toArray(),
+  ];
   // Dedupe by table — a .card-body inside a .card would otherwise process the
   // same <table> twice.
   const seenTables = new Set<unknown>();

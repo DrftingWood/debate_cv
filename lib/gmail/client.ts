@@ -12,6 +12,50 @@ export function makeOAuthClient(): OAuth2Client {
   );
 }
 
+type ExistingGmailToken = {
+  refreshToken: string | null;
+  encryptionVersion: string | null;
+};
+
+export function buildGmailTokenUpdate(
+  tokens: {
+    access_token: string;
+    refresh_token?: string | null;
+    expires_at?: number | null;
+    expiry_date?: number | null;
+    scope?: string | null;
+  },
+  existing?: ExistingGmailToken | null,
+): {
+  accessToken: string;
+  refreshToken: string | null | undefined;
+  expiresAt: Date | null;
+  scope: string | null | undefined;
+  encryptionVersion: string | null;
+} {
+  const expiresAtMs =
+    tokens.expiry_date ??
+    (tokens.expires_at ? tokens.expires_at * 1000 : null);
+  const encAccess = encryptValue(tokens.access_token);
+
+  let refreshToken: string | null | undefined;
+  if (tokens.refresh_token != null) {
+    refreshToken = encryptValue(tokens.refresh_token).value;
+  } else if (existing?.refreshToken != null) {
+    refreshToken = encryptValue(
+      decryptValue(existing.refreshToken, existing.encryptionVersion),
+    ).value;
+  }
+
+  return {
+    accessToken: encAccess.value ?? '',
+    refreshToken,
+    expiresAt: expiresAtMs ? new Date(expiresAtMs) : null,
+    scope: tokens.scope ?? undefined,
+    encryptionVersion: encAccess.version,
+  };
+}
+
 export async function getOAuthClientForUser(userId: string): Promise<OAuth2Client | null> {
   const token = await prisma.gmailToken.findUnique({ where: { userId } });
   if (!token) return null;
@@ -44,42 +88,31 @@ export async function persistTokensFromAccount(
     where: { userId },
     select: { refreshToken: true, encryptionVersion: true },
   });
-  const expiresAtMs =
-    tokens.expiry_date ??
-    (tokens.expires_at ? tokens.expires_at * 1000 : null);
-
-  const encAccess = encryptValue(tokens.access_token);
-  const encRefresh = encryptValue(tokens.refresh_token ?? null);
-  const version = encAccess.version;
+  const update = buildGmailTokenUpdate(
+    { ...tokens, access_token: tokens.access_token },
+    existing,
+  );
   const refreshTokenUpdate =
-    tokens.refresh_token !== undefined
-      ? { refreshToken: encRefresh.value }
-      : existing && existing.refreshToken !== null
-        ? {
-            refreshToken: encryptValue(
-              decryptValue(existing.refreshToken, existing.encryptionVersion),
-            ).value,
-          }
-        : {};
+    update.refreshToken !== undefined ? { refreshToken: update.refreshToken } : {};
 
   await prisma.gmailToken.upsert({
     where: { userId },
     update: {
-      accessToken: encAccess.value ?? '',
+      accessToken: update.accessToken,
       // If Google omits the refresh token, re-write the preserved value with
       // this key so the row-level encryptionVersion still describes both fields.
       ...refreshTokenUpdate,
-      expiresAt: expiresAtMs ? new Date(expiresAtMs) : null,
-      scope: tokens.scope ?? undefined,
-      encryptionVersion: version,
+      expiresAt: update.expiresAt,
+      scope: update.scope,
+      encryptionVersion: update.encryptionVersion,
     },
     create: {
       userId,
-      accessToken: encAccess.value ?? '',
-      refreshToken: encRefresh.value,
-      expiresAt: expiresAtMs ? new Date(expiresAtMs) : null,
-      scope: tokens.scope ?? null,
-      encryptionVersion: version,
+      accessToken: update.accessToken,
+      refreshToken: update.refreshToken ?? null,
+      expiresAt: update.expiresAt,
+      scope: update.scope ?? null,
+      encryptionVersion: update.encryptionVersion,
     },
   });
 }

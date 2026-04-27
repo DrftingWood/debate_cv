@@ -166,6 +166,25 @@ describe('parseParticipantsList — modern card-based layout (mukmem78)', () => 
   });
 });
 
+describe('parseParticipantsList plain table fallback', () => {
+  test('parses a bare participants table even when unrelated cards exist on the page', () => {
+    const html = `
+      <div class="card"><div class="card-body"><h4 class="card-title">Not participants</h4></div></div>
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Ada L</td><td>Independent Adjudicator</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: 'Ada L',
+      role: 'adjudicator',
+      judgeTag: 'invited',
+    });
+  });
+});
+
 describe('parseParticipantsList — registration card/list-group fallback', () => {
   test('classifies "Independent adjudicator" registration as adjudicator invited', () => {
     const html = `
