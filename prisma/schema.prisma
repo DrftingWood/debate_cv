@@ -252,6 +252,7 @@ model TeamResult {
   tournamentId  BigInt
   teamName      String
   roundNumber   Int?
+  rank          Int?
   wins          Int?
   losses        Int?
   points        Decimal?

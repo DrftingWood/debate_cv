@@ -103,7 +103,7 @@ export default async function CvPage() {
           roles: true,
           // Pull the per-round scores so we can compute "average speaker
           // score per round" — the raw total has no meaning without N.
-          speakerRoundScores: { select: { score: true } },
+          speakerRoundScores: { select: { roundNumber: true, positionLabel: true, score: true } },
         },
       })
     : [];
@@ -147,16 +147,18 @@ export default async function CvPage() {
               roundNumber: 0,
             })),
           },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            wins: true,
-            points: true,
-          },
+            select: {
+              tournamentId: true,
+              teamName: true,
+              rank: true,
+              wins: true,
+              points: true,
+            },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
           teamName: string | null;
+          rank: number | null;
           wins: number | null;
           points: { toString(): string } | null;
         }>),
@@ -212,10 +214,11 @@ export default async function CvPage() {
     list.push(tm.person.displayName);
     teammatesByKey.set(key, list);
   }
-  const teamPointsByKey = new Map<string, { wins: number | null; points: string | null }>();
+  const teamPointsByKey = new Map<string, { rank: number | null; wins: number | null; points: string | null }>();
   for (const tr of teamResultRows) {
     if (!tr.teamName) continue;
     teamPointsByKey.set(`${tr.tournamentId}:${tr.teamName}`, {
+      rank: tr.rank,
       wins: tr.wins,
       points: tr.points ? tr.points.toString() : null,
     });
@@ -256,6 +259,7 @@ export default async function CvPage() {
     myName: string;
     teammates: string[];
     teamName: string | null;
+    teamRank: number | null;
     teamPoints: string | null;
     teamWins: number | null;
     speakerAvgScore: string | null;
@@ -295,13 +299,20 @@ export default async function CvPage() {
     // vs 9 rounds), so a 600 at WUDC and a 350 at a 5-round IV both round
     // to ~74 average. Counts only rounds with an actual numeric score so
     // iron-manning / DNS rounds don't skew the average down.
+    const averageScore = (p.speakerRoundScores ?? [])
+      .find((s) => s.roundNumber === 0 || s.positionLabel === 'average');
+    const averageScoreValue =
+      averageScore?.score == null ? null : Number(averageScore.score);
     const numericScores = (p.speakerRoundScores ?? [])
+      .filter((s) => s.roundNumber !== 0 && s.positionLabel !== 'average')
       .map((s) => (s.score == null ? null : Number(s.score)))
       .filter((n): n is number => n != null && Number.isFinite(n));
     const prelimsSpoken = numericScores.length;
     const total = p.speakerScoreTotal ? Number(p.speakerScoreTotal) : null;
     let speakerAvgScore: string | null = null;
-    if (prelimsSpoken > 0 && total != null && Number.isFinite(total)) {
+    if (averageScoreValue != null && Number.isFinite(averageScoreValue)) {
+      speakerAvgScore = averageScoreValue.toFixed(1);
+    } else if (prelimsSpoken > 0 && total != null && Number.isFinite(total)) {
       speakerAvgScore = (total / prelimsSpoken).toFixed(1);
     } else if (prelimsSpoken > 0 && numericScores.length > 0) {
       // Fall back to the per-round scores' own sum when speakerScoreTotal
@@ -320,6 +331,7 @@ export default async function CvPage() {
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
+      teamRank: tr?.rank ?? null,
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? p.wins ?? null,
       speakerAvgScore,
@@ -465,7 +477,7 @@ export default async function CvPage() {
 
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
-  const breaks = speakerRows.filter((r) => r.broke).length;
+  const breaks = speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   return (
@@ -517,6 +529,9 @@ export default async function CvPage() {
         <Link href="/cv/verify">
           <Button variant="outline" size="sm">Verify extracted fields</Button>
         </Link>
+        <a href="/api/cv/export">
+          <Button variant="outline" size="sm">Export CSV</Button>
+        </a>
       </div>
 
       {totalTournaments === 0 ? (
@@ -701,6 +716,7 @@ type SpeakingTableRow = {
   myName: string;
   teammates: string[];
   teamName: string | null;
+  teamRank: number | null;
   teamPoints: string | null;
   teamWins: number | null;
   speakerAvgScore: string | null;
@@ -745,6 +761,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="px-3 py-2.5 font-medium">My name</th>
               <th className="px-3 py-2.5 font-medium">Teammate(s)</th>
               <th className="px-3 py-2.5 font-medium">Team</th>
+              <th className="px-3 py-2.5 font-medium">Team rank</th>
               <th className="px-3 py-2.5 font-medium">Team points</th>
               <th className="px-3 py-2.5 font-medium" title="Average speaker score per prelim round spoken">Spkr avg</th>
               <th
@@ -778,6 +795,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                   {r.teammates.length ? r.teammates.join(', ') : '—'}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.teamName ?? '—'}</td>
+                <td className="px-3 py-2.5 font-mono">{r.teamRank != null ? `#${r.teamRank}` : '—'}</td>
                 <td className="px-3 py-2.5 font-mono">
                   {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
                 </td>
@@ -785,7 +803,9 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                   className="px-3 py-2.5 font-mono"
                   title={
                     r.speakerAvgScore
-                      ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
+                      ? r.prelimsSpoken > 0
+                        ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
+                        : 'Average from speaker tab'
                       : ''
                   }
                 >
@@ -823,10 +843,15 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <Field label="My name" value={r.myName} />
               {r.teammates.length ? <Field label="Teammates" value={r.teammates.join(', ')} /> : null}
               {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
+              {r.teamRank != null ? <Field label="Team rank" value={`#${r.teamRank}`} mono /> : null}
               {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
               {r.speakerAvgScore ? (
                 <Field
-                  label={`Spkr avg (${r.prelimsSpoken} ${r.prelimsSpoken === 1 ? 'round' : 'rounds'})`}
+                  label={
+                    r.prelimsSpoken > 0
+                      ? `Spkr avg (${r.prelimsSpoken} ${r.prelimsSpoken === 1 ? 'round' : 'rounds'})`
+                      : 'Spkr avg'
+                  }
                   value={r.speakerAvgScore}
                   mono
                 />

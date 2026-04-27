@@ -84,4 +84,32 @@ describe('parseSpeakerTab — rank column disambiguation', () => {
     expect(rows[0]!.roundScores).toHaveLength(3);
     expect(rows[0]!.roundScores.map((s) => s.score)).toEqual([80, 81, 79]);
   });
+
+  test('average-only speaker tabs expose the average as a synthetic score', () => {
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Average</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>4</td>
+            <td>Priya Shah</td>
+            <td>AP Team</td>
+            <td>75.5</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseSpeakerTab(html);
+    expect(rows[0]!.totalScore).toBeNull();
+    expect(rows[0]!.roundScores).toEqual([
+      { roundLabel: 'Average', score: 75.5, positionLabel: 'average' },
+    ]);
+  });
 });

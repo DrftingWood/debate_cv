@@ -331,6 +331,7 @@ export async function ingestPrivateUrl(
           },
         },
         update: {
+          rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
         },
@@ -338,6 +339,7 @@ export async function ingestPrivateUrl(
           tournamentId: t.id,
           teamName: row.teamName,
           roundNumber: 0,
+          rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
         },
@@ -422,8 +424,9 @@ export async function ingestPrivateUrl(
       });
       for (const rs of sp.roundScores) {
         const m = rs.roundLabel.match(/\d+/);
-        if (!m) continue;
-        const rn = Number(m[0]);
+        const isAverageScore = rs.positionLabel === 'average';
+        if (!m && !isAverageScore) continue;
+        const rn = isAverageScore ? 0 : Number(m![0]);
         await tx.speakerRoundScore.upsert({
           where: {
             tournamentParticipantId_roundNumber_positionLabel: {
