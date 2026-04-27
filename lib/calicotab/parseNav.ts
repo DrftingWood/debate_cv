@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { extractVueData, type VueCell, type VueTable } from './parseTabs';
 
 export type NavigationStructure = {
   home: string | null;
@@ -414,6 +415,129 @@ function extractRowStage(
   return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
 }
 
+function stageInfoFromLabel(raw: string | null | undefined): { stage: string; roundNumber: number | null } | null {
+  const text = cleanWhitespace(raw ?? '');
+  if (!text) return null;
+  const stage = normalizeStageLabel(text);
+  const roundMatch = stage.match(/^Round\s+(\d+)$/i);
+  return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
+}
+
+function findDebatesVueTable(html: string): VueTable | null {
+  const tables = extractVueData(html);
+  if (!tables) return null;
+  return (
+    tables.find((table) => cleanWhitespace(table.title ?? '').toLowerCase() === 'debates') ??
+    tables.find((table) =>
+      table.head?.some((h) => (h.key ?? h.title ?? '').toLowerCase().includes('adjudicator')),
+    ) ??
+    null
+  );
+}
+
+function vueColumn(table: VueTable, ...needles: string[]): number {
+  return table.head.findIndex((h) => {
+    const key = (h.key ?? '').toLowerCase();
+    const title = (h.title ?? '').toLowerCase();
+    const tooltip = (h.tooltip ?? '').toLowerCase();
+    return needles.some((n) => key.includes(n) || title.includes(n) || tooltip.includes(n));
+  });
+}
+
+function vueCellText(cell: VueCell | undefined): string {
+  return String(cell?.text ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function extractOwnerRoleFromAdjHtml(
+  adjHtml: string,
+  knownPersonName?: string | null,
+): 'chair' | 'panellist' | 'trainee' | null {
+  const $ = cheerio.load(`<div>${adjHtml}</div>`);
+  const wantedNorm = knownPersonName
+    ? cleanWhitespace(knownPersonName).toLowerCase()
+    : '';
+
+  let ownerEl = $('strong').first();
+  let ownerSymbolText = '';
+  if (ownerEl.length > 0) {
+    ownerSymbolText = cleanWhitespace(ownerEl.find('.adj-symbol').text());
+  } else if (wantedNorm) {
+    const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
+    const wantedTokenSet = new Set(wantedTokens);
+    const candidates = $('span.d-inline').toArray();
+    const fallbackCandidates = candidates.length > 0 ? candidates : $('span').toArray();
+    for (const el of fallbackCandidates) {
+      const $el = $(el);
+      const symbol = $el.find('.adj-symbol');
+      const symbolText = cleanWhitespace(symbol.text());
+      const plainText = cleanWhitespace(
+        $el
+          .clone()
+          .find('.adj-symbol')
+          .remove()
+          .end()
+          .text(),
+      ).toLowerCase();
+      if (!plainText) continue;
+
+      let matched = plainText === wantedNorm;
+      if (!matched && wantedTokens.length >= 2) {
+        matched = plainText.includes(wantedNorm) || wantedNorm.includes(plainText);
+        if (!matched) {
+          const cellTokens = plainText.split(/\s+/).filter(Boolean);
+          if (cellTokens.length >= 2) {
+            const cellTokenSet = new Set(cellTokens);
+            const wantedAllInCell = wantedTokens.every((t) => cellTokenSet.has(t));
+            const cellAllInWanted = cellTokens.every((t) => wantedTokenSet.has(t));
+            matched = wantedAllInCell || cellAllInWanted;
+          }
+        }
+      }
+      if (matched) {
+        ownerEl = $el;
+        ownerSymbolText = symbolText;
+        break;
+      }
+    }
+  }
+  if (ownerEl.length === 0) return null;
+
+  if (ownerSymbolText.includes('Ⓒ') || ownerSymbolText.includes('â’¸') || /chair/i.test(ownerSymbolText)) {
+    return 'chair';
+  }
+  if (ownerSymbolText.includes('Ⓣ') || ownerSymbolText.includes('â“‰') || /trainee/i.test(ownerSymbolText)) {
+    return 'trainee';
+  }
+  return 'panellist';
+}
+
+function extractAdjudicatorRoundsFromVue(
+  html: string,
+  knownPersonName?: string | null,
+): AdjudicatorRound[] | null {
+  const table = findDebatesVueTable(html);
+  if (!table?.data?.length) return null;
+  const roundCol = vueColumn(table, 'round');
+  const adjCol = vueColumn(table, 'adjudicator', 'judge');
+  if (adjCol < 0) return null;
+
+  const rows: AdjudicatorRound[] = [];
+  table.data.forEach((row, idx) => {
+    const stageCell = roundCol >= 0 ? row[roundCol] : row[0];
+    const stageInfo = stageInfoFromLabel(stageCell?.tooltip ?? stageCell?.text ?? null);
+    if (!stageInfo) return;
+    const role = extractOwnerRoleFromAdjHtml(vueCellText(row[adjCol]), knownPersonName);
+    if (!role) return;
+    rows.push({
+      stage: stageInfo.stage,
+      roundNumber: stageInfo.roundNumber,
+      role,
+      sequenceIndex: idx + 1,
+    });
+  });
+  return rows.length > 0 ? rows : null;
+}
+
 /**
  * Pull the URL owner's per-round judging history from the "Debates" card.
  *
@@ -435,6 +559,9 @@ export function extractAdjudicatorRounds(
   html: string,
   knownPersonName?: string | null,
 ): AdjudicatorRound[] {
+  const vueRows = extractAdjudicatorRoundsFromVue(html, knownPersonName);
+  if (vueRows) return vueRows;
+
   const $ = cheerio.load(html);
   const table = findDebatesTable($);
   if (!table) return [];
@@ -594,10 +721,51 @@ function teamCellMatches(cellText: string, wantedTeam: string): boolean {
   return /^\s+\d+\s*$/.test(suffix);
 }
 
+function extractSpeakerRoundsFromVue(
+  html: string,
+  knownTeamName?: string | null,
+): SpeakerRound[] | null {
+  const table = findDebatesVueTable(html);
+  if (!table?.data?.length) return null;
+  const roundCol = vueColumn(table, 'round');
+  const adjCol = vueColumn(table, 'adjudicator', 'judge');
+  const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
+  const rows: SpeakerRound[] = [];
+
+  table.data.forEach((row, idx) => {
+    const stageCell = roundCol >= 0 ? row[roundCol] : row[0];
+    const stageInfo = stageInfoFromLabel(stageCell?.tooltip ?? stageCell?.text ?? null);
+    if (!stageInfo) return;
+
+    const owned = row.some((cell, cellIdx) => {
+      if (cellIdx === roundCol || cellIdx === adjCol) return false;
+      const cls = (cell?.class ?? '').toLowerCase();
+      const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
+      if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
+      const raw = vueCellText(cell);
+      if (/<strong\b/i.test(raw)) return true;
+      if (!wantedTeam) return false;
+      const plain = cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
+      return teamCellMatches(plain, wantedTeam);
+    });
+    if (!owned) return;
+
+    rows.push({
+      stage: stageInfo.stage,
+      roundNumber: stageInfo.roundNumber,
+      sequenceIndex: idx + 1,
+    });
+  });
+  return rows.length > 0 ? rows : null;
+}
+
 export function extractSpeakerRounds(
   html: string,
   knownTeamName?: string | null,
 ): SpeakerRound[] {
+  const vueRows = extractSpeakerRoundsFromVue(html, knownTeamName);
+  if (vueRows) return vueRows;
+
   const $ = cheerio.load(html);
   const table = findDebatesTable($);
   if (!table) return [];

@@ -354,6 +354,110 @@ describe('extractAdjudicatorRounds — abbreviation-only round labels (no data-o
   });
 });
 
+const VUE_SIDO_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
+  tablesData: [{
+    title: 'Debates',
+    head: [
+      { key: 'round', tooltip: 'Round' },
+      { key: 'OG', title: 'OG' },
+      { key: 'OO', title: 'OO' },
+      { key: 'CG', title: 'CG' },
+      { key: 'CO', title: 'CO' },
+      { key: 'adjudicators', title: 'Adjudicators' },
+    ],
+    data: [
+      [
+        { text: 'R1', tooltip: 'Round 1' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>, <span class="d-inline">Bea Legaspi</span>' },
+      ],
+      [
+        { text: 'R2', tooltip: 'Round 2' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      ],
+      [
+        { text: 'R3', tooltip: 'Round 3' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      ],
+      [
+        { text: 'R4', tooltip: 'Round 4' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      ],
+      [
+        { text: 'R5', tooltip: 'Round 5' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      ],
+      [
+        { text: 'R6', tooltip: 'Round 6' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      ],
+      [
+        { text: 'QF', tooltip: 'Quarterfinals' },
+        { text: 'A', class: 'team-name' },
+        { text: 'B', class: 'team-name' },
+        { text: 'C', class: 'team-name' },
+        { text: 'D', class: 'team-name' },
+        { class: 'adjudicator-name', text: '<span class="d-inline">Beauty Ariel<i class="adj-symbol">\u24b8</i></span>, <strong><span class="d-inline">Abhishek Acharya</span></strong>, <span class="d-inline">Udai Kamath</span>' },
+      ],
+    ],
+  }],
+})}</script>`;
+
+describe('extractAdjudicatorRounds - Vue tablesData private URL page', () => {
+  const rows = extractAdjudicatorRounds(VUE_SIDO_DEBATES_FRAGMENT, 'Abhishek Acharya');
+
+  test('reads server-side Vue Debates data before the browser renders a table', () => {
+    expect(rows).toHaveLength(7);
+    expect(rows.map((r) => r.stage)).toEqual([
+      'Round 1',
+      'Round 2',
+      'Round 3',
+      'Round 4',
+      'Round 5',
+      'Round 6',
+      'Quarterfinals',
+    ]);
+    expect(rows.map((r) => r.role)).toEqual([
+      'chair',
+      'chair',
+      'chair',
+      'chair',
+      'chair',
+      'chair',
+      'panellist',
+    ]);
+  });
+
+  test('aggregates Vue SIDO data as six chaired inrounds', () => {
+    expect(
+      getInroundsChairedCount(rows.map((r) => ({ stage: r.stage, panelRole: r.role }))),
+    ).toBe(6);
+  });
+});
+
 // Speaker variant of the same Debates card. Tabbycat reuses the table on
 // every private URL; only the highlighted cell differs. For a speaker, the
 // owner's TEAM appears in one of the team-name cells. Two markups are
@@ -404,6 +508,46 @@ describe('extractSpeakerRounds — bolded team name', () => {
 
   test('sequenceIndex follows document order', () => {
     expect(rows.map((r) => r.sequenceIndex)).toEqual([1, 2, 3]);
+  });
+});
+
+const VUE_SPEAKER_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
+  tablesData: [{
+    title: 'Debates',
+    head: [
+      { key: 'round', tooltip: 'Round' },
+      { key: 'OG', title: 'OG' },
+      { key: 'OO', title: 'OO' },
+      { key: 'CG', title: 'CG' },
+      { key: 'CO', title: 'CO' },
+      { key: 'adjudicators', title: 'Adjudicators' },
+    ],
+    data: [
+      [
+        { text: 'R1', tooltip: 'Round 1' },
+        { text: '<strong>Team A 1</strong>', class: 'team-name' },
+        { text: 'Team B 1', class: 'team-name' },
+        { text: 'Team C 1', class: 'team-name' },
+        { text: 'Team D 1', class: 'team-name' },
+        { class: 'adjudicator-name', text: 'Some Judge' },
+      ],
+      [
+        { text: 'QF', tooltip: 'Quarterfinals' },
+        { text: 'Team E 1', class: 'team-name' },
+        { text: 'Team F 1', class: 'team-name' },
+        { text: 'Team A 1', class: 'team-name' },
+        { text: 'Team G 1', class: 'team-name' },
+        { class: 'adjudicator-name', text: 'Other Judge' },
+      ],
+    ],
+  }],
+})}</script>`;
+
+describe('extractSpeakerRounds - Vue tablesData private URL page', () => {
+  test('reads owner speaker rows from server-side Vue data', () => {
+    const rows = extractSpeakerRounds(VUE_SPEAKER_DEBATES_FRAGMENT, 'Team A 1');
+    expect(rows.map((r) => r.stage)).toEqual(['Round 1', 'Quarterfinals']);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, null]);
   });
 });
 

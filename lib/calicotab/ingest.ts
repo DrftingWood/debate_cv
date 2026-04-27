@@ -317,7 +317,7 @@ export async function ingestPrivateUrl(
     });
 
     if (options.force || (existing && fetchWarnings.length === 0)) {
-      await replaceTournamentDerivedRows(tx, t.id);
+      await prepareTournamentWideRefresh(tx, t.id);
     }
 
     // Team results
@@ -725,19 +725,26 @@ async function preCommitPersons(
   return result;
 }
 
-async function replaceTournamentDerivedRows(
+async function prepareTournamentWideRefresh(
   tx: Prisma.TransactionClient,
   tournamentId: bigint,
 ): Promise<void> {
   const participants = await tx.tournamentParticipant.findMany({
     where: { tournamentId },
-    select: { id: true },
+    select: { id: true, personId: true },
   });
   const participantIds = participants.map((p) => p.id);
+  const personIdsWithPrivateHistory = await tx.judgeAssignment.findMany({
+    where: { tournamentId },
+    select: { personId: true },
+    distinct: ['personId'],
+  });
+  const protectedPersonIds = personIdsWithPrivateHistory.map((p) => p.personId);
 
+  // Refresh tournament-wide data without erasing private-URL history that may
+  // have been supplied by another user's URL for this same tournament.
   await tx.eliminationResult.deleteMany({ where: { tournamentId } });
   await tx.teamResult.deleteMany({ where: { tournamentId } });
-  await tx.judgeAssignment.deleteMany({ where: { tournamentId } });
   if (participantIds.length > 0) {
     await tx.speakerRoundScore.deleteMany({
       where: { tournamentParticipantId: { in: participantIds } },
@@ -746,7 +753,30 @@ async function replaceTournamentDerivedRows(
       where: { tournamentParticipantId: { in: participantIds } },
     });
   }
-  await tx.tournamentParticipant.deleteMany({ where: { tournamentId } });
+  await tx.tournamentParticipant.updateMany({
+    where: { tournamentId },
+    data: {
+      teamName: null,
+      speakerScoreTotal: null,
+      speakerRankOpen: null,
+      speakerRankEsl: null,
+      speakerRankEfl: null,
+      teamBreakRank: null,
+      teamScoreTotal: null,
+      judgeTypeTag: null,
+      wins: null,
+      losses: null,
+    },
+  });
+  await tx.tournamentParticipant.deleteMany({
+    where: {
+      tournamentId,
+      person: { claimedByUserId: null },
+      ...(protectedPersonIds.length > 0
+        ? { personId: { notIn: protectedPersonIds } }
+        : {}),
+    },
+  });
 }
 
 /**
@@ -837,6 +867,17 @@ async function recordJudgeRoundsFromLanding(
 ): Promise<{ written: number; chairedPrelims: number; diagnostic: string | null }> {
   const adjRounds = extractAdjudicatorRounds(landingHtml, knownPersonName);
   if (adjRounds.length === 0) {
+    await prisma.$transaction([
+      prisma.judgeAssignment.deleteMany({ where: { tournamentId, personId } }),
+      prisma.tournamentParticipant.update({
+        where: { tournamentId_personId: { tournamentId, personId } },
+        data: {
+          chairedPrelimRounds: null,
+          lastOutroundChaired: null,
+          lastOutroundPaneled: null,
+        },
+      }),
+    ]);
     return {
       written: 0,
       chairedPrelims: 0,
@@ -844,33 +885,6 @@ async function recordJudgeRoundsFromLanding(
         "parse: 0 adjudicator rounds in private-URL Debates table — " +
         "URL owner isn't on any panel, or the table heading + structure don't match the parser",
     };
-  }
-
-  // Idempotent insert per row. The unique key includes nullable columns so
-  // Prisma's compound-unique filter can't be used — same findFirst+create
-  // pattern the codebase uses elsewhere for that case.
-  for (const r of adjRounds) {
-    const existing = await prisma.judgeAssignment.findFirst({
-      where: {
-        tournamentId,
-        personId,
-        stage: r.stage,
-        panelRole: r.role,
-        roundNumber: r.roundNumber,
-      },
-      select: { id: true },
-    });
-    if (!existing) {
-      await prisma.judgeAssignment.create({
-        data: {
-          tournamentId,
-          personId,
-          stage: r.stage,
-          panelRole: r.role,
-          roundNumber: r.roundNumber,
-        },
-      });
-    }
   }
 
   // Aggregate stats for the participant row. getInroundsChairedCount classifies
@@ -889,34 +903,53 @@ async function recordJudgeRoundsFromLanding(
   const deepestPaneled =
     ranked.find((x) => x.r.role === 'panellist' || x.r.role === 'trainee')?.r.stage ?? null;
 
-  const tp = await prisma.tournamentParticipant.upsert({
-    where: { tournamentId_personId: { tournamentId, personId } },
-    update: {
-      judgeTypeTag: 'Adjudicator',
-      chairedPrelimRounds: chairedPrelims || null,
-      lastOutroundChaired: deepestChaired,
-      lastOutroundPaneled: deepestPaneled,
-    },
-    create: {
-      tournamentId,
-      personId,
-      judgeTypeTag: 'Adjudicator',
-      chairedPrelimRounds: chairedPrelims || null,
-      lastOutroundChaired: deepestChaired,
-      lastOutroundPaneled: deepestPaneled,
-    },
-  });
-  await prisma.participantRole.upsert({
-    where: {
-      tournamentParticipantId_role: {
-        tournamentParticipantId: tp.id,
-        role: 'judge',
+  const uniqueRounds = new Map<string, (typeof adjRounds)[number]>();
+  for (const r of adjRounds) {
+    uniqueRounds.set(`${r.stage}|${r.role}|${r.roundNumber ?? ''}`, r);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.judgeAssignment.deleteMany({ where: { tournamentId, personId } });
+    for (const r of uniqueRounds.values()) {
+      await tx.judgeAssignment.create({
+        data: {
+          tournamentId,
+          personId,
+          stage: r.stage,
+          panelRole: r.role,
+          roundNumber: r.roundNumber,
+        },
+      });
+    }
+    const tp = await tx.tournamentParticipant.upsert({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      update: {
+        judgeTypeTag: 'Adjudicator',
+        chairedPrelimRounds: chairedPrelims || null,
+        lastOutroundChaired: deepestChaired,
+        lastOutroundPaneled: deepestPaneled,
       },
-    },
-    update: {},
-    create: { tournamentParticipantId: tp.id, role: 'judge' },
+      create: {
+        tournamentId,
+        personId,
+        judgeTypeTag: 'Adjudicator',
+        chairedPrelimRounds: chairedPrelims || null,
+        lastOutroundChaired: deepestChaired,
+        lastOutroundPaneled: deepestPaneled,
+      },
+    });
+    await tx.participantRole.upsert({
+      where: {
+        tournamentParticipantId_role: {
+          tournamentParticipantId: tp.id,
+          role: 'judge',
+        },
+      },
+      update: {},
+      create: { tournamentParticipantId: tp.id, role: 'judge' },
+    });
   });
-  return { written: adjRounds.length, chairedPrelims, diagnostic: null };
+  return { written: uniqueRounds.size, chairedPrelims, diagnostic: null };
 }
 
 /**
@@ -938,6 +971,10 @@ async function recordSpeakerRoundsFromLanding(
 ): Promise<{ outroundsSeen: number; deepest: string | null; diagnostic: string | null }> {
   const speakerRounds = extractSpeakerRounds(landingHtml, knownTeamName);
   if (speakerRounds.length === 0) {
+    await prisma.tournamentParticipant.update({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      data: { eliminationReached: null },
+    });
     return { outroundsSeen: 0, deepest: null, diagnostic: null };
   }
 
@@ -948,15 +985,23 @@ async function recordSpeakerRoundsFromLanding(
     .sort((a, b) => b.rank - a.rank);
   const deepest = ranked[0]?.r.stage ?? null;
 
-  // Only touch eliminationReached when we actually saw an outround — leave
-  // it null for prelim-only speakers so the "Broken" derivation stays clean.
-  if (deepest) {
-    await prisma.tournamentParticipant.upsert({
-      where: { tournamentId_personId: { tournamentId, personId } },
-      update: { eliminationReached: deepest },
-      create: { tournamentId, personId, eliminationReached: deepest },
-    });
-  }
+  // Always write the current landing-page answer, including null when the team
+  // did not appear in outrounds, so force re-ingest can clear stale breaks.
+  const tp = await prisma.tournamentParticipant.upsert({
+    where: { tournamentId_personId: { tournamentId, personId } },
+    update: { eliminationReached: deepest },
+    create: { tournamentId, personId, eliminationReached: deepest },
+  });
+  await prisma.participantRole.upsert({
+    where: {
+      tournamentParticipantId_role: {
+        tournamentParticipantId: tp.id,
+        role: 'speaker',
+      },
+    },
+    update: {},
+    create: { tournamentParticipantId: tp.id, role: 'speaker' },
+  });
   return { outroundsSeen: outrounds.length, deepest, diagnostic: null };
 }
 
