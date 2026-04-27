@@ -18,11 +18,45 @@ export default async function AdminPage() {
     redirect('/');
   }
 
-  const [tournaments, discoveredUrls, pendingJobs] = await Promise.all([
+  const [tournaments, discoveredUrls, pendingJobs, recentParserRuns] = await Promise.all([
     prisma.tournament.count(),
     prisma.discoveredUrl.count(),
     prisma.ingestJob.count({ where: { status: 'pending' } }),
+    // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
+    // give a sense of warning frequency without scanning the whole table.
+    // Most-recent-first so frequencies reflect current parser version.
+    prisma.parserRun.findMany({
+      where: { warnings: { isEmpty: false } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
+    }),
   ]);
+
+  // Aggregate warnings by their first sentence so semantically-equivalent
+  // messages (different URLs in the suffix) collapse. The diagnostic format
+  // uses ` — ` as a separator between the headline and details; we group
+  // on the headline.
+  const warningHeadline = (w: string): string => {
+    const sep = w.indexOf(' — ');
+    return (sep > 0 ? w.slice(0, sep) : w).slice(0, 200);
+  };
+  const warningCounts = new Map<string, { count: number; sample: string; latest: Date }>();
+  for (const run of recentParserRuns) {
+    for (const w of run.warnings) {
+      const key = `[${run.parserName}] ${warningHeadline(w)}`;
+      const existing = warningCounts.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (run.createdAt > existing.latest) existing.latest = run.createdAt;
+      } else {
+        warningCounts.set(key, { count: 1, sample: w, latest: run.createdAt });
+      }
+    }
+  }
+  const sortedWarnings = [...warningCounts.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 20);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
@@ -47,6 +81,39 @@ export default async function AdminPage() {
             <dd className="text-xl font-semibold mt-1">{pendingJobs}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="rounded-lg border p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Recent parser warnings</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
+            many tournaments are hitting the same parsing issue — usually a structural change in
+            Tabbycat the parser hasn&rsquo;t caught up to yet.
+          </p>
+        </div>
+        {sortedWarnings.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">
+            No warnings recorded in the last 200 parser runs. Parsers are clean.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {sortedWarnings.map(([key, { count, sample, latest }]) => (
+              <li key={key} className="px-3 py-2 space-y-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <code className="font-mono text-[12px] text-foreground break-all">{key}</code>
+                  <span className="shrink-0 text-caption font-mono text-muted-foreground">
+                    ×{count}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
+                  {sample.length > 200 ? '…' : ''}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">

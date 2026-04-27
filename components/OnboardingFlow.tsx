@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -67,7 +67,11 @@ export function OnboardingFlow({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [persistedErrors, setPersistedErrors] = useState<ErrorsResponse['failures']>([]);
   const [recentErrors, setRecentErrors] = useState<{ url: string; error: string }[]>([]);
+  // The errors panel auto-opens the first time persisted errors load (so a
+  // user with failures isn't left wondering why their CV is empty), but
+  // honours a manual close afterwards via `errorsOpenedAuto`.
   const [errorsOpen, setErrorsOpen] = useState(false);
+  const errorsAutoOpenedRef = useRef(false);
   const [isScanning, startScan] = useTransition();
   const [isConfirming, startConfirm] = useTransition();
   const [isResetting, startReset] = useTransition();
@@ -79,6 +83,13 @@ export function OnboardingFlow({
     if (phase !== 'preflight') return;
     let cancelled = false;
     (async () => {
+      // Earlier we exited on a single zero-progress response (`processed===0`),
+      // which let a transient flake terminate the loop while URLs were still
+      // pending. Allow a few consecutive zero-progress responses (typically
+      // from a hung fetch on one URL) before giving up — the endpoint is
+      // already idempotent so retrying is safe.
+      const MAX_ZERO_PROGRESS_IN_A_ROW = 3;
+      let zeroProgressStreak = 0;
       while (!cancelled) {
         const res = await postJson<PreflightResponse>('/api/onboarding/preflight');
         if (!res.ok) {
@@ -94,7 +105,13 @@ export function OnboardingFlow({
         if (res.data.errors?.length) {
           setRecentErrors((prev) => [...res.data.errors, ...prev].slice(0, 50));
         }
-        if (res.data.remaining === 0 || res.data.processed === 0) break;
+        if (res.data.remaining === 0) break;
+        if (res.data.processed === 0) {
+          zeroProgressStreak += 1;
+          if (zeroProgressStreak >= MAX_ZERO_PROGRESS_IN_A_ROW) break;
+        } else {
+          zeroProgressStreak = 0;
+        }
       }
       if (cancelled) return;
       await refreshNames();
@@ -115,7 +132,15 @@ export function OnboardingFlow({
       ]);
       setNames(namesRes.names ?? []);
       setTotals(namesRes.totals ?? totals);
-      setPersistedErrors(errsRes.failures ?? []);
+      const failures: ErrorsResponse['failures'] = errsRes.failures ?? [];
+      setPersistedErrors(failures);
+      // First time we discover persisted failures, auto-open the panel so
+      // the user can see why some URLs didn't yield names. Subsequent
+      // refreshes respect the user's manual open/close state.
+      if (failures.length > 0 && !errorsAutoOpenedRef.current) {
+        errorsAutoOpenedRef.current = true;
+        setErrorsOpen(true);
+      }
       setSelected(
         new Set(
           (namesRes.names ?? [])

@@ -98,10 +98,34 @@ export function privateUrlVariants(rawUrl: string): string[] {
   return [...new Set([rawUrl, normalizePrivateUrl(rawUrl)])];
 }
 
+/**
+ * Decode quoted-printable soft-breaks and hex escapes that Tabbycat emails
+ * sometimes carry through SMTP. The most common offender is `=\n` (a soft
+ * line-break injected by 7-bit-safe encoders), which splits a long URL
+ * across two lines and stops the regex from matching. Hex-decoded sequences
+ * like `=3D` (the `=` sign) appear when private URLs contain query strings,
+ * though Tabbycat's URLs don't typically — included for robustness.
+ *
+ * Only run on text bodies; HTML bodies don't go through QP because Gmail
+ * delivers them as base64 already.
+ */
+function decodeQuotedPrintable(input: string): string {
+  return input
+    // Soft line breaks: =<CR><LF> or =<LF>
+    .replace(/=\r?\n/g, '')
+    // Hex escapes: =XX where X is hex
+    .replace(/=([A-F0-9]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 export function extractUrlsFromText(text: string): string[] {
   if (!text) return [];
-  const matches = text.match(PRIVATE_URL_RE) || [];
-  return matches.map(normalizePrivateUrl);
+  // Run on both the raw text and the QP-decoded variant so URLs that span
+  // a soft line break still match. Concatenate both via a separator so the
+  // global regex doesn't double-count URLs that are present in both.
+  const decoded = decodeQuotedPrintable(text);
+  const haystack = text === decoded ? text : `${text}\n---\n${decoded}`;
+  const matches = haystack.match(PRIVATE_URL_RE) || [];
+  return [...new Set(matches.map(normalizePrivateUrl))];
 }
 
 export function extractFromMessage(message: GmailMessage): PrivateUrlRecord[] {

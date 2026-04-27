@@ -648,13 +648,19 @@ function isDeadlockError(e: unknown): boolean {
  * with a deadlock (40P01). PostgreSQL automatically rolls back one of the
  * conflicting transactions so a simple retry is always safe here.
  */
-async function withDeadlockRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+async function withDeadlockRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       return await fn();
     } catch (e) {
       if (i < maxAttempts - 1 && isDeadlockError(e)) {
-        await new Promise<void>((r) => setTimeout(r, (i + 1) * 150));
+        // Exponential backoff with full jitter: 100ms · 2^i + random(0..base).
+        // Linear backoff (the previous 150*i pattern) caused two concurrent
+        // ingests to retry in lockstep — both waiting the same delay, then
+        // both trying again, deadlocking again. Random jitter de-syncs them.
+        const base = 100 * Math.pow(2, i);
+        const wait = base + Math.floor(Math.random() * base);
+        await new Promise<void>((r) => setTimeout(r, wait));
         continue;
       }
       throw e;

@@ -41,8 +41,8 @@ export async function SessionBadge() {
   const session = await auth();
   if (!session?.user) return null;
   return (
-    <span className="text-sm text-ink-3">
-      Signed in as <span className="font-medium text-ink-2">{session.user.email ?? session.user.name}</span>
+    <span className="text-sm text-muted-foreground">
+      Signed in as <span className="font-medium text-foreground">{session.user.email ?? session.user.name}</span>
     </span>
   );
 }

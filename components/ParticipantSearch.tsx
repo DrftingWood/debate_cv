@@ -174,7 +174,7 @@ export function ParticipantSearch({
                 leftIcon={!isClaiming ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : undefined}
                 onClick={() => claim(hit)}
               >
-                {hit.isMine ? 'Already mine' : 'This is me'}
+                {hit.isMine ? 'Already mine' : isClaiming ? 'Claiming…' : 'This is me'}
               </Button>
             </li>
           ))}
