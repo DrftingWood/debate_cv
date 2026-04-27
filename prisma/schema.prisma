@@ -108,6 +108,11 @@ model DiscoveredUrl {
 
   @@unique([userId, url])
   @@index([userId])
+  // /cv and /onboarding/names both filter `where: { userId, ingestedAt:
+  // ... }` (and tournamentId-not-null); the (userId) index alone forces
+  // a row scan on ingestedAt. Compound index turns those queries into an
+  // index-only seek.
+  @@index([userId, ingestedAt])
 }
 
 enum IngestJobStatus {
