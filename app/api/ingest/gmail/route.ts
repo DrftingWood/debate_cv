@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getOAuthClientForUser, revokeAndForgetGmailToken } from '@/lib/gmail/client';
@@ -81,6 +82,10 @@ export async function POST() {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/ingest/gmail]', msg);
     if (isRefreshTokenInvalid(err)) {
+      // Don't report token-invalid to Sentry — it's expected user action
+      // (they revoked our access via Google) and we already give the user
+      // a clear re-OAuth path below. Reporting would just noise up Sentry
+      // every time someone disconnects.
       // Clear the stale token so the next sign-in writes a fresh one.
       // Swallow errors from the revoke call — the goal is the local row, not
       // notifying Google (whose endpoint may already have invalidated it).
@@ -97,6 +102,10 @@ export async function POST() {
         { status: 401 },
       );
     }
+    // Genuine unexpected error — report to Sentry with the userId attached
+    // so we can correlate. The catch block returns 500 to the client, so
+    // the error wouldn't otherwise propagate to Sentry's auto-capture.
+    Sentry.captureException(err, { tags: { route: 'api/ingest/gmail' }, user: userId ? { id: userId } : undefined });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
