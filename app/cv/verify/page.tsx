@@ -195,7 +195,8 @@ export default async function CvVerifyPage({
                         </span>
                       ) : null}
                     </div>
-                    <div className="overflow-x-auto rounded-md border border-border">
+                    {/* Desktop: 13-column table. md+ only. */}
+                    <div className="hidden overflow-x-auto rounded-md border border-border md:block">
                       <table className="w-full text-caption">
                         <thead className="bg-muted/50 text-left text-muted-foreground">
                           <tr>
@@ -285,6 +286,135 @@ export default async function CvVerifyPage({
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Mobile: stacked card per participant. The 13-column table
+                        is unusable on phones via horizontal scroll alone. Cards
+                        group fields into Identity / Speaker / Judge sections;
+                        Per-round scores stays behind a <details> to keep the
+                        card scannable. */}
+                    <ul className="space-y-3 md:hidden">
+                      {participants.map((p) => {
+                        const isYou = p.person.claimedByUserId === userId;
+                        const broke = !!p.eliminationReached || p.teamBreakRank != null;
+                        const lastOutroundJudged = deepestOutroundAcrossRoles(
+                          p.lastOutroundChaired,
+                          p.lastOutroundPaneled,
+                        );
+                        const ranks = [
+                          p.speakerRankOpen != null ? `#${p.speakerRankOpen} Open` : null,
+                          p.speakerRankEsl != null ? `#${p.speakerRankEsl} ESL` : null,
+                          p.speakerRankEfl != null ? `#${p.speakerRankEfl} EFL` : null,
+                        ].filter(Boolean).join(' · ');
+                        const hasSpeakerData =
+                          p.teamName ||
+                          p.speakerScoreTotal != null ||
+                          p.speakerRankOpen != null ||
+                          ranks ||
+                          p.teamBreakRank != null ||
+                          broke;
+                        const hasJudgeData =
+                          p.judgeTypeTag ||
+                          p.chairedPrelimRounds != null ||
+                          p.lastOutroundChaired ||
+                          lastOutroundJudged;
+                        return (
+                          <li
+                            key={p.id.toString()}
+                            className="rounded-md border border-border bg-card p-3 space-y-2.5"
+                          >
+                            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                              <div className="font-medium text-foreground">
+                                {p.person.displayName}
+                                {isYou ? (
+                                  <Badge variant="success" className="ml-2">You</Badge>
+                                ) : null}
+                              </div>
+                              <div className="text-caption text-muted-foreground">
+                                {p.roles.map((r) => r.role).join(', ') || '—'}
+                              </div>
+                            </div>
+                            {hasSpeakerData ? (
+                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption">
+                                {p.teamName ? (
+                                  <VerifyField label="Team" value={p.teamName} />
+                                ) : null}
+                                {p.speakerScoreTotal != null ? (
+                                  <VerifyField
+                                    label="Speaker total"
+                                    value={p.speakerScoreTotal.toString()}
+                                    mono
+                                  />
+                                ) : null}
+                                {ranks ? <VerifyField label="Rank" value={ranks} /> : null}
+                                {p.teamBreakRank != null ? (
+                                  <VerifyField
+                                    label="Team break rank"
+                                    value={`#${p.teamBreakRank}`}
+                                    mono
+                                  />
+                                ) : null}
+                                <VerifyField
+                                  label="Broken"
+                                  value={broke ? 'Yes' : 'No'}
+                                />
+                                {p.eliminationReached ? (
+                                  <VerifyField
+                                    label="Last outround spoken"
+                                    value={p.eliminationReached}
+                                  />
+                                ) : null}
+                              </dl>
+                            ) : null}
+                            {hasJudgeData ? (
+                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption border-t border-border pt-2">
+                                {p.judgeTypeTag ? (
+                                  <VerifyField label="Judge tag" value={p.judgeTypeTag} />
+                                ) : null}
+                                {p.chairedPrelimRounds != null ? (
+                                  <VerifyField
+                                    label="Inrounds chaired"
+                                    value={String(p.chairedPrelimRounds)}
+                                    mono
+                                  />
+                                ) : null}
+                                {p.lastOutroundChaired ? (
+                                  <VerifyField
+                                    label="Last outround chaired"
+                                    value={p.lastOutroundChaired}
+                                  />
+                                ) : null}
+                                {lastOutroundJudged ? (
+                                  <VerifyField
+                                    label="Last outround judged"
+                                    value={lastOutroundJudged}
+                                  />
+                                ) : null}
+                              </dl>
+                            ) : null}
+                            {p.speakerRoundScores.length > 0 ? (
+                              <details className="text-caption border-t border-border pt-2">
+                                <summary className="cursor-pointer text-primary hover:underline">
+                                  Per-round scores ({p.speakerRoundScores.length})
+                                </summary>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {p.speakerRoundScores.map((s) => (
+                                    <span
+                                      key={s.id.toString()}
+                                      className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono"
+                                    >
+                                      R{s.roundNumber}
+                                      {s.positionLabel ? ` · ${s.positionLabel}` : ''}
+                                      {' · '}
+                                      {s.score?.toString() ?? '—'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </details>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </section>
 
                   {/* Judge assignments as grouped badges, not a joined string. */}
@@ -351,6 +481,15 @@ export default async function CvVerifyPage({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function VerifyField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <dt className="text-caption text-muted-foreground">{label}</dt>
+      <dd className={'mt-0.5 text-foreground ' + (mono ? 'font-mono' : '')}>{value}</dd>
     </div>
   );
 }
