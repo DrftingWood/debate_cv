@@ -2,6 +2,12 @@ import { prisma } from '@/lib/db';
 import { IngestJobStatus, Prisma } from '@prisma/client';
 
 export async function enqueueUrl(userId: string, url: string): Promise<void> {
+  const locked = await prisma.discoveredUrl.findUnique({
+    where: { userId_url: { userId, url } },
+    select: { reingestLocked: true },
+  });
+  if (locked?.reingestLocked) return;
+
   await prisma.ingestJob.updateMany({
     where: { userId, url, status: IngestJobStatus.failed },
     data: {

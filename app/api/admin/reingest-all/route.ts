@@ -13,7 +13,13 @@ export async function POST() {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }
 
-  const urls = await prisma.discoveredUrl.findMany({ select: { userId: true, url: true } });
+  const [urls, skippedLocked] = await Promise.all([
+    prisma.discoveredUrl.findMany({
+      where: { reingestLocked: false },
+      select: { userId: true, url: true },
+    }),
+    prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
+  ]);
 
   for (const { userId, url } of urls) {
     await prisma.ingestJob.upsert({
@@ -30,5 +36,5 @@ export async function POST() {
     });
   }
 
-  return NextResponse.json({ queued: urls.length });
+  return NextResponse.json({ queued: urls.length, skippedLocked });
 }

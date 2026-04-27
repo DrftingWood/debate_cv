@@ -14,6 +14,7 @@ type ClearResponse = {
 
 type ReingestResponse = {
   queued: number;
+  skippedLocked?: number;
 };
 
 export function ClearDataButton() {
@@ -144,6 +145,13 @@ export function ReingestAllButton() {
             title: 'Queued for re-ingest',
             description: `${result.data.queued} URLs queued — use "Ingest all" on the dashboard to process them.`,
           });
+          if (result.data.skippedLocked) {
+            toast.show({
+              kind: 'success',
+              title: 'Locked URLs skipped',
+              description: `${result.data.skippedLocked} locked ${result.data.skippedLocked === 1 ? 'URL was' : 'URLs were'} left untouched.`,
+            });
+          }
           router.refresh();
         });
       }}
