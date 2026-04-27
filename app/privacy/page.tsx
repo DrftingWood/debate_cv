@@ -47,13 +47,17 @@ export default function Privacy() {
 
       <h2>Data deletion</h2>
       <p>
-        Revoke access at{' '}
-        <a href="https://myaccount.google.com/permissions">Google Account permissions</a>. To have
-        your database rows deleted, open an issue on{' '}
-        <a href="https://github.com/DrftingWood/debate_cv" target="_blank" rel="noopener noreferrer">
-          GitHub
+        You can delete your data yourself at any time. Go to{' '}
+        <a href="/settings">Settings</a>, click <strong>Delete my data</strong>, and confirm by
+        typing your email. Your account, OAuth tokens, discovered URLs, ingest jobs, and identity
+        claims are removed immediately.
+      </p>
+      <p>
+        To revoke our access to your Gmail without deleting the account, use{' '}
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+          Google Account permissions
         </a>{' '}
-        and we'll purge your user record and related rows.
+        — that revokes the OAuth grant. Settings → Disconnect does the same.
       </p>
 
       <h2>Third parties</h2>
@@ -64,9 +68,10 @@ export default function Privacy() {
 
       <h2>Security</h2>
       <p>
-        OAuth tokens and database rows are stored on Vercel-managed infrastructure. We do not yet
-        encrypt refresh tokens at rest — this is a known gap flagged in the repository's README
-        for fixing before any broader public launch.
+        OAuth refresh tokens are encrypted at rest with AES-256-GCM, keyed from a server-only
+        secret (<code>TOKEN_ENCRYPTION_KEY</code>). Database rows live on Vercel-managed
+        infrastructure. The encryption was added on 2026-04 and any older plaintext rows are
+        re-encrypted on next access.
       </p>
     </article>
   );
