@@ -18,9 +18,10 @@ export default async function AdminPage() {
     redirect('/');
   }
 
-  const [tournaments, discoveredUrls, pendingJobs, recentParserRuns] = await Promise.all([
+  const [tournaments, discoveredUrls, lockedUrls, pendingJobs, recentParserRuns] = await Promise.all([
     prisma.tournament.count(),
     prisma.discoveredUrl.count(),
+    prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
     prisma.ingestJob.count({ where: { status: 'pending' } }),
     // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
     // give a sense of warning frequency without scanning the whole table.
@@ -67,7 +68,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-medium">Current state</h2>
-        <dl className="grid grid-cols-3 gap-4 text-sm">
+        <dl className="grid grid-cols-4 gap-4 text-sm">
           <div>
             <dt className="text-muted-foreground">Tournaments</dt>
             <dd className="text-xl font-semibold mt-1">{tournaments}</dd>
@@ -75,6 +76,10 @@ export default async function AdminPage() {
           <div>
             <dt className="text-muted-foreground">Discovered URLs</dt>
             <dd className="text-xl font-semibold mt-1">{discoveredUrls}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Locked URLs</dt>
+            <dd className="text-xl font-semibold mt-1">{lockedUrls}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Pending jobs</dt>
@@ -149,7 +154,7 @@ export default async function AdminPage() {
           <h2 className="font-medium">Re-ingest all URLs</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
-            tournaments cleanly. Then use{' '}
+            tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}
             <span className="font-medium">Ingest all</span> on the dashboard to process the queue.
           </p>
         </div>

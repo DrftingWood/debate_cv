@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw, Trash2, RefreshCw, Download } from 'lucide-react';
+import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -250,7 +250,32 @@ export function ClearButton({ url }: { url: string }) {
   );
 }
 
-type ReingestMineResponse = { queued: number; skipped: number };
+type ReingestMineResponse = { queued: number; skipped: number; skippedLocked: number };
+
+function reingestDescription({
+  queued,
+  skipped,
+  skippedLocked,
+  selected,
+}: ReingestMineResponse & { selected?: boolean }): string {
+  const notes = [
+    skipped > 0 ? `${skipped} unavailable` : null,
+    skippedLocked > 0 ? `${skippedLocked} locked` : null,
+  ].filter(Boolean);
+  const note = notes.length > 0 ? ` (${notes.join(', ')} skipped)` : '';
+  if (queued > 0) {
+    return `${queued} ${queued === 1 ? 'URL' : 'URLs'} queued - use "Ingest all" to process them.${note}`;
+  }
+  if (notes.length > 0) return `Nothing queued${selected ? ' from that selection' : ''} - ${notes.join(', ')} skipped.`;
+  return selected ? 'Choose at least one unlocked URL first.' : 'Nothing to re-ingest yet.';
+}
+
+function selectedReingestUrls(): string[] {
+  if (typeof document === 'undefined') return [];
+  return Array.from(document.querySelectorAll<HTMLInputElement>('input[data-reingest-url]:checked'))
+    .map((input) => input.value)
+    .filter(Boolean);
+}
 
 export function ReingestMineButton() {
   const router = useRouter();
@@ -283,11 +308,114 @@ export function ReingestMineButton() {
                   ? `Nothing to re-ingest — all ${skipped} URLs are permanently unavailable.`
                   : 'Nothing to re-ingest yet.',
           });
+          if (result.data.skippedLocked > 0) {
+            toast.show({
+              kind: 'success',
+              title: 'Locked tournaments skipped',
+              description: `${result.data.skippedLocked} locked ${result.data.skippedLocked === 1 ? 'URL was' : 'URLs were'} left untouched.`,
+            });
+          }
           router.refresh();
         });
       }}
     >
       Re-ingest mine
+    </Button>
+  );
+}
+
+export function ReingestSelectedButton() {
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+  const [selectedCount, setSelectedCount] = useState(0);
+
+  useEffect(() => {
+    const update = () => setSelectedCount(selectedReingestUrls().length);
+    update();
+    document.addEventListener('change', update);
+    return () => document.removeEventListener('change', update);
+  }, []);
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      loading={isPending}
+      disabled={selectedCount === 0}
+      leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
+      onClick={() => {
+        const urls = selectedReingestUrls();
+        if (urls.length === 0) {
+          toast.show({
+            kind: 'error',
+            title: 'Nothing selected',
+            description: 'Select one or more unlocked tournament URLs first.',
+          });
+          return;
+        }
+
+        startTransition(async () => {
+          const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine', { urls });
+          if (!result.ok) {
+            toast.show({ kind: 'error', title: 'Re-ingest failed', description: result.error });
+            return;
+          }
+          for (const input of document.querySelectorAll<HTMLInputElement>('input[data-reingest-url]:checked')) {
+            input.checked = false;
+          }
+          setSelectedCount(0);
+          toast.show({
+            kind: 'success',
+            title: 'Queued for re-ingest',
+            description: reingestDescription({ ...result.data, selected: true }),
+          });
+          router.refresh();
+        });
+      }}
+    >
+      {selectedCount > 0 ? `Re-ingest selected (${selectedCount})` : 'Re-ingest selected'}
+    </Button>
+  );
+}
+
+export function LockUrlButton({ url, locked }: { url: string; locked: boolean }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+  const nextLocked = !locked;
+
+  return (
+    <Button
+      type="button"
+      variant="link"
+      size="sm"
+      loading={isPending}
+      leftIcon={!isPending ? (
+        locked ? <Unlock className="h-3.5 w-3.5" aria-hidden /> : <Lock className="h-3.5 w-3.5" aria-hidden />
+      ) : undefined}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await postJson<{ locked: boolean; updated: number }>('/api/ingest/lock', {
+            url,
+            locked: nextLocked,
+          });
+          if (!result.ok) {
+            toast.show({ kind: 'error', title: 'Lock update failed', description: result.error });
+            return;
+          }
+          toast.show({
+            kind: 'success',
+            title: nextLocked ? 'Tournament locked' : 'Tournament unlocked',
+            description: nextLocked
+              ? 'Bulk re-ingest will skip this URL. Manual re-ingest still works.'
+              : 'Bulk re-ingest can queue this URL again.',
+          });
+          router.refresh();
+        });
+      }}
+    >
+      {locked ? 'Unlock' : 'Lock'}
     </Button>
   );
 }

@@ -18,6 +18,8 @@ import {
   IngestButton,
   ClearButton,
   ReingestMineButton,
+  ReingestSelectedButton,
+  LockUrlButton,
   ExportErrorsButton,
 } from '@/components/DashboardActions';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -81,6 +83,7 @@ export default async function Dashboard() {
         <div className="flex flex-wrap items-center gap-2">
           {pending > 0 ? <IngestAllButton pendingCount={pending} /> : null}
           <ScanButton />
+          {urls.length > 0 ? <ReingestSelectedButton /> : null}
           <ReingestMineButton />
           <ExportErrorsButton />
           <SignOutButton />
@@ -178,6 +181,14 @@ export default async function Dashboard() {
                     <Card>
                       <CardBody className="space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
+                          <input
+                            type="checkbox"
+                            data-reingest-url
+                            value={u.url}
+                            disabled={u.reingestLocked}
+                            aria-label={`Select ${u.tournament?.name ?? u.url} for re-ingest`}
+                            className="mt-1 h-4 w-4 rounded border-border text-primary disabled:opacity-40"
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="truncate font-display text-[14.5px] font-semibold text-foreground">
                               {u.tournament?.name ?? '—'}
@@ -200,6 +211,12 @@ export default async function Dashboard() {
                             {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
                           </span>
                           <div className="flex items-center gap-1">
+                            {u.reingestLocked ? (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                Locked
+                              </span>
+                            ) : null}
+                            <LockUrlButton url={u.url} locked={u.reingestLocked} />
                             {status === 'failed' ? <ClearButton url={u.url} /> : null}
                             {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
                           </div>
@@ -227,6 +244,7 @@ export default async function Dashboard() {
               <table className="w-full text-[13.5px]">
                 <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>
+                    <th className="px-5 py-3">Select</th>
                     <th className="px-5 py-3">URL</th>
                     <th className="px-5 py-3">Tournament</th>
                     <th className="px-5 py-3">Status</th>
@@ -244,6 +262,16 @@ export default async function Dashboard() {
                     return (
                       <tr key={u.id} className="align-middle transition-colors hover:bg-muted/40">
                         <td className="px-5 py-3">
+                          <input
+                            type="checkbox"
+                            data-reingest-url
+                            value={u.url}
+                            disabled={u.reingestLocked}
+                            aria-label={`Select ${u.tournament?.name ?? u.url} for re-ingest`}
+                            className="h-4 w-4 rounded border-border text-primary disabled:opacity-40"
+                          />
+                        </td>
+                        <td className="px-5 py-3">
                           <a
                             href={u.url}
                             target="_blank"
@@ -259,7 +287,14 @@ export default async function Dashboard() {
                           <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} url={u.url} />
                         </td>
                         <td className="px-5 py-3">
-                          <StatusPill status={status} />
+                          <div className="flex items-center gap-2">
+                            <StatusPill status={status} />
+                            {u.reingestLocked ? (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                Locked
+                              </span>
+                            ) : null}
+                          </div>
                           {job?.lastError ? (
                             !u.ingestedAt ? (
                               <div
@@ -283,6 +318,7 @@ export default async function Dashboard() {
                         </td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <LockUrlButton url={u.url} locked={u.reingestLocked} />
                             {status === 'failed' ? <ClearButton url={u.url} /> : null}
                             {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
                           </div>
