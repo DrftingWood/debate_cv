@@ -96,9 +96,21 @@ export default async function SettingsPage() {
             <h2 className="font-display text-h3 font-semibold text-foreground">Your data</h2>
           </div>
           <dl className="grid grid-cols-3 gap-3 text-[14px]">
-            <DataStat label="Private URLs" value={counts.urls} />
-            <DataStat label="Ingest jobs" value={counts.jobs} />
-            <DataStat label="Claimed identities" value={counts.claimed} />
+            <DataStat
+              label="Private URLs"
+              value={counts.urls}
+              hint="Tabbycat private-URL links extracted from your Gmail."
+            />
+            <DataStat
+              label="Ingest jobs"
+              value={counts.jobs}
+              hint="Per-URL parsing tasks. Most are 'done' once the queue drains."
+            />
+            <DataStat
+              label="Claimed identities"
+              value={counts.claimed}
+              hint="Person rows on tournaments you've confirmed as you (handles name aliases)."
+            />
           </dl>
           <div className="pt-1">
             <DownloadDataButton />
@@ -124,11 +136,24 @@ export default async function SettingsPage() {
   );
 }
 
-function DataStat({ label, value }: { label: string; value: number }) {
+function DataStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+}) {
   return (
     <div className="rounded-md border border-border bg-muted/50 px-3.5 py-3">
-      <dt className="text-caption text-muted-foreground">{label}</dt>
+      <dt className="text-caption text-muted-foreground" title={hint}>
+        {label}
+      </dt>
       <dd className="mt-0.5 font-display text-[22px] font-semibold text-foreground">{value}</dd>
+      {hint ? (
+        <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div>
+      ) : null}
     </div>
   );
 }
