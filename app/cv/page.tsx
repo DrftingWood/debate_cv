@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   Trophy,
-  ExternalLink,
   Search,
   Mail,
   MapPin,
@@ -15,6 +14,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
+import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -251,6 +251,7 @@ export default async function CvPage() {
     tournamentName: string;
     year: number | null;
     format: string | null;
+    totalTeams: number | null;
     sourceUrl: string;
     myName: string;
     teammates: string[];
@@ -268,9 +269,13 @@ export default async function CvPage() {
     broke: boolean;
   };
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
+  const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
   for (const p of myParticipations) {
     const isSpeaker = p.roles.some((r) => r.role === 'speaker');
     if (!isSpeaker) continue;
+    const participations = speakerParticipationsByTournament.get(p.tournamentId) ?? [];
+    participations.push(p);
+    speakerParticipationsByTournament.set(p.tournamentId, participations);
     const existing = speakerByTournament.get(p.tournamentId);
     if (!existing || speakerRichness(p) > speakerRichness(existing)) {
       speakerByTournament.set(p.tournamentId, p);
@@ -282,6 +287,8 @@ export default async function CvPage() {
     if (!t) continue;
     const teamKey = p.teamName ? `${tid}:${p.teamName}` : null;
     const tr = teamKey ? teamPointsByKey.get(teamKey) : null;
+    const speakerParticipations = speakerParticipationsByTournament.get(tid) ?? [p];
+    const speakerSignals = mergeSpeakerCvSignals(speakerParticipations);
 
     // Per-round average — the only speaker-score number that makes sense to
     // compare across tournaments. Total varies with prelim count (5 rounds
@@ -308,6 +315,7 @@ export default async function CvPage() {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
@@ -319,9 +327,9 @@ export default async function CvPage() {
       speakerRankOpen: p.speakerRankOpen,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
-      teamBreakRank: p.teamBreakRank,
-      eliminationReached: p.eliminationReached,
-      broke: p.eliminationReached != null || p.teamBreakRank != null,
+      teamBreakRank: speakerSignals.teamBreakRank,
+      eliminationReached: speakerSignals.eliminationReached,
+      broke: speakerSignals.broke,
     });
   }
   speakerRows.sort((a, b) => {
@@ -341,6 +349,7 @@ export default async function CvPage() {
     tournamentName: string;
     year: number | null;
     format: string | null;
+    totalTeams: number | null;
     sourceUrl: string;
     myName: string;
     judgeTypeTag: string | null;
@@ -409,6 +418,7 @@ export default async function CvPage() {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       judgeTypeTag: p.judgeTypeTag,
@@ -680,6 +690,7 @@ type SpeakingTableRow = {
   tournamentName: string;
   year: number | null;
   format: string | null;
+  totalTeams: number | null;
   sourceUrl: string;
   myName: string;
   teammates: string[];
@@ -724,6 +735,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="px-4 py-2.5 font-medium">Tournament</th>
               <th className="px-3 py-2.5 font-medium">Year</th>
               <th className="px-3 py-2.5 font-medium">Format</th>
+              <th className="px-3 py-2.5 font-medium">Teams</th>
               <th className="px-3 py-2.5 font-medium">My name</th>
               <th className="px-3 py-2.5 font-medium">Teammate(s)</th>
               <th className="px-3 py-2.5 font-medium">Team</th>
@@ -749,6 +761,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 </td>
                 <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.myName}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">
                   {r.teammates.length ? r.teammates.join(', ') : '—'}
@@ -795,6 +808,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
               {r.format ? <Field label="Format" value={r.format} /> : null}
+              {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
               <Field label="My name" value={r.myName} />
               {r.teammates.length ? <Field label="Teammates" value={r.teammates.join(', ')} /> : null}
               {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
@@ -824,6 +838,7 @@ type JudgingTableRow = {
   tournamentName: string;
   year: number | null;
   format: string | null;
+  totalTeams: number | null;
   sourceUrl: string;
   myName: string;
   judgeTypeTag: string | null;
@@ -844,6 +859,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               <th className="px-4 py-2.5 font-medium">Tournament</th>
               <th className="px-3 py-2.5 font-medium">Year</th>
               <th className="px-3 py-2.5 font-medium">Format</th>
+              <th className="px-3 py-2.5 font-medium">Teams</th>
               <th className="px-3 py-2.5 font-medium">My name</th>
               <th className="px-3 py-2.5 font-medium">Judge type</th>
               <th className="px-3 py-2.5 font-medium">Inrounds judged</th>
@@ -868,6 +884,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 </td>
                 <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+                <td className="px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
                 <td className="px-3 py-2.5">{r.myName}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
                 <td className="px-3 py-2.5 font-mono">{r.inroundsJudged ?? '—'}</td>
@@ -899,6 +916,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
               {r.format ? <Field label="Format" value={r.format} /> : null}
+              {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
               <Field label="My name" value={r.myName} />
               {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
               <Field label="Inrounds judged" value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'} mono />
