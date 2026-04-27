@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import {
   claimOnePending,
@@ -63,7 +64,16 @@ async function runOnce() {
         results.push({ id: job.id, status: 'done' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        // Only report on the FINAL attempt — earlier attempts are expected
+        // to occasionally fail (Cloudflare flakes, slow Tabbycat hosts).
+        // Reporting every retry would noise up Sentry without surfacing
+        // anything actionable.
         if (job.attempts >= MAX_ATTEMPTS) {
+          Sentry.captureException(err, {
+            tags: { route: 'api/cron/process-queue', stage: 'ingest-failed-final' },
+            extra: { url: job.url, attempts: job.attempts },
+            user: { id: job.userId },
+          });
           await markJobFailed(job.id, msg);
           results.push({ id: job.id, status: 'failed', error: msg });
         } else {
@@ -77,6 +87,9 @@ async function runOnce() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/cron/process-queue]', msg);
+    // Top-level cron failures (e.g. claim-loop crash, DB connection death)
+    // are always actionable — they typically mean queue draining is stuck.
+    Sentry.captureException(err, { tags: { route: 'api/cron/process-queue', stage: 'top-level' } });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

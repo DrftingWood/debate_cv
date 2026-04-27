@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -26,4 +27,29 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// Sentry build-plugin wrap. Uploads source maps + creates releases at build
+// time so production stack traces resolve to the original TypeScript instead
+// of minified bundles. The `org` and `project` slugs are tied to the prod
+// Sentry account; `SENTRY_AUTH_TOKEN` is the secret that authorises the
+// upload (set on Vercel only — local dev builds run silently when missing).
+export default withSentryConfig(config, {
+  org: 'abhishek-acharya',
+  project: 'javascript-nextjs-7q',
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Suppress build-plugin output unless we're in CI; locally the noise
+  // doesn't help and obscures real Next.js build messages.
+  silent: !process.env.CI,
+
+  // Upload source maps from a wider client-side scope so async chunks
+  // resolve too (default is too narrow for App Router).
+  widenClientFileUpload: true,
+
+  // Strip Sentry SDK's `console.log`/`console.warn` from prod bundles.
+  disableLogger: true,
+
+  // Skip Vercel's automatic Cron Monitoring instrumentation. We have one
+  // cron route (/api/cron/process-queue) and we'll instrument it manually
+  // if needed; auto-instrumentation can clash with our isAuthorized check.
+  automaticVercelMonitors: false,
+});
