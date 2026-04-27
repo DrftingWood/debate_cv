@@ -554,6 +554,80 @@ describe('extractSpeakerRounds - Vue tablesData private URL page', () => {
 // Same shape, but no <strong> on the team name — the team can only be
 // found by matching the registered team name passed in by the caller. This
 // is the path used when Tabbycat themes drop the bold marker.
+const VUE_AP_SPEAKER_PRIVATE_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
+  tablesData: [{
+    title: 'Debates',
+    head: [
+      { key: 'round', tooltip: 'Round' },
+      { key: 'result', tooltip: 'Result' },
+      { key: 'cumulative', tooltip: 'Wins after this debate' },
+      { key: 'speaks', tooltip: 'Speaker scores<br>(in speaking order)', text: 'Speaks' },
+      { key: 'side', title: 'Side' },
+      { key: 'adjudicators', title: 'Adjudicators' },
+      { key: 'motion', title: 'Motion' },
+      { key: 'ballot', tooltip: 'The confirmed ballot' },
+    ],
+    data: [
+      [
+        { text: 'R1', tooltip: 'Round 1' },
+        { text: 'vs Team One' },
+        { text: '1' },
+        { text: '74.0, 75.0, 76.0' },
+        { text: 'Aff' },
+        { text: 'Judge A' },
+        { text: 'Motion' },
+        { text: 'View Ballot', link: '/nlsd25/results/round/1/speaker/z2kqpxl7/' },
+      ],
+      [
+        { text: 'OQF', tooltip: 'Open Quarterfinals' },
+        { text: 'vs Team Two' },
+        { text: '' },
+        { text: 'No scores' },
+        { text: 'Neg' },
+        { text: 'Judge B' },
+        { text: 'Motion' },
+        { text: 'No scores' },
+      ],
+      [
+        { text: 'OSF', tooltip: 'Open Semifinals' },
+        { text: 'vs Team Three' },
+        { text: '' },
+        { text: 'No scores' },
+        { text: 'Aff' },
+        { text: 'Judge C' },
+        { text: 'Motion' },
+        { text: 'No scores' },
+      ],
+      [
+        { text: 'OGF', tooltip: 'Open Grand Final' },
+        { text: 'vs Team Four' },
+        { text: '' },
+        { text: 'No scores' },
+        { text: 'Neg' },
+        { text: 'Judge D' },
+        { text: 'Motion' },
+        { text: 'No scores' },
+      ],
+    ],
+  }],
+})}</script>`;
+
+describe('extractSpeakerRounds - AP-style Vue private URL page', () => {
+  test('treats every debate row as owned when the private table has result/speaks/side columns', () => {
+    const rows = extractSpeakerRounds(
+      VUE_AP_SPEAKER_PRIVATE_DEBATES_FRAGMENT,
+      'Bangalore Bombay Chennai',
+    );
+    expect(rows.map((r) => r.stage)).toEqual([
+      'Round 1',
+      'Open Quarterfinals',
+      'Open Semifinals',
+      'Open Grand Final',
+    ]);
+    expect(rows.map((r) => r.roundNumber)).toEqual([1, null, null, null]);
+  });
+});
+
 const SPEAKER_DEBATES_FRAGMENT_PLAIN = `
 <div class="card-body">
   <h4 class="card-title">Debates</h4>

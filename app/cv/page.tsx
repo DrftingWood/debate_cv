@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
+import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -138,22 +139,19 @@ export default async function CvPage() {
           personId: bigint;
           person: { displayName: string };
         }>),
-    myTeamPairs.length
+    tournamentIds.length
       ? prisma.teamResult.findMany({
           where: {
-            OR: myTeamPairs.map((p) => ({
-              tournamentId: p.tournamentId,
-              teamName: p.teamName,
-              roundNumber: 0,
-            })),
+            tournamentId: { in: tournamentIds },
+            roundNumber: 0,
           },
-            select: {
-              tournamentId: true,
-              teamName: true,
-              rank: true,
-              wins: true,
-              points: true,
-            },
+          select: {
+            tournamentId: true,
+            teamName: true,
+            rank: true,
+            wins: true,
+            points: true,
+          },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
@@ -217,12 +215,15 @@ export default async function CvPage() {
   const teamPointsByKey = new Map<string, { rank: number | null; wins: number | null; points: string | null }>();
   for (const tr of teamResultRows) {
     if (!tr.teamName) continue;
-    teamPointsByKey.set(`${tr.tournamentId}:${tr.teamName}`, {
+    const key = teamResultKey(tr.tournamentId, tr.teamName);
+    if (!myTeamPairKeys.has(key)) continue;
+    teamPointsByKey.set(key, {
       rank: tr.rank,
       wins: tr.wins,
       points: tr.points ? tr.points.toString() : null,
     });
   }
+  const teamRankByKey = buildTeamRankLookup(teamResultRows);
 
   // Tournaments where the user appears on the adjudicator break tab. Match
   // by normalized name against any of the user's claimed Person aliases.
@@ -289,7 +290,7 @@ export default async function CvPage() {
   for (const [tid, p] of speakerByTournament.entries()) {
     const t = tournamentById.get(tid);
     if (!t) continue;
-    const teamKey = p.teamName ? `${tid}:${p.teamName}` : null;
+    const teamKey = p.teamName ? teamResultKey(tid, p.teamName) : null;
     const tr = teamKey ? teamPointsByKey.get(teamKey) : null;
     const speakerParticipations = speakerParticipationsByTournament.get(tid) ?? [p];
     const speakerSignals = mergeSpeakerCvSignals(speakerParticipations);
@@ -331,7 +332,7 @@ export default async function CvPage() {
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
-      teamRank: tr?.rank ?? null,
+      teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? p.wins ?? null,
       speakerAvgScore,

@@ -391,6 +391,27 @@ function findDebatesTable($: CheerioRoot): CheerioSel | null {
   return table;
 }
 
+function tableHeaderTexts($: CheerioRoot, table: CheerioSel): string[] {
+  return table
+    .find('thead th')
+    .toArray()
+    .map((th) => cleanWhitespace($(th).text()).toLowerCase());
+}
+
+function isSpeakerPrivateHtmlDebatesTable($: CheerioRoot, table: CheerioSel): boolean {
+  const headers = tableHeaderTexts($, table);
+  if (headers.length === 0) return false;
+  const hasHeader = (needle: string) => headers.some((header) => header.includes(needle));
+  const hasSpeakerColumns = hasHeader('result') && hasHeader('speak') && hasHeader('side');
+  if (!hasSpeakerColumns) return false;
+
+  const hasTeamPositionColumns = headers.some((header) =>
+    /^(og|oo|cg|co|prop|opp|aff|neg|team)\b/i.test(header),
+  );
+  const hasSpeakerBallot = table.find('tbody a[href*="/speaker/"]').length > 0;
+  return hasSpeakerBallot || !hasTeamPositionColumns;
+}
+
 /**
  * Pull the canonical stage label + numeric round (if applicable) from the
  * leftmost cell of a Debates-table row. Returns null when the row has no
@@ -721,6 +742,28 @@ function teamCellMatches(cellText: string, wantedTeam: string): boolean {
   return /^\s+\d+\s*$/.test(suffix);
 }
 
+function isSpeakerPrivateVueDebatesTable(table: VueTable): boolean {
+  const resultCol = vueColumn(table, 'result');
+  const speaksCol = vueColumn(table, 'speaks', 'speaker score');
+  const sideCol = vueColumn(table, 'side');
+  const ballotCol = vueColumn(table, 'ballot');
+  if (resultCol < 0 || speaksCol < 0 || sideCol < 0) return false;
+
+  const hasSpeakerBallot =
+    ballotCol >= 0 &&
+    table.data.some((row) => {
+      const link = row[ballotCol]?.link ?? '';
+      return /\/speaker\/[^/]+\/?$/i.test(link) || /\/speaker\/[^/]+\/view\/?$/i.test(link);
+    });
+
+  const hasTeamPositionColumns = table.head.some((head) => {
+    const label = `${head.key ?? ''} ${head.title ?? ''}`.toLowerCase();
+    return /^(og|oo|cg|co|prop|opp|aff|neg|team)\b/i.test(label.trim());
+  });
+
+  return hasSpeakerBallot || !hasTeamPositionColumns;
+}
+
 function extractSpeakerRoundsFromVue(
   html: string,
   knownTeamName?: string | null,
@@ -730,6 +773,7 @@ function extractSpeakerRoundsFromVue(
   const roundCol = vueColumn(table, 'round');
   const adjCol = vueColumn(table, 'adjudicator', 'judge');
   const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
+  const speakerPrivateRowsAreOwned = isSpeakerPrivateVueDebatesTable(table);
   const rows: SpeakerRound[] = [];
 
   table.data.forEach((row, idx) => {
@@ -737,17 +781,19 @@ function extractSpeakerRoundsFromVue(
     const stageInfo = stageInfoFromLabel(stageCell?.tooltip ?? stageCell?.text ?? null);
     if (!stageInfo) return;
 
-    const owned = row.some((cell, cellIdx) => {
-      if (cellIdx === roundCol || cellIdx === adjCol) return false;
-      const cls = (cell?.class ?? '').toLowerCase();
-      const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
-      if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
-      const raw = vueCellText(cell);
-      if (/<strong\b/i.test(raw)) return true;
-      if (!wantedTeam) return false;
-      const plain = cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
-      return teamCellMatches(plain, wantedTeam);
-    });
+    const owned =
+      speakerPrivateRowsAreOwned ||
+      row.some((cell, cellIdx) => {
+        if (cellIdx === roundCol || cellIdx === adjCol) return false;
+        const cls = (cell?.class ?? '').toLowerCase();
+        const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
+        if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
+        const raw = vueCellText(cell);
+        if (/<strong\b/i.test(raw)) return true;
+        if (!wantedTeam) return false;
+        const plain = cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
+        return teamCellMatches(plain, wantedTeam);
+      });
     if (!owned) return;
 
     rows.push({
@@ -771,6 +817,7 @@ export function extractSpeakerRounds(
   if (!table) return [];
 
   const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
+  const speakerPrivateRowsAreOwned = isSpeakerPrivateHtmlDebatesTable($, table);
   const rows: SpeakerRound[] = [];
   table.find('tbody > tr').each((idx, tr) => {
     const $tr = $(tr);
@@ -778,21 +825,23 @@ export function extractSpeakerRounds(
     if (!stageInfo) return;
 
     const teamCells = $tr.find('td.team-name');
-    if (teamCells.length === 0) return;
+    if (teamCells.length === 0 && !speakerPrivateRowsAreOwned) return;
 
-    let owned = false;
-    teamCells.each((_j, td) => {
-      if (owned) return;
-      const $td = $(td);
-      if ($td.find('strong').length > 0) {
-        owned = true;
-        return;
-      }
-      if (wantedTeam) {
-        const cellText = cleanWhitespace($td.text()).toLowerCase();
-        if (teamCellMatches(cellText, wantedTeam)) owned = true;
-      }
-    });
+    let owned = speakerPrivateRowsAreOwned;
+    if (!owned) {
+      teamCells.each((_j, td) => {
+        if (owned) return;
+        const $td = $(td);
+        if ($td.find('strong').length > 0) {
+          owned = true;
+          return;
+        }
+        if (wantedTeam) {
+          const cellText = cleanWhitespace($td.text()).toLowerCase();
+          if (teamCellMatches(cellText, wantedTeam)) owned = true;
+        }
+      });
+    }
     if (!owned) return;
 
     rows.push({

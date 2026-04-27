@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
+import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -117,14 +118,11 @@ export async function GET() {
           },
         })
       : Promise.resolve([]),
-    teamPairs.length
+    tournamentIds.length
       ? prisma.teamResult.findMany({
           where: {
-            OR: teamPairs.map((p) => ({
-              tournamentId: p.tournamentId,
-              teamName: p.teamName,
-              roundNumber: 0,
-            })),
+            tournamentId: { in: tournamentIds },
+            roundNumber: 0,
           },
           select: { tournamentId: true, teamName: true, rank: true, wins: true, points: true },
         })
@@ -155,8 +153,11 @@ export async function GET() {
 
   const teamResultByKey = new Map<string, (typeof teamResultRows)[number]>();
   for (const tr of teamResultRows) {
-    if (tr.teamName) teamResultByKey.set(`${tr.tournamentId}:${tr.teamName}`, tr);
+    if (tr.teamName && teamPairKeys.has(teamResultKey(tr.tournamentId, tr.teamName))) {
+      teamResultByKey.set(teamResultKey(tr.tournamentId, tr.teamName), tr);
+    }
   }
+  const teamRankByKey = buildTeamRankLookup(teamResultRows);
 
   const judgeBreakTournaments = new Set<bigint>();
   const myNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
@@ -220,7 +221,7 @@ export async function GET() {
     if (!p) continue;
     const t = tournamentById.get(tournamentId);
     if (!t) continue;
-    const key = p.teamName ? `${tournamentId}:${p.teamName}` : null;
+    const key = p.teamName ? teamResultKey(tournamentId, p.teamName) : null;
     const teamResult = key ? teamResultByKey.get(key) : null;
     const avg = speakerAverage(p);
     const signals = mergeSpeakerCvSignals(group);
@@ -239,7 +240,7 @@ export async function GET() {
       myNameByTournament.get(tournamentId) ?? myDisplayName,
       key ? (teammatesByKey.get(key) ?? []).join(' | ') : '',
       p.teamName,
-      teamResult?.rank != null ? `#${teamResult.rank}` : '',
+      key && teamRankByKey.has(key) ? `#${teamRankByKey.get(key)}` : '',
       teamResult?.points?.toString() ?? (teamResult?.wins != null ? `${teamResult.wins}W` : ''),
       avg.average,
       avg.prelims || '',
