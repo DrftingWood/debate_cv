@@ -52,6 +52,24 @@ describe('extractUrlsFromText', () => {
     );
     expect(urls).toEqual(['https://test.calicotab.com/test/privateurls/TOK12345/']);
   });
+
+  test('decodes quoted-printable soft line breaks that span a URL', () => {
+    // SMTP encoders insert "=\n" to keep line lengths < 76 chars. Without
+    // QP decoding, the URL never matches the regex.
+    const text = 'Your link: https://wudc2024.calicotab.com/wudc=\n2024/privateurls/abc12345/.';
+    const urls = extractUrlsFromText(text);
+    expect(urls).toEqual([
+      'https://wudc2024.calicotab.com/wudc2024/privateurls/abc12345/',
+    ]);
+  });
+
+  test('dedupes URLs present in both raw and QP-decoded forms', () => {
+    // A URL that's intact in the raw text shouldn't double-count just
+    // because we ran the QP decoder over a copy.
+    const text = 'Link https://x.calicotab.com/y/privateurls/TOK/.';
+    const urls = extractUrlsFromText(text);
+    expect(urls).toEqual(['https://x.calicotab.com/y/privateurls/TOK/']);
+  });
 });
 
 describe('parsePrivateUrl', () => {
