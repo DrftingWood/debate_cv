@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { getOAuthClientForUser } from '@/lib/gmail/client';
+import { getOAuthClientForUser, revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { extractAllFromGmail } from '@/lib/gmail/run';
 import { enqueueUrl } from '@/lib/queue';
 
@@ -9,13 +9,35 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+/**
+ * Returns true if the error came from Google rejecting our refresh token.
+ * Common triggers: user revoked our access in their Google Account
+ * permissions, granted scopes were narrowed, refresh token expired (rare).
+ * In all these cases we want to clear the stored token + tell the user to
+ * sign in again, rather than surface a generic 500.
+ */
+function isRefreshTokenInvalid(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const message = 'message' in err && typeof err.message === 'string' ? err.message : '';
+  if (/invalid_grant|invalid_token|token (?:expired|revoked|not granted)/i.test(message)) {
+    return true;
+  }
+  // googleapis throws GaxiosError; the OAuth error is in response.data.error.
+  const response = (err as { response?: { data?: { error?: string } } }).response;
+  if (response?.data?.error && /invalid_grant|invalid_token/i.test(response.data.error)) {
+    return true;
+  }
+  return false;
+}
+
 export async function POST() {
+  let userId: string | null = null;
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
-    const userId = session.user.id;
+    userId = session.user.id;
 
     const oauth = await getOAuthClientForUser(userId);
     if (!oauth) {
@@ -58,6 +80,23 @@ export async function POST() {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/ingest/gmail]', msg);
+    if (isRefreshTokenInvalid(err)) {
+      // Clear the stale token so the next sign-in writes a fresh one.
+      // Swallow errors from the revoke call — the goal is the local row, not
+      // notifying Google (whose endpoint may already have invalidated it).
+      if (userId) {
+        try { await revokeAndForgetGmailToken(userId); } catch {
+          /* intentional: token already invalid upstream */
+        }
+      }
+      return NextResponse.json(
+        {
+          error: 'token_invalid',
+          hint: 'Your Google access was revoked or expired. Sign out and sign back in to grant Gmail access again.',
+        },
+        { status: 401 },
+      );
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

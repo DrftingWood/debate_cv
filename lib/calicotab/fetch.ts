@@ -98,6 +98,13 @@ function browserHeaders(referer?: string): Record<string, string> {
   return headers;
 }
 
+// Per-fetch timeout. Tabbycat hosts can hang under load; without an explicit
+// abort, a single slow tab fetch consumes the entire serverless function
+// budget (Vercel: 60s) and burns the whole ingest. 15s is generous for a
+// document fetch but well below the function ceiling, leaving room for the
+// other ~16+ tab fetches to also have their chance.
+const FETCH_TIMEOUT_MS = 15_000;
+
 async function throttledFetch(url: string, referer?: string): Promise<Response> {
   const host = new URL(url).host;
   const last = lastRequestByHost.get(host) ?? 0;
@@ -106,15 +113,30 @@ async function throttledFetch(url: string, referer?: string): Promise<Response> 
   lastRequestByHost.set(host, Date.now());
 
   const cookie = getCookieHeader(host);
-  const res = await fetch(buildTargetUrl(url), {
-    headers: {
-      ...browserHeaders(referer),
-      ...(cookie ? { Cookie: cookie } : {}),
-    },
-    redirect: 'follow',
-  });
-  storeCookies(host, res);
-  return res;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(buildTargetUrl(url), {
+      headers: {
+        ...browserHeaders(referer),
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    storeCookies(host, res);
+    return res;
+  } catch (err) {
+    // AbortError surfaces as a generic "aborted" message in Node 18+. Re-raise
+    // with a clearer error so fetchWarnings show "fetch: tab timeout (15s)"
+    // instead of a cryptic generic abort string.
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`fetch timeout after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -165,7 +187,22 @@ export async function fetchHtmlWithProvenance(
   options: { referer?: string } = {},
 ): Promise<FetchResult> {
   const start = Date.now();
-  const res = await fetchWithRetry(url, options.referer);
+  let res: Response;
+  try {
+    res = await fetchWithRetry(url, options.referer);
+  } catch (err) {
+    // Network failure (timeout from throttledFetch's AbortController, DNS,
+    // refused connection). Convert to a soft FetchResult so a single tab
+    // fetch failure doesn't reject the Promise.all in ingest.ts and crash
+    // every other in-flight fetch.
+    return {
+      ok: false,
+      url,
+      status: 0,
+      bodyPreview: err instanceof Error ? err.message.slice(0, 300) : 'fetch error',
+      elapsedMs: Date.now() - start,
+    };
+  }
   const html = await res.text();
   const elapsedMs = Date.now() - start;
 

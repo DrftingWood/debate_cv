@@ -79,6 +79,13 @@ export function OnboardingFlow({
     if (phase !== 'preflight') return;
     let cancelled = false;
     (async () => {
+      // Earlier we exited on a single zero-progress response (`processed===0`),
+      // which let a transient flake terminate the loop while URLs were still
+      // pending. Allow a few consecutive zero-progress responses (typically
+      // from a hung fetch on one URL) before giving up — the endpoint is
+      // already idempotent so retrying is safe.
+      const MAX_ZERO_PROGRESS_IN_A_ROW = 3;
+      let zeroProgressStreak = 0;
       while (!cancelled) {
         const res = await postJson<PreflightResponse>('/api/onboarding/preflight');
         if (!res.ok) {
@@ -94,7 +101,13 @@ export function OnboardingFlow({
         if (res.data.errors?.length) {
           setRecentErrors((prev) => [...res.data.errors, ...prev].slice(0, 50));
         }
-        if (res.data.remaining === 0 || res.data.processed === 0) break;
+        if (res.data.remaining === 0) break;
+        if (res.data.processed === 0) {
+          zeroProgressStreak += 1;
+          if (zeroProgressStreak >= MAX_ZERO_PROGRESS_IN_A_ROW) break;
+        } else {
+          zeroProgressStreak = 0;
+        }
       }
       if (cancelled) return;
       await refreshNames();
