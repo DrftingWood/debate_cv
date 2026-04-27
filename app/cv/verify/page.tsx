@@ -196,8 +196,8 @@ export default async function CvVerifyPage({
                       ) : null}
                     </div>
                     {/* Desktop: 13-column table. md+ only. */}
-                    <div className="hidden overflow-x-auto rounded-md border border-border md:block">
-                      <table className="w-full text-caption">
+                    <div className="hidden max-w-full overflow-x-auto rounded-md border border-border md:block">
+                      <table className="min-w-max text-caption">
                         <thead className="bg-muted/50 text-left text-muted-foreground">
                           <tr>
                             <th className="px-2 py-1.5">Name</th>

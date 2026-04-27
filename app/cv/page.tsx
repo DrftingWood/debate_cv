@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { ParticipantSearch } from '@/components/ParticipantSearch';
+import { CvErrorReportForm } from '@/components/CvErrorReportForm';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -476,6 +477,38 @@ export default async function CvPage() {
       return a.name.localeCompare(b.name);
     });
 
+  const rolesByTournament = new Map<bigint, Set<string>>();
+  for (const row of speakerRows) {
+    const roles = rolesByTournament.get(row.tournamentId) ?? new Set<string>();
+    roles.add('speaker');
+    rolesByTournament.set(row.tournamentId, roles);
+  }
+  for (const row of judgeRows) {
+    const roles = rolesByTournament.get(row.tournamentId) ?? new Set<string>();
+    roles.add('judge');
+    rolesByTournament.set(row.tournamentId, roles);
+  }
+  for (const t of unmatched) {
+    const roles = rolesByTournament.get(t.id) ?? new Set<string>();
+    roles.add('unmatched');
+    rolesByTournament.set(t.id, roles);
+  }
+  const feedbackTournaments = tournamentIds
+    .map((tid) => tournamentById.get(tid))
+    .filter((t): t is TournamentMeta => !!t)
+    .sort((a, b) => {
+      const ya = a.year ?? -Infinity;
+      const yb = b.year ?? -Infinity;
+      if (ya !== yb) return yb - ya;
+      return a.name.localeCompare(b.name);
+    })
+    .map((t) => ({
+      id: t.id.toString(),
+      name: t.name,
+      year: t.year,
+      roles: [...(rolesByTournament.get(t.id) ?? new Set<string>(['ingested']))],
+    }));
+
   // 8) Header summary
   const totalTournaments = tournamentIds.length;
   const breaks = speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
@@ -534,6 +567,10 @@ export default async function CvPage() {
           <Button variant="outline" size="sm">Export CSV</Button>
         </a>
       </div>
+
+      {totalTournaments > 0 ? (
+        <CvErrorReportForm tournaments={feedbackTournaments} />
+      ) : null}
 
       {totalTournaments === 0 ? (
         <EmptyState
@@ -676,7 +713,7 @@ function CollapsibleSection({
   return (
     <details
       open={defaultOpen}
-      className="group overflow-hidden rounded-card border border-border bg-card/60 shadow-xs"
+      className="group rounded-card border border-border bg-card/60 shadow-xs"
     >
       <summary className="flex cursor-pointer select-none items-center justify-between gap-3 px-5 py-4 md:px-6">
         <div className="inline-flex items-center gap-2">
@@ -751,8 +788,8 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
   return (
     <>
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-[13.5px]">
+      <div className="hidden max-w-full overflow-x-auto md:block">
+        <table className="min-w-max text-[13.5px]">
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-caption text-muted-foreground">
               <th className="px-4 py-2.5 font-medium">Tournament</th>
@@ -889,8 +926,8 @@ type JudgingTableRow = {
 function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
   return (
     <>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-[13.5px]">
+      <div className="hidden max-w-full overflow-x-auto md:block">
+        <table className="min-w-max text-[13.5px]">
           <thead>
             <tr className="border-b border-border bg-muted/30 text-left text-caption text-muted-foreground">
               <th className="px-4 py-2.5 font-medium">Tournament</th>

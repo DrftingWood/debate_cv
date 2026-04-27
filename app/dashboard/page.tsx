@@ -240,8 +240,9 @@ export default async function Dashboard() {
             </ul>
 
             {/* Desktop */}
-            <Card className="hidden overflow-hidden md:block">
-              <table className="w-full text-[13.5px]">
+            <Card className="hidden md:block">
+              <div className="max-w-full overflow-x-auto">
+                <table className="min-w-max text-[13.5px]">
                 <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-5 py-3">Select</th>
@@ -327,7 +328,8 @@ export default async function Dashboard() {
                     );
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </Card>
           </>
         )}

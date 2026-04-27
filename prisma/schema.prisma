@@ -29,6 +29,7 @@ model User {
   ingestJobs        IngestJob[]
   claimedPersons    Person[]            @relation("ClaimedByUser")
   personRejections  PersonRejection[]
+  cvErrorReports    CvErrorReport[]
 }
 
 model Account {
@@ -288,6 +289,23 @@ model JudgeAssignment {
   person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, personId, stage, panelRole, roundNumber])
+}
+
+// -------------------- Beta feedback --------------------
+
+model CvErrorReport {
+  id            String    @id @default(cuid())
+  userId        String
+  tournamentIds String[]  @default([])
+  comment       String    @db.Text
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([resolvedAt])
 }
 
 // -------------------- Provenance + parser versioning --------------------
