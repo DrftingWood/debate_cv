@@ -692,7 +692,43 @@ export type SpeakerRound = {
   roundNumber: number | null;
   /** 1-based document order of the row in the "Debates" table. */
   sequenceIndex: number;
+  /**
+   * Whether the user's team won this round. Detected from win indicators
+   * Tabbycat renders next to the team name on the user's own Debates card
+   * (green up-arrow icon, `text-success` modifier, "winner" / "won" class,
+   * or trophy/check icons). Null when no signal could be read either way
+   * — e.g. on stages that don't render an indicator at all, or older
+   * Tabbycat versions whose markup we don't recognise.
+   */
+  won: boolean | null;
 };
+
+/**
+ * Detect a win indicator on the user's team cell from a Tabbycat Debates
+ * card. The card renders the user's own team in `<strong>`; on outround
+ * stages it adds a green up-arrow icon (`.bi-arrow-up-square`,
+ * `.text-success`, etc.) when the team won that debate. We accept a
+ * generous superset of class names + icon variants so a Tabbycat skin
+ * change doesn't silently flip champions to runners-up. Returns true on
+ * a positive signal, false on an explicit loss signal, null when neither
+ * is present (caller treats null as "unknown").
+ */
+function detectWonFromCellHtml(cellHtml: string): boolean | null {
+  const lower = cellHtml.toLowerCase();
+  if (
+    /\b(text-success|bg-success|winner|won|advanced)\b/.test(lower) ||
+    /\b(bi-arrow-up|fa-arrow-up|bi-trophy|fa-trophy|bi-check-circle|fa-check-circle)/.test(lower)
+  ) {
+    return true;
+  }
+  if (
+    /\b(text-danger|bg-danger|loser|lost|eliminated)\b/.test(lower) ||
+    /\b(bi-arrow-down|fa-arrow-down|bi-x-circle|fa-x-circle|bi-x-square|fa-x)/.test(lower)
+  ) {
+    return false;
+  }
+  return null;
+}
 
 /**
  * Pull the URL owner's per-round speaking history from the "Debates" card on
@@ -781,6 +817,8 @@ function extractSpeakerRoundsFromVue(
     const stageInfo = stageInfoFromLabel(stageCell?.tooltip ?? stageCell?.text ?? null);
     if (!stageInfo) return;
 
+    let ownedCellRaw: string | null = null;
+    let ownedCellClass: string | null = null;
     const owned =
       speakerPrivateRowsAreOwned ||
       row.some((cell, cellIdx) => {
@@ -789,17 +827,35 @@ function extractSpeakerRoundsFromVue(
         const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
         if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
         const raw = vueCellText(cell);
-        if (/<strong\b/i.test(raw)) return true;
+        if (/<strong\b/i.test(raw)) {
+          ownedCellRaw = raw;
+          ownedCellClass = cls;
+          return true;
+        }
         if (!wantedTeam) return false;
         const plain = cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
-        return teamCellMatches(plain, wantedTeam);
+        if (teamCellMatches(plain, wantedTeam)) {
+          ownedCellRaw = raw;
+          ownedCellClass = cls;
+          return true;
+        }
+        return false;
       });
     if (!owned) return;
+
+    // Win detection inspects both the cell html (icon classes, inline
+    // win/loss markers) and the cell-wrapper class (some Tabbycat
+    // versions paint `text-success` on the <td> itself rather than an
+    // inner <i>). Either signal counts.
+    const won = ownedCellRaw
+      ? detectWonFromCellHtml(`${ownedCellRaw} ${ownedCellClass ?? ''}`)
+      : null;
 
     rows.push({
       stage: stageInfo.stage,
       roundNumber: stageInfo.roundNumber,
       sequenceIndex: idx + 1,
+      won,
     });
   });
   return rows.length > 0 ? rows : null;
@@ -828,26 +884,41 @@ export function extractSpeakerRounds(
     if (teamCells.length === 0 && !speakerPrivateRowsAreOwned) return;
 
     let owned = speakerPrivateRowsAreOwned;
+    let ownedCellHtml: string | null = null;
     if (!owned) {
       teamCells.each((_j, td) => {
         if (owned) return;
         const $td = $(td);
         if ($td.find('strong').length > 0) {
           owned = true;
+          ownedCellHtml = $.html($td);
           return;
         }
         if (wantedTeam) {
           const cellText = cleanWhitespace($td.text()).toLowerCase();
-          if (teamCellMatches(cellText, wantedTeam)) owned = true;
+          if (teamCellMatches(cellText, wantedTeam)) {
+            owned = true;
+            ownedCellHtml = $.html($td);
+          }
         }
       });
     }
     if (!owned) return;
+    // If the row was claimed via "speakerPrivateRowsAreOwned" (Tabbycat's
+    // private-URL Debates table marks every row as owned implicitly), we
+    // still need to find the team cell to read the win indicator. Fall
+    // back to the first cell with a strong tag in that case.
+    if (!ownedCellHtml) {
+      const strongCells = $tr.find('td:has(strong)');
+      if (strongCells.length > 0) ownedCellHtml = $.html(strongCells.first());
+    }
+    const won = ownedCellHtml ? detectWonFromCellHtml(ownedCellHtml) : null;
 
     rows.push({
       stage: stageInfo.stage,
       roundNumber: stageInfo.roundNumber,
       sequenceIndex: idx + 1,
+      won,
     });
   });
 

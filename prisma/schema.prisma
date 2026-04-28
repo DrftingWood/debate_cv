@@ -189,6 +189,14 @@ model Tournament {
   year                 Int?
   totalParticipants    Int?
   totalTeams           Int?
+  /// Number of prelim rounds parsed from the landing nav (non-outround
+  /// `/results/round/N/` URLs). Authoritative divisor for the speaker
+  /// average fallback (`total / prelimRoundCount`) when the speaker tab
+  /// only exposes totals — common on AP installs whose tab strips
+  /// per-round columns. Null on legacy ingests before this field was
+  /// added; CV builder falls back to MAX(TeamResult.roundNumber) in
+  /// that case.
+  prelimRoundCount     Int?
   sourceUrlRaw         String
   sourceHost           String?
   sourceTournamentSlug String?
