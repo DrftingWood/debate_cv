@@ -31,18 +31,25 @@ export async function POST(req: Request) {
   }
   const userId = session.user.id;
 
-  const retry = new URL(req.url).searchParams.get('retry') === 'true';
+  // Retry modes:
+  //   ?retry=true     → full re-extract, clears every unclaimed URL (use
+  //                     after a parser fix, when good names need refresh)
+  //   ?retry=failures → only re-process URLs that previously failed (where
+  //                     lastPreflightError is non-null). 99% of the time
+  //                     this is what users want — re-fetching successfully-
+  //                     parsed names just wastes Cloudflare budget.
+  const retryParam = new URL(req.url).searchParams.get('retry');
+  const retryMode: 'full' | 'failures' | null =
+    retryParam === 'true' ? 'full' : retryParam === 'failures' ? 'failures' : null;
 
-  if (retry) {
-    // Clear every URL's previously-extracted registration name and error so
-    // the next preflight pass re-fetches them from scratch. Necessary after
-    // a parser-bug fix — successfully-extracted-but-polluted names (e.g.
-    // "Name (Team)" from before the parens-stripping fix) wouldn't be
-    // refreshed by a failure-only reset. Rows already wired to a Person
-    // (registrationPersonId set) are left alone — those are fully ingested
-    // and the canonical Person row is the source of truth.
+  if (retryMode === 'full') {
     await prisma.discoveredUrl.updateMany({
       where: { userId, registrationPersonId: null },
+      data: { registrationName: null, lastPreflightError: null },
+    });
+  } else if (retryMode === 'failures') {
+    await prisma.discoveredUrl.updateMany({
+      where: { userId, registrationPersonId: null, lastPreflightError: { not: null } },
       data: { registrationName: null, lastPreflightError: null },
     });
   }

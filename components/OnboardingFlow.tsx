@@ -185,18 +185,20 @@ export function OnboardingFlow({
     });
   };
 
-  // ── Retry: reset failures and re-fire preflight ────────────────────────
-  const onRetryFailures = () => {
+  // ── Retry helpers: kick off preflight again with one of two modes.
+  // Common: `failures` only re-fetches URLs that failed last time, which is
+  // what users want 99% of the time. `full` clears every cached name so a
+  // parser-bug fix can refresh good rows too.
+  const startRetry = (mode: 'failures' | 'full') => {
     startReset(async () => {
+      const param = mode === 'full' ? 'true' : 'failures';
       const res = await postJson<PreflightResponse>(
-        '/api/onboarding/preflight?retry=true',
+        `/api/onboarding/preflight?retry=${param}`,
       );
       if (!res.ok) {
         toast.show({ kind: 'error', title: 'Retry failed', description: res.error });
         return;
       }
-      // The retry call returns the first batch's result; switch to preflight
-      // phase so the loop above keeps draining the rest.
       setPreflight({
         remaining: res.data.remaining,
         extracted: res.data.extracted,
@@ -206,6 +208,8 @@ export function OnboardingFlow({
       setPhase('preflight');
     });
   };
+  const onRetryFailures = () => startRetry('failures');
+  const onFullReextract = () => startRetry('full');
 
   // ── Phase 3: confirm picks ──────────────────────────────────────────────
   const toggle = (norm: string) => {
@@ -427,9 +431,22 @@ export function OnboardingFlow({
                     !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
                   }
                   onClick={onRetryFailures}
-                  title="Clears every URL's cached name and re-fetches all landings"
+                  title="Re-fetches only the URLs that previously failed"
                 >
-                  Re-extract all names
+                  Retry failed URLs
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  loading={isResetting}
+                  leftIcon={
+                    !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
+                  }
+                  onClick={onFullReextract}
+                  title="Clears every cached name and re-fetches all landings"
+                >
+                  Full re-extract
                 </Button>
               </div>
               <Button
