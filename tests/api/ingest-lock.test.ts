@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
   jsonRequest,
   readJson,
 } from '../setup/api-test-utils';
@@ -19,15 +20,14 @@ beforeEach(() => {
 });
 
 describe('POST /api/ingest/lock', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST(
-      jsonRequest('/api/ingest/lock', {
-        body: { url: 'https://x.calicotab.com/u/aaa/', locked: true },
-      }),
-    );
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () =>
+    expectUnauthorized(() =>
+      POST(
+        jsonRequest('/api/ingest/lock', {
+          body: { url: 'https://x.calicotab.com/u/aaa/', locked: true },
+        }),
+      ),
+    ));
 
   it('rejects malformed body', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));

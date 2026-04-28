@@ -135,3 +135,21 @@ export async function readJson<T = unknown>(res: Response): Promise<T> {
   const text = await res.text();
   return text.length > 0 ? (JSON.parse(text) as T) : (undefined as unknown as T);
 }
+
+// ── shared assertions ───────────────────────────────────────────────
+import { expect } from 'vitest';
+
+/**
+ * Standard "endpoint returns 401 when unauthenticated" assertion. Stubs
+ * `authMock` to return `null` and runs the handler call, then expects
+ * status 401. Replaces a 4-line `it('returns 401', async () => {...})`
+ * block in every API test file — every endpoint needs this check, and
+ * doing it 10 different ways across files invited drift.
+ */
+export async function expectUnauthorized(
+  call: () => Promise<Response>,
+): Promise<void> {
+  authMock.mockResolvedValue(null);
+  const res = await call();
+  expect(res.status).toBe(401);
+}

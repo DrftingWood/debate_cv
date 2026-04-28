@@ -4,7 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
-  jsonRequest,
+  expectUnauthorized,
   readJson,
 } from '../setup/api-test-utils';
 
@@ -20,11 +20,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/notifications', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await GET();
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => GET()));
 
   it('returns the user notifications list with unread count', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
@@ -68,11 +64,7 @@ describe('GET /api/notifications', () => {
 });
 
 describe('POST /api/notifications/mark-read', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await markRead();
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => markRead()));
 
   it('marks every unread notification as read for the current user', async () => {
     authMock.mockResolvedValue(fakeSession('user-3'));

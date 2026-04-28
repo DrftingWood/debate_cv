@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
   readJson,
 } from '../setup/api-test-utils';
 
@@ -18,11 +19,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/ingest/retry-failed', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST();
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => POST()));
 
   it('returns {retried: 0, skipped: 0} when no failed jobs exist', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));

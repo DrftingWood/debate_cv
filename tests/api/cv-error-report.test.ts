@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
   jsonRequest,
   readJson,
 } from '../setup/api-test-utils';
@@ -19,15 +20,14 @@ beforeEach(() => {
 });
 
 describe('POST /api/cv/error-report', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST(
-      jsonRequest('/api/cv/error-report', {
-        body: { tournamentIds: ['1'], categories: ['wrong_teammate'] },
-      }),
-    );
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () =>
+    expectUnauthorized(() =>
+      POST(
+        jsonRequest('/api/cv/error-report', {
+          body: { tournamentIds: ['1'], categories: ['wrong_teammate'] },
+        }),
+      ),
+    ));
 
   it('rejects an empty submission (no categories AND no comment)', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));

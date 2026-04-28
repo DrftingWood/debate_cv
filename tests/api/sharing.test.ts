@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
   jsonRequest,
   readJson,
 } from '../setup/api-test-utils';
@@ -19,11 +20,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/sharing', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await GET();
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => GET()));
 
   it('returns the user sharing config', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
@@ -148,9 +145,6 @@ describe('POST /api/sharing — toggle behaviour', () => {
     expect(updateArg.data.publicCvSlug).toBeUndefined();
   });
 
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST(jsonRequest('/api/sharing', { body: { enabled: true } }));
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () =>
+    expectUnauthorized(() => POST(jsonRequest('/api/sharing', { body: { enabled: true } }))));
 });
