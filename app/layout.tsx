@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { NavLink } from '@/components/NavLink';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
+import { NotificationBell } from '@/components/NotificationBell';
 import './globals.css';
 
 const fontSans = Inter({
@@ -90,11 +91,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href={logoHref} className="inline-flex items-center">
                 <BrandMark />
               </Link>
-              <nav className="flex items-center gap-6 text-[13.5px] font-medium">
-                <NavLink href="/cv">My CV</NavLink>
-                <NavLink href="/dashboard">Dashboard</NavLink>
-                <NavLink href="/settings">Settings</NavLink>
-              </nav>
+              <div className="flex items-center gap-4">
+                <nav className="flex items-center gap-6 text-[13.5px] font-medium">
+                  <NavLink href="/cv">My CV</NavLink>
+                  <NavLink href="/dashboard">Dashboard</NavLink>
+                  <NavLink href="/settings">Settings</NavLink>
+                </nav>
+                {session?.user?.id ? <NotificationBell /> : null}
+              </div>
             </div>
           </header>
           <main id="main" className="flex-1">

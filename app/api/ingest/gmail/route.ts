@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { getOAuthClientForUser, revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { extractAllFromGmail } from '@/lib/gmail/run';
 import { enqueueUrl } from '@/lib/queue';
+import { writeNotification } from '@/lib/notifications/write';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -108,6 +109,20 @@ export async function POST() {
         },
       });
       await enqueueUrl(userId, r.url);
+    }
+
+    if (summary.total > 0) {
+      // Best-effort bell-notify on new URL discovery. Deduped within 5min
+      // so the auto-scan hitting the same scan window twice doesn't
+      // generate multiple "found new URLs" entries.
+      await writeNotification({
+        userId,
+        kind: 'new_urls_found',
+        title: `Found ${summary.total} new ${summary.total === 1 ? 'URL' : 'URLs'}`,
+        body: 'Open the dashboard to ingest them.',
+        href: '/dashboard?filter=pending',
+        dedupeWithinMs: 5 * 60 * 1000,
+      });
     }
 
     return NextResponse.json({
