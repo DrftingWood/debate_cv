@@ -312,6 +312,14 @@ export async function ingestPrivateUrl(
   // temporarily degraded (rate-limited, partial render) and serve the cached
   // record instead of overwriting good data with garbage. options.force
   // bypasses for explicit manual re-ingests.
+  //
+  // The guard ALSO covers per-field signals — speaker rank coverage in
+  // particular. A speaker tab that 403s or returns rows but has no rank
+  // column at all would silently null the speakerRankOpen of every existing
+  // participant after `prepareTournamentWideRefresh` runs (the upsert below
+  // writes whatever sp.rank was, including null). Catching the drop here
+  // serves cached data instead, matching the behaviour for catastrophic
+  // team/participant drops.
   if (existing && !options.force) {
     const oldTeams = existing.totalTeams ?? 0;
     const oldParticipants = existing.totalParticipants ?? 0;
@@ -319,10 +327,20 @@ export async function ingestPrivateUrl(
     const newParticipants = totalParticipants ?? 0;
     const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
     const participantsDropped = oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
-    if (teamsDropped || participantsDropped) {
+
+    // Speaker-rank regression: count old participants with a known rank vs
+    // how many of this parse's speakerRows actually carry a rank.
+    const oldRankCount = await prisma.tournamentParticipant.count({
+      where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
+    });
+    const newRankCount = speakerRows.filter((r) => r.rank != null).length;
+    const ranksDropped = oldRankCount > 5 && newRankCount < oldRankCount * 0.5;
+
+    if (teamsDropped || participantsDropped || ranksDropped) {
       const msg =
         `Regression guard: re-ingest would drop data — ` +
-        `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}`;
+        `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}, ` +
+        `ranks ${oldRankCount}→${newRankCount}`;
       Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint } });
       const linked = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
@@ -894,7 +912,26 @@ async function prepareTournamentWideRefresh(
   const protectedPersonIds = personIdsWithPrivateHistory.map((p) => p.personId);
 
   // Refresh tournament-wide data without erasing private-URL history that may
-  // have been supplied by another user's URL for this same tournament.
+  // have been supplied by another user's URL for this same tournament. Leaf
+  // tables (eliminationResult, teamResult, speakerRoundScore, participantRole)
+  // are deleted outright since the upcoming parse will rewrite them in full;
+  // tournamentParticipant rows themselves are kept (the speaker / adjudicator
+  // upsert loops below either UPDATE them with fresh values or leave them
+  // alone).
+  //
+  // We deliberately DO NOT null per-participant fields like speakerRankOpen /
+  // speakerScoreTotal / teamName here. The upsert in the speaker loop runs
+  // once per (tournamentId, personId) pair found in `speakerRows`, so when it
+  // fires it overwrites those fields with fresh values from the new parse.
+  // If the upsert does NOT fire — typically because the parser couldn't find
+  // the speaker tab at all, or because a slightly different name spelling
+  // didn't normalize-match the user's claim — pre-nulling would leave the
+  // participant with all-null fields and the user would see their CV row
+  // suddenly "lose" rank, average, etc. for that tournament. Trusting the
+  // upsert to overwrite when it has data, and preserving last-good values
+  // when it doesn't, is the right policy: re-ingest only ADDS data, never
+  // wipes it. The regression guard upstream of this function blocks the
+  // catastrophic-drop case.
   await tx.eliminationResult.deleteMany({ where: { tournamentId } });
   await tx.teamResult.deleteMany({ where: { tournamentId } });
   if (participantIds.length > 0) {
@@ -905,21 +942,6 @@ async function prepareTournamentWideRefresh(
       where: { tournamentParticipantId: { in: participantIds } },
     });
   }
-  await tx.tournamentParticipant.updateMany({
-    where: { tournamentId },
-    data: {
-      teamName: null,
-      speakerScoreTotal: null,
-      speakerRankOpen: null,
-      speakerRankEsl: null,
-      speakerRankEfl: null,
-      teamBreakRank: null,
-      teamScoreTotal: null,
-      judgeTypeTag: null,
-      wins: null,
-      losses: null,
-    },
-  });
   await tx.tournamentParticipant.deleteMany({
     where: {
       tournamentId,
@@ -1039,23 +1061,26 @@ async function recordJudgeRoundsFromLanding(
 ): Promise<{ written: number; chairedPrelims: number; diagnostic: string | null }> {
   const adjRounds = extractAdjudicatorRounds(landingHtml, knownPersonName);
   if (adjRounds.length === 0) {
-    await prisma.$transaction([
-      prisma.judgeAssignment.deleteMany({ where: { tournamentId, personId } }),
-      prisma.tournamentParticipant.update({
-        where: { tournamentId_personId: { tournamentId, personId } },
-        data: {
-          chairedPrelimRounds: null,
-          lastOutroundChaired: null,
-          lastOutroundPaneled: null,
-        },
-      }),
-    ]);
+    // Old behaviour deleted the user's JudgeAssignment rows + nulled
+    // chairedPrelimRounds/lastOutroundChaired/lastOutroundPaneled here,
+    // on the assumption that "0 adjudicator rounds parsed" means "URL
+    // owner isn't on any panel". But the same signal also fires when
+    // the tournament finishes and Tabbycat replaces the Debates card
+    // with a static "you are not adjudicating this round" message — in
+    // which case the parse legitimately can't see the table and we
+    // would be silently destroying judge history that's correct on
+    // disk. Same data-loss class as the PR #90 fix to
+    // prepareTournamentWideRefresh: prefer preserving last-good values
+    // over assuming an empty parse means "cleared". A user who
+    // genuinely stops judging between ingests is vanishingly rare;
+    // post-tournament Debates-card disappearance is common.
     return {
       written: 0,
       chairedPrelims: 0,
       diagnostic:
         "parse: 0 adjudicator rounds in private-URL Debates table — " +
-        "URL owner isn't on any panel, or the table heading + structure don't match the parser",
+        "URL owner isn't on any panel, or the table heading + structure don't match the parser; " +
+        'leaving any prior judge assignments in place rather than wiping them.',
     };
   }
 
