@@ -17,6 +17,9 @@ const securityHeaders = [
 
 const config: NextConfig = {
   serverExternalPackages: ['@prisma/client', 'googleapis'],
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   async headers() {
     return [
       {

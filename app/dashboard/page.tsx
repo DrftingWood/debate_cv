@@ -83,10 +83,23 @@ export default async function Dashboard() {
         <div className="flex flex-wrap items-center gap-2">
           {pending > 0 ? <IngestAllButton pendingCount={pending} /> : null}
           <ScanButton />
-          {urls.length > 0 ? <ReingestSelectedButton /> : null}
-          <ReingestMineButton />
-          <ExportErrorsButton />
-          <SignOutButton />
+          <details className="group relative">
+            <summary className="list-none">
+              <span className="inline-flex h-11 cursor-pointer items-center rounded-md border border-border bg-card px-4 text-[14px] font-medium text-foreground shadow-xs transition-colors hover:bg-muted">
+                More actions
+              </span>
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 w-[260px] rounded-card border border-border bg-card p-2.5 shadow-lg">
+              <div className="flex flex-col gap-1.5">
+                {urls.length > 0 ? <ReingestSelectedButton /> : null}
+                <ReingestMineButton />
+                <ExportErrorsButton />
+                <div className="pt-1">
+                  <SignOutButton />
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
       </header>
 
