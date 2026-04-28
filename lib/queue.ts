@@ -2,6 +2,10 @@ import { prisma } from '@/lib/db';
 import { IngestJobStatus, Prisma } from '@prisma/client';
 
 export async function enqueueUrl(userId: string, url: string): Promise<void> {
+  // `reingestLocked` is the user-controlled "don't touch this URL" flag —
+  // written by `app/api/ingest/lock/route.ts` when a user clicks Lock on
+  // the dashboard. Honoured here so a queued retry / drain / Re-ingest-mine
+  // skips locked URLs without surfacing a confusing failure.
   const locked = await prisma.discoveredUrl.findUnique({
     where: { userId_url: { userId, url } },
     select: { reingestLocked: true },

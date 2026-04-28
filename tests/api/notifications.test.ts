@@ -53,13 +53,23 @@ describe('GET /api/notifications', () => {
     authMock.mockResolvedValue(fakeSession('user-2'));
     prismaMock.notification.findMany.mockResolvedValue([]);
     prismaMock.notification.count.mockResolvedValue(0);
-    await GET();
+    const res = await GET();
+    expect(res.status).toBe(200);
     expect(prismaMock.notification.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: 'user-2' } }),
     );
     expect(prismaMock.notification.count).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: 'user-2', readAt: null } }),
     );
+    // Response shape sanity: scoping is the security guarantee, but the
+    // payload also has to match the contract the bell expects.
+    const data = await readJson<{
+      unreadCount: number;
+      notifications: unknown[];
+    }>(res);
+    expect(data.unreadCount).toBe(0);
+    expect(Array.isArray(data.notifications)).toBe(true);
+    expect(data.notifications).toHaveLength(0);
   });
 });
 
