@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
@@ -86,7 +87,21 @@ export async function ingestPrivateUrl(
     // Reparse invalidation: if PARSER_VERSION bumped since the last successful
     // parser run for this tournament's landing page, skip the cache and re-ingest.
     const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
-    if (fresh && parserUpToDate) {
+    // Smart cache bust: if the landing nav advertises more rounds than we
+    // have stored TeamResult rows for, the tournament has progressed since
+    // the last ingest — fall through to a full refresh instead of serving
+    // a cached result that's missing rounds.
+    let cacheStale = false;
+    const navRoundCount = snapshot.navigation.resultsRounds.length;
+    if (navRoundCount > 0) {
+      const storedRounds = await prisma.teamResult.findMany({
+        where: { tournamentId: existing.id, roundNumber: { gt: 0 } },
+        select: { roundNumber: true },
+        distinct: ['roundNumber'],
+      });
+      cacheStale = navRoundCount > storedRounds.length;
+    }
+    if (fresh && parserUpToDate && !cacheStale) {
       await recordParserRun({
         sourceDocumentId: landingDoc.sourceDocumentId,
         parserName: 'parseNav',
@@ -275,6 +290,58 @@ export async function ingestPrivateUrl(
     warnings: [...landingWarnings, ...fetchWarnings],
     durationMs: Date.now() - parseStart,
   });
+
+  // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
+  // 403, timeout) we'd be about to commit a tournament with missing speaker
+  // / team / round data, then mark its DiscoveredUrl as ingested — which
+  // hides the failure forever. Abort instead so the queue retries the job
+  // (drain/cron handlers reschedule on throw, up to MAX_ATTEMPTS=3). The
+  // ParserRun above already recorded the failure for /cv/verify.
+  const fetchLevelFailures = fetchWarnings.filter((w) => w.startsWith('fetch:'));
+  if (fetchLevelFailures.length > 0) {
+    throw new Error(
+      `Aborting ingest: ${fetchLevelFailures.length} tab fetch(es) failed — ` +
+        fetchLevelFailures.map((w) => w.slice(0, 120)).join('; '),
+    );
+  }
+
+  // Regression guard: if a re-ingest would drop the totals by >50% (and the
+  // old tournament had non-trivial counts), assume the source page is
+  // temporarily degraded (rate-limited, partial render) and serve the cached
+  // record instead of overwriting good data with garbage. options.force
+  // bypasses for explicit manual re-ingests.
+  if (existing && !options.force) {
+    const oldTeams = existing.totalTeams ?? 0;
+    const oldParticipants = existing.totalParticipants ?? 0;
+    const newTeams = totalTeams ?? 0;
+    const newParticipants = totalParticipants ?? 0;
+    const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
+    const participantsDropped = oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
+    if (teamsDropped || participantsDropped) {
+      const msg =
+        `Regression guard: re-ingest would drop data — ` +
+        `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}`;
+      Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint } });
+      const claimedPersonId = await withDeadlockRetry(() =>
+        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
+      );
+      await prisma.discoveredUrl.updateMany({
+        where: { userId, url: { in: urlVariants } },
+        data: { tournamentId: existing.id, ingestedAt: new Date() },
+      });
+      return {
+        tournamentId: existing.id,
+        fingerprint,
+        cached: true,
+        claimedPersonId,
+        claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
+        parserVersion: PARSER_VERSION,
+        totalTeams: existing.totalTeams,
+        totalParticipants: existing.totalParticipants,
+        warnings: [...fetchWarnings, 'regression-guard: overwrite blocked'],
+      };
+    }
+  }
 
   // Pre-commit every Person referenced anywhere in this ingest before opening
   // the main transaction. Doing the upserts inside the long transaction held
