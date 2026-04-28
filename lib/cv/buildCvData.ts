@@ -139,6 +139,23 @@ export async function buildCvData(userId: string): Promise<CvData> {
     .map((p) => ({ tournamentId: p.tournamentId, teamName: p.teamName! }));
   const myTeamPairKeys = new Set(myTeamPairs.map((p) => `${p.tournamentId}:${p.teamName}`));
 
+  // Distinct prelim round count per tournament. Used as a divisor when the
+  // speaker tab gave us `speakerScoreTotal` but no per-round columns (an AP
+  // tab pattern where round headers are bare digits or are simply not
+  // released, so we have a total but can't count speeches directly).
+  const prelimRoundCountByTournament = new Map<bigint, number>();
+  if (tournamentIds.length > 0) {
+    const rows = await prisma.teamResult.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
+      _max: { roundNumber: true },
+    });
+    for (const r of rows) {
+      const max = r._max.roundNumber;
+      if (max != null && max > 0) prelimRoundCountByTournament.set(r.tournamentId, max);
+    }
+  }
+
   const [teammateRows, teamResultRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
     myTeamPairs.length
       ? prisma.tournamentParticipant.findMany({
@@ -287,6 +304,16 @@ export async function buildCvData(userId: string): Promise<CvData> {
     } else if (prelimsSpoken > 0) {
       const sum = numericScores.reduce((a, b) => a + b, 0);
       speakerAvgScore = (sum / prelimsSpoken).toFixed(1);
+    } else if (total != null && Number.isFinite(total)) {
+      // Last-resort fallback for AP speaker tabs that exposed only `Total`
+      // (so `speakerScoreTotal` is set) without a per-round breakdown. Use
+      // the tournament's prelim round count as the divisor — a one-speech-
+      // per-round approximation that's accurate for non-iron-manning AP/BP
+      // speakers and beats showing nothing at all.
+      const prelimCount = prelimRoundCountByTournament.get(tid);
+      if (prelimCount != null && prelimCount > 0) {
+        speakerAvgScore = (total / prelimCount).toFixed(1);
+      }
     }
 
     speakerRows.push({

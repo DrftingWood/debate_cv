@@ -85,6 +85,80 @@ describe('parseSpeakerTab — rank column disambiguation', () => {
     expect(rows[0]!.roundScores.map((s) => s.score)).toEqual([80, 81, 79]);
   });
 
+  test('AP-style bare-numeric round headers (1/2/3…) are picked up as per-round scores', () => {
+    // Mirrors the speaker-tab variant some Tabbycat AP installs serve where
+    // round columns are bare digits ("1", "2", "3") rather than "R1/R2/R3".
+    // Without this the user's CV showed `prelims_spoken=0` and the speaker
+    // average row was empty (NLSD/SRDF/CUPD pattern).
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Total</th>
+            <th>1</th>
+            <th>2</th>
+            <th>3</th>
+            <th>4</th>
+            <th>5</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2</td>
+            <td>Abhishek A</td>
+            <td>NH 48</td>
+            <td>378.5</td>
+            <td>76</td>
+            <td>75</td>
+            <td>76</td>
+            <td>75.5</td>
+            <td>76</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseSpeakerTab(html);
+    expect(rows).toHaveLength(1);
+    const r = rows[0]!;
+    expect(r.totalScore).toBe(378.5);
+    expect(r.roundScores).toHaveLength(5);
+    expect(r.roundScores.map((s) => s.score)).toEqual([76, 75, 76, 75.5, 76]);
+  });
+
+  test('Speech-N / Debate-N column headers count as per-round scores', () => {
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Total</th>
+            <th>Speech 1</th>
+            <th>Speech 2</th>
+            <th>Speech 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Sample S</td>
+            <td>Alpha</td>
+            <td>240</td>
+            <td>80</td>
+            <td>81</td>
+            <td>79</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseSpeakerTab(html);
+    expect(rows[0]!.roundScores.map((s) => s.score)).toEqual([80, 81, 79]);
+  });
+
   test('average-only speaker tabs expose the average as a synthetic score', () => {
     const html = `
       <table>
