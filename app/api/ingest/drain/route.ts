@@ -13,6 +13,8 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// Hobby cap. The bulk-write speedup in lib/calicotab/ingest.ts keeps a
+// single WUDC-scale ingest comfortably under this.
 export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;

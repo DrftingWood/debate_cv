@@ -7,6 +7,9 @@ import { PRIVATE_URL_RE, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
+// 60s is the Vercel Hobby cap. WUDC-scale tournaments now fit because the
+// hot per-row speakerRoundScore loop was replaced with a post-tx bulk
+// createMany — see lib/calicotab/ingest.ts.
 export const maxDuration = 60;
 
 const Body = z.object({

@@ -159,6 +159,35 @@ describe('parseSpeakerTab — rank column disambiguation', () => {
     expect(rows[0]!.roundScores.map((s) => s.score)).toEqual([80, 81, 79]);
   });
 
+  test('row position is used as a fallback open rank when no rank column is present', () => {
+    // Some Tabbycat installs label the rank column with non-standard text
+    // ("Pos" / "Position") that the explicit matchers miss. The Vue-rendered
+    // tab is sorted by total score desc, so the row's position equals the
+    // 1-based open rank — better than leaving the column empty on the CV.
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Total</th>
+            <th>R1</th>
+            <th>R2</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>First S</td><td>Alpha</td><td>160</td><td>80</td><td>80</td></tr>
+          <tr><td>2</td><td>Second S</td><td>Beta</td><td>158</td><td>79</td><td>79</td></tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseSpeakerTab(html);
+    // "Pos" doesn't match the rank-column regex, so rankCol < 0 → row index
+    // becomes the rank.
+    expect(rows.map((r) => r.rank)).toEqual([1, 2]);
+  });
+
   test('average-only speaker tabs expose the average as a synthetic score', () => {
     const html = `
       <table>

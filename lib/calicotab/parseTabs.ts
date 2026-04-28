@@ -477,6 +477,14 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   });
 
   const rows: SpeakerTabRow[] = [];
+  // Tabbycat's /tab/speaker page renders rows already sorted by total score
+  // descending, so we use 1-based row position as a fallback open rank when
+  // no rank column was identified in the header (some installs use
+  // non-standard headers like "Pos"/"Position" that the rank-column
+  // matchers miss). Better an approximate rank than blank — ties get
+  // sequential numbers, which is the same approximation Tabbycat itself
+  // applies on the public tab.
+  let rowIdx = 0;
   for (const row of table.data) {
     const speakerName = cellText(row[nameCol]);
     if (!speakerName) continue;
@@ -489,8 +497,20 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
     if (roundScores.length === 0 && avgScore != null) {
       roundScores.push({ roundLabel: 'Average', score: avgScore, positionLabel: 'average' });
     }
+    rowIdx += 1;
+    // Row-position fallback only fires when NO rank columns of any kind are
+    // present — when ESL or EFL is set, the tab may be sorted by that
+    // category rather than by total score, so guessing an open rank from
+    // row position would produce wrong numbers.
+    const noRankColumnsAtAll = rankCol < 0 && rankEslCol < 0 && rankEflCol < 0;
+    const rank =
+      rankCol >= 0
+        ? parseNumber(cellText(row[rankCol]))
+        : noRankColumnsAtAll
+          ? rowIdx
+          : null;
     rows.push({
-      rank: rankCol >= 0 ? parseNumber(cellText(row[rankCol])) : null,
+      rank,
       rankEsl: rankEslCol >= 0 ? parseNumber(cellText(row[rankEslCol])) : null,
       rankEfl: rankEflCol >= 0 ? parseNumber(cellText(row[rankEflCol])) : null,
       speakerName,
@@ -549,6 +569,10 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     // Cheerio path has no separate `key`, so feed the same string for both.
     if (isRoundColumnHeader(h, h)) roundIdxs.push(i);
   });
+  // Mirrors the Vue path's row-index rank fallback (see speakerTabFromVue):
+  // when no rank column was identified, use the 1-based row position since
+  // Tabbycat's /tab/speaker page renders rows sorted by total score desc.
+  let cheerioRowIdx = 0;
   table.find('tbody tr').each((_i, tr) => {
     const cells = $(tr).find('td').map((_j, td) => cleanText($(td).text())).get();
     if (!cells.length) return;
@@ -563,8 +587,16 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     if (roundScores.length === 0 && avgScore != null) {
       roundScores.push({ roundLabel: 'Average', score: avgScore, positionLabel: 'average' });
     }
+    cheerioRowIdx += 1;
+    const cheerioNoRankCols = rankCol < 0 && rankEslCol < 0 && rankEflCol < 0;
+    const rank =
+      rankCol >= 0
+        ? parseNumber(cells[rankCol])
+        : cheerioNoRankCols
+          ? cheerioRowIdx
+          : null;
     rows.push({
-      rank: rankCol >= 0 ? parseNumber(cells[rankCol]) : null,
+      rank,
       rankEsl: rankEslCol >= 0 ? parseNumber(cells[rankEslCol]) : null,
       rankEfl: rankEflCol >= 0 ? parseNumber(cells[rankEflCol]) : null,
       speakerName,

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
-import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
+import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 
@@ -37,6 +37,13 @@ export type CvSpeakerRow = {
   teamBreakRank: number | null;
   eliminationReached: string | null;
   broke: boolean;
+  /**
+   * True when the user's team won the deepest outround they reached AND
+   * that outround was the tournament's final (Grand Final / Final). Lets
+   * the CV mark champions distinctly from "reached GF but lost". Null
+   * when we have no team win/loss data for that outround (older ingests).
+   */
+  wonTournament: boolean | null;
   /** Per-round speaker scores for the expandable row UI. */
   roundScores: CvSpeakerRoundScore[];
 };
@@ -224,6 +231,27 @@ export async function buildCvData(userId: string): Promise<CvData> {
         }>),
   ]);
 
+  // Outround team win/loss results, indexed by (tid, teamName, stage). Used
+  // to compute `wonTournament` per speaker row — i.e. did the user's team
+  // win the deepest outround they reached, and was that outround the GF.
+  const teamOutroundResultByKey = new Map<string, 'won' | 'lost'>();
+  if (tournamentIds.length > 0) {
+    const rows = await prisma.eliminationResult.findMany({
+      where: {
+        tournamentId: { in: tournamentIds },
+        entityType: 'team',
+        result: { in: ['won', 'lost'] },
+      },
+      select: { tournamentId: true, entityName: true, stage: true, result: true },
+    });
+    for (const r of rows) {
+      teamOutroundResultByKey.set(
+        `${r.tournamentId}:${r.entityName}:${r.stage}`,
+        r.result as 'won' | 'lost',
+      );
+    }
+  }
+
   const teammatesByKey = new Map<string, string[]>();
   for (const tm of teammateRows) {
     if (!tm.teamName) continue;
@@ -316,6 +344,24 @@ export async function buildCvData(userId: string): Promise<CvData> {
       }
     }
 
+    // Champion check: did the user's team win the deepest outround they
+    // reached, AND was that outround the tournament's final? Anything
+    // shallower (e.g. winning Semis but losing GF) doesn't count as winning
+    // the tournament — Semis-win is implied by having reached GF at all.
+    // Reuse outroundRank's stage classification so "Quarterfinal" (which
+    // contains the substring "final") is correctly excluded.
+    let wonTournament: boolean | null = null;
+    if (p.teamName && speakerSignals.eliminationReached) {
+      const deepest = speakerSignals.eliminationReached;
+      const stageRank = outroundRank({ roundLabel: deepest, roundNumber: null, isOutround: true });
+      const isFinalStage = stageRank >= 95; // GF=100, plain Final=95
+      if (isFinalStage) {
+        const result = teamOutroundResultByKey.get(`${tid}:${p.teamName}:${deepest}`);
+        if (result === 'won') wonTournament = true;
+        else if (result === 'lost') wonTournament = false;
+      }
+    }
+
     speakerRows.push({
       tournamentId: tid,
       tournamentName: t.name,
@@ -337,6 +383,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       teamBreakRank: speakerSignals.teamBreakRank,
       eliminationReached: speakerSignals.eliminationReached,
       broke: speakerSignals.broke,
+      wonTournament,
       roundScores: (p.speakerRoundScores ?? [])
         .filter((s) => s.roundNumber > 0)
         .map((s) => ({

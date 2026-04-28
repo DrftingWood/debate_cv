@@ -12,6 +12,8 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// Hobby cap. Bulk-write speedup keeps a single WUDC-scale ingest under
+// this; multi-job cron ticks rely on the per-iteration time budget below.
 export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;

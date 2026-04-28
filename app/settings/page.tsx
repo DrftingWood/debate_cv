@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { Shield, Mail, Database } from 'lucide-react';
+import { Shield, Mail, Database, UserCheck } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -10,6 +10,7 @@ import {
   DownloadDataButton,
   DeleteAccountButton,
 } from '@/components/AccountActions';
+import { IdentityManager } from '@/components/IdentityManager';
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -85,6 +86,19 @@ export default async function SettingsPage() {
           <div className="pt-1">
             <DisconnectGoogleButton />
           </div>
+        </CardBody>
+      </Card>
+
+      {/* Identities */}
+      <Card>
+        <CardBody className="space-y-4">
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <h2 className="font-display text-h3 font-semibold text-foreground">
+              Your identities
+            </h2>
+          </div>
+          <IdentityManager />
         </CardBody>
       </Card>
 
