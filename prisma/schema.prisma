@@ -173,14 +173,8 @@ model Tournament {
 model Person {
   id                BigInt   @id @default(autoincrement())
   displayName       String
-  /// No longer @unique. Two debaters may share the same normalized name —
-  /// the migration introduces partial unique indexes that let each user
-  /// claim their own Person row. See migration 20260428100000.
-  normalizedName    String
+  normalizedName    String   @unique
   claimedByUserId   String?
-  /// Optional institution / school metadata, useful as a tiebreaker when
-  /// two same-named debaters appear in the same tournament's roster.
-  institution       String?
   createdAt         DateTime @default(now())
 
   claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
@@ -190,7 +184,6 @@ model Person {
   rejections        PersonRejection[]
 
   @@index([claimedByUserId])
-  @@index([normalizedName])
 }
 
 /// Records that a user has explicitly said "this Person is not me", so we
