@@ -801,11 +801,17 @@ async function preCommitPersons(
 
   const result = new Map<string, bigint>();
   for (const [normalizedName, displayName] of sorted) {
+    // Target the partial unclaimed index: if an unclaimed Person with this
+    // name already exists, update its displayName and reuse it. If only
+    // claimed-by-someone Persons exist, the unclaimed conflict doesn't fire
+    // and a new unclaimed Person is created — disambiguation by URL
+    // ownership: every user's first ingest with a name gets a fresh row to
+    // claim later.
     const rows = await withDeadlockRetry(() =>
       prisma.$queryRaw<{ id: bigint }[]>`
         INSERT INTO "Person" ("displayName", "normalizedName")
         VALUES (${displayName}, ${normalizedName})
-        ON CONFLICT ("normalizedName")
+        ON CONFLICT ("normalizedName") WHERE "claimedByUserId" IS NULL
         DO UPDATE SET "displayName" = EXCLUDED."displayName"
         RETURNING id
       `,
@@ -894,16 +900,33 @@ async function linkRegistrationPerson(
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
-  const rows = await prisma.$queryRaw<{ id: bigint }[]>`
-    INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
-    VALUES (${personName}, ${normalizedName}, ${userId})
-    ON CONFLICT ("normalizedName")
-    DO UPDATE SET
-      "displayName" = EXCLUDED."displayName",
-      "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+  // Two-step claim under partial-index disambiguation:
+  //   1. Atomically take ownership of an existing unclaimed Person with
+  //      this name (typical happy path — preCommitPersons just inserted it
+  //      earlier in the same ingest).
+  //   2. If no unclaimed row exists (because another user already claimed
+  //      one with this name), insert a brand-new claimed Person — the
+  //      partial-claimed index permits one row per (name, userId), so the
+  //      same user re-ingesting just no-ops back to their own row.
+  const upgraded = await prisma.$queryRaw<{ id: bigint }[]>`
+    UPDATE "Person"
+    SET "displayName" = ${personName},
+        "claimedByUserId" = ${userId}
+    WHERE "normalizedName" = ${normalizedName}
+      AND "claimedByUserId" IS NULL
     RETURNING id
   `;
-  const personId = rows[0]?.id;
+  let personId = upgraded[0]?.id;
+  if (!personId) {
+    const inserted = await prisma.$queryRaw<{ id: bigint }[]>`
+      INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
+      VALUES (${personName}, ${normalizedName}, ${userId})
+      ON CONFLICT ("normalizedName", "claimedByUserId") WHERE "claimedByUserId" IS NOT NULL
+      DO UPDATE SET "displayName" = EXCLUDED."displayName"
+      RETURNING id
+    `;
+    personId = inserted[0]?.id;
+  }
   if (!personId) return null;
 
   await prisma.tournamentParticipant.upsert({
