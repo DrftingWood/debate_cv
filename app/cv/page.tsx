@@ -16,10 +16,10 @@ import { buildCvData } from '@/lib/cv/buildCvData';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
-import { ParticipantSearch } from '@/components/ParticipantSearch';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
+import { CvHighlights } from '@/components/CvHighlights';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -55,8 +55,19 @@ export default async function CvPage() {
       where: { userId, status: { in: ['pending', 'running'] } },
     }),
   ]);
-  const { user, speakerRows, judgeRows, unmatchedTournaments: unmatched, summary } = data;
+  const { user, speakerRows, judgeRows, unmatchedTournaments: unmatched, summary, highlights } = data;
   const { totalTournaments, breaks, totalRoundsChaired } = summary;
+  const headerMetrics = pickHeaderMetrics({
+    totalTournaments,
+    breaks,
+    totalRoundsChaired,
+    outroundsChaired: highlights.outroundsChaired,
+    bestSpeakerRank: highlights.bestSpeakerRank?.rank ?? null,
+    bestSpeakerAverage: highlights.bestSpeakerAverage?.score ?? null,
+    speakerCount: speakerRows.length,
+    judgeCount: judgeRows.length,
+    activeYears: highlights.activeYears,
+  });
 
 
   return (
@@ -93,11 +104,29 @@ export default async function CvPage() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 md:min-w-[380px]">
-            <MetricTile label="Tournaments" value={totalTournaments} />
-            <MetricTile label="Breaks" value={breaks} accent />
-            <MetricTile label="Prelims chaired" value={totalRoundsChaired} mono />
-          </div>
+          {headerMetrics.length > 0 ? (
+            <div
+              className={`grid gap-3 md:min-w-[380px] ${
+                headerMetrics.length === 1
+                  ? 'grid-cols-1'
+                  : headerMetrics.length === 2
+                    ? 'grid-cols-2'
+                    : headerMetrics.length === 3
+                      ? 'grid-cols-3'
+                      : 'grid-cols-2 md:grid-cols-4'
+              }`}
+            >
+              {headerMetrics.map((m, i) => (
+                <MetricTile
+                  key={i}
+                  label={m.label}
+                  value={m.value}
+                  accent={m.accent}
+                  mono={m.mono}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -150,77 +179,127 @@ export default async function CvPage() {
         />
       ) : (
         <>
-          <CollapsibleSection
-            title="Speaking"
-            count={speakerRows.length}
-            icon={<Mic className="h-4 w-4 text-primary" aria-hidden />}
-            defaultOpen
-          >
-            {speakerRows.length > 0 ? (
-              <SpeakingTable rows={speakerRows} />
-            ) : (
-              <p className="p-5 text-caption text-muted-foreground">
-                No speaker results yet for tournaments you've been identified in.
-              </p>
-            )}
-          </CollapsibleSection>
+          <CvHighlights highlights={highlights} />
 
-          <CollapsibleSection
-            title="Judging"
-            count={judgeRows.length}
-            icon={<Gavel className="h-4 w-4 text-primary" aria-hidden />}
-            defaultOpen={false}
-          >
-            {judgeRows.length > 0 ? (
-              <JudgingTable rows={judgeRows} />
-            ) : (
-              <p className="p-5 text-caption text-muted-foreground">
-                No judging history yet for tournaments you've been identified in.
-              </p>
-            )}
-          </CollapsibleSection>
-
-          {unmatched.length > 0 ? (
+          {speakerRows.length > 0 ? (
             <CollapsibleSection
-              title="Find me in tournaments"
-              count={unmatched.length}
-              icon={<Search className="h-4 w-4 text-primary" aria-hidden />}
-              defaultOpen={false}
+              title="Speaking"
+              count={speakerRows.length}
+              icon={<Mic className="h-4 w-4 text-primary" aria-hidden />}
+              defaultOpen
             >
-              <ul className="divide-y divide-border">
-                {unmatched.map((t) => (
-                  <li key={t.id.toString()} className="space-y-3 p-5 md:p-6">
-                    <header className="flex flex-wrap items-baseline justify-between gap-3">
-                      <div>
-                        <a
-                          href={t.sourceUrlRaw}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-display text-[15px] font-semibold text-foreground hover:text-primary"
-                        >
-                          {t.name}
-                        </a>
-                        <span className="ml-2 font-mono text-caption text-muted-foreground">
-                          {t.year ?? ''}
-                        </span>
-                      </div>
-                      {t.format ? (
-                        <Badge variant="outline">{t.format}</Badge>
-                      ) : null}
-                    </header>
-                    <ParticipantSearch
-                      tournamentId={t.id.toString()}
-                      tournamentName={t.name}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <SpeakingTable rows={speakerRows} />
             </CollapsibleSection>
           ) : null}
+
+          {judgeRows.length > 0 ? (
+            <CollapsibleSection
+              title="Judging"
+              count={judgeRows.length}
+              icon={<Gavel className="h-4 w-4 text-primary" aria-hidden />}
+              defaultOpen
+            >
+              <JudgingTable rows={judgeRows} />
+            </CollapsibleSection>
+          ) : null}
+
+          {/*
+            Unmatched tournaments are surfaced via CvNeedsAttentionBanners
+            at the top of the page (Q6); the per-row Find-me search lives
+            on the dashboard's Unmatched filter.
+          */}
         </>
       )}
     </div>
   );
+}
+
+type HeaderMetric = {
+  label: string;
+  value: number | string;
+  accent?: boolean;
+  mono?: boolean;
+};
+
+/**
+ * Choose the 3–4 metric tiles for the /cv profile header based on the
+ * user's role mix. A pure speaker shouldn't stare at "Prelims chaired: 0";
+ * a pure judge shouldn't see "Breaks: 0" front-and-centre. Tiles that
+ * resolve to zero/null are skipped, then the strongest leftovers fill the
+ * row.
+ */
+function pickHeaderMetrics(input: {
+  totalTournaments: number;
+  breaks: number;
+  totalRoundsChaired: number;
+  outroundsChaired: number;
+  bestSpeakerRank: number | null;
+  bestSpeakerAverage: number | null;
+  speakerCount: number;
+  judgeCount: number;
+  activeYears: { from: number; to: number } | null;
+}): HeaderMetric[] {
+  const {
+    totalTournaments,
+    breaks,
+    totalRoundsChaired,
+    outroundsChaired,
+    bestSpeakerRank,
+    bestSpeakerAverage,
+    speakerCount,
+    judgeCount,
+    activeYears,
+  } = input;
+
+  const speakerLeaning = judgeCount === 0 || speakerCount >= judgeCount * 3;
+  const judgeLeaning = speakerCount === 0 || judgeCount >= speakerCount * 3;
+
+  const candidates: (HeaderMetric | null)[] = [];
+
+  // Always-present tournaments tile.
+  if (totalTournaments > 0) {
+    candidates.push({ label: 'Tournaments', value: totalTournaments });
+  }
+
+  if (speakerLeaning) {
+    if (breaks > 0) candidates.push({ label: 'Breaks', value: breaks, accent: true });
+    if (bestSpeakerRank != null) {
+      candidates.push({ label: 'Best speaker rank', value: `#${bestSpeakerRank}` });
+    }
+    if (bestSpeakerAverage != null) {
+      candidates.push({
+        label: 'Best speaker avg',
+        value: bestSpeakerAverage.toFixed(1),
+        mono: true,
+      });
+    }
+  } else if (judgeLeaning) {
+    if (totalRoundsChaired > 0) {
+      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired, mono: true });
+    }
+    if (outroundsChaired > 0) {
+      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired, mono: true });
+    }
+    if (activeYears) {
+      candidates.push({
+        label: 'Active',
+        value: activeYears.from === activeYears.to
+          ? `${activeYears.from}`
+          : `${activeYears.from}–${activeYears.to}`,
+      });
+    }
+  } else {
+    // Both-roles balanced.
+    if (breaks > 0) candidates.push({ label: 'Breaks', value: breaks, accent: true });
+    if (totalRoundsChaired > 0) {
+      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired, mono: true });
+    }
+    if (outroundsChaired > 0) {
+      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired, mono: true });
+    }
+  }
+
+  return candidates.filter((c): c is HeaderMetric => c !== null).slice(0, 4);
 }
 
 function MetricTile({
