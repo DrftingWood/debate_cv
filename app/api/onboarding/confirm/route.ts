@@ -50,33 +50,18 @@ export async function POST(req: Request) {
     a < b ? -1 : a > b ? 1 : 0,
   );
 
-  // Two-step claim under partial-index disambiguation: try to upgrade an
-  // unclaimed Person with this name first; if none exists (e.g. another
-  // user already claimed one), fall through to inserting a fresh claimed
-  // Person owned by this user. See linkRegistrationPerson for the matching
-  // explanation.
   let claimed = 0;
   for (const [norm, display] of sorted) {
-    const upgraded = await prisma.$queryRaw<{ id: bigint }[]>`
-      UPDATE "Person"
-      SET "displayName" = ${display},
-          "claimedByUserId" = ${userId}
-      WHERE "normalizedName" = ${norm}
-        AND "claimedByUserId" IS NULL
-      RETURNING id
-    `;
-    if (upgraded[0]) {
-      claimed++;
-      continue;
-    }
-    const inserted = await prisma.$queryRaw<{ id: bigint }[]>`
+    const rows = await prisma.$queryRaw<{ id: bigint }[]>`
       INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
       VALUES (${display}, ${norm}, ${userId})
-      ON CONFLICT ("normalizedName", "claimedByUserId") WHERE "claimedByUserId" IS NOT NULL
-      DO UPDATE SET "displayName" = EXCLUDED."displayName"
+      ON CONFLICT ("normalizedName")
+      DO UPDATE SET
+        "displayName" = EXCLUDED."displayName",
+        "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
       RETURNING id
     `;
-    if (inserted[0]) claimed++;
+    if (rows[0]) claimed++;
   }
 
   return NextResponse.json({ claimed });
