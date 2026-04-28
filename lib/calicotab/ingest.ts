@@ -415,7 +415,9 @@ export async function ingestPrivateUrl(
       });
     }
 
-    // Per-round team results
+    // Per-round team results (prelims only — outrounds are persisted as
+    // EliminationResult rows below since they carry win/lose semantics
+    // rather than points-per-round and don't have a numeric round number).
     for (const round of rounds) {
       if (round.roundNumber == null) continue;
       for (const r of round.teamResults) {
@@ -437,6 +439,39 @@ export async function ingestPrivateUrl(
             roundNumber: round.roundNumber,
             points: r.points,
             wins: r.won === true ? 1 : r.won === false ? 0 : null,
+          },
+        });
+      }
+    }
+
+    // Outround team win/loss → EliminationResult. We mark each team that
+    // appeared in an outround as 'won' or 'lost' based on the per-debate
+    // results table. Lets the CV builder compute "won the tournament" by
+    // checking whether the user's team won the deepest outround stage.
+    // Stage matches the round label from the landing-page nav (e.g. "Grand
+    // Final"), reusing the same string the speaker-rounds extractor wrote
+    // to TournamentParticipant.eliminationReached.
+    for (const round of rounds) {
+      if (!round.isOutround || !round.roundLabel) continue;
+      for (const r of round.teamResults) {
+        if (r.won == null) continue;
+        const result = r.won ? 'won' : 'lost';
+        await tx.eliminationResult.upsert({
+          where: {
+            tournamentId_stage_entityType_entityName: {
+              tournamentId: t.id,
+              stage: round.roundLabel,
+              entityType: 'team',
+              entityName: r.teamName,
+            },
+          },
+          update: { result },
+          create: {
+            tournamentId: t.id,
+            stage: round.roundLabel,
+            entityType: 'team',
+            entityName: r.teamName,
+            result,
           },
         });
       }

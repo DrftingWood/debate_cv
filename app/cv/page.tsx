@@ -284,8 +284,11 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
   // we have it. The break-tab rank lives in its own column; conflating
   // "made the break tab" with "spoke in an outround" misleads — a team can
   // appear on the break tab but lose in their first outround room.
-  if (r.eliminationReached) return r.eliminationReached;
-  return '—';
+  // When the user's team won the tournament's final, append "(Champion)" so
+  // the row clearly distinguishes winners from grand-finalists.
+  if (!r.eliminationReached) return '—';
+  if (r.wonTournament === true) return `${r.eliminationReached} (Champion)`;
+  return r.eliminationReached;
 }
 
 // Expandable per-round score breakdown shown beneath each tournament row.

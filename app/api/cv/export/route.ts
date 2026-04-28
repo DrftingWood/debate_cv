@@ -72,7 +72,14 @@ export async function GET() {
         r.prelimsSpoken || '',
         speakerRanks,
         r.broke ? 'Yes' : 'No',
-        r.eliminationReached,
+        // Append "(W)" when the user's team won this outround AND the outround
+        // was the tournament final, i.e. they won the tournament. Lets the CSV
+        // distinguish champions from grand-finalists without an extra column.
+        r.eliminationReached
+          ? r.wonTournament === true
+            ? `${r.eliminationReached} (W)`
+            : r.eliminationReached
+          : '',
         '',
         '',
         '',
