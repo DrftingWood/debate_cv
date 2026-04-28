@@ -22,17 +22,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Check Prisma can see database
+      - name: Check Prisma status before
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: pnpm prisma migrate status
 
       - name: Mark failed migration as applied
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: pnpm prisma migrate resolve --applied 20260428200000_person_disambiguation_cleanup
 
-      - name: Check final migration status
+      - name: Check Prisma status after
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: pnpm prisma migrate status
