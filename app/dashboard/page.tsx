@@ -23,6 +23,7 @@ import {
 } from '@/components/DashboardActions';
 import { RetryFailedButton } from '@/components/RetryFailedButton';
 import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
+import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -118,6 +119,7 @@ export default async function Dashboard({
 
   return (
     <div className="space-y-10">
+      <AutoScanOnVisit />
       {/* Greeting header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
