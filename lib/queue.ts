@@ -80,10 +80,32 @@ export async function claimOnePending(
 }
 
 export async function markJobDone(id: string): Promise<void> {
-  await prisma.ingestJob.update({
+  const updated = await prisma.ingestJob.update({
     where: { id },
     data: { status: IngestJobStatus.done, finishedAt: new Date(), lastError: null },
+    select: { userId: true },
   });
+  // After this job finishes, was it the user's last pending/running one?
+  // If so, surface a "your CV is ready" bell notification — closes the
+  // post-onboarding loop for users who left the tab and came back later.
+  // Best-effort + deduped, so back-to-back drains don't fire twice.
+  const remaining = await prisma.ingestJob.count({
+    where: {
+      userId: updated.userId,
+      status: { in: [IngestJobStatus.pending, IngestJobStatus.running] },
+    },
+  });
+  if (remaining === 0) {
+    const { writeNotification } = await import('@/lib/notifications/write');
+    await writeNotification({
+      userId: updated.userId,
+      kind: 'ingest_done',
+      title: 'Your CV is ready',
+      body: 'All queued tournaments have been ingested.',
+      href: '/cv',
+      dedupeWithinMs: 60 * 1000,
+    });
+  }
 }
 
 export async function markJobFailed(id: string, error: string): Promise<void> {
