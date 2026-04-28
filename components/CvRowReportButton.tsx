@@ -9,7 +9,7 @@
  * Hits the same /api/cv/error-report endpoint as the old form, just with
  * exactly one tournamentId selected. The endpoint already accepts that shape.
  */
-import { useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { AlertCircle, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
@@ -31,15 +31,57 @@ export function CvRowReportButton({
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState('');
   const [isPending, startTransition] = useTransition();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false);
     setComment('');
-  };
+    triggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeydown);
+    const dialogEl = dialogRef.current;
+    if (dialogEl) {
+      const autofocusTarget =
+        dialogEl.querySelector<HTMLElement>('textarea,button,[href],input,select');
+      autofocusTarget?.focus();
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeydown);
+    };
+  }, [open, close]);
 
   return (
     <>
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="ghost"
@@ -58,6 +100,7 @@ export function CvRowReportButton({
           onClick={close}
         >
           <div
+            ref={dialogRef}
             className="w-full max-w-md space-y-3 rounded-card border border-border bg-card p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >

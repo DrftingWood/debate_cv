@@ -89,12 +89,23 @@ export default async function CvPage() {
         <Badge variant={judgeRows.length > 0 ? 'info' : 'neutral'}>
           {judgeRows.length} as judge
         </Badge>
-        <Link href="/cv/verify">
-          <Button variant="outline" size="sm">Verify extracted fields</Button>
-        </Link>
-        <a href="/api/cv/export">
-          <Button variant="outline" size="sm">Export CSV</Button>
-        </a>
+        <details className="group relative">
+          <summary className="list-none">
+            <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted">
+              More
+            </span>
+          </summary>
+          <div className="absolute left-0 z-10 mt-2 w-[220px] rounded-card border border-border bg-card p-2 shadow-md">
+            <div className="flex flex-col gap-1.5">
+              <Link href="/cv/verify">
+                <Button variant="outline" size="sm" className="w-full justify-start">Verify extracted fields</Button>
+              </Link>
+              <a href="/api/cv/export">
+                <Button variant="outline" size="sm" className="w-full justify-start">Export CSV</Button>
+              </a>
+            </div>
+          </div>
+        </details>
       </div>
 
       {totalTournaments === 0 ? (
@@ -137,7 +148,7 @@ export default async function CvPage() {
             title="Judging"
             count={judgeRows.length}
             icon={<Gavel className="h-4 w-4 text-primary" aria-hidden />}
-            defaultOpen
+            defaultOpen={false}
           >
             {judgeRows.length > 0 ? (
               <JudgingTable rows={judgeRows} />
