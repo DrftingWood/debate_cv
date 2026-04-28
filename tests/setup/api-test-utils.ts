@@ -74,11 +74,14 @@ export const prismaMock = {
   notification: makeModelMock(),
   sourceDocument: makeModelMock(),
   parserRun: makeModelMock(),
-  $transaction: vi.fn(async (arg: unknown) => {
-    // Two shapes:
-    //   prisma.$transaction([...promises]) → resolves all in array
-    //   prisma.$transaction(async (tx) => ...) → invokes callback with tx (we
-    //     pass the same prismaMock so model methods proxy through)
+  // Two shapes:
+  //   prisma.$transaction([...promises]) → resolves all in array
+  //   prisma.$transaction(async (tx) => ..., opts?) → invokes callback with
+  //     tx (we pass the same prismaMock so model methods proxy through);
+  //     `opts` is the optional isolation-level config (Serializable etc.).
+  // The signature accepts the second optional arg so tests can assert on
+  // it via mock.calls[N][1].
+  $transaction: vi.fn(async (arg: unknown, _opts?: unknown) => {
     if (Array.isArray(arg)) return Promise.all(arg as unknown[]);
     if (typeof arg === 'function') {
       return (arg as (tx: typeof prismaMock) => unknown)(prismaMock);
@@ -104,7 +107,7 @@ export function resetPrismaMock() {
     }
   }
   // Re-install the $transaction default behaviour after reset.
-  prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
+  prismaMock.$transaction.mockImplementation(async (arg: unknown, _opts?: unknown) => {
     if (Array.isArray(arg)) return Promise.all(arg as unknown[]);
     if (typeof arg === 'function') {
       return (arg as (tx: typeof prismaMock) => unknown)(prismaMock);

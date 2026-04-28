@@ -128,7 +128,16 @@ export async function buildCvData(userId: string): Promise<CvData> {
       select: { name: true, email: true, image: true },
     }),
     prisma.discoveredUrl.findMany({
-      where: { userId, tournamentId: { not: null } },
+      // ingestedAt: not null filters out URLs that were assigned a
+      // tournamentId mid-pipeline (e.g. cache-stale path set the link
+      // but the parse later failed) but never finished ingesting. Without
+      // this filter such URLs leak into the CV as rows with all-null
+      // fields and confuse the user (audit issue #7).
+      where: {
+        userId,
+        tournamentId: { not: null },
+        ingestedAt: { not: null },
+      },
       include: { tournament: true },
     }),
     prisma.person.findMany({
