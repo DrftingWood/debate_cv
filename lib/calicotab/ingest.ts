@@ -894,7 +894,26 @@ async function prepareTournamentWideRefresh(
   const protectedPersonIds = personIdsWithPrivateHistory.map((p) => p.personId);
 
   // Refresh tournament-wide data without erasing private-URL history that may
-  // have been supplied by another user's URL for this same tournament.
+  // have been supplied by another user's URL for this same tournament. Leaf
+  // tables (eliminationResult, teamResult, speakerRoundScore, participantRole)
+  // are deleted outright since the upcoming parse will rewrite them in full;
+  // tournamentParticipant rows themselves are kept (the speaker / adjudicator
+  // upsert loops below either UPDATE them with fresh values or leave them
+  // alone).
+  //
+  // We deliberately DO NOT null per-participant fields like speakerRankOpen /
+  // speakerScoreTotal / teamName here. The upsert in the speaker loop runs
+  // once per (tournamentId, personId) pair found in `speakerRows`, so when it
+  // fires it overwrites those fields with fresh values from the new parse.
+  // If the upsert does NOT fire — typically because the parser couldn't find
+  // the speaker tab at all, or because a slightly different name spelling
+  // didn't normalize-match the user's claim — pre-nulling would leave the
+  // participant with all-null fields and the user would see their CV row
+  // suddenly "lose" rank, average, etc. for that tournament. Trusting the
+  // upsert to overwrite when it has data, and preserving last-good values
+  // when it doesn't, is the right policy: re-ingest only ADDS data, never
+  // wipes it. The regression guard upstream of this function blocks the
+  // catastrophic-drop case.
   await tx.eliminationResult.deleteMany({ where: { tournamentId } });
   await tx.teamResult.deleteMany({ where: { tournamentId } });
   if (participantIds.length > 0) {
@@ -905,21 +924,6 @@ async function prepareTournamentWideRefresh(
       where: { tournamentParticipantId: { in: participantIds } },
     });
   }
-  await tx.tournamentParticipant.updateMany({
-    where: { tournamentId },
-    data: {
-      teamName: null,
-      speakerScoreTotal: null,
-      speakerRankOpen: null,
-      speakerRankEsl: null,
-      speakerRankEfl: null,
-      teamBreakRank: null,
-      teamScoreTotal: null,
-      judgeTypeTag: null,
-      wins: null,
-      losses: null,
-    },
-  });
   await tx.tournamentParticipant.deleteMany({
     where: {
       tournamentId,
