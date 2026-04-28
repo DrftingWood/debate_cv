@@ -20,6 +20,7 @@ import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
+import { CvShareButton } from '@/components/CvShareButton';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -130,7 +131,7 @@ export default async function CvPage() {
         </div>
       </header>
 
-      {/* Summary row */}
+      {/* Summary row + actions */}
       <div className="flex flex-wrap items-center gap-2 text-caption">
         <Badge variant="outline">{totalTournaments} tournaments</Badge>
         <Badge variant={speakerRows.length > 0 ? 'success' : 'neutral'}>
@@ -139,13 +140,15 @@ export default async function CvPage() {
         <Badge variant={judgeRows.length > 0 ? 'info' : 'neutral'}>
           {judgeRows.length} as judge
         </Badge>
+        <span className="ml-auto" />
+        <CvShareButton />
         <details className="group relative">
           <summary className="list-none">
             <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted">
               More
             </span>
           </summary>
-          <div className="absolute left-0 z-10 mt-2 w-[220px] rounded-card border border-border bg-card p-2 shadow-md">
+          <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-card border border-border bg-card p-2 shadow-md">
             <div className="flex flex-col gap-1.5">
               <Link href="/cv/verify">
                 <Button variant="outline" size="sm" className="w-full justify-start">Verify extracted fields</Button>
