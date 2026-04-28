@@ -234,6 +234,27 @@ function isAverageHeader(s: string): boolean {
   return /\b(avg|average|mean)\b/i.test(s);
 }
 
+/**
+ * Decide whether a speaker-tab column header names a per-round/per-speech
+ * score column. Looks beyond the canonical "R1/Round 1/Final/Quarter…" labels
+ * for the cases we've seen on real AP tournaments where the score columns are
+ * just bare digits (1/2/3/…) or "Speech N" / "Debate N" / "Match N".
+ *
+ * The downstream writer extracts `roundNumber` from the first digit in the
+ * label, so any header carrying a number is enough — that's what the
+ * isolated-digit and word-N alternates capture. AP tabs that lose per-round
+ * data on `/cv` do so because their column heads lacked the literal "R" or
+ * "Round" prefix this regex previously demanded.
+ */
+function isRoundColumnHeader(label: string, key: string): boolean {
+  const labelTrimmed = label.trim();
+  if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo|grand)\b/i.test(labelTrimmed)) return true;
+  if (/^r\d+$/i.test(key)) return true;
+  if (/^\d+$/.test(labelTrimmed)) return true;
+  if (/\b(speech|debate|match)\s*\d+/i.test(labelTrimmed)) return true;
+  return false;
+}
+
 // ── Cheerio helpers (fallback for server-rendered Tabbycat) ──────────────────
 
 function cleanText(s: string): string {
@@ -450,7 +471,7 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
     const k = h.key ?? '';
     const t = h.title ?? '';
     const label = t || k;
-    if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo|grand)\b/i.test(label) || /^r\d+$/i.test(k)) {
+    if (isRoundColumnHeader(label, k)) {
       roundCols.push({ idx: i, label });
     }
   });
@@ -525,7 +546,8 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
   const roundIdxs: number[] = [];
   headerCells.forEach((h, i) => {
     if (nonRoundCols.has(i)) return;
-    if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo|grand)\b/i.test(h)) roundIdxs.push(i);
+    // Cheerio path has no separate `key`, so feed the same string for both.
+    if (isRoundColumnHeader(h, h)) roundIdxs.push(i);
   });
   table.find('tbody tr').each((_i, tr) => {
     const cells = $(tr).find('td').map((_j, td) => cleanText($(td).text())).get();
