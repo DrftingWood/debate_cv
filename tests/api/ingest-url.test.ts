@@ -5,6 +5,7 @@ import {
   resetPrismaMock,
   fakeSession,
   expectUnauthorized,
+  expectMalformedBody,
   jsonRequest,
   readJson,
 } from '../setup/api-test-utils';
@@ -37,10 +38,11 @@ describe('POST /api/ingest/url', () => {
   it('returns 401 when unauthenticated', () =>
     expectUnauthorized(() => POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK } }))));
 
-  it('rejects malformed body', async () => {
+  it('rejects malformed body', () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
-    const res = await POST(jsonRequest('/api/ingest/url', { body: { url: 'not-a-url' } }));
-    expect(res.status).toBe(400);
+    return expectMalformedBody(() =>
+      POST(jsonRequest('/api/ingest/url', { body: { url: 'not-a-url' } })),
+    );
   });
 
   it('rejects URLs that do not match the private-URL pattern', async () => {

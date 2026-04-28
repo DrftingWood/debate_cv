@@ -40,48 +40,21 @@ describe('POST /api/sharing — slug validation', () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
   });
 
-  it('rejects too-short custom slug', async () => {
-    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug: 'ab' } }));
+  // Each row covers one rejection branch in lib/sharing/slug.ts.
+  // Single it.each loop replaces six near-identical tests; the table
+  // below is the actual contract.
+  it.each([
+    ['too-short', 'ab', 'too_short'],
+    ['too-long', 'a'.repeat(31), 'too_long'],
+    ['reserved', 'admin', 'reserved'],
+    ['invalid characters (underscore)', 'My_Slug', 'invalid_chars'],
+    ['double hyphen', 'foo--bar', 'invalid_chars'],
+    ['leading hyphen', '-foo', 'invalid_chars'],
+  ])('rejects %s custom slug with %s code', async (_label, customSlug, expectedError) => {
+    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug } }));
     expect(res.status).toBe(400);
     const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('too_short');
-  });
-
-  it('rejects too-long custom slug', async () => {
-    const res = await POST(
-      jsonRequest('/api/sharing', { body: { customSlug: 'a'.repeat(31) } }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('too_long');
-  });
-
-  it('rejects reserved slug', async () => {
-    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug: 'admin' } }));
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('reserved');
-  });
-
-  it('rejects slug with invalid characters', async () => {
-    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug: 'My_Slug' } }));
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('invalid_chars');
-  });
-
-  it('rejects slug with double hyphen', async () => {
-    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug: 'foo--bar' } }));
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('invalid_chars');
-  });
-
-  it('rejects slug starting with hyphen', async () => {
-    const res = await POST(jsonRequest('/api/sharing', { body: { customSlug: '-foo' } }));
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('invalid_chars');
+    expect(data.error).toBe(expectedError);
   });
 
   it('accepts a valid custom slug', async () => {

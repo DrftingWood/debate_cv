@@ -221,3 +221,22 @@ describe('parseParticipantsList — registration card/list-group fallback', () =
     expect(rows[0]?.judgeTag).toBe('normal');
   });
 });
+
+describe('parseParticipantsList — British "Subsidised" spelling', () => {
+  test('recognizes British spelling "subsidised" as judgeTag=subsidized', () => {
+    // Migrated from parseTabs.roundResults.test.ts (test cleanup audit
+    // PR). The other two tests in that block — Independent Adjudicator
+    // and plain Adjudicator — are already covered by this file's
+    // modern-card and registration-card describe blocks above; only the
+    // British-spelling case was unique.
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Ada L</td><td>Subsidised Adjudicator</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('subsidized');
+    expect(rows[0]!.role).toBe('adjudicator');
+  });
+});

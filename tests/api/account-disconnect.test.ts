@@ -5,6 +5,7 @@ import {
   resetPrismaMock,
   fakeSession,
   expectUnauthorized,
+  readJson,
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
@@ -38,10 +39,17 @@ describe('POST /api/account/disconnect', () => {
     });
   });
 
-  it('returns 500 when token revocation throws', async () => {
+  it('returns 500 with the error message when token revocation throws', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
     vi.mocked(revokeAndForgetGmailToken).mockRejectedValue(new Error('Google API down'));
     const res = await POST();
     expect(res.status).toBe(500);
+    // Verify the body shape — a 500 with malformed/missing error payload
+    // would let the client toast read "undefined" instead of a real message.
+    const data = await readJson<{ error: string }>(res);
+    expect(data.error).toBe('Google API down');
+    // The Google Account row should NOT be deleted when revocation fails —
+    // we want the user to be able to retry without re-OAuth'ing first.
+    expect(prismaMock.account.deleteMany).not.toHaveBeenCalled();
   });
 });
