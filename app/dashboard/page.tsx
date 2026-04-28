@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   Inbox,
   Clock,
-  CheckCircle2,
   XCircle,
   ExternalLink,
   Link2,
-  Search,
+  UserSearch,
+  Ban,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
@@ -17,14 +18,15 @@ import {
   IngestAllButton,
   IngestButton,
   ClearButton,
-  ReingestMineButton,
-  ReingestSelectedButton,
   LockUrlButton,
   ExportErrorsButton,
 } from '@/components/DashboardActions';
+import { RetryFailedButton } from '@/components/RetryFailedButton';
+import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -34,39 +36,85 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function Dashboard() {
+type FilterKey = 'all' | 'pending' | 'failed' | 'unmatched' | 'unavailable' | 'done';
+
+const FILTER_KEYS: FilterKey[] = ['all', 'pending', 'failed', 'unmatched', 'unavailable', 'done'];
+
+function isFilterKey(value: string | undefined): value is FilterKey {
+  return !!value && (FILTER_KEYS as string[]).includes(value);
+}
+
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  // First-time users (no claimed Persons) must go through /onboarding to
-  // confirm which names on their private URLs are them. Once they have at
-  // least one claim, they land on the dashboard normally; they can still
-  // visit /onboarding directly to add new aliases.
   const claimedCount = await prisma.person.count({
     where: { claimedByUserId: userId },
   });
   if (claimedCount === 0) redirect('/onboarding');
 
-  const [urls, jobs] = await Promise.all([
+  const params = await searchParams;
+  const activeFilter: FilterKey = isFilterKey(params.filter) ? params.filter : 'all';
+
+  const [urls, jobs, claimedTournamentIds] = await Promise.all([
     prisma.discoveredUrl.findMany({
       where: { userId },
       orderBy: { messageDate: 'desc' },
-      take: 100,
+      take: 200,
       include: { tournament: true },
     }),
     prisma.ingestJob.findMany({
       where: { userId },
       orderBy: { scheduledAt: 'desc' },
-      take: 100,
+      take: 200,
     }),
+    prisma.tournamentParticipant
+      .findMany({
+        where: { person: { claimedByUserId: userId } },
+        select: { tournamentId: true },
+        distinct: ['tournamentId'],
+      })
+      .then((rows) => new Set(rows.map((r) => r.tournamentId.toString()))),
   ]);
 
   const jobByUrl = new Map(jobs.map((j) => [j.url, j] as const));
-  const pending = jobs.filter((j) => j.status === 'pending').length;
-  const running = jobs.filter((j) => j.status === 'running').length;
-  const done = jobs.filter((j) => j.status === 'done').length;
-  const failed = jobs.filter((j) => j.status === 'failed').length;
+
+  // Compute status per URL once. `unmatched` supersedes `done` when the URL
+  // ingested but the user has no TournamentParticipant in the resulting
+  // tournament — they need to claim themselves manually via the inline
+  // search expander below.
+  const rows = urls.map((u) => {
+    const job = jobByUrl.get(u.url);
+    const baseStatus = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
+    const tournamentIdStr = u.tournament?.id.toString();
+    const isUnmatched =
+      baseStatus === 'done' &&
+      !!tournamentIdStr &&
+      !claimedTournamentIds.has(tournamentIdStr);
+    const status: PillStatus = isUnmatched ? 'unmatched' : baseStatus;
+    return { u, job, status };
+  });
+
+  const counts: Record<FilterKey, number> = {
+    all: rows.length,
+    pending: rows.filter((r) => r.status === 'pending' || r.status === 'running').length,
+    failed: rows.filter((r) => r.status === 'failed').length,
+    unmatched: rows.filter((r) => r.status === 'unmatched').length,
+    unavailable: rows.filter((r) => r.status === 'unavailable').length,
+    done: rows.filter((r) => r.status === 'done').length,
+  };
+
+  const filtered = rows.filter((r) => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'pending')
+      return r.status === 'pending' || r.status === 'running';
+    return r.status === activeFilter;
+  });
 
   return (
     <div className="space-y-10">
@@ -81,7 +129,7 @@ export default async function Dashboard() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {pending > 0 ? <IngestAllButton pendingCount={pending} /> : null}
+          {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
           <ScanButton />
           <details className="group relative">
             <summary className="list-none">
@@ -91,8 +139,6 @@ export default async function Dashboard() {
             </summary>
             <div className="absolute right-0 z-20 mt-2 w-[260px] rounded-card border border-border bg-card p-2.5 shadow-lg">
               <div className="flex flex-col gap-1.5">
-                {urls.length > 0 ? <ReingestSelectedButton /> : null}
-                <ReingestMineButton />
                 <ExportErrorsButton />
                 <div className="pt-1">
                   <SignOutButton />
@@ -103,188 +149,185 @@ export default async function Dashboard() {
         </div>
       </header>
 
-      {/* Stats grid */}
+      {/* Stat tiles — clickable filter shortcuts */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat
+        <FilterTile
           icon={<Link2 className="h-4 w-4" aria-hidden />}
           label="Private URLs"
-          value={urls.length}
+          value={counts.all}
           hint="from your Gmail"
           tone="info"
+          filter="all"
+          activeFilter={activeFilter}
         />
-        <Stat
+        <FilterTile
           icon={<Clock className="h-4 w-4" aria-hidden />}
           label="Pending"
-          value={pending + running}
-          hint={running > 0 ? `${running} running` : 'queued for ingest'}
-          tone={pending + running > 0 ? 'warning' : 'neutral'}
+          value={counts.pending}
+          hint="queued / running"
+          tone={counts.pending > 0 ? 'warning' : 'neutral'}
+          filter="pending"
+          activeFilter={activeFilter}
         />
-        <Stat
-          icon={<CheckCircle2 className="h-4 w-4" aria-hidden />}
-          label="Done"
-          value={done}
-          hint="parsed and stored"
-          tone={done > 0 ? 'success' : 'neutral'}
+        <FilterTile
+          icon={<UserSearch className="h-4 w-4" aria-hidden />}
+          label="Unmatched"
+          value={counts.unmatched}
+          hint="need to claim yourself"
+          tone={counts.unmatched > 0 ? 'warning' : 'neutral'}
+          filter="unmatched"
+          activeFilter={activeFilter}
         />
-        <Stat
+        <FilterTile
           icon={<XCircle className="h-4 w-4" aria-hidden />}
           label="Failed"
-          value={failed}
-          hint="retry manually"
-          tone={failed > 0 ? 'danger' : 'neutral'}
+          value={counts.failed}
+          hint="retry from chip below"
+          tone={counts.failed > 0 ? 'danger' : 'neutral'}
+          filter="failed"
+          activeFilter={activeFilter}
         />
       </section>
 
-      {/* Pending-queue prompt — visible whenever IngestJob rows are still
-          pending so a user who finished onboarding doesn't wonder why /cv
-          shows nothing. The Stat tile above just shows a number; this banner
-          tells them which button to click. */}
-      {pending > 0 ? (
-        <section className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 md:px-5 md:py-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-[14px] text-foreground">
-              <strong className="font-medium">
-                {pending} {pending === 1 ? 'URL is' : 'URLs are'} queued for ingest.
-              </strong>{' '}
-              <span className="text-muted-foreground">
-                Click <em className="not-italic font-medium">Ingest all</em> to fetch
-                tournament data — your CV stays empty until that runs.
-              </span>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       {/* URL table */}
       <section className="space-y-4">
-        <header className="flex items-end justify-between">
-          <div>
-            <h2 className="font-display text-h3 font-semibold text-foreground">Private URLs</h2>
-            <p className="mt-0.5 text-caption text-muted-foreground">
-              {urls.length > 0
-                ? `${urls.length} total · most recent first`
-                : 'Nothing ingested yet'}
-            </p>
+        <header className="space-y-3">
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="font-display text-h3 font-semibold text-foreground">Private URLs</h2>
+              <p className="mt-0.5 text-caption text-muted-foreground">
+                {filtered.length === counts.all
+                  ? `${counts.all} total · most recent first`
+                  : `${filtered.length} of ${counts.all} · ${activeFilter}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Filter chips + contextual bulk action */}
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterChip activeFilter={activeFilter} filter="all" label={`All (${counts.all})`} />
+            <FilterChip
+              activeFilter={activeFilter}
+              filter="pending"
+              label={`Pending (${counts.pending})`}
+            />
+            <FilterChip
+              activeFilter={activeFilter}
+              filter="failed"
+              label={`Failed (${counts.failed})`}
+            />
+            <FilterChip
+              activeFilter={activeFilter}
+              filter="unmatched"
+              label={`Unmatched (${counts.unmatched})`}
+            />
+            <FilterChip
+              activeFilter={activeFilter}
+              filter="done"
+              label={`Done (${counts.done})`}
+            />
+            {counts.unavailable > 0 ? (
+              <FilterChip
+                activeFilter={activeFilter}
+                filter="unavailable"
+                label={`Unavailable (${counts.unavailable})`}
+              />
+            ) : null}
+            <span className="ml-auto" />
+            {activeFilter === 'failed' && counts.failed > 0 ? (
+              <RetryFailedButton count={counts.failed} />
+            ) : null}
+            {activeFilter === 'pending' && counts.pending > 0 ? (
+              <IngestAllButton pendingCount={counts.pending} />
+            ) : null}
           </div>
         </header>
 
-        {urls.length === 0 ? (
+        {rows.length === 0 ? (
           <EmptyState
             icon={<Inbox className="h-5 w-5" aria-hidden />}
             title="No private URLs yet"
             description="Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
-            action={
-              <div className="inline-flex items-center gap-2 text-caption text-muted-foreground">
-                <Search className="h-3.5 w-3.5" aria-hidden /> Use the Scan Gmail button above
-              </div>
-            }
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Ban className="h-5 w-5" aria-hidden />}
+            title={`No ${activeFilter} URLs`}
+            description="Pick another filter chip above to see different URLs."
           />
         ) : (
           <>
-            {/* Mobile */}
+            {/* Mobile cards */}
             <ul className="space-y-2 md:hidden">
-              {urls.map((u) => {
-                const job = jobByUrl.get(u.url);
-                const status = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
-                const noData =
-                  !!u.ingestedAt &&
-                  !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
-                return (
-                  <li key={u.id}>
-                    <Card>
-                      <CardBody className="space-y-2.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <input
-                            type="checkbox"
-                            data-reingest-url
-                            value={u.url}
-                            disabled={u.reingestLocked}
-                            aria-label={`Select ${u.tournament?.name ?? u.url} for re-ingest`}
-                            className="mt-1 h-4 w-4 rounded border-border text-primary disabled:opacity-40"
+              {filtered.map(({ u, job, status }) => (
+                <li key={u.id}>
+                  <Card>
+                    <CardBody className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-display text-[14.5px] font-semibold text-foreground">
+                            {u.tournament?.name ?? '—'}
+                          </div>
+                          <TournamentMetrics
+                            tournament={u.tournament}
+                            ingestedAt={u.ingestedAt}
                           />
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-display text-[14.5px] font-semibold text-foreground">
-                              {u.tournament?.name ?? '—'}
-                            </div>
-                            <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} url={u.url} />
-                            <a
-                              href={u.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-1 flex items-center gap-1 truncate font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
-                            >
-                              {u.url}
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-                            </a>
-                          </div>
-                          <StatusPill status={status} />
+                          <a
+                            href={u.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 flex items-center gap-1 truncate font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
+                          >
+                            {u.url}
+                            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                          </a>
                         </div>
-                        <div className="flex items-center justify-between text-caption text-muted-foreground">
-                          <span>
-                            {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {u.reingestLocked ? (
-                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                Locked
-                              </span>
-                            ) : null}
-                            <LockUrlButton url={u.url} locked={u.reingestLocked} />
-                            {status === 'failed' ? <ClearButton url={u.url} /> : null}
-                            {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
-                          </div>
+                        <StatusPill status={status} />
+                      </div>
+                      <div className="flex items-center justify-between text-caption text-muted-foreground">
+                        <span>
+                          {u.messageDate
+                            ? new Date(u.messageDate).toLocaleDateString()
+                            : '—'}
+                        </span>
+                        <RowActions
+                          url={u.url}
+                          tournamentId={u.tournament?.id.toString() ?? null}
+                          tournamentName={u.tournament?.name ?? null}
+                          status={status}
+                          locked={u.reingestLocked}
+                        />
+                      </div>
+                      {job?.lastError && status !== 'unavailable' ? (
+                        <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive whitespace-pre-wrap break-all">
+                          {job.lastError}
                         </div>
-                        {job?.lastError ? (
-                          !u.ingestedAt ? (
-                            <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive">
-                              {job.lastError}
-                            </div>
-                          ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
-                            <div className="rounded-md bg-[hsl(var(--warning)/0.08)] px-2.5 py-1.5 text-caption text-warning whitespace-pre-wrap break-all">
-                              {job.lastError}
-                            </div>
-                          ) : null
-                        ) : null}
-                      </CardBody>
-                    </Card>
-                  </li>
-                );
-              })}
+                      ) : null}
+                    </CardBody>
+                  </Card>
+                </li>
+              ))}
             </ul>
 
-            {/* Desktop */}
+            {/* Desktop table */}
             <Card className="hidden md:block">
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-[13.5px]">
-                <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-5 py-3">Select</th>
-                    <th className="px-5 py-3">URL</th>
-                    <th className="px-5 py-3">Tournament</th>
-                    <th className="px-5 py-3">Status</th>
-                    <th className="px-5 py-3">Received</th>
-                    <th className="px-5 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {urls.map((u) => {
-                    const job = jobByUrl.get(u.url);
-                    const status = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
-                    const noData =
-                      !!u.ingestedAt &&
-                      !((u.tournament?.totalTeams ?? 0) > 0 || (u.tournament?.totalParticipants ?? 0) > 0);
-                    return (
-                      <tr key={u.id} className="align-middle transition-colors hover:bg-muted/40">
-                        <td className="px-5 py-3">
-                          <input
-                            type="checkbox"
-                            data-reingest-url
-                            value={u.url}
-                            disabled={u.reingestLocked}
-                            aria-label={`Select ${u.tournament?.name ?? u.url} for re-ingest`}
-                            className="h-4 w-4 rounded border-border text-primary disabled:opacity-40"
-                          />
-                        </td>
+                  <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-5 py-3">URL</th>
+                      <th className="px-5 py-3">Tournament</th>
+                      <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3">Received</th>
+                      <th className="px-5 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filtered.map(({ u, job, status }) => (
+                      <tr
+                        key={u.id}
+                        className="align-top transition-colors hover:bg-muted/40"
+                      >
                         <td className="px-5 py-3">
                           <a
                             href={u.url}
@@ -297,8 +340,15 @@ export default async function Dashboard() {
                           </a>
                         </td>
                         <td className="px-5 py-3 text-foreground">
-                          <div>{u.tournament?.name ?? <span className="text-muted-foreground/60">—</span>}</div>
-                          <TournamentMetrics tournament={u.tournament} ingestedAt={u.ingestedAt} url={u.url} />
+                          <div>
+                            {u.tournament?.name ?? (
+                              <span className="text-muted-foreground/60">—</span>
+                            )}
+                          </div>
+                          <TournamentMetrics
+                            tournament={u.tournament}
+                            ingestedAt={u.ingestedAt}
+                          />
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
@@ -309,38 +359,32 @@ export default async function Dashboard() {
                               </span>
                             ) : null}
                           </div>
-                          {job?.lastError ? (
-                            !u.ingestedAt ? (
-                              <div
-                                className="mt-1 max-w-xs truncate text-caption text-destructive"
-                                title={job.lastError}
-                              >
-                                {job.lastError}
-                              </div>
-                            ) : (u.tournament?.totalTeams == null || u.tournament.totalTeams === 0) ? (
-                              <div
-                                className="mt-1 max-w-xs text-caption text-warning whitespace-pre-wrap break-all"
-                                title={job.lastError}
-                              >
-                                {job.lastError}
-                              </div>
-                            ) : null
+                          {job?.lastError && status !== 'unavailable' ? (
+                            <div
+                              className="mt-1 max-w-xs text-caption text-destructive whitespace-pre-wrap break-all"
+                              title={job.lastError}
+                            >
+                              {job.lastError}
+                            </div>
                           ) : null}
                         </td>
                         <td className="px-5 py-3 text-caption text-muted-foreground">
-                          {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
+                          {u.messageDate
+                            ? new Date(u.messageDate).toLocaleDateString()
+                            : '—'}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <LockUrlButton url={u.url} locked={u.reingestLocked} />
-                            {status === 'failed' ? <ClearButton url={u.url} /> : null}
-                            {!noData ? <IngestButton url={u.url} alreadyDone={!!u.ingestedAt} /> : null}
-                          </div>
+                          <RowActions
+                            url={u.url}
+                            tournamentId={u.tournament?.id.toString() ?? null}
+                            tournamentName={u.tournament?.name ?? null}
+                            status={status}
+                            locked={u.reingestLocked}
+                          />
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </Card>
@@ -351,14 +395,82 @@ export default async function Dashboard() {
   );
 }
 
+function FilterChip({
+  activeFilter,
+  filter,
+  label,
+}: {
+  activeFilter: FilterKey;
+  filter: FilterKey;
+  label: string;
+}) {
+  const active = activeFilter === filter;
+  return (
+    <Link
+      href={filter === 'all' ? '/dashboard' : `/dashboard?filter=${filter}`}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'inline-flex items-center rounded-full border px-3 py-1 text-[12.5px] font-medium transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-foreground hover:bg-muted',
+      )}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function RowActions({
+  url,
+  tournamentId,
+  tournamentName,
+  status,
+  locked,
+}: {
+  url: string;
+  tournamentId: string | null;
+  tournamentName: string | null;
+  status: PillStatus;
+  locked: boolean;
+}) {
+  // Each status surfaces its primary action(s). Lock toggle stays on the
+  // `done` and `unmatched` rows since those are the only states where
+  // re-ingest is a meaningful concern.
+  if (status === 'pending' || status === 'running') {
+    return <IngestButton url={url} alreadyDone={false} />;
+  }
+  if (status === 'failed') {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <ClearButton url={url} />
+        <IngestButton url={url} alreadyDone={false} />
+      </div>
+    );
+  }
+  if (status === 'unmatched' && tournamentId && tournamentName) {
+    return (
+      <UnmatchedRowExpand tournamentId={tournamentId} tournamentName={tournamentName} />
+    );
+  }
+  if (status === 'done') {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <LockUrlButton url={url} locked={locked} />
+        <IngestButton url={url} alreadyDone={true} />
+      </div>
+    );
+  }
+  // unavailable: no action; pill itself is the whole UI.
+  return null;
+}
+
 function TournamentMetrics({
   tournament,
   ingestedAt,
-  url,
 }: {
   tournament: { totalTeams: number | null; totalParticipants: number | null } | null | undefined;
   ingestedAt: Date | null;
-  url?: string;
 }) {
   if (!tournament) return null;
   const { totalTeams, totalParticipants } = tournament;
@@ -366,10 +478,7 @@ function TournamentMetrics({
 
   if (ingestedAt && !hasMetrics) {
     return (
-      <div className="mt-0.5 flex items-center gap-2">
-        <span className="text-caption text-warning">⚠ No data scraped</span>
-        {url ? <IngestButton url={url} alreadyDone={true} /> : null}
-      </div>
+      <div className="mt-0.5 text-caption text-warning">⚠ No data scraped</div>
     );
   }
   if (!hasMetrics) return null;
@@ -379,16 +488,10 @@ function TournamentMetrics({
   if (totalParticipants) parts.push(`${totalParticipants} participants`);
 
   return (
-    <div className="mt-0.5 text-caption text-muted-foreground">
-      {parts.join(' · ')}
-    </div>
+    <div className="mt-0.5 text-caption text-muted-foreground">{parts.join(' · ')}</div>
   );
 }
 
-// HTTP 404 in the lastError text means the source page is gone — Heroku app
-// shut down, Tabbycat tournament unpublished, or private-URL token rotated.
-// Treat as permanently unavailable so we render a neutral pill instead of the
-// destructive "Failed" red, and so Re-ingest mine skips the URL.
 function isPermanentlyDead(lastError: string | null | undefined): boolean {
   return !!lastError && /HTTP 404/.test(lastError);
 }
@@ -405,18 +508,22 @@ function statusFor(
   return 'pending';
 }
 
-function Stat({
+function FilterTile({
   icon,
   label,
   value,
   hint,
   tone,
+  filter,
+  activeFilter,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   hint?: string;
   tone: 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+  filter: FilterKey;
+  activeFilter: FilterKey;
 }) {
   const toneRing: Record<typeof tone, string> = {
     info: 'text-primary bg-primary-soft',
@@ -425,9 +532,17 @@ function Stat({
     danger: 'text-destructive bg-[hsl(var(--destructive)/0.10)]',
     neutral: 'text-muted-foreground bg-muted',
   };
+  const active = activeFilter === filter;
   return (
-    <Card className="transition-all duration-[180ms] ease-soft hover:shadow-md">
-      <CardBody className="flex items-center gap-3">
+    <Link
+      href={filter === 'all' ? '/dashboard' : `/dashboard?filter=${filter}`}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'block rounded-card border bg-card transition-all duration-[180ms] ease-soft hover:shadow-md',
+        active ? 'border-primary ring-2 ring-primary/30' : 'border-border',
+      )}
+    >
+      <div className="flex items-center gap-3 p-5">
         <div className={`flex h-10 w-10 items-center justify-center rounded-md ${toneRing[tone]}`}>
           {icon}
         </div>
@@ -438,7 +553,7 @@ function Stat({
           </div>
           {hint ? <div className="mt-2 text-caption text-muted-foreground">{hint}</div> : null}
         </div>
-      </CardBody>
-    </Card>
+      </div>
+    </Link>
   );
 }
