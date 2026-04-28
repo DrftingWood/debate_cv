@@ -14,20 +14,25 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Enable pnpm
         run: corepack enable
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Check Prisma can see database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm prisma migrate status
 
       - name: Mark failed migration as applied
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm prisma migrate resolve --applied 20260428200000_person_disambiguation_cleanup
 
-      - name: Check migration status
+      - name: Check final migration status
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm prisma migrate status
