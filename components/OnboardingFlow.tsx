@@ -232,17 +232,24 @@ export function OnboardingFlow({
     }
     const picked = names.filter((n) => selected.has(n.normalizedName));
     startConfirm(async () => {
-      const res = await postJson<{ claimed: number }>('/api/onboarding/confirm', {
-        names: picked.map((n) => n.displayName),
-      });
+      const res = await postJson<{ claimed: number; unclaimed: number }>(
+        '/api/onboarding/confirm',
+        { names: picked.map((n) => n.displayName) },
+      );
       if (!res.ok) {
         toast.show({ kind: 'error', title: 'Confirm failed', description: res.error });
         return;
       }
+      const { claimed, unclaimed } = res.data;
+      const parts: string[] = [];
+      parts.push(`${claimed} ${claimed === 1 ? 'name' : 'names'} claimed`);
+      if (unclaimed > 0) {
+        parts.push(`${unclaimed} ${unclaimed === 1 ? 'name' : 'names'} removed`);
+      }
       toast.show({
         kind: 'success',
         title: 'Identity confirmed',
-        description: `${res.data.claimed} ${res.data.claimed === 1 ? 'name' : 'names'} claimed. Now ingesting tournaments…`,
+        description: `${parts.join(', ')}. Now ingesting tournaments…`,
       });
       setPhase('done');
       router.push('/dashboard');
@@ -359,7 +366,8 @@ export function OnboardingFlow({
                   We extracted these names from {totals.named} of your{' '}
                   {totals.urls} private URLs. Tournaments often spell people slightly
                   differently — tick every spelling that's you. We'll merge them into
-                  one identity on your CV.
+                  one identity on your CV. Untick a name to remove it from your
+                  identity (e.g. a teammate's URL that got linked to you by mistake).
                 </p>
                 {totals.failed > 0 ? (
                   <p className="text-caption text-muted-foreground">
