@@ -18,7 +18,10 @@ import { Card, CardBody } from '@/components/ui/Card';
 
 export default async function Home() {
   const session = await auth();
-  if (session?.user) redirect('/dashboard');
+  // CV-first: signed-in users land on /cv (their tournament history). The
+  // /cv page handles its own onboarding/empty-state redirects internally,
+  // so we don't have to special-case "no claims yet" here.
+  if (session?.user) redirect('/cv');
 
   return (
     <div className="space-y-28">
@@ -37,7 +40,7 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
     <form
       action={async () => {
         'use server';
-        await signIn('google', { redirectTo: '/dashboard' });
+        await signIn('google', { redirectTo: '/cv' });
       }}
     >
       <Button
@@ -57,7 +60,7 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
  * Admin entry point. Same Google OAuth flow as the user sign-in — auth
  * itself doesn't differ, only the post-login destination. The /admin route
  * server-side `requireAdmin()`s against the ADMIN_EMAIL env var; non-admins
- * who click this fall through to / and re-redirect to /dashboard, so the
+ * who click this fall through to / and re-redirect to /cv, so the
  * button is safe to expose publicly.
  */
 async function AdminSignInButton() {

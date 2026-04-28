@@ -195,10 +195,13 @@ export function OnboardingFlow({
       toast.show({
         kind: 'success',
         title: 'Identity confirmed',
-        description: `${parts.join(', ')}. Now ingesting tournaments…`,
+        description: `${parts.join(', ')}. Building your CV…`,
       });
       setPhase('done');
-      router.push('/dashboard');
+      // Land on /cv so the user immediately sees their CV taking shape.
+      // The "Ingesting X tournaments" banner on /cv reassures them while
+      // the queue drains in the background.
+      router.push('/cv');
     });
   };
 
@@ -363,7 +366,7 @@ export function OnboardingFlow({
         <Card>
           <CardBody className="flex items-center gap-3 p-6 md:p-8">
             <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
-            <p className="text-foreground">Loading your dashboard…</p>
+            <p className="text-foreground">Loading your CV…</p>
           </CardBody>
         </Card>
       )}
