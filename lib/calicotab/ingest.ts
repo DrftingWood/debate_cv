@@ -25,6 +25,7 @@ import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount } from './judgeStats';
+import { buildPersonIndex, findPersonId } from './personMatch';
 import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -375,6 +376,12 @@ export async function ingestPrivateUrl(
     for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
   }
   const personIdByNormalized = await preCommitPersons(allPersonNames);
+  // Pre-build the fuzzy-match index once so the speaker / participant /
+  // round-results loops below can fall back from exact-name lookup to
+  // substring + token-subset matching without per-row rebuilding.
+  const personMatchIndex = buildPersonIndex(personIdByNormalized);
+  const lookupPersonId = (name: string): bigint | null =>
+    findPersonId(name, personIdByNormalized, personMatchIndex);
 
   const txResult = await prisma.$transaction(async (tx) => {
     const t = await tx.tournament.upsert({
@@ -509,7 +516,14 @@ export async function ingestPrivateUrl(
     const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
     const speakerParticipantIds: bigint[] = [];
     for (const sp of speakerRows) {
-      const personId = personIdByNormalized.get(normalizePersonName(sp.speakerName));
+      // Fuzzy lookup: exact-match first, then substring + token-subset
+      // fallbacks. Strict exact-match used to silently drop a user's
+      // upsert when the speaker tab spelled their name slightly
+      // differently from their claim ("Abhishek A." vs "Abhishek
+      // Acharya"), leaving rank/avg/total fields as nulls written by
+      // the prior `prepareTournamentWideRefresh`. The audit's biggest
+      // user-visible gap.
+      const personId = lookupPersonId(sp.speakerName);
       if (!personId) continue;
       // Iron-manning: a speaker who substitutes into another team mid-tournament
       // appears in `speakerRows` more than once with different `teamName`s. The
@@ -579,7 +593,7 @@ export async function ingestPrivateUrl(
     // recordJudgeRoundsFromLanding() — never from round-results panels.
     for (const p of mergedParticipantRows) {
       if (p.role !== 'adjudicator') continue;
-      const personId = personIdByNormalized.get(normalizePersonName(p.name));
+      const personId = lookupPersonId(p.name);
       if (!personId) continue;
       const participant = await tx.tournamentParticipant.upsert({
         where: { tournamentId_personId: { tournamentId: t.id, personId } },

@@ -24,6 +24,12 @@ export function extractYearFromName(name: string | null): number | null {
 export function normalizePersonName(name: string): string {
   return name
     .toLowerCase()
+    // Treat hyphens, underscores, periods, and slashes as word separators
+    // before stripping the remaining punctuation. Otherwise
+    // "Abhishek-Acharya" / "abhishek_acharya" / "Abhishek.Acharya" all
+    // collapse to "abhishekacharya" and stop matching the canonical
+    // "abhishek acharya" form (audit follow-up to PR #93's fuzzy matcher).
+    .replace(/[-_./\\]+/g, ' ')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

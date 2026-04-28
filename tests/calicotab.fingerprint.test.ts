@@ -42,4 +42,14 @@ describe('normalizePersonName', () => {
     expect(normalizePersonName('  Abhishek  Acharya ')).toBe('abhishek acharya');
     expect(normalizePersonName("Méline O'Brien")).toBe('mline obrien');
   });
+
+  test('treats hyphens / underscores / periods / slashes as word separators', () => {
+    // Previously `[-_./\\]` were stripped wholesale, collapsing
+    // "Abhishek-Acharya" → "abhishekacharya" and breaking matching
+    // against the canonical "abhishek acharya" form.
+    expect(normalizePersonName('Abhishek-Acharya')).toBe('abhishek acharya');
+    expect(normalizePersonName('abhishek_acharya')).toBe('abhishek acharya');
+    expect(normalizePersonName('Abhishek.Acharya')).toBe('abhishek acharya');
+    expect(normalizePersonName('Acharya/Abhishek')).toBe('acharya abhishek');
+  });
 });
