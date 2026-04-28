@@ -250,6 +250,13 @@ export async function ingestPrivateUrl(
   const tournamentName = snapshot.tournamentName ?? tournamentSlug ?? 'Unknown tournament';
   const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
   const totalTeams = teamRows.length || null;
+  // Authoritative prelim round count: how many of the parsed rounds turned
+  // out to be in-rounds (not outround). Stored on Tournament so the CV
+  // builder can use it as the speaker-average divisor when the speaker tab
+  // gives us only totals (common on AP installs that strip per-round
+  // columns from the public speaker tab).
+  const prelimRoundCount =
+    rounds.filter((r) => !r.isOutround && r.roundNumber != null).length || null;
   const format = inferTournamentFormat({
     tournamentName,
     teamRows,
@@ -404,6 +411,7 @@ export async function ingestPrivateUrl(
         year,
         totalParticipants,
         totalTeams,
+        prelimRoundCount,
         sourceUrlRaw: normalized,
         sourceHost: parsedUrl.host,
         sourceTournamentSlug: tournamentSlug,
@@ -415,6 +423,7 @@ export async function ingestPrivateUrl(
         year,
         totalParticipants,
         totalTeams,
+        prelimRoundCount,
         sourceUrlRaw: normalized,
         sourceHost: parsedUrl.host,
         sourceTournamentSlug: tournamentSlug,
@@ -1283,6 +1292,38 @@ async function recordSpeakerRoundsFromLanding(
     update: {},
     create: { tournamentParticipantId: tp.id, role: 'speaker' },
   });
+
+  // Persist outround win/loss for the user's team using the win indicator
+  // detected on the Debates card itself (green up-arrow / text-success /
+  // trophy icon next to the team name). Authoritative for THIS user's
+  // outrounds — overrides anything `parseRoundResults` deduced from the
+  // public per-round-results pages, where the win column is sometimes
+  // absent or rendered only as an icon. source='landing' so
+  // prepareTournamentWideRefresh leaves it alone on subsequent re-ingests.
+  if (knownTeamName) {
+    for (const r of outrounds) {
+      if (r.won == null) continue;
+      await prisma.eliminationResult.upsert({
+        where: {
+          tournamentId_stage_entityType_entityName: {
+            tournamentId,
+            stage: r.stage,
+            entityType: 'team',
+            entityName: knownTeamName,
+          },
+        },
+        update: { result: r.won ? 'won' : 'lost' },
+        create: {
+          tournamentId,
+          stage: r.stage,
+          entityType: 'team',
+          entityName: knownTeamName,
+          result: r.won ? 'won' : 'lost',
+        },
+      });
+    }
+  }
+
   return { outroundsSeen: outrounds.length, deepest, diagnostic: null };
 }
 

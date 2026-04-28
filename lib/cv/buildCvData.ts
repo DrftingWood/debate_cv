@@ -195,16 +195,66 @@ export async function buildCvData(userId: string): Promise<CvData> {
   // speaker tab gave us `speakerScoreTotal` but no per-round columns (an AP
   // tab pattern where round headers are bare digits or are simply not
   // released, so we have a total but can't count speeches directly).
+  // Two sources, in priority order:
+  //   1. Tournament.prelimRoundCount — set at ingest time from the
+  //      authoritative landing-nav round list (counts only prelim, non-outround
+  //      results URLs). Most reliable.
+  //   2. MAX(TeamResult.roundNumber) for prelim rounds — derived from how many
+  //      rounds we successfully parsed per-team data for. Fallback for older
+  //      tournaments ingested before #1 was stored, or where the team-tab
+  //      had no per-round breakdown either.
   const prelimRoundCountByTournament = new Map<bigint, number>();
   if (tournamentIds.length > 0) {
+    const tournamentRows = await prisma.tournament.findMany({
+      where: { id: { in: tournamentIds } },
+      select: { id: true, prelimRoundCount: true },
+    });
+    for (const t of tournamentRows) {
+      if (t.prelimRoundCount != null && t.prelimRoundCount > 0) {
+        prelimRoundCountByTournament.set(t.id, t.prelimRoundCount);
+      }
+    }
     const rows = await prisma.teamResult.groupBy({
       by: ['tournamentId'],
       where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
       _max: { roundNumber: true },
     });
     for (const r of rows) {
+      // Only fall back when the authoritative tournament value was missing.
+      if (prelimRoundCountByTournament.has(r.tournamentId)) continue;
       const max = r._max.roundNumber;
       if (max != null && max > 0) prelimRoundCountByTournament.set(r.tournamentId, max);
+    }
+  }
+
+  // Derived speaker rank by total score — covers tournaments whose speaker
+  // tab didn't expose a recognisable rank column, or where the cell was
+  // blank. Sort all known-total speakers per tournament by descending
+  // speakerScoreTotal and assign 1-based positions; same approach Tabbycat
+  // itself uses to compute ranks in the first place. Used as a fallback
+  // only when `speakerRankOpen` is null on the participant row.
+  const derivedRankByTournament = new Map<bigint, Map<bigint, number>>();
+  if (tournamentIds.length > 0) {
+    const speakers = await prisma.tournamentParticipant.findMany({
+      where: {
+        tournamentId: { in: tournamentIds },
+        speakerScoreTotal: { not: null },
+        roles: { some: { role: 'speaker' } },
+      },
+      select: { tournamentId: true, personId: true, speakerScoreTotal: true },
+      orderBy: [{ tournamentId: 'asc' }, { speakerScoreTotal: 'desc' }],
+    });
+    let lastTid: bigint | null = null;
+    let position = 0;
+    for (const sp of speakers) {
+      if (sp.tournamentId !== lastTid) {
+        lastTid = sp.tournamentId;
+        position = 0;
+      }
+      position += 1;
+      const inner = derivedRankByTournament.get(sp.tournamentId) ?? new Map();
+      inner.set(sp.personId, position);
+      derivedRankByTournament.set(sp.tournamentId, inner);
     }
   }
 
@@ -441,7 +491,14 @@ export async function buildCvData(userId: string): Promise<CvData> {
       teamWins: tr?.wins ?? p.wins ?? null,
       speakerAvgScore,
       prelimsSpoken,
-      speakerRankOpen: p.speakerRankOpen,
+      // Open rank: prefer the parser's value; fall back to a position
+      // derived from speakerScoreTotal sort within the tournament. Covers
+      // BP/AP tabs whose rank header doesn't match the canonical
+      // "Rank/#" patterns and whose cell parses to null.
+      speakerRankOpen:
+        p.speakerRankOpen ??
+        derivedRankByTournament.get(tid)?.get(p.personId) ??
+        null,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
       teamBreakRank: speakerSignals.teamBreakRank,
