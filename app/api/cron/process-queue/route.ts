@@ -12,10 +12,15 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// 300s so a single cron tick can finish a WUDC-scale ingest. Caps at 60s
+// on Hobby plans without breaking — the bulk-write speedup that landed
+// alongside this still helps.
+export const maxDuration = 300;
 
 const MAX_ATTEMPTS = 3;
-const TIME_BUDGET_MS = 55_000;
+// Slightly under maxDuration so we stop claiming new jobs in time to flush
+// the response.
+const TIME_BUDGET_MS = 280_000;
 
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);

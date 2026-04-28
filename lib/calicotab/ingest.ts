@@ -358,7 +358,7 @@ export async function ingestPrivateUrl(
   }
   const personIdByNormalized = await preCommitPersons(allPersonNames);
 
-  const tournamentId = await prisma.$transaction(async (tx) => {
+  const txResult = await prisma.$transaction(async (tx) => {
     const t = await tx.tournament.upsert({
       where: { fingerprint },
       update: {
@@ -477,7 +477,19 @@ export async function ingestPrivateUrl(
       }
     }
 
-    // People + participants (speakers)
+    // People + participants (speakers).
+    //
+    // Speaker round scores are NOT written here — for tournaments at WUDC
+    // scale (~800 speakers × 9 rounds = 7200 rows), per-row upserts inside
+    // the interactive transaction blew through the 30s tx timeout. We
+    // instead collect rows into `speakerRoundScoreCreates` and bulk-write
+    // them after the tx commits with `createMany`, which is one round-trip
+    // for the entire payload. The `prepareTournamentWideRefresh` call
+    // above already deleted any prior rows when refresh applies; on the
+    // no-refresh path we rely on the (participantId, roundNumber,
+    // positionLabel) unique constraint + skipDuplicates to be idempotent.
+    const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
+    const speakerParticipantIds: bigint[] = [];
     for (const sp of speakerRows) {
       const personId = personIdByNormalized.get(normalizePersonName(sp.speakerName));
       if (!personId) continue;
@@ -526,26 +538,17 @@ export async function ingestPrivateUrl(
         update: {},
         create: { tournamentParticipantId: participant.id, role: 'speaker' },
       });
+      speakerParticipantIds.push(participant.id);
       for (const rs of sp.roundScores) {
         const m = rs.roundLabel.match(/\d+/);
         const isAverageScore = rs.positionLabel === 'average';
         if (!m && !isAverageScore) continue;
         const rn = isAverageScore ? 0 : Number(m![0]);
-        await tx.speakerRoundScore.upsert({
-          where: {
-            tournamentParticipantId_roundNumber_positionLabel: {
-              tournamentParticipantId: participant.id,
-              roundNumber: rn,
-              positionLabel: rs.positionLabel ?? '',
-            },
-          },
-          update: { score: rs.score as unknown as undefined },
-          create: {
-            tournamentParticipantId: participant.id,
-            roundNumber: rn,
-            positionLabel: rs.positionLabel ?? '',
-            score: rs.score as unknown as undefined,
-          },
+        speakerRoundScoreCreates.push({
+          tournamentParticipantId: participant.id,
+          roundNumber: rn,
+          positionLabel: rs.positionLabel ?? '',
+          score: rs.score as unknown as undefined,
         });
       }
     }
@@ -610,8 +613,27 @@ export async function ingestPrivateUrl(
       });
     }
 
-    return t.id;
-  }, { maxWait: 10000, timeout: 30000 });
+    return { tournamentId: t.id, speakerRoundScoreCreates, speakerParticipantIds };
+  }, { maxWait: 15000, timeout: 60000 });
+
+  const tournamentId = txResult.tournamentId;
+
+  // Bulk write speaker round scores OUTSIDE the main tx — keeps the tx
+  // small enough to fit WUDC-scale tournaments under the 60s timeout. Scope
+  // the deleteMany to the participant IDs we're writing for so we don't
+  // touch unrelated rows; createMany with skipDuplicates is idempotent on
+  // the (participantId, roundNumber, positionLabel) unique constraint.
+  if (txResult.speakerParticipantIds.length > 0) {
+    await prisma.speakerRoundScore.deleteMany({
+      where: { tournamentParticipantId: { in: txResult.speakerParticipantIds } },
+    });
+  }
+  if (txResult.speakerRoundScoreCreates.length > 0) {
+    await prisma.speakerRoundScore.createMany({
+      data: txResult.speakerRoundScoreCreates,
+      skipDuplicates: true,
+    });
+  }
 
   const linked = await withDeadlockRetry(() =>
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),

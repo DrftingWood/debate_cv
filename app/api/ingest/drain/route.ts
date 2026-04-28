@@ -13,10 +13,13 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// 300s for WUDC-scale tournaments. Falls back to 60s on Hobby plans.
+export const maxDuration = 300;
 
 const MAX_ATTEMPTS = 3;
-const TIME_BUDGET_MS = 50_000;
+// Leave a small buffer below maxDuration so the in-flight ingest can
+// finish + the response can flush before the function is killed.
+const TIME_BUDGET_MS = 280_000;
 
 export async function POST() {
   try {
