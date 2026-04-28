@@ -78,6 +78,9 @@ model GmailToken {
   scope             String?
   /// null for legacy rows stored as plaintext; 'v1' for AES-256-GCM.
   encryptionVersion String?
+  /// Timestamp of the most recent Gmail scan; used to enforce a per-user
+  /// cooldown so users can't hammer /api/ingest/gmail in a tight loop.
+  lastScannedAt     DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

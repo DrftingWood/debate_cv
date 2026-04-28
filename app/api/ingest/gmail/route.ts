@@ -48,7 +48,45 @@ export async function POST() {
       );
     }
 
-    const summary = await extractAllFromGmail(oauth);
+    // Per-user 5-minute cooldown. Gmail scans are heavy (search + per-message
+    // GET, x500 messages) and a user mashing the button serves no purpose
+    // since results don't change minute-to-minute. Returns 429 with a
+    // Retry-After header so the dashboard can show "wait Ns".
+    const SCAN_COOLDOWN_MS = 5 * 60 * 1000;
+    const token = await prisma.gmailToken.findUnique({
+      where: { userId },
+      select: { lastScannedAt: true },
+    });
+    if (token?.lastScannedAt) {
+      const elapsed = Date.now() - token.lastScannedAt.getTime();
+      if (elapsed < SCAN_COOLDOWN_MS) {
+        const retryAfter = Math.ceil((SCAN_COOLDOWN_MS - elapsed) / 1000);
+        return NextResponse.json(
+          { error: 'rate_limited', hint: `Please wait ${retryAfter}s before scanning again.`, retryAfter },
+          { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+        );
+      }
+    }
+
+    // Incremental scan: query Gmail for messages newer than the latest
+    // DiscoveredUrl messageDate (with a 1-day safety margin for timezone
+    // skew). First-ever scan has no rows yet, so afterDate stays undefined
+    // and we fall back to the default 5-year window.
+    const lastUrl = await prisma.discoveredUrl.findFirst({
+      where: { userId },
+      orderBy: { messageDate: 'desc' },
+      select: { messageDate: true },
+    });
+    const afterDate = lastUrl?.messageDate
+      ? new Date(lastUrl.messageDate.getTime() - 86_400_000)
+      : undefined;
+
+    const summary = await extractAllFromGmail(oauth, { after: afterDate });
+
+    await prisma.gmailToken.update({
+      where: { userId },
+      data: { lastScannedAt: new Date() },
+    });
 
     for (const r of summary.urls) {
       await prisma.discoveredUrl.upsert({

@@ -75,9 +75,17 @@ export type ExtractSummary = {
 
 export async function extractAllFromGmail(
   auth: OAuth2Client,
-  options: { query?: string; max?: number } = {},
+  options: { query?: string; max?: number; after?: Date } = {},
 ): Promise<ExtractSummary> {
-  const query = options.query ?? DEFAULT_QUERY;
+  let query = options.query ?? DEFAULT_QUERY;
+  // Incremental scan: caller can pass the last-known message date and we'll
+  // ask Gmail to only return newer messages. Cuts a re-scan from 500 reads
+  // to typically <10 once the user has done their first full scan.
+  if (options.after) {
+    const d = options.after;
+    const dateStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    query += ` after:${dateStr}`;
+  }
   const max = options.max ?? DEFAULT_MAX_MESSAGES;
   const gmail = google.gmail({ version: 'v1', auth });
 
