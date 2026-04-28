@@ -35,6 +35,11 @@ describe('POST /api/cv/error-report', () => {
       jsonRequest('/api/cv/error-report', { body: { tournamentIds: ['1'] } }),
     );
     expect(res.status).toBe(400);
+    const data = await readJson<{ error: string }>(res);
+    expect(data.error).toBe('bad_request');
+    // No DB write should have happened — Zod refine() short-circuits before
+    // we ever call into the cvErrorReport model.
+    expect(prismaMock.cvErrorReport.create).not.toHaveBeenCalled();
   });
 
   it('accepts a category-only submission (comment optional)', async () => {
@@ -72,6 +77,13 @@ describe('POST /api/cv/error-report', () => {
       }),
     );
     expect(res.status).toBe(400);
+    const data = await readJson<{ error: string; details?: unknown }>(res);
+    expect(data.error).toBe('bad_request');
+    // Validation should fire before any DB read — confirms the closed
+    // category enum is enforced at the schema layer rather than swallowed
+    // and stored as-is.
+    expect(prismaMock.discoveredUrl.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.cvErrorReport.create).not.toHaveBeenCalled();
   });
 
   it('rejects when none of the requested tournament IDs belong to the user', async () => {

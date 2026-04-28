@@ -131,6 +131,16 @@ export async function POST(req: Request) {
  * Generate a random slug, retrying on the (extremely unlikely) collision.
  * Cap at 5 attempts; further collisions point to a pathological state we
  * want to surface as a 500 rather than loop forever.
+ *
+ * Authoritative uniqueness comes from the `User.publicCvSlug @unique`
+ * constraint in the schema, which Postgres enforces at INSERT/UPDATE
+ * time even under concurrency. The findUnique here is a usability
+ * optimization that lets us pick an unused slug BEFORE attempting the
+ * write — without it, two users racing to claim the same random slug
+ * would both call `user.update`, one would get a 409 we'd have to retry,
+ * and we'd burn a round-trip. With it, the loop deduplicates client-side
+ * and the constraint catches the rare race that slips through. Either
+ * way the database guarantees uniqueness; this function is just polite.
  */
 async function freshUniqueSlug(): Promise<string> {
   for (let i = 0; i < 5; i++) {
