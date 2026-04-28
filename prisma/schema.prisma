@@ -22,6 +22,16 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  /// Public CV sharing. publicCvEnabled gates access to /u/<slug>;
+  /// publicCvSlug is the slug itself (random by default, optionally
+  /// replaced with a user-chosen vanity slug). publicAvatarEnabled lets
+  /// a user opt out of showing their Google profile photo on the public
+  /// view (per Q10 user-toggle). Defaults: disabled, random slug
+  /// generated lazily on first enable, avatar shown.
+  publicCvEnabled       Boolean @default(false)
+  publicCvSlug          String? @unique
+  publicAvatarEnabled   Boolean @default(true)
+
   accounts          Account[]
   sessions          Session[]
   gmailToken        GmailToken?
