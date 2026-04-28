@@ -7,11 +7,10 @@ import { PRIVATE_URL_RE, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
-// Bumped from 60s to 300s so WUDC-scale tournaments (200+ teams, 800+
-// speakers) finish within a single function invocation. 300s requires
-// Vercel Pro / Fluid Compute; on Hobby the deploy will cap at 60s and
-// still benefit from the bulk-write speedup that landed alongside this.
-export const maxDuration = 300;
+// 60s is the Vercel Hobby cap. WUDC-scale tournaments now fit because the
+// hot per-row speakerRoundScore loop was replaced with a post-tx bulk
+// createMany — see lib/calicotab/ingest.ts.
+export const maxDuration = 60;
 
 const Body = z.object({
   url: z.string().url(),

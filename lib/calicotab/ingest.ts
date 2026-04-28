@@ -614,7 +614,10 @@ export async function ingestPrivateUrl(
     }
 
     return { tournamentId: t.id, speakerRoundScoreCreates, speakerParticipantIds };
-  }, { maxWait: 15000, timeout: 60000 });
+  }, { maxWait: 10000, timeout: 45000 });
+  // Tx timeout is 45s — leaves 15s headroom under the 60s Vercel Hobby
+  // function budget for the post-tx bulk SpeakerRoundScore writes plus the
+  // landing-derived per-round writes (recordJudgeRounds*, recordSpeakerRounds*).
 
   const tournamentId = txResult.tournamentId;
 

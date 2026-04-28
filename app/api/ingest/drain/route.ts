@@ -13,13 +13,12 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// 300s for WUDC-scale tournaments. Falls back to 60s on Hobby plans.
-export const maxDuration = 300;
+// Hobby cap. The bulk-write speedup in lib/calicotab/ingest.ts keeps a
+// single WUDC-scale ingest comfortably under this.
+export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;
-// Leave a small buffer below maxDuration so the in-flight ingest can
-// finish + the response can flush before the function is killed.
-const TIME_BUDGET_MS = 280_000;
+const TIME_BUDGET_MS = 50_000;
 
 export async function POST() {
   try {
