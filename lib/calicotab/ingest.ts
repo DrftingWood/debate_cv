@@ -607,6 +607,20 @@ export async function ingestPrivateUrl(
     if (fromResults.diagnostic) fetchWarnings.push(fromResults.diagnostic);
   }
 
+  // Optional: extract round-results judge assignments for EVERY judge that
+  // appeared on a panel, not just the URL owner. Lets users who never had a
+  // private URL for a tournament still get their judging history populated
+  // when a teammate's URL is ingested. Off by default — enabling at scale
+  // means many more JudgeAssignment rows per tournament; gate until verified
+  // on real data.
+  if (process.env.EXTRACT_ALL_JUDGES === 'true') {
+    await recordAllJudgeAssignmentsFromRoundResults(
+      rounds,
+      tournamentId,
+      personIdByNormalized,
+    );
+  }
+
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
   await prisma.discoveredUrl.updateMany({
     where: { userId, url: { in: urlVariants } },
@@ -1257,4 +1271,134 @@ async function recordJudgeRoundsFromRoundResults(
   });
 
   return { written, matched: hits.length, diagnostic: null };
+}
+
+/**
+ * Like `recordJudgeRoundsFromRoundResults` but iterates every judge name in
+ * the round-results panels, not just the URL owner's. For each known person
+ * (already pre-committed in `personIdByNormalized`) we write JudgeAssignment
+ * rows + populate per-person chair/panel stats. Unknown names — judges from
+ * tournaments where preCommitPersons didn't pick them up — are skipped to
+ * avoid creating Person rows from inside this writer.
+ *
+ * Idempotent: same find-then-create + non-overwriting field-update logic
+ * as the URL-owner-specific path.
+ */
+async function recordAllJudgeAssignmentsFromRoundResults(
+  rounds: ReturnType<typeof parseRoundResults>[],
+  tournamentId: bigint,
+  personIdByNormalized: Map<string, bigint>,
+): Promise<void> {
+  type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
+  const hitsByNorm = new Map<string, Hit[]>();
+  for (const round of rounds) {
+    if (!round) continue;
+    for (const j of round.judgeAssignments) {
+      const norm = normalizePersonName(j.personName);
+      if (!norm) continue;
+      const stage = normalizeStageLabel(
+        round.roundLabel ||
+          (round.isOutround
+            ? round.roundNumber != null
+              ? `Round ${round.roundNumber}`
+              : 'Outround'
+            : `Round ${round.roundNumber ?? '?'}`),
+      );
+      const list = hitsByNorm.get(norm) ?? [];
+      list.push({
+        stage,
+        role: j.panelRole === 'chair' ? 'chair' : 'panellist',
+        roundNumber: round.isOutround ? null : round.roundNumber,
+      });
+      hitsByNorm.set(norm, list);
+    }
+  }
+
+  for (const [norm, hits] of hitsByNorm.entries()) {
+    const personId = personIdByNormalized.get(norm);
+    if (!personId) continue;
+
+    for (const h of hits) {
+      const existing = await prisma.judgeAssignment.findFirst({
+        where: {
+          tournamentId,
+          personId,
+          stage: h.stage,
+          panelRole: h.role,
+          roundNumber: h.roundNumber,
+        },
+        select: { id: true },
+      });
+      if (!existing) {
+        await prisma.judgeAssignment.create({
+          data: {
+            tournamentId,
+            personId,
+            stage: h.stage,
+            panelRole: h.role,
+            roundNumber: h.roundNumber,
+          },
+        });
+      }
+    }
+
+    const chairedPrelims = getInroundsChairedCount(
+      hits.map((h) => ({ stage: h.stage, panelRole: h.role })),
+    );
+    const outrounds = hits.filter((h) => h.roundNumber == null);
+    const ranked = outrounds
+      .map((h) => ({ h, rank: outroundStageRank(h.stage) }))
+      .filter((x): x is { h: typeof x.h; rank: number } => x.rank != null)
+      .sort((a, b) => b.rank - a.rank);
+    const deepestChaired = ranked.find((x) => x.h.role === 'chair')?.h.stage ?? null;
+    const deepestPaneled = ranked.find((x) => x.h.role === 'panellist')?.h.stage ?? null;
+
+    const tpExisting = await prisma.tournamentParticipant.findUnique({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      select: {
+        chairedPrelimRounds: true,
+        lastOutroundChaired: true,
+        lastOutroundPaneled: true,
+      },
+    });
+    const update: {
+      judgeTypeTag: 'Adjudicator';
+      chairedPrelimRounds?: number;
+      lastOutroundChaired?: string;
+      lastOutroundPaneled?: string;
+    } = { judgeTypeTag: 'Adjudicator' };
+    if (chairedPrelims > 0 && (tpExisting?.chairedPrelimRounds ?? null) == null) {
+      update.chairedPrelimRounds = chairedPrelims;
+    }
+    if (deepestChaired && !tpExisting?.lastOutroundChaired) {
+      update.lastOutroundChaired = deepestChaired;
+    }
+    if (deepestPaneled && !tpExisting?.lastOutroundPaneled) {
+      update.lastOutroundPaneled = deepestPaneled;
+    }
+
+    const tp = await prisma.tournamentParticipant.upsert({
+      where: { tournamentId_personId: { tournamentId, personId } },
+      update,
+      create: {
+        tournamentId,
+        personId,
+        judgeTypeTag: 'Adjudicator',
+        chairedPrelimRounds: chairedPrelims || null,
+        lastOutroundChaired: deepestChaired,
+        lastOutroundPaneled: deepestPaneled,
+      },
+    });
+
+    await prisma.participantRole.upsert({
+      where: {
+        tournamentParticipantId_role: {
+          tournamentParticipantId: tp.id,
+          role: 'judge',
+        },
+      },
+      update: {},
+      create: { tournamentParticipantId: tp.id, role: 'judge' },
+    });
+  }
 }
