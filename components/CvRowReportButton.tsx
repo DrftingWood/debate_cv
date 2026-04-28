@@ -112,6 +112,7 @@ export function CvRowReportButton({
         leftIcon={<AlertCircle className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => setOpen(true)}
         title={`Report a problem with ${tournamentName}`}
+        data-print-hide="true"
       >
         Report
       </Button>
