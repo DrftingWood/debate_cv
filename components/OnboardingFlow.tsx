@@ -1,17 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Search,
   Mail,
   UserCheck,
   Loader2,
   CheckCircle2,
-  ChevronLeft,
-  RefreshCw,
   AlertTriangle,
-  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -31,14 +29,17 @@ type NamesResponse = {
   names: { displayName: string; normalizedName: string; urlCount: number; isMine: boolean }[];
   totals: { urls: number; named: number; unknown: number; failed: number };
 };
-type ErrorsResponse = {
-  failures: { id: string; url: string; host: string; error: string }[];
-};
 
 type Phase = 'scan' | 'preflight' | 'pick' | 'done';
 
-const PHASE_ORDER: Phase[] = ['scan', 'preflight', 'pick'];
-
+/**
+ * First-time onboarding wizard. Strictly forward: scan → preflight → pick →
+ * done. Re-entry users (those with ≥1 claimed Person) never see this — they
+ * hit the stub on /onboarding instead and manage identities from
+ * /settings/profile. Failures during preflight are summarized with a
+ * threshold banner; per-URL retry is not exposed here, since permanent
+ * failures route to the dashboard's `Failed` filter for triage.
+ */
 export function OnboardingFlow({
   initialPhase,
   initialUrlCount,
@@ -51,7 +52,6 @@ export function OnboardingFlow({
   const router = useRouter();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>(initialPhase);
-  const [urlCount, setUrlCount] = useState(initialUrlCount);
   const [preflight, setPreflight] = useState({
     remaining: initialPreflightRemaining,
     extracted: 0,
@@ -65,29 +65,18 @@ export function OnboardingFlow({
     failed: 0,
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [persistedErrors, setPersistedErrors] = useState<ErrorsResponse['failures']>([]);
-  const [recentErrors, setRecentErrors] = useState<{ url: string; error: string }[]>([]);
-  // The errors panel auto-opens the first time persisted errors load (so a
-  // user with failures isn't left wondering why their CV is empty), but
-  // honours a manual close afterwards via `errorsOpenedAuto`.
-  const [errorsOpen, setErrorsOpen] = useState(false);
-  const errorsAutoOpenedRef = useRef(false);
   const [isScanning, startScan] = useTransition();
   const [isConfirming, startConfirm] = useTransition();
-  const [isResetting, startReset] = useTransition();
 
   // ── Phase 2: preflight loop ─────────────────────────────────────────────
-  // Polls /api/onboarding/preflight in batches of 10 until remaining hits 0,
-  // then advances to the pick phase by calling /api/onboarding/names.
+  // Polls /api/onboarding/preflight in batches of 10 until remaining hits 0.
+  // Allow a few consecutive zero-progress responses (typically a hung fetch
+  // on one URL) before giving up — the endpoint is idempotent so retrying
+  // is safe.
   useEffect(() => {
     if (phase !== 'preflight') return;
     let cancelled = false;
     (async () => {
-      // Earlier we exited on a single zero-progress response (`processed===0`),
-      // which let a transient flake terminate the loop while URLs were still
-      // pending. Allow a few consecutive zero-progress responses (typically
-      // from a hung fetch on one URL) before giving up — the endpoint is
-      // already idempotent so retrying is safe.
       const MAX_ZERO_PROGRESS_IN_A_ROW = 3;
       let zeroProgressStreak = 0;
       while (!cancelled) {
@@ -102,9 +91,6 @@ export function OnboardingFlow({
           extracted: p.extracted + res.data.extracted,
           failed: p.failed + res.data.failed,
         }));
-        if (res.data.errors?.length) {
-          setRecentErrors((prev) => [...res.data.errors, ...prev].slice(0, 50));
-        }
         if (res.data.remaining === 0) break;
         if (res.data.processed === 0) {
           zeroProgressStreak += 1;
@@ -123,27 +109,15 @@ export function OnboardingFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // ── Phase 3 entry: load names + persisted errors ────────────────────────
+  // ── Phase 3 entry: load names ──────────────────────────────────────────
   const refreshNames = async () => {
     try {
-      const [namesRes, errsRes] = await Promise.all([
-        fetch('/api/onboarding/names').then((r) => r.json()),
-        fetch('/api/onboarding/errors').then((r) => r.json()),
-      ]);
-      setNames(namesRes.names ?? []);
-      setTotals(namesRes.totals ?? totals);
-      const failures: ErrorsResponse['failures'] = errsRes.failures ?? [];
-      setPersistedErrors(failures);
-      // First time we discover persisted failures, auto-open the panel so
-      // the user can see why some URLs didn't yield names. Subsequent
-      // refreshes respect the user's manual open/close state.
-      if (failures.length > 0 && !errorsAutoOpenedRef.current) {
-        errorsAutoOpenedRef.current = true;
-        setErrorsOpen(true);
-      }
+      const res = await fetch('/api/onboarding/names').then((r) => r.json());
+      setNames(res.names ?? []);
+      setTotals(res.totals ?? totals);
       setSelected(
         new Set(
-          (namesRes.names ?? [])
+          (res.names ?? [])
             .filter((n: { isMine: boolean }) => n.isMine)
             .map((n: { normalizedName: string }) => n.normalizedName),
         ),
@@ -176,40 +150,12 @@ export function OnboardingFlow({
         title: 'Gmail scan complete',
         description: `Found ${found} private URLs in ${res.data.scanned} messages.`,
       });
-      setUrlCount(found);
       if (found > 0) {
         setPreflight({ remaining: found, extracted: 0, failed: 0 });
-        setRecentErrors([]);
         setPhase('preflight');
       }
     });
   };
-
-  // ── Retry helpers: kick off preflight again with one of two modes.
-  // Common: `failures` only re-fetches URLs that failed last time, which is
-  // what users want 99% of the time. `full` clears every cached name so a
-  // parser-bug fix can refresh good rows too.
-  const startRetry = (mode: 'failures' | 'full') => {
-    startReset(async () => {
-      const param = mode === 'full' ? 'true' : 'failures';
-      const res = await postJson<PreflightResponse>(
-        `/api/onboarding/preflight?retry=${param}`,
-      );
-      if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Retry failed', description: res.error });
-        return;
-      }
-      setPreflight({
-        remaining: res.data.remaining,
-        extracted: res.data.extracted,
-        failed: res.data.failed,
-      });
-      setRecentErrors(res.data.errors ?? []);
-      setPhase('preflight');
-    });
-  };
-  const onRetryFailures = () => startRetry('failures');
-  const onFullReextract = () => startRetry('full');
 
   // ── Phase 3: confirm picks ──────────────────────────────────────────────
   const toggle = (norm: string) => {
@@ -256,14 +202,17 @@ export function OnboardingFlow({
     });
   };
 
-  const goToPhase = (target: Phase) => {
-    if (target === phase) return;
-    setPhase(target);
-  };
+  // Threshold banner: surface when failure rate is so high that the user
+  // probably has a systemic problem (wrong Gmail account, OAuth scope
+  // missing, Cloudflare blocking everything). Below this rate we trust the
+  // queue and stay quiet.
+  const totalProcessed = preflight.extracted + preflight.failed;
+  const showFailureWarning =
+    totalProcessed > 5 && preflight.failed / totalProcessed > 0.5;
 
   return (
     <div className="space-y-6">
-      <ProgressBar phase={phase} onJump={goToPhase} />
+      <ProgressBar phase={phase} />
 
       {phase === 'scan' && (
         <Card>
@@ -277,7 +226,7 @@ export function OnboardingFlow({
                   Scan your Gmail for private URLs
                 </h2>
                 <p className="text-[14px] text-muted-foreground">
-                  We'll search your inbox for Tabbycat invitation emails (read-only) and
+                  We&apos;ll search your inbox for Tabbycat invitation emails (read-only) and
                   pull every private URL that was sent to you. Nothing is ingested yet —
                   the next step asks which names on those URLs are you.
                 </p>
@@ -311,7 +260,7 @@ export function OnboardingFlow({
                   Reading the names off your private URLs
                 </h2>
                 <p className="text-[14px] text-muted-foreground">
-                  Visiting each URL's landing page and pulling the registered participant
+                  Visiting each URL&apos;s landing page and pulling the registered participant
                   name. This is a one-time preflight — no tournament data is stored yet.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -324,29 +273,7 @@ export function OnboardingFlow({
               </div>
             </div>
 
-            {recentErrors.length > 0 ? (
-              <RecentErrors errors={recentErrors} />
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                leftIcon={<ChevronLeft className="h-3.5 w-3.5" aria-hidden />}
-                onClick={() => goToPhase('scan')}
-              >
-                Back to scan
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => goToPhase('pick')}
-              >
-                Skip to picker (use what's done so far)
-              </Button>
-            </div>
+            {showFailureWarning ? <FailureWarning /> : null}
           </CardBody>
         </Card>
       )}
@@ -365,24 +292,21 @@ export function OnboardingFlow({
                 <p className="text-[14px] text-muted-foreground">
                   We extracted these names from {totals.named} of your{' '}
                   {totals.urls} private URLs. Tournaments often spell people slightly
-                  differently — tick every spelling that's you. We'll merge them into
-                  one identity on your CV. Untick a name to remove it from your
-                  identity (e.g. a teammate's URL that got linked to you by mistake).
+                  differently — tick every spelling that&apos;s you. We&apos;ll merge them into
+                  one identity on your CV.
                 </p>
-                {totals.failed > 0 ? (
-                  <p className="text-caption text-muted-foreground">
-                    {totals.failed} {totals.failed === 1 ? 'URL' : 'URLs'} couldn't be
-                    parsed — open the errors panel below to see exactly what went wrong.
-                  </p>
-                ) : null}
               </div>
             </div>
 
+            {showFailureWarning ? <FailureWarning /> : null}
+
             {names.length === 0 ? (
               <p className="rounded-md border border-border bg-muted/40 p-4 text-caption text-muted-foreground">
-                No names extracted yet. Open the errors below to see what failed,
-                then click <strong>Reset and try again</strong> to re-run preflight on
-                those URLs.
+                No names extracted. Any URLs that failed permanently will appear on the{' '}
+                <Link href="/dashboard" className="text-primary hover:underline">
+                  dashboard
+                </Link>{' '}
+                under the <strong>Failed</strong> filter.
               </p>
             ) : (
               <ul className="divide-y divide-border rounded-card border border-border bg-card">
@@ -413,50 +337,10 @@ export function OnboardingFlow({
               </ul>
             )}
 
-            <ErrorsPanel
-              failures={persistedErrors}
-              open={errorsOpen}
-              onToggle={() => setErrorsOpen((v) => !v)}
-            />
-
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<ChevronLeft className="h-3.5 w-3.5" aria-hidden />}
-                  onClick={() => goToPhase('scan')}
-                >
-                  Back to scan
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  loading={isResetting}
-                  leftIcon={
-                    !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
-                  }
-                  onClick={onRetryFailures}
-                  title="Re-fetches only the URLs that previously failed"
-                >
-                  Retry failed URLs
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  loading={isResetting}
-                  leftIcon={
-                    !isResetting ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined
-                  }
-                  onClick={onFullReextract}
-                  title="Clears every cached name and re-fetches all landings"
-                >
-                  Full re-extract
-                </Button>
-              </div>
+              <p className="text-caption text-muted-foreground">
+                {selected.size} of {names.length} selected
+              </p>
               <Button
                 type="button"
                 variant="primary"
@@ -471,9 +355,6 @@ export function OnboardingFlow({
                 {isConfirming ? 'Confirming…' : 'These are me — continue'}
               </Button>
             </div>
-            <p className="text-caption text-muted-foreground">
-              {selected.size} of {names.length} selected
-            </p>
           </CardBody>
         </Card>
       )}
@@ -490,7 +371,7 @@ export function OnboardingFlow({
   );
 }
 
-function ProgressBar({ phase, onJump }: { phase: Phase; onJump: (p: Phase) => void }) {
+function ProgressBar({ phase }: { phase: Phase }) {
   const steps: { key: Phase; label: string }[] = [
     { key: 'scan', label: 'Scan Gmail' },
     { key: 'preflight', label: 'Read names' },
@@ -505,31 +386,27 @@ function ProgressBar({ phase, onJump }: { phase: Phase; onJump: (p: Phase) => vo
         const active = i === current;
         return (
           <li key={s.key} className="flex flex-1 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onJump(s.key)}
+            <span
               className={
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold transition-colors hover:opacity-80 ' +
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold ' +
                 (done
                   ? 'bg-primary text-primary-foreground'
                   : active
                     ? 'bg-primary-soft text-primary ring-2 ring-primary/40'
                     : 'bg-muted text-muted-foreground')
               }
-              aria-label={`Go to step ${i + 1}: ${s.label}`}
+              aria-current={active ? 'step' : undefined}
             >
               {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : i + 1}
-            </button>
-            <button
-              type="button"
-              onClick={() => onJump(s.key)}
+            </span>
+            <span
               className={
-                'truncate text-left text-caption hover:underline ' +
+                'truncate text-caption ' +
                 (active ? 'font-medium text-foreground' : 'text-muted-foreground')
               }
             >
               {s.label}
-            </button>
+            </span>
             {i < steps.length - 1 ? (
               <span aria-hidden className="hidden flex-1 border-t border-dashed border-border md:block" />
             ) : null}
@@ -540,72 +417,25 @@ function ProgressBar({ phase, onJump }: { phase: Phase; onJump: (p: Phase) => vo
   );
 }
 
-function RecentErrors({ errors }: { errors: { url: string; error: string }[] }) {
-  if (errors.length === 0) return null;
+function FailureWarning() {
   return (
-    <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-caption">
+    <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-[13px]">
       <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
-        <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-        {errors.length} most recent {errors.length === 1 ? 'failure' : 'failures'}
+        <AlertTriangle className="h-4 w-4" aria-hidden />
+        We couldn&apos;t read most of your URLs
       </div>
-      <ul className="max-h-48 space-y-1 overflow-auto">
-        {errors.slice(0, 10).map((e, i) => (
-          <li key={i} className="font-mono text-[11.5px] text-muted-foreground">
-            <span className="text-foreground">{new URL(e.url).host}</span> — {e.error}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ErrorsPanel({
-  failures,
-  open,
-  onToggle,
-}: {
-  failures: { id: string; url: string; host: string; error: string }[];
-  open: boolean;
-  onToggle: () => void;
-}) {
-  if (failures.length === 0) return null;
-  return (
-    <div className="rounded-card border border-border bg-card/60">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-[13.5px] hover:bg-muted/30"
-      >
-        <span className="inline-flex items-center gap-2">
-          <AlertTriangle className="h-3.5 w-3.5 text-warning" aria-hidden />
-          {failures.length} {failures.length === 1 ? 'URL' : 'URLs'} couldn't be parsed
-          — show details
-        </span>
-        <ChevronDown
-          className={
-            'h-4 w-4 text-muted-foreground transition-transform ' + (open ? 'rotate-180' : '')
-          }
-          aria-hidden
-        />
-      </button>
-      {open ? (
-        <ul className="max-h-72 divide-y divide-border overflow-auto">
-          {failures.map((f) => (
-            <li key={f.id} className="space-y-1 px-4 py-2.5 text-[12.5px]">
-              <div className="font-medium text-foreground">{f.host}</div>
-              <a
-                href={f.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block break-all font-mono text-[11.5px] text-muted-foreground hover:text-primary"
-              >
-                {f.url}
-              </a>
-              <div className="font-mono text-[11.5px] text-destructive">{f.error}</div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <p className="text-muted-foreground">
+        This usually means a Gmail connection issue or that your URLs are
+        blocked at the source. Permanent failures will appear on the{' '}
+        <Link href="/dashboard" className="text-primary hover:underline">
+          dashboard
+        </Link>{' '}
+        once preflight finishes, where you can retry them or check your{' '}
+        <Link href="/settings" className="text-primary hover:underline">
+          Gmail connection
+        </Link>
+        .
+      </p>
     </div>
   );
 }
