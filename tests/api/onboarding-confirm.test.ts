@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
   jsonRequest,
   readJson,
 } from '../setup/api-test-utils';
@@ -19,11 +20,10 @@ beforeEach(() => {
 });
 
 describe('POST /api/onboarding/confirm — set-style claim semantics', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST(jsonRequest('/api/onboarding/confirm', { body: { names: [] } }));
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () =>
+    expectUnauthorized(() =>
+      POST(jsonRequest('/api/onboarding/confirm', { body: { names: [] } })),
+    ));
 
   it('claims the requested names', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));

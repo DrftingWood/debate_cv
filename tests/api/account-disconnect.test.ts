@@ -4,6 +4,7 @@ import {
   prismaMock,
   resetPrismaMock,
   fakeSession,
+  expectUnauthorized,
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
@@ -22,11 +23,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/account/disconnect', () => {
-  it('returns 401 when unauthenticated', async () => {
-    authMock.mockResolvedValue(null);
-    const res = await POST();
-    expect(res.status).toBe(401);
-  });
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => POST()));
 
   it('revokes the Gmail token and deletes the linked Google Account', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
