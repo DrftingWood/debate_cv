@@ -37,6 +37,17 @@ export default function Privacy() {
         beyond the matched URLs.
       </p>
 
+      <h2>Public tournament data</h2>
+      <p>
+        Tournament results displayed on your CV are public data sourced from Tabbycat tournament
+        pages. These results — team standings, speaker scores, break records, and judge
+        assignments — are published by tournament organisers on publicly-accessible Tabbycat
+        instances. We retain this data independently of user accounts: if you delete your account,
+        your personal links and identity claims are removed, but the underlying public tournament
+        records remain in our database as they may be referenced by other users who participated
+        in the same events.
+      </p>
+
       <h2>Who can see your CV</h2>
       <p>
         Every server query is filtered by your user id. Other signed-in users cannot see your CV,

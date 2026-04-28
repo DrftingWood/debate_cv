@@ -586,7 +586,7 @@ function inferTournamentFormat({
 
   // (1) Explicit format keywords — user-authored tournament names rarely lie.
   if (/british parliamentary|\bbp\b/.test(name)) return 'British Parliamentary';
-  if (/asian parliamentary|\bap\b/.test(name)) return 'Asian Parliamentary';
+  if (/asian parliamentary/.test(name)) return 'Asian Parliamentary';
   if (/worlds schools|\bwsdc\b/.test(name)) return 'World Schools';
   if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) return 'Policy';
   if (/lincoln[-\s]?douglas|\bld\b/.test(name)) return 'Lincoln-Douglas';
