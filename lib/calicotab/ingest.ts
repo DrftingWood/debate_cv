@@ -384,6 +384,17 @@ export async function ingestPrivateUrl(
     findPersonId(name, personIdByNormalized, personMatchIndex);
 
   const txResult = await prisma.$transaction(async (tx) => {
+    // Acquire a transaction-scoped Postgres advisory lock keyed on the
+    // tournament fingerprint. Two concurrent ingests of the same
+    // tournament would otherwise interleave through
+    // `prepareTournamentWideRefresh` (deletes leaf tables) and the
+    // bulk writes that follow, with each tx clobbering the other's
+    // partial state. With this lock the second ingest blocks here
+    // until the first commits — then runs against fresh state.
+    // Auto-released on commit/rollback, so a process crash mid-tx
+    // never leaves a stale lock. Audit issue #4.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(fingerprint)})`;
+
     const t = await tx.tournament.upsert({
       where: { fingerprint },
       update: {
@@ -830,6 +841,22 @@ function inferTournamentFormat({
 }
 
 // ─── Deadlock resilience ──────────────────────────────────────────────────
+
+/**
+ * Convert a tournament fingerprint (32-char hex string) to a signed bigint
+ * usable as a Postgres advisory-lock key. We take the top 15 hex chars
+ * (60 bits) so the result always fits in a positive int64, avoiding any
+ * sign-bit weirdness with pg_advisory_xact_lock(int8).
+ *
+ * Different fingerprints have ~zero practical collision risk at 60 bits —
+ * even at 100k tournaments, expected collisions are < 1 in 10 trillion.
+ * If two truly distinct tournaments did happen to collide, they'd serialize
+ * unnecessarily once (no correctness impact, just a tiny perf cost).
+ */
+function fingerprintLockKey(fingerprint: string): bigint {
+  const hex = fingerprint.slice(0, 15) || '0';
+  return BigInt(`0x${hex}`);
+}
 
 // Re-exported below for callers that need to distinguish deadlock-class
 // failures (which warrant a queue reschedule, not a hard markJobFailed).
