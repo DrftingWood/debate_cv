@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { PRIVATE_URL_RE, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
@@ -70,6 +70,31 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';
+    // Deadlock-class failures (PG 40P01, Prisma P2034, withDeadlockRetry
+    // exhaustion) are transient by definition — postgres aborts whichever
+    // tx loses the race and a retry would have succeeded. Reschedule the
+    // job back to pending with bumped scheduledAt so the cron picks it
+    // up; the user gets a 503 with a clear hint instead of a stuck
+    // "failed" status that requires manual Retry.
+    if (isDeadlockError(err)) {
+      await prisma.ingestJob.updateMany({
+        where: { userId: session.user.id, url: { in: urlVariants } },
+        data: {
+          status: IngestJobStatus.pending,
+          startedAt: null,
+          finishedAt: null,
+          scheduledAt: new Date(),
+          lastError: msg.slice(0, 2000),
+        },
+      });
+      return NextResponse.json(
+        {
+          error: 'transient_deadlock',
+          hint: 'Two ingests collided on shared rows. The job is rescheduled and will retry shortly.',
+        },
+        { status: 503 },
+      );
+    }
     await prisma.ingestJob.updateMany({
       where: { userId: session.user.id, url: { in: urlVariants } },
       data: {

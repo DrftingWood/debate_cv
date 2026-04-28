@@ -831,10 +831,20 @@ function inferTournamentFormat({
 
 // ─── Deadlock resilience ──────────────────────────────────────────────────
 
+// Re-exported below for callers that need to distinguish deadlock-class
+// failures (which warrant a queue reschedule, not a hard markJobFailed).
 function isDeadlockError(e: unknown): boolean {
-  // PostgreSQL error code 40P01 = deadlock_detected.
-  return String(e).includes('40P01') || String(e).toLowerCase().includes('deadlock');
+  // PostgreSQL error code 40P01 = deadlock_detected. Also matches the
+  // post-exhaustion `withDeadlockRetry: exhausted` throw + Prisma's
+  // P2034 "transaction failed due to a write conflict or a deadlock".
+  const str = String(e);
+  if (str.includes('40P01') || str.toLowerCase().includes('deadlock')) return true;
+  const code = (e as { code?: string })?.code;
+  if (code === 'P2034' || code === '40P01' || code === '40001') return true;
+  return false;
 }
+
+export { isDeadlockError };
 
 /**
  * Retry a DB operation up to `maxAttempts` times when PostgreSQL aborts it
@@ -966,6 +976,15 @@ async function prepareTournamentWideRefresh(
   // catastrophic-drop case.
   await tx.eliminationResult.deleteMany({ where: { tournamentId } });
   await tx.teamResult.deleteMany({ where: { tournamentId } });
+  // Clear round-results-derived JudgeAssignment rows so a tournament that
+  // re-publishes its panels doesn't leave stale paneling on judges who
+  // weren't ingested via their own private URL. Landing-derived rows
+  // (source='landing') are preserved here — those get a scoped
+  // delete+create inside recordJudgeRoundsFromLanding for the URL owner,
+  // which atomically replaces them with fresh data from THIS parse.
+  await tx.judgeAssignment.deleteMany({
+    where: { tournamentId, source: 'round_results' },
+  });
   if (participantIds.length > 0) {
     await tx.speakerRoundScore.deleteMany({
       where: { tournamentParticipantId: { in: participantIds } },
@@ -1147,6 +1166,7 @@ async function recordJudgeRoundsFromLanding(
           stage: r.stage,
           panelRole: r.role,
           roundNumber: r.roundNumber,
+          source: 'landing',
         },
       });
     }
@@ -1338,6 +1358,7 @@ async function recordJudgeRoundsFromRoundResults(
           stage: h.stage,
           panelRole: h.role,
           roundNumber: h.roundNumber,
+          source: 'round_results',
         },
       });
       written += 1;
@@ -1476,6 +1497,7 @@ async function recordAllJudgeAssignmentsFromRoundResults(
             stage: h.stage,
             panelRole: h.role,
             roundNumber: h.roundNumber,
+            source: 'round_results',
           },
         });
       }
