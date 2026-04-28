@@ -5,6 +5,7 @@ import {
   resetPrismaMock,
   fakeSession,
   expectUnauthorized,
+  expectMalformedBody,
   jsonRequest,
 } from '../setup/api-test-utils';
 
@@ -28,10 +29,11 @@ describe('POST /api/ingest/clear', () => {
       ),
     ));
 
-  it('rejects malformed body', async () => {
+  it('rejects malformed body', () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
-    const res = await POST(jsonRequest('/api/ingest/clear', { body: { url: 'not-a-url' } }));
-    expect(res.status).toBe(400);
+    return expectMalformedBody(() =>
+      POST(jsonRequest('/api/ingest/clear', { body: { url: 'not-a-url' } })),
+    );
   });
 
   it('resets the IngestJob to pending and unmarks DiscoveredUrl as ingested', async () => {

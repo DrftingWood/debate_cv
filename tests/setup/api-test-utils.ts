@@ -153,3 +153,20 @@ export async function expectUnauthorized(
   const res = await call();
   expect(res.status).toBe(401);
 }
+
+/**
+ * Standard "endpoint rejects malformed body" assertion. Assumes the test
+ * has already authenticated (via `authMock.mockResolvedValue(fakeSession(...))`)
+ * — the call should be a handler invocation with a body that fails the
+ * route's Zod schema. Asserts status 400 with `error: 'bad_request'`,
+ * which is what every route in this app returns from the standard
+ * `safeParse` failure branch.
+ */
+export async function expectMalformedBody(
+  call: () => Promise<Response>,
+): Promise<void> {
+  const res = await call();
+  expect(res.status).toBe(400);
+  const data = (await res.json()) as { error?: string };
+  expect(data.error).toBe('bad_request');
+}

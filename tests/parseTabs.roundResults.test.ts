@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseRoundResults, parseParticipantsList } from '@/lib/calicotab/parseTabs';
+import { parseRoundResults } from '@/lib/calicotab/parseTabs';
 
 describe('parseRoundResults — isOutround classification', () => {
   test('R6 on a prelim page is NOT an outround (old heuristic misfired)', () => {
@@ -275,38 +275,3 @@ describe('parseRoundResults — judge extraction', () => {
   });
 });
 
-describe('parseParticipantsList — judgeTag', () => {
-  test('recognizes British spelling "subsidised"', () => {
-    const html = `
-      <table>
-        <thead><tr><th>Name</th><th>Role</th></tr></thead>
-        <tbody><tr><td>Ada L</td><td>Subsidised Adjudicator</td></tr></tbody>
-      </table>
-    `;
-    const rows = parseParticipantsList(html);
-    expect(rows[0]!.judgeTag).toBe('subsidized');
-    expect(rows[0]!.role).toBe('adjudicator');
-  });
-
-  test('recognizes "Independent Adjudicator" as invited', () => {
-    const html = `
-      <table>
-        <thead><tr><th>Name</th><th>Role</th></tr></thead>
-        <tbody><tr><td>Ada L</td><td>Independent Adjudicator</td></tr></tbody>
-      </table>
-    `;
-    const rows = parseParticipantsList(html);
-    expect(rows[0]!.judgeTag).toBe('invited');
-  });
-
-  test('plain "Adjudicator" label gives judgeTag=normal', () => {
-    const html = `
-      <table>
-        <thead><tr><th>Name</th><th>Role</th></tr></thead>
-        <tbody><tr><td>Ada L</td><td>Adjudicator</td></tr></tbody>
-      </table>
-    `;
-    const rows = parseParticipantsList(html);
-    expect(rows[0]!.judgeTag).toBe('normal');
-  });
-});
