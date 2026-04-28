@@ -11,12 +11,15 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { ParticipantSearch } from '@/components/ParticipantSearch';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
+import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
+import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -38,13 +41,31 @@ export default async function CvPage() {
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  const data = await buildCvData(userId);
+  // First-time users without claims belong on /onboarding (the wizard).
+  // /cv is the post-onboarding home; we don't want a brand-new user to
+  // arrive here and see "No tournaments yet" with no path forward.
+  const claimedCount = await prisma.person.count({
+    where: { claimedByUserId: userId },
+  });
+  if (claimedCount === 0) redirect('/onboarding');
+
+  const [data, pendingCount] = await Promise.all([
+    buildCvData(userId),
+    prisma.ingestJob.count({
+      where: { userId, status: { in: ['pending', 'running'] } },
+    }),
+  ]);
   const { user, speakerRows, judgeRows, unmatchedTournaments: unmatched, summary } = data;
   const { totalTournaments, breaks, totalRoundsChaired } = summary;
 
 
   return (
     <div className="space-y-10">
+      <AutoScanOnVisit />
+      <CvNeedsAttentionBanners
+        pendingCount={pendingCount}
+        unmatchedCount={unmatched.length}
+      />
       {/* Profile header */}
       <header className="relative overflow-hidden rounded-card border border-border shadow-sm">
         <div aria-hidden className="absolute inset-0 bg-gradient-hero" />
