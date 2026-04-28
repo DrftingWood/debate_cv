@@ -84,7 +84,7 @@ export function CvShareButton() {
       : null;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" data-print-hide="true">
       <Button
         type="button"
         size="sm"

@@ -39,7 +39,7 @@ export function CvNeedsAttentionBanners({
   if (pendingCount === 0 && unmatchedCount === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-print-hide="true">
       {pendingCount > 0 ? (
         <div className="flex items-start gap-3 rounded-card border border-warning/30 bg-warning/5 px-4 py-3">
           <Loader2

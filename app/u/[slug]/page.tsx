@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { Badge } from '@/components/ui/Badge';
 import { CvHighlights } from '@/components/CvHighlights';
+import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +78,7 @@ export default async function PublicCvPage({
             {initials(user.name)}
           </div>
         )}
-        <div className="space-y-2">
+        <div className="flex-1 space-y-2">
           <h1 className="font-display text-h1 font-semibold tracking-tight text-foreground">
             {user.name ?? 'Debater'}
           </h1>
@@ -90,6 +91,9 @@ export default async function PublicCvPage({
               <span>· {summary.totalTournaments} tournaments</span>
             ) : null}
           </div>
+        </div>
+        <div data-print-hide="true">
+          <DownloadPdfButton />
         </div>
       </header>
 

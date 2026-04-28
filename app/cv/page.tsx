@@ -21,6 +21,7 @@ import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
+import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -142,7 +143,8 @@ export default async function CvPage() {
         </Badge>
         <span className="ml-auto" />
         <CvShareButton />
-        <details className="group relative">
+        <DownloadPdfButton />
+        <details className="group relative" data-print-hide="true">
           <summary className="list-none">
             <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted">
               More

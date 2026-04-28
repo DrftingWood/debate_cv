@@ -125,3 +125,69 @@
     font-feature-settings: 'ss01';
   }
 }
+
+/*
+ * Print stylesheet — Q22 of the design review. The "Download PDF" button
+ * on /cv and /u/<slug> just calls window.print(); these rules make the
+ * printed output a clean credentialing artifact.
+ *
+ * Strategy:
+ *  - Hide interactive affordances (header nav, notification bell, share
+ *    button, report buttons, banners, footer link, More-actions dropdown)
+ *    so the page reads as a static document. Owner-only/dynamic elements
+ *    opt out via `data-print-hide="true"`.
+ *  - Drop the page background so paper stays white, and avoid mid-row
+ *    page breaks (`break-inside: avoid`).
+ *  - Force <details> open so per-row score breakdowns print expanded —
+ *    selection panels want to see the detail, not click to reveal it.
+ */
+@media print {
+  html, body {
+    background: white !important;
+    color: black !important;
+  }
+  body {
+    font-size: 11pt;
+  }
+  @page {
+    margin: 14mm 12mm;
+  }
+
+  /* Hide chrome / interactive UI */
+  header[class*="sticky"],
+  footer,
+  [data-print-hide="true"] {
+    display: none !important;
+  }
+
+  /* Plain links — keep readable, drop hover/colour noise */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  /* Avoid splitting tournament rows across pages */
+  tr,
+  li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Force expand any <details> blocks */
+  details {
+    display: block !important;
+  }
+  details > summary {
+    display: none !important;
+  }
+
+  /* Drop card shadows for clean print */
+  .shadow-xs,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-glow {
+    box-shadow: none !important;
+  }
+}
