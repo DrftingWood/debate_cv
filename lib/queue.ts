@@ -120,11 +120,18 @@ export async function markJobFailed(id: string, error: string): Promise<void> {
 }
 
 export async function rescheduleJob(id: string, error: string): Promise<void> {
+  // Bump scheduledAt to NOW so the retry competes fairly against fresh user
+  // submissions in claimOnePending's `ORDER BY scheduledAt ASC` queue.
+  // Previously the field stayed at the original submit time, which meant a
+  // backed-up failed job kept getting priority over newly-enqueued URLs and
+  // a user's fresh upload could wait minutes behind a churning retry
+  // (audit issue #9).
   await prisma.ingestJob.update({
     where: { id },
     data: {
       status: IngestJobStatus.pending,
       startedAt: null,
+      scheduledAt: new Date(),
       lastError: error.slice(0, 2000),
     },
   });
