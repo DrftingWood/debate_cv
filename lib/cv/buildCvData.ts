@@ -81,6 +81,32 @@ export type CvUnmatchedTournament = {
   sourceUrlRaw: string;
 };
 
+export type CvHighlights = {
+  /** Tournaments where the user's team won the GF (wonTournament === true). */
+  championships: { tournamentName: string; year: number | null }[];
+  /** Top-percentile speaker breaks (rank ≤ ceil(totalTeams * 0.10)). */
+  topBreaks: {
+    tournamentName: string;
+    year: number | null;
+    rank: number;
+    totalTeams: number;
+  }[];
+  /** Single best Open speaker rank across all tournaments. */
+  bestSpeakerRank: { tournamentName: string; year: number | null; rank: number } | null;
+  /** Single highest speaker average across all tournaments. */
+  bestSpeakerAverage: {
+    tournamentName: string;
+    year: number | null;
+    score: number;
+  } | null;
+  /** Outrounds chaired (count of judge rows with lastOutroundChaired set). */
+  outroundsChaired: number;
+  /** Detected major-circuit events the user has attended (WUDC / EUDC / Australs / Worlds). */
+  majorEvents: { tournamentName: string; year: number | null }[];
+  /** Earliest and latest year with at least one row. */
+  activeYears: { from: number; to: number } | null;
+};
+
 export type CvData = {
   user: { name: string | null; email: string | null; image: string | null } | null;
   myDisplayName: string;
@@ -92,6 +118,7 @@ export type CvData = {
     breaks: number;
     totalRoundsChaired: number;
   };
+  highlights: CvHighlights;
 };
 
 export async function buildCvData(userId: string): Promise<CvData> {
@@ -521,6 +548,82 @@ export async function buildCvData(userId: string): Promise<CvData> {
     speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
+  // ── Highlights ───────────────────────────────────────────────────────
+  // Auto-derived achievements surfaced above the tables on /cv. Pure
+  // functions of the rows we already computed; no extra DB hits.
+  const MAJOR_PATTERN =
+    /\b(?:wudc|world(?: university)? debating|eudc|european debating|australs|asian debating|naudc|north american debating)\b/i;
+
+  const championships = speakerRows
+    .filter((r) => r.wonTournament === true)
+    .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
+    .slice(0, 5);
+
+  const topBreaks = speakerRows
+    .filter(
+      (r) =>
+        r.broke &&
+        r.speakerRankOpen != null &&
+        r.totalTeams != null &&
+        r.totalTeams > 0 &&
+        r.speakerRankOpen <= Math.ceil(r.totalTeams * 0.1),
+    )
+    .map((r) => ({
+      tournamentName: r.tournamentName,
+      year: r.year,
+      rank: r.speakerRankOpen!,
+      totalTeams: r.totalTeams!,
+    }))
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 5);
+
+  const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
+    if (r.speakerRankOpen == null) return best;
+    if (!best || r.speakerRankOpen < best.rank) {
+      return { tournamentName: r.tournamentName, year: r.year, rank: r.speakerRankOpen };
+    }
+    return best;
+  }, null);
+
+  const bestSpeakerAverage = speakerRows.reduce<CvHighlights['bestSpeakerAverage']>(
+    (best, r) => {
+      if (!r.speakerAvgScore) return best;
+      const score = Number(r.speakerAvgScore);
+      if (!Number.isFinite(score)) return best;
+      if (!best || score > best.score) {
+        return { tournamentName: r.tournamentName, year: r.year, score };
+      }
+      return best;
+    },
+    null,
+  );
+
+  const outroundsChaired = judgeRows.filter((r) => !!r.lastOutroundChaired).length;
+
+  const majorEvents = [...speakerRows, ...judgeRows]
+    .filter((r) => MAJOR_PATTERN.test(r.tournamentName))
+    .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
+    // Dedup by name+year so a user with both a speaker and judge row at the
+    // same major doesn't double-count.
+    .filter((m, i, all) => i === all.findIndex((x) => x.tournamentName === m.tournamentName && x.year === m.year));
+
+  const allYears = [...speakerRows, ...judgeRows]
+    .map((r) => r.year)
+    .filter((y): y is number => y != null);
+  const activeYears = allYears.length
+    ? { from: Math.min(...allYears), to: Math.max(...allYears) }
+    : null;
+
+  const highlights: CvHighlights = {
+    championships,
+    topBreaks,
+    bestSpeakerRank,
+    bestSpeakerAverage,
+    outroundsChaired,
+    majorEvents,
+    activeYears,
+  };
+
   return {
     user: user ?? null,
     myDisplayName,
@@ -528,5 +631,6 @@ export async function buildCvData(userId: string): Promise<CvData> {
     judgeRows,
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
+    highlights,
   };
 }
