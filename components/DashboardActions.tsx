@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock } from 'lucide-react';
+import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock, Square } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -23,16 +23,19 @@ type IngestUrlResponse = {
 
 async function drainUntilEmpty(
   onProgress: (summary: { processed: number; remaining: number }) => void,
+  signal?: AbortSignal,
 ): Promise<{ processed: number; remaining: number }> {
   let totalProcessed = 0;
   let remaining = 0;
   for (let i = 0; i < 50; i++) {
+    if (signal?.aborted) break;
     const result = await postJson<DrainResponse>('/api/ingest/drain');
     if (!result.ok) throw new Error(result.error);
     totalProcessed += result.data.processed ?? 0;
     remaining = result.data.remaining ?? 0;
     onProgress({ processed: totalProcessed, remaining });
     if ((result.data.processed ?? 0) === 0 || remaining === 0) break;
+    if (remaining > 0) await new Promise((r) => setTimeout(r, 2000));
   }
   return { processed: totalProcessed, remaining };
 }
@@ -103,45 +106,63 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{ processed: number; remaining: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   return (
-    <Button
-      type="button"
-      variant="secondary"
-      loading={isPending}
-      leftIcon={!isPending ? <Play className="h-4 w-4" aria-hidden /> : undefined}
-      onClick={() => {
-        setProgress(null);
-        startTransition(async () => {
-          try {
-            const drain = await drainUntilEmpty((p) => {
-              setProgress(p);
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        loading={isPending}
+        leftIcon={!isPending ? <Play className="h-4 w-4" aria-hidden /> : undefined}
+        onClick={() => {
+          setProgress(null);
+          const controller = new AbortController();
+          abortRef.current = controller;
+          startTransition(async () => {
+            try {
+              const drain = await drainUntilEmpty((p) => {
+                setProgress(p);
+                router.refresh();
+              }, controller.signal);
+              toast.show({
+                kind: controller.signal.aborted ? 'info' : 'success',
+                title: controller.signal.aborted ? 'Stopped' : 'Done',
+                description: drain.remaining
+                  ? `Ingested ${drain.processed} · ${drain.remaining} queued for later.`
+                  : `Ingested ${drain.processed} private URLs.`,
+              });
               router.refresh();
-            });
-            toast.show({
-              kind: 'success',
-              title: 'Done',
-              description: drain.remaining
-                ? `Ingested ${drain.processed} · ${drain.remaining} queued for later.`
-                : `Ingested ${drain.processed} private URLs.`,
-            });
-            router.refresh();
-          } catch (e) {
-            toast.show({
-              kind: 'error',
-              title: 'Ingest failed',
-              description: e instanceof Error ? e.message : 'Unknown error',
-            });
-          }
-        });
-      }}
-    >
-      {isPending && progress
-        ? `Ingesting… ${progress.processed}/${progress.processed + progress.remaining}`
-        : pendingCount
-          ? `Ingest all (${pendingCount})`
-          : 'Ingest all'}
-    </Button>
+            } catch (e) {
+              toast.show({
+                kind: 'error',
+                title: 'Ingest failed',
+                description: e instanceof Error ? e.message : 'Unknown error',
+              });
+            } finally {
+              abortRef.current = null;
+            }
+          });
+        }}
+      >
+        {isPending && progress
+          ? `Ingesting… ${progress.processed}/${progress.processed + progress.remaining}`
+          : pendingCount
+            ? `Ingest all (${pendingCount})`
+            : 'Ingest all'}
+      </Button>
+      {isPending ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          leftIcon={<Square className="h-3.5 w-3.5" aria-hidden />}
+          onClick={() => abortRef.current?.abort()}
+        >
+          Stop
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
