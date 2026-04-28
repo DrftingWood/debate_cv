@@ -26,6 +26,7 @@ import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount } from './judgeStats';
 import { buildPersonIndex, findPersonId } from './personMatch';
+import { buildPrimaryTeamMap } from './primaryTeam';
 import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -526,6 +527,20 @@ export async function ingestPrivateUrl(
     // positionLabel) unique constraint + skipDuplicates to be idempotent.
     const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
     const speakerParticipantIds: bigint[] = [];
+
+    // Pre-compute each speaker's PRIMARY team across the parse — the team
+    // where they have the most scored prelim rounds. Iron-manning speakers
+    // appear in multiple rows with different teamNames; the upsert below
+    // would otherwise clobber teamName on every iteration. See
+    // lib/calicotab/primaryTeam.ts for the rationale (audit issue #14:
+    // resort-stability).
+    const primaryTeamRows: Array<{ row: typeof speakerRows[number]; lookupId: bigint }> = [];
+    for (const sp of speakerRows) {
+      const id = lookupPersonId(sp.speakerName);
+      if (id) primaryTeamRows.push({ row: sp, lookupId: id });
+    }
+    const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
+
     for (const sp of speakerRows) {
       // Fuzzy lookup: exact-match first, then substring + token-subset
       // fallbacks. Strict exact-match used to silently drop a user's
@@ -536,17 +551,7 @@ export async function ingestPrivateUrl(
       // user-visible gap.
       const personId = lookupPersonId(sp.speakerName);
       if (!personId) continue;
-      // Iron-manning: a speaker who substitutes into another team mid-tournament
-      // appears in `speakerRows` more than once with different `teamName`s. The
-      // unique constraint is `(tournamentId, personId)` so the second upsert
-      // would clobber `teamName` and silently break the teammate query on /cv
-      // for everyone else on the speaker's primary team. Preserve the first
-      // observed team name; subsequent rows update only the score / rank fields.
-      const existing = await tx.tournamentParticipant.findUnique({
-        where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        select: { teamName: true },
-      });
-      const teamNameToWrite = existing?.teamName ?? sp.teamName;
+      const teamNameToWrite = primaryTeamByPerson.get(personId) ?? sp.teamName;
       const breakRankForTeam = teamNameToWrite
         ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
         : null;
@@ -563,7 +568,7 @@ export async function ingestPrivateUrl(
         create: {
           tournamentId: t.id,
           personId,
-          teamName: sp.teamName,
+          teamName: teamNameToWrite,
           speakerScoreTotal: sp.totalScore as unknown as undefined,
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
