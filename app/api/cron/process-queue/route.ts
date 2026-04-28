@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
-import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import {
   claimOnePending,
   markJobDone,
@@ -66,11 +66,17 @@ async function runOnce() {
         results.push({ id: job.id, status: 'done' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        // Only report on the FINAL attempt — earlier attempts are expected
-        // to occasionally fail (Cloudflare flakes, slow Tabbycat hosts).
-        // Reporting every retry would noise up Sentry without surfacing
-        // anything actionable.
-        if (job.attempts >= MAX_ATTEMPTS) {
+        // Deadlock-class failures are transient by definition (postgres
+        // aborts the loser of a write race) — always reschedule, never
+        // hard-fail, even past MAX_ATTEMPTS. See audit issue #8.
+        if (isDeadlockError(err)) {
+          await rescheduleJob(job.id, msg);
+          results.push({ id: job.id, status: 'retry', error: msg });
+        } else if (job.attempts >= MAX_ATTEMPTS) {
+          // Only report on the FINAL attempt — earlier attempts are expected
+          // to occasionally fail (Cloudflare flakes, slow Tabbycat hosts).
+          // Reporting every retry would noise up Sentry without surfacing
+          // anything actionable.
           Sentry.captureException(err, {
             tags: { route: 'api/cron/process-queue', stage: 'ingest-failed-final' },
             extra: { url: job.url, attempts: job.attempts },

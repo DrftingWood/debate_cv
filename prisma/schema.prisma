@@ -323,11 +323,21 @@ model JudgeAssignment {
   stage        String?
   panelRole    String?
   roundNumber  Int?
+  /// Where this assignment came from. 'landing' = parsed from the URL
+  /// owner's private-URL Debates card (authoritative for that one judge).
+  /// 'round_results' = parsed from per-round results pages (covers every
+  /// judge on every panel; only enabled when EXTRACT_ALL_JUDGES is set).
+  /// Lets prepareTournamentWideRefresh selectively clear round-results
+  /// entries (which stale the moment a tournament re-publishes panels)
+  /// without touching landing-derived entries (which the URL owner's
+  /// own re-ingest will atomically refresh in recordJudgeRoundsFromLanding).
+  source       String  @default("landing")
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, personId, stage, panelRole, roundNumber])
+  @@index([tournamentId, source])
 }
 
 // -------------------- Beta feedback --------------------

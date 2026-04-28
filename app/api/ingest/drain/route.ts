@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { IngestJobStatus } from '@prisma/client';
 import {
   claimOnePending,
@@ -42,7 +42,16 @@ export async function POST() {
         results.push({ url: job.url, status: 'done' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (job.attempts >= MAX_ATTEMPTS) {
+        // Deadlock-class failures are transient by definition (postgres
+        // aborts the loser of a write race) — always reschedule, never
+        // hard-fail, even past MAX_ATTEMPTS. The audit (#8) flagged that
+        // a busy queue could deadlock-exhaust 5/5 retries in
+        // withDeadlockRetry and then bubble up to a markJobFailed,
+        // requiring manual user intervention.
+        if (isDeadlockError(err)) {
+          await rescheduleJob(job.id, msg);
+          results.push({ url: job.url, status: 'retry', error: msg });
+        } else if (job.attempts >= MAX_ATTEMPTS) {
           await markJobFailed(job.id, msg);
           results.push({ url: job.url, status: 'failed', error: msg });
         } else {
