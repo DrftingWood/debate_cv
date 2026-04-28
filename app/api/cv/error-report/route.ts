@@ -6,10 +6,31 @@ import { prisma } from '@/lib/db';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Closed list of structured report categories the modal exposes. Codes
+ * (not human strings) so the admin queue can group on them stably and the
+ * front-end can render localized labels independently.
+ */
+const REPORT_CATEGORIES = [
+  'wrong_teammate',
+  'wrong_speaker_rank',
+  'wrong_speaker_average',
+  'wrong_team_result',
+  'wrong_outround',
+  'wrong_identity',
+  'other',
+] as const;
+
 const Body = z.object({
   tournamentIds: z.array(z.string().regex(/^\d+$/)).min(1).max(25),
-  comment: z.string().trim().min(8).max(4000),
-});
+  categories: z.array(z.enum(REPORT_CATEGORIES)).max(REPORT_CATEGORIES.length).default([]),
+  comment: z.string().trim().max(4000).default(''),
+}).refine(
+  // At least one category OR a non-trivial comment must be present, so we
+  // don't accept empty submissions.
+  (v) => v.categories.length > 0 || v.comment.length >= 8,
+  { message: 'Pick at least one category or write a comment.' },
+);
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -43,6 +64,7 @@ export async function POST(req: Request) {
     data: {
       userId,
       tournamentIds,
+      categories: parse.data.categories,
       comment: parse.data.comment,
     },
     select: { id: true, createdAt: true },

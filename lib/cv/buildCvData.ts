@@ -44,6 +44,13 @@ export type CvSpeakerRow = {
    * when we have no team win/loss data for that outround (older ingests).
    */
   wonTournament: boolean | null;
+  /**
+   * True if the user has at least one open or acknowledged CvErrorReport
+   * referencing this tournament. Lets the CV row show a small "Reported"
+   * badge so the user remembers they've already flagged it (and doesn't
+   * file a duplicate). Hidden once the report is fixed/won't_fix.
+   */
+  hasOpenReport: boolean;
   /** Per-round speaker scores for the expandable row UI. */
   roundScores: CvSpeakerRoundScore[];
 };
@@ -62,6 +69,8 @@ export type CvJudgeRow = {
   lastOutroundChaired: string | null;
   lastOutroundJudged: string | null;
   broke: boolean;
+  /** Same semantics as CvSpeakerRow.hasOpenReport. */
+  hasOpenReport: boolean;
 };
 
 export type CvUnmatchedTournament = {
@@ -252,6 +261,25 @@ export async function buildCvData(userId: string): Promise<CvData> {
     }
   }
 
+  // Tournaments the user has filed an unresolved (open or acknowledged)
+  // CvErrorReport against. Lets the per-row "Reported" badge render so the
+  // user remembers they already flagged the row. Resolved reports
+  // (fixed/wont_fix) intentionally don't gate the badge — once the report
+  // is closed, the row goes back to its baseline appearance.
+  const reportedTournamentIds = new Set<string>();
+  if (tournamentIds.length > 0) {
+    const openReports = await prisma.cvErrorReport.findMany({
+      where: { userId, status: { in: ['open', 'acknowledged'] } },
+      select: { tournamentIds: true },
+    });
+    const tournamentIdSet = new Set(tournamentIds.map((id) => id.toString()));
+    for (const r of openReports) {
+      for (const id of r.tournamentIds) {
+        if (tournamentIdSet.has(id)) reportedTournamentIds.add(id);
+      }
+    }
+  }
+
   const teammatesByKey = new Map<string, string[]>();
   for (const tm of teammateRows) {
     if (!tm.teamName) continue;
@@ -384,6 +412,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       eliminationReached: speakerSignals.eliminationReached,
       broke: speakerSignals.broke,
       wonTournament,
+      hasOpenReport: reportedTournamentIds.has(tid.toString()),
       roundScores: (p.speakerRoundScores ?? [])
         .filter((s) => s.roundNumber > 0)
         .map((s) => ({
@@ -454,6 +483,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       lastOutroundChaired: p.lastOutroundChaired ?? null,
       lastOutroundJudged,
       broke: !!lastOutroundJudged || judgeBrokeTournaments.has(tid),
+      hasOpenReport: reportedTournamentIds.has(tid.toString()),
     });
   }
   judgeRows.sort((a, b) => {

@@ -4,17 +4,35 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import type { CvReportStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Lists the user's CV error reports. For now this is read-only and shows
- * the existing CvErrorReport rows ordered newest-first. The structured
- * categories + closed-loop status (open / acknowledged / fixed / wont_fix)
- * land in a follow-up — that requires a schema change. The page exists
- * already so users can at least see what they've reported and refer back
- * to the comment if needed.
- */
+const CATEGORY_LABELS: Record<string, string> = {
+  wrong_teammate: 'Wrong teammate',
+  wrong_speaker_rank: 'Wrong speaker rank',
+  wrong_speaker_average: 'Wrong speaker average',
+  wrong_team_result: 'Wrong team result',
+  wrong_outround: 'Wrong outround',
+  wrong_identity: "Didn't speak/judge here",
+  other: 'Other',
+};
+
+function statusBadge(status: CvReportStatus) {
+  switch (status) {
+    case 'open':
+      return <Badge variant="warning">Open</Badge>;
+    case 'acknowledged':
+      return <Badge variant="info">Acknowledged</Badge>;
+    case 'fixed':
+      return <Badge variant="success">Fixed</Badge>;
+    case 'wont_fix':
+      return <Badge variant="neutral">Won&apos;t fix</Badge>;
+    default:
+      return <Badge variant="neutral">{status}</Badge>;
+  }
+}
+
 export default async function ReportsSettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
@@ -62,7 +80,7 @@ export default async function ReportsSettingsPage() {
                 .filter(Boolean)
                 .map((t) => `${t!.name}${t!.year ? ` (${t!.year})` : ''}`);
               return (
-                <li key={r.id} className="space-y-1.5 px-4 py-3">
+                <li key={r.id} className="space-y-2 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     {trainNames.length > 0 ? (
                       <span className="font-medium text-foreground">
@@ -71,16 +89,28 @@ export default async function ReportsSettingsPage() {
                     ) : (
                       <span className="text-muted-foreground">Unknown tournament</span>
                     )}
-                    <Badge variant={r.resolvedAt ? 'success' : 'neutral'}>
-                      {r.resolvedAt ? 'Resolved' : 'Open'}
-                    </Badge>
+                    {statusBadge(r.status)}
                     <span className="text-caption text-muted-foreground">
                       {r.createdAt.toLocaleDateString()}
                     </span>
                   </div>
+                  {r.categories.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {r.categories.map((c) => (
+                        <Badge key={c} variant="outline">
+                          {CATEGORY_LABELS[c] ?? c}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
                   {r.comment ? (
                     <p className="whitespace-pre-wrap text-[13px] text-muted-foreground">
                       {r.comment}
+                    </p>
+                  ) : null}
+                  {r.adminNote ? (
+                    <p className="rounded-md border border-info/30 bg-info/5 p-2 text-[12.5px] text-foreground">
+                      <span className="font-medium">Note from us:</span> {r.adminNote}
                     </p>
                   ) : null}
                 </li>

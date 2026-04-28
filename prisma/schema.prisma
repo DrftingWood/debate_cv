@@ -296,12 +296,30 @@ model JudgeAssignment {
 
 // -------------------- Beta feedback --------------------
 
+enum CvReportStatus {
+  open
+  acknowledged
+  fixed
+  wont_fix
+}
+
 model CvErrorReport {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   userId        String
-  tournamentIds String[]  @default([])
-  comment       String    @db.Text
-  createdAt     DateTime  @default(now())
+  tournamentIds String[]       @default([])
+  /// Structured issue codes the user picked from the report modal — e.g.
+  /// "wrong_teammate", "wrong_speaker_rank", "wrong_identity". Optional;
+  /// freeform comment in `comment` is the fallback.
+  categories    String[]       @default([])
+  comment       String         @db.Text
+  /// Closed-loop status surfaced on /settings/reports so users can see
+  /// whether their report was acknowledged / fixed / declined.
+  status        CvReportStatus @default(open)
+  /// Admin-visible note attached when transitioning status (e.g. "fixed by
+  /// PR #x" or "won't fix because Y"). Surfaced read-only on the user's
+  /// reports page once status moves off `open`.
+  adminNote     String?        @db.Text
+  createdAt     DateTime       @default(now())
   resolvedAt    DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -309,6 +327,7 @@ model CvErrorReport {
   @@index([userId])
   @@index([createdAt])
   @@index([resolvedAt])
+  @@index([status])
 }
 
 // -------------------- Provenance + parser versioning --------------------

@@ -357,10 +357,13 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         </td>
         <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
         <td className="whitespace-nowrap px-3 py-2.5">
-          <CvRowReportButton
-            tournamentId={r.tournamentId.toString()}
-            tournamentName={r.tournamentName}
-          />
+          <div className="flex items-center gap-1.5">
+            {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+            <CvRowReportButton
+              tournamentId={r.tournamentId.toString()}
+              tournamentName={r.tournamentName}
+            />
+          </div>
         </td>
       </tr>
       {hasRoundScores ? (
@@ -492,7 +495,8 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 <Field label="Last outround spoken" value={fmtLastOutroundSpoken(r)} />
               ) : null}
             </dl>
-            <div className="pt-1">
+            <div className="flex items-center gap-1.5 pt-1">
+              {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
               <CvRowReportButton
                 tournamentId={r.tournamentId.toString()}
                 tournamentName={r.tournamentName}
@@ -551,10 +555,13 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">
-                  <CvRowReportButton
-                    tournamentId={r.tournamentId.toString()}
-                    tournamentName={r.tournamentName}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+                    <CvRowReportButton
+                      tournamentId={r.tournamentId.toString()}
+                      tournamentName={r.tournamentName}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -589,7 +596,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
             </dl>
-            <div className="pt-1">
+            <div className="flex items-center gap-1.5 pt-1">
+              {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
               <CvRowReportButton
                 tournamentId={r.tournamentId.toString()}
                 tournamentName={r.tournamentName}
