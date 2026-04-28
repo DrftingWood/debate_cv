@@ -109,21 +109,23 @@ export async function ingestPrivateUrl(
         warnings: landingWarnings,
         durationMs: Date.now() - parseStart,
       });
-      const claimedPersonId = await withDeadlockRetry(() =>
+      const linked = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
       );
-      if (claimedPersonId) {
+      if (linked) {
+        // Per-round data is attached to the registration Person regardless of
+        // claim status so it's ready when that person eventually claims.
         const r = await recordJudgeRoundsFromLanding(
           landingHtml,
           existing.id,
-          claimedPersonId,
+          linked.personId,
           snapshot.registration.personName,
         );
         if (r.diagnostic) landingWarnings.push(r.diagnostic);
         await recordSpeakerRoundsFromLanding(
           landingHtml,
           existing.id,
-          claimedPersonId,
+          linked.personId,
           snapshot.registration.teamName,
         );
       }
@@ -135,8 +137,8 @@ export async function ingestPrivateUrl(
         tournamentId: existing.id,
         fingerprint,
         cached: true,
-        claimedPersonId,
-        claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
+        claimedPersonId: linked?.claimed ? linked.personId : null,
+        claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
         parserVersion: PARSER_VERSION,
         totalTeams: existing.totalTeams,
         totalParticipants: existing.totalParticipants,
@@ -322,7 +324,7 @@ export async function ingestPrivateUrl(
         `Regression guard: re-ingest would drop data — ` +
         `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}`;
       Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint } });
-      const claimedPersonId = await withDeadlockRetry(() =>
+      const linked = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
       );
       await prisma.discoveredUrl.updateMany({
@@ -333,8 +335,8 @@ export async function ingestPrivateUrl(
         tournamentId: existing.id,
         fingerprint,
         cached: true,
-        claimedPersonId,
-        claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
+        claimedPersonId: linked?.claimed ? linked.personId : null,
+        claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
         parserVersion: PARSER_VERSION,
         totalTeams: existing.totalTeams,
         totalParticipants: existing.totalParticipants,
@@ -576,21 +578,21 @@ export async function ingestPrivateUrl(
     return t.id;
   }, { maxWait: 10000, timeout: 30000 });
 
-  const claimedPersonId = await withDeadlockRetry(() =>
+  const linked = await withDeadlockRetry(() =>
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),
   );
-  if (claimedPersonId) {
+  if (linked) {
     const r = await recordJudgeRoundsFromLanding(
       landingHtml,
       tournamentId,
-      claimedPersonId,
+      linked.personId,
       snapshot.registration.personName,
     );
     if (r.diagnostic) fetchWarnings.push(r.diagnostic);
     await recordSpeakerRoundsFromLanding(
       landingHtml,
       tournamentId,
-      claimedPersonId,
+      linked.personId,
       snapshot.registration.teamName,
     );
     // Fallback: when the Debates card is empty (typically because the
@@ -601,7 +603,7 @@ export async function ingestPrivateUrl(
     const fromResults = await recordJudgeRoundsFromRoundResults(
       rounds,
       tournamentId,
-      claimedPersonId,
+      linked.personId,
       snapshot.registration.personName,
     );
     if (fromResults.diagnostic) fetchWarnings.push(fromResults.diagnostic);
@@ -631,8 +633,8 @@ export async function ingestPrivateUrl(
     tournamentId,
     fingerprint,
     cached: false,
-    claimedPersonId,
-    claimedPersonName: claimedPersonId ? (snapshot.registration.personName ?? null) : null,
+    claimedPersonId: linked?.claimed ? linked.personId : null,
+    claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
     parserVersion: PARSER_VERSION,
     totalTeams: totalTeams ?? null,
     totalParticipants: totalParticipants ?? null,
@@ -871,53 +873,73 @@ async function prepareTournamentWideRefresh(
 
 /**
  * Upsert the Person from the private-URL landing page, link a
- * TournamentParticipant + DiscoveredUrl record, and auto-claim the Person
- * for the user.
+ * TournamentParticipant + DiscoveredUrl record, and — only when safe —
+ * auto-claim the Person for the user.
  *
- * Private-URL ownership is sufficient proof of identity: Tabbycat sends one
- * URL per registered participant. Every URL the user uploads is auto-claimed
- * unconditionally. Manual review UI was removed in the dashboard cleanup.
+ * Auto-claim gate: we only set `claimedByUserId` when the user has already
+ * confirmed (via /onboarding) that this normalized name is theirs. URL
+ * possession alone is NOT proof of identity, because users routinely have
+ * teammates' private URLs in their Gmail (forwarded invites, shared team
+ * inboxes). Auto-claiming on URL possession produced wrong-identity rows on
+ * the user's CV — the Person record for a teammate ended up `claimedByUserId
+ * = thisUser`, so the teammate's tournament data appeared on the user's CV
+ * under the user's name, AND the teammate vanished from teammate columns
+ * (because the CV builder filters out claimed-as-self Persons from teammates).
+ * New aliases must be added explicitly via /onboarding.
  *
  * COALESCE preserves any pre-existing claim (e.g. another user previously
  * shared the same URL) so we never silently steal an established claim. The
  * single atomic INSERT … ON CONFLICT DO UPDATE collapses what was once a
  * two-step upsert→update that produced 40P01 deadlocks under concurrent
  * ingests.
+ *
+ * Returns the personId always (so per-round writers can attach data to the
+ * correct Person regardless of claim status) plus a `claimed` flag the
+ * caller uses to decide whether to surface the "Linked to your CV" toast.
  */
 async function linkRegistrationPerson(
   tournamentId: bigint,
   personName: string | null,
   userId: string,
   urlVariants: string[],
-): Promise<bigint | null> {
+): Promise<{ personId: bigint; claimed: boolean } | null> {
   if (!personName) return null;
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
-  const rows = await prisma.$queryRaw<{ id: bigint }[]>`
+  // Has the user previously confirmed this name via onboarding? If so it's
+  // safe to (re-)assert the claim here so the URL is immediately linked. If
+  // not, leave the Person unclaimed and let the user opt in on /onboarding.
+  const existingClaim = await prisma.person.findFirst({
+    where: { claimedByUserId: userId, normalizedName },
+    select: { id: true },
+  });
+  const claimUserId = existingClaim ? userId : null;
+
+  const rows = await prisma.$queryRaw<{ id: bigint; claimedByUserId: string | null }[]>`
     INSERT INTO "Person" ("displayName", "normalizedName", "claimedByUserId")
-    VALUES (${personName}, ${normalizedName}, ${userId})
+    VALUES (${personName}, ${normalizedName}, ${claimUserId})
     ON CONFLICT ("normalizedName")
     DO UPDATE SET
       "displayName" = EXCLUDED."displayName",
       "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
-    RETURNING id
+    RETURNING id, "claimedByUserId"
   `;
-  const personId = rows[0]?.id;
-  if (!personId) return null;
+  const row = rows[0];
+  if (!row) return null;
 
   await prisma.tournamentParticipant.upsert({
-    where: { tournamentId_personId: { tournamentId, personId } },
+    where: { tournamentId_personId: { tournamentId, personId: row.id } },
     update: {},
-    create: { tournamentId, personId },
+    create: { tournamentId, personId: row.id },
   });
 
   await prisma.discoveredUrl.updateMany({
     where: { userId, url: { in: urlVariants } },
-    data: { registrationPersonId: personId, registrationName: personName },
+    data: { registrationPersonId: row.id, registrationName: personName },
   });
 
-  return personId;
+  return { personId: row.id, claimed: row.claimedByUserId === userId };
 }
 
 /**

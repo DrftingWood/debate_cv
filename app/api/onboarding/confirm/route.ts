@@ -12,10 +12,16 @@ const Body = z.object({
 });
 
 /**
- * Onboarding confirm: take the names the user picked as theirs and atomically
- * upsert + claim a Person row for each. Idempotent — re-running with the
- * same names is a no-op. Names not in the request that this user previously
- * claimed are *not* unclaimed; the user removes claims via /cv if needed.
+ * Onboarding confirm: takes the set of names the user picked as theirs and
+ * makes the user's claim set match it.
+ *
+ *   - Names in the request are upserted + claimed for the user (idempotent).
+ *   - Names that were visible in the picker (i.e. derived from the user's
+ *     own DiscoveredUrls) but NOT in the request are unclaimed — this is
+ *     how a user removes a wrong-identity claim that ingest previously
+ *     auto-set. Limiting the unclaim scope to picker-visible names means a
+ *     re-submission can't accidentally drop a claim that was added through
+ *     some other path.
  *
  * Uses the same INSERT … ON CONFLICT DO UPDATE … COALESCE pattern as
  * linkRegistrationPerson so concurrent claim attempts can't deadlock and
@@ -64,5 +70,35 @@ export async function POST(req: Request) {
     if (rows[0]) claimed++;
   }
 
-  return NextResponse.json({ claimed });
+  // Unclaim: any Person currently claimed by this user whose normalized name
+  // appeared in the picker (i.e. is one of their DiscoveredUrl registration
+  // names) but wasn't ticked. Picker-derived scoping is mirrored from
+  // /api/onboarding/names so the front-end and back-end agree on what the
+  // user actually saw.
+  const urls = await prisma.discoveredUrl.findMany({
+    where: { userId },
+    select: { registrationName: true },
+  });
+  const pickerNorms = new Set<string>();
+  for (const u of urls) {
+    const reg = (u.registrationName ?? '').trim();
+    if (!reg) continue;
+    const norm = normalizePersonName(reg);
+    if (norm) pickerNorms.add(norm);
+  }
+  const requested = new Set(unique.keys());
+  const toUnclaim = [...pickerNorms].filter((n) => !requested.has(n));
+  let unclaimed = 0;
+  if (toUnclaim.length > 0) {
+    const result = await prisma.person.updateMany({
+      where: {
+        claimedByUserId: userId,
+        normalizedName: { in: toUnclaim },
+      },
+      data: { claimedByUserId: null },
+    });
+    unclaimed = result.count;
+  }
+
+  return NextResponse.json({ claimed, unclaimed });
 }
