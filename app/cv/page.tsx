@@ -11,11 +11,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
-import { normalizePersonName } from '@/lib/calicotab/fingerprint';
-import { classifyRoundLabel, deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
-import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
-import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import { buildCvData } from '@/lib/cv/buildCvData';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -42,445 +38,10 @@ export default async function CvPage() {
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  // 1) Load user info, every URL the user has ingested, and every Person
-  // they've claimed (one user can have multiple Persons across name aliases).
-  const [user, urls, claimedPersons] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true, image: true },
-    }),
-    prisma.discoveredUrl.findMany({
-      where: { userId, tournamentId: { not: null } },
-      include: { tournament: true },
-    }),
-    prisma.person.findMany({
-      where: { claimedByUserId: userId },
-      select: { id: true, displayName: true, normalizedName: true },
-    }),
-  ]);
+  const data = await buildCvData(userId);
+  const { user, speakerRows, judgeRows, unmatchedTournaments: unmatched, summary } = data;
+  const { totalTournaments, breaks, totalRoundsChaired } = summary;
 
-  const claimedPersonIds = new Set(claimedPersons.map((p) => p.id));
-  const tournamentIds = Array.from(
-    new Set(urls.map((u) => u.tournamentId!).filter((id): id is bigint => id != null)),
-  );
-
-  // tournament metadata for table rows
-  type TournamentMeta = NonNullable<(typeof urls)[number]['tournament']>;
-  const tournamentById = new Map<bigint, TournamentMeta>();
-  for (const u of urls) if (u.tournament) tournamentById.set(u.tournament.id, u.tournament);
-
-  // Per-tournament registration name from the URL the user actually uploaded,
-  // gated by whether that name is in their claimed-aliases set. Different
-  // tournaments often spell the same person differently — show the spelling
-  // that was on this tournament's private URL rather than a single canonical
-  // name plastered across every row.
-  //
-  // When a tournament has multiple URLs (private + public, or two private
-  // URLs with slightly different spellings), pick deterministically — sort by
-  // URL string and keep the first match — so the rendered name doesn't flip
-  // between page loads from non-deterministic findMany ordering.
-  const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
-  const myNameByTournament = new Map<bigint, string>();
-  const urlsForNames = [...urls].sort((a, b) => a.url.localeCompare(b.url));
-  for (const u of urlsForNames) {
-    if (!u.tournamentId) continue;
-    if (myNameByTournament.has(u.tournamentId)) continue;
-    const reg = (u.registrationName ?? '').trim();
-    if (!reg) continue;
-    if (!claimedNormalizedNames.has(normalizePersonName(reg))) continue;
-    myNameByTournament.set(u.tournamentId, reg);
-  }
-
-  // 2) All my participations across those tournaments. One per (tournament,
-  // person) — when the user has both a registration placeholder Person and a
-  // tab-side Person claimed for the same tournament, both show up here and
-  // we collapse later.
-  const myParticipations = tournamentIds.length
-    ? await prisma.tournamentParticipant.findMany({
-        where: {
-          tournamentId: { in: tournamentIds },
-          person: { claimedByUserId: userId },
-        },
-        include: {
-          roles: true,
-          // Pull the per-round scores so we can compute "average speaker
-          // score per round" — the raw total has no meaning without N.
-          speakerRoundScores: { select: { roundNumber: true, positionLabel: true, score: true } },
-        },
-      })
-    : [];
-
-  // 3) Fan out the auxiliary queries needed to fill the speaking + judging
-  // tables. All run in parallel.
-  const myTeamPairs = myParticipations
-    .filter((p) => p.teamName)
-    .map((p) => ({ tournamentId: p.tournamentId, teamName: p.teamName! }));
-  const myTeamPairKeys = new Set(myTeamPairs.map((p) => `${p.tournamentId}:${p.teamName}`));
-
-  const [teammateRows, teamResultRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
-    myTeamPairs.length
-      ? prisma.tournamentParticipant.findMany({
-          where: {
-            OR: myTeamPairs.map((p) => ({
-              tournamentId: p.tournamentId,
-              teamName: p.teamName,
-            })),
-            roles: { some: { role: 'speaker' } },
-          },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            personId: true,
-            person: { select: { displayName: true } },
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          teamName: string | null;
-          personId: bigint;
-          person: { displayName: string };
-        }>),
-    tournamentIds.length
-      ? prisma.teamResult.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            roundNumber: 0,
-          },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            rank: true,
-            wins: true,
-            points: true,
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          teamName: string | null;
-          rank: number | null;
-          wins: number | null;
-          points: { toString(): string } | null;
-        }>),
-    myParticipations.length
-      ? prisma.judgeAssignment.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            personId: { in: Array.from(claimedPersonIds) },
-          },
-          select: {
-            tournamentId: true,
-            personId: true,
-            stage: true,
-            panelRole: true,
-            roundNumber: true,
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          personId: bigint;
-          stage: string | null;
-          panelRole: string | null;
-          roundNumber: number | null;
-        }>),
-    // Adjudicator break rows: judges who broke (qualified to adjudicate
-    // outrounds). Used to broaden the `Broken` column on the judging table —
-    // a judge who appears on the break tab but never showed up in the
-    // Debates card's outround rows would otherwise be marked "Broken: No"
-    // even though the tournament officially broke them.
-    tournamentIds.length
-      ? prisma.eliminationResult.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            entityType: 'adjudicator',
-          },
-          select: { tournamentId: true, entityName: true, stage: true },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          entityName: string;
-          stage: string;
-        }>),
-  ]);
-
-  // 4) Index aux data by lookup key.
-  const teammatesByKey = new Map<string, string[]>();
-  for (const tm of teammateRows) {
-    if (!tm.teamName) continue;
-    const key = `${tm.tournamentId}:${tm.teamName}`;
-    if (!myTeamPairKeys.has(key)) continue;
-    if (claimedPersonIds.has(tm.personId)) continue; // skip me / my aliases
-    const list = teammatesByKey.get(key) ?? [];
-    list.push(tm.person.displayName);
-    teammatesByKey.set(key, list);
-  }
-  const teamPointsByKey = new Map<string, { rank: number | null; wins: number | null; points: string | null }>();
-  for (const tr of teamResultRows) {
-    if (!tr.teamName) continue;
-    const key = teamResultKey(tr.tournamentId, tr.teamName);
-    if (!myTeamPairKeys.has(key)) continue;
-    teamPointsByKey.set(key, {
-      rank: tr.rank,
-      wins: tr.wins,
-      points: tr.points ? tr.points.toString() : null,
-    });
-  }
-  const teamRankByKey = buildTeamRankLookup(teamResultRows);
-
-  // Tournaments where the user appears on the adjudicator break tab. Match
-  // by normalized name against any of the user's claimed Person aliases.
-  // The break tab lists who broke (qualified to judge outrounds); a hit
-  // here means the judge broke even when the Debates card didn't surface
-  // any outround room for them.
-  const judgeBrokeTournaments = new Set<bigint>();
-  if (claimedPersons.length > 0 && adjudicatorBreakRows.length > 0) {
-    const myNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
-    for (const row of adjudicatorBreakRows) {
-      if (myNormalizedNames.has(normalizePersonName(row.entityName))) {
-        judgeBrokeTournaments.add(row.tournamentId);
-      }
-    }
-  }
-
-  // 5) Build speaker rows. One row per (tournamentId) where the user has a
-  // speaker participation. Collapse multiple participations for the same
-  // tournament (registration placeholder + tab row) by preferring the row
-  // with actual scores.
-  const speakerRichness = (p: (typeof myParticipations)[number]): number =>
-    (p.speakerScoreTotal ? 4 : 0) +
-    (p.teamName ? 2 : 0) +
-    (p.eliminationReached ? 1 : 0);
-
-  const myDisplayName = claimedPersons[0]?.displayName ?? user?.name ?? 'You';
-  type SpeakerRow = {
-    tournamentId: bigint;
-    tournamentName: string;
-    year: number | null;
-    format: string | null;
-    totalTeams: number | null;
-    sourceUrl: string;
-    myName: string;
-    teammates: string[];
-    teamName: string | null;
-    teamRank: number | null;
-    teamPoints: string | null;
-    teamWins: number | null;
-    speakerAvgScore: string | null;
-    prelimsSpoken: number;
-    speakerRankOpen: number | null;
-    speakerRankEsl: number | null;
-    speakerRankEfl: number | null;
-    teamBreakRank: number | null;
-    eliminationReached: string | null;
-    /** True if the team broke (on the break tab OR spoke in any outround). */
-    broke: boolean;
-  };
-  const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
-  const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
-  for (const p of myParticipations) {
-    const isSpeaker = p.roles.some((r) => r.role === 'speaker');
-    if (!isSpeaker) continue;
-    const participations = speakerParticipationsByTournament.get(p.tournamentId) ?? [];
-    participations.push(p);
-    speakerParticipationsByTournament.set(p.tournamentId, participations);
-    const existing = speakerByTournament.get(p.tournamentId);
-    if (!existing || speakerRichness(p) > speakerRichness(existing)) {
-      speakerByTournament.set(p.tournamentId, p);
-    }
-  }
-  const speakerRows: SpeakerRow[] = [];
-  for (const [tid, p] of speakerByTournament.entries()) {
-    const t = tournamentById.get(tid);
-    if (!t) continue;
-    const teamKey = p.teamName ? teamResultKey(tid, p.teamName) : null;
-    const tr = teamKey ? teamPointsByKey.get(teamKey) : null;
-    const speakerParticipations = speakerParticipationsByTournament.get(tid) ?? [p];
-    const speakerSignals = mergeSpeakerCvSignals(speakerParticipations);
-
-    // Per-round average — the only speaker-score number that makes sense to
-    // compare across tournaments. Total varies with prelim count (5 rounds
-    // vs 9 rounds), so a 600 at WUDC and a 350 at a 5-round IV both round
-    // to ~74 average. Counts only rounds with an actual numeric score so
-    // iron-manning / DNS rounds don't skew the average down.
-    const averageScore = (p.speakerRoundScores ?? [])
-      .find((s) => s.roundNumber === 0 || s.positionLabel === 'average');
-    const averageScoreValue =
-      averageScore?.score == null ? null : Number(averageScore.score);
-    const numericScores = (p.speakerRoundScores ?? [])
-      .filter((s) => s.roundNumber !== 0 && s.positionLabel !== 'average')
-      .map((s) => (s.score == null ? null : Number(s.score)))
-      .filter((n): n is number => n != null && Number.isFinite(n));
-    const prelimsSpoken = numericScores.length;
-    const total = p.speakerScoreTotal ? Number(p.speakerScoreTotal) : null;
-    let speakerAvgScore: string | null = null;
-    if (averageScoreValue != null && Number.isFinite(averageScoreValue)) {
-      speakerAvgScore = averageScoreValue.toFixed(1);
-    } else if (prelimsSpoken > 0 && total != null && Number.isFinite(total)) {
-      speakerAvgScore = (total / prelimsSpoken).toFixed(1);
-    } else if (prelimsSpoken > 0 && numericScores.length > 0) {
-      // Fall back to the per-round scores' own sum when speakerScoreTotal
-      // wasn't populated by the tab parser.
-      const sum = numericScores.reduce((a, b) => a + b, 0);
-      speakerAvgScore = (sum / prelimsSpoken).toFixed(1);
-    }
-
-    speakerRows.push({
-      tournamentId: tid,
-      tournamentName: t.name,
-      year: t.year,
-      format: t.format,
-      totalTeams: t.totalTeams,
-      sourceUrl: t.sourceUrlRaw,
-      myName: myNameByTournament.get(tid) ?? myDisplayName,
-      teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
-      teamName: p.teamName,
-      teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
-      teamPoints: tr?.points ?? null,
-      teamWins: tr?.wins ?? p.wins ?? null,
-      speakerAvgScore,
-      prelimsSpoken,
-      speakerRankOpen: p.speakerRankOpen,
-      speakerRankEsl: p.speakerRankEsl,
-      speakerRankEfl: p.speakerRankEfl,
-      teamBreakRank: speakerSignals.teamBreakRank,
-      eliminationReached: speakerSignals.eliminationReached,
-      broke: speakerSignals.broke,
-    });
-  }
-  speakerRows.sort((a, b) => {
-    const ya = a.year ?? -Infinity;
-    const yb = b.year ?? -Infinity;
-    if (ya !== yb) return yb - ya;
-    return a.tournamentName.localeCompare(b.tournamentName);
-  });
-
-  // 6) Build judge rows. One row per tournament where the user judged.
-  // Counts are nullable: `null` means we have no data (parser couldn't find
-  // the Debates card / never re-ingested), `0` means we know the judge had
-  // zero of that metric. Rendering "0" for an unknown metric falsely claims
-  // certainty — show "—" instead.
-  type JudgeRow = {
-    tournamentId: bigint;
-    tournamentName: string;
-    year: number | null;
-    format: string | null;
-    totalTeams: number | null;
-    sourceUrl: string;
-    myName: string;
-    judgeTypeTag: string | null;
-    inroundsJudged: number | null;
-    inroundsChaired: number | null;
-    lastOutroundChaired: string | null;
-    lastOutroundJudged: string | null;
-    /** True if the judge appeared on any outround (chair OR panel). */
-    broke: boolean;
-  };
-  const judgeByTournament = new Map<bigint, (typeof myParticipations)[number]>();
-  for (const p of myParticipations) {
-    const isJudge =
-      p.roles.some((r) => r.role === 'judge') ||
-      !!p.judgeTypeTag ||
-      (p.chairedPrelimRounds ?? 0) > 0 ||
-      !!p.lastOutroundChaired ||
-      !!p.lastOutroundPaneled;
-    if (!isJudge) continue;
-    // Prefer the participation with the richer judging signal
-    const existing = judgeByTournament.get(p.tournamentId);
-    const score = (q: (typeof p) | undefined) =>
-      !q
-        ? -1
-        : (q.judgeTypeTag ? 1 : 0) +
-          (q.chairedPrelimRounds ?? 0) +
-          (q.lastOutroundChaired ? 5 : 0) +
-          (q.lastOutroundPaneled ? 3 : 0);
-    if (!existing || score(p) > score(existing)) {
-      judgeByTournament.set(p.tournamentId, p);
-    }
-  }
-
-  // Aggregate judge assignments by (tournamentId, personId) for the user's
-  // claimed personIds, then collapse to per-tournament across all personIds.
-  // We track inround participation distinctly so the four user-facing
-  // metrics — inrounds judged, inrounds chaired, last outround chaired,
-  // last outround judged — line up with how Tabbycat groups rounds.
-  type JudgeStats = {
-    inrounds: Set<string>; // distinct inround identifiers (any role)
-  };
-  const judgeStatsByTournament = new Map<bigint, JudgeStats>();
-  for (const a of judgeAssignmentRows) {
-    if (!claimedPersonIds.has(a.personId)) continue;
-    let stats = judgeStatsByTournament.get(a.tournamentId);
-    if (!stats) {
-      stats = { inrounds: new Set() };
-      judgeStatsByTournament.set(a.tournamentId, stats);
-    }
-    if (classifyRoundLabel(a.stage) === 'inround') {
-      stats.inrounds.add(`${a.stage ?? ''}:${a.roundNumber ?? ''}`);
-    }
-  }
-
-  const judgeRows: JudgeRow[] = [];
-  for (const [tid, p] of judgeByTournament.entries()) {
-    const t = tournamentById.get(tid);
-    if (!t) continue;
-    const stats = judgeStatsByTournament.get(tid);
-    const lastOutroundJudged = deepestOutroundAcrossRoles(
-      p.lastOutroundChaired,
-      p.lastOutroundPaneled,
-    );
-    judgeRows.push({
-      tournamentId: tid,
-      tournamentName: t.name,
-      year: t.year,
-      format: t.format,
-      totalTeams: t.totalTeams,
-      sourceUrl: t.sourceUrlRaw,
-      myName: myNameByTournament.get(tid) ?? myDisplayName,
-      judgeTypeTag: p.judgeTypeTag,
-      // stats is undefined when no JudgeAssignment rows exist for this
-      // person+tournament — distinct from "we parsed 0 inrounds".
-      inroundsJudged: stats ? stats.inrounds.size : null,
-      // chairedPrelimRounds is null when the parser never ran or never found
-      // the Debates card; 0 means the parser ran but the judge chaired none.
-      inroundsChaired: p.chairedPrelimRounds,
-      lastOutroundChaired: p.lastOutroundChaired ?? null,
-      lastOutroundJudged,
-      // Broke if either source confirms it: (a) the Debates card showed
-      // them in an outround room, or (b) they're listed on the official
-      // adjudicator break tab. Some tournaments don't expose outround rooms
-      // on the private URL; the break tab is the authoritative fallback.
-      broke: !!lastOutroundJudged || judgeBrokeTournaments.has(tid),
-    });
-  }
-  judgeRows.sort((a, b) => {
-    const ya = a.year ?? -Infinity;
-    const yb = b.year ?? -Infinity;
-    if (ya !== yb) return yb - ya;
-    return a.tournamentName.localeCompare(b.tournamentName);
-  });
-
-  // 7) Tournaments where the user has a URL but no real tab participation
-  // has been claimed yet (i.e. only the registration-side empty placeholder
-  // is claimed, or nothing at all). These need the search-based claim flow
-  // so the user can manually pick themselves from the tournament's roster.
-  const matchedTournamentIds = new Set<bigint>([
-    ...speakerRows.map((r) => r.tournamentId),
-    ...judgeRows.map((r) => r.tournamentId),
-  ]);
-  const unmatched = tournamentIds
-    .map((tid) => tournamentById.get(tid))
-    .filter((t): t is TournamentMeta => !!t)
-    .filter((t) => !matchedTournamentIds.has(t.id))
-    .sort((a, b) => {
-      const ya = a.year ?? -Infinity;
-      const yb = b.year ?? -Infinity;
-      if (ya !== yb) return yb - ya;
-      return a.name.localeCompare(b.name);
-    });
-
-  // 8) Header summary
-  const totalTournaments = tournamentIds.length;
-  const breaks = speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
-  const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   return (
     <div className="space-y-10">
@@ -708,28 +269,7 @@ function fmtSpeakerRanks(r: {
   return parts.join(' · ') || '—';
 }
 
-type SpeakingTableRow = {
-  tournamentId: bigint;
-  tournamentName: string;
-  year: number | null;
-  format: string | null;
-  totalTeams: number | null;
-  sourceUrl: string;
-  myName: string;
-  teammates: string[];
-  teamName: string | null;
-  teamRank: number | null;
-  teamPoints: string | null;
-  teamWins: number | null;
-  speakerAvgScore: string | null;
-  prelimsSpoken: number;
-  speakerRankOpen: number | null;
-  speakerRankEsl: number | null;
-  speakerRankEfl: number | null;
-  teamBreakRank: number | null;
-  eliminationReached: string | null;
-  broke: boolean;
-};
+import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } from '@/lib/cv/buildCvData';
 
 function BrokeBadge({ broke }: { broke: boolean }) {
   return broke ? (
@@ -746,6 +286,112 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
   // appear on the break tab but lose in their first outround room.
   if (r.eliminationReached) return r.eliminationReached;
   return '—';
+}
+
+// Expandable per-round score breakdown shown beneath each tournament row.
+// Renders only when the parser captured per-round scores; uses a native
+// <details> element so it works without client-side JS.
+function SpeakingRow({ r }: { r: SpeakingTableRow }) {
+  const hasRoundScores = r.roundScores.length > 0;
+  return (
+    <>
+      <tr className="align-top hover:bg-muted/20">
+        <td className="px-4 py-2.5">
+          <a
+            href={r.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
+            title={r.tournamentName}
+          >
+            {r.tournamentName}
+          </a>
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
+        <td className="px-3 py-2.5 text-muted-foreground" title={r.teammates.join(', ')}>
+          <span className="block max-w-[14rem] truncate">
+            {r.teammates.length ? r.teammates.join(', ') : '—'}
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-muted-foreground" title={r.teamName ?? undefined}>
+          <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5 font-mono">
+          {r.teamRank != null ? `#${r.teamRank}` : '—'}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5 font-mono">
+          {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
+        </td>
+        <td
+          className="whitespace-nowrap px-3 py-2.5 font-mono"
+          title={
+            r.speakerAvgScore
+              ? r.prelimsSpoken > 0
+                ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
+                : 'Average from speaker tab'
+              : ''
+          }
+        >
+          {r.speakerAvgScore ?? '—'}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
+        <td className="whitespace-nowrap px-3 py-2.5">
+          <BrokeBadge broke={r.broke} />
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
+        <td className="whitespace-nowrap px-3 py-2.5">
+          <CvRowReportButton
+            tournamentId={r.tournamentId.toString()}
+            tournamentName={r.tournamentName}
+          />
+        </td>
+      </tr>
+      {hasRoundScores ? (
+        <tr className="bg-muted/10">
+          <td colSpan={14} className="px-4 py-0">
+            <details className="group">
+              <summary className="cursor-pointer select-none py-1.5 text-caption text-muted-foreground hover:text-foreground">
+                <ChevronDown className="mr-1 inline h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
+                Per-round speaker scores ({r.roundScores.length})
+              </summary>
+              <div className="overflow-x-auto pb-3 pt-1">
+                <table className="text-caption">
+                  <thead>
+                    <tr className="text-muted-foreground">
+                      {r.roundScores.map((s) => (
+                        <th
+                          key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
+                          className="whitespace-nowrap px-2 py-1 text-left font-medium"
+                        >
+                          R{s.roundNumber}
+                          {s.positionLabel ? ` (${s.positionLabel})` : ''}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {r.roundScores.map((s) => (
+                        <td
+                          key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
+                          className="whitespace-nowrap px-2 py-1 font-mono text-foreground"
+                        >
+                          {s.score != null ? s.score.toFixed(1) : '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
 }
 
 function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
@@ -784,66 +430,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r) => (
-              <tr key={r.tournamentId.toString()} className="align-top hover:bg-muted/20">
-                <td className="px-4 py-2.5">
-                  <a
-                    href={r.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
-                    title={r.tournamentName}
-                  >
-                    {r.tournamentName}
-                  </a>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
-                <td
-                  className="px-3 py-2.5 text-muted-foreground"
-                  title={r.teammates.join(', ')}
-                >
-                  <span className="block max-w-[14rem] truncate">
-                    {r.teammates.length ? r.teammates.join(', ') : '—'}
-                  </span>
-                </td>
-                <td
-                  className="px-3 py-2.5 text-muted-foreground"
-                  title={r.teamName ?? undefined}
-                >
-                  <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono">
-                  {r.teamRank != null ? `#${r.teamRank}` : '—'}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono">
-                  {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
-                </td>
-                <td
-                  className="whitespace-nowrap px-3 py-2.5 font-mono"
-                  title={
-                    r.speakerAvgScore
-                      ? r.prelimsSpoken > 0
-                        ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
-                        : 'Average from speaker tab'
-                      : ''
-                  }
-                >
-                  {r.speakerAvgScore ?? '—'}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5">{fmtSpeakerRanks(r)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5">
-                  <BrokeBadge broke={r.broke} />
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5">
-                  <CvRowReportButton
-                    tournamentId={r.tournamentId.toString()}
-                    tournamentName={r.tournamentName}
-                  />
-                </td>
-              </tr>
+              <SpeakingRow key={r.tournamentId.toString()} r={r} />
             ))}
           </tbody>
         </table>
@@ -903,22 +490,6 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
     </>
   );
 }
-
-type JudgingTableRow = {
-  tournamentId: bigint;
-  tournamentName: string;
-  year: number | null;
-  format: string | null;
-  totalTeams: number | null;
-  sourceUrl: string;
-  myName: string;
-  judgeTypeTag: string | null;
-  inroundsJudged: number | null;
-  inroundsChaired: number | null;
-  lastOutroundChaired: string | null;
-  lastOutroundJudged: string | null;
-  broke: boolean;
-};
 
 function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
   return (
