@@ -639,21 +639,39 @@ export async function ingestPrivateUrl(
 
   const tournamentId = txResult.tournamentId;
 
-  // Bulk write speaker round scores OUTSIDE the main tx — keeps the tx
-  // small enough to fit WUDC-scale tournaments under the 60s timeout. Scope
-  // the deleteMany to the participant IDs we're writing for so we don't
-  // touch unrelated rows; createMany with skipDuplicates is idempotent on
-  // the (participantId, roundNumber, positionLabel) unique constraint.
-  if (txResult.speakerParticipantIds.length > 0) {
-    await prisma.speakerRoundScore.deleteMany({
-      where: { tournamentParticipantId: { in: txResult.speakerParticipantIds } },
-    });
-  }
-  if (txResult.speakerRoundScoreCreates.length > 0) {
-    await prisma.speakerRoundScore.createMany({
-      data: txResult.speakerRoundScoreCreates,
-      skipDuplicates: true,
-    });
+  // Bulk write speaker round scores OUTSIDE the main tx — keeps the main tx
+  // small enough to fit WUDC-scale tournaments under the 60s function
+  // budget. Scope the deleteMany to the participant IDs we're writing for
+  // so we don't touch unrelated rows; createMany with skipDuplicates is
+  // idempotent on the (participantId, roundNumber, positionLabel) unique
+  // constraint.
+  //
+  // Wrap delete + create in their own short transaction so they succeed
+  // together or roll back together. The previous two-statement form left
+  // a window where the delete committed but the createMany failed (e.g.
+  // a transient connection drop mid-bulk-insert), which silently destroyed
+  // the user's per-round scores until the next successful re-ingest.
+  if (
+    txResult.speakerParticipantIds.length > 0 ||
+    txResult.speakerRoundScoreCreates.length > 0
+  ) {
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    if (txResult.speakerParticipantIds.length > 0) {
+      ops.push(
+        prisma.speakerRoundScore.deleteMany({
+          where: { tournamentParticipantId: { in: txResult.speakerParticipantIds } },
+        }),
+      );
+    }
+    if (txResult.speakerRoundScoreCreates.length > 0) {
+      ops.push(
+        prisma.speakerRoundScore.createMany({
+          data: txResult.speakerRoundScoreCreates,
+          skipDuplicates: true,
+        }),
+      );
+    }
+    await prisma.$transaction(ops);
   }
 
   const linked = await withDeadlockRetry(() =>
