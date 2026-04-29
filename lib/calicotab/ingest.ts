@@ -29,6 +29,7 @@ import { getInroundsChairedCount } from './judgeStats';
 import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
+import { findRedactedOwnerRow } from './redactedSpeaker';
 import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -405,6 +406,15 @@ export async function ingestPrivateUrl(
   for (const round of rounds) {
     for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
   }
+  // Pre-commit the URL owner's registration name even when no other table
+  // surfaces it. Tabbycat lets the URL owner redact their own name from the
+  // public speaker tab — their row stays in the table with a coded /
+  // anonymous label, so the speaker upsert below can't match them by name.
+  // Adding the registration name here means the team-anchored fallback
+  // further down has an actual Person row to attribute the redacted row to.
+  if (snapshot.registration.personName) {
+    allPersonNames.add(snapshot.registration.personName);
+  }
   const personIdByNormalized = await preCommitPersons(allPersonNames);
   // Pre-build the fuzzy-match index once so the speaker / participant /
   // round-results loops below can fall back from exact-name lookup to
@@ -559,6 +569,24 @@ export async function ingestPrivateUrl(
     const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
     const speakerParticipantIds: bigint[] = [];
 
+    // Team-anchored fallback for redacted speaker names. See
+    // findRedactedOwnerRow for the policy. Pure helper so the matching
+    // rules are unit-testable without standing up a full ingest.
+    const ownerName = snapshot.registration.personName;
+    const ownerPersonId = ownerName ? lookupPersonId(ownerName) : null;
+    const teamAnchoredOwnerRow = findRedactedOwnerRow(
+      speakerRows,
+      ownerName,
+      snapshot.registration.teamName,
+      lookupPersonId,
+    );
+    const resolveSpeakerPersonId = (sp: typeof speakerRows[number]): bigint | null => {
+      const id = lookupPersonId(sp.speakerName);
+      if (id) return id;
+      if (sp === teamAnchoredOwnerRow && ownerPersonId) return ownerPersonId;
+      return null;
+    };
+
     // Pre-compute each speaker's PRIMARY team across the parse — the team
     // where they have the most scored prelim rounds. Iron-manning speakers
     // appear in multiple rows with different teamNames; the upsert below
@@ -567,7 +595,7 @@ export async function ingestPrivateUrl(
     // resort-stability).
     const primaryTeamRows: Array<{ row: typeof speakerRows[number]; lookupId: bigint }> = [];
     for (const sp of speakerRows) {
-      const id = lookupPersonId(sp.speakerName);
+      const id = resolveSpeakerPersonId(sp);
       if (id) primaryTeamRows.push({ row: sp, lookupId: id });
     }
     const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
@@ -579,8 +607,10 @@ export async function ingestPrivateUrl(
       // differently from their claim ("Abhishek A." vs "Abhishek
       // Acharya"), leaving rank/avg/total fields as nulls written by
       // the prior `prepareTournamentWideRefresh`. The audit's biggest
-      // user-visible gap.
-      const personId = lookupPersonId(sp.speakerName);
+      // user-visible gap. The team-anchored fallback above resolves
+      // a separate edge case: redacted-name rows on the URL owner's
+      // own team.
+      const personId = resolveSpeakerPersonId(sp);
       if (!personId) continue;
       const teamNameToWrite = primaryTeamByPerson.get(personId) ?? sp.teamName;
       const breakRankForTeam = teamNameToWrite

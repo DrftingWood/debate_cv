@@ -307,3 +307,65 @@ describe('parseRoundResults — judge extraction', () => {
     expect(round.teamResults).toHaveLength(2);
   });
 });
+
+describe('parseRoundResults — win column false-positive guards', () => {
+  // The Monash Open 2023 bug: a BP-style points column ("3"/"2"/"1"/"0"
+  // for 1st-4th place) was mis-recognised as a "result" column by the
+  // header heuristic, and the win regex then matched `\b1\b` on the
+  // 3rd-place team's "1", marking them as winners. With the regex
+  // tightened to word-form signals only, numeric values can never
+  // promote a row to "won".
+
+  test('Vue path: numeric "1" in a result-shaped column does NOT mark as won', () => {
+    const html = vueResultsHtml(
+      [
+        { key: 'team', title: 'Team' },
+        { key: 'result', title: 'Result' }, // mis-named column
+      ],
+      [[{ text: 'Third Place' }, { text: '1' }]],
+    );
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
+    expect(round.teamResults[0]!.won).toBe(false);
+  });
+
+  test('Vue path: "won" / "win" cell text still marks as won', () => {
+    const html = vueResultsHtml(
+      [
+        { key: 'team', title: 'Team' },
+        { key: 'result', title: 'Result' },
+      ],
+      [
+        [{ text: 'Champion' }, { text: 'won' }],
+        [{ text: 'Runner-up' }, { text: 'lost' }],
+      ],
+    );
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
+    const champ = round.teamResults.find((t) => t.teamName === 'Champion');
+    const runner = round.teamResults.find((t) => t.teamName === 'Runner-up');
+    expect(champ?.won).toBe(true);
+    expect(runner?.won).toBe(false);
+  });
+
+  test('cheerio path: numeric "1" in a result column does NOT mark as won', () => {
+    // Falls through to cheerio because there's no Vue data island.
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Third Place</td><td>1</td></tr>
+          <tr><td>Champion</td><td>won</td></tr>
+        </tbody>
+      </table>
+    `;
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
+    const third = round.teamResults.find((t) => t.teamName === 'Third Place');
+    const champ = round.teamResults.find((t) => t.teamName === 'Champion');
+    expect(third?.won).toBe(false);
+    expect(champ?.won).toBe(true);
+  });
+});

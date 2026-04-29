@@ -705,24 +705,27 @@ export type SpeakerRound = {
 
 /**
  * Detect a win indicator on the user's team cell from a Tabbycat Debates
- * card. The card renders the user's own team in `<strong>`; on outround
- * stages it adds a green up-arrow icon (`.bi-arrow-up-square`,
- * `.text-success`, etc.) when the team won that debate. We accept a
- * generous superset of class names + icon variants so a Tabbycat skin
- * change doesn't silently flip champions to runners-up. Returns true on
- * a positive signal, false on an explicit loss signal, null when neither
- * is present (caller treats null as "unknown").
+ * card. On outround stages Tabbycat adds a directional icon
+ * (`.bi-arrow-up-square` for advancement, `.bi-arrow-down-square` for
+ * elimination, occasionally a trophy/check) next to the team that won
+ * that debate. Only icon-class signals count: bare colour classes
+ * (`text-success`, `bg-danger`) and bare words (`won`, `winner`,
+ * `lost`, `eliminated`) used to count too, but those produced
+ * false-positive Champion markers when the team-name cell had
+ * non-result styling — a green-coloured wins/losses badge, an
+ * "advanced N teams" tooltip, etc. Tightened to icons only so a stray
+ * `text-success` on the cell can't flip a runner-up to a champion.
+ * Returns true on a positive signal, false on an explicit loss signal,
+ * null when neither is present (caller treats null as "unknown").
  */
 function detectWonFromCellHtml(cellHtml: string): boolean | null {
   const lower = cellHtml.toLowerCase();
   if (
-    /\b(text-success|bg-success|winner|won|advanced)\b/.test(lower) ||
     /\b(bi-arrow-up|fa-arrow-up|bi-trophy|fa-trophy|bi-check-circle|fa-check-circle)/.test(lower)
   ) {
     return true;
   }
   if (
-    /\b(text-danger|bg-danger|loser|lost|eliminated)\b/.test(lower) ||
     /\b(bi-arrow-down|fa-arrow-down|bi-x-circle|fa-x-circle|bi-x-square|fa-x)/.test(lower)
   ) {
     return false;
