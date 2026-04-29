@@ -19,6 +19,7 @@ import {
 import {
   computeFingerprint,
   extractYearFromName,
+  inferTournamentYear,
   normalizePersonName,
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
@@ -52,6 +53,12 @@ export async function ingestPrivateUrl(
   const urlVariants = privateUrlVariants(url);
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
+  const discovered = await prisma.discoveredUrl.findFirst({
+    where: { userId, url: { in: urlVariants } },
+    orderBy: { messageDate: 'asc' },
+    select: { messageDate: true },
+  });
+  const privateUrlSentAt = discovered?.messageDate ?? null;
 
   // Landing page fetch — with provenance so every parse has a stable source.
   const landingResult = await fetchHtmlWithProvenance(normalized);
@@ -72,17 +79,30 @@ export async function ingestPrivateUrl(
 
   const parseStart = Date.now();
   const snapshot = parsePrivateUrlPage(landingHtml, normalized);
-  const landingWarnings = collectRegistrationWarnings(snapshot);
+  const landingWarnings = collectRegistrationWarnings(snapshot, { privateUrlSentAt });
 
-  const year = extractYearFromName(snapshot.tournamentName);
-  const fingerprint = computeFingerprint({
+  const explicitYear = extractYearFromName(snapshot.tournamentName);
+  const year = inferTournamentYear(snapshot.tournamentName, privateUrlSentAt);
+  const inferredFingerprint = computeFingerprint({
     host: parsedUrl.host,
     tournamentSlug,
     tournamentName: snapshot.tournamentName,
     year,
   });
-
-  const existing = await prisma.tournament.findUnique({ where: { fingerprint } });
+  const legacyFingerprint =
+    year != null && explicitYear == null
+      ? computeFingerprint({
+          host: parsedUrl.host,
+          tournamentSlug,
+          tournamentName: snapshot.tournamentName,
+          year: null,
+        })
+      : null;
+  let existing = await prisma.tournament.findUnique({ where: { fingerprint: inferredFingerprint } });
+  if (!existing && legacyFingerprint && legacyFingerprint !== inferredFingerprint) {
+    existing = await prisma.tournament.findUnique({ where: { fingerprint: legacyFingerprint } });
+  }
+  const tournamentFingerprint = existing?.fingerprint ?? inferredFingerprint;
   if (existing && !options.force) {
     const ageMs = Date.now() - existing.scrapedAt.getTime();
     const fresh = ageMs < FRESH_WINDOW_MS;
@@ -137,7 +157,7 @@ export async function ingestPrivateUrl(
       });
       return {
         tournamentId: existing.id,
-        fingerprint,
+        fingerprint: tournamentFingerprint,
         cached: true,
         claimedPersonId: linked?.claimed ? linked.personId : null,
         claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
@@ -350,7 +370,7 @@ export async function ingestPrivateUrl(
         `Regression guard: re-ingest would drop data — ` +
         `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}, ` +
         `ranks ${oldRankCount}→${newRankCount}`;
-      Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint } });
+      Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint: tournamentFingerprint } });
       const linked = await withDeadlockRetry(() =>
         linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
       );
@@ -360,7 +380,7 @@ export async function ingestPrivateUrl(
       });
       return {
         tournamentId: existing.id,
-        fingerprint,
+        fingerprint: tournamentFingerprint,
         cached: true,
         claimedPersonId: linked?.claimed ? linked.personId : null,
         claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
@@ -401,10 +421,10 @@ export async function ingestPrivateUrl(
     // until the first commits — then runs against fresh state.
     // Auto-released on commit/rollback, so a process crash mid-tx
     // never leaves a stale lock. Audit issue #4.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(fingerprint)})`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(tournamentFingerprint)})`;
 
     const t = await tx.tournament.upsert({
-      where: { fingerprint },
+      where: { fingerprint: tournamentFingerprint },
       update: {
         name: tournamentName,
         format,
@@ -427,7 +447,7 @@ export async function ingestPrivateUrl(
         sourceUrlRaw: normalized,
         sourceHost: parsedUrl.host,
         sourceTournamentSlug: tournamentSlug,
-        fingerprint,
+        fingerprint: tournamentFingerprint,
       },
     });
 
@@ -766,7 +786,7 @@ export async function ingestPrivateUrl(
 
   return {
     tournamentId,
-    fingerprint,
+    fingerprint: tournamentFingerprint,
     cached: false,
     claimedPersonId: linked?.claimed ? linked.personId : null,
     claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,

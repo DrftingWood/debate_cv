@@ -42,7 +42,21 @@ describe('collectRegistrationWarnings', () => {
     expect(warnings).toContain('nav: speakerTab constructed as fallback');
     expect(warnings).toContain('nav: participants constructed as fallback');
     expect(warnings).toContain('nav: resultsRounds not found');
-    expect(warnings).toContain('nav: breakTabs not found');
+    expect(warnings).toContain('nav: breakTabs not found (optional)');
+    expect(warnings).toContain(
+      'nav: limited tab visibility may be intentional (e.g., schools/child-protection privacy settings)',
+    );
+  });
+
+  test('adds "likely finished" timing warning when private URL email is older than 30 days', () => {
+    const snapshot = parsePrivateUrlPage(EMPTY_HTML, 'https://x.calicotab.com/eo2026/privateurls/a/');
+    const warnings = collectRegistrationWarnings(snapshot, {
+      privateUrlSentAt: new Date('2026-01-01T00:00:00Z'),
+      now: new Date('2026-02-15T00:00:00Z'),
+    });
+    expect(warnings).toContain(
+      'timing: competition likely finished (private URL email is older than 30 days)',
+    );
   });
 });
 

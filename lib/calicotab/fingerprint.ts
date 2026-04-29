@@ -21,6 +21,20 @@ export function extractYearFromName(name: string | null): number | null {
   return m ? Number(m[0]) : null;
 }
 
+/**
+ * Prefer an explicit year in the tournament name; when absent, fall back to
+ * the year of the private-URL email message date. This handles tournaments
+ * named like "Novice Open" where the season isn't in the title.
+ */
+export function inferTournamentYear(
+  tournamentName: string | null,
+  messageDate: Date | null,
+): number | null {
+  const explicit = extractYearFromName(tournamentName);
+  if (explicit != null) return explicit;
+  return messageDate ? messageDate.getUTCFullYear() : null;
+}
+
 export function normalizePersonName(name: string): string {
   return name
     .toLowerCase()

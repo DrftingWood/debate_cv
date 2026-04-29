@@ -121,6 +121,6 @@ describe('collectRegistrationWarnings reflects nav state', () => {
     expect(warnings).toContain('nav: speakerTab constructed as fallback');
     expect(warnings).toContain('nav: participants constructed as fallback');
     expect(warnings).toContain('nav: resultsRounds not found');
-    expect(warnings).toContain('nav: breakTabs not found');
+    expect(warnings).toContain('nav: breakTabs not found (optional)');
   });
 });
