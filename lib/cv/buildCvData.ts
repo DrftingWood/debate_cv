@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
+import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 
 // Shared CV data builder used by both the /cv page and the /api/cv/export
@@ -438,25 +439,12 @@ export async function buildCvData(userId: string): Promise<CvData> {
       .filter((n): n is number => n != null && Number.isFinite(n));
     const prelimsSpoken = numericScores.length;
     const total = p.speakerScoreTotal ? Number(p.speakerScoreTotal) : null;
-    let speakerAvgScore: string | null = null;
-    if (averageScoreValue != null && Number.isFinite(averageScoreValue)) {
-      speakerAvgScore = averageScoreValue.toFixed(1);
-    } else if (prelimsSpoken > 0 && total != null && Number.isFinite(total)) {
-      speakerAvgScore = (total / prelimsSpoken).toFixed(1);
-    } else if (prelimsSpoken > 0) {
-      const sum = numericScores.reduce((a, b) => a + b, 0);
-      speakerAvgScore = (sum / prelimsSpoken).toFixed(1);
-    } else if (total != null && Number.isFinite(total)) {
-      // Last-resort fallback for AP speaker tabs that exposed only `Total`
-      // (so `speakerScoreTotal` is set) without a per-round breakdown. Use
-      // the tournament's prelim round count as the divisor — a one-speech-
-      // per-round approximation that's accurate for non-iron-manning AP/BP
-      // speakers and beats showing nothing at all.
-      const prelimCount = prelimRoundCountByTournament.get(tid);
-      if (prelimCount != null && prelimCount > 0) {
-        speakerAvgScore = (total / prelimCount).toFixed(1);
-      }
-    }
+    const speakerAvgScore = computeSpeakerAvg({
+      averageCellScore: averageScoreValue,
+      numericScores,
+      speakerScoreTotal: total,
+      prelimRoundCount: prelimRoundCountByTournament.get(tid) ?? null,
+    });
 
     // Champion check: did the user's team win the deepest outround they
     // reached, AND was that outround the tournament's final? Anything
