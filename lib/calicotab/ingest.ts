@@ -953,6 +953,11 @@ function isDeadlockError(e: unknown): boolean {
 
 export { isDeadlockError };
 
+// Exposed only so tests can pin down stage-rank classification edge
+// cases (category-prefixed finals, abbreviation handling). Not part of
+// the public ingest API.
+export { outroundStageRank as __test_outroundStageRank };
+
 /**
  * Retry a DB operation up to `maxAttempts` times when PostgreSQL aborts it
  * with a deadlock (40P01). PostgreSQL automatically rolls back one of the
@@ -1186,17 +1191,36 @@ async function linkRegistrationPerson(
  * Score an outround stage so we can compute "deepest reached" by max rank.
  * Mirrors the helper on /cv — kept private here to avoid a cross-package
  * dependency on the page module.
+ *
+ * Category-prefixed outrounds ("Novice Final", "ESL Semifinals", "U16
+ * Quarterfinals") are intentionally accepted: Tabbycat splits a single
+ * tournament into multiple parallel break categories and labels each
+ * bracket's final round with the category name. The previous form
+ * anchored the bare-final check at `^…$`, which dropped every
+ * category-prefixed final on the floor — the chair on "Novice Final"
+ * never showed up in `lastOutroundChaired`, the speaker who broke to a
+ * "Novice Final" never showed up in `eliminationReached`, etc.
+ *
+ * Order matters: stage-specific patterns ("semi", "quarter", "octo")
+ * must match before the bare-final fallthrough so labels like
+ * "Quarterfinal" (which contains the "final" substring) are still
+ * ranked at 80 rather than slipping into the 100-bucket.
  */
 function outroundStageRank(stage: string | null | undefined): number | null {
   if (!stage) return null;
   const s = stage.toLowerCase();
   if (/grand\s*final|\bgf\b/.test(s)) return 110;
-  if (/^finals?$|^the\s*final$/.test(s)) return 100;
-  if (/semi[-\s]?final|\bsf\b/.test(s)) return 90;
-  if (/quarter[-\s]?final|\bqf\b|quarters/.test(s)) return 80;
-  if (/octo[-\s]?final|\boctos?\b/.test(s)) return 70;
-  if (/double\s*octo|\bdoubles\b/.test(s)) return 60;
+  if (/semi[-\s]?final|\bsf\b|\bsemis\b/.test(s)) return 90;
+  if (/quarter[-\s]?final|\bqf\b|\bquarters\b/.test(s)) return 80;
   if (/triple\s*octo|\btriples\b/.test(s)) return 50;
+  if (/double\s*octo|\bdoubles\b/.test(s)) return 60;
+  if (/octo[-\s]?final|\boctos?\b/.test(s)) return 70;
+  // Bare "final" — accepts any label whose only round-stage token is
+  // "final" or "finals" with optional category/age prefix
+  // ("Final", "Novice Final", "ESL Final", "U16 Final"). Stage-specific
+  // checks above already absorbed "Quarterfinal", "Semifinal",
+  // "Octofinal", "Grand Final", so the substring fallthrough is safe.
+  if (/\bfinals?\b/.test(s)) return 100;
   return null;
 }
 
