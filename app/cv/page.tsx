@@ -402,6 +402,15 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
   // appear on the break tab but lose in their first outround room.
   // When the user's team won the tournament's final, append "(Champion)" so
   // the row clearly distinguishes winners from grand-finalists.
+  // EUDC dual-break case: if the team broke in multiple categories
+  // (Open + ESL) the deepest outround per category is rendered together,
+  // e.g. "Open: Octofinals · ESL: Grand Final".
+  if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
+    const joined = r.eliminationReachedByCategory
+      .map((e) => `${e.category}: ${e.stage}`)
+      .join(' · ');
+    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+  }
   if (!r.eliminationReached) return '—';
   if (r.wonTournament === true) return `${r.eliminationReached} (Champion)`;
   return r.eliminationReached;

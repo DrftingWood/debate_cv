@@ -4,6 +4,11 @@ import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import {
+  deepestOutroundsByCategory,
+  isEudcTournament,
+  type CategoryOutround,
+} from '@/lib/calicotab/breakCategoryResolve';
 
 // Shared CV data builder used by both the /cv page and the /api/cv/export
 // CSV route. Pulling this out of the page keeps both consumers in lock-step:
@@ -37,6 +42,16 @@ export type CvSpeakerRow = {
   speakerRankEfl: number | null;
   teamBreakRank: number | null;
   eliminationReached: string | null;
+  /**
+   * EUDC-only: when a team breaks in both Open and ESL the deepest
+   * outround is different per category (e.g. lost Open Octos but
+   * reached ESL Grand Final). Populated only for EUDC tournaments and
+   * only when the team appeared in outrounds across more than one
+   * category — null otherwise. Sorted by category priority (Open
+   * first). Display sites should prefer this over `eliminationReached`
+   * when present.
+   */
+  eliminationReachedByCategory: CategoryOutround[] | null;
   broke: boolean;
   /**
    * True when the user's team won the deepest outround they reached AND
@@ -355,6 +370,32 @@ export async function buildCvData(userId: string): Promise<CvData> {
     }
   }
 
+  // EUDC-only: collect every outround stage label per (tournament, team) so
+  // we can derive deepest-per-category for the EUDC dual-break case (a
+  // team that breaks in Open AND ESL has different deepest outrounds in
+  // each bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and
+  // we want to surface both on the CV instead of collapsing to one).
+  // Pulls all team EliminationResult rows regardless of result so a row
+  // missing its win/loss indicator still contributes the stage. Skipped
+  // entirely on non-EUDC tournaments to keep the query bounded.
+  const eudcTournamentIds = tournamentIds.filter((tid) => {
+    const t = tournamentById.get(tid);
+    return t ? isEudcTournament(t.name) : false;
+  });
+  const teamOutroundStagesByKey = new Map<string, string[]>();
+  if (eudcTournamentIds.length > 0) {
+    const rows = await prisma.eliminationResult.findMany({
+      where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
+      select: { tournamentId: true, entityName: true, stage: true },
+    });
+    for (const r of rows) {
+      const key = `${r.tournamentId}:${r.entityName}`;
+      const list = teamOutroundStagesByKey.get(key) ?? [];
+      list.push(r.stage);
+      teamOutroundStagesByKey.set(key, list);
+    }
+  }
+
   // Tournaments the user has filed an unresolved (open or acknowledged)
   // CvErrorReport against. Lets the per-row "Reported" badge render so the
   // user remembers they already flagged the row. Resolved reports
@@ -471,6 +512,19 @@ export async function buildCvData(userId: string): Promise<CvData> {
       }
     }
 
+    // EUDC dual-break breakdown. Only set when more than one category
+    // has an outround appearance — a team that only debated in Open
+    // outrounds gets the existing single-stage `eliminationReached` and
+    // we leave this null to avoid noise.
+    let eliminationReachedByCategory: CategoryOutround[] | null = null;
+    if (p.teamName && isEudcTournament(t.name)) {
+      const stages = teamOutroundStagesByKey.get(`${tid}:${p.teamName}`) ?? [];
+      const byCategory = deepestOutroundsByCategory(stages, (stage) =>
+        outroundRank({ roundLabel: stage, roundNumber: null, isOutround: true }),
+      );
+      if (byCategory.length > 1) eliminationReachedByCategory = byCategory;
+    }
+
     speakerRows.push({
       tournamentId: tid,
       tournamentName: t.name,
@@ -498,6 +552,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       speakerRankEfl: p.speakerRankEfl,
       teamBreakRank: speakerSignals.teamBreakRank,
       eliminationReached: speakerSignals.eliminationReached,
+      eliminationReachedByCategory,
       broke: speakerSignals.broke,
       wonTournament,
       hasOpenReport: reportedTournamentIds.has(tid.toString()),

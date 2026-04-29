@@ -75,11 +75,18 @@ export async function GET() {
         // Append "(W)" when the user's team won this outround AND the outround
         // was the tournament final, i.e. they won the tournament. Lets the CSV
         // distinguish champions from grand-finalists without an extra column.
-        r.eliminationReached
-          ? r.wonTournament === true
+        // EUDC dual-break case: render every category's deepest outround.
+        (() => {
+          const multi = r.eliminationReachedByCategory;
+          if (multi && multi.length > 1) {
+            const joined = multi.map((e) => `${e.category}: ${e.stage}`).join(' · ');
+            return r.wonTournament === true ? `${joined} (W)` : joined;
+          }
+          if (!r.eliminationReached) return '';
+          return r.wonTournament === true
             ? `${r.eliminationReached} (W)`
-            : r.eliminationReached
-          : '',
+            : r.eliminationReached;
+        })(),
         '',
         '',
         '',

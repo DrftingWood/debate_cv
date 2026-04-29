@@ -2,10 +2,23 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Trophy } from 'lucide-react';
 import { prisma } from '@/lib/db';
-import { buildCvData } from '@/lib/cv/buildCvData';
+import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { Badge } from '@/components/ui/Badge';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
+
+function fmtPublicLastOutround(r: CvSpeakerRow): string {
+  if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
+    const joined = r.eliminationReachedByCategory
+      .map((e) => `${e.category}: ${e.stage}`)
+      .join(' · ');
+    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+  }
+  if (!r.eliminationReached) return '—';
+  return r.wonTournament === true
+    ? `${r.eliminationReached} (Champion)`
+    : r.eliminationReached;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -135,11 +148,7 @@ export default async function PublicCvPage({
                       {r.speakerAvgScore ?? '—'}
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
-                      {r.eliminationReached
-                        ? r.wonTournament
-                          ? `${r.eliminationReached} (Champion)`
-                          : r.eliminationReached
-                        : '—'}
+                      {fmtPublicLastOutround(r)}
                     </td>
                   </tr>
                 ))}
