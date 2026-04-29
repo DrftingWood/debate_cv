@@ -232,6 +232,39 @@ describe('parseRoundResults — round label resolution chain', () => {
     expect(round.roundLabel).toBe('Grand Final');
     expect(round.isOutround).toBe(true);
   });
+
+  test('parses BP tables that use OG/OO/CG/CO columns instead of a Team column', () => {
+    const html = vueResultsHtml(
+      [
+        { key: 'venue', title: 'Venue' },
+        { key: 'og', title: 'OG' },
+        { key: 'oo', title: 'OO' },
+        { key: 'cg', title: 'CG' },
+        { key: 'co', title: 'CO' },
+        { key: 'adjudicators', title: 'Adjudicators' },
+      ],
+      [
+        [
+          { text: 'Room 1' },
+          { text: 'Team Alpha' },
+          { text: 'Team Beta' },
+          { text: 'Team Gamma' },
+          { text: 'Team Delta' },
+          { text: 'Jane Doe (chair), John Roe' },
+        ],
+      ],
+    );
+    const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/2/');
+    expect(round.teamResults).toHaveLength(4);
+    expect(round.teamResults.map((r) => r.position)).toEqual(['OG', 'OO', 'CG', 'CO']);
+    expect(round.teamResults.map((r) => r.teamName)).toEqual([
+      'Team Alpha',
+      'Team Beta',
+      'Team Gamma',
+      'Team Delta',
+    ]);
+    expect(round.judgeAssignments).toHaveLength(2);
+  });
 });
 
 describe('parseRoundResults — judge extraction', () => {
@@ -274,4 +307,3 @@ describe('parseRoundResults — judge extraction', () => {
     expect(round.teamResults).toHaveLength(2);
   });
 });
-

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   computeFingerprint,
   extractYearFromName,
+  inferTournamentYear,
   normalizePersonName,
 } from '@/lib/calicotab/fingerprint';
 
@@ -34,6 +35,20 @@ describe('extractYearFromName', () => {
     expect(extractYearFromName('WUDC 2024 Vietnam')).toBe(2024);
     expect(extractYearFromName('ILNU RR 2026')).toBe(2026);
     expect(extractYearFromName('No year here')).toBe(null);
+  });
+});
+
+describe('inferTournamentYear', () => {
+  test('prefers explicit year in tournament name', () => {
+    expect(inferTournamentYear('WUDC 2024', new Date('2025-02-01T00:00:00Z'))).toBe(2024);
+  });
+
+  test('falls back to messageDate year when name has no year', () => {
+    expect(inferTournamentYear('Novice Open', new Date('2025-11-03T10:30:00Z'))).toBe(2025);
+  });
+
+  test('returns null when neither source has a year', () => {
+    expect(inferTournamentYear('No year here', null)).toBeNull();
   });
 });
 

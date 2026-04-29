@@ -622,7 +622,22 @@ function roundResultsFromVue(
   const heads = table.head;
 
   const teamCol = vueCol(heads, 'team');
-  if (teamCol < 0) return null;
+  // BP-layout fallback: many Tabbycat round-result tables expose one row per
+  // debate with four team columns (OG/OO/CG/CO) instead of a canonical "team"
+  // column. We still want those teams in teamResults so ingest doesn't report
+  // "no match for [team]" for perfectly valid BP tables.
+  const bpPosCols: Array<{ idx: number; pos: string }> = [];
+  const posNeedles: Array<{ needle: string; pos: string }> = [
+    { needle: 'og', pos: 'OG' },
+    { needle: 'oo', pos: 'OO' },
+    { needle: 'cg', pos: 'CG' },
+    { needle: 'co', pos: 'CO' },
+  ];
+  for (const { needle, pos } of posNeedles) {
+    const idx = vueCol(heads, needle);
+    if (idx >= 0) bpPosCols.push({ idx, pos });
+  }
+  if (teamCol < 0 && bpPosCols.length === 0) return null;
 
   const winCol = vueCol(heads, 'win', 'result');
   const posCol = vueCol(heads, 'position', 'side', 'pos');
@@ -642,16 +657,29 @@ function roundResultsFromVue(
   const judgeAssignments: RoundDebate['judgeAssignments'] = [];
   const judgeSeen = new Set<string>();
   for (const row of table.data) {
-    const teamName = cellText(row[teamCol]);
-    if (teamName) {
-      const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
-      const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
-      teamResults.push({
-        teamName,
-        position: posCol >= 0 ? cellText(row[posCol]) || null : null,
-        points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
-        won,
-      });
+    if (teamCol >= 0) {
+      const teamName = cellText(row[teamCol]);
+      if (teamName) {
+        const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
+        const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
+        teamResults.push({
+          teamName,
+          position: posCol >= 0 ? cellText(row[posCol]) || null : null,
+          points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
+          won,
+        });
+      }
+    } else {
+      for (const { idx, pos } of bpPosCols) {
+        const teamName = cellText(row[idx]);
+        if (!teamName) continue;
+        teamResults.push({
+          teamName,
+          position: pos,
+          points: null,
+          won: null,
+        });
+      }
     }
     if (adjCol >= 0) {
       const raw = cellText(row[adjCol]);
@@ -738,6 +766,12 @@ export function parseRoundResults(
       .get();
     if (!headers.length) return;
     const teamCol = headers.findIndex((h) => h.includes('team'));
+    const bpPosCols: Array<{ idx: number; pos: string }> = [
+      { idx: headers.findIndex((h) => h === 'og'), pos: 'OG' },
+      { idx: headers.findIndex((h) => h === 'oo'), pos: 'OO' },
+      { idx: headers.findIndex((h) => h === 'cg'), pos: 'CG' },
+      { idx: headers.findIndex((h) => h === 'co'), pos: 'CO' },
+    ].filter((x) => x.idx >= 0);
     const pointsCol = headers.findIndex((h) => h.includes('points') || h.includes('score'));
     const posCol = headers.findIndex((h) => h.includes('position') || h.includes('side'));
     const winCol = headers.findIndex((h) => h === 'win' || h.includes('result'));
@@ -756,6 +790,17 @@ export function parseRoundResults(
           points: pointsCol >= 0 ? parseNumber(cells[pointsCol]) : null,
           won,
         });
+      } else if (teamCol < 0 && bpPosCols.length > 0) {
+        for (const { idx, pos } of bpPosCols) {
+          const teamName = cells[idx];
+          if (!teamName) continue;
+          teamResults.push({
+            teamName,
+            position: pos,
+            points: null,
+            won: null,
+          });
+        }
       }
       if (adjCol >= 0 && cells[adjCol]) {
         const raw = cells[adjCol]!;

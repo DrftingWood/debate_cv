@@ -10,6 +10,11 @@ export type RecordParserRunInput = {
   durationMs?: number;
 };
 
+export type RegistrationWarningContext = {
+  privateUrlSentAt?: Date | null;
+  now?: Date;
+};
+
 /** Always runs — if the provenance write fails we swallow it so ingest isn't blocked. */
 export async function recordParserRun(input: RecordParserRunInput): Promise<void> {
   try {
@@ -34,7 +39,10 @@ export async function recordParserRun(input: RecordParserRunInput): Promise<void
  * we expected to find but didn't. Surfacing selector misses into ParserRun.warnings
  * turns the DB into a lightweight parser-health dashboard.
  */
-export function collectRegistrationWarnings(snapshot: PrivateUrlSnapshot): string[] {
+export function collectRegistrationWarnings(
+  snapshot: PrivateUrlSnapshot,
+  context: RegistrationWarningContext = {},
+): string[] {
   const w: string[] = [];
   if (!snapshot.tournamentName) w.push('missing: tournamentName');
   if (!snapshot.registration.personName) w.push('missing: registration.personName');
@@ -53,8 +61,31 @@ export function collectRegistrationWarnings(snapshot: PrivateUrlSnapshot): strin
   if (snapshot.navigation.resultsRounds.length === 0) {
     w.push('nav: resultsRounds not found');
   }
+  // Break tabs are optional: tournaments before breaks are published (or with
+  // no break stage at all) legitimately have none. Keep this as an optional
+  // diagnostic so parser-health dashboards don't overcount it as an error.
   if (snapshot.navigation.breakTabs.length === 0) {
-    w.push('nav: breakTabs not found');
+    w.push('nav: breakTabs not found (optional)');
+  }
+
+  // Heuristic: if the private URL email was sent over a month ago, the event
+  // is likely finished, so missing tabs are often intentional (e.g. school
+  // tournaments that hide child-identifying pages from participant links).
+  const sentAt = context.privateUrlSentAt ?? null;
+  if (sentAt) {
+    const now = context.now ?? new Date();
+    const ageMs = now.getTime() - sentAt.getTime();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    if (ageMs >= THIRTY_DAYS_MS) {
+      w.push('timing: competition likely finished (private URL email is older than 30 days)');
+    }
+  }
+  const hiddenCoreTabs = ['teamTab', 'speakerTab', 'participants']
+    .filter((k) => !discovered.has(k) || constructed.has(k));
+  if (snapshot.navigation.breakTabs.length === 0 && hiddenCoreTabs.length >= 2) {
+    w.push(
+      'nav: limited tab visibility may be intentional (e.g., schools/child-protection privacy settings)',
+    );
   }
   return w;
 }
