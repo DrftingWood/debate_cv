@@ -137,13 +137,16 @@ export async function ingestPrivateUrl(
       if (linked) {
         // Per-round data is attached to the registration Person regardless of
         // claim status so it's ready when that person eventually claims.
+        // Speaker registrations don't surface the empty-Debates-card
+        // diagnostic — see the post-tx call site below for full rationale.
+        const isLikelySpeaker = !!snapshot.registration.teamName;
         const r = await recordJudgeRoundsFromLanding(
           landingHtml,
           existing.id,
           linked.personId,
           snapshot.registration.personName,
         );
-        if (r.diagnostic) landingWarnings.push(r.diagnostic);
+        if (r.diagnostic && !isLikelySpeaker) landingWarnings.push(r.diagnostic);
         await recordSpeakerRoundsFromLanding(
           landingHtml,
           existing.id,
@@ -737,31 +740,45 @@ export async function ingestPrivateUrl(
     linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),
   );
   if (linked) {
+    // Is the URL owner registered as a speaker on this tournament? The
+    // landing page's registration card sets `teamName` for speakers and
+    // leaves it null for adjudicator-only registrations. When they're a
+    // speaker, the Debates card legitimately has no adjudicator rounds
+    // and the round-results panel search legitimately matches no judges
+    // — both helpers emit diagnostics that surface as red warnings on
+    // the dashboard, which read as failures even though the system is
+    // working correctly. Suppress those diagnostics for speaker
+    // registrations; still call recordJudgeRoundsFromLanding (which
+    // PR #90 made idempotent — it preserves prior data) so a user who
+    // was a JUDGE in a past ingest and is now a speaker doesn't lose
+    // their old data via a different code path.
+    const isLikelySpeaker = !!snapshot.registration.teamName;
     const r = await recordJudgeRoundsFromLanding(
       landingHtml,
       tournamentId,
       linked.personId,
       snapshot.registration.personName,
     );
-    if (r.diagnostic) fetchWarnings.push(r.diagnostic);
+    if (r.diagnostic && !isLikelySpeaker) fetchWarnings.push(r.diagnostic);
     await recordSpeakerRoundsFromLanding(
       landingHtml,
       tournamentId,
       linked.personId,
       snapshot.registration.teamName,
     );
-    // Fallback: when the Debates card is empty (typically because the
-    // tournament finished and Tabbycat replaced the per-round table with
-    // a current-round-only widget), pull judge assignments from the
-    // /results/round/N/ pages we already fetched. Only fills fields the
-    // Debates card path didn't populate.
-    const fromResults = await recordJudgeRoundsFromRoundResults(
-      rounds,
-      tournamentId,
-      linked.personId,
-      snapshot.registration.personName,
-    );
-    if (fromResults.diagnostic) fetchWarnings.push(fromResults.diagnostic);
+    // Round-results panel search: skip entirely for speakers — they're
+    // never on a panel by definition. For judges this is the fallback
+    // when the Debates card is empty (tournament finished, Tabbycat
+    // replaced the per-round table with a current-round-only widget).
+    if (!isLikelySpeaker) {
+      const fromResults = await recordJudgeRoundsFromRoundResults(
+        rounds,
+        tournamentId,
+        linked.personId,
+        snapshot.registration.personName,
+      );
+      if (fromResults.diagnostic) fetchWarnings.push(fromResults.diagnostic);
+    }
   }
 
   // Optional: extract round-results judge assignments for EVERY judge that

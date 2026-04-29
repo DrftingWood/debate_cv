@@ -14,7 +14,13 @@ export const dynamic = 'force-dynamic';
  *
  * The default mode preserves user identity claims so re-ingesting parses
  * existing claims back into the new tournament rows. The `full=1` mode is
- * for testing the discovery + claim flow from zero.
+ * for testing the discovery + claim flow from zero — and crucially, it
+ * also resets `GmailToken.lastScannedAt` so the post-wipe re-scan isn't
+ * blocked by the per-user 5-minute scan cooldown that lives in
+ * /api/ingest/gmail. Without that reset, the admin who just wiped their
+ * own data would see a 429 on the very next Scan click; the cooldown
+ * is meant to throttle accidental button-mashing, not legitimate
+ * post-wipe testing.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -61,6 +67,7 @@ export async function POST(req: NextRequest) {
   let discoveredUrls = 0;
   let personRejections = 0;
   let persons = 0;
+  let gmailScanCooldownsReset = 0;
   if (full) {
     // Order: discoveredUrls → personRejections → persons. PersonRejection
     // FK-references Person; clear it before deleting Persons. DiscoveredUrl
@@ -72,6 +79,16 @@ export async function POST(req: NextRequest) {
     discoveredUrls = dr.count;
     personRejections = pr.count;
     persons = p.count;
+
+    // Reset every user's Gmail scan cooldown so the immediate post-wipe
+    // re-scan isn't blocked by the 5-min throttle in /api/ingest/gmail.
+    // Tokens themselves are preserved (we don't want to force re-OAuth);
+    // only the lastScannedAt timestamp clears.
+    const reset = await prisma.gmailToken.updateMany({
+      where: { lastScannedAt: { not: null } },
+      data: { lastScannedAt: null },
+    });
+    gmailScanCooldownsReset = reset.count;
   }
 
   return NextResponse.json({
@@ -92,6 +109,7 @@ export async function POST(req: NextRequest) {
             discoveredUrls,
             personRejections,
             persons,
+            gmailScanCooldownsReset,
           }
         : {}),
     },
