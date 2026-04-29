@@ -707,7 +707,13 @@ function roundResultsFromVue(
       const teamName = cellText(row[teamCol]);
       if (teamName) {
         const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
-        const won = winCol >= 0 ? /won|win|✓|\btrue\b|\b1\b/.test(winText) : null;
+        // Match explicit win text only. The previous form also accepted
+        // `\b1\b` and `\btrue\b`, which fired on BP-style points columns
+        // ("3"/"2"/"1"/"0" for 1st-4th place) when a header heuristic
+        // misidentified them as a "result" column — flipping fourth
+        // place into a "won this debate" mark and ultimately a
+        // false-positive Champion. Only word-form signals count now.
+        const won = winCol >= 0 ? /won|win|✓|✔/.test(winText) : null;
         teamResults.push({
           teamName,
           position: posCol >= 0 ? cellText(row[posCol]) || null : null,
@@ -829,7 +835,9 @@ export function parseRoundResults(
       const cells = $(tr).find('td').map((_k, td) => cleanText($(td).text())).get();
       if (teamCol >= 0 && cells[teamCol]) {
         const winText = winCol >= 0 ? (cells[winCol] || '').toLowerCase() : '';
-        const won = winCol >= 0 ? /won|win|✓|\b1\b/.test(winText) : null;
+        // See roundResultsFromVue: drop `\b1\b` to avoid promoting
+        // BP points-column "1"s (3rd place) into wins.
+        const won = winCol >= 0 ? /won|win|✓|✔/.test(winText) : null;
         teamResults.push({
           teamName: cells[teamCol]!,
           position: posCol >= 0 ? cells[posCol] || null : null,

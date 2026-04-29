@@ -3,10 +3,12 @@ import { extractSpeakerRounds } from '@/lib/calicotab/parseNav';
 
 /**
  * Win detection on the user's Debates card. The user's own team is rendered
- * in <strong>; on outround stages Tabbycat adds a green up-arrow icon /
- * text-success class / trophy icon next to the winning team. Tests cover
- * the common variants we accept as positive signals plus their loss
- * counterparts.
+ * in <strong>; on outround stages Tabbycat adds a directional icon (green
+ * up-arrow for advanced, red down-arrow for eliminated, occasionally a
+ * trophy / check) next to the winning team. Detection is icon-class only
+ * — bare colour classes like `text-success` no longer count, because
+ * those fired on incidental cell styling (record badges, highlights) and
+ * produced false-positive Champion markers.
  *
  * The HTML below uses Tabbycat's older server-rendered layout (no Vue
  * data island), which routes through the cheerio fallback in
@@ -35,20 +37,47 @@ describe('extractSpeakerRounds — win indicator detection', () => {
     expect(rows[0]!.won).toBe(true);
   });
 
-  test('text-success class alone (no icon) still marks as won', () => {
+  test('text-success class alone (no icon) does NOT mark as won', () => {
+    // Regression guard: this used to count as a positive signal.
+    // Tournaments (e.g. Monash Open 2023) styled non-result text on the
+    // team-name cell with text-success, which flipped runners-up into
+    // false-positive Champions on the CV. Without an icon we no longer
+    // commit either way.
     const html = `
       <table class="debates">
         <thead><tr><th>Round</th><th>Team</th></tr></thead>
         <tbody>
           <tr>
-            <td><span class="tooltip-trigger">Quarterfinals</span></td>
+            <td><span class="tooltip-trigger">Grand Final</span></td>
             <td class="team-name text-success"><strong>Mysore 1</strong></td>
           </tr>
         </tbody>
       </table>
     `;
     const rows = extractSpeakerRounds(html, 'Mysore 1');
-    expect(rows[0]!.won).toBe(true);
+    expect(rows[0]!.won).toBeNull();
+  });
+
+  test('"won" word appearing inside an unrelated tooltip does not flip a non-winning row', () => {
+    // The word-only signals ("won", "winner", "advanced") used to
+    // match anywhere in the cell — including badges and tooltips that
+    // narrate the team's overall record. Without an icon we ignore.
+    const html = `
+      <table class="debates">
+        <thead><tr><th>Round</th><th>Team</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="tooltip-trigger">Grand Final</span></td>
+            <td class="team-name">
+              <span title="Won 8 of 9 prelims">8-1</span>
+              <strong>Runners-up</strong>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = extractSpeakerRounds(html, 'Runners-up');
+    expect(rows[0]!.won).toBeNull();
   });
 
   test('trophy icon variant counts as won', () => {
