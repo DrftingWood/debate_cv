@@ -715,18 +715,38 @@ export type SpeakerRound = {
  * non-result styling — a green-coloured wins/losses badge, an
  * "advanced N teams" tooltip, etc. Tightened to icons only so a stray
  * `text-success` on the cell can't flip a runner-up to a champion.
+ *
+ * Older Tabbycat builds (BP themes circa 2022–2024 — IIT Bombay,
+ * BPPD, NPD, NALSAR, etc.) emit the result icon using Feather Icons
+ * rather than bootstrap-icons / font-awesome. The result column has:
+ *   - Win: `<i class="text-success result-icon"><svg class="feather
+ *     feather-chevrons-up">…` for 1st place; outround advancement uses
+ *     a single chevron `<i class="text-success"><svg class="feather
+ *     feather-chevron-up">…`.
+ *   - Loss: matching down variants (`feather-chevron-down` /
+ *     `feather-chevrons-down`).
+ * Both single and double chevron variants count, since within a tbody
+ * row these icons only appear in the result cell — column sort
+ * indicators in the thead use the same icons but live in `<th>`, which
+ * extractSpeakerRounds never inspects. The popover-close `feather-x`
+ * is unrelated and matches no pattern below.
+ *
  * Returns true on a positive signal, false on an explicit loss signal,
  * null when neither is present (caller treats null as "unknown").
  */
 function detectWonFromCellHtml(cellHtml: string): boolean | null {
   const lower = cellHtml.toLowerCase();
   if (
-    /\b(bi-arrow-up|fa-arrow-up|bi-trophy|fa-trophy|bi-check-circle|fa-check-circle)/.test(lower)
+    /\b(bi-arrow-up|fa-arrow-up|bi-trophy|fa-trophy|bi-check-circle|fa-check-circle|feather-chevrons?-up)/.test(
+      lower,
+    )
   ) {
     return true;
   }
   if (
-    /\b(bi-arrow-down|fa-arrow-down|bi-x-circle|fa-x-circle|bi-x-square|fa-x)/.test(lower)
+    /\b(bi-arrow-down|fa-arrow-down|bi-x-circle|fa-x-circle|bi-x-square|fa-x|feather-chevrons?-down)/.test(
+      lower,
+    )
   ) {
     return false;
   }

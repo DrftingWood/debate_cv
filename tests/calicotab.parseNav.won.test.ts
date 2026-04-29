@@ -134,6 +134,118 @@ describe('extractSpeakerRounds — win indicator detection', () => {
     expect(rows[0]!.won).toBeNull();
   });
 
+  test('feather-chevrons-up (1st place) on the BP private-URL Debates card marks won', () => {
+    // Real markup from older Tabbycat BP themes (IIT Bombay 2023, BPPD
+    // 2022, NPD 2023, NALSAR 2023): the speaker private-URL Debates
+    // table has no <td class="team-name"> cells; the user's team is
+    // bolded inside a popover within the result cell, and the win is
+    // a feather-chevrons-up icon (double up = 1st place in BP).
+    const html = `
+      <table>
+        <thead><tr><th>Round</th><th>Result</th><th>Side</th><th>Speaks</th><th>Adjudicators</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div data-original-title="Round 1"><span class="tooltip-trigger">R1</span></div></td>
+            <td>
+              <div class="hover-target">
+                <i class="text-success result-icon">
+                  <svg class="feather feather-chevrons-up"></svg>
+                </i>
+                <span class="tooltip-trigger">1st</span>
+                <div role="tooltip" class="popover">
+                  <div class="popover-header"><h6>Placed 1st</h6>
+                    <svg class="feather feather-x text-danger"></svg>
+                  </div>
+                  <div class="popover-body">
+                    <span>Teams in debate:<br>Other A (OG)<br><strong>My Team (CG)</strong></span>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td><span>Closing Government</span></td>
+            <td>77, 78</td>
+            <td class="adjudicator-name"><span>Sneha Dash</span></td>
+            <td><a href="/x/results/round/1/speaker/abc/">View Ballot</a></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = extractSpeakerRounds(html, 'My Team');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stage).toBe('Round 1');
+    expect(rows[0]!.won).toBe(true);
+  });
+
+  test('feather-chevron-up + text-success (outround advancing) marks won — drives Champion detection', () => {
+    // Outround "advancing" rendering: single chevron-up + text-success.
+    // Without this, a Grand Final advance returned won=null, which left
+    // EliminationResult.result unwritten and `wonTournament` null on
+    // the CV — so champions never got the "(Champion)" marker.
+    const html = `
+      <table>
+        <thead><tr><th>Round</th><th>Result</th><th>Side</th><th>Speaks</th><th>Adjudicators</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div data-original-title="Grand Final"><span class="tooltip-trigger">GF</span></div></td>
+            <td>
+              <div class="hover-target">
+                <i class="text-success">
+                  <svg class="feather feather-chevron-up"></svg>
+                </i>
+                <span class="tooltip-trigger">advancing</span>
+                <div role="tooltip" class="popover">
+                  <div class="popover-body">
+                    <span>Teams in debate:<br><strong>My Team (OG)</strong><br>Other (OO)</span>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td><span>Opening Government</span></td>
+            <td>—</td>
+            <td class="adjudicator-name"><span>Shuvam Mitra</span></td>
+            <td><span>No scores</span></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = extractSpeakerRounds(html, 'My Team');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stage).toBe('Grand Final');
+    expect(rows[0]!.won).toBe(true);
+  });
+
+  test('feather-chevron-down outround eliminated marks lost', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Round</th><th>Result</th><th>Side</th><th>Speaks</th><th>Adjudicators</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div data-original-title="Quarterfinals"><span class="tooltip-trigger">QF</span></div></td>
+            <td>
+              <div class="hover-target">
+                <i class="text-danger">
+                  <svg class="feather feather-chevron-down"></svg>
+                </i>
+                <span class="tooltip-trigger">eliminated</span>
+                <div role="tooltip" class="popover">
+                  <div class="popover-body">
+                    <span>Teams in debate:<br><strong>My Team (CO)</strong></span>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td><span>Closing Opposition</span></td>
+            <td>—</td>
+            <td class="adjudicator-name"><span>Some Chair</span></td>
+            <td><span>No scores</span></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const rows = extractSpeakerRounds(html, 'My Team');
+    expect(rows[0]!.won).toBe(false);
+  });
+
   test('rows the user did not appear in are excluded entirely (won detection irrelevant)', () => {
     const html = `
       <table class="debates">
