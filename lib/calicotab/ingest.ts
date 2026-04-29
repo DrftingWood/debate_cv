@@ -26,6 +26,7 @@ import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount } from './judgeStats';
+import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
@@ -286,30 +287,11 @@ export async function ingestPrivateUrl(
     speakerRows,
     registrationSpeakers: snapshot.registration.speakers,
   });
-  // Multi-category breaks (BP-style: Open + ESL + EFL): a team can appear in
-  // more than one break tab. The earlier "first wins" pick was order-dependent
-  // (alphabetical URL sort: EFL before Open) — wrong because Open is the
-  // primary break for nearly every tournament. Pick by category priority
-  // instead so a team that broke Open keeps the Open rank, falling back to
-  // ESL → EFL → other only when Open is absent.
-  const breakCategoryPriority = (stage: string | null): number => {
-    if (!stage) return 0;
-    if (stage === 'Open') return 100;
-    if (stage === 'ESL') return 80;
-    if (stage === 'EFL') return 60;
-    return 40;
-  };
-  const teamBreakRankByTeam = new Map<string, number>();
-  const teamBreakStageByTeam = new Map<string, string | null>();
-  for (const row of breakRows) {
-    if (row.entityType !== 'team' || row.rank == null) continue;
-    const newPriority = breakCategoryPriority(row.stage ?? null);
-    const existingPriority = breakCategoryPriority(teamBreakStageByTeam.get(row.entityName) ?? null);
-    if (!teamBreakRankByTeam.has(row.entityName) || newPriority > existingPriority) {
-      teamBreakRankByTeam.set(row.entityName, row.rank);
-      teamBreakStageByTeam.set(row.entityName, row.stage ?? null);
-    }
-  }
+  // Multi-category breaks (BP-style: Open + ESL + EFL): one team can appear
+  // in more than one break tab. Pick by category priority (Open > ESL >
+  // EFL > other) so a team that broke Open keeps the Open rank — see
+  // lib/calicotab/breakCategoryResolve.ts for the priority table + tests.
+  const { rankByTeam: teamBreakRankByTeam } = resolveTeamBreaks(breakRows);
 
   // Record the full ParserRun once all tab fetches + parses are done so
   // both landing warnings and per-tab fetch failures (fetchWarnings) land
