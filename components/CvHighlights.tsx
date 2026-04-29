@@ -1,4 +1,4 @@
-import { Trophy, Sparkles, Mic, Gavel, GraduationCap, Globe } from 'lucide-react';
+import { Trophy, Sparkles, Mic, Gavel, GraduationCap, Globe, Crown } from 'lucide-react';
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
 
 /**
@@ -15,6 +15,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     bestSpeakerRank,
     bestSpeakerAverage,
     outroundsChaired,
+    adjCoreCount,
     majorEvents,
   } = highlights;
 
@@ -24,6 +25,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     bestSpeakerRank != null ||
     bestSpeakerAverage != null ||
     outroundsChaired > 0 ||
+    adjCoreCount > 0 ||
     majorEvents.length > 0;
   if (!hasAnything) return null;
 
@@ -81,6 +83,16 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
             icon={<Gavel className="h-4 w-4" aria-hidden />}
             label="Outrounds chaired"
             items={[`${outroundsChaired} ${outroundsChaired === 1 ? 'outround' : 'outrounds'}`]}
+          />
+        ) : null}
+        {adjCoreCount > 0 ? (
+          // Adj core / Tab Director / Chief Adjudicator stints — separate
+          // credential from regular judging. Surfaces the count so a
+          // CA-heavy CV reads as such at a glance.
+          <Tile
+            icon={<Crown className="h-4 w-4" aria-hidden />}
+            label="Adj core"
+            items={[`${adjCoreCount} ${adjCoreCount === 1 ? 'tournament' : 'tournaments'}`]}
           />
         ) : null}
         {majorEvents.length > 0 ? (

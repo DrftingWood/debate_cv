@@ -279,8 +279,25 @@ export async function ingestPrivateUrl(
   // builder can use it as the speaker-average divisor when the speaker tab
   // gives us only totals (common on AP installs that strip per-round
   // columns from the public speaker tab).
+  //
+  // Two-tier source:
+  //   1. Parsed rounds — the count of rounds we actually fetched + parsed
+  //      and classified as non-outround. Most accurate signal because the
+  //      classification used the page heading + URL pattern, not the URL
+  //      list alone.
+  //   2. Nav-list fallback — when parsing failed or fetched zero rounds
+  //      (e.g., Tabbycat 403'd every per-round results URL), fall back to
+  //      the count of round-results URLs the landing page linked to.
+  //      This over-counts by the number of outrounds (typically 1–3) on
+  //      tournaments where both prelims and outrounds appear in the nav
+  //      but no fetch succeeded. The over-count slightly under-states
+  //      avg, which is better than producing no avg at all (the
+  //      previously-shipped behaviour for NLSD 2025 / SRDF 2024).
+  const parsedPrelimCount = rounds.filter(
+    (r) => !r.isOutround && r.roundNumber != null,
+  ).length;
   const prelimRoundCount =
-    rounds.filter((r) => !r.isOutround && r.roundNumber != null).length || null;
+    parsedPrelimCount > 0 ? parsedPrelimCount : nav.resultsRounds.length || null;
   const format = inferTournamentFormat({
     tournamentName,
     teamRows,
