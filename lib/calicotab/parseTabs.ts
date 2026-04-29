@@ -263,6 +263,19 @@ function cleanText(s: string): string {
 
 function classifyParticipantRole(roleText: string): { role: ParticipantsRow['role']; judgeTag: ParticipantsRow['judgeTag'] } {
   const lowered = roleText.toLowerCase();
+  // Core adjudicators (Tab Director / Chief Adjudicator / Deputy CA / Adj
+  // Core) shape the tournament — different category from regular judges.
+  // Detect first because the labels often co-occur with "adjudicator"
+  // (e.g., "Chief Adjudicator", "Deputy Chief Adjudicator") and would
+  // otherwise fall through to 'normal'. Match `\bca\b` / `\bdca\b` as
+  // standalone words so a name like "Cameron" doesn't false-positive.
+  const isAdjCore =
+    /\b(?:chief|deputy)\s+(?:chief\s+)?adjudicator\b/.test(lowered) ||
+    /\b(?:adj[\s-]?core|core\s+adjudicator|tab[\s-]?director)\b/.test(lowered) ||
+    /\bd?ca\b/.test(lowered);
+  if (isAdjCore) {
+    return { role: 'adjudicator', judgeTag: 'core' };
+  }
   if (/adjud|judge/.test(lowered)) {
     return {
       role: 'adjudicator',
@@ -344,7 +357,20 @@ export type BreakRow = {
 export type ParticipantsRow = {
   name: string;
   role: 'speaker' | 'adjudicator' | 'other';
-  judgeTag: 'normal' | 'invited' | 'subsidized' | null;
+  /**
+   * Sub-category for adjudicator participants:
+   *   - 'core'       — Tab Director, Chief Adjudicator (CA), Deputy CA (DCA),
+   *                    or anyone explicitly listed as "adj core". A different
+   *                    category from regular judges and worth surfacing as a
+   *                    distinct CV credential — they shape the tournament
+   *                    rather than just judge it.
+   *   - 'invited'    — independent / invited adjudicator (no team affiliation).
+   *   - 'subsidized' — subsidised by the tournament (typically rookie / outreach
+   *                    invitations).
+   *   - 'normal'     — institutional adjudicator (the default catch-all).
+   *   - null         — non-adjudicator (speaker / other) participant.
+   */
+  judgeTag: 'core' | 'normal' | 'invited' | 'subsidized' | null;
   teamName: string | null;
   institution: string | null;
 };
@@ -457,9 +483,19 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   const totalCol = vueColExcluding(
     heads,
     new Set([avgCol].filter((i) => i >= 0)),
+    // Common header tokens for the cumulative-score column. The previous
+    // set ('total', 'spk', 'score') missed AP installs labelling it
+    // 'pts', 'sum', or just 'speaks' — both NLSD 2025 and SRDF 2024
+    // (the user's reported "rank shows but avg doesn't" pair) fell
+    // through to totalCol = -1 and the fallback in buildCvData had no
+    // total to divide.
     'total',
     'spk',
     'score',
+    'pts',
+    'point',
+    'sum',
+    'speaks',
   );
 
   const nonRound = new Set(
@@ -558,7 +594,17 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
   const avgCol = lowered.findIndex((h) => isAverageHeader(h));
   const totalCol = lowered.findIndex((h, i) => {
     if (i === avgCol) return false;
-    return h.includes('total') || h.includes('score');
+    // Mirrors the Vue-path superset; see the comment beside totalCol in
+    // speakerTabFromVue for why these extra tokens are accepted.
+    return (
+      h.includes('total') ||
+      h.includes('score') ||
+      h.includes('spk') ||
+      h.includes('pts') ||
+      h.includes('point') ||
+      h.includes('sum') ||
+      h.includes('speaks')
+    );
   });
   const nonRoundCols = new Set(
     [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter((i) => i >= 0),

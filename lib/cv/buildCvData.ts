@@ -102,6 +102,13 @@ export type CvHighlights = {
   } | null;
   /** Outrounds chaired (count of judge rows with lastOutroundChaired set). */
   outroundsChaired: number;
+  /**
+   * Tournaments where the user served as adj core / Tab Director / Chief
+   * Adjudicator / Deputy CA — distinct from regular judging stints. Counted
+   * separately so the CV can surface "5× adj core" as its own credential
+   * rather than hiding the role inside a generic judge count.
+   */
+  adjCoreCount: number;
   /** Detected major-circuit events the user has attended (WUDC / EUDC / Australs / Worlds). */
   majorEvents: { tournamentName: string; year: number | null }[];
   /** Earliest and latest year with at least one row. */
@@ -653,6 +660,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
   );
 
   const outroundsChaired = judgeRows.filter((r) => !!r.lastOutroundChaired).length;
+  const adjCoreCount = judgeRows.filter((r) => r.judgeTypeTag === 'core').length;
 
   const majorEvents = [...speakerRows, ...judgeRows]
     .filter((r) => MAJOR_PATTERN.test(r.tournamentName))
@@ -674,6 +682,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
     bestSpeakerRank,
     bestSpeakerAverage,
     outroundsChaired,
+    adjCoreCount,
     majorEvents,
     activeYears,
   };

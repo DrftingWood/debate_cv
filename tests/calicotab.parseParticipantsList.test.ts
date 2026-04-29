@@ -240,3 +240,86 @@ describe('parseParticipantsList — British "Subsidised" spelling', () => {
     expect(rows[0]!.role).toBe('adjudicator');
   });
 });
+
+describe('parseParticipantsList — adj-core classification', () => {
+  // Adj-core = Tab Director / Chief Adjudicator / Deputy CA / "adj core".
+  // Distinct credential from regular judging; counted separately on the CV
+  // highlights reel.
+
+  test('"Chief Adjudicator" classifies as judgeTag=core', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Pat CA</td><td>Chief Adjudicator</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.role).toBe('adjudicator');
+    expect(rows[0]!.judgeTag).toBe('core');
+  });
+
+  test('"Deputy Chief Adjudicator" classifies as core', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Sam DCA</td><td>Deputy Chief Adjudicator</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('core');
+  });
+
+  test('"Adj Core" / "Adj-Core" labels classify as core', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>One</td><td>Adj Core</td></tr>
+          <tr><td>Two</td><td>Adj-Core</td></tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('core');
+    expect(rows[1]!.judgeTag).toBe('core');
+  });
+
+  test('"Tab Director" classifies as core', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Tab Wizard</td><td>Tab Director</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('core');
+  });
+
+  test('bare "CA" / "DCA" tokens classify as core', () => {
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>One</td><td>CA</td></tr>
+          <tr><td>Two</td><td>DCA</td></tr>
+        </tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('core');
+    expect(rows[1]!.judgeTag).toBe('core');
+  });
+
+  test('plain "Adjudicator" still classifies as normal (not core)', () => {
+    // Regression guard — the core-detection regex must NOT swallow the
+    // plain-adjudicator case.
+    const html = `
+      <table>
+        <thead><tr><th>Name</th><th>Role</th></tr></thead>
+        <tbody><tr><td>Just A Judge</td><td>Adjudicator</td></tr></tbody>
+      </table>
+    `;
+    const rows = parseParticipantsList(html);
+    expect(rows[0]!.judgeTag).toBe('normal');
+  });
+});

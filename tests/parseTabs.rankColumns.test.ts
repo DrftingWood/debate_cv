@@ -215,4 +215,36 @@ describe('parseSpeakerTab — rank column disambiguation', () => {
       { roundLabel: 'Average', score: 75.5, positionLabel: 'average' },
     ]);
   });
+
+  test('total column with non-canonical headers (Pts / Sum / Speaks) is recognized', () => {
+    // The user-reported NLSD 2025 / SRDF 2024 case: AP installs label
+    // the cumulative-score column "Pts" or "Sum", not "Total" or "Score".
+    // Without this, the total fell through to null and the AP-fallback
+    // average path in buildCvData had no number to divide.
+    for (const totalLabel of ['Pts', 'Sum', 'Speaks', 'Points']) {
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Team</th>
+              <th>${totalLabel}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2</td>
+              <td>Abhishek A</td>
+              <td>NH 48</td>
+              <td>378.5</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+      const rows = parseSpeakerTab(html);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.totalScore).toBe(378.5);
+    }
+  });
 });
