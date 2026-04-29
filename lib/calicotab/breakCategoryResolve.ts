@@ -72,3 +72,89 @@ export function resolveTeamBreaks(rows: BreakRowLike[]): {
   }
   return { rankByTeam, stageByTeam, breaksByTeam };
 }
+
+/**
+ * EUDC-style outround stage labels embed the break category as a prefix
+ * ("ESL Grand Final", "EFL Octofinals"); the Open category uses bare
+ * labels ("Octofinals", "Grand Final"). Splits the prefix off so callers
+ * can group outround appearances by category.
+ *
+ * Returns `category: null` when the stage is unparseable (caller treats
+ * it as "Open" by convention; see `deepestOutroundsByCategory`).
+ */
+export function splitOutroundStage(stage: string | null | undefined): {
+  category: string | null;
+  baseStage: string | null;
+} {
+  if (!stage) return { category: null, baseStage: null };
+  const trimmed = stage.trim();
+  // Match a leading category token followed by whitespace, then the rest
+  // of the label. Anchored so we only strip a known prefix — random
+  // capitalised words at the start (e.g. a tournament-specific stage
+  // name) are left intact.
+  const match = trimmed.match(/^(Open|ESL|EFL|Novice)\s+(.+)$/i);
+  if (match) {
+    const category = match[1]!;
+    // Normalise capitalisation: "esl final" → "ESL".
+    const normalised =
+      category.toUpperCase() === 'ESL' || category.toUpperCase() === 'EFL'
+        ? category.toUpperCase()
+        : category[0]!.toUpperCase() + category.slice(1).toLowerCase();
+    return { category: normalised, baseStage: match[2]!.trim() };
+  }
+  return { category: null, baseStage: trimmed };
+}
+
+/**
+ * EUDC-only helper: the same team typically debates in both the Open
+ * and ESL outround brackets, hitting different "deepest reached" stages
+ * in each (e.g. lost Open Octos but reached ESL Grand Final). Groups a
+ * raw list of outround stages by category and picks the deepest stage
+ * per category.
+ *
+ * `rankFn` is injected so this module stays free of a dependency on
+ * judgeStats. Pass `outroundRank({roundLabel, roundNumber: null,
+ * isOutround: true})` from the call site.
+ *
+ * Stages with no detectable category prefix are bucketed under "Open"
+ * — at EUDC the Open bracket is the implicit default and its rounds
+ * appear as bare "Octofinals" / "Grand Final".
+ *
+ * Returns entries sorted by category priority descending so the
+ * highest-priority break (Open) is always rendered first.
+ */
+export type CategoryOutround = { category: string; stage: string };
+
+export function deepestOutroundsByCategory(
+  stages: Array<string | null | undefined>,
+  rankFn: (stage: string) => number,
+): CategoryOutround[] {
+  const deepestByCategory = new Map<string, { stage: string; rank: number }>();
+  for (const stage of stages) {
+    if (!stage) continue;
+    const { category } = splitOutroundStage(stage);
+    const cat = category ?? 'Open';
+    const rank = rankFn(stage);
+    if (!Number.isFinite(rank) || rank <= 0) continue;
+    const existing = deepestByCategory.get(cat);
+    if (!existing || rank > existing.rank) {
+      deepestByCategory.set(cat, { stage, rank });
+    }
+  }
+  return Array.from(deepestByCategory.entries())
+    .map(([category, { stage }]) => ({ category, stage }))
+    .sort((a, b) => breakCategoryPriority(b.category) - breakCategoryPriority(a.category));
+}
+
+/**
+ * EUDC tournaments are the canonical case where a team breaks in
+ * multiple categories simultaneously. Detection is name-based — we
+ * don't have a structured "circuit" field on Tournament. Matches both
+ * the acronym and the long form ("European Universities Debating
+ * Championship"); deliberately strict so EUDC-Asia, EUDS, etc. don't
+ * get caught.
+ */
+export function isEudcTournament(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return /\beudc\b|european\s+universit(?:y|ies)\s+debating/i.test(name);
+}
