@@ -72,7 +72,7 @@ export async function POST() {
     // Incremental scan: query Gmail for messages newer than the latest
     // DiscoveredUrl messageDate (with a 1-day safety margin for timezone
     // skew). First-ever scan has no rows yet, so afterDate stays undefined
-    // and we fall back to the default 5-year window.
+    // and we scan the full mailbox (no upper bound on age).
     const lastUrl = await prisma.discoveredUrl.findFirst({
       where: { userId },
       orderBy: { messageDate: 'desc' },

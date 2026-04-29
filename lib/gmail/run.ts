@@ -3,7 +3,7 @@ import type { OAuth2Client } from './client';
 import { extractFromMessage, dedupeByUrl, type PrivateUrlRecord } from './extract';
 
 export const DEFAULT_QUERY =
-  '(calicotab.com OR herokuapp.com OR privateurls) newer_than:5y';
+  '(calicotab.com OR herokuapp.com OR privateurls)';
 
 const DEFAULT_MAX_MESSAGES = 500;
 const CONCURRENCY = 5;
