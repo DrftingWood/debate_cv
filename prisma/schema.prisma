@@ -198,8 +198,6 @@ model Tournament {
   /// that case.
   prelimRoundCount     Int?
   sourceUrlRaw         String
-  sourceHost           String?
-  sourceTournamentSlug String?
   fingerprint          String   @unique
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -254,13 +252,11 @@ model TournamentParticipant {
   speakerRankEsl      Int?
   speakerRankEfl      Int?
   teamBreakRank       Int?
-  teamScoreTotal      Decimal?
   judgeTypeTag        String?
   chairedPrelimRounds Int?
   lastOutroundChaired String?
   lastOutroundPaneled String?
   wins                Int?
-  losses              Int?
   eliminationReached  String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
