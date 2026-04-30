@@ -250,12 +250,6 @@ export async function fetchHtmlWithProvenance(
   };
 }
 
-/** Convenience wrapper that returns just the HTML string, or null on HTTP failure. */
-export async function fetchHtml(url: string): Promise<string | null> {
-  const r = await fetchHtmlWithProvenance(url);
-  return r.ok ? r.html : null;
-}
-
 /** True when the HTML contains an embedded tablesData block (any known pattern). */
 function hasEmbeddedTableData(html: string): boolean {
   return (

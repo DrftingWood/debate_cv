@@ -184,7 +184,7 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
   return nav;
 }
 
-export function extractRegistration(html: string): RegistrationSnapshot {
+function extractRegistration(html: string): RegistrationSnapshot {
   const $ = cheerio.load(html);
   const snapshot: RegistrationSnapshot = {
     personName: null,

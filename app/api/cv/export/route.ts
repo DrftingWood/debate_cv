@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { csvLine } from '@/lib/utils/csv';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  const s = String(value);
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function csvLine(values: unknown[]): string {
-  return values.map(csvCell).join(',');
-}
 
 export async function GET() {
   const session = await auth();
