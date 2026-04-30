@@ -12,21 +12,20 @@ import { AlertCircle, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import {
+  CATEGORY_LONG_LABELS,
+  REPORT_CATEGORIES,
+} from '@/lib/cvErrorReports/categories';
 
 type ReportResponse = {
   id: string;
   tournamentCount: number;
 };
 
-const CATEGORIES: { code: string; label: string }[] = [
-  { code: 'wrong_teammate', label: 'Wrong teammate / teammate missing' },
-  { code: 'wrong_speaker_rank', label: 'Wrong speaker rank / rank missing' },
-  { code: 'wrong_speaker_average', label: 'Wrong speaker average / average missing' },
-  { code: 'wrong_team_result', label: 'Wrong team result (rank, points, win/loss)' },
-  { code: 'wrong_outround', label: 'Wrong outround / Champion marker' },
-  { code: 'wrong_identity', label: "I didn't speak/judge at this tournament" },
-  { code: 'other', label: 'Other (describe in comment)' },
-];
+const CATEGORIES = REPORT_CATEGORIES.map((code) => ({
+  code,
+  label: CATEGORY_LONG_LABELS[code],
+}));
 
 export function CvRowReportButton({
   tournamentId,
