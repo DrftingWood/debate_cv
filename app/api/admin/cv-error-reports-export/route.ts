@@ -1,18 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
+import { csvLine } from '@/lib/utils/csv';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function csvCell(value: string | number | null | undefined): string {
-  const text = value == null ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-function csvLine(values: Array<string | number | null | undefined>): string {
-  return values.map(csvCell).join(',');
-}
 
 export async function GET() {
   try {

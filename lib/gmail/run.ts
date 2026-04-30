@@ -2,7 +2,7 @@ import { google, type gmail_v1 } from 'googleapis';
 import type { OAuth2Client } from './client';
 import { extractFromMessage, dedupeByUrl, type PrivateUrlRecord } from './extract';
 
-export const DEFAULT_QUERY =
+const DEFAULT_QUERY =
   '(calicotab.com OR herokuapp.com OR privateurls)';
 
 const DEFAULT_MAX_MESSAGES = 500;

@@ -5,7 +5,7 @@ import { decryptValue, encryptValue } from '@/lib/crypto';
 // Derived from the constructor so no direct dep on google-auth-library is needed.
 export type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 
-export function makeOAuthClient(): OAuth2Client {
+function makeOAuthClient(): OAuth2Client {
   return new google.auth.OAuth2(
     process.env.AUTH_GOOGLE_ID,
     process.env.AUTH_GOOGLE_SECRET,
