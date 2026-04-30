@@ -25,7 +25,7 @@ import {
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
-import { getInroundsChairedCount } from './judgeStats';
+import { classifyOutroundStage, getInroundsChairedCount, type OutroundStage } from './judgeStats';
 import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
@@ -445,8 +445,6 @@ export async function ingestPrivateUrl(
         totalTeams,
         prelimRoundCount,
         sourceUrlRaw: normalized,
-        sourceHost: parsedUrl.host,
-        sourceTournamentSlug: tournamentSlug,
         scrapedAt: new Date(),
       },
       create: {
@@ -457,8 +455,6 @@ export async function ingestPrivateUrl(
         totalTeams,
         prelimRoundCount,
         sourceUrlRaw: normalized,
-        sourceHost: parsedUrl.host,
-        sourceTournamentSlug: tournamentSlug,
         fingerprint: tournamentFingerprint,
       },
     });
@@ -1188,40 +1184,26 @@ async function linkRegistrationPerson(
 }
 
 /**
- * Score an outround stage so we can compute "deepest reached" by max rank.
- * Mirrors the helper on /cv — kept private here to avoid a cross-package
- * dependency on the page module.
- *
- * Category-prefixed outrounds ("Novice Final", "ESL Semifinals", "U16
- * Quarterfinals") are intentionally accepted: Tabbycat splits a single
- * tournament into multiple parallel break categories and labels each
- * bracket's final round with the category name. The previous form
- * anchored the bare-final check at `^…$`, which dropped every
- * category-prefixed final on the floor — the chair on "Novice Final"
- * never showed up in `lastOutroundChaired`, the speaker who broke to a
- * "Novice Final" never showed up in `eliminationReached`, etc.
- *
- * Order matters: stage-specific patterns ("semi", "quarter", "octo")
- * must match before the bare-final fallthrough so labels like
- * "Quarterfinal" (which contains the "final" substring) are still
- * ranked at 80 rather than slipping into the 100-bucket.
+ * Score an outround stage for the ingest "deepest reached" computation.
+ * Uses the shared `classifyOutroundStage` so the regex patterns stay in
+ * lock-step with `outroundRank` (judgeStats) — only the numeric scale
+ * differs. Ingest needs Grand Final to outrank plain Final by more than
+ * one bucket so category-prefixed finals ("ESL Final" → final = 100)
+ * never collide with the tournament's actual GF (= 110).
  */
+const INGEST_STAGE_RANK: Record<OutroundStage, number> = {
+  grand_final: 110,
+  final: 100,
+  semifinal: 90,
+  quarterfinal: 80,
+  octofinal: 70,
+  double_octofinal: 60,
+  triple_octofinal: 50,
+};
+
 function outroundStageRank(stage: string | null | undefined): number | null {
-  if (!stage) return null;
-  const s = stage.toLowerCase();
-  if (/grand\s*final|\bgf\b/.test(s)) return 110;
-  if (/semi[-\s]?final|\bsf\b|\bsemis\b/.test(s)) return 90;
-  if (/quarter[-\s]?final|\bqf\b|\bquarters\b/.test(s)) return 80;
-  if (/triple\s*octo|\btriples\b/.test(s)) return 50;
-  if (/double\s*octo|\bdoubles\b/.test(s)) return 60;
-  if (/octo[-\s]?final|\boctos?\b/.test(s)) return 70;
-  // Bare "final" — accepts any label whose only round-stage token is
-  // "final" or "finals" with optional category/age prefix
-  // ("Final", "Novice Final", "ESL Final", "U16 Final"). Stage-specific
-  // checks above already absorbed "Quarterfinal", "Semifinal",
-  // "Octofinal", "Grand Final", so the substring fallthrough is safe.
-  if (/\bfinals?\b/.test(s)) return 100;
-  return null;
+  const kind = classifyOutroundStage(stage);
+  return kind ? INGEST_STAGE_RANK[kind] : null;
 }
 
 /**
