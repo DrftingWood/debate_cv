@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
+import { categoryLabel } from '@/lib/cvErrorReports/categories';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -153,9 +154,23 @@ export default async function AdminPage() {
                     );
                   })}
                 </div>
-                <p className="whitespace-pre-wrap break-words rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">
-                  {report.comment}
-                </p>
+                {report.categories.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {report.categories.map((c) => (
+                      <span
+                        key={c}
+                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+                      >
+                        {categoryLabel(c)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {report.comment ? (
+                  <p className="whitespace-pre-wrap break-words rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">
+                    {report.comment}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>

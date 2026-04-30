@@ -2,24 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { REPORT_CATEGORIES } from '@/lib/cvErrorReports/categories';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-/**
- * Closed list of structured report categories the modal exposes. Codes
- * (not human strings) so the admin queue can group on them stably and the
- * front-end can render localized labels independently.
- */
-const REPORT_CATEGORIES = [
-  'wrong_teammate',
-  'wrong_speaker_rank',
-  'wrong_speaker_average',
-  'wrong_team_result',
-  'wrong_outround',
-  'wrong_identity',
-  'other',
-] as const;
 
 const Body = z.object({
   tournamentIds: z.array(z.string().regex(/^\d+$/)).min(1).max(25),

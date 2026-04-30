@@ -4,19 +4,10 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import type { CvReportStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
-
-const CATEGORY_LABELS: Record<string, string> = {
-  wrong_teammate: 'Wrong teammate',
-  wrong_speaker_rank: 'Wrong speaker rank',
-  wrong_speaker_average: 'Wrong speaker average',
-  wrong_team_result: 'Wrong team result',
-  wrong_outround: 'Wrong outround',
-  wrong_identity: "Didn't speak/judge here",
-  other: 'Other',
-};
 
 function statusBadge(status: CvReportStatus) {
   switch (status) {
@@ -98,7 +89,7 @@ export default async function ReportsSettingsPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {r.categories.map((c) => (
                         <Badge key={c} variant="outline">
-                          {CATEGORY_LABELS[c] ?? c}
+                          {categoryLabel(c)}
                         </Badge>
                       ))}
                     </div>

@@ -28,7 +28,7 @@ export async function GET() {
   const tournamentById = new Map(tournaments.map((t) => [t.id.toString(), t] as const));
 
   const rows = [
-    csvLine(['created_at', 'tournament_ids', 'tournaments', 'comment']),
+    csvLine(['created_at', 'tournament_ids', 'tournaments', 'categories', 'comment', 'status']),
     ...reports.map((report) => {
       const names = report.tournamentIds.map((id) => {
         const tournament = tournamentById.get(id);
@@ -40,7 +40,9 @@ export async function GET() {
         report.createdAt.toISOString(),
         report.tournamentIds.join('; '),
         names.join('; '),
+        report.categories.join('; '),
         report.comment,
+        report.status,
       ]);
     }),
   ];

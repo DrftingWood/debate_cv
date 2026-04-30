@@ -37,7 +37,9 @@ export async function GET() {
       'user_id',
       'tournament_ids',
       'tournaments',
+      'categories',
       'comment',
+      'status',
       'resolved_at',
     ]),
     ...reports.map((report) => {
@@ -54,7 +56,9 @@ export async function GET() {
         report.userId,
         report.tournamentIds.join('; '),
         names.join('; '),
+        report.categories.join('; '),
         report.comment,
+        report.status,
         report.resolvedAt?.toISOString(),
       ]);
     }),
