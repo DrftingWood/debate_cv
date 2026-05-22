@@ -48,38 +48,63 @@ export function findPersonId(
   const norm = normalizePersonName(candidateName);
   if (!norm) return null;
 
-  // 1. Exact match — fast path.
+  // 1. Exact match — fast path, also covers single-token entries that the
+  //    fuzzy predicate intentionally refuses to match.
   const exact = byNormalized.get(norm);
   if (exact != null) return exact;
 
-  const candidateTokens = norm.split(/\s+/).filter(Boolean);
-  // Single-token candidates are too ambiguous for fuzzy matching ("Smith"
-  // could be many people) — bail rather than risk a false positive.
-  if (candidateTokens.length < 2) return null;
-  const candidateSet = new Set(candidateTokens);
-
+  // 2/3. Delegate to the shared predicate for the substring + token-subset
+  //      cascade. The predicate enforces the ≥2-token guard internally.
   const entries = index ?? buildPersonIndex(byNormalized);
-
-  // 2. Substring containment in either direction.
   for (const entry of entries) {
-    if (entry.tokens.length < 2) continue;
-    if (norm.includes(entry.normalizedName) || entry.normalizedName.includes(norm)) {
-      return entry.personId;
-    }
-  }
-
-  // 3. Token-subset match — every wanted token in the candidate set, OR
-  // every candidate token in the wanted set.
-  for (const entry of entries) {
-    if (entry.tokens.length < 2) continue;
-    const wantedSet = new Set(entry.tokens);
-    if (
-      entry.tokens.every((t) => candidateSet.has(t)) ||
-      candidateTokens.every((t) => wantedSet.has(t))
-    ) {
+    if (personNameMatches(candidateName, entry.normalizedName)) {
       return entry.personId;
     }
   }
 
   return null;
+}
+
+/**
+ * Symmetric "are these two name strings the same person?" predicate.
+ * Single source of truth for the fuzzy match that previously existed
+ * inlined in `ingest.ts::recordJudgeRoundsFromRoundResults` and twice
+ * in `parseNav.ts` (extractAdjudicatorRounds + extractOwnerRoleFromAdjHtml).
+ * `findPersonId` calls this internally for non-exact matches.
+ *
+ * Cascade (in order, first hit wins):
+ *   1. Exact normalized-string equality.
+ *   2. Substring containment in either direction. Handles middle-name
+ *      drops ("Abhishek K Acharya" vs "Abhishek Acharya") and trailing
+ *      parentheticals ("Abhishek Acharya (IIT-B)" vs "Abhishek Acharya").
+ *   3. Token-subset match in either direction. Catches surname-first
+ *      comma reorders ("Acharya, Abhishek" vs "Abhishek Acharya").
+ *
+ * Both substring (#2) and token-subset (#3) require ≥2 tokens on BOTH
+ * sides — a bare first name like "Abhishek" is too ambiguous to fuzzy-
+ * match a full name. Exact single-token matches (#1) are still allowed
+ * so historical "Plato" entries keep working.
+ *
+ * Returns false when either input is empty or whitespace after
+ * normalization, mirroring the explicit empty-input guard the previous
+ * ingest.ts inlined matcher carried.
+ */
+export function personNameMatches(a: string, b: string): boolean {
+  const normA = normalizePersonName(a);
+  const normB = normalizePersonName(b);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  const tokensA = normA.split(/\s+/).filter(Boolean);
+  const tokensB = normB.split(/\s+/).filter(Boolean);
+  if (tokensA.length < 2 || tokensB.length < 2) return false;
+
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  return (
+    tokensB.every((t) => setA.has(t)) ||
+    tokensA.every((t) => setB.has(t))
+  );
 }

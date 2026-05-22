@@ -154,6 +154,20 @@ const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
 };
 
 /**
+ * Strict variant of {@link outroundRank} for callers that only have a
+ * stage label (no structured roundNumber/isOutround context) and want
+ * `null` returned when the label doesn't classify as a canonical outround.
+ *
+ * Used by ingest.ts's "deepest reached" computation, replacing the
+ * previously-duplicated `INGEST_STAGE_RANK` table. Both helpers now share
+ * the canonical 50-100 scale defined in `JUDGE_STATS_RANK`.
+ */
+export function outroundRankStrict(label: string | null | undefined): number | null {
+  const stage = classifyOutroundStage(label);
+  return stage ? JUDGE_STATS_RANK[stage] : null;
+}
+
+/**
  * Ordinal rank for an out-round stage. Higher = later. Plain numeric
  * round labels for outrounds also rank in numeric order so R9 > R8 > …
  * even when we don't know the stage name.
