@@ -5,6 +5,7 @@ import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
+import { pickPrelimRoundCount } from '@/lib/calicotab/prelimRoundCount';
 import {
   deepestOutroundsByCategory,
   isEudcTournament,
@@ -227,27 +228,34 @@ export async function buildCvData(userId: string): Promise<CvData> {
   //      rounds we successfully parsed per-team data for. Fallback for older
   //      tournaments ingested before #1 was stored, or where the team-tab
   //      had no per-round breakdown either.
+  // Resolve the prelim-round count per tournament from the two known
+  // sources (stored Tournament.prelimRoundCount first, MAX(TeamResult
+  // .roundNumber) fallback). The rule itself lives in pickPrelimRoundCount
+  // so the read path and any future call site share one definition.
+  // Run the two queries in parallel — neither depends on the other.
   const prelimRoundCountByTournament = new Map<bigint, number>();
   if (tournamentIds.length > 0) {
-    const tournamentRows = await prisma.tournament.findMany({
-      where: { id: { in: tournamentIds } },
-      select: { id: true, prelimRoundCount: true },
-    });
-    for (const t of tournamentRows) {
-      if (t.prelimRoundCount != null && t.prelimRoundCount > 0) {
-        prelimRoundCountByTournament.set(t.id, t.prelimRoundCount);
-      }
+    const [tournamentRows, maxRoundRows] = await Promise.all([
+      prisma.tournament.findMany({
+        where: { id: { in: tournamentIds } },
+        select: { id: true, prelimRoundCount: true },
+      }),
+      prisma.teamResult.groupBy({
+        by: ['tournamentId'],
+        where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
+        _max: { roundNumber: true },
+      }),
+    ]);
+    const maxByTournament = new Map<bigint, number | null>();
+    for (const r of maxRoundRows) {
+      maxByTournament.set(r.tournamentId, r._max.roundNumber);
     }
-    const rows = await prisma.teamResult.groupBy({
-      by: ['tournamentId'],
-      where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
-      _max: { roundNumber: true },
-    });
-    for (const r of rows) {
-      // Only fall back when the authoritative tournament value was missing.
-      if (prelimRoundCountByTournament.has(r.tournamentId)) continue;
-      const max = r._max.roundNumber;
-      if (max != null && max > 0) prelimRoundCountByTournament.set(r.tournamentId, max);
+    for (const t of tournamentRows) {
+      const picked = pickPrelimRoundCount({
+        stored: t.prelimRoundCount,
+        maxTeamRoundNumber: maxByTournament.get(t.id) ?? null,
+      });
+      if (picked != null) prelimRoundCountByTournament.set(t.id, picked);
     }
   }
 
