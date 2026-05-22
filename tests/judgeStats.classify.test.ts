@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   classifyRoundLabel,
   getInroundsChairedCount,
+  normalizeStageLabel,
 } from '@/lib/calicotab/judgeStats';
 
 describe('classifyRoundLabel', () => {
@@ -145,5 +146,50 @@ describe('getInroundsChairedCount', () => {
       { stage: 'Round 5', panelRole: 'chair' },
     ];
     expect(getInroundsChairedCount(data)).toBe(5);
+  });
+});
+
+describe('normalizeStageLabel', () => {
+  test('"R\\d+" → "Round N" canonical form', () => {
+    expect(normalizeStageLabel('R1')).toBe('Round 1');
+    expect(normalizeStageLabel('R12')).toBe('Round 12');
+    expect(normalizeStageLabel('r5')).toBe('Round 5');
+  });
+
+  test('abbreviation → canonical name', () => {
+    expect(normalizeStageLabel('GF')).toBe('Grand Final');
+    expect(normalizeStageLabel('SF')).toBe('Semifinals');
+    expect(normalizeStageLabel('QF')).toBe('Quarterfinals');
+    expect(normalizeStageLabel('DOF')).toBe('Double Octofinals');
+    expect(normalizeStageLabel('TOF')).toBe('Triple Octofinals');
+    expect(normalizeStageLabel('OF')).toBe('Octofinals');
+    expect(normalizeStageLabel('F')).toBe('Final');
+  });
+
+  test('lowercase colloquial → canonical name', () => {
+    expect(normalizeStageLabel('semis')).toBe('Semifinals');
+    expect(normalizeStageLabel('quarters')).toBe('Quarterfinals');
+    expect(normalizeStageLabel('doubles')).toBe('Double Octofinals');
+    expect(normalizeStageLabel('triples')).toBe('Triple Octofinals');
+    expect(normalizeStageLabel('octos')).toBe('Octofinals');
+  });
+
+  test('canonical form passes through unchanged', () => {
+    expect(normalizeStageLabel('Grand Final')).toBe('Grand Final');
+    expect(normalizeStageLabel('Round 5')).toBe('Round 5');
+    expect(normalizeStageLabel('Semifinals')).toBe('Semifinals');
+  });
+
+  test('empty/whitespace returns empty after trim', () => {
+    expect(normalizeStageLabel('')).toBe('');
+    expect(normalizeStageLabel('   ')).toBe('');
+  });
+
+  test('order: longer prefixes win — "DOF" does not match "F"', () => {
+    expect(normalizeStageLabel('DOF')).toBe('Double Octofinals');
+    expect(normalizeStageLabel('TOF')).toBe('Triple Octofinals');
+    expect(normalizeStageLabel('OF')).toBe('Octofinals');
+    // "F" alone is the bare-final case.
+    expect(normalizeStageLabel('F')).toBe('Final');
   });
 });
