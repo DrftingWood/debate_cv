@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { __test_outroundStageRank as rank } from '@/lib/calicotab/ingest';
+import { outroundRankStrict as rank } from '@/lib/calicotab/judgeStats';
 
 describe('outroundStageRank', () => {
   test('returns null for missing or numeric prelim stages', () => {

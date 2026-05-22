@@ -499,12 +499,16 @@ export async function buildCvData(userId: string): Promise<CvData> {
     // shallower (e.g. winning Semis but losing GF) doesn't count as winning
     // the tournament — Semis-win is implied by having reached GF at all.
     // Reuse outroundRank's stage classification so "Quarterfinal" (which
-    // contains the substring "final") is correctly excluded.
+    // contains the substring "final") is correctly excluded. Anchoring
+    // against outroundRank('Final') keeps both "Final" (= finalRank) and
+    // "Grand Final" (> finalRank) eligible — a tournament's last round
+    // can be labeled either way depending on the Tabbycat install.
     let wonTournament: boolean | null = null;
     if (p.teamName && speakerSignals.eliminationReached) {
       const deepest = speakerSignals.eliminationReached;
       const stageRank = outroundRank({ roundLabel: deepest, roundNumber: null, isOutround: true });
-      const isFinalStage = stageRank >= 95; // GF=100, plain Final=95
+      const finalRank = outroundRank({ roundLabel: 'Final', roundNumber: null, isOutround: true });
+      const isFinalStage = stageRank >= finalRank;
       if (isFinalStage) {
         const result = teamOutroundResultByKey.get(`${tid}:${p.teamName}:${deepest}`);
         if (result === 'won') wonTournament = true;

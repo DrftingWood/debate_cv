@@ -25,7 +25,7 @@ import {
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
-import { classifyOutroundStage, getInroundsChairedCount, type OutroundStage } from './judgeStats';
+import { getInroundsChairedCount, outroundRankStrict } from './judgeStats';
 import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
@@ -260,7 +260,7 @@ export async function ingestPrivateUrl(
     .map(({ url: u, html }) => {
       // Pass the landing-page nav's link text for this URL — it's the
       // authoritative round label ("Quarterfinals" not "SIDO 2026") and
-      // protects classifyRoundLabel / outroundStageRank from a generic
+      // protects classifyRoundLabel / outroundRankStrict from a generic
       // page heading.
       const navLabel = nav.resultsRoundLabels?.[u];
       const r = parseRoundResults(html, u, navLabel);
@@ -949,11 +949,6 @@ function isDeadlockError(e: unknown): boolean {
 
 export { isDeadlockError };
 
-// Exposed only so tests can pin down stage-rank classification edge
-// cases (category-prefixed finals, abbreviation handling). Not part of
-// the public ingest API.
-export { outroundStageRank as __test_outroundStageRank };
-
 /**
  * Retry a DB operation up to `maxAttempts` times when PostgreSQL aborts it
  * with a deadlock (40P01). PostgreSQL automatically rolls back one of the
@@ -1184,29 +1179,6 @@ async function linkRegistrationPerson(
 }
 
 /**
- * Score an outround stage for the ingest "deepest reached" computation.
- * Uses the shared `classifyOutroundStage` so the regex patterns stay in
- * lock-step with `outroundRank` (judgeStats) — only the numeric scale
- * differs. Ingest needs Grand Final to outrank plain Final by more than
- * one bucket so category-prefixed finals ("ESL Final" → final = 100)
- * never collide with the tournament's actual GF (= 110).
- */
-const INGEST_STAGE_RANK: Record<OutroundStage, number> = {
-  grand_final: 110,
-  final: 100,
-  semifinal: 90,
-  quarterfinal: 80,
-  octofinal: 70,
-  double_octofinal: 60,
-  triple_octofinal: 50,
-};
-
-function outroundStageRank(stage: string | null | undefined): number | null {
-  const kind = classifyOutroundStage(stage);
-  return kind ? INGEST_STAGE_RANK[kind] : null;
-}
-
-/**
  * Write the URL owner's per-round judging history straight from the "Debates"
  * card on the landing page. Called for every successful ingest where the
  * landing page identified a registration person. Idempotent — re-running on
@@ -1257,7 +1229,7 @@ async function recordJudgeRoundsFromLanding(
   );
   const outrounds = adjRounds.filter((r) => r.roundNumber == null);
   const ranked = outrounds
-    .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
+    .map((r) => ({ r, rank: outroundRankStrict(r.stage) }))
     .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
     .sort((a, b) => b.rank - a.rank);
   const deepestChaired = ranked.find((x) => x.r.role === 'chair')?.r.stage ?? null;
@@ -1342,7 +1314,7 @@ async function recordSpeakerRoundsFromLanding(
 
   const outrounds = speakerRounds.filter((r) => r.roundNumber == null);
   const ranked = outrounds
-    .map((r) => ({ r, rank: outroundStageRank(r.stage) }))
+    .map((r) => ({ r, rank: outroundRankStrict(r.stage) }))
     .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
     .sort((a, b) => b.rank - a.rank);
   const deepest = ranked[0]?.r.stage ?? null;
@@ -1518,7 +1490,7 @@ async function recordJudgeRoundsFromRoundResults(
   );
   const outrounds = hits.filter((h) => h.roundNumber == null);
   const ranked = outrounds
-    .map((h) => ({ h, rank: outroundStageRank(h.stage) }))
+    .map((h) => ({ h, rank: outroundRankStrict(h.stage) }))
     .filter((x): x is { h: typeof x.h; rank: number } => x.rank != null)
     .sort((a, b) => b.rank - a.rank);
   const deepestChaired = ranked.find((x) => x.h.role === 'chair')?.h.stage ?? null;
@@ -1653,7 +1625,7 @@ async function recordAllJudgeAssignmentsFromRoundResults(
     );
     const outrounds = hits.filter((h) => h.roundNumber == null);
     const ranked = outrounds
-      .map((h) => ({ h, rank: outroundStageRank(h.stage) }))
+      .map((h) => ({ h, rank: outroundRankStrict(h.stage) }))
       .filter((x): x is { h: typeof x.h; rank: number } => x.rank != null)
       .sort((a, b) => b.rank - a.rank);
     const deepestChaired = ranked.find((x) => x.h.role === 'chair')?.h.stage ?? null;
