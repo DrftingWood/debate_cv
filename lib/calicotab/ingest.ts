@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
+import { FetchSession } from './fetchSession';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
@@ -62,8 +63,13 @@ export async function ingestPrivateUrl(
   });
   const privateUrlSentAt = discovered?.messageDate ?? null;
 
+  // Per-ingest fetch session — bundles cookie jar + per-host throttle so
+  // Cloudflare clearance cookies set on the landing page replay on the
+  // subsequent tab fetches, without leaking state to other concurrent users.
+  const fetchSession = new FetchSession();
+
   // Landing page fetch — with provenance so every parse has a stable source.
-  const landingResult = await fetchHtmlWithProvenance(normalized);
+  const landingResult = await fetchHtmlWithProvenance(normalized, { session: fetchSession });
   if (!landingResult.ok) {
     // Surface the HTTP failure as the job's error so it shows up on the
     // dashboard and in ParserRun history. `bodyPreview` gives the operator
@@ -180,7 +186,7 @@ export async function ingestPrivateUrl(
   // the fetchWarnings buffer so the landing ParserRun tells the operator
   // exactly which tabs upstream refused to serve.
   const fetchTab = async (targetUrl: string, label: string): Promise<string | null> => {
-    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized });
+    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
     if (r.ok) return r.html;
     const hint =
       r.status === 403 && !process.env.SCRAPER_API_KEY
@@ -194,7 +200,7 @@ export async function ingestPrivateUrl(
   const fetchRound = async (
     targetUrl: string,
   ): Promise<{ url: string; html: string } | null> => {
-    const r = await fetchRoundWithProvenance(targetUrl, { referer: normalized });
+    const r = await fetchRoundWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
     if (r.ok) return { url: r.url, html: r.html };
     fetchWarnings.push(`fetch: round ${targetUrl} HTTP ${r.status}`);
     return null;

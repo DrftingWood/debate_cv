@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
+import { FetchSession } from './fetchSession';
 
 /**
  * Realistic Chrome-on-macOS fingerprint. Tabbycat sits behind Cloudflare on
@@ -13,40 +14,11 @@ const DEFAULT_USER_AGENT =
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 const MIN_INTERVAL_MS = 750;
-const lastRequestByHost = new Map<string, number>();
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
 // often carry useful error text so we surface them without a retry.
 const RETRYABLE_STATUSES = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
-
-// Per-host cookie jar. Module-level so clearance cookies (cf_clearance, etc.)
-// persist across the multiple tab fetches that follow the landing page fetch
-// within a single ingest session. Cloudflare sets these on the first request
-// that passes its checks; without replaying them the subsequent tab requests
-// get re-challenged and 403.
-const cookieStore = new Map<string, Map<string, string>>();
-
-function storeCookies(host: string, response: Response): void {
-  // getSetCookie() is the multi-value variant available in Node 18+.
-  const setCookies =
-    (response.headers as Headers & { getSetCookie?(): string[] }).getSetCookie?.() ?? [];
-  if (!setCookies.length) return;
-  const jar = cookieStore.get(host) ?? new Map<string, string>();
-  for (const raw of setCookies) {
-    const pair = raw.split(';')[0] ?? '';
-    const eqIdx = pair.indexOf('=');
-    if (eqIdx < 1) continue;
-    jar.set(pair.slice(0, eqIdx).trim(), pair.slice(eqIdx + 1).trim());
-  }
-  cookieStore.set(host, jar);
-}
-
-function getCookieHeader(host: string): string | undefined {
-  const jar = cookieStore.get(host);
-  if (!jar?.size) return undefined;
-  return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-}
 
 /**
  * Cloudflare sometimes returns HTTP 200 for JS-challenge pages instead of
@@ -105,14 +77,14 @@ function browserHeaders(referer?: string): Record<string, string> {
 // other ~16+ tab fetches to also have their chance.
 const FETCH_TIMEOUT_MS = 15_000;
 
-async function throttledFetch(url: string, referer?: string): Promise<Response> {
+async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const host = new URL(url).host;
-  const last = lastRequestByHost.get(host) ?? 0;
+  const last = session.getLastRequestAt(host);
   const gap = Date.now() - last;
   if (gap < MIN_INTERVAL_MS) await wait(MIN_INTERVAL_MS - gap);
-  lastRequestByHost.set(host, Date.now());
+  session.markRequestNow(host);
 
-  const cookie = getCookieHeader(host);
+  const cookie = session.getCookieHeader(host);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -124,7 +96,7 @@ async function throttledFetch(url: string, referer?: string): Promise<Response> 
       redirect: 'follow',
       signal: controller.signal,
     });
-    storeCookies(host, res);
+    session.storeCookies(host, res);
     return res;
   } catch (err) {
     // AbortError surfaces as a generic "aborted" message in Node 18+. Re-raise
@@ -143,12 +115,12 @@ async function throttledFetch(url: string, referer?: string): Promise<Response> 
  * Retry on the statuses Cloudflare uses for soft-rejections. Budget: two
  * retries at 1 s then 3 s. Per-host throttle still applies inside each call.
  */
-async function fetchWithRetry(url: string, referer?: string): Promise<Response> {
+async function fetchWithRetry(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const delays = [0, 1_000, 3_000];
   let lastRes: Response | null = null;
   for (const delay of delays) {
     if (delay > 0) await wait(delay);
-    const res = await throttledFetch(url, referer);
+    const res = await throttledFetch(url, session, referer);
     if (!RETRYABLE_STATUSES.has(res.status)) return res;
     lastRes = res;
   }
@@ -184,12 +156,13 @@ export type FetchResult =
  */
 export async function fetchHtmlWithProvenance(
   url: string,
-  options: { referer?: string } = {},
+  options: { referer?: string; session?: FetchSession } = {},
 ): Promise<FetchResult> {
   const start = Date.now();
+  const session = options.session ?? new FetchSession();
   let res: Response;
   try {
-    res = await fetchWithRetry(url, options.referer);
+    res = await fetchWithRetry(url, session, options.referer);
   } catch (err) {
     // Network failure (timeout from throttledFetch's AbortController, DNS,
     // refused connection). Convert to a soft FetchResult so a single tab
@@ -268,7 +241,7 @@ function hasEmbeddedTableData(html: string): boolean {
  */
 export async function fetchRoundWithProvenance(
   url: string,
-  options: { referer?: string } = {},
+  options: { referer?: string; session?: FetchSession } = {},
 ): Promise<FetchResult> {
   const trimmed = url.replace(/\/+$/, '') + '/';
   const byDebateUrl = `${trimmed}by-debate/`;
@@ -284,7 +257,7 @@ export async function fetchRoundWithProvenance(
  * Single-shot probe for the admin debug endpoint. Bypasses the retry loop
  * so the operator sees the first response exactly as upstream served it.
  */
-export async function probeFetch(url: string): Promise<{
+export async function probeFetch(url: string, session?: FetchSession): Promise<{
   status: number;
   ok: boolean;
   bodyPreview: string;
@@ -292,7 +265,8 @@ export async function probeFetch(url: string): Promise<{
   responseHeaders: Record<string, string>;
 }> {
   const start = Date.now();
-  const res = await throttledFetch(url);
+  const probeSession = session ?? new FetchSession();
+  const res = await throttledFetch(url, probeSession);
   const body = await res.text();
   const elapsedMs = Date.now() - start;
   const responseHeaders: Record<string, string> = {};
@@ -312,8 +286,5 @@ export async function probeFetch(url: string): Promise<{
 export const __test__ = {
   browserHeaders,
   DEFAULT_USER_AGENT,
-  storeCookies,
-  getCookieHeader,
   isCloudflareChallenge,
-  cookieStore,
 };
