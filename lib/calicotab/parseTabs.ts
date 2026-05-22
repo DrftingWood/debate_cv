@@ -23,8 +23,10 @@ export type VueTable = { title?: string; subtitle?: string; head: VueHead[]; dat
 
 /**
  * Parse an extracted object/array slice — try strict JSON first (fast path),
- * then fall back to JS evaluation which handles unquoted keys and JS-only
- * values that Tabbycat embeds in its window.vueData object literal.
+ * then fall back to acorn-based AST materialization for the JS object literal
+ * syntax (unquoted keys, occasional `undefined`/`Infinity` values) that
+ * Tabbycat embeds in its window.vueData payload. See parseJsValue.ts for
+ * the safe AST walker that replaces the previous `new Function` eval.
  */
 function parseSlice(slice: string): VueTable[] | null {
   let parsed: unknown;
