@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { parseJsValue } from './parseJsValue';
 
 type CheerioRoot = ReturnType<typeof cheerio.load>;
 type CheerioEl = ReturnType<CheerioRoot>;
@@ -21,19 +22,6 @@ export type VueCell = {
 export type VueTable = { title?: string; subtitle?: string; head: VueHead[]; data: VueCell[][] };
 
 /**
- * Evaluate a JS object/array literal string extracted from a trusted Tabbycat
- * page. `new Function` is used instead of `eval` so the code runs without
- * access to the local scope. The HTML source is always a URL that the user
- * explicitly chose to ingest (their own private tournament page).
- */
-function evalJsLiteral(slice: string): unknown {
-  // new Function('return <expr>') evaluates the expression in strict isolation
-  // (no access to local variables or closures).
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  return new Function('return ' + slice)();
-}
-
-/**
  * Parse an extracted object/array slice — try strict JSON first (fast path),
  * then fall back to JS evaluation which handles unquoted keys and JS-only
  * values that Tabbycat embeds in its window.vueData object literal.
@@ -44,11 +32,13 @@ function parseSlice(slice: string): VueTable[] | null {
     parsed = JSON.parse(slice);
   } catch {
     // Tabbycat uses a JS object literal (unquoted keys, possible `undefined`/
-    // `Infinity` values) — fall back to JS evaluation.
+    // `Infinity` values) — fall back to acorn-based AST materialization.
+    // parseJsValue parses-without-executing and rejects anything beyond
+    // pure literal shapes; see lib/calicotab/parseJsValue.ts.
     try {
-      parsed = evalJsLiteral(slice);
+      parsed = parseJsValue(slice);
     } catch (e) {
-      console.warn('[parseTabs] evalJsLiteral failed:', String(e).slice(0, 120));
+      console.warn('[parseTabs] parseJsValue failed:', String(e).slice(0, 120));
       return null;
     }
   }
@@ -60,6 +50,9 @@ function parseSlice(slice: string): VueTable[] | null {
   return null;
 }
 
+// TODO(dedupe-brace-counters): this balanced-brace scanner is duplicated
+// in extractTablesDataDirectly and diagnoseVueData. Lift into a shared
+// helper as part of a follow-up parseTabs cleanup sub-project.
 /**
  * Walk `html` looking for `marker` and extract the JS value assigned to it.
  * The brace counter correctly locates the value boundary; parseSlice() then
