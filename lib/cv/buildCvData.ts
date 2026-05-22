@@ -4,6 +4,7 @@ import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import {
   deepestOutroundsByCategory,
   isEudcTournament,
@@ -580,13 +581,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
   // ── Judge rows ───────────────────────────────────────────────────────────
   const judgeByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   for (const p of myParticipations) {
-    const isJudge =
-      p.roles.some((r) => r.role === 'judge') ||
-      !!p.judgeTypeTag ||
-      (p.chairedPrelimRounds ?? 0) > 0 ||
-      !!p.lastOutroundChaired ||
-      !!p.lastOutroundPaneled;
-    if (!isJudge) continue;
+    if (!isJudgeParticipant(p)) continue;
     const existing = judgeByTournament.get(p.tournamentId);
     const score = (q: (typeof p) | undefined) =>
       !q
