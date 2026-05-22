@@ -127,6 +127,21 @@ describe('parseJsValue — rejects anything outside the literal allowlist', () =
   it('rejects sequence expressions', () => {
     expect(() => parseJsValue('1, 2')).toThrow();
   });
+
+  it('rejects trailing content after the expression', () => {
+    expect(() => parseJsValue('{a:1}; evil()')).toThrow();
+    expect(() => parseJsValue('[1,2,3] garbage')).toThrow();
+  });
+
+  it('rejects regex literals', () => {
+    expect(() => parseJsValue('/foo/g')).toThrow();
+    expect(() => parseJsValue('{ a: /foo/ }')).toThrow();
+  });
+
+  it('rejects BigInt literals', () => {
+    expect(() => parseJsValue('42n')).toThrow();
+    expect(() => parseJsValue('{ a: 42n }')).toThrow();
+  });
 });
 
 describe('parseJsValue — Tabbycat-shaped integration sanity', () => {

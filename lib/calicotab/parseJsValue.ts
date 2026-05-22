@@ -14,17 +14,26 @@ import { parseExpressionAt, type Expression } from 'acorn';
  * context, no scope, no globals.
  *
  * Throws on parse failure, on input that contains non-literal expressions,
- * or on input that doesn't parse as a single expression. Callers should
- * catch and treat the throw as "couldn't parse" (matches the previous
- * evalJsLiteral try/catch contract in parseSlice).
+ * on input with trailing content after the first expression (e.g.
+ * `{a:1}; evil()` — acorn does NOT error on trailing content itself; we
+ * enforce single-expression input by checking ast.end === slice.length),
+ * or on regex / BigInt literals which are not part of the "pure data"
+ * contract. Callers should catch and treat the throw as "couldn't parse"
+ * (matches the previous evalJsLiteral try/catch contract in parseSlice).
  */
 export function parseJsValue(slice: string): unknown {
   // parseExpressionAt parses the first expression starting at `pos` and
-  // returns its AST. We feed the entire slice — the brace-counter
-  // extractors in parseTabs.ts already trim to a single balanced
-  // expression, so any trailing content is unexpected and we'd want
-  // acorn to surface that as a parse error.
+  // returns its AST. Acorn does NOT error on trailing content — it just
+  // stops at the end of the first expression. We enforce single-expression
+  // input ourselves by comparing the AST's `end` position against the
+  // slice length, so a slice like `{a:1}; evil()` is rejected instead of
+  // silently returning `{a:1}` with the dangerous tail ignored.
   const ast = parseExpressionAt(slice, 0, { ecmaVersion: 'latest' }) as Expression;
+  if (ast.end !== slice.length) {
+    throw new Error(
+      `unexpected trailing content after expression (parsed ${ast.end} of ${slice.length} chars)`,
+    );
+  }
   return materialize(ast);
 }
 
@@ -38,9 +47,20 @@ export function parseJsValue(slice: string): unknown {
  */
 function materialize(node: Expression): unknown {
   switch (node.type) {
-    case 'Literal':
-      // Covers numbers, strings, booleans, null, regex.
+    case 'Literal': {
+      // Acorn sets node.value to a RegExp for regex literals and a bigint
+      // for BigInt literals (`42n`). Neither belongs in the "pure data"
+      // contract — Tabbycat doesn't emit them, and downstream consumers
+      // would receive unexpected types. Reject explicitly.
+      if (node.value instanceof RegExp) {
+        throw new Error('regex literals are not supported');
+      }
+      if (typeof node.value === 'bigint') {
+        throw new Error('BigInt literals are not supported');
+      }
+      // Covers numbers, strings, booleans, null.
       return node.value;
+    }
 
     case 'ObjectExpression': {
       const obj: Record<string, unknown> = {};
