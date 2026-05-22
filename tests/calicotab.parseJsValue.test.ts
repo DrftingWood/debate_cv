@@ -142,6 +142,20 @@ describe('parseJsValue — rejects anything outside the literal allowlist', () =
     expect(() => parseJsValue('42n')).toThrow();
     expect(() => parseJsValue('{ a: 42n }')).toThrow();
   });
+
+  it('rejects __proto__ keys (identifier form)', () => {
+    expect(() => parseJsValue('{ __proto__: { polluted: true } }')).toThrow();
+  });
+
+  it('rejects __proto__ keys (quoted-string literal form)', () => {
+    expect(() => parseJsValue('{ "__proto__": { polluted: true } }')).toThrow();
+  });
+
+  it('rejects __proto__ keys nested inside an object', () => {
+    // The materializer recurses into nested objects, so this exercises
+    // the rejection path through a recursive call.
+    expect(() => parseJsValue('{ a: { __proto__: {} } }')).toThrow();
+  });
 });
 
 describe('parseJsValue — Tabbycat-shaped integration sanity', () => {

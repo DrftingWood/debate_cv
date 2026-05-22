@@ -10,8 +10,8 @@ import { parseExpressionAt, type Expression } from 'acorn';
  * Replaces the previous `new Function('return ' + slice)()` eval. The acorn
  * AST walker is strictly limited to literal-shaped expressions: anything
  * involving function calls, member access, computed keys, template literals,
- * binary expressions, or arbitrary identifiers throws. There is no execution
- * context, no scope, no globals.
+ * binary expressions, arbitrary identifiers, or `__proto__` as an object
+ * key throws. There is no execution context, no scope, no globals.
  *
  * Throws on parse failure, on input that contains non-literal expressions,
  * on input with trailing content after the first expression (e.g.
@@ -82,6 +82,16 @@ function materialize(node: Expression): unknown {
           key = String(prop.key.value);
         } else {
           throw new Error(`unsupported object key type: ${prop.key.type}`);
+        }
+        // `__proto__` is the one key that triggers the prototype setter
+        // inherited from Object.prototype when assigned to a plain object
+        // literal. obj['__proto__'] = X mutates obj's prototype, which
+        // would let a Tabbycat payload like `{ __proto__: { isAdmin: true } }`
+        // pollute the materialized object. `constructor` and `prototype`
+        // are regular own properties on plain objects and don't need
+        // rejection here.
+        if (key === '__proto__') {
+          throw new Error('__proto__ keys are not supported');
         }
         // Property.value is typed as Pattern | Expression in ESTree to
         // accommodate destructuring patterns. For object literals it's
