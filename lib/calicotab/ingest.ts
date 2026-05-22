@@ -27,7 +27,7 @@ import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
 import { getInroundsChairedCount, outroundRankStrict } from './judgeStats';
 import { resolveTeamBreaks } from './breakCategoryResolve';
-import { buildPersonIndex, findPersonId } from './personMatch';
+import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
 import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
@@ -1398,27 +1398,6 @@ async function recordJudgeRoundsFromRoundResults(
   if (!knownPersonName) {
     return { written: 0, matched: 0, diagnostic: null };
   }
-  const wantedNorm = normalizePersonName(knownPersonName);
-  if (!wantedNorm) return { written: 0, matched: 0, diagnostic: null };
-  const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
-  const wantedTokenSet = new Set(wantedTokens);
-
-  const matchesName = (candidate: string): boolean => {
-    const candidateNorm = normalizePersonName(candidate);
-    if (!candidateNorm) return false;
-    if (candidateNorm === wantedNorm) return true;
-    if (wantedTokens.length < 2) return false;
-    if (candidateNorm.includes(wantedNorm) || wantedNorm.includes(candidateNorm)) {
-      return true;
-    }
-    const candidateTokens = candidateNorm.split(/\s+/).filter(Boolean);
-    if (candidateTokens.length < 2) return false;
-    const candidateSet = new Set(candidateTokens);
-    return (
-      wantedTokens.every((t) => candidateSet.has(t)) ||
-      candidateTokens.every((t) => wantedTokenSet.has(t))
-    );
-  };
 
   type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
   const hits: Hit[] = [];
@@ -1427,7 +1406,7 @@ async function recordJudgeRoundsFromRoundResults(
     if (!round) continue;
     totalJudgeEntries += round.judgeAssignments.length;
     for (const j of round.judgeAssignments) {
-      if (!matchesName(j.personName)) continue;
+      if (!personNameMatches(j.personName, knownPersonName)) continue;
       const stage = normalizeStageLabel(
         round.roundLabel ||
           (round.isOutround

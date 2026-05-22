@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { extractVueData, type VueCell, type VueTable } from './parseTabs';
+import { personNameMatches } from './personMatch';
 
 export type NavigationStructure = {
   home: string | null;
@@ -452,17 +453,17 @@ function extractOwnerRoleFromAdjHtml(
   knownPersonName?: string | null,
 ): 'chair' | 'panellist' | 'trainee' | null {
   const $ = cheerio.load(`<div>${adjHtml}</div>`);
-  const wantedNorm = knownPersonName
-    ? cleanWhitespace(knownPersonName).toLowerCase()
-    : '';
 
   let ownerEl = $('strong').first();
   let ownerSymbolText = '';
   if (ownerEl.length > 0) {
     ownerSymbolText = cleanWhitespace(ownerEl.find('.adj-symbol').text());
-  } else if (wantedNorm) {
-    const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
-    const wantedTokenSet = new Set(wantedTokens);
+  } else if (knownPersonName) {
+    // Walk each separator-delimited adjudicator entry inside the cell and
+    // ask the canonical personNameMatches predicate whether it's the URL
+    // owner. The predicate handles whitespace normalisation, the ≥2-token
+    // guard, and the substring + token-subset cascade — see
+    // lib/calicotab/personMatch.ts.
     const candidates = $('span.d-inline').toArray();
     const fallbackCandidates = candidates.length > 0 ? candidates : $('span').toArray();
     for (const el of fallbackCandidates) {
@@ -476,23 +477,10 @@ function extractOwnerRoleFromAdjHtml(
           .remove()
           .end()
           .text(),
-      ).toLowerCase();
+      );
       if (!plainText) continue;
 
-      let matched = plainText === wantedNorm;
-      if (!matched && wantedTokens.length >= 2) {
-        matched = plainText.includes(wantedNorm) || wantedNorm.includes(plainText);
-        if (!matched) {
-          const cellTokens = plainText.split(/\s+/).filter(Boolean);
-          if (cellTokens.length >= 2) {
-            const cellTokenSet = new Set(cellTokens);
-            const wantedAllInCell = wantedTokens.every((t) => cellTokenSet.has(t));
-            const cellAllInWanted = cellTokens.every((t) => wantedTokenSet.has(t));
-            matched = wantedAllInCell || cellAllInWanted;
-          }
-        }
-      }
-      if (matched) {
+      if (personNameMatches(plainText, knownPersonName)) {
         ownerEl = $el;
         ownerSymbolText = symbolText;
         break;
@@ -565,10 +553,6 @@ export function extractAdjudicatorRounds(
   const table = findDebatesTable($);
   if (!table) return [];
 
-  const wantedNorm = knownPersonName
-    ? cleanWhitespace(knownPersonName).toLowerCase()
-    : '';
-
   const rows: AdjudicatorRound[] = [];
   table.find('tbody > tr').each((idx, tr) => {
     const $tr = $(tr);
@@ -581,28 +565,15 @@ export function extractAdjudicatorRounds(
     const adjCell = $tr.find('td.adjudicator-name').first();
     if (adjCell.length === 0) return;
 
-    // Path 1: Tabbycat's <strong> marker. Path 2: name-substring match
-    // against the registration name. We do path 2 only when path 1 misses
-    // so the existing behavior is preserved for tournaments where the
-    // marker is present.
+    // Path 1: Tabbycat's <strong> marker. Path 2: name match against the
+    // registration name via the canonical personNameMatches predicate.
+    // We do path 2 only when path 1 misses so behaviour is preserved for
+    // tournaments where the marker is present.
     let ownerEl = adjCell.find('strong').first();
     let ownerSymbolText = '';
     if (ownerEl.length > 0) {
       ownerSymbolText = cleanWhitespace(ownerEl.find('.adj-symbol').text());
-    } else if (wantedNorm) {
-      // Walk each separator-delimited adjudicator entry inside the cell —
-      // typically each is its own <span class="d-inline">. Match strategies,
-      // most-confident first:
-      //   1. Exact equality after lowercasing/whitespace-collapse.
-      //   2. Substring containment in either direction (handles trailing
-      //      institution suffixes like "Name (Inst.)" trimmed inconsistently).
-      //   3. Token-set match: when both names have at least two tokens and
-      //      every token of one appears in the other, accept. Catches the
-      //      "Abhishek Acharya" ↔ "Abhishek Lalatendu Acharya" middle-name
-      //      gap that strict-substring misses, without false-matching judges
-      //      who only share a first name.
-      const wantedTokens = wantedNorm.split(/\s+/).filter(Boolean);
-      const wantedTokenSet = new Set(wantedTokens);
+    } else if (knownPersonName) {
       const candidates = adjCell.find('span.d-inline').toArray();
       const fallbackCandidates = candidates.length > 0
         ? candidates
@@ -618,28 +589,10 @@ export function extractAdjudicatorRounds(
             .remove()
             .end()
             .text(),
-        ).toLowerCase();
+        );
         if (!plainText) continue;
 
-        // Equality is always safe. Substring + token-set both require at
-        // least 2 tokens in the wanted name so a bare first name doesn't
-        // false-match a different judge's full name.
-        let matched = plainText === wantedNorm;
-        if (!matched && wantedTokens.length >= 2) {
-          matched =
-            plainText.includes(wantedNorm) ||
-            wantedNorm.includes(plainText);
-          if (!matched) {
-            const cellTokens = plainText.split(/\s+/).filter(Boolean);
-            if (cellTokens.length >= 2) {
-              const cellTokenSet = new Set(cellTokens);
-              const wantedAllInCell = wantedTokens.every((t) => cellTokenSet.has(t));
-              const cellAllInWanted = cellTokens.every((t) => wantedTokenSet.has(t));
-              matched = wantedAllInCell || cellAllInWanted;
-            }
-          }
-        }
-        if (matched) {
+        if (personNameMatches(plainText, knownPersonName)) {
           ownerEl = $el;
           ownerSymbolText = symbolText;
           break;
