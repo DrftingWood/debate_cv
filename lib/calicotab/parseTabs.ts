@@ -52,9 +52,44 @@ function parseSlice(slice: string): VueTable[] | null {
   return null;
 }
 
-// TODO(dedupe-brace-counters): this balanced-brace scanner is duplicated
-// in extractTablesDataDirectly and diagnoseVueData. Lift into a shared
-// helper as part of a follow-up parseTabs cleanup sub-project.
+/**
+ * Find the position immediately after the first balanced `{...}` or `[...]`
+ * region in `text`, treating double-quoted strings as opaque (so braces
+ * inside string literals don't affect the depth count) and respecting
+ * backslash escapes inside strings.
+ *
+ * Operates from index 0. Returns -1 when no balanced region is found
+ * (input exhausted before depth returned to zero, or no opening brace
+ * ever encountered).
+ *
+ * Used by extractJsonAt, extractTablesDataDirectly, and diagnoseVueData
+ * to locate where an embedded JS object/array literal ends. NOTE: handles
+ * only double-quoted strings — single-quoted string contents containing
+ * unmatched braces would still trip the depth count, but the downstream
+ * parseJsValue's trailing-content guard converts that failure mode into
+ * "returns null" rather than "silently wrong output."
+ */
+function findBalancedJsRegion(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\' && inString) { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+
+  return -1;
+}
+
 /**
  * Walk `html` looking for `marker` and extract the JS value assigned to it.
  * The brace counter correctly locates the value boundary; parseSlice() then
@@ -65,24 +100,7 @@ function extractJsonAt(html: string, marker: string): VueTable[] | null {
   if (idx < 0) return null;
 
   const rest = html.slice(idx + marker.length);
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  let endIdx = -1;
-
-  for (let i = 0; i < rest.length; i++) {
-    const ch = rest[i]!;
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\' && inString) { escaped = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{' || ch === '[') depth++;
-    else if (ch === '}' || ch === ']') {
-      depth--;
-      if (depth === 0) { endIdx = i + 1; break; }
-    }
-  }
-
+  const endIdx = findBalancedJsRegion(rest);
   if (endIdx < 0) return null;
   return parseSlice(rest.slice(0, endIdx));
 }
@@ -100,24 +118,7 @@ function extractTablesDataDirectly(html: string): VueTable[] | null {
   if (arrayStart < 0) return null;
 
   const rest = html.slice(arrayStart);
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  let endIdx = -1;
-
-  for (let i = 0; i < rest.length; i++) {
-    const ch = rest[i]!;
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\' && inString) { escaped = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{' || ch === '[') depth++;
-    else if (ch === '}' || ch === ']') {
-      depth--;
-      if (depth === 0) { endIdx = i + 1; break; }
-    }
-  }
-
+  const endIdx = findBalancedJsRegion(rest);
   if (endIdx < 0) return null;
   return parseSlice(rest.slice(0, endIdx));
 }
@@ -146,16 +147,7 @@ export function diagnoseVueData(html: string, colNeedles: string[]): string {
     let parseError = '';
     if (hasMarker) {
       const rest = html.slice(markerIdx + 'window.vueData = '.length);
-      let depth = 0, inStr = false, esc = false, endIdx = -1;
-      for (let i = 0; i < rest.length; i++) {
-        const ch = rest[i]!;
-        if (esc) { esc = false; continue; }
-        if (ch === '\\' && inStr) { esc = true; continue; }
-        if (ch === '"') { inStr = !inStr; continue; }
-        if (inStr) continue;
-        if (ch === '{' || ch === '[') depth++;
-        else if (ch === '}' || ch === ']') { depth--; if (depth === 0) { endIdx = i + 1; break; } }
-      }
+      const endIdx = findBalancedJsRegion(rest);
       if (endIdx >= 0) {
         try { JSON.parse(rest.slice(0, endIdx)); } catch (e) {
           const preview = rest.slice(0, endIdx).replace(/\s+/g, ' ').slice(0, 80);
@@ -1247,3 +1239,8 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
   }
   return rows;
 }
+
+// Re-export for tests that assert on the helper's contract.
+export const __test__ = {
+  findBalancedJsRegion,
+};
