@@ -87,12 +87,7 @@ export default async function CvPage() {
         <hr className="hairline" />
 
         <div className="byline">
-          {[
-            user?.email,
-            'Auto-compiled from Gmail',
-          ]
-            .filter(Boolean)
-            .join('  ·  ')}
+          {user?.email ?? ''}
         </div>
 
         {headerMetrics.length > 0 ? (

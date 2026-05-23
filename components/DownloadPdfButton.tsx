@@ -21,7 +21,7 @@ export function DownloadPdfButton({ size = 'sm' }: { size?: 'sm' | 'md' }) {
         if (typeof window !== 'undefined') window.print();
       }}
     >
-      Download PDF
+      Print to PDF
     </Button>
   );
 }
