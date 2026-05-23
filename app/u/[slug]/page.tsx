@@ -122,92 +122,104 @@ export default async function PublicCvPage({
       <CvHighlights highlights={highlights} />
 
       {speakerRows.length > 0 ? (
-        <section aria-label="Speaking">
-          <h2 className="mb-3 font-display text-h3 font-semibold text-foreground">
-            Speaking ({speakerRows.length})
-          </h2>
-          <div className="overflow-x-auto rounded-card border border-border bg-card">
+        <section aria-label="Speaking" className="space-y-4">
+          <header>
+            <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+          </header>
+          <div className="overflow-x-auto">
             <table className="min-w-max text-[13px]">
-              <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
                 <tr>
-                  <th className="px-4 py-2.5">Tournament</th>
-                  <th className="px-4 py-2.5">Year</th>
-                  <th className="px-4 py-2.5">Format</th>
-                  <th className="px-4 py-2.5">Team</th>
-                  <th className="px-4 py-2.5">Team rank</th>
-                  <th className="px-4 py-2.5">Speaker rank</th>
-                  <th className="px-4 py-2.5">Avg score</th>
-                  <th className="px-4 py-2.5">Outround</th>
+                  <th className="px-4 py-2.5 text-left">Tournament</th>
+                  <th className="px-4 py-2.5 text-left">Year</th>
+                  <th className="px-4 py-2.5 text-left">Format</th>
+                  <th className="px-4 py-2.5 text-left">Team</th>
+                  <th className="px-4 py-2.5 text-left">Team rank</th>
+                  <th className="px-4 py-2.5 text-left">Speaker rank</th>
+                  <th className="px-4 py-2.5 text-left">Avg score</th>
+                  <th className="px-4 py-2.5 text-left">Outround</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {speakerRows.map((r) => (
-                  <tr key={r.tournamentId.toString()}>
-                    <td className="px-4 py-2.5 text-foreground">{r.tournamentName}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-foreground">{r.teamName ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
+                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
+                    <td className="px-4 py-2.5">
+                      <a
+                        href={r.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-serif italic text-ink hover:text-oxblood"
+                      >
+                        {r.tournamentName}
+                      </a>
+                    </td>
+                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink">{r.teamName ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft num">
                       {r.teamRank != null ? `#${r.teamRank}` : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
+                    <td className="px-4 py-2.5 text-ink-soft num">
                       {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : '—'}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-muted-foreground">
-                      {r.speakerAvgScore ?? '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {fmtPublicLastOutround(r)}
-                    </td>
+                    <td className="px-4 py-2.5 text-ink-soft num">{r.speakerAvgScore ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{fmtPublicLastOutround(r)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <p className="font-serif italic text-[11.5px] text-ink-soft">
+            Source: tournament tabs at calicotab.com · herokuapp.com.
+          </p>
         </section>
       ) : null}
 
       {judgeRows.length > 0 ? (
-        <section aria-label="Judging">
-          <h2 className="mb-3 font-display text-h3 font-semibold text-foreground">
-            Judging ({judgeRows.length})
-          </h2>
-          <div className="overflow-x-auto rounded-card border border-border bg-card">
+        <section aria-label="Judging" className="space-y-4">
+          <header>
+            <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+          </header>
+          <div className="overflow-x-auto">
             <table className="min-w-max text-[13px]">
-              <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
                 <tr>
-                  <th className="px-4 py-2.5">Tournament</th>
-                  <th className="px-4 py-2.5">Year</th>
-                  <th className="px-4 py-2.5">Format</th>
-                  <th className="px-4 py-2.5">Prelims chaired</th>
-                  <th className="px-4 py-2.5">Prelims judged</th>
-                  <th className="px-4 py-2.5">Last outround chaired</th>
-                  <th className="px-4 py-2.5">Last outround judged</th>
+                  <th className="px-4 py-2.5 text-left">Tournament</th>
+                  <th className="px-4 py-2.5 text-left">Year</th>
+                  <th className="px-4 py-2.5 text-left">Format</th>
+                  <th className="px-4 py-2.5 text-left">Prelims chaired</th>
+                  <th className="px-4 py-2.5 text-left">Prelims judged</th>
+                  <th className="px-4 py-2.5 text-left">Last outround chaired</th>
+                  <th className="px-4 py-2.5 text-left">Last outround judged</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {judgeRows.map((r) => (
-                  <tr key={r.tournamentId.toString()}>
-                    <td className="px-4 py-2.5 text-foreground">{r.tournamentName}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-muted-foreground">
-                      {r.inroundsChaired ?? '—'}
+                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
+                    <td className="px-4 py-2.5">
+                      <a
+                        href={r.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-serif italic text-ink hover:text-oxblood"
+                      >
+                        {r.tournamentName}
+                      </a>
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-muted-foreground">
-                      {r.inroundsJudged ?? '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {r.lastOutroundChaired ?? '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {r.lastOutroundJudged ?? '—'}
-                    </td>
+                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsChaired ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsJudged ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundChaired ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundJudged ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <p className="font-serif italic text-[11.5px] text-ink-soft">
+            Source: tournament tabs at calicotab.com · herokuapp.com.
+          </p>
         </section>
       ) : null}
     </div>
