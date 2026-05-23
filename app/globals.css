@@ -4,56 +4,53 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97.5%;
-    --foreground: 222 16% 9%;
+    /* Editorial paper-and-ink palette (replaces indigo SaaS) */
+    --background: 38 32% 96%;          /* paper cream */
+    --foreground: 220 14% 11%;         /* deep ink */
+    --muted-foreground: 220 9% 40%;    /* ink-soft */
+    --border: 220 14% 11%;             /* used at low opacity for hairline rules */
 
     --card: 0 0% 100%;
-    --card-foreground: 222 16% 9%;
+    --card-foreground: 220 14% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 16% 9%;
+    --popover-foreground: 220 14% 11%;
 
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 244 70% 53%;
-    --primary-soft: 243 100% 97%;
+    --primary: 358 52% 32%;            /* oxblood */
+    --primary-foreground: 38 32% 96%;  /* paper on oxblood */
+    --primary-hover: 358 52% 26%;      /* deeper oxblood */
+    --primary-soft: 358 52% 32%;       /* used at /0.08 for accent backgrounds */
 
     --secondary: 220 14% 96%;
-    --secondary-foreground: 222 16% 9%;
+    --secondary-foreground: 220 14% 11%;
 
     --muted: 220 16% 95%;
-    --muted-foreground: 218 9% 40%;
 
-    --accent: 243 100% 97%;
-    --accent-foreground: 243 75% 45%;
+    --accent: 38 32% 90%;              /* slightly darker paper for inset */
+    --accent-foreground: 358 52% 32%;
 
-    --success: 138 82% 34%;
+    --success: 138 60% 28%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 35 71% 42%;
+    --warning: 35 65% 38%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 60% 48%;
+    --destructive: 0 55% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 19% 92%;
-    --input: 222 19% 92%;
-    --ring: 243 75% 59%;
+    --input: 220 14% 11%;              /* used with /0.12 for input borders */
+    --ring: 358 52% 32%;               /* focus ring oxblood */
 
-    --radius: 0.625rem;
-    --radius-card: 0.875rem;
+    --radius: 0.5rem;
+    --radius-card: 0.625rem;
 
-    --shadow-xs: 0 1px 2px 0 hsl(222 16% 9% / 0.04);
-    --shadow-sm: 0 1px 2px hsl(222 16% 9% / 0.04), 0 1px 3px hsl(222 16% 9% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(222 16% 9% / 0.06), 0 2px 4px -1px hsl(222 16% 9% / 0.04);
-    --shadow-lg: 0 12px 32px -8px hsl(222 16% 9% / 0.10), 0 4px 12px -2px hsl(222 16% 9% / 0.05);
-    --shadow-xl: 0 24px 56px -16px hsl(222 16% 9% / 0.14), 0 8px 24px -4px hsl(222 16% 9% / 0.06);
-    --shadow-glow: 0 24px 60px -20px hsl(243 75% 59% / 0.35);
-
-    --gradient-hero: radial-gradient(120% 80% at 50% 0%, hsl(243 100% 97%) 0%, hsl(220 20% 97.5%) 55%, hsl(220 20% 97.5%) 100%);
-    --gradient-ink: linear-gradient(180deg, hsl(222 16% 9%) 0%, hsl(222 24% 16%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(243 75% 59%) 0%, hsl(258 70% 60%) 100%);
-    --gradient-glass: linear-gradient(180deg, hsl(0 0% 100% / 0.85) 0%, hsl(0 0% 100% / 0.6) 100%);
+    --shadow-xs: 0 1px 2px 0 hsl(220 14% 11% / 0.04);
+    --shadow-sm: 0 1px 2px hsl(220 14% 11% / 0.04), 0 1px 3px hsl(220 14% 11% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(220 14% 11% / 0.06), 0 2px 4px -1px hsl(220 14% 11% / 0.04);
+    --shadow-lg: 0 12px 32px -8px hsl(220 14% 11% / 0.10), 0 4px 12px -2px hsl(220 14% 11% / 0.05);
+    --shadow-xl: 0 24px 56px -16px hsl(220 14% 11% / 0.14), 0 8px 24px -4px hsl(220 14% 11% / 0.06);
+    /* --shadow-glow retired (was used by the indigo primary button glow) */
+    /* --gradient-hero / --gradient-ink / --gradient-accent / --gradient-glass retired */
   }
 
   html {
@@ -94,32 +91,57 @@
 }
 
 @layer components {
-  /* Surface tiers */
+  /* Surface tiers (drop shadows for on-surface elements; hairline borders instead) */
   .surface-card {
-    @apply rounded-card border border-border bg-card shadow-sm;
+    @apply rounded-card border bg-card;
+    border-color: hsl(var(--border) / 0.14);
   }
   .surface-elevated {
-    @apply rounded-card border border-border bg-card shadow-lg;
+    @apply rounded-card border bg-card shadow-md;
+    border-color: hsl(var(--border) / 0.14);
   }
 
-  /* Glass-preview: frosted translucent card used in the landing hero */
-  .glass-card {
-    background: var(--gradient-glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid hsl(0 0% 100% / 0.6);
-    box-shadow: var(--shadow-xl);
+  /* Editorial signatures */
+  .kicker {
+    font-family: var(--font-display);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: hsl(var(--primary));
+  }
+  .byline {
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.04em;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .dropcap::first-letter {
+    font-family: var(--font-serif);
+    font-size: 40px;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    float: left;
+    line-height: 0.9;
+    padding: 4px 6px 0 0;
+  }
+  .pull-quote {
+    border-left: 2px solid hsl(var(--primary));
+    padding-left: 14px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: hsl(var(--foreground));
+  }
+  .hairline {
+    height: 1px;
+    background: hsl(var(--border) / 0.14);
+    border: 0;
   }
 
-  /* Grid-paper texture for the hero backdrop */
-  .hero-texture {
-    background-image:
-      linear-gradient(hsl(222 16% 9% / 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(222 16% 9% / 0.03) 1px, transparent 1px);
-    background-size: 24px 24px;
-  }
-
-  /* Serif display heading helper */
+  /* Serif display helper (preserved — used by Fraunces hero headlines) */
   .font-hero {
     font-family: var(--font-serif);
     font-feature-settings: 'ss01';
