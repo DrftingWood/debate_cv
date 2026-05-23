@@ -1,13 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import Link from 'next/link';
 import { Inter, Plus_Jakarta_Sans, Fraunces } from 'next/font/google';
 import { cn } from '@/lib/utils/cn';
-import { auth } from '@/lib/auth';
 import { ToastProvider } from '@/components/ui/Toast';
-import { NavLink } from '@/components/NavLink';
-import { BrandMark } from '@/components/BrandMark';
-import { Footer } from '@/components/Footer';
-import { NotificationBell } from '@/components/NotificationBell';
 import './globals.css';
 
 const fontSans = Inter({
@@ -68,16 +62,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F8F9FB' },
-    { media: '(prefers-color-scheme: dark)', color: '#12151A' },
+    { media: '(prefers-color-scheme: light)', color: '#FAF6EC' },
+    { media: '(prefers-color-scheme: dark)', color: '#181A1F' },
   ],
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Logo target depends on auth: signed-in users go to their CV (the
-  // primary in-app surface), signed-out users land on the marketing home.
-  const session = await auth();
-  const logoHref = session?.user?.id ? '/cv' : '/';
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
@@ -86,25 +76,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>
           <a href="#main" className="skip-link">Skip to content</a>
-          <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
-            <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-              <Link href={logoHref} className="inline-flex items-center">
-                <BrandMark />
-              </Link>
-              <div className="flex items-center gap-4">
-                <nav className="flex items-center gap-6 text-[13.5px] font-medium">
-                  <NavLink href="/cv">My CV</NavLink>
-                  <NavLink href="/dashboard">Dashboard</NavLink>
-                  <NavLink href="/settings">Settings</NavLink>
-                </nav>
-                {session?.user?.id ? <NotificationBell /> : null}
-              </div>
-            </div>
-          </header>
           <main id="main" className="flex-1">
-            <div className="mx-auto max-w-6xl px-5 py-10">{children}</div>
+            {children}
           </main>
-          <Footer />
         </ToastProvider>
       </body>
     </html>
