@@ -24,14 +24,16 @@ export default async function Home() {
 
   return (
     <>
-      <LandingMasthead />
-      <div className="space-y-24">
-        <Hero />
-        <HowItWorks />
-        <TrustStrip />
-        <TrustPanel />
-        <Faq />
-        <FooterCta />
+      <div className="mx-auto max-w-6xl px-5">
+        <LandingMasthead />
+        <div className="space-y-24">
+          <Hero />
+          <HowItWorks />
+          <TrustStrip />
+          <TrustPanel />
+          <Faq />
+          <FooterCta />
+        </div>
       </div>
       <Footer />
     </>
@@ -155,7 +157,7 @@ function PaperCvExcerpt() {
         Abhishek Acharya.
       </div>
       <hr className="hairline my-3" />
-      <div className="byline">IGNOU · acharya.abhishek04@gmail.com</div>
+      <div className="byline">IGNOU · a.acharya@example.com</div>
 
       <div className="mt-5 grid grid-cols-4 gap-3">
         {[
