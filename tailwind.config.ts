@@ -11,8 +11,8 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
+        border: 'hsl(var(--border) / 0.14)',  // hairline default
+        input: 'hsl(var(--input) / 0.20)',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -20,7 +20,7 @@ const config: Config = {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
           hover: 'hsl(var(--primary-hover))',
-          soft: 'hsl(var(--primary-soft))',
+          soft: 'hsl(var(--primary-soft) / 0.08)',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -54,6 +54,18 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+
+        // Editorial aliases — self-documenting in JSX
+        paper: 'hsl(var(--background))',
+        ink: {
+          DEFAULT: 'hsl(var(--foreground))',
+          soft: 'hsl(var(--muted-foreground))',
+        },
+        rule: 'hsl(var(--border) / 0.14)',
+        oxblood: {
+          DEFAULT: 'hsl(var(--primary))',
+          soft: 'hsl(var(--primary-soft) / 0.08)',
+        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -61,12 +73,16 @@ const config: Config = {
         serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'serif'],
       },
       fontSize: {
-        caption: ['13px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
+        kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.2em', fontWeight: '600' }],
+        byline: ['11.5px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
+        caption: ['12.5px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
         body: ['15px', { lineHeight: '1.6' }],
-        h3: ['20px', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
-        h2: ['28px', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
-        h1: ['40px', { lineHeight: '1.1', letterSpacing: '-0.03em' }],
-        display: ['52px', { lineHeight: '1.05', letterSpacing: '-0.035em' }],
+        'body-serif': ['16.5px', { lineHeight: '1.55' }],
+        h4: ['18px', { lineHeight: '1.3', letterSpacing: '-0.005em' }],
+        h3: ['22px', { lineHeight: '1.3', letterSpacing: '-0.01em' }],
+        h2: ['36px', { lineHeight: '1.15', letterSpacing: '-0.015em' }],
+        h1: ['48px', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
+        display: ['64px', { lineHeight: '1.02', letterSpacing: '-0.025em' }],
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -80,13 +96,7 @@ const config: Config = {
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
         xl: 'var(--shadow-xl)',
-        glow: 'var(--shadow-glow)',
-      },
-      backgroundImage: {
-        'gradient-hero': 'var(--gradient-hero)',
-        'gradient-ink': 'var(--gradient-ink)',
-        'gradient-accent': 'var(--gradient-accent)',
-        'gradient-glass': 'var(--gradient-glass)',
+        // glow retired
       },
       transitionTimingFunction: {
         soft: 'cubic-bezier(0.22, 1, 0.36, 1)',
