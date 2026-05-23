@@ -118,36 +118,47 @@ export default async function CvPage() {
         ) : null}
       </header>
 
-      {/* Summary row + actions */}
-      <div className="flex flex-wrap items-center gap-2 text-caption">
-        <Badge variant="outline">{totalTournaments} tournaments</Badge>
-        <Badge variant={speakerRows.length > 0 ? 'success' : 'neutral'}>
-          {speakerRows.length} as speaker
-        </Badge>
-        <Badge variant={judgeRows.length > 0 ? 'info' : 'neutral'}>
-          {judgeRows.length} as judge
-        </Badge>
-        <span className="ml-auto" />
-        <CvShareButton />
-        <DownloadPdfButton />
-        <details className="group relative" data-print-hide="true">
-          <summary className="list-none">
-            <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted">
-              More
-            </span>
-          </summary>
-          <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-card border border-border bg-card p-2 shadow-md">
-            <div className="flex flex-col gap-1.5">
-              <Link href="/cv/verify">
-                <Button variant="outline" size="sm" className="w-full justify-start">Verify extracted fields</Button>
-              </Link>
-              <a href="/api/cv/export">
-                <Button variant="outline" size="sm" className="w-full justify-start">Export CSV</Button>
-              </a>
+      {/* In Brief — sentence summary + action affordances */}
+      <section className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="md:max-w-2xl">
+          <div className="kicker">IN BRIEF</div>
+          <p className="mt-2 font-serif text-[17px] italic leading-relaxed text-ink/85">
+            {toBriefSentence({
+              totalTournaments: summary.totalTournaments,
+              speakerCount: speakerRows.length,
+              judgeCount: judgeRows.length,
+              breaks: summary.breaks,
+              yearStart: highlights.activeYears?.from ?? null,
+            })}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5" data-print-hide="true">
+          <CvShareButton />
+          <DownloadPdfButton />
+          <details className="group relative">
+            <summary className="list-none">
+              <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-ink/15 bg-paper px-3.5 text-[13px] font-medium text-ink transition-colors hover:bg-ink/[0.04]">
+                More
+              </span>
+            </summary>
+            <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-card border border-ink/15 bg-card p-2 shadow-md">
+              <div className="flex flex-col gap-1.5">
+                <Link href="/cv/verify">
+                  <Button variant="outline" size="sm" className="w-full justify-start">
+                    Verify extracted fields
+                  </Button>
+                </Link>
+                <a href="/api/cv/export">
+                  <Button variant="outline" size="sm" className="w-full justify-start">
+                    Export CSV
+                  </Button>
+                </a>
+              </div>
             </div>
-          </div>
-        </details>
-      </div>
+          </details>
+        </div>
+      </section>
 
       {totalTournaments === 0 ? (
         <EmptyState
@@ -203,6 +214,77 @@ export default async function CvPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Render the CV summary as a single sober italic sentence in place of
+ * coloured "X tournaments / Y as speaker / Z as judge" pill badges.
+ * Spells out numbers below 20 in line with the publication's voice.
+ */
+function toBriefSentence(input: {
+  totalTournaments: number;
+  speakerCount: number;
+  judgeCount: number;
+  breaks: number;
+  yearStart: number | null;
+}): string {
+  const spell = (n: number): string => {
+    const words: Record<number, string> = {
+      1: 'one',
+      2: 'two',
+      3: 'three',
+      4: 'four',
+      5: 'five',
+      6: 'six',
+      7: 'seven',
+      8: 'eight',
+      9: 'nine',
+      10: 'ten',
+      11: 'eleven',
+      12: 'twelve',
+      13: 'thirteen',
+      14: 'fourteen',
+      15: 'fifteen',
+      16: 'sixteen',
+      17: 'seventeen',
+      18: 'eighteen',
+      19: 'nineteen',
+    };
+    if (n < 20) return words[n] ?? String(n);
+    return String(n);
+  };
+
+  const parts: string[] = [];
+  if (input.totalTournaments > 0) {
+    parts.push(
+      `${capitalize(spell(input.totalTournaments))} tournament${input.totalTournaments === 1 ? '' : 's'}` +
+        (input.yearStart ? ` since ${input.yearStart}.` : '.'),
+    );
+  }
+  if (input.breaks > 0) {
+    parts.push(
+      `${capitalize(spell(input.breaks))} break${input.breaks === 1 ? '' : 's'}.`,
+    );
+  }
+  if (input.speakerCount > 0 && input.judgeCount > 0) {
+    parts.push(
+      `Speaker in ${spell(input.speakerCount)}, chair in ${spell(input.judgeCount)}.`,
+    );
+  } else if (input.speakerCount > 0) {
+    parts.push(
+      `Speaker in ${spell(input.speakerCount)} tournament${input.speakerCount === 1 ? '' : 's'}.`,
+    );
+  } else if (input.judgeCount > 0) {
+    parts.push(
+      `Chair in ${spell(input.judgeCount)} tournament${input.judgeCount === 1 ? '' : 's'}.`,
+    );
+  }
+
+  return parts.join(' ');
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 type HeaderMetric = {
