@@ -1,8 +1,6 @@
 import * as cheerio from 'cheerio';
 import { parseJsValue } from './parseJsValue';
-
-type CheerioRoot = ReturnType<typeof cheerio.load>;
-type CheerioEl = ReturnType<CheerioRoot>;
+import { extractFromCheerio } from './cheerioToVue';
 
 // ── Vue.js data types ────────────────────────────────────────────────────────
 // Tabbycat renders all tab/results/break pages via a Vue component that reads
@@ -282,24 +280,6 @@ function classifyParticipantRole(roleText: string): { role: ParticipantsRow['rol
   return { role: 'other', judgeTag: null };
 }
 
-function findTableByHeader(
-  $: CheerioRoot,
-  headerMatcher: (loweredHeaders: string[]) => boolean,
-): CheerioEl | null {
-  let found: CheerioEl | null = null;
-  $('table').each((_i, el) => {
-    if (found) return;
-    const headers = $(el)
-      .find('thead tr').first()
-      .find('th')
-      .map((_j, th) => cleanText($(th).text()).toLowerCase())
-      .get();
-    if (headers.length === 0) return;
-    if (headerMatcher(headers)) found = $(el);
-  });
-  return found;
-}
-
 function parseNumber(s: string | undefined | null): number | null {
   if (s == null) return null;
   const t = s.replace(/[, ]+/g, '').trim();
@@ -406,44 +386,9 @@ export function parseTeamTab(html: string): TeamTabRow[] {
     const rows = teamTabFromVue(vue);
     if (rows) return rows;
   }
-
-  // Cheerio fallback
-  const $ = cheerio.load(html);
-  const rows: TeamTabRow[] = [];
-  const table =
-    findTableByHeader($, (headers) => headers.some((h) => h.includes('team'))) ??
-    $('table').first();
-  const headers = table
-    .find('thead th, tr').first()
-    .find('th')
-    .map((_i, th) => cleanText($(th).text()).toLowerCase())
-    .get();
-  const idx = (...needles: string[]) =>
-    headers.findIndex((h) => needles.some((n) => h.includes(n)));
-  const rankCol = idx('rank');
-  const teamCol = idx('team');
-  const instCol = idx('institution', 'school');
-  const speakersCol = idx('speakers');
-  const winsCol = idx('win', 'record');
-  const pointsCol = idx('total', 'points');
-  table.find('tbody tr').each((_i, tr) => {
-    const cells = $(tr).find('td').map((_j, td) => cleanText($(td).text())).get();
-    if (!cells.length) return;
-    const teamName = teamCol >= 0 ? cells[teamCol] : cells[0];
-    if (!teamName) return;
-    const speakersText = speakersCol >= 0 ? cells[speakersCol] : '';
-    rows.push({
-      rank: rankCol >= 0 ? parseNumber(cells[rankCol]) : null,
-      teamName,
-      institution: instCol >= 0 ? cells[instCol] || null : null,
-      speakers: speakersText
-        ? speakersText.split(/[,;]|\sand\s/).map(cleanText).filter(Boolean)
-        : [],
-      wins: winsCol >= 0 ? parseNumber(cells[winsCol]) : null,
-      totalPoints: pointsCol >= 0 ? parseNumber(cells[pointsCol]) : null,
-    });
-  });
-  return rows;
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) return [];
+  return teamTabFromVue(cheerioTables) ?? [];
 }
 
 // ── parseSpeakerTab ──────────────────────────────────────────────────────────
@@ -557,94 +502,9 @@ export function parseSpeakerTab(html: string): SpeakerTabRow[] {
     const rows = speakerTabFromVue(vue);
     if (rows) return rows;
   }
-
-  // Cheerio fallback
-  const $ = cheerio.load(html);
-  const rows: SpeakerTabRow[] = [];
-  const table =
-    findTableByHeader($, (headers) =>
-      headers.some((h) => h.includes('name') || h.includes('speaker')),
-    ) ?? $('table').first();
-  const headerCells = table
-    .find('thead tr').first()
-    .find('th')
-    .map((_i, th) => cleanText($(th).text()))
-    .get();
-  const lowered = headerCells.map((h) => h.toLowerCase());
-  const idx = (...needles: string[]) =>
-    lowered.findIndex((h) => needles.some((n) => h.includes(n)));
-  const rankEslCol = lowered.findIndex((h) => /\besl\b/.test(h));
-  const rankEflCol = lowered.findIndex((h) => /\befl\b/.test(h));
-  const rankCol = lowered.findIndex((h, i) => {
-    if (i === rankEslCol || i === rankEflCol) return false;
-    if (/\b(esl|efl|break)\b/.test(h)) return false;
-    return /\brank\b/.test(h) || h === '#';
-  });
-  const nameCol = idx('name', 'speaker');
-  const teamCol = idx('team');
-  const instCol = idx('institution');
-  const avgCol = lowered.findIndex((h) => isAverageHeader(h));
-  const totalCol = lowered.findIndex((h, i) => {
-    if (i === avgCol) return false;
-    // Mirrors the Vue-path superset; see the comment beside totalCol in
-    // speakerTabFromVue for why these extra tokens are accepted.
-    return (
-      h.includes('total') ||
-      h.includes('score') ||
-      h.includes('spk') ||
-      h.includes('pts') ||
-      h.includes('point') ||
-      h.includes('sum') ||
-      h.includes('speaks')
-    );
-  });
-  const nonRoundCols = new Set(
-    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter((i) => i >= 0),
-  );
-  const roundIdxs: number[] = [];
-  headerCells.forEach((h, i) => {
-    if (nonRoundCols.has(i)) return;
-    // Cheerio path has no separate `key`, so feed the same string for both.
-    if (isRoundColumnHeader(h, h)) roundIdxs.push(i);
-  });
-  // Mirrors the Vue path's row-index rank fallback (see speakerTabFromVue):
-  // when no rank column was identified, use the 1-based row position since
-  // Tabbycat's /tab/speaker page renders rows sorted by total score desc.
-  let cheerioRowIdx = 0;
-  table.find('tbody tr').each((_i, tr) => {
-    const cells = $(tr).find('td').map((_j, td) => cleanText($(td).text())).get();
-    if (!cells.length) return;
-    const speakerName = nameCol >= 0 ? cells[nameCol] : cells[0];
-    if (!speakerName) return;
-    const roundScores: SpeakerTabRow['roundScores'] = roundIdxs.map((i) => ({
-      roundLabel: headerCells[i]!,
-      score: parseNumber(cells[i]),
-      positionLabel: null,
-    }));
-    const avgScore = avgCol >= 0 ? parseNumber(cells[avgCol]) : null;
-    if (roundScores.length === 0 && avgScore != null) {
-      roundScores.push({ roundLabel: 'Average', score: avgScore, positionLabel: 'average' });
-    }
-    cheerioRowIdx += 1;
-    const cheerioNoRankCols = rankCol < 0 && rankEslCol < 0 && rankEflCol < 0;
-    const rank =
-      rankCol >= 0
-        ? parseNumber(cells[rankCol])
-        : cheerioNoRankCols
-          ? cheerioRowIdx
-          : null;
-    rows.push({
-      rank,
-      rankEsl: rankEslCol >= 0 ? parseNumber(cells[rankEslCol]) : null,
-      rankEfl: rankEflCol >= 0 ? parseNumber(cells[rankEflCol]) : null,
-      speakerName,
-      teamName: teamCol >= 0 ? cells[teamCol] || null : null,
-      institution: instCol >= 0 ? cells[instCol] || null : null,
-      totalScore: totalCol >= 0 ? parseNumber(cells[totalCol]) : null,
-      roundScores,
-    });
-  });
-  return rows;
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) return [];
+  return speakerTabFromVue(cheerioTables) ?? [];
 }
 
 // ── parseRoundResults ────────────────────────────────────────────────────────
@@ -795,80 +655,17 @@ export function parseRoundResults(
     const result = roundResultsFromVue(vue, roundNumber, roundLabel, isOutround);
     if (result) return result;
   }
-
-  // Cheerio fallback — reuse the hoisted roundLabel + isOutround so both
-  // paths agree on classification.
-  const $ = cheerio.load(html);
-  const teamResults: RoundDebate['teamResults'] = [];
-  const judgeSeen = new Set<string>();
-  const judgeAssignments: RoundDebate['judgeAssignments'] = [];
-  $('table').each((_i, table) => {
-    const headers = $(table)
-      .find('thead tr').first()
-      .find('th')
-      .map((_j, th) => cleanText($(th).text()).toLowerCase())
-      .get();
-    if (!headers.length) return;
-    const teamCol = headers.findIndex((h) => h.includes('team'));
-    const bpPosCols: Array<{ idx: number; pos: string }> = [
-      { idx: headers.findIndex((h) => h === 'og'), pos: 'OG' },
-      { idx: headers.findIndex((h) => h === 'oo'), pos: 'OO' },
-      { idx: headers.findIndex((h) => h === 'cg'), pos: 'CG' },
-      { idx: headers.findIndex((h) => h === 'co'), pos: 'CO' },
-    ].filter((x) => x.idx >= 0);
-    const pointsCol = headers.findIndex((h) => h.includes('points') || h.includes('score'));
-    const posCol = headers.findIndex((h) => h.includes('position') || h.includes('side'));
-    const winCol = headers.findIndex((h) => h === 'win' || h.includes('result'));
-    const adjCol = headers.findIndex((h) => h.includes('adjud') || h.includes('judge'));
-    const roleCol = headers.findIndex(
-      (h) => h.includes('chair') || h.includes('panel') || h.includes('role'),
-    );
-    $(table).find('tbody tr').each((_j, tr) => {
-      const cells = $(tr).find('td').map((_k, td) => cleanText($(td).text())).get();
-      if (teamCol >= 0 && cells[teamCol]) {
-        const winText = winCol >= 0 ? (cells[winCol] || '').toLowerCase() : '';
-        // See roundResultsFromVue: drop `\b1\b` to avoid promoting
-        // BP points-column "1"s (3rd place) into wins.
-        const won = winCol >= 0 ? /won|win|✓|✔/.test(winText) : null;
-        teamResults.push({
-          teamName: cells[teamCol]!,
-          position: posCol >= 0 ? cells[posCol] || null : null,
-          points: pointsCol >= 0 ? parseNumber(cells[pointsCol]) : null,
-          won,
-        });
-      } else if (teamCol < 0 && bpPosCols.length > 0) {
-        for (const { idx, pos } of bpPosCols) {
-          const teamName = cells[idx];
-          if (!teamName) continue;
-          teamResults.push({
-            teamName,
-            position: pos,
-            points: null,
-            won: null,
-          });
-        }
-      }
-      if (adjCol >= 0 && cells[adjCol]) {
-        const raw = cells[adjCol]!;
-        const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
-        const tokens = raw.split(/[,;\n]|\s+\/\s+/).map((x) => cleanText(x)).filter(Boolean);
-        for (const token of tokens) {
-          const lower = token.toLowerCase();
-          const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
-          const cleanedName = cleanText(
-            token.replace(/\(\s*c\s*\)$/i, '').replace(/\s+\(chair\)$/i, '').replace(/\s+\(chief\)$/i, ''),
-          );
-          if (!cleanedName || cleanedName.length < 2) continue;
-          const role: 'chair' | 'panel' | null = isChair ? 'chair' : roleText ? 'panel' : null;
-          const key = `${cleanedName}|${role ?? ''}`;
-          if (judgeSeen.has(key)) continue;
-          judgeSeen.add(key);
-          judgeAssignments.push({ personName: cleanedName, panelRole: role });
-        }
-      }
-    });
-  });
-  return { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments };
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) {
+    return { roundNumber, roundLabel, isOutround, teamResults: [], judgeAssignments: [] };
+  }
+  return roundResultsFromVue(cheerioTables, roundNumber, roundLabel, isOutround) ?? {
+    roundNumber,
+    roundLabel,
+    isOutround,
+    teamResults: [],
+    judgeAssignments: [],
+  };
 }
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
@@ -952,39 +749,9 @@ export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
     const rows = breakPageFromVue(vue, isAdj, stage);
     if (rows) return rows;
   }
-
-  // Cheerio fallback
-  const $ = cheerio.load(html);
-  const rows: BreakRow[] = [];
-  const table = $('table').first();
-  const headers = table
-    .find('thead tr').first()
-    .find('th')
-    .map((_i, th) => cleanText($(th).text()).toLowerCase())
-    .get();
-  const idx = (...needles: string[]) =>
-    headers.findIndex((h) => needles.some((n) => h.includes(n)));
-  // See breakPageFromVue: judge breaks are binary, no rank concept — don't
-  // extract one even if a column header happens to look rank-like.
-  const rankCol = isAdj ? -1 : idx('rank', '#');
-  const nameCol = idx('team', 'adjudicator', 'name');
-  const instCol = idx('institution');
-  const scoreCol = idx('score', 'points', 'total');
-  table.find('tbody tr').each((_i, tr) => {
-    const cells = $(tr).find('td').map((_j, td) => cleanText($(td).text())).get();
-    if (!cells.length) return;
-    const entityName = nameCol >= 0 ? cells[nameCol] : cells[0];
-    if (!entityName) return;
-    rows.push({
-      rank: rankCol >= 0 ? parseNumber(cells[rankCol]) : null,
-      entityType: isAdj ? 'adjudicator' : 'team',
-      entityName,
-      institution: instCol >= 0 ? cells[instCol] || null : null,
-      score: scoreCol >= 0 ? parseNumber(cells[scoreCol]) : null,
-      stage,
-    });
-  });
-  return rows;
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) return [];
+  return breakPageFromVue(cheerioTables, isAdj, stage) ?? [];
 }
 
 // ── parseParticipantsList ────────────────────────────────────────────────────
@@ -1002,15 +769,24 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
     const instCol = vueCol(heads, 'inst', 'school');
     const roleCol = vueCol(heads, 'role');
 
-    // Infer role from table structure when there's no explicit role column
-    const isSpeakerTable = teamCol >= 0;
+    // Infer role from: explicit table.title (cheerio adapter hoists section
+    // headings like "Adjudicators" / "Speakers" here) > role column > table
+    // structure (presence of team column = speakers; rating header = adjs).
+    const titleLower = (table.title ?? '').toLowerCase();
+    const titleIsAdj = /^adjudicators?$/.test(titleLower);
+    const titleIsSpeaker = /^speakers?$/.test(titleLower);
+    const isSpeakerTable = titleIsSpeaker || (teamCol >= 0 && !titleIsAdj);
     const isAdjTable =
-      !isSpeakerTable &&
-      heads.some((h) => {
-        const k = (h.key ?? '').toLowerCase();
-        const t = (h.title ?? '').toLowerCase();
-        return k.includes('rating') || t.includes('rating');
-      });
+      titleIsAdj ||
+      (!isSpeakerTable &&
+        heads.some((h) => {
+          const k = (h.key ?? '').toLowerCase();
+          const t = (h.title ?? '').toLowerCase();
+          return k.includes('rating') || t.includes('rating');
+        }));
+    // TODO(adj-core): promote adj-core flag to its own judgeTag once the union
+    // grows a 'core' variant. Until then we collapse it into 'normal' below.
+    const independentCol = vueCol(heads, 'independent');
 
     for (const row of table.data) {
       const name = cellText(row[nameCol]);
@@ -1025,14 +801,36 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
         role = 'speaker';
       } else if (isAdjTable) {
         role = 'adjudicator';
-        judgeTag = 'normal';
+        // For adjudicators without an explicit role-column tag, derive the
+        // judgeTag from check-icon presence on Adj Core / Independent flag
+        // columns. The cheerio adapter populates VueCell.html with raw inner
+        // HTML (where the feather-check svg lives); native Vue payloads put
+        // the flag in `text` or `class`, so check both.
+        const cellHasCheck = (idx: number): boolean => {
+          if (idx < 0) return false;
+          const cell = row[idx];
+          if (!cell) return false;
+          const html = cell.html ?? '';
+          const cls = cell.class ?? '';
+          return /feather-check\b/i.test(html) || /\bfeather-check\b/i.test(cls);
+        };
+        const isIndependent = cellHasCheck(independentCol);
+        // Adj-core flag's closest semantic in our judgeTag union is 'normal'
+        // (matching the previous cheerio fallback's decision). See the
+        // TODO(adj-core) above for the planned refinement.
+        judgeTag = isIndependent ? 'invited' : 'normal';
       }
+      // Em-dash means "none stated" — normalize to null so callers don't
+      // have to. Mirrors what the deleted cheerio block did for the
+      // institution column.
+      const rawInst = instCol >= 0 ? cellText(row[instCol]) : '';
+      const institution = rawInst && rawInst !== '—' && rawInst !== '-' ? rawInst : null;
       rows.push({
         name,
         role,
         judgeTag,
         teamName: teamCol >= 0 ? cellText(row[teamCol]) || null : null,
-        institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
+        institution,
       });
     }
   }
@@ -1045,203 +843,53 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
     const rows = participantsFromVue(vue);
     if (rows) return rows;
   }
-
-  // Cheerio fallback. Modern Tabbycat puts the section type in the card-title
-  // heading above each table (e.g. <h4 class="card-title">Adjudicators</h4>)
-  // rather than in a "role" column on each row, so we walk cards rather than
-  // raw <table> elements. Two tables on a page (Adjudicators + Speakers) both
-  // get parsed — the heading is the only signal that distinguishes them.
-  const $ = cheerio.load(html);
-  const rows: ParticipantsRow[] = [];
-
-  // Pull the canonical text out of one <td>. Vue-rendered cells embed a
-  // <span hidden> with the sortable value plus visible content that mixes
-  // emoji icons, tooltip triggers, and popover bodies — flattening with
-  // .text() concatenates all of it. Prefer the hidden span; fall back to
-  // the visible .tooltip-trigger; final fallback is the raw .text().
-  const cellText = ($cell: ReturnType<typeof $>): string => {
-    const hidden = $cell.find('span[hidden]').first().text();
-    if (hidden && hidden.trim()) return cleanText(hidden);
-    const trigger = $cell.find('.tooltip-trigger').first().text();
-    if (trigger && trigger.trim()) return cleanText(trigger);
-    return cleanText($cell.text());
-  };
-
-  // Em-dash means "none stated" — normalize to null so callers don't have to.
-  const normalizeInst = (s: string): string | null => {
-    const t = s.trim();
-    if (!t || t === '—' || t === '-') return null;
-    return t;
-  };
-
-  const containers = [
-    ...$('.card-body, .card').toArray(),
-    ...$('table').toArray(),
-  ];
-  // Dedupe by table — a .card-body inside a .card would otherwise process the
-  // same <table> twice.
-  const seenTables = new Set<unknown>();
-
-  for (const card of containers) {
-    const $card = $(card);
-    const heading = cleanText($card.find('.card-title').first().text()).toLowerCase();
-    let sectionRole: ParticipantsRow['role'] | null = null;
-    if (/^adjudicators?$/.test(heading)) sectionRole = 'adjudicator';
-    else if (/^speakers?$/.test(heading)) sectionRole = 'speaker';
-
-    const $table = $card.is('table') ? $card : $card.find('table').first();
-    if ($table.length === 0) continue;
-    const tableEl = $table.get(0);
-    if (!tableEl || seenTables.has(tableEl)) continue;
-    seenTables.add(tableEl);
-
-    // Read column headers — prefer data-original-title (the tooltip text,
-    // which carries the full label like "Member of the Adjudication Core")
-    // over the visible text (which is just an icon).
-    const headers = $table
-      .find('thead tr').first()
-      .find('th')
-      .map((_j, th) => {
-        const $th = $(th);
-        const tooltip = ($th.attr('data-original-title') ?? '').toLowerCase();
-        const text = cleanText($th.text()).toLowerCase();
-        return tooltip || text;
-      })
-      .get();
-
-    const nameCol = headers.findIndex((h) => h.includes('name'));
-    if (nameCol < 0) continue;
-    const teamCol = headers.findIndex((h) => h.includes('team'));
-    const instCol = headers.findIndex((h) => h.includes('institution'));
-    const roleCol = headers.findIndex((h) => h.includes('role'));
-    const adjCoreCol = headers.findIndex(
-      (h) => h.includes('adjudication core') || h.includes('adj core'),
-    );
-    const independentCol = headers.findIndex((h) => h.includes('independent'));
-
-    $table.find('tbody tr').each((_j, tr) => {
-      const $tr = $(tr);
-      const cells = $tr.find('td').toArray();
-      if (cells.length === 0) return;
-
-      const name = cellText($(cells[nameCol]));
-      if (!name) return;
-
-      // Role: explicit "role" column (legacy) wins; otherwise the card
-      // heading; otherwise unknown.
-      let role: ParticipantsRow['role'] = sectionRole ?? 'other';
-      let judgeTag: ParticipantsRow['judgeTag'] = null;
-      if (roleCol >= 0) {
-        const classified = classifyParticipantRole(cellText($(cells[roleCol])));
-        role = classified.role;
-        judgeTag = classified.judgeTag;
-      }
-
-      // For adjudicators without an explicit role-column tag, infer the
-      // judgeTag from the Adj Core / Independent flag columns. Tabbycat
-      // shows a check-icon (.feather-check) when the flag is true; the
-      // hidden sort value alongside isn't a reliable boolean signal because
-      // its scheme has flipped between versions.
-      if (role === 'adjudicator' && judgeTag === null) {
-        const cellHasCheck = (idx: number): boolean =>
-          idx >= 0 && idx < cells.length && $(cells[idx]).find('.feather-check').length > 0;
-        const isIndependent = cellHasCheck(independentCol);
-        // Adj-core flag exists but our judgeTag union has no 'core' option;
-        // 'normal' is the closest semantic match for non-independent adjs.
-        judgeTag = isIndependent ? 'invited' : 'normal';
-      }
-
-      const teamName =
-        teamCol >= 0 ? cellText($(cells[teamCol])) || null : null;
-      const institution =
-        instCol >= 0 ? normalizeInst(cellText($(cells[instCol]))) : null;
-
-      rows.push({ name, role, judgeTag, teamName, institution });
-    });
-  }
-
-  // Legacy plain-table fallback (no card wrappers/headings).
-  if (rows.length === 0) {
-    $('table').each((_i, table) => {
-      const $table = $(table);
-      const headers = $table
-        .find('thead tr').first()
-        .find('th')
-        .map((_j, th) => cleanText($(th).text()).toLowerCase())
-        .get();
-      if (headers.length === 0) return;
-      const nameCol = headers.findIndex((h) => h.includes('name'));
-      if (nameCol < 0) return;
-      const teamCol = headers.findIndex((h) => h.includes('team'));
-      const instCol = headers.findIndex((h) => h.includes('institution'));
-      const roleCol = headers.findIndex((h) => h.includes('role'));
-
-      $table.find('tbody tr').each((_j, tr) => {
-        const cells = $(tr).find('td').toArray();
-        if (cells.length === 0) return;
-        const name = cellText($(cells[nameCol]));
-        if (!name) return;
-
-        let role: ParticipantsRow['role'] = 'other';
-        let judgeTag: ParticipantsRow['judgeTag'] = null;
-        if (roleCol >= 0) {
-          const classified = classifyParticipantRole(cellText($(cells[roleCol])));
-          role = classified.role;
-          judgeTag = classified.judgeTag;
-        } else if (teamCol >= 0) {
-          role = 'speaker';
-        }
-
-        rows.push({
-          name,
-          role,
-          judgeTag,
-          teamName: teamCol >= 0 ? cellText($(cells[teamCol])) || null : null,
-          institution: instCol >= 0 ? normalizeInst(cellText($(cells[instCol]))) : null,
-        });
-      });
-    });
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length > 0) {
+    const rows = participantsFromVue(cheerioTables);
+    if (rows && rows.length > 0) return rows;
   }
 
   // Registration-card fallback used on some private/participants pages where
   // each participant is rendered as a <div class="list-group"> block instead
-  // of a table. Example heading: "Registration (Abhishek Acharya)" followed by
-  // role bullets such as "Independent adjudicator".
-  if (rows.length === 0) {
-    $('.list-group').each((_i, group) => {
-      const $group = $(group);
-      const title = cleanText($group.find('.card-title').first().text());
-      const m = title.match(/^Registration\s*\((.+)\)$/i);
-      const name = m ? cleanText(m[1] ?? '') : '';
-      if (!name) return;
+  // of a table. Registration cards aren't tables, so the cheerio→VueTable
+  // adapter can't reach them — this is the one path that genuinely needs
+  // bespoke cheerio code. Example heading: "Registration (Abhishek Acharya)"
+  // followed by role bullets such as "Independent adjudicator".
+  const $ = cheerio.load(html);
+  const rows: ParticipantsRow[] = [];
+  $('.list-group').each((_i, group) => {
+    const $group = $(group);
+    const title = cleanText($group.find('.card-title').first().text());
+    const m = title.match(/^Registration\s*\((.+)\)$/i);
+    const name = m ? cleanText(m[1] ?? '') : '';
+    if (!name) return;
 
-      const roleBullets = $group
-        .find('li')
-        .map((_j, li) => cleanText($(li).text()))
-        .get()
-        .filter(Boolean);
-      const roleBlob = roleBullets.join(' ');
-      let { role, judgeTag } = classifyParticipantRole(roleBlob);
+    const roleBullets = $group
+      .find('li')
+      .map((_j, li) => cleanText($(li).text()))
+      .get()
+      .filter(Boolean);
+    const roleBlob = roleBullets.join(' ');
+    let { role, judgeTag } = classifyParticipantRole(roleBlob);
 
-      // Heuristic for registration cards that don't label role textually:
-      // a single-name registration indicates an adjudicator account.
-      if (role === 'other' && roleBullets.length === 1) {
-        role = 'adjudicator';
-        judgeTag = 'normal';
-      }
+    // Heuristic for registration cards that don't label role textually:
+    // a single-name registration indicates an adjudicator account.
+    if (role === 'other' && roleBullets.length === 1) {
+      role = 'adjudicator';
+      judgeTag = 'normal';
+    }
 
-      let institution: string | null = null;
-      $group.find('.list-group-item').each((_j, item) => {
-        const itemText = cleanText($(item).text());
-        const instMatch = itemText.match(/^Institution:\s*(.+)$/i);
-        if (!instMatch) return;
-        const value = cleanText(instMatch[1] ?? '');
-        institution = value && value !== '—' && value !== '-' ? value : null;
-      });
-
-      rows.push({ name, role, judgeTag, teamName: null, institution });
+    let institution: string | null = null;
+    $group.find('.list-group-item').each((_j, item) => {
+      const itemText = cleanText($(item).text());
+      const instMatch = itemText.match(/^Institution:\s*(.+)$/i);
+      if (!instMatch) return;
+      const value = cleanText(instMatch[1] ?? '');
+      institution = value && value !== '—' && value !== '-' ? value : null;
     });
-  }
+
+    rows.push({ name, role, judgeTag, teamName: null, institution });
+  });
   return rows;
 }
 
