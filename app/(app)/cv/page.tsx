@@ -4,15 +4,12 @@ import Link from 'next/link';
 import {
   Trophy,
   Search,
-  Mic,
-  Gavel,
   ChevronDown,
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { volumeRoman } from '@/lib/cv/volumeRoman';
-import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
@@ -184,25 +181,21 @@ export default async function CvPage() {
           <CvHighlights highlights={highlights} />
 
           {speakerRows.length > 0 ? (
-            <CollapsibleSection
-              title="Speaking"
-              count={speakerRows.length}
-              icon={<Mic className="h-4 w-4 text-primary" aria-hidden />}
-              defaultOpen
-            >
+            <section aria-label="Speaking" className="space-y-4">
+              <header>
+                <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+              </header>
               <SpeakingTable rows={speakerRows} />
-            </CollapsibleSection>
+            </section>
           ) : null}
 
           {judgeRows.length > 0 ? (
-            <CollapsibleSection
-              title="Judging"
-              count={judgeRows.length}
-              icon={<Gavel className="h-4 w-4 text-primary" aria-hidden />}
-              defaultOpen
-            >
+            <section aria-label="Judging" className="space-y-4">
+              <header>
+                <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+              </header>
               <JudgingTable rows={judgeRows} />
-            </CollapsibleSection>
+            </section>
           ) : null}
 
           {/*
@@ -396,39 +389,6 @@ function StatColumn({
   );
 }
 
-function CollapsibleSection({
-  title,
-  count,
-  icon,
-  defaultOpen,
-  children,
-}: {
-  title: string;
-  count: number;
-  icon: React.ReactNode;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <details
-      open={defaultOpen}
-      className="group rounded-card border border-border bg-card/60 shadow-xs"
-    >
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-3 px-5 py-4 md:px-6">
-        <div className="inline-flex items-center gap-2">
-          {icon}
-          <h2 className="font-display text-h4 font-semibold text-foreground">{title}</h2>
-          <Badge variant="neutral">{count}</Badge>
-        </div>
-        <ChevronDown
-          className="h-4 w-4 text-muted-foreground transition-transform duration-[180ms] ease-soft group-open:rotate-180"
-          aria-hidden
-        />
-      </summary>
-      <div className="border-t border-border">{children}</div>
-    </details>
-  );
-}
 
 // Pretty-print speaker rank columns: "#5 Open · #3 ESL"
 function fmtSpeakerRanks(r: {
@@ -446,10 +406,10 @@ function fmtSpeakerRanks(r: {
 import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } from '@/lib/cv/buildCvData';
 
 function BrokeBadge({ broke }: { broke: boolean }) {
-  return broke ? (
-    <Badge variant="success">Yes</Badge>
-  ) : (
-    <Badge variant="neutral">No</Badge>
+  return (
+    <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+      {broke ? 'Broken' : '—'}
+    </span>
   );
 }
 
@@ -481,7 +441,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
   const hasRoundScores = r.roundScores.length > 0;
   return (
     <>
-      <tr className="align-top hover:bg-muted/20">
+      <tr className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
         <td className="px-4 py-2.5">
           <a
             href={r.sourceUrl}
@@ -493,9 +453,9 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
             {r.tournamentName}
           </a>
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.year ?? '—'}</td>
         <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.totalTeams ?? '—'}</td>
         <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
         <td className="px-3 py-2.5 text-muted-foreground" title={r.teammates.join(', ')}>
           <span className="block max-w-[14rem] truncate">
@@ -505,14 +465,14 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="px-3 py-2.5 text-muted-foreground" title={r.teamName ?? undefined}>
           <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5 font-mono">
+        <td className="whitespace-nowrap px-3 py-2.5 num">
           {r.teamRank != null ? `#${r.teamRank}` : '—'}
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5 font-mono">
+        <td className="whitespace-nowrap px-3 py-2.5 num">
           {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : '—')}
         </td>
         <td
-          className="whitespace-nowrap px-3 py-2.5 font-mono"
+          className="whitespace-nowrap px-3 py-2.5 num"
           title={
             r.speakerAvgScore
               ? r.prelimsSpoken > 0
@@ -530,7 +490,11 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
         <td className="whitespace-nowrap px-3 py-2.5">
           <div className="flex items-center gap-1.5">
-            {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+            {r.hasOpenReport ? (
+              <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                Reported
+              </span>
+            ) : null}
             <CvRowReportButton
               tournamentId={r.tournamentId.toString()}
               tournamentName={r.tournamentName}
@@ -539,17 +503,17 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         </td>
       </tr>
       {hasRoundScores ? (
-        <tr className="bg-muted/10">
+        <tr className="bg-paper">
           <td colSpan={14} className="px-4 py-0">
             <details className="group">
-              <summary className="cursor-pointer select-none py-1.5 text-caption text-muted-foreground hover:text-foreground">
-                <ChevronDown className="mr-1 inline h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
+              <summary className="cursor-pointer select-none py-1.5 text-byline text-ink-soft hover:text-ink">
+                <ChevronDown className="mr-1 inline h-3.5 w-3.5 text-oxblood transition-transform group-open:rotate-180" aria-hidden />
                 Per-round speaker scores ({r.roundScores.length})
               </summary>
               <div className="overflow-x-auto pb-3 pt-1">
                 <table className="text-caption">
                   <thead>
-                    <tr className="text-muted-foreground">
+                    <tr className="text-ink-soft uppercase tracking-[0.14em] text-[10px] font-semibold">
                       {r.roundScores.map((s) => (
                         <th
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
@@ -566,7 +530,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
                       {r.roundScores.map((s) => (
                         <td
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
-                          className="whitespace-nowrap px-2 py-1 font-mono text-foreground"
+                          className="whitespace-nowrap px-2 py-1 num text-foreground"
                         >
                           {s.score != null ? s.score.toFixed(1) : '—'}
                         </td>
@@ -590,7 +554,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-[13.5px]">
           <thead>
-            <tr className="border-b border-border bg-muted/30 text-left align-bottom text-caption text-muted-foreground">
+            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -617,7 +581,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {rows.map((r) => (
               <SpeakingRow key={r.tournamentId.toString()} r={r} />
             ))}
@@ -626,19 +590,19 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       </div>
 
       {/* Mobile stacked cards */}
-      <ul className="divide-y divide-border md:hidden">
+      <ul className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 p-4">
+          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-ink/10 py-5">
             <div className="flex items-baseline justify-between gap-2">
               <a
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-display text-[14.5px] font-semibold text-foreground"
+                className="truncate font-serif italic text-[15.5px] text-ink"
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap font-mono text-caption text-muted-foreground">
+              <span className="whitespace-nowrap num text-caption text-muted-foreground">
                 {r.year ?? '—'}
               </span>
             </div>
@@ -668,7 +632,11 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               ) : null}
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
-              {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+              {r.hasOpenReport ? (
+                <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                  Reported
+                </span>
+              ) : null}
               <CvRowReportButton
                 tournamentId={r.tournamentId.toString()}
                 tournamentName={r.tournamentName}
@@ -687,7 +655,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-[13.5px]">
           <thead>
-            <tr className="border-b border-border bg-muted/30 text-left align-bottom text-caption text-muted-foreground">
+            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -702,9 +670,9 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {rows.map((r) => (
-              <tr key={r.tournamentId.toString()} className="align-top hover:bg-muted/20">
+              <tr key={r.tournamentId.toString()} className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
                 <td className="px-4 py-2.5">
                   <a
                     href={r.sourceUrl}
@@ -716,19 +684,23 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     {r.tournamentName}
                   </a>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.year ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.year ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted-foreground">{r.totalTeams ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.totalTeams ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono">{r.inroundsJudged ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono">{r.inroundsChaired ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsJudged ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <div className="flex items-center gap-1.5">
-                    {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+                    {r.hasOpenReport ? (
+                      <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                        Reported
+                      </span>
+                    ) : null}
                     <CvRowReportButton
                       tournamentId={r.tournamentId.toString()}
                       tournamentName={r.tournamentName}
@@ -741,19 +713,19 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
         </table>
       </div>
 
-      <ul className="divide-y divide-border md:hidden">
+      <ul className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 p-4">
+          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-ink/10 py-5">
             <div className="flex items-baseline justify-between gap-2">
               <a
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-display text-[14.5px] font-semibold text-foreground"
+                className="truncate font-serif italic text-[15.5px] text-ink"
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap font-mono text-caption text-muted-foreground">
+              <span className="whitespace-nowrap num text-caption text-muted-foreground">
                 {r.year ?? '—'}
               </span>
             </div>
@@ -769,7 +741,11 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
-              {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
+              {r.hasOpenReport ? (
+                <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                  Reported
+                </span>
+              ) : null}
               <CvRowReportButton
                 tournamentId={r.tournamentId.toString()}
                 tournamentName={r.tournamentName}
@@ -785,8 +761,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-caption text-muted-foreground">{label}</dt>
-      <dd className={'mt-0.5 text-foreground ' + (mono ? 'font-mono' : '')}>{value}</dd>
+      <dt className="text-byline text-ink-soft uppercase tracking-[0.12em]">{label}</dt>
+      <dd className={'mt-0.5 text-ink ' + (mono ? 'num' : '')}>{value}</dd>
     </div>
   );
 }
