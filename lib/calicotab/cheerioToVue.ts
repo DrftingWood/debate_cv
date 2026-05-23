@@ -26,6 +26,11 @@ import type { VueCell, VueHead, VueTable } from './parseTabs';
  *     consumers for icon-based win detection. Always populated.
  *   - VueCell.class: the <td>'s class attribute. Used by parseNav consumers
  *     to find `team-name` cells.
+ *   - VueCell.tooltip: first descendant `data-original-title` attribute on
+ *     the <td>. Tabbycat embeds canonical stage labels here (e.g. the
+ *     "Round 1" full label sitting on a wrapper div with abbreviated visible
+ *     text "R1" inside) — surfacing it as cell.tooltip lets parseNav
+ *     consumers read stage labels the same way for Vue and cheerio sources.
  *
  * Returns tables in DOM order. Empty array if no tables found.
  */
@@ -54,12 +59,16 @@ export function extractFromCheerio(html: string): VueTable[] {
 
     // Data rows: prefer <tbody tr>; fall back to all <tr> when there's no
     // <tbody>. When there was no explicit <thead>, drop the synthesized-or-loose
-    // header row from the result.
+    // header row from the result — but only when it really was a header row
+    // (had <th> cells). Some Tabbycat themes ship the Debates card with no
+    // <thead> at all and rows of <td>s under <tbody>; in that case head is
+    // empty and every <tr> is data.
     const headerEl = $headerRow.get(0);
+    const headerHadTh = $headerRow.find('th').length > 0;
     const dataRowEls = ($table.find('tbody tr').length
       ? $table.find('tbody tr').toArray()
       : $table.find('tr').toArray()
-    ).filter((tr) => hasExplicitThead || tr !== headerEl);
+    ).filter((tr) => hasExplicitThead || !headerHadTh || tr !== headerEl);
 
     const data: VueCell[][] = dataRowEls.map((tr) => {
       const $tr = $(tr);
@@ -72,10 +81,16 @@ export function extractFromCheerio(html: string): VueTable[] {
           (trigger && trigger.trim()) ? trigger :
           $td.text(),
         );
+        // Surface the first descendant `data-original-title` as cell.tooltip.
+        // Tabbycat embeds canonical stage labels here (e.g. data-original-title=
+        // "Round 1" on a wrapper div) — without this lift, parseNav consumers
+        // can't recover the full stage label from cheerio-adapted tables.
+        const tooltip = ($td.find('[data-original-title]').first().attr('data-original-title') ?? '').trim() || undefined;
         return {
           text,
           html: $td.html() ?? '',
           class: ($td.attr('class') ?? '').trim() || undefined,
+          ...(tooltip ? { tooltip } : {}),
         };
       }).get();
     });

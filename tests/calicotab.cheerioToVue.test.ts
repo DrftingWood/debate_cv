@@ -167,4 +167,33 @@ describe('extractFromCheerio', () => {
     expect(tables[0]!.title).toBe('Adjudicators');
     expect(tables[1]!.title).toBe('Speakers');
   });
+
+  test('populates VueCell.tooltip from descendant [data-original-title] attribute', () => {
+    // Tabbycat's Debates table stage cells embed the canonical stage label
+    // in a data-original-title on a wrapper div, with abbreviated visible
+    // text (e.g. "R1") inside a .tooltip-trigger. The adapter must surface
+    // the full label as cell.tooltip so parseNav consumers can read it
+    // the same way they read tooltips from native Vue payloads.
+    const html = `
+      <table>
+        <thead><tr><th>R</th><th>Adj</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>
+              <div data-original-title="Round 1">
+                <span class="tooltip-trigger">R1</span>
+              </div>
+            </td>
+            <td class="adjudicator-name">
+              <strong>Owner Name</strong>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const tables = extractFromCheerio(html);
+    expect(tables[0]!.data[0]![0]!.tooltip).toBe('Round 1');
+    // The second cell has no descendant data-original-title — tooltip stays undefined.
+    expect(tables[0]!.data[0]![1]!.tooltip).toBeUndefined();
+  });
 });

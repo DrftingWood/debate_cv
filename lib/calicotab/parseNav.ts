@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { extractVueData, type VueCell, type VueTable } from './parseTabs';
+import { extractFromCheerio } from './cheerioToVue';
 import { personNameMatches } from './personMatch';
 
 export type NavigationStructure = {
@@ -296,124 +297,11 @@ export type AdjudicatorRound = {
  * function originally lived here because the private-URL "Debates" card
  * parsing first encountered raw "R1"/"GF" labels; the function itself
  * is generic and now belongs alongside the rest of the round-label
- * pipeline. parseNav still uses it locally (extractRowStage calls it
- * at L410/L418), so we import-then-re-export rather than barrel-export.
+ * pipeline. parseNav still uses it locally inside stageInfoFromLabel,
+ * so we import-then-re-export rather than barrel-export.
  */
 import { normalizeStageLabel } from './judgeStats';
 export { normalizeStageLabel };
-
-/**
- * Pull the URL owner's per-round judging history from the "Debates" card on
- * the private-URL landing page.
- *
- * The card looks like:
- *   <h4 class="card-title">Debates</h4>
- *   <table>
- *     <tbody>
- *       <tr>
- *         <td><div data-original-title="Round 1"><span>R1</span>…</div></td>
- *         <td class="team-name">…OG…</td> … <td class="team-name">…CO…</td>
- *         <td class="adjudicator-name">
- *           <strong><span>Abhishek<i class="adj-symbol">Ⓒ</i></span></strong>,
- *           <span>Bea Legaspi</span>
- *         </td>
- *         <td>…motion…</td>
- *         <td>…ballot link…</td>
- *       </tr>
- *
- * Tabbycat wraps the URL owner's name in <strong> (so they can spot
- * themselves in the panel) and marks chairs with <i class="adj-symbol">Ⓒ</i>
- * appended to the name. Trainees use Ⓣ; everything else is a panellist.
- *
- * Rows are returned in document order, which equals the prelim sequence
- * (R1 → R2 → … → R6 → QF → SF → F).
- */
-type CheerioRoot = ReturnType<typeof cheerio.load>;
-type CheerioSel = ReturnType<CheerioRoot>;
-
-/**
- * Locate the "Debates" card's <table>. Tabbycat names the surrounding card
- * inconsistently across themes ("Debates", "My Debates", "Schedule",
- * "Panels"…) so we accept several headings; structural fallback finds any
- * table whose <tbody> has the trademark `<td class="adjudicator-name">` cell
- * — the same table that lists rooms for both the speaker and judge views.
- */
-function findDebatesTable($: CheerioRoot): CheerioSel | null {
-  let table: CheerioSel | null = null;
-  $('h1.card-title, h2.card-title, h3.card-title, h4.card-title, h5.card-title').each(
-    (_i, el) => {
-      if (table) return;
-      const text = cleanWhitespace($(el).text()).toLowerCase();
-      if (
-        /^(?:my\s+|your\s+)?debates?$/.test(text) ||
-        /^(?:my\s+|your\s+)?rounds?$/.test(text) ||
-        /^schedule$/.test(text) ||
-        /^panel(?:s|\s+history)?$/.test(text) ||
-        /round\s+assignments?/.test(text)
-      ) {
-        const card = $(el).closest('.card-body, .card');
-        const t = card.find('table').first();
-        if (t.length > 0) table = t;
-      }
-    },
-  );
-  if (!table) {
-    $('table').each((_i, t) => {
-      if (table) return;
-      const $t = $(t);
-      if (
-        $t.find('tbody td.adjudicator-name').length > 0 ||
-        $t.find('tbody td.team-name').length > 0
-      ) table = $t;
-    });
-  }
-  return table;
-}
-
-function tableHeaderTexts($: CheerioRoot, table: CheerioSel): string[] {
-  return table
-    .find('thead th')
-    .toArray()
-    .map((th) => cleanWhitespace($(th).text()).toLowerCase());
-}
-
-function isSpeakerPrivateHtmlDebatesTable($: CheerioRoot, table: CheerioSel): boolean {
-  const headers = tableHeaderTexts($, table);
-  if (headers.length === 0) return false;
-  const hasHeader = (needle: string) => headers.some((header) => header.includes(needle));
-  const hasSpeakerColumns = hasHeader('result') && hasHeader('speak') && hasHeader('side');
-  if (!hasSpeakerColumns) return false;
-
-  const hasTeamPositionColumns = headers.some((header) =>
-    /^(og|oo|cg|co|prop|opp|aff|neg|team)\b/i.test(header),
-  );
-  const hasSpeakerBallot = table.find('tbody a[href*="/speaker/"]').length > 0;
-  return hasSpeakerBallot || !hasTeamPositionColumns;
-}
-
-/**
- * Pull the canonical stage label + numeric round (if applicable) from the
- * leftmost cell of a Debates-table row. Returns null when the row has no
- * recognisable stage marker (header rows, separators).
- */
-function extractRowStage(
-  $: CheerioRoot,
-  $tr: CheerioSel,
-): { stage: string; roundNumber: number | null } | null {
-  const roundCell = $tr.find('td').first();
-  const tooltipDiv = roundCell.find('[data-original-title]').first();
-  let stage = '';
-  if (tooltipDiv.length > 0) {
-    stage = cleanWhitespace(tooltipDiv.attr('data-original-title') ?? '');
-  }
-  if (!stage) {
-    stage = cleanWhitespace(roundCell.find('.tooltip-trigger').first().text());
-  }
-  if (!stage) return null;
-  stage = normalizeStageLabel(stage);
-  const roundMatch = stage.match(/^Round\s+(\d+)$/i);
-  return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
-}
 
 function stageInfoFromLabel(raw: string | null | undefined): { stage: string; roundNumber: number | null } | null {
   const text = cleanWhitespace(raw ?? '');
@@ -423,16 +311,38 @@ function stageInfoFromLabel(raw: string | null | undefined): { stage: string; ro
   return { stage, roundNumber: roundMatch ? Number(roundMatch[1]) : null };
 }
 
-function findDebatesVueTable(html: string): VueTable | null {
-  const tables = extractVueData(html);
-  if (!tables) return null;
-  return (
-    tables.find((table) => cleanWhitespace(table.title ?? '').toLowerCase() === 'debates') ??
-    tables.find((table) =>
-      table.head?.some((h) => (h.key ?? h.title ?? '').toLowerCase().includes('adjudicator')),
-    ) ??
-    null
+function findDebatesVueTable(tables: VueTable[]): VueTable | null {
+  // Title-based match: Tabbycat's Debates card is most reliably identified
+  // by its title, but the exact label varies across themes ("Debates",
+  // "My Debates", "Rounds", "Schedule", "Panel History", "Round
+  // Assignments"). The regex covers the common variants.
+  const titleMatch = tables.find((table) =>
+    /^(my\s+|your\s+)?debates?$|^(my\s+|your\s+)?rounds?$|^schedule$|^panel(s|\s+history)?$|round\s+assignments?/i
+      .test(cleanWhitespace(table.title ?? '')),
   );
+  if (titleMatch) return titleMatch;
+
+  // Header-based fallback: any table whose head includes an 'adjudicator' /
+  // 'judge' key. Captures themes that don't set a title at all.
+  const headerMatch = tables.find((table) =>
+    table.head?.some((h) =>
+      ['adjudicator', 'judge'].some((needle) => (h.key ?? h.title ?? '').toLowerCase().includes(needle)),
+    ),
+  );
+  if (headerMatch) return headerMatch;
+
+  // Cell-class fallback: cheerio-adapted tables from class-driven Tabbycat
+  // markup may have bare-abbreviation headers ("R", "Adj") that miss both
+  // checks above. Identify the Debates card by the class on any first-row
+  // cell — `team-name` or `adjudicator-name` are class signals only the
+  // Debates card emits.
+  const cellClassMatch = tables.find((table) =>
+    table.data?.[0]?.some((cell) => {
+      const cls = (cell?.class ?? '').toLowerCase();
+      return cls.includes('team-name') || cls.includes('adjudicator-name');
+    }),
+  );
+  return cellClassMatch ?? null;
 }
 
 function vueColumn(table: VueTable, ...needles: string[]): number {
@@ -499,13 +409,23 @@ function extractOwnerRoleFromAdjHtml(
 }
 
 function extractAdjudicatorRoundsFromVue(
-  html: string,
+  tables: VueTable[],
   knownPersonName?: string | null,
 ): AdjudicatorRound[] | null {
-  const table = findDebatesVueTable(html);
+  const table = findDebatesVueTable(tables);
   if (!table?.data?.length) return null;
   const roundCol = vueColumn(table, 'round');
-  const adjCol = vueColumn(table, 'adjudicator', 'judge');
+  // 'adj' needle catches bare-abbreviation headers like <th>Adj</th> that
+  // cheerio-adapted tables surface. 'adjudicator'/'judge' still catch the
+  // full-word headers native Vue payloads use.
+  let adjCol = vueColumn(table, 'adjudicator', 'judge', 'adj');
+  if (adjCol < 0) {
+    // Cell-class fallback: cheerio-adapted markup may have non-descriptive
+    // headers but always tags the adjudicator cell with class
+    // 'adjudicator-name'. Find the column from the first row's cell classes.
+    const firstRow = table.data[0] ?? [];
+    adjCol = firstRow.findIndex((cell) => (cell?.class ?? '').toLowerCase().includes('adjudicator-name'));
+  }
   if (adjCol < 0) return null;
 
   const rows: AdjudicatorRound[] = [];
@@ -513,7 +433,15 @@ function extractAdjudicatorRoundsFromVue(
     const stageCell = roundCol >= 0 ? row[roundCol] : row[0];
     const stageInfo = stageInfoFromLabel(stageCell?.tooltip ?? stageCell?.text ?? null);
     if (!stageInfo) return;
-    const role = extractOwnerRoleFromAdjHtml(vueCellText(row[adjCol]), knownPersonName);
+    // Role detection needs the raw markup (<strong> wrapper, <i class="adj-symbol">):
+    // native Vue payloads pack HTML into cell.text, while the cheerio adapter
+    // splits text from html — prefer cell.html when it has markup so both
+    // sources surface the same structural markers.
+    const adjCell = row[adjCol];
+    const adjMarkup = adjCell?.html && /<\w/.test(adjCell.html)
+      ? adjCell.html
+      : vueCellText(adjCell);
+    const role = extractOwnerRoleFromAdjHtml(adjMarkup, knownPersonName);
     if (!role) return;
     rows.push({
       stage: stageInfo.stage,
@@ -546,74 +474,14 @@ export function extractAdjudicatorRounds(
   html: string,
   knownPersonName?: string | null,
 ): AdjudicatorRound[] {
-  const vueRows = extractAdjudicatorRoundsFromVue(html, knownPersonName);
-  if (vueRows) return vueRows;
-
-  const $ = cheerio.load(html);
-  const table = findDebatesTable($);
-  if (!table) return [];
-
-  const rows: AdjudicatorRound[] = [];
-  table.find('tbody > tr').each((idx, tr) => {
-    const $tr = $(tr);
-    const stageInfo = extractRowStage($, $tr);
-    if (!stageInfo) return;
-
-    // Adjudicator cell — the <td class="adjudicator-name"> that lists the
-    // panel. <strong> wraps the URL owner's own name; the chair marker is an
-    // <i class="adj-symbol"> child.
-    const adjCell = $tr.find('td.adjudicator-name').first();
-    if (adjCell.length === 0) return;
-
-    // Path 1: Tabbycat's <strong> marker. Path 2: name match against the
-    // registration name via the canonical personNameMatches predicate.
-    // We do path 2 only when path 1 misses so behaviour is preserved for
-    // tournaments where the marker is present.
-    let ownerEl = adjCell.find('strong').first();
-    let ownerSymbolText = '';
-    if (ownerEl.length > 0) {
-      ownerSymbolText = cleanWhitespace(ownerEl.find('.adj-symbol').text());
-    } else if (knownPersonName) {
-      const candidates = adjCell.find('span.d-inline').toArray();
-      const fallbackCandidates = candidates.length > 0
-        ? candidates
-        : adjCell.find('span').toArray();
-      for (const el of fallbackCandidates) {
-        const $el = $(el);
-        const symbol = $el.find('.adj-symbol');
-        const symbolText = cleanWhitespace(symbol.text());
-        const plainText = cleanWhitespace(
-          $el
-            .clone()
-            .find('.adj-symbol')
-            .remove()
-            .end()
-            .text(),
-        );
-        if (!plainText) continue;
-
-        if (personNameMatches(plainText, knownPersonName)) {
-          ownerEl = $el;
-          ownerSymbolText = symbolText;
-          break;
-        }
-      }
-    }
-    if (ownerEl.length === 0) return; // owner not on this panel — skip
-
-    let role: 'chair' | 'panellist' | 'trainee' = 'panellist';
-    if (ownerSymbolText.includes('Ⓒ') || /chair/i.test(ownerSymbolText)) role = 'chair';
-    else if (ownerSymbolText.includes('Ⓣ') || /trainee/i.test(ownerSymbolText)) role = 'trainee';
-
-    rows.push({
-      stage: stageInfo.stage,
-      roundNumber: stageInfo.roundNumber,
-      role,
-      sequenceIndex: idx + 1,
-    });
-  });
-
-  return rows;
+  const vue = extractVueData(html);
+  if (vue) {
+    const vueRows = extractAdjudicatorRoundsFromVue(vue, knownPersonName);
+    if (vueRows) return vueRows;
+  }
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) return [];
+  return extractAdjudicatorRoundsFromVue(cheerioTables, knownPersonName) ?? [];
 }
 
 export type SpeakerRound = {
@@ -755,13 +623,13 @@ function isSpeakerPrivateVueDebatesTable(table: VueTable): boolean {
 }
 
 function extractSpeakerRoundsFromVue(
-  html: string,
+  tables: VueTable[],
   knownTeamName?: string | null,
 ): SpeakerRound[] | null {
-  const table = findDebatesVueTable(html);
+  const table = findDebatesVueTable(tables);
   if (!table?.data?.length) return null;
   const roundCol = vueColumn(table, 'round');
-  const adjCol = vueColumn(table, 'adjudicator', 'judge');
+  const adjCol = vueColumn(table, 'adjudicator', 'judge', 'adj');
   const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
   const speakerPrivateRowsAreOwned = isSpeakerPrivateVueDebatesTable(table);
   const rows: SpeakerRound[] = [];
@@ -780,14 +648,25 @@ function extractSpeakerRoundsFromVue(
         const cls = (cell?.class ?? '').toLowerCase();
         const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
         if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
-        const raw = vueCellText(cell);
+        // For win detection we need the raw HTML (icon classes); native Vue
+        // payloads pack HTML markup into cell.text, while the cheerio adapter
+        // splits text from html. Prefer cell.html when it contains markup so
+        // both sources surface the same structural markers; fall back to
+        // cell.text otherwise.
+        const cellHtml = cell?.html ?? '';
+        const cellText = vueCellText(cell);
+        const raw = /<\w/.test(cellHtml) ? cellHtml : cellText;
         if (/<strong\b/i.test(raw)) {
           ownedCellRaw = raw;
           ownedCellClass = cls;
           return true;
         }
         if (!wantedTeam) return false;
-        const plain = cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
+        // For text matching, prefer cell.text (already plain) when available;
+        // otherwise strip tags from raw.
+        const plain = cellText
+          ? cellText.toLowerCase()
+          : cleanWhitespace(cheerio.load(`<div>${raw}</div>`).text()).toLowerCase();
         if (teamCellMatches(plain, wantedTeam)) {
           ownedCellRaw = raw;
           ownedCellClass = cls;
@@ -797,13 +676,24 @@ function extractSpeakerRoundsFromVue(
       });
     if (!owned) return;
 
-    // Win detection inspects both the cell html (icon classes, inline
-    // win/loss markers) and the cell-wrapper class (some Tabbycat
-    // versions paint `text-success` on the <td> itself rather than an
-    // inner <i>). Either signal counts.
-    const won = ownedCellRaw
-      ? detectWonFromCellHtml(`${ownedCellRaw} ${ownedCellClass ?? ''}`)
-      : null;
+    // Win detection: prefer the team-name cell's html (icon classes,
+    // inline win/loss markers); also inspect the cell-wrapper class
+    // since some Tabbycat versions paint `text-success` on the <td>
+    // itself. When speakerPrivateRowsAreOwned is true but no team-name
+    // cell matched (cheerio-adapted private-URL Debates tables where
+    // the URL owner's team name lives inside a <strong> in some other
+    // column), fall back to the first cell containing <strong>.
+    let won: boolean | null = null;
+    if (ownedCellRaw) {
+      won = detectWonFromCellHtml(`${ownedCellRaw} ${ownedCellClass ?? ''}`);
+    } else if (speakerPrivateRowsAreOwned) {
+      const strongCell = row.find((cell) => /<strong\b/i.test(cell?.html ?? cell?.text ?? ''));
+      if (strongCell) {
+        const cellHtml = strongCell.html ?? strongCell.text ?? '';
+        const cellCls = strongCell.class ?? '';
+        won = detectWonFromCellHtml(`${cellHtml} ${cellCls}`);
+      }
+    }
 
     rows.push({
       stage: stageInfo.stage,
@@ -819,64 +709,14 @@ export function extractSpeakerRounds(
   html: string,
   knownTeamName?: string | null,
 ): SpeakerRound[] {
-  const vueRows = extractSpeakerRoundsFromVue(html, knownTeamName);
-  if (vueRows) return vueRows;
-
-  const $ = cheerio.load(html);
-  const table = findDebatesTable($);
-  if (!table) return [];
-
-  const wantedTeam = (knownTeamName ?? '').trim().toLowerCase();
-  const speakerPrivateRowsAreOwned = isSpeakerPrivateHtmlDebatesTable($, table);
-  const rows: SpeakerRound[] = [];
-  table.find('tbody > tr').each((idx, tr) => {
-    const $tr = $(tr);
-    const stageInfo = extractRowStage($, $tr);
-    if (!stageInfo) return;
-
-    const teamCells = $tr.find('td.team-name');
-    if (teamCells.length === 0 && !speakerPrivateRowsAreOwned) return;
-
-    let owned = speakerPrivateRowsAreOwned;
-    let ownedCellHtml: string | null = null;
-    if (!owned) {
-      teamCells.each((_j, td) => {
-        if (owned) return;
-        const $td = $(td);
-        if ($td.find('strong').length > 0) {
-          owned = true;
-          ownedCellHtml = $.html($td);
-          return;
-        }
-        if (wantedTeam) {
-          const cellText = cleanWhitespace($td.text()).toLowerCase();
-          if (teamCellMatches(cellText, wantedTeam)) {
-            owned = true;
-            ownedCellHtml = $.html($td);
-          }
-        }
-      });
-    }
-    if (!owned) return;
-    // If the row was claimed via "speakerPrivateRowsAreOwned" (Tabbycat's
-    // private-URL Debates table marks every row as owned implicitly), we
-    // still need to find the team cell to read the win indicator. Fall
-    // back to the first cell with a strong tag in that case.
-    if (!ownedCellHtml) {
-      const strongCells = $tr.find('td:has(strong)');
-      if (strongCells.length > 0) ownedCellHtml = $.html(strongCells.first());
-    }
-    const won = ownedCellHtml ? detectWonFromCellHtml(ownedCellHtml) : null;
-
-    rows.push({
-      stage: stageInfo.stage,
-      roundNumber: stageInfo.roundNumber,
-      sequenceIndex: idx + 1,
-      won,
-    });
-  });
-
-  return rows;
+  const vue = extractVueData(html);
+  if (vue) {
+    const vueRows = extractSpeakerRoundsFromVue(vue, knownTeamName);
+    if (vueRows) return vueRows;
+  }
+  const cheerioTables = extractFromCheerio(html);
+  if (cheerioTables.length === 0) return [];
+  return extractSpeakerRoundsFromVue(cheerioTables, knownTeamName) ?? [];
 }
 
 export function parsePrivateUrlPage(html: string, sourceUrl: string): PrivateUrlSnapshot {
