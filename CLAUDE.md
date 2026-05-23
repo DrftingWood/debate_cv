@@ -18,7 +18,7 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 - **Sentry** (`@sentry/nextjs` 10) wired via `withSentryConfig` in `next.config.ts`, tunneled through `/monitoring`
 - **Vitest 2** for tests (Node env)
 - **zod 3** for validation, **clsx** + **tailwind-merge** for class composition, **lucide-react** for icons
-- Node `>=20`. Package manager: both `package-lock.json` and `pnpm-lock.yaml` are committed — npm is canonical (scripts assume it; pnpm lockfile may be stale).
+- Node `>=20`. Package manager: **npm** (`package-lock.json` is the only committed lockfile; Vercel auto-detects npm from it). Previously a stale `pnpm-lock.yaml` was also committed, but it drifted and broke prod deploys — removed.
 
 ## Architecture
 
@@ -122,4 +122,4 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 - **Do not bump `PARSER_VERSION` casually** — it invalidates cached parses across all users.
 - **Do not change queue lock ordering** without re-running `tests/calicotab.deadlock.test.ts` and understanding why it exists.
 - **Do not commit decrypted tokens to logs, fixtures, or test snapshots.**
-- **Do not remove the dual lockfile** (`package-lock.json` + `pnpm-lock.yaml`) without checking which one Vercel uses for the current deployment.
+- **Do not re-introduce `pnpm-lock.yaml`**. The repo is npm-only; Vercel auto-detects pnpm from the lockfile's presence and will then refuse to install against a mismatched lockfile. If you have a real reason to add pnpm support, it has to be a deliberate two-lockfile maintenance discipline, not an accidental drop-in.
