@@ -80,7 +80,7 @@ export default async function CvPage() {
           }).toUpperCase()}
         </div>
 
-        <h1 className="font-serif text-[44px] italic leading-[1.05] tracking-tight text-ink md:text-display">
+        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
           {user?.name ?? 'Debater'}.
         </h1>
 
@@ -119,7 +119,7 @@ export default async function CvPage() {
       <section className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="md:max-w-2xl">
           <div className="kicker">IN BRIEF</div>
-          <p className="mt-2 font-serif text-[17px] italic leading-relaxed text-ink/85">
+          <p className="mt-2 font-serif text-body-serif italic leading-relaxed text-ink/85">
             {toBriefSentence({
               totalTournaments: summary.totalTournaments,
               speakerCount: speakerRows.length,
@@ -135,7 +135,7 @@ export default async function CvPage() {
           <DownloadPdfButton />
           <details className="group relative">
             <summary className="list-none">
-              <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-ink/15 bg-paper px-3.5 text-[13px] font-medium text-ink transition-colors hover:bg-ink/[0.04]">
+              <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-ink/15 bg-paper px-3.5 text-table font-medium text-ink transition-colors hover:bg-ink/[0.04]">
                 More
               </span>
             </summary>
@@ -379,10 +379,10 @@ function StatColumn({
 }) {
   return (
     <div>
-      <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-[10.5px]">
+      <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-kicker">
         {label}
       </div>
-      <div className={'mt-1 font-serif text-[28px] text-ink num' + (mono ? '' : '')}>
+      <div className={'mt-1 font-serif text-stat text-ink num' + (mono ? '' : '')}>
         {value}
       </div>
     </div>
@@ -407,7 +407,7 @@ import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } 
 
 function BrokeBadge({ broke }: { broke: boolean }) {
   return (
-    <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+    <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
       {broke ? 'Broken' : '—'}
     </span>
   );
@@ -491,7 +491,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="whitespace-nowrap px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             {r.hasOpenReport ? (
-              <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+              <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                 Reported
               </span>
             ) : null}
@@ -513,7 +513,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
               <div className="overflow-x-auto pb-3 pt-1">
                 <table className="text-caption">
                   <thead>
-                    <tr className="text-ink-soft uppercase tracking-[0.14em] text-[10px] font-semibold">
+                    <tr className="text-ink-soft uppercase tracking-[0.14em] text-kicker font-semibold">
                       {r.roundScores.map((s) => (
                         <th
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
@@ -552,9 +552,9 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
     <>
       {/* Desktop table */}
       <div className="hidden max-w-full overflow-x-auto md:block">
-        <table className="min-w-max text-[13.5px]">
+        <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -598,7 +598,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-serif italic text-[15.5px] text-ink"
+                className="truncate font-serif italic text-body text-ink"
               >
                 {r.tournamentName}
               </a>
@@ -633,7 +633,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                   Reported
                 </span>
               ) : null}
@@ -653,9 +653,9 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
   return (
     <>
       <div className="hidden max-w-full overflow-x-auto md:block">
-        <table className="min-w-max text-[13.5px]">
+        <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -697,7 +697,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <div className="flex items-center gap-1.5">
                     {r.hasOpenReport ? (
-                      <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                      <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                         Reported
                       </span>
                     ) : null}
@@ -721,7 +721,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-serif italic text-[15.5px] text-ink"
+                className="truncate font-serif italic text-body text-ink"
               >
                 {r.tournamentName}
               </a>
@@ -742,7 +742,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span className="uppercase tracking-[0.14em] text-[10.5px] font-semibold text-oxblood border-b border-oxblood/40">
+                <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                   Reported
                 </span>
               ) : null}

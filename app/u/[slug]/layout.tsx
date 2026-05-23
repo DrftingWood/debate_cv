@@ -21,13 +21,13 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
       {children}
       <footer className="pt-10">
         <hr className="hairline" />
-        <div className="mt-6 flex flex-col items-start justify-between gap-3 text-[13px] text-ink-soft sm:flex-row sm:items-center">
+        <div className="mt-6 flex flex-col items-start justify-between gap-3 text-table text-ink-soft sm:flex-row sm:items-center">
           <div className="font-serif italic text-ink-soft">
             — Compiled by debate cv.
           </div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-md border border-ink/15 bg-paper px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-ink/[0.04]"
+            className="inline-flex items-center gap-2 rounded-md border border-ink/15 bg-paper px-3 py-1.5 text-table font-medium text-ink hover:bg-ink/[0.04]"
           >
             Build your own →
           </Link>

@@ -111,7 +111,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
               {t.kicker}
             </div>
             <h3 className="mt-2 font-serif text-h3 italic text-ink">{t.title}</h3>
-            <ul className="mt-1 space-y-0.5 font-serif text-[14.5px] leading-relaxed text-ink/80">
+            <ul className="mt-1 space-y-0.5 font-serif text-body leading-relaxed text-ink/80">
               {t.items.map((item, j) => (
                 <li key={j} className="break-words">{item}</li>
               ))}

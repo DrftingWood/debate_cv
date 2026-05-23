@@ -112,7 +112,7 @@ export function CvNeedsAttentionBanners({
             className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
             aria-hidden
           />
-          <p className="font-serif text-[14.5px] leading-relaxed text-ink">
+          <p className="font-serif text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
             </em>{' '}
@@ -129,7 +129,7 @@ export function CvNeedsAttentionBanners({
       {unmatchedCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-ink/10 py-3">
           <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
-          <p className="font-serif text-[14.5px] leading-relaxed text-ink">
+          <p className="font-serif text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
             </em>{' '}

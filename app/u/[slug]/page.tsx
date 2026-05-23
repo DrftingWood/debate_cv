@@ -100,7 +100,7 @@ export default async function PublicCvPage({
                 {initials(user.name)}
               </div>
             )}
-            <h1 className="font-serif text-[44px] italic leading-[1.05] tracking-tight text-ink md:text-[64px]">
+            <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
               {user.name ?? 'Debater'}.
             </h1>
           </div>
@@ -111,7 +111,7 @@ export default async function PublicCvPage({
 
         <hr className="hairline" />
 
-        <div className="byline uppercase tracking-[0.16em] text-[11px] text-ink-soft">
+        <div className="byline uppercase tracking-[0.16em] text-byline text-ink-soft">
           {spellOrCount(totalIngestedTournaments)} tournament{totalIngestedTournaments === 1 ? '' : 's'} · verified via private URLs
           {summary.totalTournaments > 0 && summary.totalTournaments !== totalIngestedTournaments
             ? ` · ${summary.totalTournaments} on record`
@@ -127,8 +127,8 @@ export default async function PublicCvPage({
             <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
-            <table className="min-w-max text-[13px]">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+            <table className="min-w-max text-table">
+              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Tournament</th>
                   <th className="px-4 py-2.5 text-left">Year</th>
@@ -169,7 +169,7 @@ export default async function PublicCvPage({
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-[11.5px] text-ink-soft">
+          <p className="font-serif italic text-byline text-ink-soft">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>
@@ -181,8 +181,8 @@ export default async function PublicCvPage({
             <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
-            <table className="min-w-max text-[13px]">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft">
+            <table className="min-w-max text-table">
+              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Tournament</th>
                   <th className="px-4 py-2.5 text-left">Year</th>
@@ -217,7 +217,7 @@ export default async function PublicCvPage({
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-[11.5px] text-ink-soft">
+          <p className="font-serif italic text-byline text-ink-soft">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>

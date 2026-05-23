@@ -83,7 +83,7 @@ function LandingMasthead() {
   return (
     <header className="pt-8 pb-6">
       <div className="flex items-baseline justify-between gap-4">
-        <span className="font-serif italic text-[22px] tracking-tight text-ink">
+        <span className="font-serif italic text-h3 tracking-tight text-ink">
           debate <span className="text-oxblood">cv</span>
         </span>
         <span className="hidden text-byline uppercase tracking-[0.22em] text-ink-soft sm:inline">
@@ -102,7 +102,7 @@ function Hero() {
         <div>
           <div className="kicker">A CAREER IN PARLIAMENTARY DEBATE</div>
 
-          <h1 className="mt-4 font-serif text-[44px] leading-[1.04] tracking-tight text-ink md:text-display">
+          <h1 className="mt-4 font-serif text-h1 leading-[1.04] tracking-tight text-ink md:text-display">
             Your debate cv,{' '}
             <em className="font-serif italic">compiled from your inbox.</em>
           </h1>
@@ -145,7 +145,7 @@ function PaperCvExcerpt() {
   return (
     <div className="surface-card p-6">
       <div className="kicker">DEBATE CV — VOL. III · COMPILED 23 MAY 2026</div>
-      <div className="mt-3 font-serif italic text-[28px] leading-tight text-ink">
+      <div className="mt-3 font-serif italic text-stat leading-tight text-ink">
         Abhishek Acharya.
       </div>
       <hr className="hairline my-3" />
@@ -159,10 +159,10 @@ function PaperCvExcerpt() {
           { label: 'Best avg', value: '74.2' },
         ].map((m) => (
           <div key={m.label}>
-            <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-[10px]">
+            <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-kicker">
               {m.label}
             </div>
-            <div className="mt-1 font-serif text-[22px] text-ink num">{m.value}</div>
+            <div className="mt-1 font-serif text-h3 text-ink num">{m.value}</div>
           </div>
         ))}
       </div>
@@ -171,19 +171,19 @@ function PaperCvExcerpt() {
 
       <ul className="space-y-3">
         <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-[15px] text-ink">WUDC · Vietnam</span>
+          <span className="font-serif italic text-body text-ink">WUDC · Vietnam</span>
           <span className="text-byline text-ink-soft num">2024 · Octofinalist</span>
         </li>
         <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-[15px] text-ink">EUDC · Tallinn</span>
+          <span className="font-serif italic text-body text-ink">EUDC · Tallinn</span>
           <span className="text-byline text-ink-soft num">2023 · ESL Semis</span>
         </li>
         <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-[15px] text-ink">Hart House IV</span>
+          <span className="font-serif italic text-body text-ink">Hart House IV</span>
           <span className="text-byline text-ink-soft num">2023 · Champion</span>
         </li>
         <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-[15px] text-ink">ABP · Manila</span>
+          <span className="font-serif italic text-body text-ink">ABP · Manila</span>
           <span className="text-byline text-ink-soft num">2022 · Quarterfinalist</span>
         </li>
       </ul>
@@ -199,7 +199,7 @@ function HowItWorks() {
       body: (
         <>
           One-click sign-in with Google. The scope is read-only{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
             gmail.readonly
           </code>{' '}
           — nothing else.
@@ -212,11 +212,11 @@ function HowItWorks() {
       body: (
         <>
           A narrow regex matches tournament private URLs on{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
             calicotab.com
           </code>{' '}
           and{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
             herokuapp.com
           </code>
           . Email bodies are never stored.
@@ -248,9 +248,9 @@ function HowItWorks() {
       <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
         {items.map((it) => (
           <article key={it.roman} className="space-y-3">
-            <div className="font-serif italic text-[22px] text-oxblood">{it.roman}</div>
+            <div className="font-serif italic text-h3 text-oxblood">{it.roman}</div>
             <h3 className="font-serif text-h3 italic text-ink">{it.title}</h3>
-            <p className="font-serif text-[15px] leading-relaxed text-ink/85">{it.body}</p>
+            <p className="font-serif text-body leading-relaxed text-ink/85">{it.body}</p>
           </article>
         ))}
       </div>
@@ -302,7 +302,7 @@ function Colophon() {
           <article key={p.label} className="space-y-2">
             <div className="kicker">{p.label}</div>
             <h3 className="font-serif text-h3 italic text-ink">{p.title}</h3>
-            <p className="font-serif text-[15px] leading-relaxed text-ink/85">{p.body}</p>
+            <p className="font-serif text-body leading-relaxed text-ink/85">{p.body}</p>
           </article>
         ))}
       </div>
@@ -369,18 +369,18 @@ function Faq() {
             key={i}
             className={'group px-1 py-4 ' + (i > 0 ? 'border-t border-ink/10' : '')}
           >
-            <summary className="cursor-pointer list-none font-serif text-[17px] text-ink [&::-webkit-details-marker]:hidden">
+            <summary className="cursor-pointer list-none font-serif text-body-serif text-ink [&::-webkit-details-marker]:hidden">
               <span className="inline-flex w-full items-center justify-between gap-4">
                 <span>{it.q}</span>
                 <span
                   aria-hidden
-                  className="font-serif text-[18px] text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180"
+                  className="font-serif text-h4 text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180"
                 >
                   ▾
                 </span>
               </span>
             </summary>
-            <div className="mt-3 font-serif text-[15px] leading-relaxed text-ink/85">
+            <div className="mt-3 font-serif text-body leading-relaxed text-ink/85">
               {it.a}
             </div>
           </details>
