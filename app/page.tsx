@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Mail,
-  Globe,
-  Trophy,
   ShieldCheck,
   Lock,
   Eye,
@@ -12,7 +9,6 @@ import {
 } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
-import { Card, CardBody } from '@/components/ui/Card';
 import { Footer } from '@/components/Footer';
 
 export default async function Home() {
@@ -202,70 +198,64 @@ function PaperCvExcerpt() {
 function HowItWorks() {
   const items = [
     {
-      icon: <Mail className="h-5 w-5" aria-hidden />,
+      roman: 'I.',
       title: 'Connect Gmail',
       body: (
         <>
-          One-click sign-in. We ask for the minimum scope (
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">
+          One-click sign-in with Google. The scope is read-only{' '}
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
             gmail.readonly
-          </code>
-          ) — nothing else.
+          </code>{' '}
+          — nothing else.
         </>
       ),
     },
     {
-      icon: <Globe className="h-5 w-5" aria-hidden />,
+      roman: 'II.',
       title: 'We find your Tabbycat links',
       body: (
         <>
-          A precise regex matches only tournament private URLs on{' '}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">calicotab.com</code>{' '}
+          A narrow regex matches tournament private URLs on{' '}
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
+            calicotab.com
+          </code>{' '}
           and{' '}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">herokuapp.com</code>.
+          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-[12px] text-oxblood">
+            herokuapp.com
+          </code>
+          . Email bodies are never stored.
         </>
       ),
     },
     {
-      icon: <Trophy className="h-5 w-5" aria-hidden />,
+      roman: 'III.',
       title: 'Your CV appears',
       body: (
         <>
-          Each tournament's team, speaker, round, and break tabs are parsed and stitched into
-          a clean personal history page.
+          Each tournament's team, speaker, round, and break tabs are parsed
+          and stitched into a clean personal history page. The queue drains
+          in the background while you watch.
         </>
       ),
     },
   ];
 
   return (
-    <section id="how" className="space-y-10">
+    <section id="how" className="space-y-8">
       <header className="max-w-2xl">
-        <span className="text-caption font-semibold uppercase tracking-widest text-accent-foreground">
-          How it works
-        </span>
-        <h2 className="mt-2 font-display text-h2 font-semibold tracking-tight text-foreground">
+        <div className="kicker">EDITOR'S NOTE · ON METHOD</div>
+        <h2 className="mt-3 font-serif text-h2 italic text-ink">
           Three steps from sign-in to a complete history page.
         </h2>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {items.map((it, i) => (
-          <Card
-            key={i}
-            className="transition-all duration-[180ms] ease-soft hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <CardBody>
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-soft text-primary">
-                {it.icon}
-              </div>
-              <h3 className="mt-5 font-display text-h3 font-semibold text-foreground">
-                <span className="text-muted-foreground/70">0{i + 1} · </span>
-                {it.title}
-              </h3>
-              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{it.body}</p>
-            </CardBody>
-          </Card>
+      <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
+        {items.map((it) => (
+          <article key={it.roman} className="space-y-3">
+            <div className="font-serif italic text-[22px] text-oxblood">{it.roman}</div>
+            <h3 className="font-serif text-h3 italic text-ink">{it.title}</h3>
+            <p className="font-serif text-[15px] leading-relaxed text-ink/85">{it.body}</p>
+          </article>
         ))}
       </div>
     </section>
