@@ -96,7 +96,11 @@ export default async function PublicCvPage({
                 className="h-20 w-20 rounded border border-ink/20 object-cover"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded border border-ink/20 bg-paper font-serif italic text-[26px] text-ink">
+              <div
+                role="img"
+                aria-label={`${user.name ?? 'Debater'} initials`}
+                className="flex h-20 w-20 items-center justify-center rounded border border-ink/20 bg-paper font-serif italic text-[26px] text-ink"
+              >
                 {initials(user.name)}
               </div>
             )}

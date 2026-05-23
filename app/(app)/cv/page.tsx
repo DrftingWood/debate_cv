@@ -129,7 +129,7 @@ export default async function CvPage() {
           <CvShareButton />
           <DownloadPdfButton />
           <details className="group relative">
-            <summary className="list-none">
+            <summary className="list-none" aria-label="More actions">
               <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-ink/15 bg-paper px-3.5 text-table font-medium text-ink transition-colors hover:bg-ink/[0.04]">
                 More
               </span>
@@ -402,7 +402,7 @@ import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } 
 
 function BrokeBadge({ broke }: { broke: boolean }) {
   return (
-    <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+    <span role="status" className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
       {broke ? 'Broken' : '—'}
     </span>
   );
@@ -486,7 +486,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="whitespace-nowrap px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             {r.hasOpenReport ? (
-              <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+              <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                 Reported
               </span>
             ) : null}
