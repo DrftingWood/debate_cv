@@ -10,16 +10,16 @@ export type Status =
   | 'unavailable'
   | 'unmatched';
 
-const styles: Record<Status, string> = {
-  done: 'bg-[hsl(var(--success)/0.12)] text-success border-[hsl(var(--success)/0.22)]',
-  pending: 'bg-[hsl(var(--warning)/0.12)] text-warning border-[hsl(var(--warning)/0.22)]',
-  running: 'bg-primary-soft text-accent-foreground border-primary/20',
-  failed: 'bg-[hsl(var(--destructive)/0.10)] text-destructive border-[hsl(var(--destructive)/0.22)]',
-  unavailable: 'bg-muted text-muted-foreground border-border',
-  // The tournament was ingested but the user hasn't been auto-matched to any
-  // speaker/judge in it — they need to claim themselves manually. Visually
-  // similar to `pending`: warning-tone, signals "needs attention".
-  unmatched: 'bg-[hsl(var(--warning)/0.12)] text-warning border-[hsl(var(--warning)/0.22)]',
+// Per-status colour tokens — used only for the icon and an optional
+// underline. The label itself is small-caps ink, the same across all
+// statuses, so the pill reads sober rather than traffic-light.
+const tones: Record<Status, string> = {
+  done: 'text-success',
+  pending: 'text-warning',
+  running: 'text-oxblood',
+  failed: 'text-destructive',
+  unavailable: 'text-ink-soft',
+  unmatched: 'text-warning',
 };
 
 const icons: Record<Status, React.ComponentType<{ className?: string }>> = {
@@ -53,13 +53,12 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium',
-        styles[status],
+        'inline-flex items-center gap-1.5 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft',
         className,
       )}
     >
       <Icon
-        className={cn('h-3 w-3', status === 'running' && 'animate-spin')}
+        className={cn('h-3.5 w-3.5', tones[status], status === 'running' && 'animate-spin')}
         aria-hidden
       />
       {label ?? labels[status]}

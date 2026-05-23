@@ -1,15 +1,18 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
-type Variant = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
+type Variant = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'outline' | 'quiet';
 
 const variants: Record<Variant, string> = {
-  neutral: 'bg-muted text-muted-foreground border-border',
+  neutral: 'bg-muted text-ink-soft border-border',
   success: 'bg-[hsl(var(--success)/0.12)] text-success border-[hsl(var(--success)/0.22)]',
   warning: 'bg-[hsl(var(--warning)/0.12)] text-warning border-[hsl(var(--warning)/0.22)]',
   danger: 'bg-[hsl(var(--destructive)/0.10)] text-destructive border-[hsl(var(--destructive)/0.22)]',
-  info: 'bg-primary-soft text-accent-foreground border-primary/20',
-  outline: 'bg-transparent text-foreground border-border',
+  info: 'bg-oxblood-soft text-oxblood border-oxblood/20',
+  outline: 'bg-transparent text-ink border-border',
+  // Quiet: small-caps text label, no pill background. Used on /cv and
+  // /u/<slug> where traffic-light pills clash with sober editorial type.
+  quiet: 'bg-transparent text-ink-soft border-transparent uppercase tracking-[0.16em] text-[10.5px] font-semibold px-0 py-0',
 };
 
 export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
@@ -17,10 +20,13 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
 };
 
 export function Badge({ className, variant = 'neutral', ...rest }: BadgeProps) {
+  const isQuiet = variant === 'quiet';
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-caption font-medium',
+        isQuiet
+          ? 'inline-flex items-center gap-1'
+          : 'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-caption font-medium',
         variants[variant],
         className,
       )}
