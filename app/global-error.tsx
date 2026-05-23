@@ -6,6 +6,10 @@
  * layout; anything thrown by the root layout itself bypasses it. This
  * file gives Sentry a hook for those errors and renders a minimal
  * fallback shell so the user isn't staring at a blank screen.
+ *
+ * Sits outside the Tailwind layer (globals.css may not have loaded yet),
+ * so colours are inline hex literals matched to the editorial palette:
+ *   paper #FAF6EC, ink #181A1F, ink-soft #5C636E.
  */
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
@@ -32,12 +36,13 @@ export default function GlobalError({
           justifyContent: 'center',
           fontFamily:
             'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          background: '#fafafa',
+          background: '#FAF6EC',
+          color: '#181A1F',
         }}
       >
         <div style={{ maxWidth: 480, padding: '2rem', textAlign: 'center' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Something broke.</h1>
-          <p style={{ fontSize: '0.95rem', color: '#666', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.95rem', color: '#5C636E', marginBottom: '1.5rem' }}>
             An unexpected error occurred and we&apos;ve been notified. Try refreshing — if it
             persists, your session may need to be restarted.
           </p>
@@ -47,8 +52,9 @@ export default function GlobalError({
             style={{
               padding: '0.5rem 1.25rem',
               borderRadius: 6,
-              border: '1px solid #ccc',
-              background: '#fff',
+              border: '1px solid rgba(24, 26, 31, 0.15)',
+              background: '#FFFFFF',
+              color: '#181A1F',
               cursor: 'pointer',
               fontSize: '0.9rem',
             }}
