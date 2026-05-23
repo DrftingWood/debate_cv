@@ -8,13 +8,12 @@ import {
   Lock,
   Eye,
   ArrowRight,
-  Sparkles,
-  CheckCircle2,
   ShieldAlert,
 } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
+import { Footer } from '@/components/Footer';
 
 export default async function Home() {
   const session = await auth();
@@ -24,14 +23,18 @@ export default async function Home() {
   if (session?.user) redirect('/cv');
 
   return (
-    <div className="space-y-28">
-      <Hero />
-      <HowItWorks />
-      <TrustStrip />
-      <TrustPanel />
-      <Faq />
-      <FooterCta />
-    </div>
+    <>
+      <LandingMasthead />
+      <div className="space-y-24">
+        <Hero />
+        <HowItWorks />
+        <TrustStrip />
+        <TrustPanel />
+        <Faq />
+        <FooterCta />
+      </div>
+      <Footer />
+    </>
   );
 }
 
@@ -48,7 +51,6 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
         size={size}
         variant="primary"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
-        className="shadow-glow"
       >
         Sign in with Google
       </Button>
@@ -83,161 +85,114 @@ async function AdminSignInButton() {
   );
 }
 
+function LandingMasthead() {
+  return (
+    <header className="pt-8 pb-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="font-serif italic text-[22px] tracking-tight text-ink">
+          debate <span className="text-oxblood">cv</span>
+        </span>
+        <span className="hidden text-byline uppercase tracking-[0.22em] text-ink-soft sm:inline">
+          A personal record of the parliamentary kind
+        </span>
+      </div>
+      <hr className="hairline mt-3" />
+    </header>
+  );
+}
+
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      <div
-        aria-hidden
-        className="absolute inset-x-0 -top-20 h-[620px] bg-gradient-hero"
-      />
-      <div
-        aria-hidden
-        className="absolute inset-x-0 -top-20 h-[620px] hero-texture opacity-60"
-      />
+    <section className="relative pt-10 pb-6 md:pt-16">
+      <div className="grid items-start gap-12 md:grid-cols-[1.05fr_0.95fr] md:gap-16">
+        <div>
+          <div className="kicker">A CAREER IN PARLIAMENTARY DEBATE</div>
 
-      <div className="relative grid items-center gap-12 pt-10 pb-4 md:grid-cols-[1.05fr_0.95fr] md:gap-16 md:pt-16">
-        <div className="animate-fade-up">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary-soft px-3 py-1 text-caption font-medium text-accent-foreground">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            Built for debaters
-          </span>
-
-          <h1 className="mt-5 text-h1 md:text-display font-hero font-medium tracking-tight text-foreground">
-            Your debate CV,
-            <br className="hidden sm:block" /> auto-built from your inbox.
+          <h1 className="mt-4 font-serif text-[44px] leading-[1.04] tracking-tight text-ink md:text-display">
+            Your debate cv,{' '}
+            <em className="font-serif italic">compiled from your inbox.</em>
           </h1>
 
-          <p className="mt-5 max-w-xl text-body text-muted-foreground">
-            Sign in with Google. We scan your Gmail for Tabbycat private URLs
-            (calicotab.com / herokuapp.com), fetch each tournament's team, speaker and
-            break tabs, and compile your personal history into one page.
-          </p>
-
-          <div
-            className="mt-8 flex flex-wrap items-center gap-3 animate-fade-up"
-            style={{ animationDelay: '80ms' }}
-          >
-            <SignInButton />
-            <AdminSignInButton />
-            <Link
-              href="#how"
-              className="text-[14px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-            >
-              How it works
-            </Link>
+          <div className="byline mt-5 inline-block border-b border-ink/15 pb-2">
+            Vol. I  ·  Spring 2026  ·  by Google's Gmail API
           </div>
 
-          <div
-            className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-caption text-muted-foreground animate-fade-in"
-            style={{ animationDelay: '160ms' }}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />
-              Read-only Gmail
-            </span>
-            <span className="text-muted-foreground/60">·</span>
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />
-              Private to you
-            </span>
-            <span className="text-muted-foreground/60">·</span>
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />
-              Delete any time
-            </span>
+          <p className="dropcap mt-6 max-w-xl font-serif text-body-serif text-ink/85">
+            Sign in with Google. We scan your inbox for the Tabbycat private
+            URLs you were already sent, fetch each tournament's team, speaker,
+            and break tabs, and stitch your personal history into one page. No
+            essays. No drag-and-drop. Just a CV.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <SignInButton />
+            <AdminSignInButton />
+          </div>
+
+          <div className="mt-4 text-byline text-ink-soft">
+            read-only Gmail · private to you · delete any time
           </div>
         </div>
 
-        <div
-          className="animate-fade-up"
-          style={{ animationDelay: '120ms' }}
-        >
-          <GlassCvPreview />
+        <div>
+          <PaperCvExcerpt />
         </div>
       </div>
     </section>
   );
 }
 
-function GlassCvPreview() {
+/**
+ * Right-column hero illustration: a typeset paper CV excerpt. Replaces
+ * the previous glass-card screenshot pastiche. Self-referential — the
+ * site shows what it produces, in the style of what it produces.
+ */
+function PaperCvExcerpt() {
   return (
-    <div className="glass-card rounded-card p-1.5">
-      {/* Window chrome */}
-      <div className="flex items-center gap-1.5 px-3 pt-1 pb-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-[hsl(0_70%_65%)]" aria-hidden />
-        <span className="h-2.5 w-2.5 rounded-full bg-[hsl(40_80%_60%)]" aria-hidden />
-        <span className="h-2.5 w-2.5 rounded-full bg-[hsl(135_50%_55%)]" aria-hidden />
-        <span className="ml-3 text-caption text-muted-foreground">debate-cv.app / cv</span>
+    <div className="surface-card p-6">
+      <div className="kicker">DEBATE CV — VOL. III · COMPILED 23 MAY 2026</div>
+      <div className="mt-3 font-serif italic text-[28px] leading-tight text-ink">
+        Abhishek Acharya.
+      </div>
+      <hr className="hairline my-3" />
+      <div className="byline">IGNOU · acharya.abhishek04@gmail.com</div>
+
+      <div className="mt-5 grid grid-cols-4 gap-3">
+        {[
+          { label: 'Tournaments', value: '23' },
+          { label: 'Breaks', value: '9' },
+          { label: 'Best spkr rank', value: '#3' },
+          { label: 'Best avg', value: '74.2' },
+        ].map((m) => (
+          <div key={m.label}>
+            <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-[10px]">
+              {m.label}
+            </div>
+            <div className="mt-1 font-serif text-[22px] text-ink num">{m.value}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid gap-3 rounded-[calc(var(--radius-card)-4px)] bg-card p-4 md:grid-cols-[140px_1fr]">
-        {/* Profile rail */}
-        <div className="flex flex-col items-center gap-3 rounded-card bg-gradient-to-b from-primary-soft to-card p-4 md:items-start">
-          <div className="relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-accent text-white shadow-sm">
-            <span className="font-display text-[17px] font-semibold">AA</span>
-          </div>
-          <div className="text-center md:text-left">
-            <div className="font-display text-[15px] font-semibold text-foreground">
-              Abhishek Acharya
-            </div>
-            <div className="text-caption text-muted-foreground">IGNOU · speaker</div>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-primary/20 bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-              5 tournaments
-            </span>
-            <span className="rounded-full border border-[hsl(var(--success)/0.25)] bg-[hsl(var(--success)/0.12)] px-2 py-0.5 text-[11px] font-medium text-success">
-              2 breaks
-            </span>
-          </div>
-        </div>
+      <hr className="hairline my-5" />
 
-        {/* Timeline excerpt */}
-        <div className="space-y-3">
-          <div className="rounded-card border border-border bg-card p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-display text-[14px] font-semibold text-foreground">
-                  WUDC 2024 · Vietnam
-                </div>
-                <div className="mt-0.5 text-caption text-muted-foreground">
-                  Team: Quarter Lifers
-                </div>
-              </div>
-              <span className="rounded-full border border-[hsl(var(--success)/0.25)] bg-[hsl(var(--success)/0.12)] px-2 py-0.5 text-[11px] font-medium text-success">
-                Octos
-              </span>
-            </div>
-            <div className="mt-3 grid grid-cols-9 gap-1">
-              {[74, 72, 71, 73, 70, 72, 71, 70, 71].map((n, i) => (
-                <div
-                  key={i}
-                  className="flex h-9 flex-col items-center justify-center rounded-md bg-muted/70"
-                >
-                  <div className="text-[9px] text-muted-foreground">R{i + 1}</div>
-                  <div className="font-mono text-[10.5px] text-foreground">{n}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-card border border-border bg-card p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-display text-[14px] font-semibold text-foreground">
-                  ILNU RR 2026
-                </div>
-                <div className="mt-0.5 text-caption text-muted-foreground">
-                  Team: Viral Adidas Jacket Owners
-                </div>
-              </div>
-              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                Prelims
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ul className="space-y-3">
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="font-serif italic text-[15px] text-ink">WUDC · Vietnam</span>
+          <span className="text-byline text-ink-soft num">2024 · Octofinalist</span>
+        </li>
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="font-serif italic text-[15px] text-ink">EUDC · Tallinn</span>
+          <span className="text-byline text-ink-soft num">2023 · ESL Semis</span>
+        </li>
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="font-serif italic text-[15px] text-ink">Hart House IV</span>
+          <span className="text-byline text-ink-soft num">2023 · Champion</span>
+        </li>
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="font-serif italic text-[15px] text-ink">ABP · Manila</span>
+          <span className="text-byline text-ink-soft num">2022 · Quarterfinalist</span>
+        </li>
+      </ul>
     </div>
   );
 }
