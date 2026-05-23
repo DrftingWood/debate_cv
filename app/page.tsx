@@ -24,7 +24,7 @@ export default async function Home() {
           <HowItWorks />
           <Colophon />
           <Faq />
-          <FooterCta />
+          <Subscribe />
         </div>
       </div>
       <Footer />
@@ -317,9 +317,9 @@ function Faq() {
       a: (
         <>
           Apps that request Gmail scopes need Google's verification for broad public use. We're
-          still in Google's Testing mode, so only addresses you add as Test Users can sign in.
-          The "Advanced → Go to debate cv (unsafe)" flow is expected and safe — it's the standard
-          dev-mode prompt for any Google OAuth app.
+          still in Google's Testing mode, so only addresses added as Test Users can sign in. The
+          "Advanced → Go to debate cv (unsafe)" flow is the standard dev-mode prompt — expected
+          and safe.
         </>
       ),
     },
@@ -347,7 +347,7 @@ function Faq() {
       q: 'Can I delete all my data?',
       a: (
         <>
-          Yes. Go to <Link href="/settings" className="text-primary hover:underline">Settings</Link>,
+          Yes. Go to <Link href="/settings" className="text-oxblood hover:underline">Settings</Link>,
           click <strong>Delete my data</strong>, confirm by typing your email. The account, tokens,
           URLs, jobs, and identity claims are removed.
         </>
@@ -358,28 +358,31 @@ function Faq() {
   return (
     <section className="space-y-6">
       <header className="max-w-2xl">
-        <span className="text-caption font-semibold uppercase tracking-widest text-accent-foreground">
-          FAQ
-        </span>
-        <h2 className="mt-2 font-display text-h2 font-semibold tracking-tight text-foreground">
-          Frequently asked.
+        <div className="kicker">LETTERS · FREQUENTLY ASKED</div>
+        <h2 className="mt-3 font-serif text-h2 italic text-ink">
+          From the inbox.
         </h2>
       </header>
-      <div className="divide-y divide-border rounded-card border border-border bg-card shadow-xs">
+      <div className="border-y border-ink/15">
         {items.map((it, i) => (
-          <details key={i} className="group px-5 py-4">
-            <summary className="cursor-pointer list-none text-[15px] font-medium text-foreground [&::-webkit-details-marker]:hidden">
+          <details
+            key={i}
+            className={'group px-1 py-4 ' + (i > 0 ? 'border-t border-ink/10' : '')}
+          >
+            <summary className="cursor-pointer list-none font-serif text-[17px] text-ink [&::-webkit-details-marker]:hidden">
               <span className="inline-flex w-full items-center justify-between gap-4">
                 <span>{it.q}</span>
                 <span
                   aria-hidden
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-muted-foreground transition-transform duration-[180ms] ease-soft group-open:rotate-180"
+                  className="font-serif text-[18px] text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180"
                 >
                   ▾
                 </span>
               </span>
             </summary>
-            <div className="mt-3 text-[14px] leading-relaxed text-muted-foreground">{it.a}</div>
+            <div className="mt-3 font-serif text-[15px] leading-relaxed text-ink/85">
+              {it.a}
+            </div>
           </details>
         ))}
       </div>
@@ -387,26 +390,16 @@ function Faq() {
   );
 }
 
-function FooterCta() {
+function Subscribe() {
   return (
-    <section className="relative overflow-hidden rounded-card bg-gradient-ink px-6 py-12 text-center text-white md:px-12 md:py-16">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          background:
-            'radial-gradient(60% 120% at 50% 0%, hsl(243 75% 59% / 0.45), transparent 70%)',
-        }}
-      />
-      <div className="relative">
-        <h2 className="font-hero text-h2 font-medium tracking-tight md:text-h1">
-          Build your debate CV in a minute.
+    <section>
+      <hr className="hairline" />
+      <div className="mt-10 max-w-2xl">
+        <div className="kicker">SUBSCRIBE</div>
+        <h2 className="mt-3 font-serif text-h2 italic text-ink">
+          Sign in, run the scan, watch your history compile.
         </h2>
-        <p className="mx-auto mt-3 max-w-xl text-[14.5px] text-white/70">
-          Connect Gmail once, run the scan, and watch your tournament history appear as the
-          queue drains.
-        </p>
-        <div className="mt-7 inline-flex">
+        <div className="mt-6">
           <SignInButton />
         </div>
       </div>
