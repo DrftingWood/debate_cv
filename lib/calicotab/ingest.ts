@@ -26,7 +26,12 @@ import {
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { detectFormatFromTeamSize } from './format';
-import { getInroundsChairedCount, outroundRankStrict } from './judgeStats';
+import { outroundRankStrict } from './judgeStats';
+import {
+  computeJudgeAggregates,
+  writeJudgeParticipantRole,
+  type JudgeRound,
+} from './judgeAggregates';
 import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
@@ -1240,21 +1245,14 @@ async function recordJudgeRoundsFromLanding(
     };
   }
 
-  // Aggregate stats for the participant row. getInroundsChairedCount classifies
-  // each round via classifyRoundLabel (numeric → inround, named → outround) so
-  // that prelims tagged with non-numeric labels in some Tabbycat installs
-  // still count, and never inflate the count from outround chairs.
-  const chairedPrelims = getInroundsChairedCount(
-    adjRounds.map((r) => ({ stage: r.stage, panelRole: r.role })),
+  // Compute aggregates (chairedPrelims + deepest chair/panel outrounds) via
+  // the shared helper. See lib/calicotab/judgeAggregates.ts for the rules
+  // — same semantics this writer used inline before sub-project 9 dedup.
+  const aggregates = computeJudgeAggregates(
+    adjRounds.map(
+      (r): JudgeRound => ({ stage: r.stage, role: r.role, roundNumber: r.roundNumber }),
+    ),
   );
-  const outrounds = adjRounds.filter((r) => r.roundNumber == null);
-  const ranked = outrounds
-    .map((r) => ({ r, rank: outroundRankStrict(r.stage) }))
-    .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
-    .sort((a, b) => b.rank - a.rank);
-  const deepestChaired = ranked.find((x) => x.r.role === 'chair')?.r.stage ?? null;
-  const deepestPaneled =
-    ranked.find((x) => x.r.role === 'panellist' || x.r.role === 'trainee')?.r.stage ?? null;
 
   const uniqueRounds = new Map<string, (typeof adjRounds)[number]>();
   for (const r of adjRounds) {
@@ -1275,35 +1273,14 @@ async function recordJudgeRoundsFromLanding(
         },
       });
     }
-    const tp = await tx.tournamentParticipant.upsert({
-      where: { tournamentId_personId: { tournamentId, personId } },
-      update: {
-        judgeTypeTag: 'Adjudicator',
-        chairedPrelimRounds: chairedPrelims || null,
-        lastOutroundChaired: deepestChaired,
-        lastOutroundPaneled: deepestPaneled,
-      },
-      create: {
-        tournamentId,
-        personId,
-        judgeTypeTag: 'Adjudicator',
-        chairedPrelimRounds: chairedPrelims || null,
-        lastOutroundChaired: deepestChaired,
-        lastOutroundPaneled: deepestPaneled,
-      },
-    });
-    await tx.participantRole.upsert({
-      where: {
-        tournamentParticipantId_role: {
-          tournamentParticipantId: tp.id,
-          role: 'judge',
-        },
-      },
-      update: {},
-      create: { tournamentParticipantId: tp.id, role: 'judge' },
-    });
+    // Landing path is authoritative when present — overwrite mode.
+    await writeJudgeParticipantRole(tx, tournamentId, personId, aggregates, 'overwrite');
   });
-  return { written: uniqueRounds.size, chairedPrelims, diagnostic: null };
+  return {
+    written: uniqueRounds.size,
+    chairedPrelims: aggregates.chairedPrelims,
+    diagnostic: null,
+  };
 }
 
 /**
@@ -1481,70 +1458,28 @@ async function recordJudgeRoundsFromRoundResults(
     }
   }
 
-  // Aggregate stats for the participant row. Same logic as the landing-page
-  // path so /cv produces identical numbers regardless of which source the
-  // data came from.
-  const chairedPrelims = getInroundsChairedCount(
-    hits.map((h) => ({ stage: h.stage, panelRole: h.role })),
+  // Compute aggregates (same semantics as the landing-path writer; both
+  // sites share lib/calicotab/judgeAggregates.ts). Round-results hits use
+  // role: 'chair' | 'panellist' — no trainee role here. The aggregate
+  // helper accepts 'trainee' as a possibility but the filter is a no-op
+  // for this input shape.
+  const aggregates = computeJudgeAggregates(
+    hits.map(
+      (h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber }),
+    ),
   );
-  const outrounds = hits.filter((h) => h.roundNumber == null);
-  const ranked = outrounds
-    .map((h) => ({ h, rank: outroundRankStrict(h.stage) }))
-    .filter((x): x is { h: typeof x.h; rank: number } => x.rank != null)
-    .sort((a, b) => b.rank - a.rank);
-  const deepestChaired = ranked.find((x) => x.h.role === 'chair')?.h.stage ?? null;
-  const deepestPaneled = ranked.find((x) => x.h.role === 'panellist')?.h.stage ?? null;
 
   // Merge with whatever the Debates card path already wrote: only fill in
   // null fields, never overwrite. Debates card data is more authoritative
   // (URL owner is explicitly bolded there) so when it ran successfully its
   // values stand.
-  const existing = await prisma.tournamentParticipant.findUnique({
-    where: { tournamentId_personId: { tournamentId, personId } },
-    select: {
-      chairedPrelimRounds: true,
-      lastOutroundChaired: true,
-      lastOutroundPaneled: true,
-    },
-  });
-  const update: {
-    judgeTypeTag: 'Adjudicator';
-    chairedPrelimRounds?: number;
-    lastOutroundChaired?: string;
-    lastOutroundPaneled?: string;
-  } = { judgeTypeTag: 'Adjudicator' };
-  if (chairedPrelims > 0 && (existing?.chairedPrelimRounds ?? null) == null) {
-    update.chairedPrelimRounds = chairedPrelims;
-  }
-  if (deepestChaired && !existing?.lastOutroundChaired) {
-    update.lastOutroundChaired = deepestChaired;
-  }
-  if (deepestPaneled && !existing?.lastOutroundPaneled) {
-    update.lastOutroundPaneled = deepestPaneled;
-  }
-
-  const tp = await prisma.tournamentParticipant.upsert({
-    where: { tournamentId_personId: { tournamentId, personId } },
-    update,
-    create: {
-      tournamentId,
-      personId,
-      judgeTypeTag: 'Adjudicator',
-      chairedPrelimRounds: chairedPrelims || null,
-      lastOutroundChaired: deepestChaired,
-      lastOutroundPaneled: deepestPaneled,
-    },
-  });
-  await prisma.participantRole.upsert({
-    where: {
-      tournamentParticipantId_role: {
-        tournamentParticipantId: tp.id,
-        role: 'judge',
-      },
-    },
-    update: {},
-    create: { tournamentParticipantId: tp.id, role: 'judge' },
-  });
+  await writeJudgeParticipantRole(
+    prisma,
+    tournamentId,
+    personId,
+    aggregates,
+    'fillNullsOnly',
+  );
 
   return { written, matched: hits.length, diagnostic: null };
 }
