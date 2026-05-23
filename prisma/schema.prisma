@@ -243,23 +243,24 @@ model PersonRejection {
 }
 
 model TournamentParticipant {
-  id                  BigInt   @id @default(autoincrement())
-  tournamentId        BigInt
-  personId            BigInt
-  teamName            String?
-  speakerScoreTotal   Decimal?
-  speakerRankOpen     Int?
-  speakerRankEsl      Int?
-  speakerRankEfl      Int?
-  teamBreakRank       Int?
-  judgeTypeTag        String?
-  chairedPrelimRounds Int?
-  lastOutroundChaired String?
-  lastOutroundPaneled String?
-  wins                Int?
-  eliminationReached  String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                     BigInt   @id @default(autoincrement())
+  tournamentId           BigInt
+  personId               BigInt
+  teamName               String?
+  speakerScoreTotal      Decimal?
+  speakerRankOpen        Int?
+  speakerRankEsl         Int?
+  speakerRankEfl         Int?
+  speakerRankOpenDerived Int?
+  teamBreakRank          Int?
+  judgeTypeTag           String?
+  chairedPrelimRounds    Int?
+  lastOutroundChaired    String?
+  lastOutroundPaneled    String?
+  wins                   Int?
+  eliminationReached     String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   tournament          Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   person              Person               @relation(fields: [personId], references: [id], onDelete: Cascade)

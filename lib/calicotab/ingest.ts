@@ -664,6 +664,34 @@ export async function ingestPrivateUrl(
       }
     }
 
+    // Persist the derived speaker rank (ROW_NUMBER over speakerScoreTotal DESC)
+    // for this tournament. Replaces the per-CV-view derivation that used to
+    // live in buildCvData.ts:262-291 — see sub-project 7. Tournament-scoped
+    // WHERE is critical: dropping it would recompute ranks across the entire
+    // table inside this transaction. Runs after every speaker upsert in this
+    // ingest is complete so the ROW_NUMBER input set is consistent. Idempotent
+    // across reingest: the same input rows produce the same output ranks.
+    await tx.$executeRaw`
+      UPDATE "TournamentParticipant" tp
+      SET "speakerRankOpenDerived" = sub.r
+      FROM (
+        SELECT
+          tp2.id,
+          ROW_NUMBER() OVER (
+            PARTITION BY tp2."tournamentId"
+            ORDER BY tp2."speakerScoreTotal" DESC, tp2.id ASC
+          ) AS r
+        FROM "TournamentParticipant" tp2
+        WHERE tp2."tournamentId" = ${t.id}
+          AND tp2."speakerScoreTotal" IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM "ParticipantRole" pr
+            WHERE pr."tournamentParticipantId" = tp2.id AND pr.role = 'speaker'
+          )
+      ) sub
+      WHERE tp.id = sub.id
+    `;
+
     // Adjudicator ROSTER (who's in the tournament) comes from the participants
     // list: write a TournamentParticipant row + 'judge' role per adjudicator
     // so the search-based claim flow on /cv can find them. Adjudicator JUDGING
