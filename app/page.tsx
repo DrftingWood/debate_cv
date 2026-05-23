@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ShieldCheck,
-  Lock,
-  Eye,
   ArrowRight,
   ShieldAlert,
 } from 'lucide-react';
@@ -25,8 +22,7 @@ export default async function Home() {
         <div className="space-y-24">
           <Hero />
           <HowItWorks />
-          <TrustStrip />
-          <TrustPanel />
+          <Colophon />
           <Faq />
           <FooterCta />
         </div>
@@ -262,80 +258,52 @@ function HowItWorks() {
   );
 }
 
-function TrustStrip() {
-  const items = [
-    'Read-only Gmail scope',
-    'No emails stored',
-    'AES-256 token encryption',
-    'Disconnect any time',
-    'Open source',
-  ];
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-full border border-border bg-card px-5 py-3 text-caption text-muted-foreground shadow-xs">
-      {items.map((label, i) => (
-        <span key={label} className="inline-flex items-center gap-4">
-          <span>{label}</span>
-          {i < items.length - 1 ? (
-            <span aria-hidden className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-          ) : null}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function TrustPanel() {
+function Colophon() {
   const points = [
     {
-      icon: <Eye className="h-5 w-5" aria-hidden />,
+      label: 'Scope',
       title: 'We only read what we need',
-      body: "The regex runs inside a narrow Gmail search. Message bodies are never stored.",
+      body:
+        'The regex runs inside a narrow Gmail search. Message bodies are never stored — only the matched URLs.',
     },
     {
-      icon: <Lock className="h-5 w-5" aria-hidden />,
+      label: 'Storage',
       title: 'Encrypted at rest',
-      body: 'OAuth refresh tokens are stored with AES-256-GCM, keyed from a server-only secret.',
+      body:
+        'OAuth refresh tokens are stored with AES-256-GCM, keyed from a server-only secret. No emails. No message metadata.',
     },
     {
-      icon: <ShieldCheck className="h-5 w-5" aria-hidden />,
+      label: 'Revocation',
       title: 'Revoke any time',
       body: (
         <>
-          Go to <Link href="/settings" className="text-primary hover:underline">Settings → Disconnect</Link>{' '}
-          (revokes the OAuth grant) or delete your account with one click.
+          Settings → <Link href="/settings" className="text-oxblood hover:underline">Disconnect</Link>{' '}
+          revokes the OAuth grant. Delete your account and everything goes — tokens, URLs, jobs, claims.
         </>
       ),
     },
   ];
 
   return (
-    <section className="rounded-card border border-border bg-card p-6 shadow-sm md:p-10">
+    <section>
       <header className="max-w-2xl">
-        <span className="text-caption font-semibold uppercase tracking-widest text-accent-foreground">
-          What you're authorizing
-        </span>
-        <h2 className="mt-2 font-display text-h2 font-semibold tracking-tight text-foreground">
+        <div className="kicker">COLOPHON · PROCESS &amp; POLICY</div>
+        <h2 className="mt-3 font-serif text-h2 italic text-ink">
           Plain English, zero surprises.
         </h2>
-        <p className="mt-3 text-body text-muted-foreground">
-          During sign-in you'll see Google's "unverified app" notice — that's because we're still
-          in testing. The underlying scope is read-only Gmail, same as any Gmail-parsing
-          productivity tool.
+        <p className="mt-3 font-serif text-body-serif text-ink/80">
+          During sign-in you'll see Google's "unverified app" notice — we're still in their Testing
+          program. The underlying scope is read-only Gmail, same as any inbox-parsing productivity tool.
         </p>
       </header>
-      <div className="mt-8 grid gap-5 md:grid-cols-3">
-        {points.map((p, i) => (
-          <div key={i} className="flex items-start gap-3.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary shadow-xs">
-              {p.icon}
-            </div>
-            <div>
-              <div className="font-display text-[15px] font-semibold text-foreground">
-                {p.title}
-              </div>
-              <div className="mt-1 text-[14px] text-muted-foreground">{p.body}</div>
-            </div>
-          </div>
+
+      <div className="mt-8 grid gap-x-10 gap-y-6 md:grid-cols-3">
+        {points.map((p) => (
+          <article key={p.label} className="space-y-2">
+            <div className="kicker">{p.label}</div>
+            <h3 className="font-serif text-h3 italic text-ink">{p.title}</h3>
+            <p className="font-serif text-[15px] leading-relaxed text-ink/85">{p.body}</p>
+          </article>
         ))}
       </div>
     </section>
