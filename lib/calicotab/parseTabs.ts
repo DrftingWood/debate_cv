@@ -18,6 +18,11 @@ export type VueCell = {
   tooltip?: string;
   link?: string;
   popover?: unknown;
+  // Populated only by the cheerio→VueTable adapter (lib/calicotab/cheerioToVue.ts).
+  // Native Vue payloads from Tabbycat leave this undefined — they embed HTML
+  // inside `text` instead, which is why parseNav's HTML-aware consumers read
+  // `cell.html ?? cell.text` to converge both sources.
+  html?: string;
 };
 export type VueTable = { title?: string; subtitle?: string; head: VueHead[]; data: VueCell[][] };
 
