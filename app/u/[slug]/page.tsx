@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Trophy } from 'lucide-react';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { Badge } from '@/components/ui/Badge';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 
@@ -77,36 +75,47 @@ export default async function PublicCvPage({
 
   return (
     <div className="space-y-10">
-      {/* Profile header — minimal, no email, no metric tiles. */}
-      <header className="flex flex-col items-start gap-4 md:flex-row md:items-center md:gap-6">
-        {user.publicAvatarEnabled && user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.image}
-            alt={user.name ?? 'Debater'}
-            className="h-20 w-20 rounded-full border border-border object-cover"
-          />
-        ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-accent font-display text-[24px] font-semibold text-white">
-            {initials(user.name)}
+      {/* Public CV masthead — formal mode */}
+      <header className="space-y-4">
+        <div className="kicker">
+          DEBATE CV — PUBLIC RECORD · COMPILED{' '}
+          {new Date().toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }).toUpperCase()}
+        </div>
+
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="flex items-end gap-5">
+            {user.publicAvatarEnabled && user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.image}
+                alt={user.name ?? 'Debater'}
+                className="h-20 w-20 rounded border border-ink/20 object-cover"
+              />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded border border-ink/20 bg-paper font-serif italic text-[26px] text-ink">
+                {initials(user.name)}
+              </div>
+            )}
+            <h1 className="font-serif text-[44px] italic leading-[1.05] tracking-tight text-ink md:text-[64px]">
+              {user.name ?? 'Debater'}.
+            </h1>
           </div>
-        )}
-        <div className="flex-1 space-y-2">
-          <h1 className="font-display text-h1 font-semibold tracking-tight text-foreground">
-            {user.name ?? 'Debater'}
-          </h1>
-          <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
-            <Badge variant="success">
-              <Trophy className="mr-1 h-3 w-3" aria-hidden />
-              {totalIngestedTournaments} ingested via private URLs
-            </Badge>
-            {summary.totalTournaments > 0 ? (
-              <span>· {summary.totalTournaments} tournaments</span>
-            ) : null}
+          <div data-print-hide="true">
+            <DownloadPdfButton />
           </div>
         </div>
-        <div data-print-hide="true">
-          <DownloadPdfButton />
+
+        <hr className="hairline" />
+
+        <div className="byline uppercase tracking-[0.16em] text-[11px] text-ink-soft">
+          {spellOrCount(totalIngestedTournaments)} tournament{totalIngestedTournaments === 1 ? '' : 's'} · verified via private URLs
+          {summary.totalTournaments > 0 && summary.totalTournaments !== totalIngestedTournaments
+            ? ` · ${summary.totalTournaments} on record`
+            : ''}
         </div>
       </header>
 
@@ -210,4 +219,29 @@ function initials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+function spellOrCount(n: number): string {
+  const words: Record<number, string> = {
+    1: 'one',
+    2: 'two',
+    3: 'three',
+    4: 'four',
+    5: 'five',
+    6: 'six',
+    7: 'seven',
+    8: 'eight',
+    9: 'nine',
+    10: 'ten',
+    11: 'eleven',
+    12: 'twelve',
+    13: 'thirteen',
+    14: 'fourteen',
+    15: 'fifteen',
+    16: 'sixteen',
+    17: 'seventeen',
+    18: 'eighteen',
+    19: 'nineteen',
+  };
+  return n < 20 ? (words[n] ?? String(n)) : String(n);
 }
