@@ -52,11 +52,112 @@ type IngestResult = {
   warnings: string[];
 };
 
+// ─── Phase function types ─────────────────────────────────────────────────
+//
+// The orchestrator (ingestPrivateUrl) is a thin wrapper that threads typed
+// state through ~8 phase functions. Each phase takes a typed input
+// (usually a previous phase's output plus the original userId/options)
+// and returns its own typed output. The fetchWarnings buffer is the one
+// exception: it's a mutable string[] that crosses phase boundaries by
+// reference (every .push() site is preserved unchanged). Keeping it
+// mutable is the lower-risk choice — fully functional warnings threading
+// would require touching every existing push site.
+
+type LoadedState = {
+  normalized: string;
+  urlVariants: string[];
+  parsedUrl: URL;
+  tournamentSlug: string | null;
+  fetchSession: FetchSession;
+  landingDoc: Extract<Awaited<ReturnType<typeof fetchHtmlWithProvenance>>, { ok: true }>;
+  landingHtml: string;
+  snapshot: ReturnType<typeof parsePrivateUrlPage>;
+  fetchWarnings: string[]; // mutable buffer — accumulates across phases 1-3
+  landingWarnings: string[];
+  privateUrlSentAt: Date | null;
+  tournamentFingerprint: string;
+  existing: Awaited<ReturnType<typeof prisma.tournament.findUnique>>;
+  parseStart: number;
+  year: number | null;
+};
+
+type CacheCheckResult =
+  | { kind: 'cache-hit'; result: IngestResult }
+  | { kind: 'miss' };
+
+type FetchedTabs = {
+  teamRows: ReturnType<typeof parseTeamTab>;
+  speakerRows: ReturnType<typeof parseSpeakerTab>;
+  mergedParticipantRows: ReturnType<typeof parseParticipantsList>;
+  rounds: ReturnType<typeof parseRoundResults>[];
+  breakRows: ReturnType<typeof parseBreakPage>;
+  tournamentName: string;
+  totalParticipants: number | null;
+  totalTeams: number | null;
+  prelimRoundCount: number | null;
+  format: ReturnType<typeof inferTournamentFormat>;
+  teamBreakRankByTeam: Map<string, number>;
+  fetchLevelFailures: string[];
+};
+
+type RegressionGuardResult =
+  | { kind: 'regression-blocked'; result: IngestResult }
+  | { kind: 'proceed' };
+
+type PersonContext = {
+  personIdByNormalized: Map<string, bigint>;
+  lookupPersonId: (name: string) => bigint | null;
+};
+
+type TxResult = {
+  tournamentId: bigint;
+  speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[];
+  speakerParticipantIds: bigint[];
+};
+
 export async function ingestPrivateUrl(
   url: string,
   userId: string,
   options: { force?: boolean } = {},
 ): Promise<IngestResult> {
+  const loaded = await loadLandingAndFingerprint(url, userId);
+  const cacheCheck = await checkCacheFreshness(loaded, userId, options);
+  if (cacheCheck.kind === 'cache-hit') return cacheCheck.result;
+
+  const fetched = await fetchAndParseTabs(loaded);
+  await recordPipelineParserRun(loaded, fetched);
+
+  // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
+  // 403, timeout) we'd be about to commit a tournament with missing speaker
+  // / team / round data, then mark its DiscoveredUrl as ingested — which
+  // hides the failure forever. Abort instead so the queue retries the job
+  // (drain/cron handlers reschedule on throw, up to MAX_ATTEMPTS=3). The
+  // ParserRun above already recorded the failure for /cv/verify.
+  if (fetched.fetchLevelFailures.length > 0) {
+    throw new Error(
+      `Aborting ingest: ${fetched.fetchLevelFailures.length} tab fetch(es) failed — ` +
+        fetched.fetchLevelFailures.map((w) => w.slice(0, 120)).join('; '),
+    );
+  }
+
+  const guarded = await checkRegressionGuard(loaded, fetched, userId, options);
+  if (guarded.kind === 'regression-blocked') return guarded.result;
+
+  const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
+  const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
+  return finalizePostTransaction(loaded, fetched, txResult, userId);
+}
+
+// ─── Phase functions for ingestPrivateUrl ─────────────────────────────────
+// See spec at docs/superpowers/specs/2026-05-23-ingest-pipeline-decomposition-design.md.
+// Each phase function is private (not exported) and takes typed input from
+// the orchestrator. The orchestrator threads typed state through these
+// phases; data flow is explicit rather than via a shared mutable context.
+
+async function loadLandingAndFingerprint(
+  url: string,
+  userId: string,
+): Promise<LoadedState> {
   const normalized = normalizePrivateUrl(url);
   const urlVariants = privateUrlVariants(url);
   const parsedUrl = new URL(normalized);
@@ -116,77 +217,110 @@ export async function ingestPrivateUrl(
     existing = await prisma.tournament.findUnique({ where: { fingerprint: legacyFingerprint } });
   }
   const tournamentFingerprint = existing?.fingerprint ?? inferredFingerprint;
-  if (existing && !options.force) {
-    const ageMs = Date.now() - existing.scrapedAt.getTime();
-    const fresh = ageMs < FRESH_WINDOW_MS;
-    // Reparse invalidation: if PARSER_VERSION bumped since the last successful
-    // parser run for this tournament's landing page, skip the cache and re-ingest.
-    const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
-    // Smart cache bust: if the landing nav advertises more rounds than we
-    // have stored TeamResult rows for, the tournament has progressed since
-    // the last ingest — fall through to a full refresh instead of serving
-    // a cached result that's missing rounds.
-    let cacheStale = false;
-    const navRoundCount = snapshot.navigation.resultsRounds.length;
-    if (navRoundCount > 0) {
-      const storedRounds = await prisma.teamResult.findMany({
-        where: { tournamentId: existing.id, roundNumber: { gt: 0 } },
-        select: { roundNumber: true },
-        distinct: ['roundNumber'],
-      });
-      cacheStale = navRoundCount > storedRounds.length;
-    }
-    if (fresh && parserUpToDate && !cacheStale) {
-      await recordParserRun({
-        sourceDocumentId: landingDoc.sourceDocumentId,
-        parserName: 'parseNav',
-        success: true,
-        warnings: landingWarnings,
-        durationMs: Date.now() - parseStart,
-      });
-      const linked = await withDeadlockRetry(() =>
-        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
-      );
-      if (linked) {
-        // Per-round data is attached to the registration Person regardless of
-        // claim status so it's ready when that person eventually claims.
-        // Speaker registrations don't surface the empty-Debates-card
-        // diagnostic — see the post-tx call site below for full rationale.
-        const isLikelySpeaker = !!snapshot.registration.teamName;
-        const r = await recordJudgeRoundsFromLanding(
-          landingHtml,
-          existing.id,
-          linked.personId,
-          snapshot.registration.personName,
-        );
-        if (r.diagnostic && !isLikelySpeaker) landingWarnings.push(r.diagnostic);
-        await recordSpeakerRoundsFromLanding(
-          landingHtml,
-          existing.id,
-          linked.personId,
-          snapshot.registration.teamName,
-        );
-      }
-      await prisma.discoveredUrl.updateMany({
-        where: { userId, url: { in: urlVariants } },
-        data: { tournamentId: existing.id, ingestedAt: new Date() },
-      });
-      return {
-        tournamentId: existing.id,
-        fingerprint: tournamentFingerprint,
-        cached: true,
-        claimedPersonId: linked?.claimed ? linked.personId : null,
-        claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
-        parserVersion: PARSER_VERSION,
-        totalTeams: existing.totalTeams,
-        totalParticipants: existing.totalParticipants,
-        warnings: landingWarnings,
-      };
-    }
-  }
 
+  return {
+    normalized,
+    urlVariants,
+    parsedUrl,
+    tournamentSlug,
+    fetchSession,
+    landingDoc,
+    landingHtml,
+    snapshot,
+    fetchWarnings,
+    landingWarnings,
+    privateUrlSentAt,
+    tournamentFingerprint,
+    existing,
+    parseStart,
+    year,
+  };
+}
+
+async function checkCacheFreshness(
+  loaded: LoadedState,
+  userId: string,
+  options: { force?: boolean },
+): Promise<CacheCheckResult> {
+  const { landingDoc, landingHtml, snapshot, existing, urlVariants, tournamentFingerprint, parseStart, landingWarnings } = loaded;
+  if (!existing || options.force) return { kind: 'miss' };
+
+  const ageMs = Date.now() - existing.scrapedAt.getTime();
+  const fresh = ageMs < FRESH_WINDOW_MS;
+  // Reparse invalidation: if PARSER_VERSION bumped since the last successful
+  // parser run for this tournament's landing page, skip the cache and re-ingest.
+  const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
+  // Smart cache bust: if the landing nav advertises more rounds than we
+  // have stored TeamResult rows for, the tournament has progressed since
+  // the last ingest — fall through to a full refresh instead of serving
+  // a cached result that's missing rounds.
+  let cacheStale = false;
+  const navRoundCount = snapshot.navigation.resultsRounds.length;
+  if (navRoundCount > 0) {
+    const storedRounds = await prisma.teamResult.findMany({
+      where: { tournamentId: existing.id, roundNumber: { gt: 0 } },
+      select: { roundNumber: true },
+      distinct: ['roundNumber'],
+    });
+    cacheStale = navRoundCount > storedRounds.length;
+  }
+  if (!fresh || !parserUpToDate || cacheStale) return { kind: 'miss' };
+
+  await recordParserRun({
+    sourceDocumentId: landingDoc.sourceDocumentId,
+    parserName: 'parseNav',
+    success: true,
+    warnings: landingWarnings,
+    durationMs: Date.now() - parseStart,
+  });
+  const linked = await withDeadlockRetry(() =>
+    linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
+  );
+  if (linked) {
+    // Per-round data is attached to the registration Person regardless of
+    // claim status so it's ready when that person eventually claims.
+    // Speaker registrations don't surface the empty-Debates-card
+    // diagnostic — see the post-tx call site below for full rationale.
+    const isLikelySpeaker = !!snapshot.registration.teamName;
+    const r = await recordJudgeRoundsFromLanding(
+      landingHtml,
+      existing.id,
+      linked.personId,
+      snapshot.registration.personName,
+    );
+    if (r.diagnostic && !isLikelySpeaker) landingWarnings.push(r.diagnostic);
+    await recordSpeakerRoundsFromLanding(
+      landingHtml,
+      existing.id,
+      linked.personId,
+      snapshot.registration.teamName,
+    );
+  }
+  await prisma.discoveredUrl.updateMany({
+    where: { userId, url: { in: urlVariants } },
+    data: { tournamentId: existing.id, ingestedAt: new Date() },
+  });
+  return {
+    kind: 'cache-hit',
+    result: {
+      tournamentId: existing.id,
+      fingerprint: tournamentFingerprint,
+      cached: true,
+      claimedPersonId: linked?.claimed ? linked.personId : null,
+      claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
+      parserVersion: PARSER_VERSION,
+      totalTeams: existing.totalTeams,
+      totalParticipants: existing.totalParticipants,
+      warnings: landingWarnings,
+    },
+  };
+}
+
+async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
+  const { normalized, fetchSession, snapshot, landingHtml, fetchWarnings } = loaded;
   // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
   const nav = snapshot.navigation;
+
   // Build a shared fetch helper for this ingest that records failures into
   // the fetchWarnings buffer so the landing ParserRun tells the operator
   // exactly which tabs upstream refused to serve.
@@ -283,9 +417,10 @@ export async function ingestPrivateUrl(
   const breakRows = breakHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
-  const tournamentName = snapshot.tournamentName ?? tournamentSlug ?? 'Unknown tournament';
+  const tournamentName = snapshot.tournamentName ?? loaded.tournamentSlug ?? 'Unknown tournament';
   const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
   const totalTeams = teamRows.length || null;
+
   // Authoritative prelim round count: how many of the parsed rounds turned
   // out to be in-rounds (not outround). Stored on Tournament so the CV
   // builder can use it as the speaker-average divisor when the speaker tab
@@ -322,34 +457,50 @@ export async function ingestPrivateUrl(
   // lib/calicotab/breakCategoryResolve.ts for the priority table + tests.
   const { rankByTeam: teamBreakRankByTeam } = resolveTeamBreaks(breakRows);
 
+  const fetchLevelFailures = fetchWarnings.filter((w) => w.startsWith('fetch:'));
+
+  return {
+    teamRows,
+    speakerRows,
+    mergedParticipantRows,
+    rounds,
+    breakRows,
+    tournamentName,
+    totalParticipants,
+    totalTeams,
+    prelimRoundCount,
+    format,
+    teamBreakRankByTeam,
+    fetchLevelFailures,
+  };
+}
+
+async function recordPipelineParserRun(
+  loaded: LoadedState,
+  fetched: FetchedTabs,
+): Promise<void> {
   // Record the full ParserRun once all tab fetches + parses are done so
   // both landing warnings and per-tab fetch failures (fetchWarnings) land
   // in the same row. Lets /cv/verify surface "tab fetch returned 403" next
   // to the tournament card rather than showing silent empty tables.
   await recordParserRun({
-    sourceDocumentId: landingDoc.sourceDocumentId,
+    sourceDocumentId: loaded.landingDoc.sourceDocumentId,
     parserName: 'parseNav',
     success:
-      (!!snapshot.tournamentName || snapshot.navigation.resultsRounds.length > 0) &&
-      fetchWarnings.length === 0,
-    warnings: [...landingWarnings, ...fetchWarnings],
-    durationMs: Date.now() - parseStart,
+      (!!loaded.snapshot.tournamentName ||
+        loaded.snapshot.navigation.resultsRounds.length > 0) &&
+      fetched.fetchLevelFailures.length === 0,
+    warnings: [...loaded.landingWarnings, ...loaded.fetchWarnings],
+    durationMs: Date.now() - loaded.parseStart,
   });
+}
 
-  // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
-  // 403, timeout) we'd be about to commit a tournament with missing speaker
-  // / team / round data, then mark its DiscoveredUrl as ingested — which
-  // hides the failure forever. Abort instead so the queue retries the job
-  // (drain/cron handlers reschedule on throw, up to MAX_ATTEMPTS=3). The
-  // ParserRun above already recorded the failure for /cv/verify.
-  const fetchLevelFailures = fetchWarnings.filter((w) => w.startsWith('fetch:'));
-  if (fetchLevelFailures.length > 0) {
-    throw new Error(
-      `Aborting ingest: ${fetchLevelFailures.length} tab fetch(es) failed — ` +
-        fetchLevelFailures.map((w) => w.slice(0, 120)).join('; '),
-    );
-  }
-
+async function checkRegressionGuard(
+  loaded: LoadedState,
+  fetched: FetchedTabs,
+  userId: string,
+  options: { force?: boolean },
+): Promise<RegressionGuardResult> {
   // Regression guard: if a re-ingest would drop the totals by >50% (and the
   // old tournament had non-trivial counts), assume the source page is
   // temporarily degraded (rate-limited, partial render) and serve the cached
@@ -363,58 +514,69 @@ export async function ingestPrivateUrl(
   // writes whatever sp.rank was, including null). Catching the drop here
   // serves cached data instead, matching the behaviour for catastrophic
   // team/participant drops.
-  if (existing && !options.force) {
-    const oldTeams = existing.totalTeams ?? 0;
-    const oldParticipants = existing.totalParticipants ?? 0;
-    const newTeams = totalTeams ?? 0;
-    const newParticipants = totalParticipants ?? 0;
-    const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
-    const participantsDropped = oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
+  const { existing, snapshot, tournamentFingerprint, urlVariants, fetchWarnings } = loaded;
+  if (!existing || options.force) return { kind: 'proceed' };
 
-    // Speaker-rank regression: count old participants with a known rank vs
-    // how many of this parse's speakerRows actually carry a rank.
-    const oldRankCount = await prisma.tournamentParticipant.count({
-      where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
-    });
-    const newRankCount = speakerRows.filter((r) => r.rank != null).length;
-    const ranksDropped = oldRankCount > 5 && newRankCount < oldRankCount * 0.5;
+  const oldTeams = existing.totalTeams ?? 0;
+  const oldParticipants = existing.totalParticipants ?? 0;
+  const newTeams = fetched.totalTeams ?? 0;
+  const newParticipants = fetched.totalParticipants ?? 0;
+  const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
+  const participantsDropped = oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
 
-    if (teamsDropped || participantsDropped || ranksDropped) {
-      const msg =
-        `Regression guard: re-ingest would drop data — ` +
-        `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}, ` +
-        `ranks ${oldRankCount}→${newRankCount}`;
-      Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint: tournamentFingerprint } });
-      const linked = await withDeadlockRetry(() =>
-        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
-      );
-      await prisma.discoveredUrl.updateMany({
-        where: { userId, url: { in: urlVariants } },
-        data: { tournamentId: existing.id, ingestedAt: new Date() },
-      });
-      return {
-        tournamentId: existing.id,
-        fingerprint: tournamentFingerprint,
-        cached: true,
-        claimedPersonId: linked?.claimed ? linked.personId : null,
-        claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
-        parserVersion: PARSER_VERSION,
-        totalTeams: existing.totalTeams,
-        totalParticipants: existing.totalParticipants,
-        warnings: [...fetchWarnings, 'regression-guard: overwrite blocked'],
-      };
-    }
+  // Speaker-rank regression: count old participants with a known rank vs
+  // how many of this parse's speakerRows actually carry a rank.
+  const oldRankCount = await prisma.tournamentParticipant.count({
+    where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
+  });
+  const newRankCount = fetched.speakerRows.filter((r) => r.rank != null).length;
+  const ranksDropped = oldRankCount > 5 && newRankCount < oldRankCount * 0.5;
+
+  if (!teamsDropped && !participantsDropped && !ranksDropped) {
+    return { kind: 'proceed' };
   }
 
+  const msg =
+    `Regression guard: re-ingest would drop data — ` +
+    `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}, ` +
+    `ranks ${oldRankCount}→${newRankCount}`;
+  Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint: tournamentFingerprint } });
+  const linked = await withDeadlockRetry(() =>
+    linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
+  );
+  await prisma.discoveredUrl.updateMany({
+    where: { userId, url: { in: urlVariants } },
+    data: { tournamentId: existing.id, ingestedAt: new Date() },
+  });
+  return {
+    kind: 'regression-blocked',
+    result: {
+      tournamentId: existing.id,
+      fingerprint: tournamentFingerprint,
+      cached: true,
+      claimedPersonId: linked?.claimed ? linked.personId : null,
+      claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
+      parserVersion: PARSER_VERSION,
+      totalTeams: existing.totalTeams,
+      totalParticipants: existing.totalParticipants,
+      warnings: [...fetchWarnings, 'regression-guard: overwrite blocked'],
+    },
+  };
+}
+
+async function preCommitPeopleAndBuildIndex(
+  loaded: LoadedState,
+  fetched: FetchedTabs,
+): Promise<PersonContext> {
   // Pre-commit every Person referenced anywhere in this ingest before opening
   // the main transaction. Doing the upserts inside the long transaction held
   // FK ShareLocks across concurrent ingests and triggered 40P01 deadlocks.
   const allPersonNames = new Set<string>();
-  for (const sp of speakerRows) allPersonNames.add(sp.speakerName);
-  for (const p of mergedParticipantRows) {
+  for (const sp of fetched.speakerRows) allPersonNames.add(sp.speakerName);
+  for (const p of fetched.mergedParticipantRows) {
     if (p.role === 'adjudicator') allPersonNames.add(p.name);
   }
-  for (const round of rounds) {
+  for (const round of fetched.rounds) {
     for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
   }
   // Pre-commit the URL owner's registration name even when no other table
@@ -423,8 +585,8 @@ export async function ingestPrivateUrl(
   // anonymous label, so the speaker upsert below can't match them by name.
   // Adding the registration name here means the team-anchored fallback
   // further down has an actual Person row to attribute the redacted row to.
-  if (snapshot.registration.personName) {
-    allPersonNames.add(snapshot.registration.personName);
+  if (loaded.snapshot.registration.personName) {
+    allPersonNames.add(loaded.snapshot.registration.personName);
   }
   const personIdByNormalized = await preCommitPersons(allPersonNames);
   // Pre-build the fuzzy-match index once so the speaker / participant /
@@ -434,7 +596,39 @@ export async function ingestPrivateUrl(
   const lookupPersonId = (name: string): bigint | null =>
     findPersonId(name, personIdByNormalized, personMatchIndex);
 
-  const txResult = await prisma.$transaction(async (tx) => {
+  return { personIdByNormalized, lookupPersonId };
+}
+
+async function writeIngestTransaction(
+  loaded: LoadedState,
+  fetched: FetchedTabs,
+  persons: PersonContext,
+  options: { force?: boolean },
+): Promise<TxResult> {
+  const {
+    normalized,
+    tournamentFingerprint,
+    snapshot,
+    existing,
+    fetchWarnings,
+    year,
+  } = loaded;
+  const {
+    teamRows,
+    speakerRows,
+    mergedParticipantRows,
+    rounds,
+    breakRows,
+    tournamentName,
+    totalParticipants,
+    totalTeams,
+    prelimRoundCount,
+    format,
+    teamBreakRankByTeam,
+  } = fetched;
+  const { lookupPersonId } = persons;
+
+  return prisma.$transaction(async (tx) => {
     // Acquire a transaction-scoped Postgres advisory lock keyed on the
     // tournament fingerprint. Two concurrent ingests of the same
     // tournament would otherwise interleave through
@@ -762,8 +956,17 @@ export async function ingestPrivateUrl(
   // Tx timeout is 45s — leaves 15s headroom under the 60s Vercel Hobby
   // function budget for the post-tx bulk SpeakerRoundScore writes plus the
   // landing-derived per-round writes (recordJudgeRounds*, recordSpeakerRounds*).
+}
 
-  const tournamentId = txResult.tournamentId;
+async function finalizePostTransaction(
+  loaded: LoadedState,
+  fetched: FetchedTabs,
+  txResult: TxResult,
+  userId: string,
+): Promise<IngestResult> {
+  const { snapshot, urlVariants, landingHtml, fetchWarnings, tournamentFingerprint } = loaded;
+  const { rounds } = fetched;
+  const { tournamentId, speakerRoundScoreCreates, speakerParticipantIds } = txResult;
 
   // Bulk write speaker round scores OUTSIDE the main tx — keeps the main tx
   // small enough to fit WUDC-scale tournaments under the 60s function
@@ -777,22 +980,19 @@ export async function ingestPrivateUrl(
   // a window where the delete committed but the createMany failed (e.g.
   // a transient connection drop mid-bulk-insert), which silently destroyed
   // the user's per-round scores until the next successful re-ingest.
-  if (
-    txResult.speakerParticipantIds.length > 0 ||
-    txResult.speakerRoundScoreCreates.length > 0
-  ) {
+  if (speakerParticipantIds.length > 0 || speakerRoundScoreCreates.length > 0) {
     const ops: Prisma.PrismaPromise<unknown>[] = [];
-    if (txResult.speakerParticipantIds.length > 0) {
+    if (speakerParticipantIds.length > 0) {
       ops.push(
         prisma.speakerRoundScore.deleteMany({
-          where: { tournamentParticipantId: { in: txResult.speakerParticipantIds } },
+          where: { tournamentParticipantId: { in: speakerParticipantIds } },
         }),
       );
     }
-    if (txResult.speakerRoundScoreCreates.length > 0) {
+    if (speakerRoundScoreCreates.length > 0) {
       ops.push(
         prisma.speakerRoundScore.createMany({
-          data: txResult.speakerRoundScoreCreates,
+          data: speakerRoundScoreCreates,
           skipDuplicates: true,
         }),
       );
@@ -858,8 +1058,8 @@ export async function ingestPrivateUrl(
     claimedPersonId: linked?.claimed ? linked.personId : null,
     claimedPersonName: linked?.claimed ? (snapshot.registration.personName ?? null) : null,
     parserVersion: PARSER_VERSION,
-    totalTeams: totalTeams ?? null,
-    totalParticipants: totalParticipants ?? null,
+    totalTeams: fetched.totalTeams ?? null,
+    totalParticipants: fetched.totalParticipants ?? null,
     warnings: fetchWarnings,
   };
 }
