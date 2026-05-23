@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowRight,
+  ChevronDown,
   ShieldAlert,
 } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
@@ -372,12 +373,7 @@ function Faq() {
             <summary className="cursor-pointer list-none font-serif text-body-serif text-ink [&::-webkit-details-marker]:hidden">
               <span className="inline-flex w-full items-center justify-between gap-4">
                 <span>{it.q}</span>
-                <span
-                  aria-hidden
-                  className="font-serif text-h4 text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180"
-                >
-                  ▾
-                </span>
+                <ChevronDown className="h-4 w-4 text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180" aria-hidden />
               </span>
             </summary>
             <div className="mt-3 font-serif text-body leading-relaxed text-ink/85">

@@ -160,7 +160,7 @@ function NotificationRow({
     <div
       className={cn(
         'flex flex-col gap-0.5 px-4 py-3 text-[13px] transition-colors hover:bg-muted/40',
-        !item.readAt && 'bg-primary-soft/30',
+        !item.readAt && 'bg-oxblood/[0.06]',
       )}
     >
       <span className="font-medium text-foreground">{item.title}</span>

@@ -125,7 +125,7 @@ export default async function CvPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5" data-print-hide="true">
+        <div className="flex flex-wrap items-center gap-2" data-print-hide="true">
           <CvShareButton />
           <DownloadPdfButton />
           <details className="group relative">
