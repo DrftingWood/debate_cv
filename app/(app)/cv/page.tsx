@@ -628,7 +628,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                   Reported
                 </span>
               ) : null}
@@ -692,7 +692,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <div className="flex items-center gap-1.5">
                     {r.hasOpenReport ? (
-                      <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                      <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                         Reported
                       </span>
                     ) : null}
@@ -737,7 +737,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
                   Reported
                 </span>
               ) : null}
