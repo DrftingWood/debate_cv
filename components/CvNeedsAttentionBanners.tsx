@@ -104,20 +104,21 @@ export function CvNeedsAttentionBanners({
   if (pendingCount === 0 && unmatchedCount === 0) return null;
 
   return (
-    <div className="space-y-2" data-print-hide="true">
+    <section className="space-y-2" data-print-hide="true" aria-label="Needs attention">
+      <div className="kicker">NEEDS ATTENTION</div>
       {pendingCount > 0 ? (
-        <div className="flex items-start gap-3 rounded-card border border-warning/30 bg-warning/5 px-4 py-3">
+        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
           <Loader2
-            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-warning"
+            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
             aria-hidden
           />
-          <p className="text-[14px] text-foreground">
-            <strong className="font-medium">
+          <p className="font-serif text-[14.5px] leading-relaxed text-ink">
+            <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
-            </strong>{' '}
-            <span className="text-muted-foreground">
+            </em>{' '}
+            <span className="text-ink-soft">
               Rows below will fill in as each finishes.{' '}
-              <Link href="/dashboard?filter=pending" className="text-primary hover:underline">
+              <Link href="/dashboard?filter=pending" className="text-oxblood hover:underline">
                 View queue
               </Link>
               .
@@ -126,20 +127,17 @@ export function CvNeedsAttentionBanners({
         </div>
       ) : null}
       {unmatchedCount > 0 ? (
-        <div className="flex items-start gap-3 rounded-card border border-warning/30 bg-warning/5 px-4 py-3">
-          <UserSearch
-            className="mt-0.5 h-4 w-4 shrink-0 text-warning"
-            aria-hidden
-          />
-          <p className="text-[14px] text-foreground">
-            <strong className="font-medium">
+        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
+          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
+          <p className="font-serif text-[14.5px] leading-relaxed text-ink">
+            <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
-            </strong>{' '}
-            <span className="text-muted-foreground">
+            </em>{' '}
+            <span className="text-ink-soft">
               We ingested them but couldn&apos;t match you to a speaker or judge.{' '}
               <Link
                 href="/dashboard?filter=unmatched"
-                className="text-primary hover:underline"
+                className="text-oxblood hover:underline"
               >
                 Find yourself on the dashboard
               </Link>
@@ -148,6 +146,6 @@ export function CvNeedsAttentionBanners({
           </p>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

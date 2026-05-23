@@ -4,8 +4,6 @@ import Link from 'next/link';
 import {
   Trophy,
   Search,
-  Mail,
-  MapPin,
   Mic,
   Gavel,
   ChevronDown,
@@ -13,6 +11,7 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { volumeRoman } from '@/lib/cv/volumeRoman';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -31,12 +30,6 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-function initials(name: string | null | undefined): string {
-  if (!name) return '??';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
 
 export default async function CvPage() {
   const session = await auth();
@@ -79,57 +72,50 @@ export default async function CvPage() {
         pendingCount={pendingCount}
         unmatchedCount={unmatched.length}
       />
-      {/* Profile header */}
-      <header className="relative overflow-hidden rounded-card border border-border shadow-sm">
-        <div aria-hidden className="absolute inset-0 bg-gradient-hero" />
-        <div aria-hidden className="absolute inset-0 hero-texture opacity-60" />
-        <div className="relative flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
-          <div className="flex items-center gap-5">
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-accent font-display text-[20px] font-semibold text-white shadow-md">
-              {initials(user?.name ?? user?.email)}
-            </div>
-            <div>
-              <h1 className="font-display text-h2 font-semibold tracking-tight text-foreground">
-                {user?.name ?? 'Debater'}
-              </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
-                {user?.email ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Mail className="h-3.5 w-3.5" aria-hidden />
-                    {user.email}
-                  </span>
-                ) : null}
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5" aria-hidden />
-                  Auto-built from Gmail
-                </span>
-              </div>
-            </div>
-          </div>
-          {headerMetrics.length > 0 ? (
-            <div
-              className={`grid gap-3 md:min-w-[380px] ${
-                headerMetrics.length === 1
-                  ? 'grid-cols-1'
-                  : headerMetrics.length === 2
-                    ? 'grid-cols-2'
-                    : headerMetrics.length === 3
-                      ? 'grid-cols-3'
-                      : 'grid-cols-2 md:grid-cols-4'
-              }`}
-            >
-              {headerMetrics.map((m, i) => (
-                <MetricTile
-                  key={i}
-                  label={m.label}
-                  value={m.value}
-                  accent={m.accent}
-                  mono={m.mono}
-                />
-              ))}
-            </div>
-          ) : null}
+      {/* Editorial masthead — replaces the gradient profile + metric-tile grid */}
+      <header className="space-y-4">
+        <div className="kicker">
+          DEBATE CV — VOL. {volumeRoman(highlights.activeYears)} · COMPILED{' '}
+          {new Date().toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }).toUpperCase()}
         </div>
+
+        <h1 className="font-serif text-[44px] italic leading-[1.05] tracking-tight text-ink md:text-display">
+          {user?.name ?? 'Debater'}.
+        </h1>
+
+        <hr className="hairline" />
+
+        <div className="byline">
+          {[
+            user?.email,
+            'Auto-compiled from Gmail',
+          ]
+            .filter(Boolean)
+            .join('  ·  ')}
+        </div>
+
+        {headerMetrics.length > 0 ? (
+          <div
+            className={
+              'mt-4 grid gap-6 ' +
+              (headerMetrics.length === 1
+                ? 'grid-cols-1'
+                : headerMetrics.length === 2
+                  ? 'grid-cols-2'
+                  : headerMetrics.length === 3
+                    ? 'grid-cols-3'
+                    : 'grid-cols-2 md:grid-cols-4')
+            }
+          >
+            {headerMetrics.map((m, i) => (
+              <StatColumn key={i} label={m.label} value={m.value} mono={m.mono} />
+            ))}
+          </div>
+        ) : null}
       </header>
 
       {/* Summary row + actions */}
@@ -307,31 +293,21 @@ function pickHeaderMetrics(input: {
   return candidates.filter((c): c is HeaderMetric => c !== null).slice(0, 4);
 }
 
-function MetricTile({
+function StatColumn({
   label,
   value,
-  accent,
   mono,
 }: {
   label: string;
   value: number | string;
-  accent?: boolean;
   mono?: boolean;
 }) {
   return (
-    <div
-      className={
-        'rounded-card border border-border bg-card/80 px-3 py-2.5 shadow-xs backdrop-blur-sm' +
-        (accent ? ' bg-primary-soft/70' : '')
-      }
-    >
-      <div className="text-caption text-muted-foreground">{label}</div>
-      <div
-        className={
-          'mt-0.5 font-display text-[20px] font-semibold leading-tight text-foreground' +
-          (mono ? ' font-mono' : '')
-        }
-      >
+    <div>
+      <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-[10.5px]">
+        {label}
+      </div>
+      <div className={'mt-1 font-serif text-[28px] text-ink num' + (mono ? '' : '')}>
         {value}
       </div>
     </div>
