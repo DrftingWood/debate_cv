@@ -13,16 +13,16 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:
-    'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:-translate-y-[1px] active:translate-y-0',
+    'bg-ink text-paper hover:bg-ink/90 active:bg-ink',
   secondary:
-    'bg-card text-foreground border border-border shadow-xs hover:bg-muted hover:border-border',
+    'bg-paper text-ink border border-ink/15 hover:border-ink/30',
   outline:
-    'bg-transparent text-foreground border border-border hover:bg-muted',
-  ghost: 'bg-transparent text-foreground hover:bg-muted',
+    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
+  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04]',
   danger:
-    'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
+    'bg-destructive text-destructive-foreground hover:brightness-110',
   link:
-    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto',
+    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto',
 };
 
 const sizes: Record<Size, string> = {
