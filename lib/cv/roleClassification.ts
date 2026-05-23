@@ -1,29 +1,20 @@
 /**
  * Decide whether a `TournamentParticipant` row represents the user
- * playing the judge role in that tournament. Mirrors the 5-signal OR
- * that previously sat inlined in `buildCvData.ts`.
+ * playing the judge role in that tournament. Reads `ParticipantRole`
+ * as the single source of truth.
  *
- * The signals are OR'd because the `ParticipantRole` table is incomplete
- * by design today: only `classifyParticipantRole` (the participants-tab
- * parser) populates a 'judge' role row, while the landing-derived judge
- * writers in ingest.ts populate `judgeTypeTag` / `chairedPrelimRounds` /
- * `lastOutroundChaired` / `lastOutroundPaneled` without upserting a
- * roles row. Until the ingest decomposition sub-project makes `roles`
- * authoritative (and a backfill SQL fills in historical rows), the OR is
- * the load-bearing classifier — we just want it to live in one place.
+ * After sub-project 9b's backfill migration applies, every legacy
+ * participant that previously satisfied the 5-signal OR (judgeTypeTag,
+ * chairedPrelimRounds, lastOutroundChaired, lastOutroundPaneled, or an
+ * existing 'judge' role row) has a 'judge' role row written for them.
+ * New ingests already write the role row via writeJudgeParticipantRole.
+ * So a single role-row check is sufficient.
+ *
+ * The dropped OR signals are still useful for CV display (chair counts,
+ * deepest outrounds) — only their role in classification changes.
  */
 export function isJudgeParticipant(p: {
   roles: ReadonlyArray<{ role: string }>;
-  judgeTypeTag: string | null;
-  chairedPrelimRounds: number | null;
-  lastOutroundChaired: string | null;
-  lastOutroundPaneled: string | null;
 }): boolean {
-  return (
-    p.roles.some((r) => r.role === 'judge') ||
-    !!p.judgeTypeTag ||
-    (p.chairedPrelimRounds ?? 0) > 0 ||
-    !!p.lastOutroundChaired ||
-    !!p.lastOutroundPaneled
-  );
+  return p.roles.some((r) => r.role === 'judge');
 }
