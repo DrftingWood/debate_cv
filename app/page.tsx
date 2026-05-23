@@ -159,7 +159,7 @@ function PaperCvExcerpt() {
           { label: 'Best avg', value: '74.2' },
         ].map((m) => (
           <div key={m.label}>
-            <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-kicker">
+            <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
               {m.label}
             </div>
             <div className="mt-1 font-serif text-h3 text-ink num">{m.value}</div>

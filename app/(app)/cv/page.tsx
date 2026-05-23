@@ -374,7 +374,7 @@ function StatColumn({
 }) {
   return (
     <div>
-      <div className="text-byline text-ink-soft uppercase tracking-[0.16em] text-kicker">
+      <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
         {label}
       </div>
       <div className={'mt-1 font-serif text-stat text-ink num' + (mono ? '' : '')}>
