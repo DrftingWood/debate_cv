@@ -4,6 +4,10 @@ export const runtime = 'edge';
 export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
+/**
+ * 32×32 browser favicon. Editorial brand mark: italic "cv" glyph in
+ * oxblood on cream paper. Replaces the previous indigo "DC" monogram.
+ */
 export default function Icon() {
   return new ImageResponse(
     (
@@ -14,16 +18,16 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#4338CA',
-          color: 'white',
-          fontSize: 16,
-          fontWeight: 700,
-          borderRadius: 6,
-          letterSpacing: -0.5,
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          background: '#FAF6EC',
+          color: '#7A2528',
+          fontSize: 22,
+          fontWeight: 600,
+          fontStyle: 'italic',
+          letterSpacing: -1,
+          fontFamily: 'Georgia, "Times New Roman", serif',
         }}
       >
-        DC
+        cv
       </div>
     ),
     { ...size },
