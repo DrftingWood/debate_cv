@@ -330,7 +330,7 @@ export default async function Dashboard({
             {/* Desktop table */}
             <Card className="hidden md:block">
               <div className="max-w-full overflow-x-auto">
-                <table className="min-w-max text-[13.5px]">
+                <table className="w-full min-w-max text-[13.5px]">
                   <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3">URL</th>

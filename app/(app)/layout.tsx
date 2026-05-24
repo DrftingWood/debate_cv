@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-5 py-3.5">
           <Link href={logoHref} className="inline-flex items-center">
             <BrandMark />
           </Link>
@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-5 py-10">{children}</div>
+      <div className="mx-auto max-w-screen-2xl px-5 py-10">{children}</div>
       <Footer />
     </>
   );
