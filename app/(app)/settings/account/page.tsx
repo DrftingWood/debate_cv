@@ -37,18 +37,26 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="space-y-8">
+      <header className="space-y-3">
+        <div className="kicker">SETTINGS · ACCOUNT</div>
+        <h1 className="font-serif text-h2 italic text-ink">
+          Connections and data.
+        </h1>
+        <hr className="hairline" />
+      </header>
+
       {/* Gmail */}
       <Card>
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <h2 className="font-display text-h3 font-semibold text-foreground">
+            <Mail className="h-4 w-4 text-ink-soft" aria-hidden />
+            <h2 className="font-serif text-h3 italic text-ink">
               Gmail connection
             </h2>
           </div>
-          <div className="text-[14px] text-muted-foreground">
+          <div className="text-body text-ink-soft">
             Signed in as{' '}
-            <span className="font-medium text-foreground">
+            <span className="font-medium text-ink">
               {user?.email ?? user?.name ?? 'Unknown'}
             </span>
             .
@@ -76,8 +84,8 @@ export default async function AccountSettingsPage() {
       <Card>
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <h2 className="font-display text-h3 font-semibold text-foreground">Your data</h2>
+            <Database className="h-4 w-4 text-ink-soft" aria-hidden />
+            <h2 className="font-serif text-h3 italic text-ink">Your data</h2>
           </div>
           <dl className="grid grid-cols-3 gap-3 text-[14px]">
             <DataStat
@@ -107,9 +115,9 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-destructive" aria-hidden />
-            <h2 className="font-display text-h3 font-semibold text-foreground">Delete account</h2>
+            <h2 className="font-serif text-h3 italic text-ink">Delete account</h2>
           </div>
-          <p className="text-[14px] text-muted-foreground">
+          <p className="text-body text-ink-soft">
             Removes your user record, Gmail tokens, discovered URLs, ingest jobs, and identity
             claims. Tournament rows shared across users stay — they&apos;re public tab data.
           </p>
@@ -134,7 +142,7 @@ function DataStat({
       <dt className="text-caption text-muted-foreground" title={hint}>
         {label}
       </dt>
-      <dd className="mt-0.5 font-display text-[22px] font-semibold text-foreground">{value}</dd>
+      <dd className="mt-0.5 font-serif text-stat font-semibold text-ink">{value}</dd>
       {hint ? (
         <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div>
       ) : null}
