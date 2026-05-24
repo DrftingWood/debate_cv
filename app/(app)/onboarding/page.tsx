@@ -42,12 +42,14 @@ export default async function OnboardingPage() {
   if (claimedCount > 0) {
     return (
       <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
-        <header className="space-y-2">
-          <h1 className="font-display text-h2 font-semibold tracking-tight text-foreground md:text-h1">
-            You&apos;re already set up
+        <header className="space-y-3">
+          <div className="kicker">ONBOARDING · FIRST RUN</div>
+          <h1 className="font-serif text-h2 italic text-ink">
+            Find yourself on the rosters.
           </h1>
-          <p className="text-[14px] text-muted-foreground md:text-[15px]">
-            Onboarding only runs once. Use the surfaces below to manage your
+          <hr className="hairline" />
+          <p className="text-body text-ink-soft">
+            You&apos;re already set up. Onboarding only runs once — use the surfaces below to manage your
             CV and identity going forward.
           </p>
         </header>
@@ -100,11 +102,13 @@ export default async function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
-      <header className="space-y-2">
-        <h1 className="font-display text-h2 font-semibold tracking-tight text-foreground md:text-h1">
-          Welcome — let&apos;s find you
+      <header className="space-y-3">
+        <div className="kicker">ONBOARDING · FIRST RUN</div>
+        <h1 className="font-serif text-h2 italic text-ink">
+          Find yourself on the rosters.
         </h1>
-        <p className="text-[14px] text-muted-foreground md:text-[15px]">
+        <hr className="hairline" />
+        <p className="text-body text-ink-soft">
           Three quick steps and your CV is ready.
         </p>
       </header>
