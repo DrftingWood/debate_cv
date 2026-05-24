@@ -81,13 +81,16 @@ export default async function AdminPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Admin</h1>
-        <p className="text-sm text-muted-foreground mt-1">Data lifecycle management</p>
-      </div>
+      <header className="space-y-3">
+        <div className="kicker">ADMIN · INTERNAL</div>
+        <h1 className="font-serif text-h2 italic text-ink">
+          Operator tools.
+        </h1>
+        <hr className="hairline" />
+      </header>
 
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-medium">Current state</h2>
+        <h2 className="font-serif text-h3 italic text-ink">Current state</h2>
         <dl className="grid grid-cols-4 gap-4 text-sm">
           <div>
             <dt className="text-muted-foreground">Tournaments</dt>
@@ -111,8 +114,8 @@ export default async function AdminPage() {
       <section className="rounded-lg border p-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-medium">CV error reports</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h2 className="font-serif text-h3 italic text-ink">CV error reports</h2>
+            <p className="text-body text-ink-soft mt-1">
               Beta reports users submitted from their CV page.
             </p>
           </div>
@@ -125,7 +128,7 @@ export default async function AdminPage() {
           </a>
         </div>
         {cvReports.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">No CV reports yet.</p>
+          <p className="text-body text-ink-soft italic">No CV reports yet.</p>
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {cvReports.map((report) => (
@@ -179,15 +182,15 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-medium">Recent parser warnings</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="font-serif text-h3 italic text-ink">Recent parser warnings</h2>
+          <p className="text-body text-ink-soft mt-1">
             Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
             many tournaments are hitting the same parsing issue — usually a structural change in
             Tabbycat the parser hasn&rsquo;t caught up to yet.
           </p>
         </div>
         {sortedWarnings.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">
+          <p className="text-body text-ink-soft italic">
             No warnings recorded in the last 200 parser runs. Parsers are clean.
           </p>
         ) : (
@@ -212,8 +215,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-medium">Clear ingested data</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="font-serif text-h3 italic text-ink">Clear ingested data</h2>
+          <p className="text-body text-ink-soft mt-1">
             Deletes scraped tournament records and resets ingest state on every DiscoveredUrl. User
             identity claims (Person records) and discovered URLs are preserved, so the next scan
             re-uses everyone&rsquo;s existing claims.
@@ -224,8 +227,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border border-destructive/30 bg-destructive/[0.03] p-6 space-y-4">
         <div>
-          <h2 className="font-medium">Full wipe (destructive)</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="font-serif text-h3 italic text-ink">Full wipe (destructive)</h2>
+          <p className="text-body text-ink-soft mt-1">
             All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and
             every PersonRejection across all users. User accounts and Gmail tokens are preserved
             so users can re-run the Gmail scan from zero. Use only to test the discovery + claim
@@ -240,8 +243,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-medium">Re-ingest all URLs</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="font-serif text-h3 italic text-ink">Re-ingest all URLs</h2>
+          <p className="text-body text-ink-soft mt-1">
             Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
             tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}
             <span className="font-medium">Ingest all</span> on the dashboard to process the queue.
