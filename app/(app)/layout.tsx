@@ -4,6 +4,7 @@ import { NavLink } from '@/components/NavLink';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 import { NotificationBell } from '@/components/NotificationBell';
+import { UserMenu } from '@/components/UserMenu';
 
 /**
  * (app) route group layout — applies to the entire signed-in app surface:
@@ -34,7 +35,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/settings">Settings</NavLink>
             </nav>
-            {session?.user?.id ? <NotificationBell /> : null}
+            {session?.user?.id ? (
+              <>
+                <NotificationBell />
+                <UserMenu
+                  name={session.user.name ?? null}
+                  email={session.user.email ?? null}
+                  image={session.user.image ?? null}
+                />
+              </>
+            ) : null}
           </div>
         </div>
       </header>

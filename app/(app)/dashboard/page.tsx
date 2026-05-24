@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { SessionBadge, SignOutButton } from '@/components/SignInOut';
 import {
   ScanButton,
   IngestAllButton,
@@ -139,28 +138,11 @@ export default async function Dashboard({
             Tournaments, in flight.
           </h1>
           <hr className="hairline" />
-          <div className="text-byline text-ink-soft">
-            <SessionBadge />
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
           <ScanButton />
-          <details className="group relative">
-            <summary className="list-none">
-              <span className="inline-flex h-11 cursor-pointer items-center rounded-md border border-border bg-card px-4 text-[14px] font-medium text-foreground shadow-xs transition-colors hover:bg-muted">
-                More actions
-              </span>
-            </summary>
-            <div className="absolute right-0 z-20 mt-2 w-[260px] rounded-card border border-border bg-card p-2.5 shadow-lg">
-              <div className="flex flex-col gap-1.5">
-                <ExportErrorsButton />
-                <div className="pt-1">
-                  <SignOutButton />
-                </div>
-              </div>
-            </div>
-          </details>
+          <ExportErrorsButton />
         </div>
       </header>
 
