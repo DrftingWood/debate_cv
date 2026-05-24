@@ -107,16 +107,18 @@ export default async function CvVerifyPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-h2 font-semibold text-foreground">
-            Extracted data verification
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <header className="space-y-3">
+          <div className="kicker">CV · VERIFY EXTRACTED FIELDS</div>
+          <h1 className="font-serif text-h2 italic text-ink">
+            Cross-check the parser.
           </h1>
-          <p className="mt-1 text-[14px] text-muted-foreground">
+          <hr className="hairline" />
+          <p className="text-body text-ink-soft">
             Showing all parsed fields for your 5 most recent tournaments.
           </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        </header>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <VerifyMineOnlyToggle mine={mineOnly} />
           <Link href="/cv">
             <Button variant="outline" leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
@@ -145,7 +147,7 @@ export default async function CvVerifyPage({
                   {/* Tournament metadata */}
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <h2 className="font-display text-[18px] font-semibold text-foreground">
+                      <h2 className="font-serif text-h3 italic text-ink">
                         {t.name}
                       </h2>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
@@ -186,7 +188,7 @@ export default async function CvVerifyPage({
                   {/* Participants */}
                   <section className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[14px] font-semibold text-foreground">
+                      <h3 className="font-serif italic text-ink">
                         Participants {mineOnly ? '(mine only)' : `(${t.participants.length})`}
                       </h3>
                       {mineOnly && participants.length === 0 ? (
@@ -419,7 +421,7 @@ export default async function CvVerifyPage({
 
                   {/* Judge assignments as grouped badges, not a joined string. */}
                   <section className="space-y-2">
-                    <h3 className="text-[14px] font-semibold text-foreground">
+                    <h3 className="font-serif italic text-ink">
                       Judge assignments ({t.judgeAssignments.length})
                     </h3>
                     {t.judgeAssignments.length === 0 ? (
@@ -448,7 +450,7 @@ export default async function CvVerifyPage({
 
                   {/* Break rows as grouped badges. */}
                   <section className="space-y-2">
-                    <h3 className="text-[14px] font-semibold text-foreground">
+                    <h3 className="font-serif italic text-ink">
                       Break results ({t.eliminationResults.length})
                     </h3>
                     {t.eliminationResults.length === 0 ? (
