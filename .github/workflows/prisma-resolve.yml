@@ -1,7 +1,32 @@
 name: Resolve Prisma Migration
 
+# Manually-triggered helper to clear a stuck migration on the Vercel
+# Postgres instance. Defaults to the abandoned-ingest-status migration
+# that failed with Postgres 55P04 ("unsafe use of new value") because
+# the original combined ALTER TYPE + UPDATE in one file. The migration
+# is now split across two files (20260524000000 + 20260524000001), but
+# Prisma still sees the old one as failed and refuses to apply
+# anything new until the failed marker is cleared.
+#
+# Repo secrets required (set under Settings → Secrets and variables → Actions):
+#   POSTGRES_PRISMA_URL        — same as the Vercel env var
+#   POSTGRES_URL_NON_POOLING   — same as the Vercel env var (Prisma uses this
+#                                 for migrations to avoid the pgbouncer pool)
+#
+# To target a different migration, run the workflow with a custom
+# `migration_name` input or update the default below.
+
 on:
   workflow_dispatch:
+    inputs:
+      migration_name:
+        description: 'Migration name to mark as rolled back'
+        required: true
+        default: '20260524000000_add_abandoned_ingest_status'
+      action:
+        description: 'rolled-back | applied'
+        required: true
+        default: 'rolled-back'
 
 jobs:
   resolve:
@@ -15,21 +40,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Enable pnpm
-        run: corepack enable
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: npm ci
 
-      - name: Mark failed migration as applied
+      - name: Mark migration as ${{ github.event.inputs.action }}
         env:
           POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-        run: pnpm prisma migrate resolve --applied 20260428200000_person_disambiguation_cleanup
+        run: |
+          npx prisma migrate resolve \
+            --${{ github.event.inputs.action }} \
+            ${{ github.event.inputs.migration_name }}
 
       - name: Check Prisma status after
         env:
           POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-        run: pnpm prisma migrate status
+        run: npx prisma migrate status
