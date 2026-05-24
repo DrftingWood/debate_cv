@@ -101,6 +101,15 @@ export default async function Dashboard({
     return { u, job, status };
   });
 
+  // Count abandoned separately from unavailable so the Failed tile can
+  // show a "X dead links" sub-line — abandoned is a strict subset of
+  // unavailable (the other unavailable rows are pre-migration HTTP 404
+  // legacy entries that the backfill converted, plus any future terminal
+  // types). After the migration runs, virtually all unavailable rows
+  // will be abandoned, but we track the raw job-status count here rather
+  // than relying on the derived PillStatus to avoid double-counting.
+  const abandonedCount = jobs.filter((j) => j.status === 'abandoned').length;
+
   const counts: Record<FilterKey, number> = {
     all: rows.length,
     pending: rows.filter((r) => r.status === 'pending' || r.status === 'running').length,
@@ -184,7 +193,11 @@ export default async function Dashboard({
           icon={<XCircle className="h-4 w-4" aria-hidden />}
           label="Failed"
           value={counts.failed}
-          hint="retry from chip below"
+          hint={
+            abandonedCount > 0
+              ? `${abandonedCount} dead link${abandonedCount === 1 ? '' : 's'}`
+              : 'retry from chip below'
+          }
           tone={counts.failed > 0 ? 'danger' : 'neutral'}
           filter="failed"
           activeFilter={activeFilter}
@@ -494,16 +507,16 @@ function TournamentMetrics({
   );
 }
 
-function isPermanentlyDead(lastError: string | null | undefined): boolean {
-  return !!lastError && /HTTP 404/.test(lastError);
-}
-
 function statusFor(
   ingested: boolean,
   jobStatus: string | undefined,
   lastError: string | null | undefined,
 ): PillStatus {
-  if (isPermanentlyDead(lastError)) return 'unavailable';
+  // `abandoned` is the canonical terminal status for permanently-dead URLs
+  // (HTTP 404 on landing). We also keep the legacy `lastError` check for
+  // any rows that slipped through before the migration ran.
+  if (jobStatus === 'abandoned') return 'unavailable';
+  if (lastError && /HTTP 404/.test(lastError)) return 'unavailable';
   if (ingested) return 'done';
   if (jobStatus === 'running') return 'running';
   if (jobStatus === 'failed') return 'failed';

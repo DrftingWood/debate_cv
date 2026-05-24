@@ -29,31 +29,52 @@ describe('POST /api/ingest/retry-failed', () => {
     expect(data).toEqual({ retried: 0, skipped: 0 });
   });
 
-  it('skips permanently-dead URLs (HTTP 404 in lastError) but retries the rest', async () => {
+  it('retries all failed jobs (permanently-dead URLs are abandoned, not failed)', async () => {
+    // Post-migration, permanently-dead URLs (HTTP 404 on landing) live in
+    // the `abandoned` status, not `failed`. The retry-failed endpoint only
+    // sees `failed` rows, so every row here is recoverable — no skipping.
     authMock.mockResolvedValue(fakeSession('user-1'));
     prismaMock.ingestJob.findMany.mockResolvedValue([
-      { url: 'https://x.calicotab.com/u/aaa/', lastError: 'fetch landing → HTTP 500: ...' },
-      { url: 'https://x.calicotab.com/u/bbb/', lastError: 'fetch landing → HTTP 404: ...' },
-      { url: 'https://x.calicotab.com/u/ccc/', lastError: 'parse failed' },
+      { url: 'https://x.calicotab.com/u/aaa/' },
+      { url: 'https://x.calicotab.com/u/bbb/' },
+      { url: 'https://x.calicotab.com/u/ccc/' },
     ]);
-    prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 2 });
-    prismaMock.discoveredUrl.updateMany.mockResolvedValue({ count: 2 });
+    prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 3 });
+    prismaMock.discoveredUrl.updateMany.mockResolvedValue({ count: 3 });
 
     const res = await POST();
     expect(res.status).toBe(200);
     const data = await readJson<{ retried: number; skipped: number }>(res);
-    expect(data.retried).toBe(2);
-    expect(data.skipped).toBe(1);
+    expect(data.retried).toBe(3);
+    expect(data.skipped).toBe(0);
 
-    // The reset should target only the recoverable URLs (skip the 404).
+    // The reset targets all three URLs — no filtering.
     const txCall = prismaMock.$transaction.mock.calls[0]![0] as unknown[];
     expect(txCall).toHaveLength(2);
     expect(prismaMock.ingestJob.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'user-1', url: { in: ['https://x.calicotab.com/u/aaa/', 'https://x.calicotab.com/u/ccc/'] } },
+      where: {
+        userId: 'user-1',
+        url: {
+          in: [
+            'https://x.calicotab.com/u/aaa/',
+            'https://x.calicotab.com/u/bbb/',
+            'https://x.calicotab.com/u/ccc/',
+          ],
+        },
+      },
       data: expect.objectContaining({ status: 'pending' }),
     });
     expect(prismaMock.discoveredUrl.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'user-1', url: { in: ['https://x.calicotab.com/u/aaa/', 'https://x.calicotab.com/u/ccc/'] } },
+      where: {
+        userId: 'user-1',
+        url: {
+          in: [
+            'https://x.calicotab.com/u/aaa/',
+            'https://x.calicotab.com/u/bbb/',
+            'https://x.calicotab.com/u/ccc/',
+          ],
+        },
+      },
       data: expect.objectContaining({ ingestedAt: null }),
     });
   });

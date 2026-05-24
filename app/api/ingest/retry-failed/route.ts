@@ -10,8 +10,7 @@ export const dynamic = 'force-dynamic';
  * Bulk reset of every failed IngestJob for the current user back to
  * pending. Mirrors the per-URL /api/ingest/clear behaviour but in one
  * trip — drives the dashboard's "Retry all failed" chip-level bulk
- * action. Permanent failures (HTTP 404 sources) are skipped because no
- * retry recovers them.
+ * action.
  */
 export async function POST() {
   const session = await auth();
@@ -20,18 +19,18 @@ export async function POST() {
   }
   const userId = session.user.id;
 
+  // All `failed` jobs are now retriable — permanently-dead URLs (HTTP 404
+  // on landing) are routed to the `abandoned` terminal status instead and
+  // don't show up here. See lib/queue.ts:isPermanentError.
   const failedJobs = await prisma.ingestJob.findMany({
     where: { userId, status: IngestJobStatus.failed },
-    select: { url: true, lastError: true },
+    select: { url: true },
   });
 
-  // Skip URLs whose lastError indicates a permanently dead source.
-  const recoverable = failedJobs
-    .filter((j) => !(j.lastError && /HTTP 404/.test(j.lastError)))
-    .map((j) => j.url);
+  const recoverable = failedJobs.map((j) => j.url);
 
   if (recoverable.length === 0) {
-    return NextResponse.json({ retried: 0, skipped: failedJobs.length });
+    return NextResponse.json({ retried: 0, skipped: 0 });
   }
 
   const result = await prisma.$transaction([
@@ -58,6 +57,6 @@ export async function POST() {
 
   return NextResponse.json({
     retried: result[0].count,
-    skipped: failedJobs.length - recoverable.length,
+    skipped: 0,
   });
 }
