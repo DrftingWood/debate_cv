@@ -7,8 +7,16 @@ export const metadata: Metadata = {
 
 export default function Terms() {
   return (
-    <article className="prose prose-zinc max-w-none">
-      <h1>Terms of Use</h1>
+    <div className="space-y-8">
+      <header className="space-y-3">
+        <div className="kicker">LEGAL · TERMS</div>
+        <h1 className="font-serif text-h2 italic text-ink">
+          Plain-English use of the tool.
+        </h1>
+        <hr className="hairline" />
+      </header>
+
+      <article className="prose prose-stone max-w-none font-serif">
       <p className="lead">
         debate cv is provided as-is for personal use. Last updated: 2026.
       </p>
@@ -34,6 +42,7 @@ export default function Terms() {
         </a>
         .
       </p>
-    </article>
+      </article>
+    </div>
   );
 }
