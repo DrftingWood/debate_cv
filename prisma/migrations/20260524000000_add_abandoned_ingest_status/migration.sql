@@ -4,20 +4,12 @@
 -- actionable-failed count stays accurate and retry-failed naturally
 -- skips them via the type rather than fragile regex matching on
 -- lastError.
+--
+-- This migration ONLY adds the enum value. The backfill of existing
+-- `failed` rows whose lastError indicates HTTP 404 lives in the
+-- companion migration `20260524000001_backfill_abandoned_ingest_status`.
+-- Postgres requires `ALTER TYPE ... ADD VALUE` to be committed before
+-- the new value can be referenced in DML (error code 55P04 — "unsafe
+-- use of new value"). Splitting into two migration files gives each
+-- the Prisma-managed transaction boundary it needs.
 ALTER TYPE "IngestJobStatus" ADD VALUE 'abandoned';
-
--- One-time backfill: jobs already marked `failed` whose lastError
--- indicates a HTTP 404 on landing are permanently dead. Convert in
--- place so the new dashboard split is correct from first deploy.
--- Note: this runs in a separate transaction from the ALTER TYPE above
--- (Postgres requires enum value additions to be visible in their own
--- transaction before they can be used in DML). Prisma's migration
--- engine handles the commit boundary automatically between statements
--- in the same file — but if you see "unsafe use of new value" in
--- production, split this into two migration files:
---   20260524000000_add_abandoned_ingest_status  (just the ALTER TYPE)
---   20260524000001_backfill_abandoned_ingest_status  (just this UPDATE)
-UPDATE "IngestJob"
-SET "status" = 'abandoned'
-WHERE "status" = 'failed'
-  AND "lastError" LIKE '%HTTP 404%';
