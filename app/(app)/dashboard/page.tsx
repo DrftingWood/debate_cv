@@ -23,6 +23,7 @@ import {
 } from '@/components/DashboardActions';
 import { RetryFailedButton } from '@/components/RetryFailedButton';
 import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
+import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
@@ -62,7 +63,8 @@ export default async function Dashboard({
   const params = await searchParams;
   const activeFilter: FilterKey = isFilterKey(params.filter) ? params.filter : 'all';
 
-  const [urls, jobs, claimedTournamentIds] = await Promise.all([
+  const [gmailToken, urls, jobs, claimedTournamentIds] = await Promise.all([
+    prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } }),
     prisma.discoveredUrl.findMany({
       where: { userId },
       orderBy: { messageDate: 'desc' },
@@ -161,6 +163,23 @@ export default async function Dashboard({
           </details>
         </div>
       </header>
+
+      {!gmailToken ? (
+        <section
+          aria-label="Gmail disconnected"
+          className="flex flex-col gap-3 border border-oxblood/30 bg-oxblood/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="space-y-1">
+            <div className="text-byline text-oxblood uppercase tracking-[0.16em]">
+              Gmail disconnected
+            </div>
+            <p className="font-serif text-body text-ink">
+              Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
+            </p>
+          </div>
+          <ReconnectGmailButton redirectTo="/dashboard" variant="primary" />
+        </section>
+      ) : null}
 
       {/* Stat tiles — clickable filter shortcuts */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
