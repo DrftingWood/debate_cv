@@ -161,6 +161,11 @@ enum IngestJobStatus {
   running
   done
   failed
+  /// Terminal status for permanently-dead URLs (HTTP 404 on landing,
+  /// dead Heroku apps, removed Calicotab tournaments). Not retried by
+  /// /api/ingest/retry-failed; surfaced separately from `failed` on the
+  /// dashboard so the actionable-failed count stays accurate.
+  abandoned
 }
 
 model IngestJob {

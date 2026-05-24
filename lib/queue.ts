@@ -123,6 +123,40 @@ export async function markJobFailed(id: string, error: string): Promise<void> {
   });
 }
 
+/**
+ * Classify an ingest error string as permanently unrecoverable. Currently
+ * matches HTTP 404 on the landing page (dead Heroku apps, removed
+ * Calicotab tournaments) — the dominant permanent-failure pattern in
+ * production. Add new patterns here as we learn more terminal modes.
+ *
+ * Used by the drain + cron handlers to fast-fail to `abandoned` without
+ * burning 3 retry attempts on a URL that will never recover.
+ */
+export function isPermanentError(error: string): boolean {
+  // HTTP 404 on the landing fetch — the URL itself returned not-found.
+  // We don't match arbitrary 404s in nested tab fetches because those
+  // can be transient (Tabbycat sometimes 404s a /tab/ URL during a
+  // reindex) and the user might want to retry.
+  return /fetch landing\b[^]*HTTP 404\b/.test(error);
+}
+
+/**
+ * Mark a job as terminally abandoned — permanently dead URL with no
+ * recovery path. Distinct from `markJobFailed` so the dashboard can
+ * surface the actionable-failed count separately and retry-failed
+ * naturally skips these via the status enum rather than regex.
+ */
+export async function markJobAbandoned(id: string, error: string): Promise<void> {
+  await prisma.ingestJob.update({
+    where: { id },
+    data: {
+      status: IngestJobStatus.abandoned,
+      finishedAt: new Date(),
+      lastError: error.slice(0, 2000),
+    },
+  });
+}
+
 export async function rescheduleJob(id: string, error: string): Promise<void> {
   // Bump scheduledAt to NOW so the retry competes fairly against fresh user
   // submissions in claimOnePending's `ORDER BY scheduledAt ASC` queue.
