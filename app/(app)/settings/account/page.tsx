@@ -9,6 +9,7 @@ import {
   DownloadDataButton,
   DeleteAccountButton,
 } from '@/components/AccountActions';
+import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,9 +66,11 @@ export default async function AccountSettingsPage() {
             <Badge variant={gmailToken ? 'success' : 'neutral'}>
               {gmailToken ? 'Gmail connected' : 'Gmail not connected'}
             </Badge>
-            <Badge variant={tokenEncrypted ? 'success' : 'warning'}>
-              {tokenEncrypted ? 'Token encrypted at rest (AES-256-GCM)' : 'Token stored in plaintext'}
-            </Badge>
+            {gmailToken ? (
+              <Badge variant={tokenEncrypted ? 'success' : 'warning'}>
+                {tokenEncrypted ? 'Token encrypted at rest (AES-256-GCM)' : 'Token stored in plaintext'}
+              </Badge>
+            ) : null}
             {gmailToken?.updatedAt ? (
               <span className="text-caption text-muted-foreground">
                 Last refreshed {new Date(gmailToken.updatedAt).toLocaleDateString()}
@@ -75,7 +78,11 @@ export default async function AccountSettingsPage() {
             ) : null}
           </div>
           <div className="pt-1">
-            <DisconnectGoogleButton />
+            {gmailToken ? (
+              <DisconnectGoogleButton />
+            ) : (
+              <ReconnectGmailButton redirectTo="/settings/account" label="Reconnect Gmail" />
+            )}
           </div>
         </CardBody>
       </Card>
