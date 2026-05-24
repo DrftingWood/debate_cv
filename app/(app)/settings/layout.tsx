@@ -26,16 +26,12 @@ export default async function SettingsLayout({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-h1 font-semibold tracking-tight text-foreground">
-          Settings
-        </h1>
-        <p className="mt-2 text-body text-muted-foreground">
-          Manage your identity, sharing, reports, and account.
-        </p>
-      </header>
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
         <aside className="md:sticky md:top-20 md:self-start">
+          <div className="mb-3 space-y-1">
+            <div className="kicker">SETTINGS</div>
+            <h2 className="font-serif text-h3 italic text-ink">Settings.</h2>
+          </div>
           <SettingsSideNav />
         </aside>
         <section className="min-w-0">{children}</section>
