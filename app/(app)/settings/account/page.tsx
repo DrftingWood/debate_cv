@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { Shield, Mail, Database } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { syncGmailTokenFromAccount } from '@/lib/gmail/client';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -13,26 +14,39 @@ import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 
 export const dynamic = 'force-dynamic';
 
+const gmailTokenSelect = {
+  encryptionVersion: true,
+  updatedAt: true,
+  scope: true,
+} as const;
+
 export default async function AccountSettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  const [user, gmailToken, counts] = await Promise.all([
+  const [user, initialGmailToken, counts] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { email: true, name: true, image: true },
     }),
-    prisma.gmailToken.findUnique({
-      where: { userId },
-      select: { encryptionVersion: true, updatedAt: true, scope: true },
-    }),
+    prisma.gmailToken.findUnique({ where: { userId }, select: gmailTokenSelect }),
     Promise.all([
       prisma.discoveredUrl.count({ where: { userId } }),
       prisma.ingestJob.count({ where: { userId } }),
       prisma.person.count({ where: { claimedByUserId: userId } }),
     ]).then(([urls, jobs, claimed]) => ({ urls, jobs, claimed })),
   ]);
+
+  // Self-healing: if no GmailToken but the Google Account row still has
+  // OAuth tokens, rebuild GmailToken from Account. See the long comment
+  // on syncGmailTokenFromAccount for why we don't trust events.signIn
+  // alone on NextAuth v5 beta.
+  const gmailToken =
+    initialGmailToken ??
+    ((await syncGmailTokenFromAccount(userId))
+      ? await prisma.gmailToken.findUnique({ where: { userId }, select: gmailTokenSelect })
+      : null);
 
   const tokenEncrypted = gmailToken?.encryptionVersion === 'v1';
 

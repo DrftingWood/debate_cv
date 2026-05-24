@@ -57,7 +57,13 @@ export function buildGmailTokenUpdate(
 }
 
 export async function getOAuthClientForUser(userId: string): Promise<OAuth2Client | null> {
-  const token = await prisma.gmailToken.findUnique({ where: { userId } });
+  let token = await prisma.gmailToken.findUnique({ where: { userId } });
+  if (!token) {
+    const recovered = await syncGmailTokenFromAccount(userId);
+    if (recovered) {
+      token = await prisma.gmailToken.findUnique({ where: { userId } });
+    }
+  }
   if (!token) return null;
 
   const accessToken = decryptValue(token.accessToken, token.encryptionVersion);
@@ -71,6 +77,44 @@ export async function getOAuthClientForUser(userId: string): Promise<OAuth2Clien
     scope: token.scope ?? undefined,
   });
   return client;
+}
+
+/**
+ * Recover a missing GmailToken row from the user's Google Account row.
+ *
+ * NextAuth's PrismaAdapter writes OAuth tokens directly into Account
+ * (access_token, refresh_token, expires_at, scope as plaintext columns
+ * — that's the adapter's contract, not ours). Our GmailToken table is a
+ * derived, encrypted-at-rest cache that's normally populated by
+ * events.signIn / events.linkAccount in lib/auth.ts.
+ *
+ * In NextAuth v5 beta the events flow has been observed to no-op the
+ * write while still logging success (the Reconnect Gmail flow:
+ * disconnect → consent → land back with badge still saying "not
+ * connected" even though [auth.signIn] persisting Gmail tokens
+ * appeared in runtime logs). Treating Account as the source of truth
+ * and rebuilding GmailToken from it sidesteps that dependency
+ * entirely — it works whether or not events fired correctly.
+ *
+ * Returns true when a row was written (caller should re-read), false
+ * when there's no Account to recover from. Safe to call when a
+ * GmailToken already exists, but callers should check first to avoid
+ * the redundant Account read.
+ */
+export async function syncGmailTokenFromAccount(userId: string): Promise<boolean> {
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: 'google' },
+    select: { access_token: true, refresh_token: true, expires_at: true, scope: true },
+  });
+  if (!account?.access_token) return false;
+  await persistTokensFromAccount(userId, {
+    access_token: account.access_token,
+    refresh_token: account.refresh_token,
+    expires_at: account.expires_at,
+    scope: account.scope,
+  });
+  console.info('[gmail.sync] recovered GmailToken from Account', { userId });
+  return true;
 }
 
 export async function persistTokensFromAccount(
