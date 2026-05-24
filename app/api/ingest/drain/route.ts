@@ -5,6 +5,8 @@ import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { IngestJobStatus } from '@prisma/client';
 import {
   claimOnePending,
+  isPermanentError,
+  markJobAbandoned,
   markJobDone,
   markJobFailed,
   rescheduleJob,
@@ -28,7 +30,7 @@ export async function POST() {
     }
     const userId = session.user.id;
     const started = Date.now();
-    const results: Array<{ url: string; status: 'done' | 'failed' | 'retry'; error?: string }> = [];
+    const results: Array<{ url: string; status: 'done' | 'failed' | 'abandoned' | 'retry'; error?: string }> = [];
 
     await resetStuckRunning({ userId });
 
@@ -51,6 +53,13 @@ export async function POST() {
         if (isDeadlockError(err)) {
           await rescheduleJob(job.id, msg);
           results.push({ url: job.url, status: 'retry', error: msg });
+        } else if (isPermanentError(msg)) {
+          // Fast-fail to terminal `abandoned` — no point retrying 2 more times
+          // when the landing page returned 404 (dead Heroku app, removed
+          // tournament). Saves 2 cron cycles per dead URL and keeps the
+          // actionable-failed count accurate.
+          await markJobAbandoned(job.id, msg);
+          results.push({ url: job.url, status: 'abandoned', error: msg });
         } else if (job.attempts >= MAX_ATTEMPTS) {
           await markJobFailed(job.id, msg);
           results.push({ url: job.url, status: 'failed', error: msg });

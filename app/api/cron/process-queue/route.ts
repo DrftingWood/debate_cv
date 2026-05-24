@@ -4,6 +4,8 @@ import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import {
   claimOnePending,
+  isPermanentError,
+  markJobAbandoned,
   markJobDone,
   markJobFailed,
   rescheduleJob,
@@ -52,7 +54,7 @@ export async function POST(req: Request) {
 async function runOnce() {
   try {
     const started = Date.now();
-    const results: Array<{ id: string; status: 'done' | 'failed' | 'retry'; error?: string }> = [];
+    const results: Array<{ id: string; status: 'done' | 'failed' | 'abandoned' | 'retry'; error?: string }> = [];
 
     await resetStuckRunning({});
 
@@ -72,6 +74,18 @@ async function runOnce() {
         if (isDeadlockError(err)) {
           await rescheduleJob(job.id, msg);
           results.push({ id: job.id, status: 'retry', error: msg });
+        } else if (isPermanentError(msg)) {
+          // Fast-fail to terminal `abandoned` on first attempt — the landing
+          // page returned 404 (dead Heroku app, removed tournament). No
+          // recovery path exists, so we skip the 2 remaining retries and
+          // report immediately (this IS the final attempt by design).
+          Sentry.captureException(err, {
+            tags: { route: 'api/cron/process-queue', stage: 'ingest-abandoned' },
+            extra: { url: job.url, attempts: job.attempts },
+            user: { id: job.userId },
+          });
+          await markJobAbandoned(job.id, msg);
+          results.push({ id: job.id, status: 'abandoned', error: msg });
         } else if (job.attempts >= MAX_ATTEMPTS) {
           // Only report on the FINAL attempt — earlier attempts are expected
           // to occasionally fail (Cloudflare flakes, slow Tabbycat hosts).
