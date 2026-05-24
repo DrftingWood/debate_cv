@@ -27,10 +27,32 @@ async function drainUntilEmpty(
 ): Promise<{ processed: number; remaining: number }> {
   let totalProcessed = 0;
   let remaining = 0;
+  // Tolerate a few consecutive drain failures (typically a Vercel 504
+  // when one URL exceeds the per-function 60s budget). The job that
+  // timed out is stuck in 'running' on the server; resetStuckRunning
+  // will reclaim it after ~5 min, and meanwhile other queued jobs can
+  // still be claimed and processed. The old code rethrew immediately,
+  // which halted the whole batch on a single slow URL and gave the
+  // user a misleading "Ingest failed" toast even though most jobs
+  // would have been fine on the next call.
+  const MAX_CONSECUTIVE_FAILURES = 3;
+  const RETRY_BACKOFF_MS = 5_000;
+  let consecutiveFailures = 0;
   for (let i = 0; i < 50; i++) {
     if (signal?.aborted) break;
     const result = await postJson<DrainResponse>('/api/ingest/drain');
-    if (!result.ok) throw new Error(result.error);
+    if (!result.ok) {
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        throw new Error(result.error);
+      }
+      // Give the runtime a moment to recycle before retrying — back-to-back
+      // calls right after a 504 tend to land on the same warm-but-broken
+      // lambda instance.
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+      continue;
+    }
+    consecutiveFailures = 0;
     totalProcessed += result.data.processed ?? 0;
     remaining = result.data.remaining ?? 0;
     onProgress({ processed: totalProcessed, remaining });

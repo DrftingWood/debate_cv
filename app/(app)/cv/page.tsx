@@ -9,6 +9,7 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { volumeRoman } from '@/lib/cv/volumeRoman';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -420,13 +421,14 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string {
   // e.g. "Open: Octofinals · ESL: Grand Final".
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
     const joined = r.eliminationReachedByCategory
-      .map((e) => `${e.category}: ${e.stage}`)
+      .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (Champion)` : joined;
   }
   if (!r.eliminationReached) return '—';
-  if (r.wonTournament === true) return `${r.eliminationReached} (Champion)`;
-  return r.eliminationReached;
+  const display = formatStageForDisplay(r.eliminationReached);
+  if (r.wonTournament === true) return `${display} (Champion)`;
+  return display;
 }
 
 // Expandable per-round score breakdown shown beneath each tournament row.

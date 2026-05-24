@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 
 export const runtime = 'nodejs';
@@ -70,13 +71,14 @@ export async function GET() {
         (() => {
           const multi = r.eliminationReachedByCategory;
           if (multi && multi.length > 1) {
-            const joined = multi.map((e) => `${e.category}: ${e.stage}`).join(' · ');
+            const joined = multi
+              .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
+              .join(' · ');
             return r.wonTournament === true ? `${joined} (W)` : joined;
           }
           if (!r.eliminationReached) return '';
-          return r.wonTournament === true
-            ? `${r.eliminationReached} (W)`
-            : r.eliminationReached;
+          const display = formatStageForDisplay(r.eliminationReached);
+          return r.wonTournament === true ? `${display} (W)` : display;
         })(),
         '',
         '',
