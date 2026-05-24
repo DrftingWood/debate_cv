@@ -13,7 +13,17 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-const MIN_INTERVAL_MS = 750;
+// Per-host minimum interval between consecutive request starts. Enforced by
+// FetchSession.acquireSlot, which makes concurrent calls (Promise.all of 3
+// tab fetches + many round results) serial rather than racing — important
+// because Cloudflare-fronted Tabbycat instances 403 bursts of simultaneous
+// requests even when each individual gap looks polite.
+// Bumped from 750ms (post Cloudflare-403 audit, 2026-05) — 750ms was fine
+// for direct fetches but parallel bursts of 3-7 same-host requests still
+// tripped Cloudflare's per-IP rate limiter on aggressively-protected
+// instances. 2500ms gives a 7-tab ingest ~17.5s of throttle floor, which
+// is acceptable for a personal-use tool.
+const MIN_INTERVAL_MS = 2500;
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
@@ -79,10 +89,9 @@ const FETCH_TIMEOUT_MS = 15_000;
 
 async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const host = new URL(url).host;
-  const last = session.getLastRequestAt(host);
-  const gap = Date.now() - last;
-  if (gap < MIN_INTERVAL_MS) await wait(MIN_INTERVAL_MS - gap);
-  session.markRequestNow(host);
+  // Serial per-host slot — see FetchSession.acquireSlot for why this
+  // matters for Cloudflare-fronted Tabbycat instances.
+  await session.acquireSlot(host, MIN_INTERVAL_MS);
 
   const cookie = session.getCookieHeader(host);
   const controller = new AbortController();
