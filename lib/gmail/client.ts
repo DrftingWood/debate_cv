@@ -102,19 +102,30 @@ export async function getOAuthClientForUser(userId: string): Promise<OAuth2Clien
  * the redundant Account read.
  */
 export async function syncGmailTokenFromAccount(userId: string): Promise<boolean> {
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: 'google' },
-    select: { access_token: true, refresh_token: true, expires_at: true, scope: true },
-  });
-  if (!account?.access_token) return false;
-  await persistTokensFromAccount(userId, {
-    access_token: account.access_token,
-    refresh_token: account.refresh_token,
-    expires_at: account.expires_at,
-    scope: account.scope,
-  });
-  console.info('[gmail.sync] recovered GmailToken from Account', { userId });
-  return true;
+  try {
+    const account = await prisma.account.findFirst({
+      where: { userId, provider: 'google' },
+      select: { access_token: true, refresh_token: true, expires_at: true, scope: true },
+    });
+    if (!account?.access_token) return false;
+    await persistTokensFromAccount(userId, {
+      access_token: account.access_token,
+      refresh_token: account.refresh_token,
+      expires_at: account.expires_at,
+      scope: account.scope,
+    });
+    console.info('[gmail.sync] recovered GmailToken from Account', { userId });
+    return true;
+  } catch (err) {
+    // Self-healing must never crash the caller. The settings page renders
+    // through this path; the ingest API route's getOAuthClientForUser
+    // calls it on every cache-miss. Surface the message so the next prod
+    // log pull names the failing column / constraint — the prior deploy
+    // (cb55b44) propagated the throw and broke the settings page render.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[gmail.sync] failed to recover GmailToken from Account', { userId, message });
+    return false;
+  }
 }
 
 export async function persistTokensFromAccount(

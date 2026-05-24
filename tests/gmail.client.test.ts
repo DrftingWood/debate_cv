@@ -89,6 +89,26 @@ describe('syncGmailTokenFromAccount', () => {
     expect(prismaMock.gmailToken.upsert).not.toHaveBeenCalled();
   });
 
+  test('returns false (does not throw) when prisma rejects the upsert', async () => {
+    const { prismaMock } = await import('./setup/api-test-utils');
+    const { syncGmailTokenFromAccount } = await import('@/lib/gmail/client');
+
+    prismaMock.account.findFirst.mockResolvedValue({
+      access_token: 'plain-access',
+      refresh_token: 'plain-refresh',
+      expires_at: 1700000000,
+      scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
+    });
+    prismaMock.gmailToken.findUnique.mockResolvedValue(null);
+    prismaMock.gmailToken.upsert.mockRejectedValue(
+      new Error('Invalid `prisma.gmailToken.upsert()` invocation: Unknown column …'),
+    );
+
+    const result = await syncGmailTokenFromAccount('user-1');
+
+    expect(result).toBe(false);
+  });
+
   test('upserts an encrypted GmailToken row when Account has tokens', async () => {
     const { prismaMock } = await import('./setup/api-test-utils');
     const { syncGmailTokenFromAccount } = await import('@/lib/gmail/client');
