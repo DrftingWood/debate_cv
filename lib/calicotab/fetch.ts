@@ -18,12 +18,30 @@ const DEFAULT_USER_AGENT =
 // tab fetches + many round results) serial rather than racing — important
 // because Cloudflare-fronted Tabbycat instances 403 bursts of simultaneous
 // requests even when each individual gap looks polite.
-// Bumped from 750ms (post Cloudflare-403 audit, 2026-05) — 750ms was fine
-// for direct fetches but parallel bursts of 3-7 same-host requests still
-// tripped Cloudflare's per-IP rate limiter on aggressively-protected
-// instances. 2500ms gives a 7-tab ingest ~17.5s of throttle floor, which
-// is acceptable for a personal-use tool.
-const MIN_INTERVAL_MS = 2500;
+//
+// History: 750ms (original) → 2500ms (2026-05, post Cloudflare-403 audit)
+// → 1500ms (2026-05-24, post Vercel 60s 504 timeout audit).
+//
+// The 2500ms bump was paired with the serialization fix in FetchSession.
+// The serialization itself is what stopped the burst-triggered 403s; the
+// 2500ms was an overcautious headroom on top. At ~16 same-host fetches
+// per ingest, 2500ms blew past Vercel's 60s Hobby cap (40s throttle
+// floor + fetch latency + parse/write). 1500ms keeps the throttle 2x
+// above the 750ms level that was failing for *concurrent bursts* — but
+// with serialization eliminating bursts, it's a comfortable steady-state
+// rate (~40 req/min per host, well below typical Cloudflare managed
+// thresholds). 16 × 1500ms = 24s throttle floor, leaving ~30s for the
+// fetch + parse + write phases inside a 60s budget.
+//
+// TABBYCAT_MIN_INTERVAL_MS env var overrides for tuning on specific
+// deployments without a code change. Empty / unparseable values fall
+// back to the default below.
+const MIN_INTERVAL_MS = (() => {
+  const raw = process.env.TABBYCAT_MIN_INTERVAL_MS;
+  if (!raw) return 1500;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1500;
+})();
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
