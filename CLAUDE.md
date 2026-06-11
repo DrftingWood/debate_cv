@@ -111,8 +111,11 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 
 ## Known gaps / TODO
 
-<!-- Fill in before next major work. -->
-- [ ] _(your notes here)_
+- [ ] `SourceDocument` / `ParserRun` grow unbounded (now including gzipped HTML bodies on SourceDocument). Only pruning is the destructive admin clear-data. Add a retention/prune step to the cron drain when growth becomes measurable.
+- [ ] `EliminationResult.result` still receives legacy `rank:N` writes from break pages that nothing reads back (the rank lives on `TournamentParticipant.teamBreakRank`). Stop writing them after verifying no external consumer, then clean the rows.
+- [ ] `IngestJob` / `DiscoveredUrl` have no `@updatedAt`; "recently touched" queries lean on `scheduledAt`/`finishedAt` proxies.
+- [ ] Motion-type/topic tagging is manual + admin-approved (`/cv/tags`, `/admin/tags`). A Haiku-based classifier could pre-fill proposals from `Motion.text`; keep approval in the loop.
+- [ ] Speaker order within a round (1st vs 2nd speaker) needs per-ballot pages (`/results/round/N/speaker/<token>/`) — deliberately not scraped; revisit only on demand.
 
 ## Out of scope for Superpowers
 

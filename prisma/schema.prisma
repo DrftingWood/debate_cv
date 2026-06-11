@@ -131,6 +131,12 @@ model DiscoveredUrl {
   userId                 String
   url                    String
   host                   String
+  /// tournamentSlug / token / subject are written at Gmail-scan time and
+  /// never queried by application code (slug and token are re-derivable
+  /// from `url`). Kept deliberately: they surface in the user's account
+  /// data export (/api/account/export) as provenance for "which email
+  /// gave us this URL", which the privacy page commits to. Don't add new
+  /// read paths without checking the export's schemaVersion implications.
   tournamentSlug         String?
   token                  String?
   subject                String?
@@ -149,7 +155,9 @@ model DiscoveredUrl {
   registrationPerson   Person?     @relation("DiscoveredUrlPerson", fields: [registrationPersonId], references: [id], onDelete: SetNull)
 
   @@unique([userId, url])
-  @@index([userId])
+  // No standalone (userId) index: the (userId, url) unique above serves
+  // every userId-only filter via its leading column. The previous extra
+  // @@index([userId]) was pure write/storage overhead.
   // /cv and /onboarding/names both filter `where: { userId, ingestedAt:
   // ... }` (and tournamentId-not-null); the (userId) index alone forces
   // a row scan on ingestedAt. Compound index turns those queries into an
@@ -184,6 +192,10 @@ model IngestJob {
 
   @@unique([userId, url])
   @@index([status, scheduledAt])
+  // markJobDone counts `{ userId, status IN (pending, running) }` after
+  // every job, and per-user drains filter the same way; neither is served
+  // by (status, scheduledAt) once jobs accumulate across users.
+  @@index([userId, status])
 }
 
 // -------------------- Tabbycat tournament data --------------------
@@ -269,7 +281,6 @@ model TournamentParticipant {
   chairedPrelimRounds    Int?
   lastOutroundChaired    String?
   lastOutroundPaneled    String?
-  wins                   Int?
   eliminationReached     String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -297,7 +308,13 @@ model SpeakerRoundScore {
   id                      BigInt   @id @default(autoincrement())
   tournamentParticipantId BigInt
   roundNumber             Int
-  positionLabel           String?
+  /// '' for ordinary per-round cells, 'average' for the speaker tab's
+  /// Average column. Non-nullable on purpose: this column is part of the
+  /// unique key below, and Postgres treats NULLs as distinct in unique
+  /// indexes — a NULL here would silently bypass dedup. The ingest writer
+  /// always coerced null → '' anyway; the schema now enforces the
+  /// invariant instead of trusting every future writer to remember.
+  positionLabel           String   @default("")
   score                   Decimal?
 
   participant TournamentParticipant @relation(fields: [tournamentParticipantId], references: [id], onDelete: Cascade)
@@ -312,7 +329,6 @@ model TeamResult {
   roundNumber   Int?
   rank          Int?
   wins          Int?
-  losses        Int?
   points        Decimal?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
@@ -407,6 +423,12 @@ model EliminationResult {
   stage        String
   entityType   String
   entityName   String
+  /// Two value families share this column: 'won'/'lost' for team outround
+  /// results (read by buildCvData's champion check), and legacy 'rank:N'
+  /// strings for break-page rows (written but never read back — the rank
+  /// itself lives on TournamentParticipant.teamBreakRank). Readers must
+  /// filter `result IN ('won','lost')` rather than assuming the column is
+  /// binary; see buildCvData.ts for the canonical read.
   result       String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -472,6 +494,10 @@ model CvErrorReport {
   @@index([createdAt])
   @@index([resolvedAt])
   @@index([status])
+  // buildCvData's per-row "Reported" badge filters on (userId, status) for
+  // every /cv render — the composite avoids filtering all of a user's
+  // reports by status (or all open reports by user) on each page view.
+  @@index([userId, status])
 }
 
 // -------------------- Provenance + parser versioning --------------------

@@ -608,7 +608,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       teamName: p.teamName,
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
       teamPoints: tr?.points ?? null,
-      teamWins: tr?.wins ?? p.wins ?? null,
+      teamWins: tr?.wins ?? null,
       speakerAvgScore,
       prelimsSpoken,
       // Open rank: prefer the parser's value; fall back to the ingest-time

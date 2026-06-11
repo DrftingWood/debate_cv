@@ -745,24 +745,41 @@ async function writeIngestTransaction(
       }
     }
 
-    // Motions: replace-then-create rather than relying on
-    // prepareTournamentWideRefresh, and only when this parse actually
-    // produced motions. A tournament whose motions fetch failed (or that
-    // withdrew its motions page) keeps the last successfully-parsed set —
-    // consistent with the "re-ingest only ADDS data" policy the
-    // participant fields follow.
+    // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
+    // rather than delete-then-recreate, and only when this parse actually
+    // produced motions. Upserting preserves Motion row ids across
+    // re-ingests, which matters because TagProposal rows cascade-delete
+    // with their motion — a recreate would wipe the approval audit trail
+    // (and the approved motionType/topic values, which the update branch
+    // deliberately leaves untouched). The trailing deleteMany clears only
+    // rows absent from the new parse. Motion counts are small (≤ ~15 per
+    // tournament) so per-row upserts inside the tx are cheap.
     if (motions.length > 0) {
-      await tx.motion.deleteMany({ where: { tournamentId: t.id } });
-      await tx.motion.createMany({
-        data: motions.map((m) => ({
+      for (const m of motions) {
+        await tx.motion.upsert({
+          where: {
+            tournamentId_roundLabel_seq: {
+              tournamentId: t.id,
+              roundLabel: m.roundLabel,
+              seq: m.seq,
+            },
+          },
+          update: { roundNumber: m.roundNumber, text: m.text, infoSlide: m.infoSlide },
+          create: {
+            tournamentId: t.id,
+            roundNumber: m.roundNumber,
+            roundLabel: m.roundLabel,
+            seq: m.seq,
+            text: m.text,
+            infoSlide: m.infoSlide,
+          },
+        });
+      }
+      await tx.motion.deleteMany({
+        where: {
           tournamentId: t.id,
-          roundNumber: m.roundNumber,
-          roundLabel: m.roundLabel,
-          seq: m.seq,
-          text: m.text,
-          infoSlide: m.infoSlide,
-        })),
-        skipDuplicates: true,
+          NOT: { OR: motions.map((m) => ({ roundLabel: m.roundLabel, seq: m.seq })) },
+        },
       });
     }
 
@@ -1674,32 +1691,39 @@ async function recordJudgeRoundsFromRoundResults(
     };
   }
 
-  let written = 0;
-  for (const h of hits) {
-    const existing = await prisma.judgeAssignment.findFirst({
-      where: {
+  // Atomic per-person replace, mirroring the landing path's delete+create.
+  // The previous findFirst+create-per-hit pattern had two holes: the
+  // (tournamentId, personId, stage, panelRole, roundNumber) unique can't
+  // dedup rows whose roundNumber is NULL (outround hits — Postgres treats
+  // NULLs as distinct in unique indexes), and two concurrent ingests
+  // sharing a judge could both pass the findFirst check before either
+  // created (TOCTOU). Deduping in memory and replacing inside one
+  // transaction closes both for the common case; the audit migration
+  // cleaned up duplicates the old window let through.
+  const seen = new Set<string>();
+  const dedupedHits = hits.filter((h) => {
+    const key = `${h.stage}|${h.role}|${h.roundNumber ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  await prisma.$transaction([
+    prisma.judgeAssignment.deleteMany({
+      where: { tournamentId, personId, source: 'round_results' },
+    }),
+    prisma.judgeAssignment.createMany({
+      data: dedupedHits.map((h) => ({
         tournamentId,
         personId,
         stage: h.stage,
         panelRole: h.role,
         roundNumber: h.roundNumber,
-      },
-      select: { id: true },
-    });
-    if (!existing) {
-      await prisma.judgeAssignment.create({
-        data: {
-          tournamentId,
-          personId,
-          stage: h.stage,
-          panelRole: h.role,
-          roundNumber: h.roundNumber,
-          source: 'round_results',
-        },
-      });
-      written += 1;
-    }
-  }
+        source: 'round_results',
+      })),
+      skipDuplicates: true,
+    }),
+  ]);
+  const written = dedupedHits.length;
 
   // Compute aggregates (same semantics as the landing-path writer; both
   // sites share lib/calicotab/judgeAggregates.ts). Round-results hits use
