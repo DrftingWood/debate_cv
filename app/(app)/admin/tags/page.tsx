@@ -27,8 +27,8 @@ export default async function AdminTagsPage() {
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
         <div className="kicker">ADMIN · TAG PROPOSALS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Tag proposals.
+        <h1 className="font-display text-h2 font-semibold text-ink">
+          Tag proposals
         </h1>
         <hr className="hairline" />
         <div className="byline flex items-center justify-between gap-2">

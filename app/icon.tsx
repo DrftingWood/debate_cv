@@ -5,8 +5,8 @@ export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
 /**
- * 32×32 browser favicon. Editorial brand mark: italic "cv" glyph in
- * oxblood on cream paper. Replaces the previous indigo "DC" monogram.
+ * 32×32 browser favicon. Display-grotesk "cv" glyph in tournament green on
+ * ballot-paper background, matching the new wordmark.
  */
 export default function Icon() {
   return new ImageResponse(
@@ -18,13 +18,12 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#FAF6EC',
-          color: '#7A2528',
+          background: '#F2F6F2',
+          color: '#15703D',
           fontSize: 22,
-          fontWeight: 600,
-          fontStyle: 'italic',
+          fontWeight: 700,
           letterSpacing: -1,
-          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
         }}
       >
         cv

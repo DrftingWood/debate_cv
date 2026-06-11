@@ -9,8 +9,8 @@ export function Footer() {
         <div className="flex flex-col gap-4 py-8 text-table text-ink-soft sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <BrandMark />
-            <span className="hidden font-serif italic text-ink-soft sm:inline">
-              · a personal record of the parliamentary kind
+            <span className="hidden text-ink-soft sm:inline">
+              · a private, source-backed debate record
             </span>
           </div>
           <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">

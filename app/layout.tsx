@@ -36,16 +36,17 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'debate cv — your debate tournament history, from your inbox',
+    default: 'debate cv — your debate history, readable and ready to share',
     template: '%s · debate cv',
   },
   description:
-    'Sign in with Google and we build your debate tournament CV from the Tabbycat private URLs in your Gmail. Speaker scores, break results, team mates — all in one place.',
+    'Build a private, source-backed debate CV. See tournaments, breaks, speaker scores, and growth over time — verified against the original tab pages.',
   applicationName: 'debate cv',
   authors: [{ name: 'DrftingWood', url: 'https://github.com/DrftingWood' }],
   openGraph: {
     title: 'debate cv',
-    description: 'Your debate tournament history, compiled from your Gmail.',
+    description:
+      'Your debate history, readable and ready to share. A private, source-backed CV with tournaments, breaks, and growth over time.',
     type: 'website',
     siteName: 'debate cv',
     url: siteUrl,
@@ -53,7 +54,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'debate cv',
-    description: 'Your debate tournament history, compiled from your Gmail.',
+    description:
+      'Your debate history, readable and ready to share. A private, source-backed CV with tournaments, breaks, and growth over time.',
   },
   robots: {
     index: true,

@@ -10,7 +10,6 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
-import { volumeRoman } from '@/lib/cv/volumeRoman';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
@@ -23,7 +22,7 @@ import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'My CV',
-  description: 'Your debate tournament history, compiled from your Gmail.',
+  description: 'Your private, source-backed debate record.',
   robots: { index: false, follow: false },
 };
 
@@ -71,10 +70,14 @@ export default async function CvPage() {
         pendingCount={pendingCount}
         unmatchedCount={unmatched.length}
       />
-      {/* Editorial masthead — replaces the gradient profile + metric-tile grid */}
+      {/* Record header: name, identity, key tiles. Replaces the previous
+          editorial "VOL. X · COMPILED …" masthead — brief §11 calls
+          publication-style labels out as patterns to retire. The kicker is
+          repurposed to state what the artifact IS (private record) and when
+          it was last refreshed. */}
       <header className="space-y-4">
         <div className="kicker">
-          DEBATE CV — VOL. {volumeRoman(highlights.activeYears)} · COMPILED{' '}
+          PRIVATE RECORD · UPDATED{' '}
           {new Date().toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'long',
@@ -82,8 +85,8 @@ export default async function CvPage() {
           }).toUpperCase()}
         </div>
 
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
-          {user?.name ?? 'Debater'}.
+        <h1 className="font-display text-h1 font-semibold leading-[1.05] tracking-tight text-ink md:text-display">
+          {user?.name ?? 'Debater'}
         </h1>
 
         <hr className="hairline" />
@@ -114,13 +117,13 @@ export default async function CvPage() {
 
       <CvSubNav active="record" />
 
-      {/* In Brief — sentence summary + the two surviving actions. Share and
-          Download earn standalone buttons; everything that used to hide in
-          the "More" dropdown (Analytics, Verify) lives in the tab bar now. */}
+      {/* Summary line + the two surviving actions (Share / Download). Tags
+          and Verify live in the CV sub-nav; Growth (was "Analytics") is now
+          a top-level item in the app nav. */}
       <section className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="md:max-w-2xl">
-          <div className="kicker">IN BRIEF</div>
-          <p className="mt-2 font-serif text-body-serif italic leading-relaxed text-ink/85">
+          <div className="kicker">SUMMARY</div>
+          <p className="mt-2 text-body-serif leading-relaxed text-ink/85">
             {toBriefSentence({
               totalTournaments: summary.totalTournaments,
               speakerCount: speakerRows.length,

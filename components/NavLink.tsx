@@ -8,13 +8,21 @@ export function NavLink({
   href,
   children,
   className,
+  exact,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
+  // `exact` prevents the link from claiming sub-routes. Needed when a
+  // parent route co-exists in the same nav as one of its children (e.g.
+  // /cv as "CV" alongside /cv/analytics as "Growth" — without exact, both
+  // would underline at the same time on the analytics page).
+  exact?: boolean;
 }) {
   const pathname = usePathname();
-  const isActive = pathname === href || (href !== '/' && pathname?.startsWith(href));
+  const isActive = exact
+    ? pathname === href
+    : pathname === href || (href !== '/' && pathname?.startsWith(href + '/'));
   return (
     <Link
       href={href}

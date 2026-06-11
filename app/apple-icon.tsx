@@ -5,9 +5,8 @@ export const size = { width: 180, height: 180 };
 export const contentType = 'image/png';
 
 /**
- * 180×180 iOS home-screen icon. Editorial brand mark: italic-Fraunces
- * wordmark on cream paper, with the "cv" half tinted oxblood — matches
- * the in-app BrandMark component.
+ * 180×180 iOS home-screen icon. Matches the in-app BrandMark: display
+ * grotesk wordmark on ballot paper, with the "cv" half in tournament green.
  */
 export default function AppleIcon() {
   return new ImageResponse(
@@ -21,16 +20,23 @@ export default function AppleIcon() {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 4,
-          background: '#FAF6EC',
-          color: '#181A1F',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontStyle: 'italic',
+          background: '#F2F6F2',
+          color: '#142019',
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
         }}
       >
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1 }}>
+        <div style={{ fontSize: 62, fontWeight: 700, letterSpacing: -2, lineHeight: 1 }}>
           debate
         </div>
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1, color: '#7A2528' }}>
+        <div
+          style={{
+            fontSize: 62,
+            fontWeight: 700,
+            letterSpacing: -2,
+            lineHeight: 1,
+            color: '#15703D',
+          }}
+        >
           cv
         </div>
       </div>

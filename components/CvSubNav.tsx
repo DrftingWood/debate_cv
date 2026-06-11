@@ -3,7 +3,9 @@ import { cn } from '@/lib/utils/cn';
 
 const TABS = [
   { key: 'record', label: 'Record', href: '/cv' },
-  { key: 'analytics', label: 'Analytics', href: '/cv/analytics' },
+  // Analytics was promoted to the top-level "Growth" item (brief §5).
+  // Tags and Verify stay scoped to the CV section — they're tournament-row
+  // maintenance jobs, not separate primary surfaces.
   { key: 'tags', label: 'Tags', href: '/cv/tags' },
   { key: 'verify', label: 'Verify', href: '/cv/verify' },
 ] as const;
@@ -34,7 +36,7 @@ export function CvSubNav({ active }: { active: CvTab }) {
           className={cn(
             '-mb-px border-b-2 pb-2 text-byline font-semibold uppercase tracking-[0.14em] transition-colors',
             tab.key === active
-              ? 'border-oxblood text-ink'
+              ? 'border-primary text-ink'
               : 'border-transparent text-ink-soft hover:text-ink',
           )}
         >

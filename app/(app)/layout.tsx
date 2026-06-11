@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
-import { NavLink } from '@/components/NavLink';
+import { AppNav } from '@/components/AppNav';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -35,15 +35,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <BrandMark />
           </Link>
           <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-6 text-table font-medium">
-              <NavLink href="/cv">My CV</NavLink>
-              {/* "Imports" not "Dashboard": the page's one job is getting
-                  tournaments out of Gmail and into the CV — naming it after
-                  the task beats naming it after the furniture. */}
-              <NavLink href="/dashboard">Imports</NavLink>
-              <NavLink href="/settings">Settings</NavLink>
-              {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-            </nav>
+            {/* Brief §5: name primary surfaces after the user job, not the
+                implementation object. CV is the artifact, Growth is the
+                value, Imports is the task, Share owns publication and
+                exports, Settings is account hygiene. Active resolution is
+                longest-prefix-wins so /cv vs /cv/analytics and /settings vs
+                /settings/sharing pick exactly one item. */}
+            <AppNav
+              items={[
+                { href: '/cv', label: 'CV' },
+                { href: '/cv/analytics', label: 'Growth' },
+                { href: '/dashboard', label: 'Imports' },
+                { href: '/settings/sharing', label: 'Share' },
+                { href: '/settings', label: 'Settings' },
+                ...(showAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
+              ]}
+            />
             <ThemeToggle />
             {session?.user?.id ? (
               <>

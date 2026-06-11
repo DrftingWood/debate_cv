@@ -44,7 +44,7 @@ export default async function OnboardingPage() {
       <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
         <header className="space-y-3">
           <div className="kicker">ONBOARDING · FIRST RUN</div>
-          <h1 className="font-serif text-h2 italic text-ink">
+          <h1 className="font-display text-h2 font-semibold text-ink">
             Find yourself on the rosters.
           </h1>
           <hr className="hairline" />
@@ -104,7 +104,7 @@ export default async function OnboardingPage() {
     <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
       <header className="space-y-3">
         <div className="kicker">ONBOARDING · FIRST RUN</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <h1 className="font-display text-h2 font-semibold text-ink">
           Find yourself on the rosters.
         </h1>
         <hr className="hairline" />

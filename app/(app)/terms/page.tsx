@@ -10,7 +10,7 @@ export default function Terms() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">LEGAL · TERMS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <h1 className="font-display text-h2 font-semibold text-ink">
           Plain-English use of the tool.
         </h1>
         <hr className="hairline" />

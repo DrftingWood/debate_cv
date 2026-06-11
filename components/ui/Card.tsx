@@ -38,7 +38,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn('text-h3 font-serif italic text-ink', className)}
+      className={cn('font-display text-h3 font-semibold text-ink', className)}
       {...rest}
     />
   );

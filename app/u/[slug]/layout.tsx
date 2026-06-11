@@ -26,8 +26,12 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
       <footer className="pt-10">
         <hr className="hairline" />
         <div className="mt-6 flex flex-col items-start justify-between gap-3 text-table text-ink-soft sm:flex-row sm:items-center">
-          <div className="font-serif italic text-ink-soft">
-            — Compiled by debate cv.
+          <div className="text-ink-soft">
+            Built with{' '}
+            <Link href="/" className="text-ink hover:underline">
+              debate cv
+            </Link>
+            .
           </div>
           <Link
             href="/"

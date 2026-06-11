@@ -95,7 +95,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     <section aria-label="Career notes">
       <header className="mb-6 max-w-2xl">
         <div className="kicker">CAREER NOTES · HIGHLIGHTS</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
+        <h2 className="mt-3 font-display text-h2 font-semibold text-ink">
           Notable moments.
         </h2>
       </header>
@@ -110,7 +110,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
               <span className="text-oxblood">{t.icon}</span>
               {t.kicker}
             </div>
-            <h3 className="mt-2 font-serif text-h3 italic text-ink">{t.title}</h3>
+            <h3 className="mt-2 font-display text-h3 font-semibold text-ink">{t.title}</h3>
             <ul className="mt-1 space-y-0.5 font-serif text-body leading-relaxed text-ink/80">
               {t.items.map((item, j) => (
                 <li key={j} className="break-words">{item}</li>

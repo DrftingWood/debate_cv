@@ -22,7 +22,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
           {icon}
         </div>
       ) : null}
-      <h3 className="font-serif text-h3 italic text-ink">{title}</h3>
+      <h3 className="font-display text-h3 font-semibold text-ink">{title}</h3>
       {description ? (
         <p className="mt-2 max-w-md font-serif text-ui leading-relaxed text-ink-soft">
           {description}

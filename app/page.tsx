@@ -1,39 +1,40 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  ChevronDown,
-  ShieldAlert,
-} from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
+import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 
 export default async function Home() {
   const session = await auth();
-  // CV-first: signed-in users land on /cv (their tournament history). The
-  // /cv page handles its own onboarding/empty-state redirects internally,
-  // so we don't have to special-case "no claims yet" here.
+  // CV-first: signed-in users land on /cv (their tournament history).
+  // /cv handles its own onboarding/empty-state redirects internally.
   if (session?.user) redirect('/cv');
 
   return (
     <>
+      <LandingHeader />
       <div className="mx-auto max-w-6xl px-5">
-        <LandingMasthead />
-        <div className="space-y-24">
+        <main className="space-y-24 pb-12">
           <Hero />
           <HowItWorks />
-          <Colophon />
+          <Privacy />
           <Faq />
-          <Subscribe />
-        </div>
+          <ClosingCta />
+        </main>
       </div>
       <Footer />
     </>
   );
 }
 
-async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
+/**
+ * Primary CTA: names the user outcome ("Build my debate CV"), not the
+ * provider. The brief is explicit: "Consent to value, not to a provider."
+ * Google sign-in is mentioned as supporting trust text below the button.
+ */
+async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
   return (
     <form
       action={async () => {
@@ -47,90 +48,67 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
         variant="primary"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
-        Sign in with Google
+        Build my debate CV
       </Button>
     </form>
   );
 }
 
-/**
- * Admin entry point. Same Google OAuth flow as the user sign-in — auth
- * itself doesn't differ, only the post-login destination. The /admin route
- * server-side `requireAdmin()`s against the ADMIN_EMAIL env var; non-admins
- * who click this fall through to / and re-redirect to /cv, so the
- * button is safe to expose publicly.
- */
-async function AdminSignInButton() {
+function LandingHeader() {
+  // Signed-out IA: Sample CV / How it works / Privacy / Build my CV.
+  // The first three are in-page anchors on a single-pager — the user can
+  // evaluate value and trust without navigating away from the artifact.
   return (
-    <form
-      action={async () => {
-        'use server';
-        await signIn('google', { redirectTo: '/admin' });
-      }}
-    >
-      <Button
-        type="submit"
-        size="md"
-        variant="outline"
-        leftIcon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden />}
-      >
-        Admin sign-in
-      </Button>
-    </form>
-  );
-}
-
-function LandingMasthead() {
-  return (
-    <header className="pt-8 pb-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="font-serif italic text-h3 tracking-tight text-ink">
-          debate <span className="text-oxblood">cv</span>
-        </span>
-        <span className="hidden text-byline uppercase tracking-[0.22em] text-ink-soft sm:inline">
-          A personal record of the parliamentary kind
-        </span>
+    <header className="border-b border-ink/15">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-5 py-4">
+        <Link href="/" className="inline-flex items-center" aria-label="debate cv home">
+          <BrandMark />
+        </Link>
+        <nav
+          aria-label="Primary"
+          className="hidden items-center gap-6 text-table text-ink-soft sm:flex"
+        >
+          <a href="#sample" className="hover:text-ink">Sample CV</a>
+          <a href="#how" className="hover:text-ink">How it works</a>
+          <a href="#privacy" className="hover:text-ink">Privacy</a>
+        </nav>
+        <div className="flex items-center gap-3">
+          <BuildCvButton size="md" />
+        </div>
       </div>
-      <hr className="hairline mt-3" />
     </header>
   );
 }
 
 function Hero() {
   return (
-    <section className="relative pt-10 pb-6 md:pt-16">
+    <section className="pt-12 md:pt-16">
       <div className="grid items-start gap-12 md:grid-cols-[1.05fr_0.95fr] md:gap-16">
         <div>
-          <div className="kicker">A CAREER IN PARLIAMENTARY DEBATE</div>
+          <div className="kicker">FOR UNIVERSITY DEBATERS</div>
 
-          <h1 className="mt-4 font-serif text-h1 leading-[1.04] tracking-tight text-ink md:text-display">
-            Your debate cv,{' '}
-            <em className="font-serif italic">compiled from your inbox.</em>
+          <h1 className="mt-4 font-display text-h1 font-semibold leading-[1.04] tracking-tight text-ink md:text-display">
+            Your debate history, readable and ready to share.
           </h1>
 
-          <div className="byline mt-5 inline-block border-b border-ink/15 pb-2">
-            Vol. I  ·  Spring 2026  ·  by Google's Gmail API
-          </div>
-
-          <p className="dropcap mt-6 max-w-xl font-serif text-body-serif text-ink/85">
-            Sign in with Google. We scan your inbox for the Tabbycat private
-            URLs you were already sent, fetch each tournament's team, speaker,
-            and break tabs, and stitch your personal history into one page. No
-            essays. No drag-and-drop. Just a CV.
+          <p className="mt-6 max-w-xl text-body-serif text-ink/85">
+            Build a private, source-backed record of every tournament you have
+            spoken at or judged. See tournaments, breaks, speaker scores, and
+            growth over time — in one place, linked to the tab pages they came
+            from.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <SignInButton />
-            <AdminSignInButton />
+            <BuildCvButton />
           </div>
 
           <div className="mt-4 text-byline text-ink-soft">
-            read-only Gmail · private to you · delete any time
+            Continue with Google · read-only Gmail · private until you share it
           </div>
         </div>
 
-        <div>
-          <PaperCvExcerpt />
+        <div id="sample" className="scroll-mt-24">
+          <SampleCv />
         </div>
       </div>
     </section>
@@ -138,32 +116,36 @@ function Hero() {
 }
 
 /**
- * Right-column hero illustration: a typeset paper CV excerpt. Replaces
- * the previous glass-card screenshot pastiche. Self-referential — the
- * site shows what it produces, in the style of what it produces.
+ * Right-column sample CV. The product is the artifact, so the artifact has
+ * to be visible above the fold. Numbers are illustrative; layout matches
+ * the real /cv record header + speaking-row pattern so the user knows what
+ * they are actually getting.
  */
-function PaperCvExcerpt() {
+function SampleCv() {
   return (
     <div className="surface-card p-6">
-      <div className="kicker">DEBATE CV — VOL. III · COMPILED 23 MAY 2026</div>
-      <div className="mt-3 font-serif italic text-stat leading-tight text-ink">
-        Abhishek Acharya.
+      <div className="kicker">SAMPLE · PRIVATE RECORD</div>
+      <div className="mt-3 font-display text-stat font-semibold leading-tight text-ink">
+        Abhishek Acharya
       </div>
-      <hr className="hairline my-3" />
-      <div className="byline">IGNOU · a.acharya@example.com</div>
+      <div className="byline mt-1">IGNOU · Active 2021–2026</div>
 
-      <div className="mt-5 grid grid-cols-4 gap-3">
+      <hr className="hairline my-4" />
+
+      <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Tournaments', value: '23' },
           { label: 'Breaks', value: '9' },
-          { label: 'Best spkr rank', value: '#3' },
+          { label: 'Best rank', value: '#3' },
           { label: 'Best avg', value: '74.2' },
         ].map((m) => (
           <div key={m.label}>
-            <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
+            <div className="text-kicker uppercase tracking-[0.16em] text-ink-soft">
               {m.label}
             </div>
-            <div className="mt-1 font-serif text-h3 text-ink num">{m.value}</div>
+            <div className="mt-1 font-display text-h3 font-semibold text-ink num">
+              {m.value}
+            </div>
           </div>
         ))}
       </div>
@@ -171,142 +153,142 @@ function PaperCvExcerpt() {
       <hr className="hairline my-5" />
 
       <ul className="space-y-3">
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">WUDC · Vietnam</span>
-          <span className="text-byline text-ink-soft num">2024 · Octofinalist</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">EUDC · Tallinn</span>
-          <span className="text-byline text-ink-soft num">2023 · ESL Semis</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">Hart House IV</span>
-          <span className="text-byline text-ink-soft num">2023 · Champion</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">ABP · Manila</span>
-          <span className="text-byline text-ink-soft num">2022 · Quarterfinalist</span>
-        </li>
+        {[
+          { name: 'WUDC · Vietnam', meta: '2024 · Octofinalist' },
+          { name: 'EUDC · Tallinn', meta: '2023 · ESL Semis' },
+          { name: 'Hart House IV', meta: '2023 · Champion' },
+          { name: 'ABP · Manila', meta: '2022 · Quarterfinalist' },
+        ].map((row) => (
+          <li key={row.name} className="flex items-baseline justify-between gap-3">
+            <span className="text-body text-ink">{row.name}</span>
+            <span className="num whitespace-nowrap text-byline text-ink-soft">
+              {row.meta}
+            </span>
+          </li>
+        ))}
       </ul>
+
+      <div className="mt-5 flex items-center gap-2 text-byline text-ink-soft">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+        Every row links to the source tab page.
+      </div>
     </div>
   );
 }
 
 function HowItWorks() {
-  const items = [
+  const steps = [
     {
-      roman: 'I.',
-      title: 'Connect Gmail',
-      body: (
-        <>
-          One-click sign-in with Google. The scope is read-only{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            gmail.readonly
-          </code>{' '}
-          — nothing else.
-        </>
-      ),
+      title: 'Sign in',
+      body: 'Continue with Google. We request read-only Gmail access, scoped to finding tournament URLs.',
     },
     {
-      roman: 'II.',
-      title: 'We find your Tabbycat links',
-      body: (
-        <>
-          A narrow regex matches tournament private URLs on{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            calicotab.com
-          </code>{' '}
-          and{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            herokuapp.com
-          </code>
-          . Email bodies are never stored.
-        </>
-      ),
+      title: 'We find verified tournament links',
+      body: 'A narrow regex matches Tabbycat private URLs in your inbox. Email bodies are not stored.',
     },
     {
-      roman: 'III.',
-      title: 'Your CV appears',
-      body: (
-        <>
-          Each tournament's team, speaker, round, and break tabs are parsed
-          and stitched into a clean personal history page. The queue drains
-          in the background while you watch.
-        </>
-      ),
+      title: 'Your record appears',
+      body: 'Each tournament is parsed into team, speaker, round, and break results — stitched into one personal record.',
+    },
+    {
+      title: 'Verify, share, or export',
+      body: 'Review ambiguous matches, share with a private link, or export as PDF, CSV, or XLSX.',
     },
   ];
 
   return (
-    <section id="how" className="space-y-8">
+    <section id="how" className="scroll-mt-24 space-y-8">
       <header className="max-w-2xl">
-        <div className="kicker">EDITOR'S NOTE · ON METHOD</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Three steps from sign-in to a complete history page.
+        <div className="kicker">HOW IT WORKS</div>
+        <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-ink">
+          From inbox to a record you can read in one page.
         </h2>
       </header>
 
-      <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
-        {items.map((it) => (
-          <article key={it.roman} className="space-y-3">
-            <div className="font-serif italic text-h3 text-oxblood">{it.roman}</div>
-            <h3 className="font-serif text-h3 italic text-ink">{it.title}</h3>
-            <p className="font-serif text-body leading-relaxed text-ink/85">{it.body}</p>
-          </article>
+      <ol className="grid gap-x-10 gap-y-8 md:grid-cols-2">
+        {steps.map((s, i) => (
+          <li key={s.title} className="space-y-2">
+            <div className="num text-kicker uppercase tracking-[0.16em] text-primary">
+              Step {String(i + 1).padStart(2, '0')}
+            </div>
+            <h3 className="font-display text-h3 font-semibold text-ink">{s.title}</h3>
+            <p className="text-body leading-relaxed text-ink/85">{s.body}</p>
+          </li>
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
 
-function Colophon() {
-  const points = [
+function Privacy() {
+  // Privacy is a conversion requirement, not a footer obligation (brief §10).
+  // Every row here states an operational fact about production behavior.
+  // If any of these stops being true, update the row in the same PR.
+  const rows: { label: string; body: React.ReactNode }[] = [
     {
       label: 'Scope',
-      title: 'We only read what we need',
-      body:
-        'The regex runs inside a narrow Gmail search. Message bodies are never stored — only the matched URLs.',
-    },
-    {
-      label: 'Storage',
-      title: 'Encrypted at rest',
-      body:
-        'OAuth refresh tokens are stored with AES-256-GCM, keyed from a server-only secret. No emails. No message metadata.',
-    },
-    {
-      label: 'Revocation',
-      title: 'Revoke any time',
       body: (
         <>
-          Settings → <Link href="/settings" className="text-oxblood hover:underline">Disconnect</Link>{' '}
-          revokes the OAuth grant. Delete your account and everything goes — tokens, URLs, jobs, claims.
+          Read-only Gmail (<code className="rounded bg-primary-soft px-1 py-0.5 font-mono text-caption text-primary">gmail.readonly</code>).
+          We search for tournament URLs on{' '}
+          <code className="rounded bg-primary-soft px-1 py-0.5 font-mono text-caption text-primary">calicotab.com</code>{' '}
+          and{' '}
+          <code className="rounded bg-primary-soft px-1 py-0.5 font-mono text-caption text-primary">herokuapp.com</code>.
+        </>
+      ),
+    },
+    {
+      label: 'What we store',
+      body: 'The matched URLs, the tab data parsed from them, and your CV. OAuth refresh tokens are encrypted at rest (AES-256-GCM).',
+    },
+    {
+      label: 'What we do not store',
+      body: 'Email bodies, message metadata, anything outside the matched tournament URLs.',
+    },
+    {
+      label: 'Who can see it',
+      body: 'Only you, until you share. Public links and exports are opt-in and revocable.',
+    },
+    {
+      label: 'Disconnect or delete',
+      body: (
+        <>
+          Settings → <Link href="/settings" className="text-primary underline-offset-2 hover:underline">Disconnect</Link>{' '}
+          revokes the OAuth grant. Delete your account and everything — tokens, URLs, jobs, claims — is removed.
         </>
       ),
     },
   ];
 
   return (
-    <section>
+    <section id="privacy" className="scroll-mt-24 space-y-6">
       <header className="max-w-2xl">
-        <div className="kicker">COLOPHON · PROCESS &amp; POLICY</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Plain English, zero surprises.
+        <div className="kicker">PRIVACY</div>
+        <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-ink">
+          Concrete, not aspirational.
         </h2>
-        <p className="mt-3 font-serif text-body-serif text-ink/80">
-          During sign-in you'll see Google's "unverified app" notice — we're still in their Testing
-          program. The underlying scope is read-only Gmail, same as any inbox-parsing productivity tool.
+        <p className="mt-3 text-body text-ink/80">
+          We ask for sensitive permission. Here is exactly what that means in
+          production — no marketing copy, no "we value your privacy" filler.
         </p>
       </header>
 
-      <div className="mt-8 grid gap-x-10 gap-y-6 md:grid-cols-3">
-        {points.map((p) => (
-          <article key={p.label} className="space-y-2">
-            <div className="kicker">{p.label}</div>
-            <h3 className="font-serif text-h3 italic text-ink">{p.title}</h3>
-            <p className="font-serif text-body leading-relaxed text-ink/85">{p.body}</p>
-          </article>
+      <ul className="divide-y divide-ink/10 border-y border-ink/15">
+        {rows.map((r) => (
+          <li
+            key={r.label}
+            className="grid gap-3 py-4 md:grid-cols-[12rem_1fr] md:gap-8"
+          >
+            <div className="flex items-start gap-2">
+              <Check className="mt-0.5 h-4 w-4 text-primary" aria-hidden />
+              <div className="text-byline uppercase tracking-[0.14em] text-ink-soft">
+                {r.label}
+              </div>
+            </div>
+            <div className="text-body leading-relaxed text-ink/85">{r.body}</div>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
@@ -317,10 +299,10 @@ function Faq() {
       q: 'Why does Google say "unverified app"?',
       a: (
         <>
-          Apps that request Gmail scopes need Google's verification for broad public use. We're
-          still in Google's Testing mode, so only addresses added as Test Users can sign in. The
-          "Advanced → Go to debate cv (unsafe)" flow is the standard dev-mode prompt — expected
-          and safe.
+          Apps requesting Gmail scopes need Google verification for broad
+          public use. We are still in Google&apos;s Testing program, so only
+          addresses added as Test Users can sign in. The "Advanced → Go to
+          debate cv (unsafe)" prompt is the standard dev-mode notice.
         </>
       ),
     },
@@ -328,19 +310,20 @@ function Faq() {
       q: 'Is this affiliated with Tabbycat or Calico?',
       a: (
         <>
-          No. debate cv is an independent tool that reads publicly available Tabbycat tournament
-          pages linked in your own inbox. Tabbycat is MIT-licensed open-source software built by
-          the wider debate community.
+          No. debate cv is an independent tool that reads publicly accessible
+          Tabbycat tournament pages linked from your own inbox. Tabbycat is
+          MIT-licensed open-source software built by the wider debate
+          community.
         </>
       ),
     },
     {
-      q: "What if my name isn't detected on a private URL?",
+      q: 'What if my name is not detected on a tournament page?',
       a: (
         <>
-          Some tournament pages use non-standard text that our parser can't extract. On your CV,
-          every tournament has a roster picker so you can pick yourself manually — stats appear
-          in one click.
+          Some tab pages use non-standard markup our parser can&apos;t read.
+          Every tournament has a roster picker so you can claim yourself
+          manually — stats appear in one click.
         </>
       ),
     },
@@ -348,20 +331,28 @@ function Faq() {
       q: 'Can I delete all my data?',
       a: (
         <>
-          Yes. Go to <Link href="/settings" className="text-oxblood hover:underline">Settings</Link>,
-          click <strong>Delete my data</strong>, confirm by typing your email. The account, tokens,
-          URLs, jobs, and identity claims are removed.
+          Yes. Go to{' '}
+          <Link href="/settings" className="text-primary underline-offset-2 hover:underline">
+            Settings
+          </Link>
+          , click <strong>Delete my data</strong>, and confirm by typing your
+          email. The account, tokens, URLs, jobs, and identity claims are
+          removed.
         </>
       ),
+    },
+    {
+      q: 'Is my CV public by default?',
+      a: 'No. Your CV is private until you generate a share link or export it. Share links are revocable from Settings.',
     },
   ];
 
   return (
     <section className="space-y-6">
       <header className="max-w-2xl">
-        <div className="kicker">LETTERS · FREQUENTLY ASKED</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          From the inbox.
+        <div className="kicker">QUESTIONS</div>
+        <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-ink">
+          Common things debaters ask.
         </h2>
       </header>
       <div className="border-y border-ink/15">
@@ -370,13 +361,18 @@ function Faq() {
             key={i}
             className={'group px-1 py-4 ' + (i > 0 ? 'border-t border-ink/10' : '')}
           >
-            <summary className="cursor-pointer list-none font-serif text-body-serif text-ink [&::-webkit-details-marker]:hidden">
+            <summary className="cursor-pointer list-none text-body-serif font-medium text-ink [&::-webkit-details-marker]:hidden">
               <span className="inline-flex w-full items-center justify-between gap-4">
                 <span>{it.q}</span>
-                <ChevronDown className="h-4 w-4 text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180" aria-hidden />
+                <span
+                  aria-hidden
+                  className="select-none text-primary transition-transform duration-[180ms] ease-soft group-open:rotate-45"
+                >
+                  +
+                </span>
               </span>
             </summary>
-            <div className="mt-3 font-serif text-body leading-relaxed text-ink/85">
+            <div className="mt-3 max-w-3xl text-body leading-relaxed text-ink/85">
               {it.a}
             </div>
           </details>
@@ -386,17 +382,19 @@ function Faq() {
   );
 }
 
-function Subscribe() {
+function ClosingCta() {
   return (
-    <section>
-      <hr className="hairline" />
-      <div className="mt-10 max-w-2xl">
-        <div className="kicker">SUBSCRIBE</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Sign in, run the scan, watch your history compile.
+    <section className="border-t border-ink/15 pt-12">
+      <div className="max-w-2xl space-y-5">
+        <div className="kicker">START</div>
+        <h2 className="font-display text-h2 font-semibold tracking-tight text-ink">
+          Build your record. Keep it private. Share it on your terms.
         </h2>
-        <div className="mt-6">
-          <SignInButton />
+        <div className="pt-2">
+          <BuildCvButton />
+        </div>
+        <div className="text-byline text-ink-soft">
+          Continue with Google · read-only Gmail · private until you share it
         </div>
       </div>
     </section>

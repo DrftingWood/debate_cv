@@ -87,8 +87,8 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
         <div className="kicker">ADMIN · INTERNAL</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Operator tools.
+        <h1 className="font-display text-h2 font-semibold text-ink">
+          Operator tools
         </h1>
         <hr className="hairline" />
       </header>
@@ -96,7 +96,7 @@ export default async function AdminPage() {
       <IngestProgressTracker scope="global" />
 
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-serif text-h3 italic text-ink">Current state</h2>
+        <h2 className="font-display text-h3 font-semibold text-ink">Current state</h2>
         <dl className="grid grid-cols-4 gap-4 text-table">
           <div>
             <dt className="text-ink-soft">Tournaments</dt>
@@ -121,7 +121,7 @@ export default async function AdminPage() {
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-serif text-h3 italic text-ink">Tag proposals</h2>
+        <h2 className="font-display text-h3 font-semibold text-ink">Tag proposals</h2>
         <p className="text-body text-ink-soft">
           Review user-proposed region and motion tags. Approvals write directly to the
           canonical Tournament / Motion columns.
@@ -134,7 +134,7 @@ export default async function AdminPage() {
       <section className="rounded-lg border p-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-h3 italic text-ink">CV error reports</h2>
+            <h2 className="font-display text-h3 font-semibold text-ink">CV error reports</h2>
             <p className="text-body text-ink-soft mt-1">
               Beta reports users submitted from their CV page.
             </p>
@@ -200,7 +200,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Recent parser warnings</h2>
+          <h2 className="font-display text-h3 font-semibold text-ink">Recent parser warnings</h2>
           <p className="text-body text-ink-soft mt-1">
             Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
             many tournaments are hitting the same parsing issue — usually a structural change in
@@ -233,7 +233,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Clear ingested data</h2>
+          <h2 className="font-display text-h3 font-semibold text-ink">Clear ingested data</h2>
           <p className="text-body text-ink-soft mt-1">
             Deletes scraped tournament records and resets ingest state on every DiscoveredUrl. User
             identity claims (Person records) and discovered URLs are preserved, so the next scan
@@ -245,7 +245,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border border-destructive/30 bg-destructive/[0.03] p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Full wipe (destructive)</h2>
+          <h2 className="font-display text-h3 font-semibold text-ink">Full wipe (destructive)</h2>
           <p className="text-body text-ink-soft mt-1">
             All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and
             every PersonRejection across all users. User accounts and Gmail tokens are preserved
@@ -261,7 +261,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Re-ingest all URLs</h2>
+          <h2 className="font-display text-h3 font-semibold text-ink">Re-ingest all URLs</h2>
           <p className="text-body text-ink-soft mt-1">
             Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
             tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}

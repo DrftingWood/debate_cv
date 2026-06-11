@@ -104,8 +104,8 @@ export default async function PublicCvPage({
                 {initials(user.name)}
               </div>
             )}
-            <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
-              {user.name ?? 'Debater'}.
+            <h1 className="font-display text-h1 font-semibold leading-[1.05] tracking-tight text-ink md:text-display">
+              {user.name ?? "Debater"}
             </h1>
           </div>
           <div data-print-hide="true">
@@ -152,7 +152,7 @@ export default async function PublicCvPage({
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
+                        className="font-medium text-ink hover:text-oxblood"
                       >
                         {r.tournamentName}
                       </a>
@@ -173,7 +173,7 @@ export default async function PublicCvPage({
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
+          <p className="text-byline text-ink-soft">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>
@@ -205,7 +205,7 @@ export default async function PublicCvPage({
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
+                        className="font-medium text-ink hover:text-oxblood"
                       >
                         {r.tournamentName}
                       </a>
@@ -221,7 +221,7 @@ export default async function PublicCvPage({
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
+          <p className="text-byline text-ink-soft">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>

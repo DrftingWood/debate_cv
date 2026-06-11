@@ -9,11 +9,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList } from '@/components/ui/BarList';
-import { CvSubNav } from '@/components/CvSubNav';
-
 export const metadata: Metadata = {
-  title: 'Analytics',
-  description: 'Trends across your debate tournament history.',
+  title: 'Growth',
+  description: 'Factual trends across your debate tournament record.',
   robots: { index: false, follow: false },
 };
 
@@ -51,18 +49,17 @@ export default async function CvAnalyticsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="kicker">DEBATE CV — ANALYTICS</div>
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink">
-          Trends.
+        <div className="kicker">GROWTH</div>
+        <h1 className="font-display text-h1 font-semibold leading-[1.05] tracking-tight text-ink">
+          Trends and quirks across your record.
         </h1>
         <hr className="hairline" />
         <div className="byline">
           Computed from {coverage.speakerTournaments + coverage.judgeTournaments} CV row
-          {coverage.speakerTournaments + coverage.judgeTournaments === 1 ? '' : 's'}.
+          {coverage.speakerTournaments + coverage.judgeTournaments === 1 ? '' : 's'}. All figures are
+          arithmetic from your CV — no interpretation.
         </div>
       </header>
-
-      <CvSubNav active="analytics" />
 
       {!hasAnything ? (
         <EmptyState

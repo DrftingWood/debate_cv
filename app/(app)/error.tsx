@@ -33,7 +33,7 @@ export default function AppError({
       <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--destructive)/0.10)] text-destructive">
         <AlertCircle className="h-5 w-5" aria-hidden />
       </div>
-      <h1 className="mt-4 font-serif text-h3 italic font-semibold text-ink">
+      <h1 className="mt-4 font-display text-h3 font-semibold text-ink">
         Something broke on this page.
       </h1>
       <p className="mt-2 text-table text-ink-soft">

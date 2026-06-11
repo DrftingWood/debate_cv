@@ -99,15 +99,15 @@ export default async function CvTagsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="kicker">DEBATE CV — TAGS</div>
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink">
-          Tags.
+        <div className="kicker">TAGS</div>
+        <h1 className="font-display text-h1 font-semibold leading-[1.05] tracking-tight text-ink">
+          Region and motion tags.
         </h1>
         <hr className="hairline" />
         <div className="byline">
-          Tags are shared community facts — a tournament region or a motion type appears
-          identically on every CV that includes that tournament. Proposals go live after
-          an admin approves them, and feed the Analytics slices.
+          Tags are shared community facts — a tournament region or a motion type
+          appears identically on every CV that includes it. Proposals go live
+          after an admin approves them, and feed the Growth slices.
         </div>
       </header>
 

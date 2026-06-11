@@ -12,15 +12,18 @@ const base =
   'disabled:cursor-not-allowed';
 
 // Disabled treatment lives per-variant, not in `base`: a blanket
-// `disabled:opacity-50` turned the ink-filled primary into a muddy black
-// slab with an illegible label — and primary buttons sit disabled for
-// MINUTES during the scan→ingest flow ("Scanning Gmail…"), so the busy
-// state must stay readable. Filled variants soften their fill and keep
-// full-opacity text; light variants can dim wholesale because dark text
-// on paper degrades gracefully.
+// `disabled:opacity-50` made filled buttons illegible during multi-minute
+// busy states (the scan→ingest "Scanning Gmail…" run). Filled variants
+// soften their fill and keep full-opacity text; light variants can dim
+// wholesale because dark text on paper degrades gracefully.
+//
+// Primary = tournament green (brief §6: "Tournament green for primary
+// action, verification, and success.") — points at the --primary token
+// rather than the foreground ink slab so it carries meaning, not just
+// contrast.
 const variants: Record<Variant, string> = {
   primary:
-    'bg-ink text-paper hover:bg-ink/90 active:bg-ink disabled:bg-ink/70',
+    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary disabled:bg-primary/70',
   // secondary is a deprecated alias of outline — keep identical so callers
   // don't need to change and the visual result is consistent.
   secondary:

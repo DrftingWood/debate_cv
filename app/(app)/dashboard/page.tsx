@@ -138,9 +138,9 @@ export default async function Dashboard({
           on /cv only; this page is where scans are triggered deliberately. */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-3">
-          <div className="kicker">IMPORTS · GMAIL → CV</div>
-          <h1 className="font-serif text-h1 italic text-ink">
-            Tournaments, in flight.
+          <div className="kicker">IMPORTS</div>
+          <h1 className="font-display text-h1 font-semibold text-ink">
+            Find tournaments and bring them in.
           </h1>
           <hr className="hairline" />
         </div>
@@ -237,7 +237,7 @@ export default async function Dashboard({
         <header className="space-y-3">
           <div className="flex items-end justify-between">
             <div>
-              <h2 className="font-serif text-h3 italic text-ink">Private URLs</h2>
+              <h2 className="font-display text-h3 font-semibold text-ink">Private URLs</h2>
               <p className="mt-0.5 text-caption text-ink-soft">
                 {filtered.length === counts.all
                   ? `${counts.all} total · most recent first`
