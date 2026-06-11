@@ -9,22 +9,29 @@ const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
   'rounded-md transition-all duration-[180ms] ease-soft select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
-  'disabled:opacity-50 disabled:cursor-not-allowed';
+  'disabled:cursor-not-allowed';
 
+// Disabled treatment lives per-variant, not in `base`: a blanket
+// `disabled:opacity-50` turned the ink-filled primary into a muddy black
+// slab with an illegible label — and primary buttons sit disabled for
+// MINUTES during the scan→ingest flow ("Scanning Gmail…"), so the busy
+// state must stay readable. Filled variants soften their fill and keep
+// full-opacity text; light variants can dim wholesale because dark text
+// on paper degrades gracefully.
 const variants: Record<Variant, string> = {
   primary:
-    'bg-ink text-paper hover:bg-ink/90 active:bg-ink',
+    'bg-ink text-paper hover:bg-ink/90 active:bg-ink disabled:bg-ink/70',
   // secondary is a deprecated alias of outline — keep identical so callers
   // don't need to change and the visual result is consistent.
   secondary:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
+    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
   outline:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
-  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04]',
+    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
+  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04] disabled:opacity-50',
   danger:
-    'bg-destructive text-destructive-foreground hover:brightness-110',
+    'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/70',
   link:
-    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto',
+    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
 };
 
 const sizes: Record<Size, string> = {
