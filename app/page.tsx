@@ -72,7 +72,7 @@ function Hero() {
         <h1 className="mt-4 max-w-3xl font-display text-h1 font-semibold leading-[1.02] tracking-tight text-record-ink md:text-display">
           Your debate history, readable and ready to share.
         </h1>
-        <p className="mt-5 max-w-xl text-body leading-relaxed text-record-muted md:text-body-serif">
+        <p className="mt-5 max-w-xl text-body leading-relaxed text-record-muted md:text-body">
           Debate CV turns tournament links you already have into a private record of
           results, breaks, speaker scores, and growth over time — source-backed rows
           you can share when it matters.
@@ -248,21 +248,21 @@ function Faq() {
 
 function FinalCta() {
   return (
-    <section className="record-panel bg-record-ink p-6 text-archive-white md:p-8">
+    <section className="record-panel bg-record-ink p-6 text-sheet md:p-8">
       <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
         <div>
           <div className="eyebrow text-record-green">Start the record</div>
           <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight">
             Know what you have done. Share it when it matters.
           </h2>
-          <p className="mt-3 max-w-2xl text-ui leading-relaxed text-archive-white/70">
+          <p className="mt-3 max-w-2xl text-ui leading-relaxed text-sheet/70">
             Build a private debate CV first. Publish or export only when the record is ready.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
           <BuildCvButton />
           <Link href="/sample">
-            <Button type="button" size="lg" variant="outline" className="border-archive-white/20 text-archive-white hover:bg-archive-white/10">
+            <Button type="button" size="lg" variant="outline" className="border-sheet/20 text-sheet hover:bg-sheet/10">
               View sample
             </Button>
           </Link>

@@ -24,7 +24,7 @@ export function CardFooter({ className, ...rest }: DivProps) {
   return (
     <div
       className={cn(
-        'px-5 py-3 border-t bg-ink/[0.03] rounded-b-card',
+        'px-5 py-3 border-t bg-record-ink/[0.03] rounded-b-card',
         className,
       )}
       {...rest}
@@ -38,7 +38,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn('text-h3 font-serif italic text-ink', className)}
+      className={cn('text-h3 font-display text-record-ink', className)}
       {...rest}
     />
   );
@@ -49,6 +49,6 @@ export function CardDescription({
   ...rest
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('mt-0.5 text-table text-ink-soft', className)} {...rest} />
+    <p className={cn('mt-0.5 text-table text-record-muted', className)} {...rest} />
   );
 }

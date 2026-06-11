@@ -5,8 +5,8 @@ export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
 /**
- * 32×32 browser favicon. Editorial brand mark: italic "cv" glyph in
- * oxblood on cream paper. Replaces the previous indigo "DC" monogram.
+ * 32×32 browser favicon. Editorial brand mark: "cv" glyph in
+ * record-green on cream paper. Replaces the previous indigo "DC" monogram.
  */
 export default function Icon() {
   return new ImageResponse(

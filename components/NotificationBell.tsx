@@ -102,7 +102,7 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-haspopup="true"
         aria-expanded={open}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-record-muted transition-colors hover:bg-record-ink/[0.04] hover:text-record-ink"
       >
         <Bell className="h-4 w-4" aria-hidden />
         {unreadCount > 0 ? (
@@ -122,18 +122,18 @@ export function NotificationBell() {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-ink/15 bg-card shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-record-ink/15 bg-card shadow-lg"
         >
-          <div className="border-b border-ink/15 px-4 py-2.5 text-table font-medium text-ink">
+          <div className="border-b border-record-ink/15 px-4 py-2.5 text-table font-medium text-record-ink">
             Notifications
           </div>
           {items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-ink-soft">
+            <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-record-muted">
               <Inbox className="h-5 w-5" aria-hidden />
               <span>You&apos;re all caught up.</span>
             </div>
           ) : (
-            <ul className="max-h-96 divide-y divide-ink/10 overflow-auto">
+            <ul className="max-h-96 divide-y divide-record-ink/10 overflow-auto">
               {items.map((n) => (
                 <li key={n.id}>
                   <NotificationRow item={n} onClick={() => setOpen(false)} />
@@ -159,13 +159,13 @@ function NotificationRow({
   const inner = (
     <div
       className={cn(
-        'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-ink/[0.04]',
-        !item.readAt && 'bg-oxblood/[0.06]',
+        'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-record-ink/[0.04]',
+        !item.readAt && 'bg-record-green/[0.06]',
       )}
     >
-      <span className="font-medium text-ink">{item.title}</span>
-      {item.body ? <span className="text-ink-soft">{item.body}</span> : null}
-      <span className="text-byline text-ink-soft/80">{time}</span>
+      <span className="font-medium text-record-ink">{item.title}</span>
+      {item.body ? <span className="text-record-muted">{item.body}</span> : null}
+      <span className="text-meta text-record-muted/80">{time}</span>
     </div>
   );
   if (item.href) {

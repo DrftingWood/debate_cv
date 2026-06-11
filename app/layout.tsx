@@ -1,28 +1,27 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
+import { Archivo, Libre_Franklin, Spline_Sans_Mono } from 'next/font/google';
 import { cn } from '@/lib/utils/cn';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
-// Tab Room Terminal type stack (2026-06 retheme): Space Grotesk carries the
-// display voice (it fills BOTH the --font-display and --font-serif slots so
-// the hundreds of `font-serif italic` heading call sites lean into oblique
-// grotesk headlines without churn), IBM Plex Mono carries every numeral and
-// identifier via `.num` / `font-mono`, Inter stays on body copy.
-const fontSans = Inter({
+// Tab Sheet type trio (2026-06 teardown, owner ruling D4): Archivo carries
+// the display voice (its width axis gives the masthead poster weight without
+// poster sizes), Libre Franklin carries text — the Franklin Gothic lineage
+// is the typeface of printed results pages — and Spline Sans Mono carries
+// every numeral, rank, and identifier via `.num` / `font-mono`.
+const fontSans = Libre_Franklin({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
 });
-const fontDisplay = Space_Grotesk({
+const fontDisplay = Archivo({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  axes: ['wdth'],
   variable: '--font-display',
   display: 'swap',
 });
-const fontMono = IBM_Plex_Mono({
+const fontMono = Spline_Sans_Mono({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
   variable: '--font-mono',
   display: 'swap',
 });
@@ -66,29 +65,17 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F7F6F1' },
-    { media: '(prefers-color-scheme: dark)', color: '#0C1311' },
-  ],
+  // One theme. Credential artifacts don't have moods (teardown ruling D1) —
+  // a first-time visitor on a dark-mode phone still meets sheet white.
+  themeColor: '#FAF9F4',
 };
-
-// Runs before paint so a stored theme preference never flashes the wrong
-// mode. Stored 'light'/'dark' wins; otherwise follow the OS. Kept as a raw
-// string (not a component) because it must execute synchronously in <head>.
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      // Server-rendered fallback; the inline script corrects it before paint.
-      data-theme="light"
       className={cn(fontSans.variable, fontDisplay.variable, fontMono.variable)}
-      suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>
           <a href="#main" className="skip-link">Skip to content</a>

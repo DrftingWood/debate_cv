@@ -21,7 +21,7 @@ export function NavLink({
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'relative rounded px-0.5 py-1 transition-colors duration-[180ms] ease-soft',
-        isActive ? 'text-ink' : 'text-ink-soft hover:text-ink',
+        isActive ? 'text-record-ink' : 'text-record-muted hover:text-record-ink',
         className,
       )}
     >
@@ -29,7 +29,7 @@ export function NavLink({
       {isActive ? (
         <span
           aria-hidden
-          className="absolute -bottom-[12px] left-0 right-0 h-[2px] bg-oxblood"
+          className="absolute -bottom-[12px] left-0 right-0 h-[2px] bg-record-green"
         />
       ) : null}
     </Link>

@@ -157,13 +157,13 @@ export function CvDownloadButton() {
         <div
           role="dialog"
           aria-label="Download your CV"
-          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-ink/15 bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-record-ink/15 bg-card p-4 shadow-lg"
         >
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-3">
+            <div className="flex items-center justify-between gap-2 border-b border-record-ink/10 pb-3">
               <div>
-                <div className="text-caption font-medium text-ink">PDF</div>
-                <p className="text-byline text-ink-soft">
+                <div className="text-caption font-medium text-record-ink">PDF</div>
+                <p className="text-meta text-record-muted">
                   Via your browser&rsquo;s print dialog.
                 </p>
               </div>
@@ -179,7 +179,7 @@ export function CvDownloadButton() {
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-caption font-medium text-ink">Data export — columns</span>
+              <span className="text-caption font-medium text-record-ink">Data export — columns</span>
               <span className="flex gap-2 text-caption">
                 <button
                   type="button"
@@ -202,12 +202,12 @@ export function CvDownloadButton() {
               {groups.map((g) =>
                 g.ids.length > 0 ? (
                   <fieldset key={g.title}>
-                    <legend className="text-byline uppercase tracking-[0.12em] text-ink-soft">
+                    <legend className="text-meta uppercase tracking-[0.12em] text-record-muted">
                       {g.title}
                     </legend>
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                       {g.ids.map((id) => (
-                        <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-ink">
+                        <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-record-ink">
                           <input
                             type="checkbox"
                             className="h-3.5 w-3.5 accent-current"
@@ -225,7 +225,7 @@ export function CvDownloadButton() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-record-ink/10 pt-3">
               <div role="radiogroup" aria-label="File format" className="flex gap-3 text-caption">
                 {(['csv', 'xlsx'] as const).map((f) => (
                   <label key={f} className="flex cursor-pointer items-center gap-1.5">

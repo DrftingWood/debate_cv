@@ -66,7 +66,7 @@ export function UserMenu({
         aria-label="Account menu"
         aria-haspopup="true"
         aria-expanded={open}
-        className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-ink/15 bg-ink/[0.06] text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/[0.10]"
+        className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-record-ink/15 bg-record-ink/[0.06] text-meta font-semibold uppercase tracking-wide text-record-ink transition-colors hover:bg-record-ink/[0.10]"
       >
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -85,14 +85,14 @@ export function UserMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-[240px] rounded-card border border-ink/15 bg-card shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[240px] rounded-card border border-record-ink/15 bg-card shadow-lg"
         >
-          <div className="border-b border-ink/15 px-4 py-3">
-            <div className="truncate text-ui font-medium text-ink" title={displayName}>
+          <div className="border-b border-record-ink/15 px-4 py-3">
+            <div className="truncate text-ui font-medium text-record-ink" title={displayName}>
               {displayName}
             </div>
             {showEmailRow ? (
-              <div className="truncate text-byline text-ink-soft" title={email ?? undefined}>
+              <div className="truncate text-meta text-record-muted" title={email ?? undefined}>
                 {email}
               </div>
             ) : null}
@@ -102,18 +102,18 @@ export function UserMenu({
               href="/settings/account"
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-ink/[0.04]"
+              className="flex items-center gap-2 px-4 py-2 text-ui text-record-ink transition-colors hover:bg-record-ink/[0.04]"
             >
-              <Settings className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+              <Settings className="h-3.5 w-3.5 text-record-muted" aria-hidden />
               Account
             </Link>
             <form action={signOutAction}>
               <button
                 type="submit"
                 role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-ink/[0.04]"
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-record-ink transition-colors hover:bg-record-ink/[0.04]"
               >
-                <LogOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                <LogOut className="h-3.5 w-3.5 text-record-muted" aria-hidden />
                 Sign out
               </button>
             </form>

@@ -53,8 +53,8 @@ export default async function AccountSettingsPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <div className="kicker">SETTINGS · ACCOUNT</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">SETTINGS · ACCOUNT</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Connections and data.
         </h1>
         <hr className="hairline" />
@@ -64,14 +64,14 @@ export default async function AccountSettingsPage() {
       <Card>
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">
+            <Mail className="h-4 w-4 text-record-muted" aria-hidden />
+            <h2 className="font-display text-h3 text-record-ink">
               Gmail connection
             </h2>
           </div>
-          <div className="text-body text-ink-soft">
+          <div className="text-body text-record-muted">
             Signed in as{' '}
-            <span className="font-medium text-ink">
+            <span className="font-medium text-record-ink">
               {user?.email ?? user?.name ?? 'Unknown'}
             </span>
             .
@@ -86,7 +86,7 @@ export default async function AccountSettingsPage() {
               </Badge>
             ) : null}
             {gmailToken?.updatedAt ? (
-              <span className="text-caption text-ink-soft">
+              <span className="text-caption text-record-muted">
                 Last refreshed {new Date(gmailToken.updatedAt).toLocaleDateString()}
               </span>
             ) : null}
@@ -105,8 +105,8 @@ export default async function AccountSettingsPage() {
       <Card>
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">Your data</h2>
+            <Database className="h-4 w-4 text-record-muted" aria-hidden />
+            <h2 className="font-display text-h3 text-record-ink">Your data</h2>
           </div>
           <dl className="grid grid-cols-3 gap-3 text-ui">
             <DataStat
@@ -136,9 +136,9 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-destructive" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">Delete account</h2>
+            <h2 className="font-display text-h3 text-record-ink">Delete account</h2>
           </div>
-          <p className="text-body text-ink-soft">
+          <p className="text-body text-record-muted">
             Removes your user record, Gmail tokens, discovered URLs, ingest jobs, and identity
             claims. Tournament rows shared across users stay — they&apos;re public tab data.
           </p>
@@ -159,13 +159,13 @@ function DataStat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-ink/10 bg-paper px-3.5 py-3">
-      <dt className="text-caption text-ink-soft" title={hint}>
+    <div className="rounded-md border border-record-ink/10 bg-sheet px-3.5 py-3">
+      <dt className="text-caption text-record-muted" title={hint}>
         {label}
       </dt>
-      <dd className="mt-0.5 font-serif text-stat font-semibold text-ink">{value}</dd>
+      <dd className="mt-0.5 font-display text-stat font-semibold text-record-ink">{value}</dd>
       {hint ? (
-        <div className="mt-1 text-byline leading-snug text-ink-soft">{hint}</div>
+        <div className="mt-1 text-meta leading-snug text-record-muted">{hint}</div>
       ) : null}
     </div>
   );

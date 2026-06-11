@@ -6,7 +6,7 @@ export const contentType = 'image/png';
 
 /**
  * 180×180 iOS home-screen icon. Editorial brand mark: italic-Fraunces
- * wordmark on cream paper, with the "cv" half tinted oxblood — matches
+ * wordmark on cream paper, with the "cv" half tinted record-green — matches
  * the in-app BrandMark component.
  */
 export default function AppleIcon() {

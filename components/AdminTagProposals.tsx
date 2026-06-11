@@ -128,8 +128,8 @@ export function AdminTagProposals() {
             className={
               'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
-                ? 'border-ink/30 bg-ink text-paper'
-                : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]')
+                ? 'border-record-ink/30 bg-record-ink text-sheet'
+                : 'border-record-ink/15 bg-sheet text-record-ink hover:bg-record-ink/[0.04]')
             }
           >
             {STATUS_LABELS[s]}
@@ -138,18 +138,18 @@ export function AdminTagProposals() {
       </div>
 
       {loading ? (
-        <p className="text-body text-ink-soft italic">Loading…</p>
+        <p className="text-body text-record-muted">Loading…</p>
       ) : error ? (
         <p className="text-body text-destructive">{error}</p>
       ) : !proposals || proposals.length === 0 ? (
-        <p className="text-body text-ink-soft italic">
+        <p className="text-body text-record-muted">
           No {filter} proposals.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-max text-table">
             <thead>
-              <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+              <tr className="border-y border-record-ink/15 text-left uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
                 <th className="whitespace-nowrap px-4 py-2.5 font-medium">Kind</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposed value</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">Current value</th>
@@ -164,11 +164,11 @@ export function AdminTagProposals() {
             </thead>
             <tbody>
               {proposals.map((p) => (
-                <tr key={p.id} className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
+                <tr key={p.id} className="align-top border-b border-record-ink/10 hover:bg-record-ink/[0.02]">
                   <td className="whitespace-nowrap px-4 py-2.5">{kindLabel(p.kind)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-ink">{p.value}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {p.currentValue ?? <span className="italic">none</span>}
+                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-record-ink">{p.value}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">
+                    {p.currentValue ?? <span className="">none</span>}
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="block max-w-[14rem] truncate" title={p.tournamentName}>
@@ -178,19 +178,19 @@ export function AdminTagProposals() {
                   <td className="px-3 py-2.5">
                     {p.motionText ? (
                       <span
-                        className="block max-w-[18rem] truncate text-ink-soft"
+                        className="block max-w-[18rem] truncate text-record-muted"
                         title={p.motionText}
                       >
                         {p.motionText}
                       </span>
                     ) : (
-                      <span className="text-ink-soft italic">—</span>
+                      <span className="text-record-muted">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">
                     {p.userEmail ?? '—'}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">
                     {formatDate(p.createdAt)}
                   </td>
                   {filter === 'pending' ? (
@@ -225,8 +225,8 @@ export function AdminTagProposals() {
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           className={
-                            'h-7 w-48 rounded border border-ink/15 bg-paper px-2 text-caption ' +
-                            'text-ink placeholder:text-ink-soft focus:outline-none ' +
+                            'h-7 w-48 rounded border border-record-ink/15 bg-sheet px-2 text-caption ' +
+                            'text-record-ink placeholder:text-record-muted focus:outline-none ' +
                             'focus:ring-1 focus:ring-ring'
                           }
                         />

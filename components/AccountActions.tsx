@@ -28,7 +28,7 @@ export function DisconnectGoogleButton() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-table text-ink-soft">
+      <span className="text-table text-record-muted">
         Revoke the OAuth grant and remove tokens?
       </span>
       <Button
@@ -107,7 +107,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
           <div className="text-ui font-semibold text-destructive">
             This permanently deletes your account, URL history, jobs, and claimed identities.
           </div>
-          <div className="mt-1 text-caption text-ink-soft">
+          <div className="mt-1 text-caption text-record-muted">
             To confirm, type <strong>{userEmail ?? 'your email'}</strong> below. Tournament data
             shared across users stays (it's public tab data).
           </div>
@@ -119,7 +119,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
         placeholder={userEmail ?? 'email'}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
-        className="block w-full rounded-md border border-ink/15 bg-card px-3.5 py-2.5 text-ui shadow-xs focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/40"
+        className="block w-full rounded-md border border-record-ink/15 bg-card px-3.5 py-2.5 text-ui shadow-xs focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/40"
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button

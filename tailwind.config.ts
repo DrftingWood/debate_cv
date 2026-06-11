@@ -55,25 +55,10 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
 
-        // Semantic aliases — self-documenting in JSX. Names date from the
-        // editorial era but are an abstract contract (ink=fg, paper=bg,
-        // oxblood=accent); the Tab Room Terminal retheme re-pointed the
-        // VALUES (oxblood now resolves to phosphor green). Renaming the
-        // alias would churn ~30 files for zero visual change — do it only
-        // alongside a real refactor of those call sites.
-        paper: 'hsl(var(--background))',
-        ink: {
-          DEFAULT: 'hsl(var(--foreground))',
-          soft: 'hsl(var(--muted-foreground))',
-        },
-        rule: 'hsl(var(--border) / 0.14)',
-        oxblood: {
-          DEFAULT: 'hsl(var(--primary))',
-          soft: 'hsl(var(--primary-soft) / 0.08)',
-        },
-        archive: {
-          white: 'hsl(var(--archive-white))',
-        },
+        // Tab Sheet semantics (2026-06 teardown): the editorial-era
+        // ink/paper/oxblood aliases died with the call-site rename. `sheet`
+        // is the one background alias; everything else is record-*.
+        sheet: 'hsl(var(--background))',
         record: {
           ink: 'hsl(var(--record-ink))',
           muted: 'hsl(var(--record-muted))',
@@ -90,28 +75,29 @@ const config: Config = {
         },
       },
       fontFamily: {
+        // Tab Sheet trio (owner ruling D4): Archivo carries the display
+        // voice, Libre Franklin the text, Spline Sans Mono every numeral.
+        // The serif slot is gone — the system no longer impersonates one.
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Retheme 2026-06: the serif slot intentionally renders the display
-        // grotesk — every `font-serif italic` heading becomes an oblique
-        // Space Grotesk headline without touching the call sites.
-        serif: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
-        kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.2em', fontWeight: '600' }],
-        byline: ['11.5px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
+        // Two reading modes: agate (label/caption/table — dense tab text the
+        // audience already reads daily) and document (ui/body). Display
+        // hierarchy comes from Archivo weight/width as much as size.
+        label: ['11px', { lineHeight: '1.2', letterSpacing: '0.14em', fontWeight: '600' }],
+        meta: ['12px', { lineHeight: '1.4', letterSpacing: '0.02em' }],
         caption: ['12.5px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
         table: ['13.5px', { lineHeight: '1.5' }],
         ui: ['14px', { lineHeight: '1.5' }],
         body: ['15px', { lineHeight: '1.6' }],
-        'body-serif': ['16.5px', { lineHeight: '1.55' }],
         h4: ['18px', { lineHeight: '1.3', letterSpacing: '-0.005em' }],
         h3: ['22px', { lineHeight: '1.3', letterSpacing: '-0.01em' }],
         stat: ['28px', { lineHeight: '1.1', letterSpacing: '-0.01em' }],
-        h2: ['36px', { lineHeight: '1.15', letterSpacing: '-0.015em' }],
-        h1: ['48px', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
-        display: ['64px', { lineHeight: '1.02', letterSpacing: '-0.025em' }],
+        h2: ['34px', { lineHeight: '1.15', letterSpacing: '-0.01em' }],
+        h1: ['44px', { lineHeight: '1.06', letterSpacing: '-0.015em' }],
+        display: ['58px', { lineHeight: '1.04', letterSpacing: '-0.02em' }],
       },
       borderRadius: {
         lg: 'var(--radius)',

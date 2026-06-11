@@ -20,18 +20,18 @@ const base =
 // on paper degrades gracefully.
 const variants: Record<Variant, string> = {
   primary:
-    'bg-ink text-paper hover:bg-ink/90 active:bg-ink disabled:bg-ink/70',
+    'bg-record-ink text-sheet hover:bg-record-ink/90 active:bg-record-ink disabled:bg-record-ink/70',
   // secondary is a deprecated alias of outline — keep identical so callers
   // don't need to change and the visual result is consistent.
   secondary:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
+    'bg-transparent text-record-ink border border-record-ink/15 hover:bg-record-ink/[0.04] disabled:opacity-50',
   outline:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
-  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04] disabled:opacity-50',
+    'bg-transparent text-record-ink border border-record-ink/15 hover:bg-record-ink/[0.04] disabled:opacity-50',
+  ghost: 'bg-transparent text-record-ink hover:bg-record-ink/[0.04] disabled:opacity-50',
   danger:
     'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/70',
   link:
-    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
+    'text-record-green hover:text-record-green/80 underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
 };
 
 const sizes: Record<Size, string> = {

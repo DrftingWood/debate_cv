@@ -50,7 +50,7 @@ export function TrendChart({
     .join(' ');
 
   return (
-    <div className={cn('text-ink', className)}>
+    <div className={cn('text-record-ink', className)}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="block w-full"

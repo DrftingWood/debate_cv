@@ -15,7 +15,7 @@ const ROMAN: Record<number, string> = {
 /**
  * Derive the masthead's "VOL. X" Roman numeral from the user's active-year
  * span. A debater in their third active year sees VOL. III. Capped at IX:
- * longer Romans (X, XI...) read awkwardly in a small-caps kicker.
+ * longer Romans (X, XI...) read awkwardly in a small-caps eyebrow.
  *
  *  - `null` activeYears (no tournaments yet) → "I"
  *  - reversed span (defensive) → "I"

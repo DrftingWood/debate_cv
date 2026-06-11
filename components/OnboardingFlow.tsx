@@ -225,10 +225,10 @@ export function OnboardingFlow({
                 <Mail className="h-5 w-5" aria-hidden />
               </div>
               <div className="space-y-2">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-semibold text-record-ink">
                   Scan your Gmail for private URLs
                 </h2>
-                <p className="text-ui text-ink-soft">
+                <p className="text-ui text-record-muted">
                   We&apos;ll search your inbox for Tabbycat invitation emails (read-only) and
                   pull every private URL that was sent to you. Nothing is ingested yet —
                   the next step asks which names on those URLs are you.
@@ -259,10 +259,10 @@ export function OnboardingFlow({
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               </div>
               <div className="space-y-2">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-semibold text-record-ink">
                   Reading the names off your private URLs
                 </h2>
-                <p className="text-ui text-ink-soft">
+                <p className="text-ui text-record-muted">
                   Visiting each URL&apos;s landing page and pulling the registered participant
                   name. This is a one-time preflight — no tournament data is stored yet.
                 </p>
@@ -289,10 +289,10 @@ export function OnboardingFlow({
                 <UserCheck className="h-5 w-5" aria-hidden />
               </div>
               <div className="space-y-1.5">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-semibold text-record-ink">
                   Which of these names are you?
                 </h2>
-                <p className="text-ui text-ink-soft">
+                <p className="text-ui text-record-muted">
                   We extracted these names from {totals.named} of your{' '}
                   {totals.urls} private URLs. Tournaments often spell people slightly
                   differently — tick every spelling that&apos;s you. We&apos;ll merge them into
@@ -304,7 +304,7 @@ export function OnboardingFlow({
             {showFailureWarning ? <FailureWarning /> : null}
 
             {names.length === 0 ? (
-              <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
+              <p className="rounded-md border border-record-ink/10 bg-sheet p-4 text-caption text-record-muted">
                 No names extracted. Any URLs that failed permanently will appear on the{' '}
                 <Link href="/dashboard" className="text-primary hover:underline">
                   dashboard
@@ -312,25 +312,25 @@ export function OnboardingFlow({
                 under the <strong>Failed</strong> filter.
               </p>
             ) : (
-              <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
+              <ul className="divide-y divide-record-ink/10 rounded-card border border-record-ink/15 bg-card">
                 {names.map((n) => {
                   const checked = selected.has(n.normalizedName);
                   return (
                     <li key={n.normalizedName}>
-                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-ink/[0.02]">
+                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-record-ink/[0.02]">
                         <span className="flex min-w-0 items-center gap-3">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 shrink-0 rounded border-ink/20 text-primary focus:ring-2 focus:ring-primary/40"
+                            className="h-4 w-4 shrink-0 rounded border-record-ink/20 text-primary focus:ring-2 focus:ring-primary/40"
                             checked={checked}
                             onChange={() => toggle(n.normalizedName)}
                           />
-                          <span className="font-medium text-ink">{n.displayName}</span>
+                          <span className="font-medium text-record-ink">{n.displayName}</span>
                           {n.isMine ? (
                             <Badge variant="success">Already mine</Badge>
                           ) : null}
                         </span>
-                        <span className="whitespace-nowrap text-caption text-ink-soft">
+                        <span className="whitespace-nowrap text-caption text-record-muted">
                           {n.urlCount} {n.urlCount === 1 ? 'URL' : 'URLs'}
                         </span>
                       </label>
@@ -341,7 +341,7 @@ export function OnboardingFlow({
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <p className="text-caption text-ink-soft">
+              <p className="text-caption text-record-muted">
                 {selected.size} of {names.length} selected
               </p>
               <Button
@@ -366,7 +366,7 @@ export function OnboardingFlow({
         <Card>
           <CardBody className="flex items-center gap-3 p-6 md:p-8">
             <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
-            <p className="text-ink">Loading your CV…</p>
+            <p className="text-record-ink">Loading your CV…</p>
           </CardBody>
         </Card>
       )}
@@ -383,7 +383,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
   const order = (p: Phase) => steps.findIndex((s) => s.key === p);
   const current = phase === 'done' ? steps.length : order(phase);
   return (
-    <ol className="flex items-center justify-between gap-2 rounded-card border border-ink/10 bg-card/60 p-3">
+    <ol className="flex items-center justify-between gap-2 rounded-card border border-record-ink/10 bg-card/60 p-3">
       {steps.map((s, i) => {
         const done = i < current;
         const active = i === current;
@@ -396,7 +396,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
                   ? 'bg-primary text-primary-foreground'
                   : active
                     ? 'bg-primary-soft text-primary ring-2 ring-primary/40'
-                    : 'bg-ink/10 text-ink-soft')
+                    : 'bg-record-ink/10 text-record-muted')
               }
               aria-current={active ? 'step' : undefined}
             >
@@ -405,13 +405,13 @@ function ProgressBar({ phase }: { phase: Phase }) {
             <span
               className={
                 'truncate text-caption ' +
-                (active ? 'font-medium text-ink' : 'text-ink-soft')
+                (active ? 'font-medium text-record-ink' : 'text-record-muted')
               }
             >
               {s.label}
             </span>
             {i < steps.length - 1 ? (
-              <span aria-hidden className="hidden flex-1 border-t border-dashed border-ink/15 md:block" />
+              <span aria-hidden className="hidden flex-1 border-t border-dashed border-record-ink/15 md:block" />
             ) : null}
           </li>
         );
@@ -427,7 +427,7 @@ function FailureWarning() {
         <AlertTriangle className="h-4 w-4" aria-hidden />
         We couldn&apos;t read most of your URLs
       </div>
-      <p className="text-ink-soft">
+      <p className="text-record-muted">
         This usually means a Gmail connection issue or that your URLs are
         blocked at the source. Permanent failures will appear on the{' '}
         <Link href="/dashboard" className="text-primary hover:underline">

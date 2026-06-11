@@ -86,8 +86,8 @@ export default async function AdminPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
-        <div className="kicker">ADMIN · INTERNAL</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">ADMIN · INTERNAL</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Operator tools.
         </h1>
         <hr className="hairline" />
@@ -96,22 +96,22 @@ export default async function AdminPage() {
       <IngestProgressTracker scope="global" />
 
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-serif text-h3 italic text-ink">Current state</h2>
+        <h2 className="font-display text-h3 text-record-ink">Current state</h2>
         <dl className="grid grid-cols-4 gap-4 text-table">
           <div>
-            <dt className="text-ink-soft">Tournaments</dt>
+            <dt className="text-record-muted">Tournaments</dt>
             <dd className="text-stat font-semibold mt-1">{tournaments}</dd>
           </div>
           <div>
-            <dt className="text-ink-soft">Discovered URLs</dt>
+            <dt className="text-record-muted">Discovered URLs</dt>
             <dd className="text-stat font-semibold mt-1">{discoveredUrls}</dd>
           </div>
           <div>
-            <dt className="text-ink-soft">Locked URLs</dt>
+            <dt className="text-record-muted">Locked URLs</dt>
             <dd className="text-stat font-semibold mt-1">{lockedUrls}</dd>
           </div>
           <div>
-            <dt className="text-ink-soft">Pending jobs</dt>
+            <dt className="text-record-muted">Pending jobs</dt>
             <dd className="text-stat font-semibold mt-1">{pendingJobs}</dd>
           </div>
         </dl>
@@ -121,8 +121,8 @@ export default async function AdminPage() {
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-serif text-h3 italic text-ink">Tag proposals</h2>
-        <p className="text-body text-ink-soft">
+        <h2 className="font-display text-h3 text-record-ink">Tag proposals</h2>
+        <p className="text-body text-record-muted">
           Review user-proposed region and motion tags. Approvals write directly to the
           canonical Tournament / Motion columns.
         </p>
@@ -134,8 +134,8 @@ export default async function AdminPage() {
       <section className="rounded-lg border p-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-h3 italic text-ink">CV error reports</h2>
-            <p className="text-body text-ink-soft mt-1">
+            <h2 className="font-display text-h3 text-record-ink">CV error reports</h2>
+            <p className="text-body text-record-muted mt-1">
               Beta reports users submitted from their CV page.
             </p>
           </div>
@@ -146,21 +146,21 @@ export default async function AdminPage() {
           </a>
         </div>
         {cvReports.length === 0 ? (
-          <p className="text-body text-ink-soft italic">No CV reports yet.</p>
+          <p className="text-body text-record-muted">No CV reports yet.</p>
         ) : (
-          <ul className="divide-y divide-ink/10 rounded-md border border-ink/15">
+          <ul className="divide-y divide-record-ink/10 rounded-md border border-record-ink/15">
             {cvReports.map((report) => (
               <li key={report.id} className="space-y-2 px-3 py-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="text-ui font-medium text-ink">
+                  <div className="text-ui font-medium text-record-ink">
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
-                  <div className="text-caption text-ink-soft">
+                  <div className="text-caption text-record-muted">
                     {report.createdAt.toLocaleString()}
                   </div>
                 </div>
                 {report.user.email ? (
-                  <div className="text-caption text-ink-soft">{report.user.email}</div>
+                  <div className="text-caption text-record-muted">{report.user.email}</div>
                 ) : null}
                 <div className="flex flex-wrap gap-1">
                   {report.tournamentIds.map((id) => {
@@ -168,7 +168,7 @@ export default async function AdminPage() {
                     return (
                       <span
                         key={id}
-                        className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-byline text-ink-soft"
+                        className="rounded-full bg-record-ink/[0.06] px-2 py-0.5 text-meta text-record-muted"
                       >
                         {tournament ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}` : `#${id}`}
                       </span>
@@ -180,7 +180,7 @@ export default async function AdminPage() {
                     {report.categories.map((c) => (
                       <span
                         key={c}
-                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-byline font-medium text-warning"
+                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-meta font-medium text-warning"
                       >
                         {categoryLabel(c)}
                       </span>
@@ -188,7 +188,7 @@ export default async function AdminPage() {
                   </div>
                 ) : null}
                 {report.comment ? (
-                  <p className="whitespace-pre-wrap break-words rounded-md bg-ink/[0.04] px-3 py-2 text-ui text-ink">
+                  <p className="whitespace-pre-wrap break-words rounded-md bg-record-ink/[0.04] px-3 py-2 text-ui text-record-ink">
                     {report.comment}
                   </p>
                 ) : null}
@@ -200,28 +200,28 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Recent parser warnings</h2>
-          <p className="text-body text-ink-soft mt-1">
+          <h2 className="font-display text-h3 text-record-ink">Recent parser warnings</h2>
+          <p className="text-body text-record-muted mt-1">
             Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
             many tournaments are hitting the same parsing issue — usually a structural change in
             Tabbycat the parser hasn&rsquo;t caught up to yet.
           </p>
         </div>
         {sortedWarnings.length === 0 ? (
-          <p className="text-body text-ink-soft italic">
+          <p className="text-body text-record-muted">
             No warnings recorded in the last 200 parser runs. Parsers are clean.
           </p>
         ) : (
-          <ul className="divide-y divide-ink/10 rounded-md border border-ink/15">
+          <ul className="divide-y divide-record-ink/10 rounded-md border border-record-ink/15">
             {sortedWarnings.map(([key, { count, sample, latest }]) => (
               <li key={key} className="px-3 py-2 space-y-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <code className="font-mono text-caption text-ink break-all">{key}</code>
-                  <span className="shrink-0 text-caption font-mono text-ink-soft">
+                  <code className="font-mono text-caption text-record-ink break-all">{key}</code>
+                  <span className="shrink-0 text-caption font-mono text-record-muted">
                     ×{count}
                   </span>
                 </div>
-                <div className="text-byline text-ink-soft">
+                <div className="text-meta text-record-muted">
                   Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
                   {sample.length > 200 ? '…' : ''}
                 </div>
@@ -233,8 +233,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Clear ingested data</h2>
-          <p className="text-body text-ink-soft mt-1">
+          <h2 className="font-display text-h3 text-record-ink">Clear ingested data</h2>
+          <p className="text-body text-record-muted mt-1">
             Deletes scraped tournament records and resets ingest state on every DiscoveredUrl. User
             identity claims (Person records) and discovered URLs are preserved, so the next scan
             re-uses everyone&rsquo;s existing claims.
@@ -245,8 +245,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border border-destructive/30 bg-destructive/[0.03] p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Full wipe (destructive)</h2>
-          <p className="text-body text-ink-soft mt-1">
+          <h2 className="font-display text-h3 text-record-ink">Full wipe (destructive)</h2>
+          <p className="text-body text-record-muted mt-1">
             All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and
             every PersonRejection across all users. User accounts and Gmail tokens are preserved
             so users can re-run the Gmail scan from zero. Use only to test the discovery + claim
@@ -261,8 +261,8 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Re-ingest all URLs</h2>
-          <p className="text-body text-ink-soft mt-1">
+          <h2 className="font-display text-h3 text-record-ink">Re-ingest all URLs</h2>
+          <p className="text-body text-record-muted mt-1">
             Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
             tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}
             <span className="font-medium">Ingest all</span> on the dashboard to process the queue.

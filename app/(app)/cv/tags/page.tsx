@@ -99,12 +99,12 @@ export default async function CvTagsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="kicker">DEBATE CV — TAGS</div>
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink">
+        <div className="eyebrow">DEBATE CV — TAGS</div>
+        <h1 className="font-display text-h1 leading-[1.05] tracking-tight text-record-ink">
           Tags.
         </h1>
         <hr className="hairline" />
-        <div className="byline">
+        <div className="meta">
           Tags are shared community facts — a tournament region or a motion type appears
           identically on every CV that includes that tournament. Proposals go live after
           an admin approves them, and feed the Analytics slices.
@@ -114,7 +114,7 @@ export default async function CvTagsPage() {
       <CvSubNav active="tags" />
 
       {tournaments.length === 0 ? (
-        <p className="text-body text-ink-soft italic">
+        <p className="text-body text-record-muted">
           No ingested tournaments yet. Once tournaments are on your CV, you can propose
           region and motion tags here.
         </p>
@@ -126,9 +126,9 @@ export default async function CvTagsPage() {
 
             return (
               <section key={tIdStr} className="space-y-6">
-                {/* Tournament header — name + year as a kicker/heading pair */}
+                {/* Tournament header — name + year as a eyebrow/heading pair */}
                 <header>
-                  <div className="kicker">
+                  <div className="eyebrow">
                     {t.year ? `${t.year} · ` : ''}
                     {t.name.toUpperCase()}
                   </div>
@@ -137,7 +137,7 @@ export default async function CvTagsPage() {
 
                 {/* Region row */}
                 <div className="space-y-1.5">
-                  <div className="text-table font-medium text-ink">Region</div>
+                  <div className="text-table font-medium text-record-ink">Region</div>
                   <TagProposalControls
                     kind="region"
                     tournamentId={tIdStr}
@@ -150,7 +150,7 @@ export default async function CvTagsPage() {
                 {/* Motion list — only rendered when the tournament has motions */}
                 {t.motions.length > 0 ? (
                   <div className="space-y-4">
-                    <div className="kicker">MOTIONS</div>
+                    <div className="eyebrow">MOTIONS</div>
                     <div className="space-y-6">
                       {t.motions.map((m) => {
                         const mIdStr = m.id.toString();
@@ -164,14 +164,14 @@ export default async function CvTagsPage() {
                         return (
                           <div
                             key={mIdStr}
-                            className="space-y-3 border-l-2 border-ink/10 pl-4"
+                            className="space-y-3 border-l-2 border-record-ink/10 pl-4"
                           >
                             {/* Round label + motion text */}
                             <div>
-                              <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                              <div className="text-caption text-record-muted uppercase tracking-[0.12em]">
                                 {m.roundLabel}
                               </div>
-                              <p className="mt-0.5 font-serif italic text-body-serif text-ink leading-snug">
+                              <p className="mt-0.5 font-display text-body text-record-ink leading-snug">
                                 {m.text}
                               </p>
                             </div>
@@ -179,7 +179,7 @@ export default async function CvTagsPage() {
                             {/* Type and topic pickers side by side on wider viewports */}
                             <div className="grid gap-4 sm:grid-cols-2">
                               <div className="space-y-1">
-                                <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                                <div className="text-caption text-record-muted uppercase tracking-[0.12em]">
                                   Motion type
                                 </div>
                                 <TagProposalControls
@@ -194,7 +194,7 @@ export default async function CvTagsPage() {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                                <div className="text-caption text-record-muted uppercase tracking-[0.12em]">
                                   Topic
                                 </div>
                                 <TagProposalControls

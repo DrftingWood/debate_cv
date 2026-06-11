@@ -72,7 +72,7 @@ export default async function CvPage() {
       />
       {/* Editorial masthead — replaces the gradient profile + metric-tile grid */}
       <header className="space-y-4">
-        <div className="kicker">
+        <div className="eyebrow">
           DEBATE CV — PRIVATE RECORD · COMPILED{' '}
           {new Date().toLocaleDateString('en-GB', {
             day: 'numeric',
@@ -81,13 +81,13 @@ export default async function CvPage() {
           }).toUpperCase()}
         </div>
 
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
+        <h1 className="font-display text-h1 leading-[1.05] tracking-tight text-record-ink md:text-display">
           {user?.name ?? 'Debater'}
         </h1>
 
         <hr className="hairline" />
 
-        <div className="byline">
+        <div className="meta">
           {user?.email ?? ''}
         </div>
 
@@ -118,8 +118,8 @@ export default async function CvPage() {
           the "More" dropdown (Analytics, Verify) lives in the tab bar now. */}
       <section className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="md:max-w-2xl">
-          <div className="kicker">IN BRIEF</div>
-          <p className="mt-2 font-serif text-body-serif italic leading-relaxed text-ink/85">
+          <div className="eyebrow">IN BRIEF</div>
+          <p className="mt-2 font-display text-body leading-relaxed text-record-ink/85">
             {toBriefSentence({
               totalTournaments: summary.totalTournaments,
               speakerCount: speakerRows.length,
@@ -162,7 +162,7 @@ export default async function CvPage() {
           {speakerRows.length > 0 ? (
             <section aria-label="Speaking" className="space-y-4">
               <header>
-                <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+                <div className="eyebrow">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
               </header>
               <SpeakingTable rows={speakerRows} />
             </section>
@@ -171,7 +171,7 @@ export default async function CvPage() {
           {judgeRows.length > 0 ? (
             <section aria-label="Judging" className="space-y-4">
               <header>
-                <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+                <div className="eyebrow">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
               </header>
               <JudgingTable rows={judgeRows} />
             </section>
@@ -189,7 +189,7 @@ export default async function CvPage() {
 }
 
 /**
- * Render the CV summary as a single sober italic sentence in place of
+ * Render the CV summary as a single sober sentence in place of
  * coloured "X tournaments / Y as speaker / Z as judge" pill badges.
  * Spells out numbers below 20 in line with the publication's voice.
  */
@@ -354,10 +354,10 @@ function StatColumn({
 }) {
   return (
     <div>
-      <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
+      <div className="text-label text-record-muted uppercase tracking-[0.16em]">
         {label}
       </div>
-      <div className="mt-1 font-serif text-stat text-ink num">
+      <div className="mt-1 font-display text-stat text-record-ink num">
         {value}
       </div>
     </div>
@@ -382,7 +382,7 @@ import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } 
 
 function BrokeBadge({ broke }: { broke: boolean }) {
   return (
-    <span role="status" className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+    <span role="status" className="uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
       {broke ? 'Broken' : '—'}
     </span>
   );
@@ -417,28 +417,28 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
   const hasRoundScores = r.roundScores.length > 0;
   return (
     <>
-      <tr className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
+      <tr className="align-top border-b border-record-ink/10 hover:bg-record-ink/[0.02]">
         <td className="px-4 py-2.5">
           <a
             href={r.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-w-[14rem] truncate font-medium text-ink hover:text-oxblood"
+            className="block max-w-[14rem] truncate font-medium text-record-ink hover:text-record-green"
             title={r.tournamentName}
           >
             {r.tournamentName}
           </a>
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.year ?? '—'}</td>
-        <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-        <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.totalTeams ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-record-muted">{r.year ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">{r.format ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-record-muted">{r.totalTeams ?? '—'}</td>
         <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
-        <td className="px-3 py-2.5 text-ink-soft" title={r.teammates.join(', ')}>
+        <td className="px-3 py-2.5 text-record-muted" title={r.teammates.join(', ')}>
           <span className="block max-w-[14rem] truncate">
             {r.teammates.length ? r.teammates.join(', ') : '—'}
           </span>
         </td>
-        <td className="px-3 py-2.5 text-ink-soft" title={r.teamName ?? undefined}>
+        <td className="px-3 py-2.5 text-record-muted" title={r.teamName ?? undefined}>
           <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
         </td>
         <td className="whitespace-nowrap px-3 py-2.5 num">
@@ -467,7 +467,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="whitespace-nowrap px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             {r.hasOpenReport ? (
-              <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+              <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
                 Reported
               </span>
             ) : null}
@@ -479,17 +479,17 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         </td>
       </tr>
       {hasRoundScores ? (
-        <tr className="bg-paper">
+        <tr className="bg-sheet">
           <td colSpan={14} className="px-4 py-0">
             <details className="group">
-              <summary className="cursor-pointer select-none py-1.5 text-byline text-ink-soft hover:text-ink">
-                <ChevronDown className="mr-1 inline h-3.5 w-3.5 text-oxblood transition-transform group-open:rotate-180" aria-hidden />
+              <summary className="cursor-pointer select-none py-1.5 text-meta text-record-muted hover:text-record-ink">
+                <ChevronDown className="mr-1 inline h-3.5 w-3.5 text-record-green transition-transform group-open:rotate-180" aria-hidden />
                 Per-round speaker scores ({r.roundScores.length})
               </summary>
               <div className="overflow-x-auto pb-3 pt-1">
                 <table className="text-caption">
                   <thead>
-                    <tr className="text-ink-soft uppercase tracking-[0.14em] text-kicker font-semibold">
+                    <tr className="text-record-muted uppercase tracking-[0.14em] text-label font-semibold">
                       {r.roundScores.map((s) => (
                         <th
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
@@ -506,7 +506,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
                       {r.roundScores.map((s) => (
                         <td
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
-                          className="whitespace-nowrap px-2 py-1 num text-ink"
+                          className="whitespace-nowrap px-2 py-1 num text-record-ink"
                         >
                           {s.score != null ? s.score.toFixed(1) : '—'}
                         </td>
@@ -530,7 +530,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+            <tr className="border-y border-record-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -568,17 +568,17 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       {/* Mobile stacked cards */}
       <ul className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-ink/10 py-5">
+          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-record-ink/10 py-5">
             <div className="flex items-baseline justify-between gap-2">
               <a
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-serif italic text-body text-ink"
+                className="truncate font-display text-body text-record-ink"
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-ink-soft">
+              <span className="whitespace-nowrap num text-caption text-record-muted">
                 {r.year ?? '—'}
               </span>
             </div>
@@ -609,7 +609,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
                   Reported
                 </span>
               ) : null}
@@ -631,7 +631,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+            <tr className="border-y border-record-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
               <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
               <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
@@ -648,23 +648,23 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.tournamentId.toString()} className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
+              <tr key={r.tournamentId.toString()} className="align-top border-b border-record-ink/10 hover:bg-record-ink/[0.02]">
                 <td className="px-4 py-2.5">
                   <a
                     href={r.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block max-w-[14rem] truncate font-medium text-ink hover:text-oxblood"
+                    className="block max-w-[14rem] truncate font-medium text-record-ink hover:text-record-green"
                     title={r.tournamentName}
                   >
                     {r.tournamentName}
                   </a>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.year ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.totalTeams ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-record-muted">{r.year ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">{r.format ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-record-muted">{r.totalTeams ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.judgeTypeTag ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-record-muted">{r.judgeTypeTag ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsJudged ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
@@ -673,7 +673,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <div className="flex items-center gap-1.5">
                     {r.hasOpenReport ? (
-                      <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                      <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
                         Reported
                       </span>
                     ) : null}
@@ -691,17 +691,17 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
 
       <ul className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-ink/10 py-5">
+          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-record-ink/10 py-5">
             <div className="flex items-baseline justify-between gap-2">
               <a
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-serif italic text-body text-ink"
+                className="truncate font-display text-body text-record-ink"
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-ink-soft">
+              <span className="whitespace-nowrap num text-caption text-record-muted">
                 {r.year ?? '—'}
               </span>
             </div>
@@ -718,7 +718,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (
-                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-kicker font-semibold text-oxblood border-b border-oxblood/40">
+                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
                   Reported
                 </span>
               ) : null}
@@ -737,8 +737,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-byline text-ink-soft uppercase tracking-[0.12em]">{label}</dt>
-      <dd className={'mt-0.5 text-ink ' + (mono ? 'num' : '')}>{value}</dd>
+      <dt className="text-meta text-record-muted uppercase tracking-[0.12em]">{label}</dt>
+      <dd className={'mt-0.5 text-record-ink ' + (mono ? 'num' : '')}>{value}</dd>
     </div>
   );
 }

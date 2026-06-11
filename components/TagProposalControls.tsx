@@ -103,7 +103,7 @@ export function TagProposalControls({
           onChange={(e) => setSelected(e.target.value)}
           disabled={!!approvedValue || isPending}
           className={
-            'h-9 rounded-md border border-ink/15 bg-paper px-2.5 text-table text-ink ' +
+            'h-9 rounded-md border border-record-ink/15 bg-sheet px-2.5 text-table text-record-ink ' +
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 ' +
             'disabled:opacity-50 disabled:cursor-not-allowed'
           }
@@ -135,28 +135,28 @@ export function TagProposalControls({
 
       {/* Status hint — one of three states */}
       {approvedValue ? (
-        <p className="text-caption text-ink-soft">
+        <p className="text-caption text-record-muted">
           Approved:{' '}
-          <span className="font-medium text-ink">
+          <span className="font-medium text-record-ink">
             {optionLabels?.[approvedValue] ?? approvedValue}
           </span>
         </p>
       ) : myProposal?.status === 'pending' ? (
-        <p className="text-caption text-ink-soft">
+        <p className="text-caption text-record-muted">
           Pending review:{' '}
-          <span className="font-medium text-ink">
+          <span className="font-medium text-record-ink">
             {optionLabels?.[myProposal.value] ?? myProposal.value}
           </span>
         </p>
       ) : myProposal?.status === 'rejected' ? (
-        <p className="text-caption text-oxblood">
+        <p className="text-caption text-record-green">
           Rejected
           {myProposal.adminNote ? ` — ${myProposal.adminNote}` : ''}
         </p>
       ) : suggestedValue && !selected ? (
         // Surface the auto-inference hint only before the user has interacted
         // and only when nothing else is shown.
-        <p className="text-caption text-ink-soft">
+        <p className="text-caption text-record-muted">
           Suggested:{' '}
           <span className="font-medium">{optionLabels?.[suggestedValue] ?? suggestedValue}</span>
         </p>

@@ -77,7 +77,7 @@ export default async function PublicCvPage({
     <div className="space-y-10">
       {/* Public CV masthead — formal mode */}
       <header className="space-y-4">
-        <div className="kicker">
+        <div className="eyebrow">
           DEBATE CV — PUBLIC RECORD · COMPILED{' '}
           {new Date().toLocaleDateString('en-GB', {
             day: 'numeric',
@@ -93,18 +93,18 @@ export default async function PublicCvPage({
               <img
                 src={user.image}
                 alt={user.name ?? 'Debater'}
-                className="h-20 w-20 rounded border border-ink/20 object-cover"
+                className="h-20 w-20 rounded border border-record-ink/20 object-cover"
               />
             ) : (
               <div
                 role="img"
                 aria-label={`${user.name ?? 'Debater'} initials`}
-                className="flex h-20 w-20 items-center justify-center rounded border border-ink/20 bg-paper font-serif italic text-[26px] text-ink"
+                className="flex h-20 w-20 items-center justify-center rounded border border-record-ink/20 bg-sheet font-display text-[26px] text-record-ink"
               >
                 {initials(user.name)}
               </div>
             )}
-            <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
+            <h1 className="font-display text-h1 leading-[1.05] tracking-tight text-record-ink md:text-display">
               {user.name ?? 'Debater'}.
             </h1>
           </div>
@@ -115,7 +115,7 @@ export default async function PublicCvPage({
 
         <hr className="hairline" />
 
-        <div className="byline uppercase tracking-[0.16em] text-byline text-ink-soft">
+        <div className="meta uppercase tracking-[0.16em] text-meta text-record-muted">
           {spellOrCount(totalIngestedTournaments)} tournament{totalIngestedTournaments === 1 ? '' : 's'} · verified via private URLs
           {summary.totalTournaments > 0 && summary.totalTournaments !== totalIngestedTournaments
             ? ` · ${summary.totalTournaments} on record`
@@ -128,11 +128,11 @@ export default async function PublicCvPage({
       {speakerRows.length > 0 ? (
         <section aria-label="Speaking" className="space-y-4">
           <header>
-            <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+            <div className="eyebrow">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
             <table className="min-w-max text-table">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+              <thead className="border-y border-record-ink/15 uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Tournament</th>
                   <th className="px-4 py-2.5 text-left">Year</th>
@@ -146,34 +146,34 @@ export default async function PublicCvPage({
               </thead>
               <tbody>
                 {speakerRows.map((r) => (
-                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
+                  <tr key={r.tournamentId.toString()} className="border-b border-record-ink/10">
                     <td className="px-4 py-2.5">
                       <a
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
+                        className="font-display text-record-ink hover:text-record-green"
                       >
                         {r.tournamentName}
                       </a>
                     </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink">{r.teamName ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">
+                    <td className="px-4 py-2.5 text-record-muted num">{r.year ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted">{r.format ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-ink">{r.teamName ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted num">
                       {r.teamRank != null ? `#${r.teamRank}` : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">
+                    <td className="px-4 py-2.5 text-record-muted num">
                       {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.speakerAvgScore ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{fmtPublicLastOutround(r)}</td>
+                    <td className="px-4 py-2.5 text-record-muted num">{r.speakerAvgScore ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted">{fmtPublicLastOutround(r)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
+          <p className="font-display text-meta text-record-muted">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>
@@ -182,11 +182,11 @@ export default async function PublicCvPage({
       {judgeRows.length > 0 ? (
         <section aria-label="Judging" className="space-y-4">
           <header>
-            <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+            <div className="eyebrow">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
             <table className="min-w-max text-table">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+              <thead className="border-y border-record-ink/15 uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
                 <tr>
                   <th className="px-4 py-2.5 text-left">Tournament</th>
                   <th className="px-4 py-2.5 text-left">Year</th>
@@ -199,29 +199,29 @@ export default async function PublicCvPage({
               </thead>
               <tbody>
                 {judgeRows.map((r) => (
-                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
+                  <tr key={r.tournamentId.toString()} className="border-b border-record-ink/10">
                     <td className="px-4 py-2.5">
                       <a
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
+                        className="font-display text-record-ink hover:text-record-green"
                       >
                         {r.tournamentName}
                       </a>
                     </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsChaired ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsJudged ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundChaired ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundJudged ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted num">{r.year ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted">{r.format ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted num">{r.inroundsChaired ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted num">{r.inroundsJudged ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted">{r.lastOutroundChaired ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-record-muted">{r.lastOutroundJudged ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
+          <p className="font-display text-meta text-record-muted">
             Source: tournament tabs at calicotab.com · herokuapp.com.
           </p>
         </section>

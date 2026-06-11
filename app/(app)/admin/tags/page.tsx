@@ -26,12 +26,12 @@ export default async function AdminTagsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
-        <div className="kicker">ADMIN · TAG PROPOSALS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">ADMIN · TAG PROPOSALS</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Tag proposals.
         </h1>
         <hr className="hairline" />
-        <div className="byline flex items-center justify-between gap-2">
+        <div className="meta flex items-center justify-between gap-2">
           <span>
             Approve or reject user-proposed region and motion tags. Approved values are
             written to the canonical Tournament.region / Motion.motionType / Motion.topic

@@ -138,8 +138,8 @@ export default async function Dashboard({
           on /cv only; this page is where scans are triggered deliberately. */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-3">
-          <div className="kicker">IMPORTS · GMAIL → CV</div>
-          <h1 className="font-serif text-h1 italic text-ink">
+          <div className="eyebrow">IMPORTS · GMAIL → CV</div>
+          <h1 className="font-display text-h1 text-record-ink">
             Import your tournaments
           </h1>
           <hr className="hairline" />
@@ -155,13 +155,13 @@ export default async function Dashboard({
       {!gmailToken ? (
         <section
           aria-label="Gmail disconnected"
-          className="flex flex-col gap-3 border border-oxblood/30 bg-oxblood/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 border border-record-green/30 bg-record-green/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="space-y-1">
-            <div className="text-byline text-oxblood uppercase tracking-[0.16em]">
+            <div className="text-meta text-record-green uppercase tracking-[0.16em]">
               Gmail disconnected
             </div>
-            <p className="font-serif text-body text-ink">
+            <p className="font-display text-body text-record-ink">
               Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
             </p>
           </div>
@@ -223,10 +223,10 @@ export default async function Dashboard({
             description="Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
           />
         ) : (
-          <p className="text-caption text-ink-soft" data-print-hide="true">
+          <p className="text-caption text-record-muted" data-print-hide="true">
             <Link
               href="/dashboard?filter=all"
-              className="underline underline-offset-2 hover:text-ink"
+              className="underline underline-offset-2 hover:text-record-ink"
             >
               Browse all {counts.all} URLs →
             </Link>
@@ -237,8 +237,8 @@ export default async function Dashboard({
         <header className="space-y-3">
           <div className="flex items-end justify-between">
             <div>
-              <h2 className="font-serif text-h3 italic text-ink">Private URLs</h2>
-              <p className="mt-0.5 text-caption text-ink-soft">
+              <h2 className="font-display text-h3 text-record-ink">Private URLs</h2>
+              <p className="mt-0.5 text-caption text-record-muted">
                 {filtered.length === counts.all
                   ? `${counts.all} total · most recent first`
                   : `${filtered.length} of ${counts.all} · ${activeFilter}`}
@@ -246,7 +246,7 @@ export default async function Dashboard({
             </div>
             <Link
               href="/dashboard"
-              className="text-caption text-ink-soft underline underline-offset-2 hover:text-ink"
+              className="text-caption text-record-muted underline underline-offset-2 hover:text-record-ink"
             >
               ← Summary
             </Link>
@@ -313,7 +313,7 @@ export default async function Dashboard({
                     <CardBody className="space-y-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-body font-semibold text-ink">
+                          <div className="truncate text-body font-semibold text-record-ink">
                             {u.tournament?.name ?? '—'}
                           </div>
                           <TournamentMetrics
@@ -324,7 +324,7 @@ export default async function Dashboard({
                             href={u.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-oxblood"
+                            className="mt-1 flex items-center gap-1 truncate font-mono text-meta text-record-muted transition-colors hover:text-record-green"
                           >
                             {u.url}
                             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -332,7 +332,7 @@ export default async function Dashboard({
                         </div>
                         <StatusPill status={status} />
                       </div>
-                      <div className="flex items-center justify-between text-caption text-ink-soft">
+                      <div className="flex items-center justify-between text-caption text-record-muted">
                         <span>
                           {u.messageDate
                             ? new Date(u.messageDate).toLocaleDateString()
@@ -362,7 +362,7 @@ export default async function Dashboard({
             <div className="hidden max-w-full overflow-x-auto md:block">
               <table className="w-full min-w-max text-table">
                 <thead>
-                  <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                  <tr className="border-y border-record-ink/15 text-left uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
                     <th className="whitespace-nowrap px-4 py-2.5 font-medium">URL</th>
                     <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournament</th>
                     <th className="whitespace-nowrap px-3 py-2.5 font-medium">Status</th>
@@ -374,23 +374,23 @@ export default async function Dashboard({
                   {filtered.map(({ u, job, status }) => (
                     <tr
                       key={u.id}
-                      className="align-top border-b border-ink/10 transition-colors hover:bg-ink/[0.02]"
+                      className="align-top border-b border-record-ink/10 transition-colors hover:bg-record-ink/[0.02]"
                     >
                       <td className="px-4 py-2.5">
                         <a
                           href={u.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-oxblood"
+                          className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-record-ink transition-colors hover:text-record-green"
                         >
                           <span className="truncate">{u.url}</span>
                           <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
                         </a>
                       </td>
-                      <td className="px-3 py-2.5 text-ink">
+                      <td className="px-3 py-2.5 text-record-ink">
                         <div>
                           {u.tournament?.name ?? (
-                            <span className="text-ink-soft/60">—</span>
+                            <span className="text-record-muted/60">—</span>
                           )}
                         </div>
                         <TournamentMetrics
@@ -402,7 +402,7 @@ export default async function Dashboard({
                         <div className="flex items-center gap-2">
                           <StatusPill status={status} />
                           {u.reingestLocked ? (
-                            <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                            <span className="uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
                               Locked
                             </span>
                           ) : null}
@@ -416,7 +416,7 @@ export default async function Dashboard({
                           </div>
                         ) : null}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-caption text-ink-soft num">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-caption text-record-muted num">
                         {u.messageDate
                           ? new Date(u.messageDate).toLocaleDateString()
                           : '—'}
@@ -462,8 +462,8 @@ function FilterChip({
       className={cn(
         'inline-flex items-center rounded-full border px-3 py-1 text-caption font-medium transition-colors',
         active
-          ? 'border-ink bg-ink text-paper'
-          : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]',
+          ? 'border-record-ink bg-record-ink text-sheet'
+          : 'border-record-ink/15 bg-sheet text-record-ink hover:bg-record-ink/[0.04]',
       )}
     >
       {label}
@@ -538,7 +538,7 @@ function TournamentMetrics({
   if (totalParticipants) parts.push(`${totalParticipants} participants`);
 
   return (
-    <div className="mt-0.5 text-caption text-ink-soft">{parts.join(' · ')}</div>
+    <div className="mt-0.5 text-caption text-record-muted">{parts.join(' · ')}</div>
   );
 }
 
@@ -580,7 +580,7 @@ function FilterTile({
     success: 'text-success bg-[hsl(var(--success)/0.12)]',
     warning: 'text-warning bg-[hsl(var(--warning)/0.12)]',
     danger: 'text-destructive bg-[hsl(var(--destructive)/0.10)]',
-    neutral: 'text-ink-soft bg-ink/[0.06]',
+    neutral: 'text-record-muted bg-record-ink/[0.06]',
   };
   const active = activeFilter === filter;
   return (
@@ -589,7 +589,7 @@ function FilterTile({
       aria-current={active ? 'page' : undefined}
       className={cn(
         'block rounded-card border bg-card transition-all duration-[180ms] ease-soft hover:shadow-md',
-        active ? 'border-oxblood ring-2 ring-oxblood/20' : 'border-ink/15',
+        active ? 'border-record-green ring-2 ring-record-green/20' : 'border-record-ink/15',
       )}
     >
       <div className="flex items-center gap-3 p-5">
@@ -597,11 +597,11 @@ function FilterTile({
           {icon}
         </div>
         <div className="min-w-0">
-          <div className="text-caption text-ink-soft">{label}</div>
-          <div className="mt-0.5 font-serif text-stat font-semibold leading-none text-ink">
+          <div className="text-caption text-record-muted">{label}</div>
+          <div className="mt-0.5 font-display text-stat font-semibold leading-none text-record-ink">
             {value}
           </div>
-          {hint ? <div className="mt-2 text-caption text-ink-soft">{hint}</div> : null}
+          {hint ? <div className="mt-2 text-caption text-record-muted">{hint}</div> : null}
         </div>
       </div>
     </Link>

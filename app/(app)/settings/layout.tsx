@@ -29,8 +29,8 @@ export default async function SettingsLayout({
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
         <aside className="md:sticky md:top-20 md:self-start">
           <div className="mb-3 space-y-1">
-            <div className="kicker">SETTINGS</div>
-            <h2 className="font-serif text-h3 italic text-ink">Settings.</h2>
+            <div className="eyebrow">SETTINGS</div>
+            <h2 className="font-display text-h3 text-record-ink">Settings.</h2>
           </div>
           <SettingsSideNav />
         </aside>

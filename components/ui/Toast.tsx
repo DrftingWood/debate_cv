@@ -98,26 +98,26 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       ? 'text-success'
       : item.kind === 'error'
         ? 'text-destructive'
-        : 'text-oxblood';
+        : 'text-record-green';
   return (
     <div
       role={item.kind === 'error' ? 'alert' : 'status'}
       className={cn(
-        'pointer-events-auto flex items-start gap-3 rounded-card border border-ink/15 bg-card p-3.5 shadow-lg animate-fade-up',
+        'pointer-events-auto flex items-start gap-3 rounded-card border border-record-ink/15 bg-card p-3.5 shadow-lg animate-fade-up',
       )}
     >
       <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', color)} aria-hidden />
       <div className="flex-1 min-w-0">
-        <div className="text-ui font-semibold text-ink">{item.title}</div>
+        <div className="text-ui font-semibold text-record-ink">{item.title}</div>
         {item.description ? (
-          <div className="mt-0.5 text-caption text-ink-soft break-words">
+          <div className="mt-0.5 text-caption text-record-muted break-words">
             {item.description}
           </div>
         ) : null}
         {item.action ? (
           <a
             href={item.action.href}
-            className="mt-1.5 inline-block text-caption font-medium text-oxblood underline-offset-2 hover:underline"
+            className="mt-1.5 inline-block text-caption font-medium text-record-green underline-offset-2 hover:underline"
           >
             {item.action.label} →
           </a>
@@ -126,7 +126,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       <button
         type="button"
         onClick={onDismiss}
-        className="text-ink-soft hover:text-ink rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="text-record-muted hover:text-record-ink rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" aria-hidden />

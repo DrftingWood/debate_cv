@@ -23,19 +23,19 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
     <ul className={cn('space-y-2', className)}>
       {items.map((item) => (
         <li key={item.label} className="grid grid-cols-[7rem_1fr_auto] items-center gap-3">
-          <span className="truncate text-caption text-ink" title={item.label}>
+          <span className="truncate text-caption text-record-ink" title={item.label}>
             {item.label}
             {item.detail ? (
-              <span className="ml-1.5 text-ink-soft">{item.detail}</span>
+              <span className="ml-1.5 text-record-muted">{item.detail}</span>
             ) : null}
           </span>
-          <span className="h-2 overflow-hidden rounded-sm bg-ink/[0.06]">
+          <span className="h-2 overflow-hidden rounded-sm bg-record-ink/[0.06]">
             <span
-              className="block h-full rounded-sm bg-ink/70"
+              className="block h-full rounded-sm bg-record-ink/70"
               style={{ width: max > 0 ? `${Math.max((item.value / max) * 100, 1.5)}%` : '0%' }}
             />
           </span>
-          <span className="num text-caption text-ink">{item.display ?? String(item.value)}</span>
+          <span className="num text-caption text-record-ink">{item.display ?? String(item.value)}</span>
         </li>
       ))}
     </ul>

@@ -103,15 +103,15 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
     <section
       aria-label="Ingestion progress"
       aria-live="polite"
-      className="space-y-2 border-y border-ink/10 py-3"
+      className="space-y-2 border-y border-record-ink/10 py-3"
       data-print-hide="true"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="kicker">
+        <span className="eyebrow">
           {scope === 'global' ? 'INGESTION — ALL USERS' : 'INGESTION'}
           {active > 0 ? ' · LIVE' : ' · DONE'}
         </span>
-        <span className="num text-caption text-ink-soft">
+        <span className="num text-caption text-record-muted">
           {active > 0 && data.etaSeconds != null
             ? formatEta(data.etaSeconds)
             : 'queue empty'}
@@ -123,20 +123,20 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
         aria-valuemin={0}
         aria-valuemax={data.batchTotal}
         aria-valuenow={completed}
-        className="h-1.5 overflow-hidden rounded-sm bg-ink/[0.08]"
+        className="h-1.5 overflow-hidden rounded-sm bg-record-ink/[0.08]"
       >
         <div
           className={
             'h-full rounded-sm transition-[width] duration-700 ease-soft ' +
-            (active > 0 ? 'bg-oxblood' : 'bg-ink/60')
+            (active > 0 ? 'bg-record-green' : 'bg-record-ink/60')
           }
           style={{ width: `${Math.round(fraction * 100)}%` }}
         />
       </div>
 
-      <p className="text-caption text-ink-soft">
-        <span className="num text-ink">{completed}</span> of{' '}
-        <span className="num text-ink">{data.batchTotal}</span> processed
+      <p className="text-caption text-record-muted">
+        <span className="num text-record-ink">{completed}</span> of{' '}
+        <span className="num text-record-ink">{data.batchTotal}</span> processed
         {data.failedRecent > 0 ? (
           <> ({data.failedRecent} failed)</>
         ) : null}
@@ -144,7 +144,7 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
           <>
             {' '}
             · now scraping{' '}
-            <span className="font-mono text-byline">{shortUrl(data.currentUrl)}</span>
+            <span className="font-mono text-meta">{shortUrl(data.currentUrl)}</span>
           </>
         ) : null}
         {data.running === 0 && data.pending > 0 ? (

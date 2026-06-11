@@ -43,12 +43,12 @@ export default async function OnboardingPage() {
     return (
       <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
         <header className="space-y-3">
-          <div className="kicker">ONBOARDING · FIRST RUN</div>
-          <h1 className="font-serif text-h2 italic text-ink">
+          <div className="eyebrow">ONBOARDING · FIRST RUN</div>
+          <h1 className="font-display text-h2 text-record-ink">
             Find yourself on the rosters.
           </h1>
           <hr className="hairline" />
-          <p className="text-body text-ink-soft">
+          <p className="text-body text-record-muted">
             You&apos;re already set up. Onboarding only runs once — use the surfaces below to manage your
             CV and identity going forward.
           </p>
@@ -64,7 +64,7 @@ export default async function OnboardingPage() {
             </div>
             <ul className="space-y-2 text-ui">
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-record-muted" aria-hidden />
                 <span>
                   <Link href="/cv" className="font-medium text-primary hover:underline">
                     My CV
@@ -73,7 +73,7 @@ export default async function OnboardingPage() {
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-record-muted" aria-hidden />
                 <span>
                   <Link href="/dashboard" className="font-medium text-primary hover:underline">
                     Dashboard
@@ -82,7 +82,7 @@ export default async function OnboardingPage() {
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-record-muted" aria-hidden />
                 <span>
                   <Link href="/settings" className="font-medium text-primary hover:underline">
                     Settings
@@ -103,12 +103,12 @@ export default async function OnboardingPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
       <header className="space-y-3">
-        <div className="kicker">ONBOARDING · FIRST RUN</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">ONBOARDING · FIRST RUN</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Find yourself on the rosters.
         </h1>
         <hr className="hairline" />
-        <p className="text-body text-ink-soft">
+        <p className="text-body text-record-muted">
           Three quick steps and your CV is ready.
         </p>
       </header>

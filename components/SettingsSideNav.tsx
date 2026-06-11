@@ -27,7 +27,7 @@ export function SettingsSideNav() {
                   'block rounded-md px-3 py-2 text-table font-medium transition-colors',
                   active
                     ? 'bg-primary-soft text-primary'
-                    : 'text-ink-soft hover:bg-ink/[0.04] hover:text-ink',
+                    : 'text-record-muted hover:bg-record-ink/[0.04] hover:text-record-ink',
                 )}
               >
                 {item.label}

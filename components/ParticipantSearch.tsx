@@ -121,7 +121,7 @@ export function ParticipantSearch({
         <span className="sr-only">Search participants</span>
         <span className="relative block">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-record-muted"
             aria-hidden
           />
           <input
@@ -129,33 +129,33 @@ export function ParticipantSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type your name to find yourself in this tournament…"
-            className="w-full rounded-md border border-ink/15 bg-paper py-2 pl-9 pr-3 text-ui text-ink placeholder:text-ink-soft focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-md border border-record-ink/15 bg-sheet py-2 pl-9 pr-3 text-ui text-record-ink placeholder:text-record-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </span>
       </label>
 
       {tooShort ? (
-        <p className="text-caption text-ink-soft">
+        <p className="text-caption text-record-muted">
           Type at least {MIN_QUERY_LENGTH} characters.
         </p>
       ) : isLoading ? (
-        <p className="text-caption text-ink-soft">Searching…</p>
+        <p className="text-caption text-record-muted">Searching…</p>
       ) : error ? (
         <p className="text-caption text-destructive">{error}</p>
       ) : hasSearched && results.length === 0 ? (
-        <p className="text-caption text-ink-soft">
+        <p className="text-caption text-record-muted">
           No participants found with that name.
         </p>
       ) : results.length > 0 ? (
-        <ul className="divide-y divide-ink/10 rounded-md border border-ink/15 bg-card">
+        <ul className="divide-y divide-record-ink/10 rounded-md border border-record-ink/15 bg-card">
           {results.map((hit) => (
             <li
               key={hit.personId}
               className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
             >
               <div className="min-w-0">
-                <span className="text-ink">{hit.displayName}</span>
-                <span className="ml-2 text-caption text-ink-soft">
+                <span className="text-record-ink">{hit.displayName}</span>
+                <span className="ml-2 text-caption text-record-muted">
                   {hit.role}
                   {hit.teamName ? ` · ${hit.teamName}` : ''}
                 </span>

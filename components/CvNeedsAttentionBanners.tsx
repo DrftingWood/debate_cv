@@ -105,20 +105,20 @@ export function CvNeedsAttentionBanners({
 
   return (
     <section className="space-y-2" data-print-hide="true" aria-label="Needs attention">
-      <div className="kicker">NEEDS ATTENTION</div>
+      <div className="eyebrow">NEEDS ATTENTION</div>
       {pendingCount > 0 ? (
-        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
+        <div className="flex items-start gap-3 border-t border-record-ink/10 py-3">
           <Loader2
-            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
+            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-record-green"
             aria-hidden
           />
-          <p className="font-serif text-body leading-relaxed text-ink">
+          <p className="font-display text-body leading-relaxed text-record-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
             </em>{' '}
-            <span className="text-ink-soft">
+            <span className="text-record-muted">
               Rows below will fill in as each finishes.{' '}
-              <Link href="/dashboard?filter=pending" className="text-oxblood hover:underline">
+              <Link href="/dashboard?filter=pending" className="text-record-green hover:underline">
                 View queue
               </Link>
               .
@@ -127,17 +127,17 @@ export function CvNeedsAttentionBanners({
         </div>
       ) : null}
       {unmatchedCount > 0 ? (
-        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
-          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
-          <p className="font-serif text-body leading-relaxed text-ink">
+        <div className="flex items-start gap-3 border-t border-record-ink/10 py-3">
+          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-record-green" aria-hidden />
+          <p className="font-display text-body leading-relaxed text-record-ink">
             <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
             </em>{' '}
-            <span className="text-ink-soft">
+            <span className="text-record-muted">
               We ingested them but couldn&apos;t match you to a speaker or judge.{' '}
               <Link
                 href="/dashboard?filter=unmatched"
-                className="text-oxblood hover:underline"
+                className="text-record-green hover:underline"
               >
                 Find yourself on the dashboard
               </Link>

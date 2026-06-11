@@ -4,119 +4,71 @@
 
 @layer base {
   /*
-   * Competitive record palette. The UI should read as a verified archive:
-   * paper, ink, ledger rules, tournament green, break gold, and score blue.
-   * Legacy ink/paper/oxblood aliases remain mapped in Tailwind for existing
-   * surfaces, but new work should use the record-* semantic tokens below.
+   * Tab Sheet system (2026-06 teardown — docs/DESIGN_TEARDOWN.md).
+   * The product is the tournament tab, elevated to credential grade: one
+   * sheet-white theme (credential artifacts don't have moods — dark mode
+   * was deliberately deleted, owner ruling D1), ruled structure instead of
+   * boxed cards, and color that carries meaning only:
+   *   - ballot green  = primary action + verified state, never decoration
+   *   - break gold    = earned results only (breaks, titles), never decoration
+   *   - score blue    = charts only
+   *   - amber / red   = warning / destructive only
    */
-  :root,
-  [data-theme='light'] {
-    --background: 48 27% 96%;          /* archive white */
-    --foreground: 140 8% 9%;           /* record ink */
-    --muted-foreground: 100 4% 42%;
-    --border: 48 8% 66%;               /* ledger rules */
+  :root {
+    --background: 48 30% 97%;          /* sheet white */
+    --foreground: 40 8% 10%;           /* record ink */
+    --muted-foreground: 45 5% 38%;
+    --border: 45 8% 60%;               /* ledger rules (hairline weight) */
 
     --card: 0 0% 100%;
-    --card-foreground: 160 25% 10%;
+    --card-foreground: 40 8% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 25% 10%;
+    --popover-foreground: 40 8% 10%;
 
-    --primary: 155 65% 26%;            /* tournament green */
-    --primary-foreground: 48 27% 96%;
-    --primary-hover: 155 65% 20%;
-    --primary-soft: 155 65% 26%;
+    --primary: 155 70% 24%;            /* ballot green */
+    --primary-foreground: 48 30% 97%;
+    --primary-hover: 155 70% 19%;
+    --primary-soft: 155 70% 24%;
 
-    --secondary: 150 14% 94%;
-    --secondary-foreground: 160 25% 10%;
+    --secondary: 48 20% 92%;
+    --secondary-foreground: 40 8% 10%;
 
-    --muted: 150 14% 93%;
+    --muted: 48 20% 92%;
 
-    --accent: 48 18% 91%;              /* record surface */
-    --accent-foreground: 155 65% 26%;
+    --accent: 48 22% 93%;              /* record surface */
+    --accent-foreground: 155 70% 24%;
 
-    --success: 155 65% 26%;
+    --success: 155 70% 24%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 34 64% 44%;
+    --warning: 34 70% 40%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 65% 45%;
+    --destructive: 0 65% 44%;
     --destructive-foreground: 0 0% 100%;
 
-    --input: 140 8% 9%;                /* used with /0.12 for input borders */
-    --ring: 155 65% 26%;
+    --input: 40 8% 10%;                /* used with /0.12 for input borders */
+    --ring: 155 70% 24%;
 
-    --radius: 0.375rem;
-    --radius-card: 0.75rem;
+    /* Records have corners. 2px keeps strokes from anti-alias fuzz, nothing more. */
+    --radius: 0.125rem;
+    --radius-card: 0.125rem;
 
-    --archive-white: 48 27% 96%;
-    --record-ink: 140 8% 9%;
-    --record-muted: 100 4% 42%;
-    --record-rule: 48 8% 66%;
-    --record-surface: 48 18% 91%;
-    --record-green: 155 65% 26%;
-    --break-gold: 39 63% 44%;
-    --score-blue: 208 48% 37%;
+    --record-ink: 40 8% 10%;
+    --record-muted: 45 5% 38%;
+    --record-rule: 45 8% 60%;
+    --record-surface: 48 22% 93%;
+    --record-green: 155 70% 24%;
+    --break-gold: 39 65% 38%;
+    --score-blue: 208 50% 36%;
 
-    --shadow-xs: 0 1px 2px 0 hsl(160 25% 10% / 0.04);
-    --shadow-sm: 0 1px 2px hsl(160 25% 10% / 0.04), 0 1px 3px hsl(160 25% 10% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(160 25% 10% / 0.06), 0 2px 4px -1px hsl(160 25% 10% / 0.04);
-    --shadow-lg: 0 12px 32px -8px hsl(160 25% 10% / 0.10), 0 4px 12px -2px hsl(160 25% 10% / 0.05);
-    --shadow-xl: 0 24px 56px -16px hsl(160 25% 10% / 0.14), 0 8px 24px -4px hsl(160 25% 10% / 0.06);
-  }
-
-  [data-theme='dark'] {
-    --background: 162 21% 6%;          /* terminal green-black */
-    --foreground: 140 21% 92%;         /* phosphor-tinted white */
-    --muted-foreground: 145 9% 62%;
-    --border: 140 21% 92%;             /* light hairlines via low opacity */
-
-    --card: 158 17% 10%;
-    --card-foreground: 140 21% 92%;
-
-    --popover: 158 17% 10%;
-    --popover-foreground: 140 21% 92%;
-
-    --primary: 147 69% 55%;            /* phosphor #3DDC84 */
-    --primary-foreground: 162 21% 6%;
-    --primary-hover: 147 69% 47%;
-    --primary-soft: 147 69% 55%;
-
-    --secondary: 158 17% 12%;
-    --secondary-foreground: 140 21% 92%;
-
-    --muted: 158 17% 12%;
-
-    --accent: 158 17% 14%;
-    --accent-foreground: 147 69% 55%;
-
-    --success: 147 69% 55%;
-    --success-foreground: 162 21% 6%;
-
-    --warning: 34 100% 66%;            /* amber #FFB454 */
-    --warning-foreground: 162 21% 6%;
-
-    --destructive: 0 100% 68%;         /* signal red #FF5C5C */
-    --destructive-foreground: 162 21% 6%;
-
-    --input: 140 21% 92%;
-    --ring: 147 69% 55%;
-
-    --shadow-xs: 0 1px 2px 0 hsl(160 30% 2% / 0.4);
-    --shadow-sm: 0 1px 2px hsl(160 30% 2% / 0.4), 0 1px 3px hsl(160 30% 2% / 0.35);
-    --shadow-md: 0 4px 12px -2px hsl(160 30% 2% / 0.5), 0 2px 4px -1px hsl(160 30% 2% / 0.4);
-    --shadow-lg: 0 12px 32px -8px hsl(160 30% 2% / 0.6), 0 4px 12px -2px hsl(160 30% 2% / 0.45);
-    --shadow-xl: 0 24px 56px -16px hsl(160 30% 2% / 0.7), 0 8px 24px -4px hsl(160 30% 2% / 0.5);
-
-    --archive-white: 162 21% 6%;
-    --record-ink: 140 21% 92%;
-    --record-muted: 145 9% 62%;
-    --record-rule: 140 21% 92%;
-    --record-surface: 158 17% 12%;
-    --record-green: 147 69% 55%;
-    --break-gold: 39 78% 62%;
-    --score-blue: 205 72% 67%;
+    /* Content sits ON the sheet; elevation exists only for true overlays. */
+    --shadow-xs: none;
+    --shadow-sm: none;
+    --shadow-md: 0 4px 12px -2px hsl(40 8% 10% / 0.08);
+    --shadow-lg: 0 12px 32px -8px hsl(40 8% 10% / 0.12), 0 4px 12px -2px hsl(40 8% 10% / 0.06);
+    --shadow-xl: 0 12px 32px -8px hsl(40 8% 10% / 0.12), 0 4px 12px -2px hsl(40 8% 10% / 0.06);
   }
 
   html {
@@ -128,7 +80,15 @@
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  /* Every numeral set in the data face is tabular — scores, ranks, and
+     years must column-align without opting in per call site. */
+  .font-mono,
+  .num,
+  code,
+  kbd {
+    font-variant-numeric: tabular-nums;
   }
 
   ::selection {
@@ -139,7 +99,7 @@
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 2px;
   }
 
   .skip-link {
@@ -160,16 +120,33 @@
 
   .record-panel {
     @apply rounded-card border bg-card;
-    border-color: hsl(var(--record-rule) / 0.35);
-    box-shadow: var(--shadow-sm);
+    border-color: hsl(var(--record-rule) / 0.45);
   }
+
+  /* The Tab Sheet signature: section headers carry the grammar of a tab's
+     column-header row — data-face caps between a heavy ink rule and a
+     hairline. Replaces eyebrows-as-decoration AND Roman-numeral headers. */
+  .tab-header {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--record-ink));
+    border-top: 2px solid hsl(var(--record-ink));
+    border-bottom: 1px solid hsl(var(--record-rule) / 0.5);
+    padding: 7px 0;
+  }
+
+  /* Small caps meta-label above content. Muted ink — color never decorates. */
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: hsl(var(--record-green));
+    color: hsl(var(--record-muted));
   }
   .data-label {
     font-family: var(--font-mono);
@@ -179,74 +156,32 @@
     text-transform: uppercase;
     color: hsl(var(--record-muted));
   }
-
-  /* Surface tiers (drop shadows for on-surface elements; hairline borders instead) */
-  .surface-card {
-    @apply rounded-card border bg-card;
-    border-color: hsl(var(--border) / 0.14);
-  }
-  .surface-elevated {
-    @apply rounded-card border bg-card shadow-md;
-    border-color: hsl(var(--border) / 0.14);
-  }
-
-  /* Editorial signatures */
-  .kicker {
-    font-family: var(--font-display);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: hsl(var(--primary));
-  }
-  .byline {
+  .meta {
     font-family: var(--font-sans);
-    font-size: 11.5px;
+    font-size: 12px;
     color: hsl(var(--muted-foreground));
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
   }
   .num {
     font-family: var(--font-mono);
     font-size: 0.95em;
     font-variant-numeric: tabular-nums;
   }
-  .dropcap::first-letter {
-    font-family: var(--font-display);
-    font-size: 40px;
-    font-weight: 600;
-    color: hsl(var(--primary));
-    float: left;
-    line-height: 0.9;
-    padding: 4px 6px 0 0;
-  }
-  .pull-quote {
-    border-left: 2px solid hsl(var(--primary));
-    padding-left: 14px;
-    font-family: var(--font-display);
-    font-style: italic;
-    color: hsl(var(--foreground));
-  }
   .hairline {
     height: 1px;
     background: hsl(var(--border) / 0.14);
     border: 0;
   }
-
-  /* Serif display helper (preserved — used by Fraunces hero headlines) */
-  .font-hero {
-    font-family: var(--font-display);
-    font-feature-settings: 'ss01';
-  }
 }
 
 /*
- * Print stylesheet — Q22 of the design review. The "Download PDF" button
- * on /cv and /u/<slug> just calls window.print(); these rules make the
- * printed output a clean credentialing artifact.
+ * Print stylesheet. The "Download PDF" button on /cv and /u/<slug> just
+ * calls window.print(); these rules make the printed output a clean
+ * credentialing artifact.
  *
  * Strategy:
  *  - Hide interactive affordances (header nav, notification bell, share
- *    button, report buttons, banners, footer link, More-actions dropdown)
+ *    button, report buttons, banners, footer link, action popovers)
  *    so the page reads as a static document. Owner-only/dynamic elements
  *    opt out via `data-print-hide="true"`.
  *  - Drop the page background so paper stays white, and avoid mid-row
@@ -255,16 +190,14 @@
  *    selection panels want to see the detail, not click to reveal it.
  */
 @media print {
-  /* Print is always ballot-paper light, regardless of data-theme. */
-  :root,
-  [data-theme='dark'] {
+  :root {
     --background: 0 0% 100%;
-    --foreground: 160 25% 10%;
-    --muted-foreground: 100 4% 42%;
-    --border: 160 25% 10%;
+    --foreground: 40 8% 10%;
+    --muted-foreground: 45 5% 38%;
+    --border: 40 8% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 160 25% 10%;
-    --primary: 152 70% 24%;
+    --card-foreground: 40 8% 10%;
+    --primary: 155 70% 22%;
     --primary-foreground: 0 0% 100%;
   }
   html, body {
@@ -306,13 +239,10 @@
     display: none !important;
   }
 
-  /* Drop card shadows for clean print */
-  .shadow-xs,
-  .shadow-sm,
+  /* Drop overlay shadows for clean print */
   .shadow-md,
   .shadow-lg,
-  .shadow-xl,
-  .shadow-glow {
+  .shadow-xl {
     box-shadow: none !important;
   }
 }

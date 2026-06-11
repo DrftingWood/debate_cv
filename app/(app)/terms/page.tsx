@@ -9,14 +9,14 @@ export default function Terms() {
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <div className="kicker">LEGAL · TERMS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">LEGAL · TERMS</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Plain-English use of the tool.
         </h1>
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-serif">
+      <article className="prose prose-stone max-w-none font-display">
       <p className="lead">
         debate cv is provided as-is for personal use. Last updated: 2026.
       </p>

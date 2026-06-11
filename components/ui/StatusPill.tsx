@@ -16,9 +16,9 @@ export type Status =
 const tones: Record<Status, string> = {
   done: 'text-success',
   pending: 'text-warning',
-  running: 'text-oxblood',
+  running: 'text-record-green',
   failed: 'text-destructive',
-  unavailable: 'text-ink-soft',
+  unavailable: 'text-record-muted',
   unmatched: 'text-warning',
 };
 
@@ -53,7 +53,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft',
+        'inline-flex items-center gap-1.5 uppercase tracking-[0.14em] text-label font-semibold text-record-muted',
         className,
       )}
     >

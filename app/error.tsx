@@ -20,10 +20,10 @@ export default function GlobalError({
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--destructive)/0.10)] text-destructive">
         <AlertCircle className="h-6 w-6" aria-hidden />
       </div>
-      <h1 className="mt-5 font-display text-h2 font-semibold text-ink">
+      <h1 className="mt-5 font-display text-h2 font-semibold text-record-ink">
         Something went wrong
       </h1>
-      <p className="mt-2 text-ui text-ink-soft">
+      <p className="mt-2 text-ui text-record-muted">
         {error.message || 'An unexpected error occurred. Try again, or head back home.'}
       </p>
       <div className="mt-7 flex justify-center gap-3">

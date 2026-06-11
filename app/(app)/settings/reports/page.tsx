@@ -50,8 +50,8 @@ export default async function ReportsSettingsPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <div className="kicker">SETTINGS · REPORTS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
+        <div className="eyebrow">SETTINGS · REPORTS</div>
+        <h1 className="font-display text-h2 text-record-ink">
           Open and resolved reports.
         </h1>
         <hr className="hairline" />
@@ -60,20 +60,20 @@ export default async function ReportsSettingsPage() {
       <Card>
       <CardBody className="space-y-4">
         <div className="flex items-center gap-2">
-          <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
-          <h2 className="font-serif text-h3 italic text-ink">
+          <Flag className="h-4 w-4 text-record-muted" aria-hidden />
+          <h2 className="font-display text-h3 text-record-ink">
             Your reports
           </h2>
         </div>
 
         {reports.length === 0 ? (
-          <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
+          <p className="rounded-md border border-record-ink/10 bg-sheet p-4 text-caption text-record-muted">
             You haven&apos;t reported any CV issues yet. The Report button on
             each row of <strong>My CV</strong> opens a quick form for telling
             us when something looks wrong.
           </p>
         ) : (
-          <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
+          <ul className="divide-y divide-record-ink/10 rounded-card border border-record-ink/15 bg-card">
             {reports.map((r) => {
               const trainNames = r.tournamentIds
                 .map((id) => tournamentById.get(id))
@@ -83,14 +83,14 @@ export default async function ReportsSettingsPage() {
                 <li key={r.id} className="space-y-2 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     {trainNames.length > 0 ? (
-                      <span className="font-medium text-ink">
+                      <span className="font-medium text-record-ink">
                         {trainNames.join(', ')}
                       </span>
                     ) : (
-                      <span className="text-ink-soft">Unknown tournament</span>
+                      <span className="text-record-muted">Unknown tournament</span>
                     )}
                     {statusBadge(r.status)}
-                    <span className="text-caption text-ink-soft">
+                    <span className="text-caption text-record-muted">
                       {r.createdAt.toLocaleDateString()}
                     </span>
                   </div>
@@ -104,12 +104,12 @@ export default async function ReportsSettingsPage() {
                     </div>
                   ) : null}
                   {r.comment ? (
-                    <p className="whitespace-pre-wrap text-table text-ink-soft">
+                    <p className="whitespace-pre-wrap text-table text-record-muted">
                       {r.comment}
                     </p>
                   ) : null}
                   {r.adminNote ? (
-                    <p className="rounded-md border border-ink/15 bg-paper p-2 text-caption text-ink">
+                    <p className="rounded-md border border-record-ink/15 bg-sheet p-2 text-caption text-record-ink">
                       <span className="font-medium">Note from us:</span> {r.adminNote}
                     </p>
                   ) : null}

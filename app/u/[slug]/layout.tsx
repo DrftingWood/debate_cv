@@ -17,21 +17,21 @@ export const metadata: Metadata = {
  */
 export default function PublicCvLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Forced light: the public CV is a credentialing artifact and must
-    // look identical for every viewer (and match print) regardless of the
-    // visitor's theme. data-theme on the wrapper re-scopes the CSS vars.
-    <div data-theme="light" className="min-h-screen bg-paper text-ink">
+    // The whole product is single-theme sheet white now (teardown ruling
+    // D1), so no re-scoping is needed — this wrapper just sets the page
+    // surface explicitly for the standalone route.
+    <div className="min-h-screen bg-sheet text-record-ink">
     <div className="mx-auto max-w-5xl space-y-14 px-5 pb-16 pt-10">
       {children}
       <footer className="pt-10">
         <hr className="hairline" />
-        <div className="mt-6 flex flex-col items-start justify-between gap-3 text-table text-ink-soft sm:flex-row sm:items-center">
-          <div className="font-serif italic text-ink-soft">
+        <div className="mt-6 flex flex-col items-start justify-between gap-3 text-table text-record-muted sm:flex-row sm:items-center">
+          <div className="font-display text-record-muted">
             — Compiled by debate cv.
           </div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-md border border-ink/15 bg-paper px-3 py-1.5 text-table font-medium text-ink hover:bg-ink/[0.04]"
+            className="inline-flex items-center gap-2 rounded-md border border-record-ink/15 bg-sheet px-3 py-1.5 text-table font-medium text-record-ink hover:bg-record-ink/[0.04]"
           >
             Build your own →
           </Link>

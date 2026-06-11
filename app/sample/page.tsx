@@ -45,7 +45,7 @@ export default function SamplePage() {
             <h1 className="mt-4 font-display text-h1 font-semibold leading-[1.03] tracking-tight text-record-ink md:text-display">
               A sample debate CV.
             </h1>
-            <p className="mt-5 text-body leading-relaxed text-record-muted md:text-body-serif">
+            <p className="mt-5 text-body leading-relaxed text-record-muted md:text-body">
               Maya Rao is fictional; the structure is real. Tournaments, breaks, speaker
               scores, judging, and source links — the same rows your own record is
               built from.
