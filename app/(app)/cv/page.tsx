@@ -106,7 +106,7 @@ export default async function CvPage() {
             }
           >
             {headerMetrics.map((m, i) => (
-              <StatColumn key={i} label={m.label} value={m.value} mono={m.mono} />
+              <StatColumn key={i} label={m.label} value={m.value} />
             ))}
           </div>
         ) : null}
@@ -264,7 +264,6 @@ type HeaderMetric = {
   label: string;
   value: number | string;
   accent?: boolean;
-  mono?: boolean;
 };
 
 /**
@@ -316,15 +315,14 @@ function pickHeaderMetrics(input: {
       candidates.push({
         label: 'Best speaker avg',
         value: bestSpeakerAverage.toFixed(1),
-        mono: true,
       });
     }
   } else if (judgeLeaning) {
     if (totalRoundsChaired > 0) {
-      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired, mono: true });
+      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired });
     }
     if (outroundsChaired > 0) {
-      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired, mono: true });
+      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired });
     }
     if (activeYears) {
       candidates.push({
@@ -338,10 +336,10 @@ function pickHeaderMetrics(input: {
     // Both-roles balanced.
     if (breaks > 0) candidates.push({ label: 'Breaks', value: breaks, accent: true });
     if (totalRoundsChaired > 0) {
-      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired, mono: true });
+      candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired });
     }
     if (outroundsChaired > 0) {
-      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired, mono: true });
+      candidates.push({ label: 'Outrounds chaired', value: outroundsChaired });
     }
   }
 
@@ -351,18 +349,16 @@ function pickHeaderMetrics(input: {
 function StatColumn({
   label,
   value,
-  mono,
 }: {
   label: string;
   value: number | string;
-  mono?: boolean;
 }) {
   return (
     <div>
       <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
         {label}
       </div>
-      <div className={'mt-1 font-serif text-stat text-ink num' + (mono ? '' : '')}>
+      <div className="mt-1 font-serif text-stat text-ink num">
         {value}
       </div>
     </div>

@@ -86,7 +86,7 @@ export default async function AccountSettingsPage() {
               </Badge>
             ) : null}
             {gmailToken?.updatedAt ? (
-              <span className="text-caption text-muted-foreground">
+              <span className="text-caption text-ink-soft">
                 Last refreshed {new Date(gmailToken.updatedAt).toLocaleDateString()}
               </span>
             ) : null}
@@ -108,7 +108,7 @@ export default async function AccountSettingsPage() {
             <Database className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-serif text-h3 italic text-ink">Your data</h2>
           </div>
-          <dl className="grid grid-cols-3 gap-3 text-[14px]">
+          <dl className="grid grid-cols-3 gap-3 text-ui">
             <DataStat
               label="Private URLs"
               value={counts.urls}
@@ -159,13 +159,13 @@ function DataStat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-muted/50 px-3.5 py-3">
-      <dt className="text-caption text-muted-foreground" title={hint}>
+    <div className="rounded-md border border-ink/10 bg-paper px-3.5 py-3">
+      <dt className="text-caption text-ink-soft" title={hint}>
         {label}
       </dt>
       <dd className="mt-0.5 font-serif text-stat font-semibold text-ink">{value}</dd>
       {hint ? (
-        <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div>
+        <div className="mt-1 text-byline leading-snug text-ink-soft">{hint}</div>
       ) : null}
     </div>
   );

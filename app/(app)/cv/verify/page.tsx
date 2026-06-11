@@ -127,7 +127,7 @@ export default async function CvVerifyPage({
 
       {ordered.length === 0 ? (
         <Card>
-          <CardBody className="text-[14px] text-muted-foreground">
+          <CardBody className="text-ui text-ink-soft">
             No ingested tournaments found yet.
           </CardBody>
         </Card>
@@ -147,7 +147,7 @@ export default async function CvVerifyPage({
                       <h2 className="font-serif text-h3 italic text-ink">
                         {t.name}
                       </h2>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-caption text-ink-soft">
                         <Badge variant="outline">Year: {t.year ?? '—'}</Badge>
                         <Badge variant="outline">Format: {t.format ?? '—'}</Badge>
                         <Badge variant="outline">
@@ -161,7 +161,7 @@ export default async function CvVerifyPage({
                         href={t.sourceUrlRaw}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-caption text-muted-foreground hover:text-primary"
+                        className="inline-flex items-center gap-1 text-caption text-ink-soft hover:text-oxblood"
                       >
                         Source <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
@@ -174,7 +174,7 @@ export default async function CvVerifyPage({
                       <h3 className="text-body font-semibold text-oxblood">
                         Parser warnings ({warningsByTournamentId.get(t.id)!.length})
                       </h3>
-                      <ul className="space-y-1 text-caption text-foreground">
+                      <ul className="space-y-1 text-caption text-ink">
                         {warningsByTournamentId.get(t.id)!.map((w, i) => (
                           <li key={i} className="font-mono">{w}</li>
                         ))}
@@ -189,86 +189,86 @@ export default async function CvVerifyPage({
                         Participants {mineOnly ? '(mine only)' : `(${t.participants.length})`}
                       </h3>
                       {mineOnly && participants.length === 0 ? (
-                        <span className="text-caption text-muted-foreground">
+                        <span className="text-caption text-ink-soft">
                           No claimed persons for this tournament.
                         </span>
                       ) : null}
                     </div>
                     {/* Desktop: 13-column table. md+ only. */}
-                    <div className="hidden max-w-full overflow-x-auto rounded-md border border-border md:block">
-                      <table className="min-w-max text-caption">
-                        <thead className="bg-muted/50 text-left text-muted-foreground">
-                          <tr>
-                            <th className="px-2 py-1.5">Name</th>
-                            <th className="px-2 py-1.5">Roles</th>
-                            <th className="px-2 py-1.5">Team</th>
-                            <th className="px-2 py-1.5">Speaker total</th>
-                            <th className="px-2 py-1.5">Open / ESL / EFL rank</th>
-                            <th className="px-2 py-1.5">Team break rank</th>
-                            <th className="px-2 py-1.5">Broken</th>
-                            <th className="px-2 py-1.5">Last outround spoken</th>
-                            <th className="px-2 py-1.5">Judge tag</th>
-                            <th className="px-2 py-1.5">Inrounds chaired</th>
-                            <th className="px-2 py-1.5">Last outround chaired</th>
-                            <th className="px-2 py-1.5">Last outround judged</th>
-                            <th className="px-2 py-1.5">Per-round scores</th>
+                    <div className="hidden max-w-full overflow-x-auto md:block">
+                      <table className="min-w-max text-table">
+                        <thead>
+                          <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                            <th className="whitespace-nowrap px-4 py-2.5 font-medium">Name</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Roles</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Speaker total</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Open / ESL / EFL rank</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team break rank</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Judge tag</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
+                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Per-round scores</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border">
+                        <tbody>
                           {participants.map((p) => (
-                            <tr key={p.id.toString()}>
-                              <td className="px-2 py-1.5">
+                            <tr key={p.id.toString()} className="border-b border-ink/10 hover:bg-ink/[0.02]">
+                              <td className="px-4 py-2.5">
                                 {p.person.displayName}
                                 {p.person.claimedByUserId === userId ? (
                                   <Badge variant="success" className="ml-2">You</Badge>
                                 ) : null}
                               </td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-3 py-2.5 text-ink-soft">
                                 {p.roles.map((r) => r.role).join(', ') || '—'}
                               </td>
-                              <td className="px-2 py-1.5">{p.teamName ?? '—'}</td>
-                              <td className="px-2 py-1.5 font-mono">
+                              <td className="px-3 py-2.5">{p.teamName ?? '—'}</td>
+                              <td className="px-3 py-2.5 num font-mono">
                                 {p.speakerScoreTotal?.toString() ?? '—'}
                               </td>
-                              <td className="px-2 py-1.5 font-mono">
+                              <td className="px-3 py-2.5 num font-mono">
                                 {p.speakerRankOpen ?? '—'} / {p.speakerRankEsl ?? '—'} /{' '}
                                 {p.speakerRankEfl ?? '—'}
                               </td>
-                              <td className="px-2 py-1.5 font-mono">
+                              <td className="px-3 py-2.5 num font-mono">
                                 {p.teamBreakRank ?? '—'}
                               </td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-3 py-2.5">
                                 {p.eliminationReached || p.teamBreakRank != null ? (
                                   <Badge variant="success">Yes</Badge>
                                 ) : (
                                   <Badge variant="neutral">No</Badge>
                                 )}
                               </td>
-                              <td className="px-2 py-1.5">{p.eliminationReached ?? '—'}</td>
-                              <td className="px-2 py-1.5">{p.judgeTypeTag ?? '—'}</td>
-                              <td className="px-2 py-1.5 font-mono">
+                              <td className="px-3 py-2.5">{p.eliminationReached ?? '—'}</td>
+                              <td className="px-3 py-2.5 text-ink-soft">{p.judgeTypeTag ?? '—'}</td>
+                              <td className="px-3 py-2.5 num font-mono">
                                 {p.chairedPrelimRounds ?? '—'}
                               </td>
-                              <td className="px-2 py-1.5">{p.lastOutroundChaired ?? '—'}</td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-3 py-2.5">{p.lastOutroundChaired ?? '—'}</td>
+                              <td className="px-3 py-2.5">
                                 {deepestOutroundAcrossRoles(
                                   p.lastOutroundChaired,
                                   p.lastOutroundPaneled,
                                 ) ?? '—'}
                               </td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-3 py-2.5">
                                 {p.speakerRoundScores.length === 0 ? (
                                   '—'
                                 ) : (
                                   <details>
-                                    <summary className="cursor-pointer text-primary hover:underline">
+                                    <summary className="cursor-pointer text-oxblood hover:underline">
                                       {p.speakerRoundScores.length} rounds
                                     </summary>
                                     <div className="mt-1 flex flex-wrap gap-1">
                                       {p.speakerRoundScores.map((s) => (
                                         <span
                                           key={s.id.toString()}
-                                          className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono"
+                                          className="rounded border border-ink/10 bg-paper px-1.5 py-0.5 font-mono"
                                         >
                                           R{s.roundNumber}
                                           {s.positionLabel ? ` · ${s.positionLabel}` : ''}
@@ -319,16 +319,16 @@ export default async function CvVerifyPage({
                         return (
                           <li
                             key={p.id.toString()}
-                            className="rounded-md border border-border bg-card p-3 space-y-2.5"
+                            className="rounded-md border border-ink/10 bg-paper p-3 space-y-2.5"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <div className="font-medium text-foreground">
+                              <div className="font-medium text-ink">
                                 {p.person.displayName}
                                 {isYou ? (
                                   <Badge variant="success" className="ml-2">You</Badge>
                                 ) : null}
                               </div>
-                              <div className="text-caption text-muted-foreground">
+                              <div className="text-caption text-ink-soft">
                                 {p.roles.map((r) => r.role).join(', ') || '—'}
                               </div>
                             </div>
@@ -365,7 +365,7 @@ export default async function CvVerifyPage({
                               </dl>
                             ) : null}
                             {hasJudgeData ? (
-                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption border-t border-border pt-2">
+                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption border-t border-ink/10 pt-2">
                                 {p.judgeTypeTag ? (
                                   <VerifyField label="Judge tag" value={p.judgeTypeTag} />
                                 ) : null}
@@ -391,15 +391,15 @@ export default async function CvVerifyPage({
                               </dl>
                             ) : null}
                             {p.speakerRoundScores.length > 0 ? (
-                              <details className="text-caption border-t border-border pt-2">
-                                <summary className="cursor-pointer text-primary hover:underline">
+                              <details className="text-caption border-t border-ink/10 pt-2">
+                                <summary className="cursor-pointer text-oxblood hover:underline">
                                   Per-round scores ({p.speakerRoundScores.length})
                                 </summary>
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {p.speakerRoundScores.map((s) => (
                                     <span
                                       key={s.id.toString()}
-                                      className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono"
+                                      className="rounded border border-ink/10 bg-paper px-1.5 py-0.5 font-mono"
                                     >
                                       R{s.roundNumber}
                                       {s.positionLabel ? ` · ${s.positionLabel}` : ''}
@@ -422,7 +422,7 @@ export default async function CvVerifyPage({
                       Judge assignments ({t.judgeAssignments.length})
                     </h3>
                     {t.judgeAssignments.length === 0 ? (
-                      <div className="text-caption text-muted-foreground">
+                      <div className="text-caption text-ink-soft">
                         No parsed judge assignments.
                       </div>
                     ) : (
@@ -436,7 +436,7 @@ export default async function CvVerifyPage({
                             <span className="opacity-60">·</span>
                             <span>{a.panelRole ?? 'panel'}</span>
                             <span className="opacity-60">·</span>
-                            <span className="font-mono text-[11px]">
+                            <span className="font-mono text-byline">
                               {a.stage ?? `R${a.roundNumber ?? '?'}`}
                             </span>
                           </Badge>
@@ -451,7 +451,7 @@ export default async function CvVerifyPage({
                       Break results ({t.eliminationResults.length})
                     </h3>
                     {t.eliminationResults.length === 0 ? (
-                      <div className="text-caption text-muted-foreground">
+                      <div className="text-caption text-ink-soft">
                         No parsed break rows.
                       </div>
                     ) : (
@@ -466,7 +466,7 @@ export default async function CvVerifyPage({
                             {e.result ? (
                               <>
                                 <span className="opacity-60">·</span>
-                                <span className="font-mono text-[11px]">{e.result}</span>
+                                <span className="font-mono text-byline">{e.result}</span>
                               </>
                             ) : null}
                           </Badge>
@@ -487,8 +487,8 @@ export default async function CvVerifyPage({
 function VerifyField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-caption text-muted-foreground">{label}</dt>
-      <dd className={'mt-0.5 text-foreground ' + (mono ? 'font-mono' : '')}>{value}</dd>
+      <dt className="text-caption text-ink-soft">{label}</dt>
+      <dd className={'mt-0.5 text-ink ' + (mono ? 'font-mono' : '')}>{value}</dd>
     </div>
   );
 }

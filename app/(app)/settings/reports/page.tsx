@@ -67,13 +67,13 @@ export default async function ReportsSettingsPage() {
         </div>
 
         {reports.length === 0 ? (
-          <p className="rounded-md border border-border bg-muted/40 p-4 text-caption text-muted-foreground">
+          <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
             You haven&apos;t reported any CV issues yet. The Report button on
             each row of <strong>My CV</strong> opens a quick form for telling
             us when something looks wrong.
           </p>
         ) : (
-          <ul className="divide-y divide-border rounded-card border border-border bg-card">
+          <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
             {reports.map((r) => {
               const trainNames = r.tournamentIds
                 .map((id) => tournamentById.get(id))
@@ -83,14 +83,14 @@ export default async function ReportsSettingsPage() {
                 <li key={r.id} className="space-y-2 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     {trainNames.length > 0 ? (
-                      <span className="font-medium text-foreground">
+                      <span className="font-medium text-ink">
                         {trainNames.join(', ')}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">Unknown tournament</span>
+                      <span className="text-ink-soft">Unknown tournament</span>
                     )}
                     {statusBadge(r.status)}
-                    <span className="text-caption text-muted-foreground">
+                    <span className="text-caption text-ink-soft">
                       {r.createdAt.toLocaleDateString()}
                     </span>
                   </div>
@@ -104,12 +104,12 @@ export default async function ReportsSettingsPage() {
                     </div>
                   ) : null}
                   {r.comment ? (
-                    <p className="whitespace-pre-wrap text-[13px] text-muted-foreground">
+                    <p className="whitespace-pre-wrap text-table text-ink-soft">
                       {r.comment}
                     </p>
                   ) : null}
                   {r.adminNote ? (
-                    <p className="rounded-md border border-info/30 bg-info/5 p-2 text-[12.5px] text-foreground">
+                    <p className="rounded-md border border-ink/15 bg-paper p-2 text-caption text-ink">
                       <span className="font-medium">Note from us:</span> {r.adminNote}
                     </p>
                   ) : null}

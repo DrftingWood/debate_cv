@@ -103,18 +103,18 @@ export function SharingManager() {
         : null;
 
   if (loadError) {
-    return <p className="text-[14px] text-destructive">{loadError}</p>;
+    return <p className="text-ui text-destructive">{loadError}</p>;
   }
   if (!state) {
-    return <p className="text-[14px] text-muted-foreground">Loading…</p>;
+    return <p className="text-ui text-ink-soft">Loading…</p>;
   }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[14px] font-medium text-foreground">Public CV link</p>
-          <p className="text-caption text-muted-foreground">
+          <p className="text-ui font-medium text-ink">Public CV link</p>
+          <p className="text-caption text-ink-soft">
             Anyone with the link can view your CV. Search engines won&apos;t index it.
           </p>
         </div>
@@ -127,13 +127,13 @@ export function SharingManager() {
       </div>
 
       {state.enabled && fullUrl ? (
-        <div className="space-y-3 rounded-md border border-border bg-muted/30 p-4">
+        <div className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
           <div className="flex items-center gap-2">
             <a
               href={fullUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 truncate font-mono text-[13px] text-primary hover:underline"
+              className="flex-1 truncate font-mono text-table text-primary hover:underline"
             >
               {fullUrl}
             </a>
@@ -155,7 +155,7 @@ export function SharingManager() {
               href={fullUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
               aria-label="Open public CV in new tab"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -164,12 +164,12 @@ export function SharingManager() {
           <div className="space-y-1.5">
             <label
               htmlFor="custom-slug"
-              className="block text-caption font-medium text-foreground"
+              className="block text-caption font-medium text-ink"
             >
               Custom slug (optional)
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-caption text-muted-foreground">/u/</span>
+              <span className="text-caption text-ink-soft">/u/</span>
               <input
                 id="custom-slug"
                 type="text"
@@ -177,7 +177,7 @@ export function SharingManager() {
                 onChange={(e) => setCustomSlugInput(e.currentTarget.value)}
                 maxLength={30}
                 placeholder="your-name"
-                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[13px] text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="flex-1 rounded-md border border-ink/15 bg-paper px-3 py-1.5 font-mono text-table text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               <Button
                 type="button"
@@ -190,14 +190,14 @@ export function SharingManager() {
                 Save
               </Button>
             </div>
-            <p className="text-[11.5px] text-muted-foreground">
+            <p className="text-byline text-ink-soft">
               3–30 chars · lowercase letters, digits, hyphens. Leave empty to use a random slug.
             </p>
           </div>
-          <div className="flex items-center justify-between border-t border-border pt-3">
+          <div className="flex items-center justify-between border-t border-ink/10 pt-3">
             <div>
-              <p className="text-[13px] font-medium text-foreground">Show profile photo</p>
-              <p className="text-caption text-muted-foreground">
+              <p className="text-table font-medium text-ink">Show profile photo</p>
+              <p className="text-caption text-ink-soft">
                 Shows your Google avatar on the public page.
               </p>
             </div>
@@ -235,7 +235,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={
         'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ' +
-        (checked ? 'bg-primary' : 'bg-muted')
+        (checked ? 'bg-primary' : 'bg-ink/10')
       }
     >
       <span

@@ -24,10 +24,10 @@ export function SettingsSideNav() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'block rounded-md px-3 py-2 text-[13.5px] font-medium transition-colors',
+                  'block rounded-md px-3 py-2 text-table font-medium transition-colors',
                   active
                     ? 'bg-primary-soft text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    : 'text-ink-soft hover:bg-ink/[0.04] hover:text-ink',
                 )}
               >
                 {item.label}
