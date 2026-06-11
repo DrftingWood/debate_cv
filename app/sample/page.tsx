@@ -43,12 +43,12 @@ export default function SamplePage() {
           <div>
             <div className="eyebrow">Sample CV</div>
             <h1 className="mt-4 font-display text-h1 font-semibold leading-[1.03] tracking-tight text-record-ink md:text-display">
-              This is the artifact users should understand before signing in.
+              A sample debate CV.
             </h1>
             <p className="mt-5 text-body leading-relaxed text-record-muted md:text-body-serif">
-              The sample uses fictional data, but the structure is real: verified rows,
-              growth signals, source badges, and sharing controls. This is the product promise,
-              not decoration.
+              Maya Rao is fictional; the structure is real. Tournaments, breaks, speaker
+              scores, judging, and source links — the same rows your own record is
+              built from.
             </p>
           </div>
           <SampleCvPreview compact />
@@ -119,8 +119,9 @@ export default function SamplePage() {
             <div className="eyebrow">Share model</div>
             <h2 className="mt-2 font-display text-h3 font-semibold text-record-ink">Private first, public when ready.</h2>
             <p className="mt-3 text-ui leading-relaxed text-record-muted">
-              The real app should let a debater inspect the record privately, fix ambiguous matches,
-              then publish a clean URL or export a PDF when another debater, society, or institution asks.
+              Your record stays private while you inspect it and fix ambiguous matches.
+              Publish a clean URL or export a PDF when another debater, society, or
+              institution asks for receipts.
             </p>
           </article>
         </section>

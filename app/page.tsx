@@ -74,8 +74,8 @@ function Hero() {
         </h1>
         <p className="mt-5 max-w-xl text-body leading-relaxed text-record-muted md:text-body-serif">
           Debate CV turns tournament links you already have into a private record of
-          results, breaks, speaker scores, and growth over time. No AI glow. No manual
-          spreadsheet archaeology. Just proof you can use.
+          results, breaks, speaker scores, and growth over time — source-backed rows
+          you can share when it matters.
         </p>
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -149,9 +149,9 @@ function HowItWorks() {
   return (
     <section id="how" className="scroll-mt-24">
       <div className="max-w-2xl">
-        <div className="eyebrow">From links to record</div>
+        <div className="eyebrow">How it works</div>
         <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-          The import flow exists to get out of your way.
+          From scattered links to one verified record.
         </h2>
       </div>
       <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -181,15 +181,14 @@ function PrivacyProof() {
     <section id="privacy" className="scroll-mt-24 record-panel overflow-hidden">
       <div className="grid gap-6 border-b border-record-rule p-5 md:grid-cols-[0.7fr_1.3fr] md:p-6">
         <div>
-          <div className="eyebrow">Privacy before polish</div>
+          <div className="eyebrow">Privacy</div>
           <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-            The trust model is explicit.
+            What is read, what is stored, how you leave.
           </h2>
         </div>
         <p className="text-body leading-relaxed text-record-muted">
-          Debate CV asks for a sensitive permission, so the product has to say exactly
-          what it reads, what it stores, and how you leave. The import is narrow; the CV
-          stays yours.
+          Gmail access is read-only and used for one thing: finding tournament links
+          you were sent. The import is narrow; the CV stays yours.
         </p>
       </div>
       <div className="divide-y divide-record-rule">
@@ -207,12 +206,12 @@ function PrivacyProof() {
 function Faq() {
   const items: { q: string; a: React.ReactNode }[] = [
     {
-      q: 'Is this an AI tool?',
-      a: 'No. The product parses tournament pages and presents structured records. It should feel like a ledger, not a chatbot.',
+      q: 'What does it read in my Gmail?',
+      a: 'Only what is needed to find tournament links: read-only access, searched for Tabbycat private URLs. Email bodies are not stored.',
     },
     {
-      q: 'Why Gmail?',
-      a: 'Many Tabbycat private URLs arrive by email. Read-only Gmail lets the importer find those links without asking you to rebuild years of tournament history by hand.',
+      q: 'Who can see my CV?',
+      a: 'Nobody, until you share it. The record is private by default; publish a link or export a file when you choose, and unpublish at any time.',
     },
     {
       q: 'What if a tournament is missing?',
@@ -227,9 +226,9 @@ function Faq() {
   return (
     <section className="grid gap-8 md:grid-cols-[0.7fr_1.3fr]">
       <div>
-        <div className="eyebrow">Questions worth asking</div>
+        <div className="eyebrow">Before you connect</div>
         <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-          No magic, no elite gate.
+          Straight answers.
         </h2>
       </div>
       <div className="divide-y divide-record-rule border-y border-record-rule">

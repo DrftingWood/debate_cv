@@ -10,7 +10,6 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
-import { volumeRoman } from '@/lib/cv/volumeRoman';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
@@ -74,7 +73,7 @@ export default async function CvPage() {
       {/* Editorial masthead — replaces the gradient profile + metric-tile grid */}
       <header className="space-y-4">
         <div className="kicker">
-          DEBATE CV — VOL. {volumeRoman(highlights.activeYears)} · COMPILED{' '}
+          DEBATE CV — PRIVATE RECORD · COMPILED{' '}
           {new Date().toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'long',
@@ -83,7 +82,7 @@ export default async function CvPage() {
         </div>
 
         <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
-          {user?.name ?? 'Debater'}.
+          {user?.name ?? 'Debater'}
         </h1>
 
         <hr className="hairline" />

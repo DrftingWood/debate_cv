@@ -140,7 +140,7 @@ export default async function Dashboard({
         <div className="space-y-3">
           <div className="kicker">IMPORTS · GMAIL → CV</div>
           <h1 className="font-serif text-h1 italic text-ink">
-            Tournaments, in flight.
+            Import your tournaments
           </h1>
           <hr className="hairline" />
         </div>

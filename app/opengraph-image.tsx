@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'debate cv — your debate tournament history, from your inbox';
+export const alt = 'debate cv — verified tournament records for debaters';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -47,7 +47,7 @@ export default async function OpengraphImage() {
               color: '#5C636E',
             }}
           >
-            A personal record of the parliamentary kind
+            Verified tournament records
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export default async function OpengraphImage() {
               maxWidth: 1040,
             }}
           >
-            Your debate cv, compiled from your inbox.
+            Every break, on the record.
           </div>
           <div
             style={{
@@ -77,7 +77,7 @@ export default async function OpengraphImage() {
               lineHeight: 1.4,
             }}
           >
-            Sign in with Google. We scan your inbox for Tabbycat private URLs and stitch every tournament you spoke or judged into one page.
+            Tournaments, breaks, speaker scores, and judging — one verified record you can share when it matters.
           </div>
         </div>
 
@@ -97,7 +97,7 @@ export default async function OpengraphImage() {
         >
           <span>Read-only Gmail</span>
           <span style={{ color: 'rgba(24, 26, 31, 0.3)' }}>·</span>
-          <span>Private to you</span>
+          <span>Private until shared</span>
           <span style={{ color: 'rgba(24, 26, 31, 0.3)' }}>·</span>
           <span>Delete any time</span>
         </div>
