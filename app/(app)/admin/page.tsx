@@ -5,6 +5,7 @@ import { Download } from 'lucide-react';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
+import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
 
 export const metadata: Metadata = {
@@ -89,6 +90,8 @@ export default async function AdminPage() {
         </h1>
         <hr className="hairline" />
       </header>
+
+      <IngestProgressTracker scope="global" />
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-serif text-h3 italic text-ink">Current state</h2>

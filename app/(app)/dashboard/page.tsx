@@ -24,6 +24,7 @@ import { RetryFailedButton } from '@/components/RetryFailedButton';
 import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
+import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -145,6 +146,8 @@ export default async function Dashboard({
           <ExportErrorsButton />
         </div>
       </header>
+
+      <IngestProgressTracker scope="user" />
 
       {!gmailToken ? (
         <section
