@@ -2,7 +2,7 @@
   "name": "debate-cv",
   "version": "0.2.0",
   "private": true,
-  "description": "Debate CV: Gmail -> Calicotab scrape -> Postgres -> personal tournament history.",
+  "description": "Debate CV: verified, shareable tournament records for university debaters.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && node scripts/migrate-if-configured.mjs && next build",

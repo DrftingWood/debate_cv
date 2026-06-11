@@ -36,11 +36,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
           <div className="flex items-center gap-4">
             <nav className="flex items-center gap-6 text-table font-medium">
-              <NavLink href="/cv">My CV</NavLink>
+              <NavLink href="/cv">CV</NavLink>
               {/* "Imports" not "Dashboard": the page's one job is getting
                   tournaments out of Gmail and into the CV — naming it after
                   the task beats naming it after the furniture. */}
+              <NavLink href="/cv/analytics">Growth</NavLink>
               <NavLink href="/dashboard">Imports</NavLink>
+              <NavLink href="/settings/sharing">Share</NavLink>
               <NavLink href="/settings">Settings</NavLink>
               {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
             </nav>

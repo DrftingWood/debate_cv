@@ -12,7 +12,7 @@ import { BarList } from '@/components/ui/BarList';
 import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
-  title: 'Analytics',
+  title: 'Growth',
   description: 'Trends across your debate tournament history.',
   robots: { index: false, follow: false },
 };
@@ -51,9 +51,9 @@ export default async function CvAnalyticsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="kicker">DEBATE CV — ANALYTICS</div>
+        <div className="kicker">GROWTH</div>
         <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink">
-          Trends.
+          Growth signals.
         </h1>
         <hr className="hairline" />
         <div className="byline">
@@ -68,10 +68,10 @@ export default async function CvAnalyticsPage() {
         <EmptyState
           icon={<BarChart3 className="h-5 w-5" aria-hidden />}
           title="Not enough data yet"
-          description="Trends appear once at least one tournament with parsed results is on your CV. Ingest tournaments from the dashboard first."
+          description="Trends appear once at least one tournament with parsed results is on your CV. Ingest tournaments from Imports first."
           action={
             <Link href="/dashboard">
-              <Button variant="primary">Open dashboard</Button>
+              <Button variant="primary">Open imports</Button>
             </Link>
           }
         />
