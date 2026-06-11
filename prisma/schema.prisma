@@ -229,6 +229,22 @@ model Tournament {
   region               String?
   sourceUrlRaw         String
   fingerprint          String   @unique
+  /// PARSER_VERSION that produced the stored data. The cache-freshness
+  /// check compares this against the current constant — tournament-scoped
+  /// on purpose. The old check (latest ParserRun on the caller's landing
+  /// SourceDocument) was accidentally per-private-URL: a second user's
+  /// first touch of a cached tournament had no runs on THEIR landing doc
+  /// and so triggered a full redundant re-scrape. Null on rows written
+  /// before this column existed (falls back to the per-doc check).
+  parserVersion        String?
+  /// Short-lived scrape claim (see acquireScrapeClaim in ingest.ts):
+  /// set just before the tab-fetch phase, cleared by the write tx on
+  /// success, expired by TTL on failure. Prevents two concurrent
+  /// cache-miss ingests of the same tournament from BOTH doing the
+  /// ~15-fetch scrape — the advisory lock in the write tx only
+  /// serializes writes, by which point the duplicate fetches already
+  /// happened.
+  scrapeClaimedAt      DateTime?
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

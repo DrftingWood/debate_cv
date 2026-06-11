@@ -19,6 +19,7 @@ import {
 } from './parseTabs';
 import { parseMotionsTab } from './parseMotions';
 import {
+  candidateFingerprints,
   computeFingerprint,
   extractYearFromName,
   inferTournamentYear,
@@ -126,6 +127,38 @@ export async function ingestPrivateUrl(
   const cacheCheck = await checkCacheFreshness(loaded, userId, options);
   if (cacheCheck.kind === 'cache-hit') return cacheCheck.result;
 
+  // Concurrent-scrape guard. The advisory lock in writeIngestTransaction
+  // serializes the WRITES, but two cache-miss ingests of the same
+  // tournament would both have run the ~15-fetch tab phase by then. Claim
+  // the scrape slot first; if another ingest holds it, wait briefly for
+  // it to finish and serve their result from cache. If the wait times out
+  // (slow scrape, crashed holder) we proceed unclaimed — correctness is
+  // still guaranteed by the write lock, we just lose the fetch dedup.
+  // First-ever ingests (no Tournament row to claim on) skip the guard;
+  // the queue drains serially per process, so that window is narrow.
+  const claim = await acquireScrapeClaim(loaded.existing?.id ?? null);
+  if (claim === 'busy') {
+    const settled = await awaitConcurrentScrape(loaded, userId, options);
+    if (settled) return settled;
+  }
+
+  try {
+    return await runFullScrape(loaded, userId, options);
+  } catch (err) {
+    // Release an acquired claim on failure so the next attempt (queue
+    // retry, other user) doesn't have to wait out the TTL.
+    if (claim === 'acquired' && loaded.existing) {
+      await releaseScrapeClaim(loaded.existing.id);
+    }
+    throw err;
+  }
+}
+
+async function runFullScrape(
+  loaded: LoadedState,
+  userId: string,
+  options: { force?: boolean },
+): Promise<IngestResult> {
   const fetched = await fetchAndParseTabs(loaded);
   await recordPipelineParserRun(loaded, fetched);
 
@@ -148,6 +181,75 @@ export async function ingestPrivateUrl(
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
   return finalizePostTransaction(loaded, fetched, txResult, userId);
+}
+
+// ─── Concurrent-scrape claim ──────────────────────────────────────────────
+//
+// A claim is a single conditional UPDATE on the Tournament row — atomic in
+// Postgres, safe under the pgbouncer-pooled connection (unlike session
+// advisory locks, which can't be trusted to release on the same pooled
+// connection; the WRITE-phase lock is fine because pg_advisory_xact_lock
+// is transaction-scoped). TTL covers crashed holders: a claim older than
+// the TTL is treated as abandoned and stealable.
+
+const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
+const SCRAPE_AWAIT_POLL_MS = 3_000;
+const SCRAPE_AWAIT_MAX_MS = 15_000;
+
+async function acquireScrapeClaim(
+  tournamentId: bigint | null,
+): Promise<'acquired' | 'busy' | 'none'> {
+  if (tournamentId == null) return 'none';
+  const stealCutoff = new Date(Date.now() - SCRAPE_CLAIM_TTL_MS);
+  const res = await prisma.tournament.updateMany({
+    where: {
+      id: tournamentId,
+      OR: [{ scrapeClaimedAt: null }, { scrapeClaimedAt: { lt: stealCutoff } }],
+    },
+    data: { scrapeClaimedAt: new Date() },
+  });
+  return res.count > 0 ? 'acquired' : 'busy';
+}
+
+async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
+  try {
+    await prisma.tournament.updateMany({
+      where: { id: tournamentId },
+      data: { scrapeClaimedAt: null },
+    });
+  } catch {
+    // Best-effort — an unreleased claim self-expires via the TTL.
+  }
+}
+
+/**
+ * Another ingest holds the scrape claim for this tournament. Poll briefly:
+ * if their scrape commits (scrapedAt advances), re-run the cache check
+ * against the refreshed row and serve their result; if their claim
+ * disappears without a commit (they failed), or the wait times out, return
+ * null and let the caller scrape — duplicated fetches in that case, but
+ * never a wrong result.
+ */
+async function awaitConcurrentScrape(
+  loaded: LoadedState,
+  userId: string,
+  options: { force?: boolean },
+): Promise<IngestResult | null> {
+  const previous = loaded.existing;
+  if (!previous) return null;
+  const deadline = Date.now() + SCRAPE_AWAIT_MAX_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, SCRAPE_AWAIT_POLL_MS));
+    const current = await prisma.tournament.findUnique({ where: { id: previous.id } });
+    if (!current) return null;
+    if (current.scrapedAt.getTime() > previous.scrapedAt.getTime()) {
+      loaded.existing = current;
+      const recheck = await checkCacheFreshness(loaded, userId, options);
+      return recheck.kind === 'cache-hit' ? recheck.result : null;
+    }
+    if (current.scrapeClaimedAt == null) return null;
+  }
+  return null;
 }
 
 // ─── Phase functions for ingestPrivateUrl ─────────────────────────────────
@@ -205,18 +307,22 @@ async function loadLandingAndFingerprint(
     tournamentName: snapshot.tournamentName,
     year,
   });
-  const legacyFingerprint =
-    year != null && explicitYear == null
-      ? computeFingerprint({
-          host: parsedUrl.host,
-          tournamentSlug,
-          tournamentName: snapshot.tournamentName,
-          year: null,
-        })
-      : null;
-  let existing = await prisma.tournament.findUnique({ where: { fingerprint: inferredFingerprint } });
-  if (!existing && legacyFingerprint && legacyFingerprint !== inferredFingerprint) {
-    existing = await prisma.tournament.findUnique({ where: { fingerprint: legacyFingerprint } });
+  // When the year was INFERRED from the email date (not explicit in the
+  // name), the same event may already be stored under a neighbouring year
+  // (two users' emails straddling a year boundary) or under year=null
+  // (legacy rows). Try every candidate before concluding the tournament
+  // is new, and adopt the existing row's stored fingerprint so all
+  // writers converge on one row. See candidateFingerprints.
+  let existing: Awaited<ReturnType<typeof prisma.tournament.findUnique>> = null;
+  for (const candidate of candidateFingerprints({
+    host: parsedUrl.host,
+    tournamentSlug,
+    tournamentName: snapshot.tournamentName,
+    explicitYear,
+    inferredYear: year,
+  })) {
+    existing = await prisma.tournament.findUnique({ where: { fingerprint: candidate } });
+    if (existing) break;
   }
   const tournamentFingerprint = existing?.fingerprint ?? inferredFingerprint;
 
@@ -249,9 +355,17 @@ async function checkCacheFreshness(
 
   const ageMs = Date.now() - existing.scrapedAt.getTime();
   const fresh = ageMs < FRESH_WINDOW_MS;
-  // Reparse invalidation: if PARSER_VERSION bumped since the last successful
-  // parser run for this tournament's landing page, skip the cache and re-ingest.
-  const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
+  // Reparse invalidation: was the stored data produced by the current
+  // PARSER_VERSION? Tournament-scoped via Tournament.parserVersion — the
+  // old per-landing-document check (isLatestParserRun) meant a SECOND
+  // user's first touch of a cached tournament always cache-missed,
+  // because their private URL is a different SourceDocument with no runs
+  // yet, and the tournament got fully re-scraped for nothing. The
+  // per-doc check remains only as a fallback for rows written before the
+  // column existed.
+  const parserUpToDate = existing.parserVersion
+    ? existing.parserVersion === PARSER_VERSION
+    : await isLatestParserRun(landingDoc.sourceDocumentId);
   // Smart cache bust: if the landing nav advertises more rounds than we
   // have stored TeamResult rows for, the tournament has progressed since
   // the last ingest — fall through to a full refresh instead of serving
@@ -671,6 +785,11 @@ async function writeIngestTransaction(
         prelimRoundCount,
         sourceUrlRaw: normalized,
         scrapedAt: new Date(),
+        // Stamp the version that produced this data (tournament-scoped
+        // cache invalidation) and release the scrape claim — committing
+        // the write IS the success signal concurrent waiters poll for.
+        parserVersion: PARSER_VERSION,
+        scrapeClaimedAt: null,
       },
       create: {
         name: tournamentName,
@@ -681,6 +800,7 @@ async function writeIngestTransaction(
         prelimRoundCount,
         sourceUrlRaw: normalized,
         fingerprint: tournamentFingerprint,
+        parserVersion: PARSER_VERSION,
       },
     });
 

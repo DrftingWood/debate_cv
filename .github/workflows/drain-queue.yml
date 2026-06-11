@@ -1,0 +1,49 @@
+# High-frequency queue drain — free workaround for Vercel Hobby's
+# once-per-day cron limit. GitHub Actions schedules are free (a curl run
+# costs seconds of the monthly minutes quota) and may fire every 15
+# minutes, so queued ingest jobs start within minutes of a user's Gmail
+# scan instead of waiting for the nightly Vercel cron. The Vercel cron in
+# vercel.json stays as the guaranteed daily backstop — GitHub schedules
+# are best-effort and can be delayed or skipped under load, and they are
+# suspended automatically after 60 days without repo activity.
+#
+# Setup (Settings → Secrets and variables → Actions → New repository secret):
+#   CRON_SECRET — same value as the Vercel env var of the same name
+#   APP_URL     — the production origin, e.g. https://your-app.vercel.app
+# The workflow no-ops cleanly (skipped step, green run) until both exist.
+name: Drain ingest queue
+
+on:
+  schedule:
+    # Every 15 minutes. The endpoint exits immediately when the queue is
+    # empty, so idle ticks cost one trivial function invocation.
+    - cron: '*/15 * * * *'
+  # Manual trigger for testing the wiring without waiting for a tick.
+  workflow_dispatch:
+
+# Never let two drains overlap from this trigger — the endpoint's
+# claimOnePending is safe under concurrency (FOR UPDATE SKIP LOCKED), but
+# overlapping runs would double concurrent scraping pressure for nothing.
+concurrency:
+  group: drain-queue
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Call /api/cron/process-queue
+        if: ${{ env.APP_URL != '' && env.CRON_SECRET != '' }}
+        run: |
+          # -m 90: the route's own budget is 55s + response time; anything
+          # past 90s means the platform hung, not the drain.
+          curl -fsS -m 90 -X POST "$APP_URL/api/cron/process-queue" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -o /tmp/drain.json
+          cat /tmp/drain.json

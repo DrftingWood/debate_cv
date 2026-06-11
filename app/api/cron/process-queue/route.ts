@@ -107,17 +107,23 @@ async function runOnce() {
     }
 
     // Retention pass for pipeline history (superseded SourceDocument
-    // snapshots + stale ParserRuns). Piggybacks on the daily cron rather
-    // than its own schedule — Vercel Hobby allows limited crons, and the
-    // deletes are cheap relative to the drain. Best-effort: a prune
-    // failure is Sentry-worthy but must not fail the drain response.
+    // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
+    // endpoint is now hit every ~15 minutes by the GitHub Actions drain
+    // (.github/workflows/drain-queue.yml) on top of the daily Vercel
+    // cron (which fires at 03:00 — see vercel.json), and the ParserRun
+    // delete scans an unindexed createdAt; once a day is plenty. Any
+    // invocation during that hour prunes — the deletes are idempotent.
+    // Best-effort: a prune failure is Sentry-worthy but must not fail
+    // the drain response.
     let pruned: { sourceDocumentsDeleted: number; parserRunsDeleted: number } | null = null;
-    try {
-      pruned = await pruneIngestArtifacts();
-    } catch (err) {
-      Sentry.captureException(err, {
-        tags: { route: 'api/cron/process-queue', stage: 'prune' },
-      });
+    if (new Date().getUTCHours() === 3) {
+      try {
+        pruned = await pruneIngestArtifacts();
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { route: 'api/cron/process-queue', stage: 'prune' },
+        });
+      }
     }
 
     return NextResponse.json({ processed: results.length, results, pruned });

@@ -103,7 +103,7 @@ When adding new parsing logic or queue/lock changes, add a vitest case alongside
 
 ## Deploy
 
-Vercel. `vercel.json` declares one cron (`/api/cron/process-queue`, daily 03:00). Sentry source-map upload runs at build when `SENTRY_AUTH_TOKEN` is set (CI only — local builds silent).
+Vercel. `vercel.json` declares one cron (`/api/cron/process-queue`, daily 03:00 — Hobby allows daily granularity only). `.github/workflows/drain-queue.yml` supplements it for free: a GitHub Actions schedule curls the same endpoint every 15 minutes (needs `APP_URL` + `CRON_SECRET` repo secrets; no-ops until set). GH schedules are best-effort and auto-suspend after 60 days of repo inactivity — the Vercel cron is the guaranteed backstop, and it owns the daily retention prune (gated to the 03:00 UTC hour inside the route). Sentry source-map upload runs at build when `SENTRY_AUTH_TOKEN` is set (CI only — local builds silent).
 
 ## Environment
 
