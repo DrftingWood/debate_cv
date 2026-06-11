@@ -8,6 +8,8 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 ~90% functional. Real users, real data, deployed on Vercel. Treat as a live codebase — verify before changing shared behavior.
 
+**Session status, pending operator steps, and next-agent priorities live in `docs/HANDOFF.md` — read it before starting work.**
+
 ## Stack (from package.json)
 
 - **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)
