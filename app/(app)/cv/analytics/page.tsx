@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList } from '@/components/ui/BarList';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 
 export const metadata: Metadata = {
   title: 'Growth',
@@ -50,8 +51,8 @@ export default async function CvAnalyticsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="eyebrow">GROWTH</div>
-        <h1 className="font-display text-h1 leading-[1.05] tracking-tight text-record-ink">
+        <div className="eyebrow">Debate CV — growth</div>
+        <h1 className="display-expanded font-display text-h1 font-bold leading-[1.05] tracking-tight text-record-ink">
           Growth signals.
         </h1>
         <hr className="hairline" />
@@ -83,7 +84,7 @@ export default async function CvAnalyticsPage() {
           {avgTrendPoints.length > 0 ? (
             <section aria-label="Speaker average by year" className="space-y-3">
               <header>
-                <div className="eyebrow">I · SPEAKER AVERAGE BY YEAR</div>
+                <SectionHeader title="Speaker Average by Year" />
               </header>
               <TrendChart points={avgTrendPoints} />
               <CoverageNote
@@ -97,7 +98,7 @@ export default async function CvAnalyticsPage() {
           {roundProfilePoints.length > 1 ? (
             <section aria-label="Round-by-round profile" className="space-y-3">
               <header>
-                <div className="eyebrow">II · ROUND-BY-ROUND PROFILE</div>
+                <SectionHeader title="Round-by-Round Profile" />
                 <p className="mt-1 text-caption text-record-muted">
                   Average speaker score per prelim round number, across all tournaments
                   with per-round scores — shows whether you start slow or finish strong.
@@ -115,7 +116,7 @@ export default async function CvAnalyticsPage() {
           {breakBars.length > 0 ? (
             <section aria-label="Break record by year" className="space-y-3">
               <header>
-                <div className="eyebrow">III · BREAK RECORD BY YEAR</div>
+                <SectionHeader title="Break Record by Year" />
               </header>
               <BarList items={breakBars} className="max-w-xl" />
             </section>
@@ -124,7 +125,7 @@ export default async function CvAnalyticsPage() {
           {analytics.positionSlices.length > 0 ? (
             <section aria-label="By team position" className="space-y-3">
               <header>
-                <div className="eyebrow">IV · BY TEAM POSITION</div>
+                <SectionHeader title="by Team Position" />
                 <p className="mt-1 text-caption text-record-muted">
                   How you perform from each side of the table. Position data is parsed
                   from round-results pages — older tournaments gain it on re-ingest.
@@ -175,7 +176,7 @@ export default async function CvAnalyticsPage() {
           {analytics.formatSlices.length > 0 ? (
             <section aria-label="By format" className="space-y-3">
               <header>
-                <div className="eyebrow">V · BY FORMAT</div>
+                <SectionHeader title="by Format" />
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
@@ -215,7 +216,7 @@ export default async function CvAnalyticsPage() {
           {analytics.regionSlices.length > 0 ? (
             <section aria-label="By region" className="space-y-3">
               <header>
-                <div className="eyebrow">VI · BY REGION</div>
+                <SectionHeader title="by Region" />
                 <p className="mt-1 text-caption text-record-muted">
                   Regions are community tags, reviewed before they go live —{' '}
                   <Link href="/cv/tags" className="underline underline-offset-2 hover:text-record-ink">
@@ -267,7 +268,7 @@ export default async function CvAnalyticsPage() {
           {analytics.motionTypeSlices.length > 0 || analytics.motionTopicSlices.length > 0 ? (
             <section aria-label="By motion tag" className="space-y-4">
               <header>
-                <div className="eyebrow">VII · BY MOTION</div>
+                <SectionHeader title="by Motion" />
                 <p className="mt-1 text-caption text-record-muted">
                   Per-round performance grouped by the motion&rsquo;s approved tags: the
                   stem (THW, THBT, …) and the subject area.
@@ -283,7 +284,7 @@ export default async function CvAnalyticsPage() {
           {analytics.judgingYearTrend.length > 0 ? (
             <section aria-label="Judging by year" className="space-y-3">
               <header>
-                <div className="eyebrow">VIII · JUDGING BY YEAR</div>
+                <SectionHeader title="Judging by Year" />
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
