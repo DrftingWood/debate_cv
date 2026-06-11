@@ -77,6 +77,7 @@ const config: Config = {
         byline: ['11.5px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
         caption: ['12.5px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
         table: ['13.5px', { lineHeight: '1.5' }],
+        ui: ['14px', { lineHeight: '1.5' }],
         body: ['15px', { lineHeight: '1.6' }],
         'body-serif': ['16.5px', { lineHeight: '1.55' }],
         h4: ['18px', { lineHeight: '1.3', letterSpacing: '-0.005em' }],

@@ -49,6 +49,6 @@ export function CardDescription({
   ...rest
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('mt-0.5 text-[13.5px] text-ink-soft', className)} {...rest} />
+    <p className={cn('mt-0.5 text-table text-ink-soft', className)} {...rest} />
   );
 }

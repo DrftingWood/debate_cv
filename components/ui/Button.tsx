@@ -14,8 +14,10 @@ const base =
 const variants: Record<Variant, string> = {
   primary:
     'bg-ink text-paper hover:bg-ink/90 active:bg-ink',
+  // secondary is a deprecated alias of outline — keep identical so callers
+  // don't need to change and the visual result is consistent.
   secondary:
-    'bg-paper text-ink border border-ink/15 hover:border-ink/30',
+    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
   outline:
     'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
   ghost: 'bg-transparent text-ink hover:bg-ink/[0.04]',
@@ -26,9 +28,9 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'text-[13px] h-9 px-3.5',
-  md: 'text-[14px] h-11 px-4',
-  lg: 'text-[15px] h-12 px-5',
+  sm: 'text-table h-9 px-3.5',
+  md: 'text-ui h-11 px-4',
+  lg: 'text-body h-12 px-5',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

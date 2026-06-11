@@ -428,7 +428,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
             href={r.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
+            className="block max-w-[14rem] truncate font-medium text-ink hover:text-oxblood"
             title={r.tournamentName}
           >
             {r.tournamentName}
@@ -659,7 +659,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     href={r.sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block max-w-[14rem] truncate font-medium text-foreground hover:text-primary"
+                    className="block max-w-[14rem] truncate font-medium text-ink hover:text-oxblood"
                     title={r.tournamentName}
                   >
                     {r.tournamentName}

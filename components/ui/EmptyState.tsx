@@ -24,7 +24,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
       ) : null}
       <h3 className="font-serif text-h3 italic text-ink">{title}</h3>
       {description ? (
-        <p className="mt-2 max-w-md font-serif text-[14.5px] leading-relaxed text-ink-soft">
+        <p className="mt-2 max-w-md font-serif text-ui leading-relaxed text-ink-soft">
           {description}
         </p>
       ) : null}

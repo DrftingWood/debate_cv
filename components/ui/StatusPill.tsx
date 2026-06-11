@@ -53,7 +53,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 uppercase tracking-[0.14em] text-[10.5px] font-semibold text-ink-soft',
+        'inline-flex items-center gap-1.5 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft',
         className,
       )}
     >

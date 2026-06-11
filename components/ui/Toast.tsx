@@ -103,7 +103,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
     <div
       role={item.kind === 'error' ? 'alert' : 'status'}
       className={cn(
-        'pointer-events-auto flex items-start gap-3 rounded-card border border-border bg-card p-3.5 shadow-lg animate-fade-up',
+        'pointer-events-auto flex items-start gap-3 rounded-card border border-ink/15 bg-card p-3.5 shadow-lg animate-fade-up',
       )}
     >
       <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', color)} aria-hidden />
