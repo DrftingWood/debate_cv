@@ -149,6 +149,10 @@ model DiscoveredUrl {
   ingestedAt             DateTime?
   reingestLocked         Boolean   @default(false)
   createdAt              DateTime  @default(now())
+  /// Maintained by the Prisma client (@updatedAt) — note the queue's raw
+  /// SQL paths set it explicitly with NOW(); any future raw UPDATE must
+  /// do the same or this column silently goes stale for those writes.
+  updatedAt              DateTime  @default(now()) @updatedAt
 
   user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament           Tournament? @relation(fields: [tournamentId], references: [id])
@@ -187,6 +191,10 @@ model IngestJob {
   scheduledAt DateTime        @default(now())
   startedAt   DateTime?
   finishedAt  DateTime?
+  /// Maintained by the Prisma client (@updatedAt) — note the queue's raw
+  /// SQL claim/reset paths set it explicitly with NOW(); any future raw
+  /// UPDATE must do the same or this column silently goes stale.
+  updatedAt   DateTime        @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -423,12 +431,13 @@ model EliminationResult {
   stage        String
   entityType   String
   entityName   String
-  /// Two value families share this column: 'won'/'lost' for team outround
-  /// results (read by buildCvData's champion check), and legacy 'rank:N'
-  /// strings for break-page rows (written but never read back — the rank
-  /// itself lives on TournamentParticipant.teamBreakRank). Readers must
-  /// filter `result IN ('won','lost')` rather than assuming the column is
-  /// binary; see buildCvData.ts for the canonical read.
+  /// 'won'/'lost' for team outround results (read by buildCvData's champion
+  /// check); null otherwise. Break-page rows historically wrote legacy
+  /// 'rank:N' strings here that nothing read back (the rank lives on
+  /// TournamentParticipant.teamBreakRank) — those writes stopped and the
+  /// rows were nulled in the 20260611160000 migration. Readers must still
+  /// filter `result IN ('won','lost')` rather than assuming non-null means
+  /// an outcome; see buildCvData.ts for the canonical read.
   result       String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)

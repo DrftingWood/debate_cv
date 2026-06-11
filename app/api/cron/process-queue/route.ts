@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
+import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
 import {
   claimOnePending,
   isPermanentError,
@@ -105,7 +106,21 @@ async function runOnce() {
       }
     }
 
-    return NextResponse.json({ processed: results.length, results });
+    // Retention pass for pipeline history (superseded SourceDocument
+    // snapshots + stale ParserRuns). Piggybacks on the daily cron rather
+    // than its own schedule — Vercel Hobby allows limited crons, and the
+    // deletes are cheap relative to the drain. Best-effort: a prune
+    // failure is Sentry-worthy but must not fail the drain response.
+    let pruned: { sourceDocumentsDeleted: number; parserRunsDeleted: number } | null = null;
+    try {
+      pruned = await pruneIngestArtifacts();
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { route: 'api/cron/process-queue', stage: 'prune' },
+      });
+    }
+
+    return NextResponse.json({ processed: results.length, results, pruned });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/cron/process-queue]', msg);

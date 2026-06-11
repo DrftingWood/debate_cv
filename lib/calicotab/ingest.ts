@@ -989,7 +989,14 @@ async function writeIngestTransaction(
       });
     }
 
-    // Break rows -> elimination_results
+    // Break rows -> elimination_results. The row's existence (stage +
+    // entityName) is the signal readers use — adjudicator-break detection
+    // and EUDC stage collection in buildCvData both ignore `result`.
+    // Historically this wrote `rank:N` into result; nothing ever read it
+    // back (the rank lives on TournamentParticipant.teamBreakRank), so the
+    // write stopped and the legacy rows were nulled by migration. `update`
+    // is deliberately empty: a break row must never clobber a won/lost
+    // value that the outround-results loop wrote for the same key.
     for (const row of breakRows) {
       await tx.eliminationResult.upsert({
         where: {
@@ -1000,13 +1007,12 @@ async function writeIngestTransaction(
             entityName: row.entityName,
           },
         },
-        update: { result: row.rank != null ? `rank:${row.rank}` : null },
+        update: {},
         create: {
           tournamentId: t.id,
           stage: row.stage ?? 'break',
           entityType: row.entityType,
           entityName: row.entityName,
-          result: row.rank != null ? `rank:${row.rank}` : null,
         },
       });
     }

@@ -42,9 +42,11 @@ export async function resetStuckRunning(params: { userId?: string; olderThanMinu
   const minutes = Math.max(0, Math.floor(params.olderThanMinutes ?? 5));
   const threshold = Prisma.sql`(NOW() - (${minutes}::int * INTERVAL '1 minute'))`;
   if (params.userId) {
+    // Raw SQL bypasses Prisma's @updatedAt — set it explicitly (see the
+    // schema comment on IngestJob.updatedAt).
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
-      SET "status" = 'pending', "startedAt" = NULL
+      SET "status" = 'pending', "startedAt" = NULL, "updatedAt" = NOW()
       WHERE "userId" = ${params.userId}
         AND "status" = 'running'
         AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
@@ -52,7 +54,7 @@ export async function resetStuckRunning(params: { userId?: string; olderThanMinu
   } else {
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
-      SET "status" = 'pending', "startedAt" = NULL
+      SET "status" = 'pending', "startedAt" = NULL, "updatedAt" = NOW()
       WHERE "status" = 'running'
         AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
     `);
@@ -69,7 +71,7 @@ export async function claimOnePending(
   const rows = await prisma.$queryRaw<Array<{ id: string; userId: string; url: string; attempts: number }>>(
     Prisma.sql`
       UPDATE "IngestJob"
-      SET "status" = 'running', "attempts" = "attempts" + 1, "startedAt" = NOW()
+      SET "status" = 'running', "attempts" = "attempts" + 1, "startedAt" = NOW(), "updatedAt" = NOW()
       WHERE "id" = (
         SELECT "id" FROM "IngestJob"
         WHERE "status" = 'pending' ${whereUser}

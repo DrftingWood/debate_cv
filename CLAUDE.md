@@ -111,10 +111,10 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 
 ## Known gaps / TODO
 
-- [ ] `SourceDocument` / `ParserRun` grow unbounded (now including gzipped HTML bodies on SourceDocument). Only pruning is the destructive admin clear-data. Add a retention/prune step to the cron drain when growth becomes measurable.
-- [ ] `EliminationResult.result` still receives legacy `rank:N` writes from break pages that nothing reads back (the rank lives on `TournamentParticipant.teamBreakRank`). Stop writing them after verifying no external consumer, then clean the rows.
-- [ ] `IngestJob` / `DiscoveredUrl` have no `@updatedAt`; "recently touched" queries lean on `scheduledAt`/`finishedAt` proxies.
-- [ ] Motion-type/topic tagging is manual + admin-approved (`/cv/tags`, `/admin/tags`). A Haiku-based classifier could pre-fill proposals from `Motion.text`; keep approval in the loop.
+- [x] ~~`SourceDocument` / `ParserRun` unbounded growth~~ — cron drain now ends with `pruneIngestArtifacts()` (lib/calicotab/provenance.ts): 90-day retention, keeping the newest snapshot per URL (the re-derivation archive) and each document's latest successful ParserRun (load-bearing for `isLatestParserRun` cache checks).
+- [x] ~~Legacy `rank:N` writes on `EliminationResult.result`~~ — writes stopped (verified unread; /cv/verify's badge was cosmetic noise), historical rows nulled in migration 20260611160000.
+- [x] ~~Missing `@updatedAt` on `IngestJob` / `DiscoveredUrl`~~ — added; the queue's raw-SQL paths set `"updatedAt" = NOW()` explicitly since Prisma's @updatedAt only fires on client operations — keep that in mind for any future raw UPDATE.
+- [x] ~~Haiku classifier for motion tags~~ — `/admin/tags` "Suggest motion tags" button → `POST /api/admin/tags/classify` (claude-haiku-4-5, structured outputs constrained to the vocabulary); files PENDING proposals, approval stays in the loop. Needs `ANTHROPIC_API_KEY`.
 - [ ] Speaker order within a round (1st vs 2nd speaker) needs per-ballot pages (`/results/round/N/speaker/<token>/`) — deliberately not scraped; revisit only on demand.
 
 ## Out of scope for Superpowers
