@@ -172,6 +172,11 @@
     background: hsl(var(--border) / 0.14);
     border: 0;
   }
+  /* Archivo's width axis — masthead/wordmark moments command through
+     width and weight, the way a results sheet shouts, not through size. */
+  .display-expanded {
+    font-stretch: 125%;
+  }
 }
 
 /*

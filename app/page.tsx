@@ -1,37 +1,55 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Footer } from '@/components/Footer';
 import { BrandMark } from '@/components/BrandMark';
-import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
+import { SampleRecord } from '@/components/landing/SampleRecord';
 
+/**
+ * Artifact-first landing (teardown §2.3): the page IS a sample record. A
+ * compact masthead and a two-line hero, then the full-fidelity sample CV —
+ * the product sample is the sales argument, not decoration. Marketing copy
+ * is demoted to short ruled interstitials between record sections, and the
+ * privacy table sits next to the closing CTA where the trust decision
+ * actually happens.
+ */
 export default async function Home() {
   const session = await auth();
   if (session?.user) redirect('/cv');
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-5">
+      <div className="mx-auto max-w-5xl px-5 pb-24 md:pb-0">
         <LandingMasthead />
-        <main className="space-y-20 pb-16 md:space-y-24">
+        <main className="space-y-16 pb-16 md:space-y-20">
           <Hero />
-          <ValueStrip />
+          <section id="sample" className="scroll-mt-24">
+            <SampleRecord />
+            <p className="meta mt-4">
+              Every row above is fictional; every column is real. Your record is built
+              from the tournament tabs you were sent.
+            </p>
+          </section>
+          <ValueRows />
           <HowItWorks />
           <PrivacyProof />
           <Faq />
-          <FinalCta />
+          <ClosingCta />
         </main>
       </div>
       <Footer />
+      <MobileCtaBar />
     </>
   );
 }
 
-async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
+async function BuildCvButton({ size = 'lg' as 'md' | 'lg', fullWidth = false }: { size?: 'md' | 'lg'; fullWidth?: boolean }) {
   return (
     <form
+      className={fullWidth ? 'w-full' : undefined}
       action={async () => {
         'use server';
         await signIn('google', { redirectTo: '/cv' });
@@ -41,6 +59,7 @@ async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg
         type="submit"
         size={size}
         variant="primary"
+        className={fullWidth ? 'w-full' : undefined}
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
         Build my debate CV
@@ -51,14 +70,14 @@ async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg
 
 function LandingMasthead() {
   return (
-    <header className="flex items-center justify-between gap-4 py-5 md:py-7">
-      <Link href="/" aria-label="debate cv home">
+    <header className="flex items-center justify-between gap-4 border-b-2 border-record-ink py-4 md:py-5">
+      <Link href="/" aria-label="Debate CV home">
         <BrandMark />
       </Link>
-      <nav className="flex items-center gap-4 text-table font-medium text-record-muted sm:gap-6">
-        <Link href="/sample" className="hover:text-record-ink">Sample CV</Link>
+      <nav className="flex items-center gap-4 font-mono text-caption font-medium uppercase tracking-[0.08em] text-record-muted sm:gap-6">
+        <a href="#sample" className="hover:text-record-ink">Sample</a>
+        <a href="#how" className="hover:text-record-ink">How it works</a>
         <a href="#privacy" className="hover:text-record-ink">Privacy</a>
-        <a href="#how" className="hidden hover:text-record-ink sm:inline">How it works</a>
       </nav>
     </header>
   );
@@ -66,63 +85,60 @@ function LandingMasthead() {
 
 function Hero() {
   return (
-    <section className="grid items-center gap-10 pt-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:pt-14">
-      <div>
-        <div className="eyebrow">Verified tournament record</div>
-        <h1 className="mt-4 max-w-3xl font-display text-h1 font-semibold leading-[1.02] tracking-tight text-record-ink md:text-display">
-          Your debate history, readable and ready to share.
-        </h1>
-        <p className="mt-5 max-w-xl text-body leading-relaxed text-record-muted md:text-body">
-          Debate CV turns tournament links you already have into a private record of
-          results, breaks, speaker scores, and growth over time — source-backed rows
-          you can share when it matters.
-        </p>
+    <section className="pt-10 md:pt-14">
+      <div className="eyebrow">Verified tournament records</div>
+      <h1 className="display-expanded mt-4 max-w-4xl font-display text-h1 font-bold leading-[1.04] tracking-tight text-record-ink md:text-display">
+        Every break, on the record.
+      </h1>
+      <p className="mt-5 max-w-2xl text-body leading-relaxed text-record-muted">
+        Debate CV compiles your tournaments — results, speaker scores, breaks, and
+        judging — into one source-backed record you can share when it matters.
+        Below is the artifact, in full.
+      </p>
 
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <BuildCvButton />
-          <Link href="/sample">
-            <Button type="button" size="lg" variant="outline">
-              View sample CV
-            </Button>
-          </Link>
-        </div>
-
-        <div className="mt-4 grid gap-2 text-caption text-record-muted sm:grid-cols-3 sm:gap-3">
-          <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-record-green" aria-hidden /> read-only Gmail</span>
-          <span className="inline-flex items-center gap-2"><Lock className="h-4 w-4 text-record-green" aria-hidden /> private until shared</span>
-          <span className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-record-green" aria-hidden /> source-backed rows</span>
-        </div>
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <BuildCvButton />
+        <a href="#sample">
+          <Button type="button" size="lg" variant="outline">
+            Read the sample
+          </Button>
+        </a>
       </div>
 
-      <SampleCvPreview />
+      <p className="mt-4 font-mono text-caption text-record-muted">
+        read-only Gmail · private until shared · source-backed rows
+      </p>
     </section>
   );
 }
 
-function ValueStrip() {
+function ValueRows() {
   const values = [
     {
       title: 'Know the record',
-      body: 'See tournaments, teams, roles, breaks, and speaker results in one place instead of scattered inbox links.',
+      body: 'Tournaments, teams, roles, breaks, and speaker results in one place instead of scattered inbox links.',
     },
     {
       title: 'Watch the trend',
-      body: 'Spot how your scores, breaks, and activity changed across seasons — useful for reflection, not vanity.',
+      body: 'How your scores, breaks, and activity changed across seasons — factual and explainable, never AI-read tea leaves.',
     },
     {
       title: 'Share proof',
-      body: 'Keep it private, publish a clean link, or export a CV when another debater or institution needs receipts.',
+      body: 'Keep it private, publish a clean link, or export a file when another debater or institution needs receipts.',
     },
   ];
 
   return (
-    <section className="grid gap-3 md:grid-cols-3" aria-label="Product value">
-      {values.map((value) => (
-        <article key={value.title} className="record-panel p-5">
-          <h2 className="font-display text-h4 font-semibold text-record-ink">{value.title}</h2>
-          <p className="mt-2 text-ui leading-relaxed text-record-muted">{value.body}</p>
-        </article>
-      ))}
+    <section aria-label="What the record gives you">
+      <SectionHeader title="What the record gives you" />
+      <div className="divide-y divide-record-rule/40">
+        {values.map((value) => (
+          <div key={value.title} className="grid gap-1 py-3.5 md:grid-cols-[220px_1fr] md:gap-6">
+            <h3 className="font-display text-ui font-semibold text-record-ink">{value.title}</h3>
+            <p className="text-ui leading-relaxed text-record-muted">{value.body}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -132,35 +148,32 @@ function HowItWorks() {
     {
       label: '01',
       title: 'Connect or import',
-      body: 'Start with read-only Gmail so Debate CV can find Tabbycat private URLs, then add missed links manually when needed.',
+      body: 'Read-only Gmail finds the Tabbycat private URLs you were sent; paste any link it missed.',
     },
     {
       label: '02',
       title: 'Claim your identity',
-      body: 'Confirm which speaker or judge rows are yours. Ambiguous names stay out of your CV until you approve them.',
+      body: 'Confirm which speaker or judge rows are yours. Ambiguous names stay out until you approve them.',
     },
     {
       label: '03',
-      title: 'Review the record',
-      body: 'Your CV becomes a structured record with source-backed tournament rows, growth signals, and share controls.',
+      title: 'Read the record',
+      body: 'Source-backed tournament rows, growth signals, and share controls — private until you publish.',
     },
   ];
 
   return (
     <section id="how" className="scroll-mt-24">
-      <div className="max-w-2xl">
-        <div className="eyebrow">How it works</div>
-        <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-          From scattered links to one verified record.
-        </h2>
-      </div>
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <SectionHeader title="How it works" />
+      <div className="divide-y divide-record-rule/40">
         {steps.map((step) => (
-          <article key={step.label} className="border-l-2 border-record-green pl-4">
-            <div className="font-mono text-caption font-semibold text-record-green">{step.label}</div>
-            <h3 className="mt-2 font-display text-h4 font-semibold text-record-ink">{step.title}</h3>
-            <p className="mt-2 text-ui leading-relaxed text-record-muted">{step.body}</p>
-          </article>
+          <div key={step.label} className="grid gap-1 py-3.5 md:grid-cols-[220px_1fr] md:gap-6">
+            <h3 className="flex items-baseline gap-3 font-display text-ui font-semibold text-record-ink">
+              <span className="num text-caption text-record-muted">{step.label}</span>
+              {step.title}
+            </h3>
+            <p className="text-ui leading-relaxed text-record-muted">{step.body}</p>
+          </div>
         ))}
       </div>
     </section>
@@ -178,23 +191,12 @@ function PrivacyProof() {
   ];
 
   return (
-    <section id="privacy" className="scroll-mt-24 record-panel overflow-hidden">
-      <div className="grid gap-6 border-b border-record-rule p-5 md:grid-cols-[0.7fr_1.3fr] md:p-6">
-        <div>
-          <div className="eyebrow">Privacy</div>
-          <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-            What is read, what is stored, how you leave.
-          </h2>
-        </div>
-        <p className="text-body leading-relaxed text-record-muted">
-          Gmail access is read-only and used for one thing: finding tournament links
-          you were sent. The import is narrow; the CV stays yours.
-        </p>
-      </div>
-      <div className="divide-y divide-record-rule">
+    <section id="privacy" className="scroll-mt-24">
+      <SectionHeader title="Privacy — what is read, stored, and never touched" />
+      <div className="divide-y divide-record-rule/40">
         {rows.map(([label, value]) => (
-          <div key={label} className="grid gap-1 px-5 py-3 md:grid-cols-[180px_1fr] md:px-6">
-            <div className="data-label">{label}</div>
+          <div key={label} className="grid gap-1 py-3 md:grid-cols-[220px_1fr] md:gap-6">
+            <div className="data-label pt-0.5">{label}</div>
             <div className="text-ui text-record-ink">{value}</div>
           </div>
         ))}
@@ -224,19 +226,14 @@ function Faq() {
   ];
 
   return (
-    <section className="grid gap-8 md:grid-cols-[0.7fr_1.3fr]">
-      <div>
-        <div className="eyebrow">Before you connect</div>
-        <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight text-record-ink">
-          Straight answers.
-        </h2>
-      </div>
-      <div className="divide-y divide-record-rule border-y border-record-rule">
+    <section aria-label="Before you connect">
+      <SectionHeader title="Before you connect" />
+      <div className="divide-y divide-record-rule/40">
         {items.map((item) => (
-          <details key={item.q} className="group py-4">
+          <details key={item.q} className="group py-3.5">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-ui font-semibold text-record-ink">
               {item.q}
-              <span className="text-record-green transition group-open:rotate-45">+</span>
+              <span className="font-mono text-record-muted transition group-open:rotate-45">+</span>
             </summary>
             <p className="mt-2 max-w-2xl text-ui leading-relaxed text-record-muted">{item.a}</p>
           </details>
@@ -246,28 +243,31 @@ function Faq() {
   );
 }
 
-function FinalCta() {
+function ClosingCta() {
   return (
-    <section className="record-panel bg-record-ink p-6 text-sheet md:p-8">
-      <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
-        <div>
-          <div className="eyebrow text-record-green">Start the record</div>
-          <h2 className="mt-3 font-display text-h2 font-semibold tracking-tight">
-            Know what you have done. Share it when it matters.
-          </h2>
-          <p className="mt-3 max-w-2xl text-ui leading-relaxed text-sheet/70">
-            Build a private debate CV first. Publish or export only when the record is ready.
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
-          <BuildCvButton />
-          <Link href="/sample">
-            <Button type="button" size="lg" variant="outline" className="border-sheet/20 text-sheet hover:bg-sheet/10">
-              View sample
-            </Button>
-          </Link>
-        </div>
+    <section className="border-t-2 border-record-ink pt-8">
+      <h2 className="display-expanded max-w-2xl font-display text-h2 font-bold tracking-tight text-record-ink">
+        Know what you have done. Share it when it matters.
+      </h2>
+      <p className="mt-3 max-w-2xl text-ui leading-relaxed text-record-muted">
+        Build a private debate CV first. Publish or export only when the record is ready.
+      </p>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <BuildCvButton />
+        <p className="font-mono text-caption text-record-muted">
+          read-only Gmail · private until shared
+        </p>
       </div>
     </section>
+  );
+}
+
+// Mobile-first conversion: the CTA travels with the thumb while the sample
+// record scrolls. Hidden on desktop, where the hero CTA stays in view.
+function MobileCtaBar() {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-record-ink bg-sheet/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur md:hidden">
+      <BuildCvButton size="md" fullWidth />
+    </div>
   );
 }

@@ -5,9 +5,8 @@ export const size = { width: 180, height: 180 };
 export const contentType = 'image/png';
 
 /**
- * 180×180 iOS home-screen icon. Editorial brand mark: italic-Fraunces
- * wordmark on cream paper, with the "cv" half tinted record-green — matches
- * the in-app BrandMark component.
+ * 180×180 iOS home-screen icon. Tab Sheet brand mark: the gold break-slash
+ * beside a bold "CV" on record ink — matches the in-app BrandMark.
  */
 export default function AppleIcon() {
   return new ImageResponse(
@@ -17,21 +16,30 @@ export default function AppleIcon() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
-          background: '#FAF6EC',
-          color: '#181A1F',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontStyle: 'italic',
+          gap: 14,
+          background: '#1C1B18',
         }}
       >
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1 }}>
-          debate
-        </div>
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1, color: '#7A2528' }}>
-          cv
+        <div
+          style={{
+            width: 26,
+            height: 78,
+            background: '#A06F22',
+            transform: 'skewX(-12deg)',
+          }}
+        />
+        <div
+          style={{
+            fontSize: 64,
+            fontWeight: 800,
+            letterSpacing: 2,
+            color: '#FAF9F4',
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          }}
+        >
+          CV
         </div>
       </div>
     ),

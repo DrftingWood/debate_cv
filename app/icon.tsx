@@ -5,8 +5,8 @@ export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
 /**
- * 32×32 browser favicon. Editorial brand mark: "cv" glyph in
- * record-green on cream paper. Replaces the previous indigo "DC" monogram.
+ * 32×32 browser favicon. Tab Sheet brand mark: the gold break-slash on
+ * record ink. Replaces the editorial italic-serif "cv" glyph.
  */
 export default function Icon() {
   return new ImageResponse(
@@ -18,16 +18,17 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#FAF6EC',
-          color: '#7A2528',
-          fontSize: 22,
-          fontWeight: 600,
-          fontStyle: 'italic',
-          letterSpacing: -1,
-          fontFamily: 'Georgia, "Times New Roman", serif',
+          background: '#1C1B18',
         }}
       >
-        cv
+        <div
+          style={{
+            width: 8,
+            height: 20,
+            background: '#A06F22',
+            transform: 'skewX(-12deg)',
+          }}
+        />
       </div>
     ),
     { ...size },
