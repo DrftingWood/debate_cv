@@ -163,13 +163,13 @@ export default async function Dashboard({
       {!gmailToken ? (
         <section
           aria-label="Gmail disconnected"
-          className="flex flex-col gap-3 border border-record-green/30 bg-record-green/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-md border border-warning/40 bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="space-y-1">
-            <div className="text-meta text-record-green uppercase tracking-[0.16em]">
+            <div className="text-meta uppercase tracking-[0.16em] text-warning">
               Gmail disconnected
             </div>
-            <p className="font-display text-body text-record-ink">
+            <p className="text-body text-record-ink">
               Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
             </p>
           </div>
@@ -583,12 +583,13 @@ function FilterTile({
   filter: FilterKey;
   activeFilter: FilterKey;
 }) {
-  const toneRing: Record<typeof tone, string> = {
-    info: 'text-primary bg-primary-soft',
-    success: 'text-success bg-[hsl(var(--success)/0.12)]',
-    warning: 'text-warning bg-[hsl(var(--warning)/0.12)]',
-    danger: 'text-destructive bg-[hsl(var(--destructive)/0.10)]',
-    neutral: 'text-record-muted bg-record-ink/[0.06]',
+  // Tone colors the figure only — color carries state, never decoration.
+  const toneText: Record<typeof tone, string> = {
+    info: 'text-record-ink',
+    success: 'text-record-green',
+    warning: 'text-warning',
+    danger: 'text-destructive',
+    neutral: 'text-record-ink',
   };
   const active = activeFilter === filter;
   return (
@@ -596,22 +597,18 @@ function FilterTile({
       href={`/dashboard?filter=${filter}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'block rounded-card border bg-card transition-all duration-[180ms] ease-soft hover:shadow-md',
-        active ? 'border-record-green ring-2 ring-record-green/20' : 'border-record-ink/15',
+        'block border-t-2 pt-2 transition-colors duration-150 hover:bg-record-ink/[0.02]',
+        active ? 'border-record-green' : 'border-record-ink',
       )}
     >
-      <div className="flex items-center gap-3 p-5">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-md ${toneRing[tone]}`}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-caption text-record-muted">{label}</div>
-          <div className="mt-0.5 font-display text-stat font-semibold leading-none text-record-ink">
-            {value}
-          </div>
-          {hint ? <div className="mt-2 text-caption text-record-muted">{hint}</div> : null}
-        </div>
+      <div className="flex items-baseline gap-2">
+        <span className={cn('font-mono text-stat font-medium leading-none', toneText[tone])}>
+          {value}
+        </span>
+        <span className="text-record-muted [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
       </div>
+      <div className="data-label mt-1.5">{label}</div>
+      {hint ? <div className="mt-0.5 text-caption text-record-muted">{hint}</div> : null}
     </Link>
   );
 }
