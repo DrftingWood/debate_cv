@@ -67,6 +67,7 @@ export const prismaMock = {
   speakerRoundScore: makeModelMock(),
   teamResult: makeModelMock(),
   eliminationResult: makeModelMock(),
+  motion: makeModelMock(),
   judgeAssignment: makeModelMock(),
   person: makeModelMock(),
   personRejection: makeModelMock(),

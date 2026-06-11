@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
 import { FetchSession } from './fetchSession';
@@ -97,6 +98,12 @@ function browserHeaders(referer?: string): Record<string, string> {
   if (referer) headers.Referer = referer;
   return headers;
 }
+
+// Raw-HTML retention cap, measured on the uncompressed page. Tabbycat tab
+// pages run 100–800KB; WUDC-scale speaker tabs reach a few MB. 5MB raw
+// gzips to roughly 0.5–1MB, comfortably under Postgres row/TOAST limits.
+// Anything bigger is almost certainly not a tab page we'd want to re-parse.
+const MAX_STORED_BODY_BYTES = 5 * 1024 * 1024;
 
 // Per-fetch timeout. Tabbycat hosts can hang under load; without an explicit
 // abort, a single slow tab fetch consumes the entire serverless function
@@ -232,10 +239,20 @@ export async function fetchHtmlWithProvenance(
   const contentHash = sha256Hex(html);
   const contentLength = Buffer.byteLength(html, 'utf8');
 
+  // Retain the gzipped body alongside the hash. Historically we kept only
+  // the hash, which made every new parsed field (motions, team positions)
+  // require re-scraping every tournament — impossible once a Heroku tab
+  // dies. Oversized pages are skipped rather than truncated: a partial
+  // body would parse as a structurally-broken page and is worse than no
+  // body. The (url, contentHash) unique already dedups unchanged pages,
+  // and the update branch backfills bodies onto pre-column rows when the
+  // same content is re-fetched.
+  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(html) : null;
+
   const doc = await prisma.sourceDocument.upsert({
     where: { url_contentHash: { url, contentHash } },
-    update: { fetchedAt: new Date(), status: res.status, contentLength },
-    create: { url, contentHash, contentLength, status: res.status },
+    update: { fetchedAt: new Date(), status: res.status, contentLength, bodyGzip },
+    create: { url, contentHash, contentLength, status: res.status, bodyGzip },
   });
 
   return {

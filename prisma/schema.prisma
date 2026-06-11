@@ -212,6 +212,7 @@ model Tournament {
   eliminationResults   EliminationResult[]
   judgeAssignments     JudgeAssignment[]
   discoveredUrls       DiscoveredUrl[]
+  motions              Motion[]
 
   @@index([year])
   @@index([format])
@@ -307,10 +308,43 @@ model TeamResult {
   wins          Int?
   losses        Int?
   points        Decimal?
+  /// Team side in this round as shown on the round-results page — "OG" /
+  /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
+  /// column said on two-team formats. Null on roundNumber=0 standings
+  /// rows (a tournament-long standing has no side) and on tournaments
+  /// ingested before the parser started persisting it (the value was
+  /// parsed and discarded for those — re-ingest backfills it). Feeds the
+  /// by-position slice on /cv/analytics.
+  position      String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, teamName, roundNumber])
+}
+
+/// One motion as released on the tournament's /tab/motions/ page. Multiple
+/// rows per round are legal (motion-per-room formats, replaced motions) —
+/// `seq` preserves document order. Slicing analytics by motion *type*
+/// (IR / econ / ethics …) is a classification layer on top of this raw
+/// text, deliberately not a column yet: classification needs a taxonomy +
+/// versioning story and shouldn't block storing the source data.
+model Motion {
+  id           BigInt  @id @default(autoincrement())
+  tournamentId BigInt
+  /// Numeric prelim round when the label parsed as one ("Round 3" → 3);
+  /// null for outround motions ("Semifinals") and unparseable labels.
+  roundNumber  Int?
+  roundLabel   String
+  /// 0-based document order on the motions page; tiebreaker for rounds
+  /// that released more than one motion.
+  seq          Int
+  text         String  @db.Text
+  infoSlide    String? @db.Text
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, roundLabel, seq])
+  @@index([tournamentId])
 }
 
 model EliminationResult {
@@ -396,6 +430,15 @@ model SourceDocument {
   status        Int
   contentHash   String
   contentLength Int
+  /// Gzipped raw HTML of the fetched page. Added 2026-06: before this we
+  /// kept only the hash, which meant every new parsed field (motions,
+  /// team positions) forced a full re-scrape of every tournament — and
+  /// dead Heroku tabs made that lossy. With bodies retained, future
+  /// parser additions can re-derive from storage. Null on rows fetched
+  /// before the column existed and on oversized pages (see
+  /// MAX_STORED_BODY_BYTES in fetch.ts). Dedup'd by the (url,
+  /// contentHash) unique, so unchanged pages cost one stored copy.
+  bodyGzip      Bytes?
   fetchedAt     DateTime    @default(now())
 
   parserRuns    ParserRun[]

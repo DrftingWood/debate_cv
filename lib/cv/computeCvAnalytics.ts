@@ -43,6 +43,22 @@ export type RoundProfilePoint = {
   avgScore: number;
 };
 
+export type PositionSlice = {
+  /** Canonical side label: OG/OO/CG/CO for BP, Prop/Opp for two-team. */
+  position: string;
+  /** Prelim rounds debated from this position. */
+  rounds: number;
+  /** Rounds with a recorded outcome (won != null). */
+  decidedRounds: number;
+  wins: number;
+  /** wins / decidedRounds; null when no round recorded an outcome. */
+  winRate: number | null;
+  /** Mean team points per round from this position (BP: 0–3). */
+  avgTeamPoints: number | null;
+  /** Mean of the user's own speaker scores in rounds from this position. */
+  avgSpeakerScore: number | null;
+};
+
 export type JudgingYearPoint = {
   year: number;
   tournaments: number;
@@ -55,6 +71,7 @@ export type CvAnalytics = {
   speakerYearTrend: YearTrendPoint[];
   formatSlices: FormatSlice[];
   roundProfile: RoundProfilePoint[];
+  positionSlices: PositionSlice[];
   judgingYearTrend: JudgingYearPoint[];
   /**
    * How much of the CV each aggregate is actually built on. Old or
@@ -67,10 +84,36 @@ export type CvAnalytics = {
     speakerWithYear: number;
     speakerWithAvgScore: number;
     speakerWithRoundScores: number;
+    /** Tournaments with at least one per-round team position recorded —
+     * only those ingested since PARSER_VERSION 20260611.0 have it. */
+    speakerWithPositions: number;
     judgeTournaments: number;
     judgeWithYear: number;
   };
 };
+
+/**
+ * Canonicalize the team-position strings Tabbycat results pages use.
+ * BP installs emit either the abbreviation ("OG") or the spelled-out
+ * column header ("Opening Government"); two-team formats emit a side
+ * column with assorted vocabulary ("Proposition", "Gov", "Affirmative").
+ * Unrecognized labels pass through trimmed so a novel format still
+ * groups consistently rather than vanishing from the slice.
+ */
+export function canonicalPosition(label: string): string {
+  const norm = label.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (norm === 'og' || norm === 'opening government' || norm === '1st proposition') return 'OG';
+  if (norm === 'oo' || norm === 'opening opposition' || norm === '1st opposition') return 'OO';
+  if (norm === 'cg' || norm === 'closing government' || norm === '2nd proposition') return 'CG';
+  if (norm === 'co' || norm === 'closing opposition' || norm === '2nd opposition') return 'CO';
+  if (/^(prop(osition)?|gov(ernment)?|aff(irmative)?)$/.test(norm)) return 'Prop';
+  if (/^(opp(osition)?|neg(ative)?)$/.test(norm)) return 'Opp';
+  return label.trim();
+}
+
+// Stable display order: BP bench order, then two-team sides, then anything
+// novel alphabetically at the end.
+const POSITION_ORDER = ['OG', 'OO', 'CG', 'CO', 'Prop', 'Opp'];
 
 function mean(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -165,6 +208,52 @@ export function computeCvAnalytics(input: {
     }))
     .sort((a, b) => a.roundNumber - b.roundNumber);
 
+  // ── Slices by team position ──────────────────────────────────────────
+  // Joins the team's per-round position with the user's own speaker score
+  // for the same round number. Only rounds that have a position contribute;
+  // pre-20260611 ingests have none until re-ingested, which the coverage
+  // count surfaces.
+  const byPosition = new Map<
+    string,
+    { rounds: number; decided: number; wins: number; points: number[]; scores: number[] }
+  >();
+  for (const r of speakerRows) {
+    const scoreByRound = new Map(
+      r.roundScores.filter((s) => s.score != null).map((s) => [s.roundNumber, s.score!]),
+    );
+    for (const tr of r.teamRoundResults) {
+      if (!tr.position) continue;
+      const key = canonicalPosition(tr.position);
+      const agg =
+        byPosition.get(key) ?? { rounds: 0, decided: 0, wins: 0, points: [], scores: [] };
+      agg.rounds += 1;
+      if (tr.won != null) {
+        agg.decided += 1;
+        if (tr.won) agg.wins += 1;
+      }
+      if (tr.points != null) agg.points.push(tr.points);
+      const score = scoreByRound.get(tr.roundNumber);
+      if (score != null) agg.scores.push(score);
+      byPosition.set(key, agg);
+    }
+  }
+  const positionSlices: PositionSlice[] = [...byPosition.entries()]
+    .map(([position, agg]) => ({
+      position,
+      rounds: agg.rounds,
+      decidedRounds: agg.decided,
+      wins: agg.wins,
+      winRate: agg.decided > 0 ? agg.wins / agg.decided : null,
+      avgTeamPoints: mean(agg.points),
+      avgSpeakerScore: mean(agg.scores),
+    }))
+    .sort((a, b) => {
+      const ia = POSITION_ORDER.indexOf(a.position);
+      const ib = POSITION_ORDER.indexOf(b.position);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return a.position.localeCompare(b.position);
+    });
+
   // ── Judging trend by year ────────────────────────────────────────────
   const judgeByYear = new Map<number, CvJudgeRow[]>();
   for (const r of judgeRows) {
@@ -186,12 +275,16 @@ export function computeCvAnalytics(input: {
     speakerYearTrend,
     formatSlices,
     roundProfile,
+    positionSlices,
     judgingYearTrend,
     coverage: {
       speakerTournaments: speakerRows.length,
       speakerWithYear: speakerRows.filter((r) => r.year != null).length,
       speakerWithAvgScore: speakerRows.filter((r) => numericAvg(r) != null).length,
       speakerWithRoundScores: speakerRows.filter((r) => r.roundScores.some((s) => s.score != null)).length,
+      speakerWithPositions: speakerRows.filter((r) =>
+        r.teamRoundResults.some((tr) => tr.position != null),
+      ).length,
       judgeTournaments: judgeRows.length,
       judgeWithYear: judgeRows.filter((r) => r.year != null).length,
     },

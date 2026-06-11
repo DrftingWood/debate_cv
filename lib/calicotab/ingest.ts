@@ -17,6 +17,7 @@ import {
   parseParticipantsList,
   diagnoseVueData,
 } from './parseTabs';
+import { parseMotionsTab } from './parseMotions';
 import {
   computeFingerprint,
   extractYearFromName,
@@ -91,6 +92,7 @@ type FetchedTabs = {
   mergedParticipantRows: ReturnType<typeof parseParticipantsList>;
   rounds: ReturnType<typeof parseRoundResults>[];
   breakRows: ReturnType<typeof parseBreakPage>;
+  motions: ReturnType<typeof parseMotionsTab>;
   tournamentName: string;
   totalParticipants: number | null;
   totalTeams: number | null;
@@ -345,10 +347,23 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     return null;
   };
 
-  const [teamHtml, speakerHtml, participantsHtml] = await Promise.all([
+  // Motions tab is optional enrichment: plenty of tournaments never release
+  // motions, and the nav link can exist while the page 404s. Failures here
+  // must NOT go through fetchTab — its `fetch:` warning prefix feeds
+  // fetchLevelFailures, which aborts the entire ingest, and losing a whole
+  // tournament because motions were withheld is the wrong trade.
+  const fetchOptionalTab = async (targetUrl: string, label: string): Promise<string | null> => {
+    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
+    if (r.ok) return r.html;
+    fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
+    return null;
+  };
+
+  const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     nav.teamTab ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
     nav.speakerTab ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
     nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
+    nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and
   // adjudicators are scoped to their own debate (sidesteps double-counting
@@ -417,6 +432,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const breakRows = breakHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
+  // Zero motions from a fetched page is normal (tab released before
+  // motions are public) — no diagnose warning, unlike the core tabs.
+  const motions = motionsHtml ? parseMotionsTab(motionsHtml) : [];
   const tournamentName = snapshot.tournamentName ?? loaded.tournamentSlug ?? 'Unknown tournament';
   const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
   const totalTeams = teamRows.length || null;
@@ -465,6 +483,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     mergedParticipantRows,
     rounds,
     breakRows,
+    motions,
     tournamentName,
     totalParticipants,
     totalTeams,
@@ -619,6 +638,7 @@ async function writeIngestTransaction(
     mergedParticipantRows,
     rounds,
     breakRows,
+    motions,
     tournamentName,
     totalParticipants,
     totalTeams,
@@ -711,6 +731,7 @@ async function writeIngestTransaction(
           update: {
             points: r.points,
             wins: r.won === true ? 1 : r.won === false ? 0 : null,
+            position: r.position,
           },
           create: {
             tournamentId: t.id,
@@ -718,9 +739,31 @@ async function writeIngestTransaction(
             roundNumber: round.roundNumber,
             points: r.points,
             wins: r.won === true ? 1 : r.won === false ? 0 : null,
+            position: r.position,
           },
         });
       }
+    }
+
+    // Motions: replace-then-create rather than relying on
+    // prepareTournamentWideRefresh, and only when this parse actually
+    // produced motions. A tournament whose motions fetch failed (or that
+    // withdrew its motions page) keeps the last successfully-parsed set —
+    // consistent with the "re-ingest only ADDS data" policy the
+    // participant fields follow.
+    if (motions.length > 0) {
+      await tx.motion.deleteMany({ where: { tournamentId: t.id } });
+      await tx.motion.createMany({
+        data: motions.map((m) => ({
+          tournamentId: t.id,
+          roundNumber: m.roundNumber,
+          roundLabel: m.roundLabel,
+          seq: m.seq,
+          text: m.text,
+          infoSlide: m.infoSlide,
+        })),
+        skipDuplicates: true,
+      });
     }
 
     // Outround team win/loss → EliminationResult. We mark each team that

@@ -122,10 +122,61 @@ export default async function CvAnalyticsPage() {
             </section>
           ) : null}
 
+          {analytics.positionSlices.length > 0 ? (
+            <section aria-label="By team position" className="space-y-3">
+              <header>
+                <div className="kicker">IV · BY TEAM POSITION</div>
+                <p className="mt-1 text-caption text-ink-soft">
+                  How you perform from each side of the table. Position data is parsed
+                  from round-results pages — older tournaments gain it on re-ingest.
+                </p>
+              </header>
+              <div className="max-w-full overflow-x-auto">
+                <table className="min-w-max text-table">
+                  <thead>
+                    <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                      <th className="whitespace-nowrap px-4 py-2.5 font-medium">Position</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Rounds</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Win rate</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium" title="Average team points per round (BP: 0–3)">
+                        Avg points
+                      </th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Avg spkr score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.positionSlices.map((s) => (
+                      <tr key={s.position} className="border-b border-ink/10">
+                        <td className="px-4 py-2.5">{s.position}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">{s.rounds}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {s.winRate != null
+                            ? `${Math.round(s.winRate * 100)}% (${s.wins}/${s.decidedRounds})`
+                            : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {s.avgTeamPoints != null ? s.avgTeamPoints.toFixed(2) : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {s.avgSpeakerScore != null ? s.avgSpeakerScore.toFixed(1) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <CoverageNote
+                used={coverage.speakerWithPositions}
+                total={coverage.speakerTournaments}
+                what="tournaments with per-round position data"
+              />
+            </section>
+          ) : null}
+
           {analytics.formatSlices.length > 0 ? (
             <section aria-label="By format" className="space-y-3">
               <header>
-                <div className="kicker">IV · BY FORMAT</div>
+                <div className="kicker">V · BY FORMAT</div>
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
@@ -165,7 +216,7 @@ export default async function CvAnalyticsPage() {
           {analytics.judgingYearTrend.length > 0 ? (
             <section aria-label="Judging by year" className="space-y-3">
               <header>
-                <div className="kicker">V · JUDGING BY YEAR</div>
+                <div className="kicker">VI · JUDGING BY YEAR</div>
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
@@ -193,8 +244,9 @@ export default async function CvAnalyticsPage() {
           ) : null}
 
           <p className="text-caption text-ink-soft">
-            Slices by motion type, team position, and region need data the scraper
-            doesn&apos;t store yet — they&apos;ll appear here as those land.
+            Slices by motion type and region are next — motions are now being
+            stored per tournament; classification and region tagging will appear
+            here as they land.
           </p>
         </>
       )}

@@ -33,6 +33,7 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     wonTournament: null,
     hasOpenReport: false,
     roundScores: [],
+    teamRoundResults: [],
     ...overrides,
   };
 }

@@ -24,6 +24,22 @@ export type CvSpeakerRoundScore = {
   score: number | null;
 };
 
+/**
+ * The user's team's per-round result, joined from TeamResult rows for
+ * their primary team. `position` (OG/OO/CG/CO on BP layouts) is only
+ * present on tournaments ingested since the parser started persisting it
+ * (PARSER_VERSION 20260611.0) — older rows carry null until re-ingest.
+ * Feeds the by-position slice on /cv/analytics.
+ */
+export type CvTeamRoundResult = {
+  roundNumber: number;
+  position: string | null;
+  /** Round outcome when the results page recorded one; null otherwise. */
+  won: boolean | null;
+  /** Team points for the round (BP: 0–3); null when not parsed. */
+  points: number | null;
+};
+
 export type CvSpeakerRow = {
   tournamentId: bigint;
   tournamentName: string;
@@ -71,6 +87,8 @@ export type CvSpeakerRow = {
   hasOpenReport: boolean;
   /** Per-round speaker scores for the expandable row UI. */
   roundScores: CvSpeakerRoundScore[];
+  /** The user's team's per-round results (position / outcome / points). */
+  teamRoundResults: CvTeamRoundResult[];
 };
 
 export type CvJudgeRow = {
@@ -263,7 +281,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
     }
   }
 
-  const [teammateRows, teamResultRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
+  const [teammateRows, teamResultRows, teamRoundRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
     myTeamPairs.length
       ? prisma.tournamentParticipant.findMany({
           where: {
@@ -295,6 +313,36 @@ export async function buildCvData(userId: string): Promise<CvData> {
           tournamentId: bigint;
           teamName: string | null;
           rank: number | null;
+          wins: number | null;
+          points: { toString(): string } | null;
+        }>),
+    // Per-round rows for the user's own teams only — position/outcome/points
+    // feed the by-position analytics slice. Scoped to myTeamPairs rather
+    // than the whole tournament so a WUDC-sized ingest doesn't drag
+    // hundreds of teams × 9 rounds through the CV build.
+    myTeamPairs.length
+      ? prisma.teamResult.findMany({
+          where: {
+            OR: myTeamPairs.map((p) => ({
+              tournamentId: p.tournamentId,
+              teamName: p.teamName,
+            })),
+            roundNumber: { gt: 0 },
+          },
+          select: {
+            tournamentId: true,
+            teamName: true,
+            roundNumber: true,
+            position: true,
+            wins: true,
+            points: true,
+          },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          teamName: string | null;
+          roundNumber: number | null;
+          position: string | null;
           wins: number | null;
           points: { toString(): string } | null;
         }>),
@@ -420,6 +468,24 @@ export async function buildCvData(userId: string): Promise<CvData> {
     });
   }
   const teamRankByKey = buildTeamRankLookup(teamResultRows);
+
+  const teamRoundsByKey = new Map<string, CvTeamRoundResult[]>();
+  for (const tr of teamRoundRows) {
+    if (!tr.teamName || tr.roundNumber == null) continue;
+    const key = teamResultKey(tr.tournamentId, tr.teamName);
+    if (!myTeamPairKeys.has(key)) continue;
+    const list = teamRoundsByKey.get(key) ?? [];
+    list.push({
+      roundNumber: tr.roundNumber,
+      position: tr.position,
+      won: tr.wins == null ? null : tr.wins > 0,
+      points: tr.points == null ? null : Number(tr.points),
+    });
+    teamRoundsByKey.set(key, list);
+  }
+  for (const list of teamRoundsByKey.values()) {
+    list.sort((a, b) => a.roundNumber - b.roundNumber);
+  }
 
   const judgeBrokeTournaments = new Set<bigint>();
   if (claimedPersons.length > 0 && adjudicatorBreakRows.length > 0) {
@@ -547,6 +613,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
           score: s.score == null ? null : Number(s.score),
         }))
         .sort((a, b) => a.roundNumber - b.roundNumber),
+      teamRoundResults: teamKey ? (teamRoundsByKey.get(teamKey) ?? []) : [],
     });
   }
   speakerRows.sort((a, b) => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { computeCvAnalytics } from '@/lib/cv/computeCvAnalytics';
+import { computeCvAnalytics, canonicalPosition } from '@/lib/cv/computeCvAnalytics';
 import { makeSpeakerRow, makeJudgeRow } from './setup/cv-fixtures';
 
 describe('computeCvAnalytics', () => {
@@ -93,6 +93,53 @@ describe('computeCvAnalytics', () => {
       { year: 2023, tournaments: 1, inroundsChaired: 0, outroundTournaments: 0 },
       { year: 2025, tournaments: 2, inroundsChaired: 6, outroundTournaments: 1 },
     ]);
+  });
+
+  test('position slices join team rounds with own speaker scores and sort in bench order', () => {
+    const rows = [
+      makeSpeakerRow({
+        tournamentId: 1n,
+        roundScores: [
+          { roundNumber: 1, positionLabel: null, score: 76 },
+          { roundNumber: 2, positionLabel: null, score: 80 },
+        ],
+        teamRoundResults: [
+          { roundNumber: 1, position: 'CO', won: true, points: 3 },
+          { roundNumber: 2, position: 'OG', won: false, points: 1 },
+          { roundNumber: 3, position: null, won: true, points: 2 }, // no position → excluded
+        ],
+      }),
+      makeSpeakerRow({
+        tournamentId: 2n,
+        roundScores: [],
+        teamRoundResults: [
+          // Spelled-out header form must merge with the abbreviation.
+          { roundNumber: 1, position: 'Closing Opposition', won: null, points: 2 },
+        ],
+      }),
+    ];
+    const a = computeCvAnalytics({ speakerRows: rows, judgeRows: [] });
+    expect(a.positionSlices.map((s) => s.position)).toEqual(['OG', 'CO']);
+
+    const co = a.positionSlices.find((s) => s.position === 'CO')!;
+    expect(co.rounds).toBe(2);
+    expect(co.decidedRounds).toBe(1); // the null-won round doesn't count as decided
+    expect(co.wins).toBe(1);
+    expect(co.winRate).toBe(1);
+    expect(co.avgTeamPoints).toBeCloseTo(2.5);
+    expect(co.avgSpeakerScore).toBeCloseTo(76); // only tournament 1 had a score for that round
+
+    expect(a.coverage.speakerWithPositions).toBe(2);
+  });
+
+  test('canonicalPosition maps known vocabulary and passes unknowns through', () => {
+    expect(canonicalPosition('Opening Government')).toBe('OG');
+    expect(canonicalPosition('og')).toBe('OG');
+    expect(canonicalPosition('1st Proposition')).toBe('OG');
+    expect(canonicalPosition('Closing  Opposition')).toBe('CO');
+    expect(canonicalPosition('Affirmative')).toBe('Prop');
+    expect(canonicalPosition('Neg')).toBe('Opp');
+    expect(canonicalPosition('Bench 3')).toBe('Bench 3');
   });
 
   test('non-numeric speakerAvgScore strings are ignored, not NaN-poisoned', () => {
