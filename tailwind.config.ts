@@ -55,7 +55,12 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
 
-        // Editorial aliases — self-documenting in JSX
+        // Semantic aliases — self-documenting in JSX. Names date from the
+        // editorial era but are an abstract contract (ink=fg, paper=bg,
+        // oxblood=accent); the Tab Room Terminal retheme re-pointed the
+        // VALUES (oxblood now resolves to phosphor green). Renaming the
+        // alias would churn ~30 files for zero visual change — do it only
+        // alongside a real refactor of those call sites.
         paper: 'hsl(var(--background))',
         ink: {
           DEFAULT: 'hsl(var(--foreground))',
@@ -70,7 +75,11 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'serif'],
+        // Retheme 2026-06: the serif slot intentionally renders the display
+        // grotesk — every `font-serif italic` heading becomes an oblique
+        // Space Grotesk headline without touching the call sites.
+        serif: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
         kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.2em', fontWeight: '600' }],

@@ -5,6 +5,7 @@ import { NavLink } from '@/components/NavLink';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { UserMenu } from '@/components/UserMenu';
 
 /**
@@ -43,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <NavLink href="/settings">Settings</NavLink>
               {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
             </nav>
+            <ThemeToggle />
             {session?.user?.id ? (
               <>
                 <NotificationBell />

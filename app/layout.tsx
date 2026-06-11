@@ -1,24 +1,29 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Plus_Jakarta_Sans, Fraunces } from 'next/font/google';
+import { Inter, Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 import { cn } from '@/lib/utils/cn';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
+// Tab Room Terminal type stack (2026-06 retheme): Space Grotesk carries the
+// display voice (it fills BOTH the --font-display and --font-serif slots so
+// the hundreds of `font-serif italic` heading call sites lean into oblique
+// grotesk headlines without churn), IBM Plex Mono carries every numeral and
+// identifier via `.num` / `font-mono`, Inter stays on body copy.
 const fontSans = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
 });
-const fontDisplay = Plus_Jakarta_Sans({
+const fontDisplay = Space_Grotesk({
   subsets: ['latin'],
   weight: ['500', '600', '700'],
   variable: '--font-display',
   display: 'swap',
 });
-const fontSerif = Fraunces({
+const fontMono = IBM_Plex_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  variable: '--font-serif',
+  variable: '--font-mono',
   display: 'swap',
 });
 
@@ -62,17 +67,28 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FAF6EC' },
-    { media: '(prefers-color-scheme: dark)', color: '#181A1F' },
+    { media: '(prefers-color-scheme: light)', color: '#F2F6F2' },
+    { media: '(prefers-color-scheme: dark)', color: '#0C1311' },
   ],
 };
+
+// Runs before paint so a stored theme preference never flashes the wrong
+// mode. Stored 'light'/'dark' wins; otherwise follow the OS. Kept as a raw
+// string (not a component) because it must execute synchronously in <head>.
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
-      className={cn(fontSans.variable, fontDisplay.variable, fontSerif.variable)}
+      // Server-rendered fallback; the inline script corrects it before paint.
+      data-theme="light"
+      className={cn(fontSans.variable, fontDisplay.variable, fontMono.variable)}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>
           <a href="#main" className="skip-link">Skip to content</a>

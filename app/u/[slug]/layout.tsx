@@ -17,6 +17,10 @@ export const metadata: Metadata = {
  */
 export default function PublicCvLayout({ children }: { children: React.ReactNode }) {
   return (
+    // Forced light: the public CV is a credentialing artifact and must
+    // look identical for every viewer (and match print) regardless of the
+    // visitor's theme. data-theme on the wrapper re-scopes the CSS vars.
+    <div data-theme="light" className="min-h-screen bg-paper text-ink">
     <div className="mx-auto max-w-5xl space-y-14 px-5 pb-16 pt-10">
       {children}
       <footer className="pt-10">
@@ -33,6 +37,7 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
           </Link>
         </div>
       </footer>
+    </div>
     </div>
   );
 }

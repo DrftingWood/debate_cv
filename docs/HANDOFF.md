@@ -76,7 +76,7 @@ The "ingest once, extract thereafter" invariant **holds** across all three entry
 ## User preferences
 
 - **Truly free infrastructure only** — no freemium/trial tiers dressed up as free.
-- Editorial design language is locked (cream paper, ink, oxblood accent, Fraunces italic display, kickers) — tokens in `tailwind.config.ts` / `app/globals.css`; print stylesheet preserved verbatim.
+- Design language: **Tab Room Terminal** (owner-directed retheme 2026-06-11, replacing the locked editorial theme): dark green-black terminal + phosphor #3DDC84 accent with a light "ballot paper" mode; Space Grotesk display (fills the old font-serif slot), IBM Plex Mono numerals via `.num`/`font-mono`, Inter body. Theme = `data-theme` on <html> (inline no-FOUC script in app/layout.tsx, ThemeToggle in the app header, localStorage + OS fallback). Public CV (/u) and print are FORCED light — credential artifacts must not depend on viewer theme. Token NAMES kept (ink/paper/oxblood = fg/bg/accent contract); only values moved.
 - Prefers tight, decisive options over open-ended discussion; uses sub-agents deliberately (Haiku for context reads, Sonnet for parsing tasks).
 
 ---

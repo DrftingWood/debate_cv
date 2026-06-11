@@ -3,54 +3,106 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Editorial paper-and-ink palette (replaces indigo SaaS) */
-    --background: 38 32% 96%;          /* paper cream */
-    --foreground: 220 14% 11%;         /* deep ink */
-    --muted-foreground: 220 9% 40%;    /* ink-soft */
-    --border: 220 14% 11%;             /* used at low opacity for hairline rules */
+  /*
+   * Tab Room Terminal palette (2026-06 retheme, owner-directed).
+   * Two modes share one var contract:
+   *   :root / [data-theme='light']  — "ballot paper": green-tinted paper,
+   *     green-black ink, deep phosphor accent. Also what print uses.
+   *   [data-theme='dark']           — the terminal proper: green-black
+   *     surfaces, phosphor #3DDC84, amber warnings, signal-red errors.
+   * The editorial-era token NAMES (ink/paper/…) stay — they're an abstract
+   * contract (fg/bg/accent) used across ~40 files; only values moved.
+   */
+  :root,
+  [data-theme='light'] {
+    --background: 140 20% 96%;         /* ballot paper, green hint */
+    --foreground: 160 25% 10%;         /* green-black ink */
+    --muted-foreground: 160 10% 38%;
+    --border: 160 25% 10%;             /* used at low opacity for hairlines */
 
     --card: 0 0% 100%;
-    --card-foreground: 220 14% 11%;
+    --card-foreground: 160 25% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 14% 11%;
+    --popover-foreground: 160 25% 10%;
 
-    --primary: 358 52% 32%;            /* oxblood */
-    --primary-foreground: 38 32% 96%;  /* paper on oxblood */
-    --primary-hover: 358 52% 26%;      /* deeper oxblood */
-    --primary-soft: 358 52% 32%;       /* used at /0.08 for accent backgrounds */
+    --primary: 152 70% 28%;            /* deep phosphor (AA on paper) */
+    --primary-foreground: 140 20% 96%;
+    --primary-hover: 152 70% 22%;
+    --primary-soft: 152 70% 28%;       /* used at /0.08 for accent backgrounds */
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 14% 11%;
+    --secondary: 150 14% 94%;
+    --secondary-foreground: 160 25% 10%;
 
-    --muted: 220 16% 95%;
+    --muted: 150 14% 93%;
 
-    --accent: 38 32% 90%;              /* slightly darker paper for inset */
-    --accent-foreground: 358 52% 32%;
+    --accent: 150 18% 90%;             /* inset surface */
+    --accent-foreground: 152 70% 28%;
 
-    --success: 138 60% 28%;
+    --success: 152 70% 28%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 35 65% 38%;
+    --warning: 32 85% 36%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 55% 42%;
+    --destructive: 0 65% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --input: 220 14% 11%;              /* used with /0.12 for input borders */
-    --ring: 358 52% 32%;               /* focus ring oxblood */
+    --input: 160 25% 10%;              /* used with /0.12 for input borders */
+    --ring: 152 70% 28%;
 
     --radius: 0.5rem;
     --radius-card: 0.625rem;
 
-    --shadow-xs: 0 1px 2px 0 hsl(220 14% 11% / 0.04);
-    --shadow-sm: 0 1px 2px hsl(220 14% 11% / 0.04), 0 1px 3px hsl(220 14% 11% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(220 14% 11% / 0.06), 0 2px 4px -1px hsl(220 14% 11% / 0.04);
-    --shadow-lg: 0 12px 32px -8px hsl(220 14% 11% / 0.10), 0 4px 12px -2px hsl(220 14% 11% / 0.05);
-    --shadow-xl: 0 24px 56px -16px hsl(220 14% 11% / 0.14), 0 8px 24px -4px hsl(220 14% 11% / 0.06);
-    /* --shadow-glow retired (was used by the indigo primary button glow) */
-    /* --gradient-hero / --gradient-ink / --gradient-accent / --gradient-glass retired */
+    --shadow-xs: 0 1px 2px 0 hsl(160 25% 10% / 0.04);
+    --shadow-sm: 0 1px 2px hsl(160 25% 10% / 0.04), 0 1px 3px hsl(160 25% 10% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(160 25% 10% / 0.06), 0 2px 4px -1px hsl(160 25% 10% / 0.04);
+    --shadow-lg: 0 12px 32px -8px hsl(160 25% 10% / 0.10), 0 4px 12px -2px hsl(160 25% 10% / 0.05);
+    --shadow-xl: 0 24px 56px -16px hsl(160 25% 10% / 0.14), 0 8px 24px -4px hsl(160 25% 10% / 0.06);
+  }
+
+  [data-theme='dark'] {
+    --background: 162 21% 6%;          /* terminal green-black */
+    --foreground: 140 21% 92%;         /* phosphor-tinted white */
+    --muted-foreground: 145 9% 62%;
+    --border: 140 21% 92%;             /* light hairlines via low opacity */
+
+    --card: 158 17% 10%;
+    --card-foreground: 140 21% 92%;
+
+    --popover: 158 17% 10%;
+    --popover-foreground: 140 21% 92%;
+
+    --primary: 147 69% 55%;            /* phosphor #3DDC84 */
+    --primary-foreground: 162 21% 6%;
+    --primary-hover: 147 69% 47%;
+    --primary-soft: 147 69% 55%;
+
+    --secondary: 158 17% 12%;
+    --secondary-foreground: 140 21% 92%;
+
+    --muted: 158 17% 12%;
+
+    --accent: 158 17% 14%;
+    --accent-foreground: 147 69% 55%;
+
+    --success: 147 69% 55%;
+    --success-foreground: 162 21% 6%;
+
+    --warning: 34 100% 66%;            /* amber #FFB454 */
+    --warning-foreground: 162 21% 6%;
+
+    --destructive: 0 100% 68%;         /* signal red #FF5C5C */
+    --destructive-foreground: 162 21% 6%;
+
+    --input: 140 21% 92%;
+    --ring: 147 69% 55%;
+
+    --shadow-xs: 0 1px 2px 0 hsl(160 30% 2% / 0.4);
+    --shadow-sm: 0 1px 2px hsl(160 30% 2% / 0.4), 0 1px 3px hsl(160 30% 2% / 0.35);
+    --shadow-md: 0 4px 12px -2px hsl(160 30% 2% / 0.5), 0 2px 4px -1px hsl(160 30% 2% / 0.4);
+    --shadow-lg: 0 12px 32px -8px hsl(160 30% 2% / 0.6), 0 4px 12px -2px hsl(160 30% 2% / 0.45);
+    --shadow-xl: 0 24px 56px -16px hsl(160 30% 2% / 0.7), 0 8px 24px -4px hsl(160 30% 2% / 0.5);
   }
 
   html {
@@ -117,10 +169,12 @@
     letter-spacing: 0.04em;
   }
   .num {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
     font-variant-numeric: tabular-nums;
   }
   .dropcap::first-letter {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-size: 40px;
     font-weight: 600;
     color: hsl(var(--primary));
@@ -131,7 +185,7 @@
   .pull-quote {
     border-left: 2px solid hsl(var(--primary));
     padding-left: 14px;
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-style: italic;
     color: hsl(var(--foreground));
   }
@@ -143,7 +197,7 @@
 
   /* Serif display helper (preserved — used by Fraunces hero headlines) */
   .font-hero {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-feature-settings: 'ss01';
   }
 }
@@ -164,6 +218,18 @@
  *    selection panels want to see the detail, not click to reveal it.
  */
 @media print {
+  /* Print is always ballot-paper light, regardless of data-theme. */
+  :root,
+  [data-theme='dark'] {
+    --background: 0 0% 100%;
+    --foreground: 160 25% 10%;
+    --muted-foreground: 160 10% 38%;
+    --border: 160 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 25% 10%;
+    --primary: 152 70% 24%;
+    --primary-foreground: 0 0% 100%;
+  }
   html, body {
     background: white !important;
     color: black !important;
