@@ -128,7 +128,7 @@ export default async function PublicCvPage({
       {speakerRows.length > 0 ? (
         <section aria-label="Speaking" className="space-y-4">
           <header>
-            <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+            <div className="kicker">SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
             <table className="min-w-max text-table">
@@ -182,7 +182,7 @@ export default async function PublicCvPage({
       {judgeRows.length > 0 ? (
         <section aria-label="Judging" className="space-y-4">
           <header>
-            <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+            <div className="kicker">JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
           </header>
           <div className="overflow-x-auto">
             <table className="min-w-max text-table">

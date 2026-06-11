@@ -143,18 +143,18 @@ export default async function CvPage() {
       {totalTournaments === 0 ? (
         <EmptyState
           icon={<Trophy className="h-5 w-5" aria-hidden />}
-          title="No tournaments ingested yet"
+          title="No tournaments on your record yet"
           description={
             <>
-              Two steps from the dashboard: <strong>Scan Gmail</strong> finds the URLs, then{' '}
-              <strong>Ingest all</strong> parses each tournament. Once that completes, your CV
-              will populate here.
+              Two steps from Imports: <strong>Scan Gmail</strong> finds the
+              tournament links in your inbox, then <strong>Ingest all</strong>{' '}
+              parses each one. Once that completes, your record will populate here.
             </>
           }
           action={
             <Link href="/dashboard">
               <Button variant="primary" leftIcon={<Search className="h-4 w-4" aria-hidden />}>
-                Open dashboard
+                Open Imports
               </Button>
             </Link>
           }
@@ -166,7 +166,7 @@ export default async function CvPage() {
           {speakerRows.length > 0 ? (
             <section aria-label="Speaking" className="space-y-4">
               <header>
-                <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
+                <div className="kicker">SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
               </header>
               <SpeakingTable rows={speakerRows} />
             </section>
@@ -175,7 +175,7 @@ export default async function CvPage() {
           {judgeRows.length > 0 ? (
             <section aria-label="Judging" className="space-y-4">
               <header>
-                <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
+                <div className="kicker">JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
               </header>
               <JudgingTable rows={judgeRows} />
             </section>
@@ -193,9 +193,10 @@ export default async function CvPage() {
 }
 
 /**
- * Render the CV summary as a single sober italic sentence in place of
- * coloured "X tournaments / Y as speaker / Z as judge" pill badges.
- * Spells out numbers below 20 in line with the publication's voice.
+ * Render the CV summary as a single factual sentence. Brief §6 calls for
+ * mono numerals on counts; spelled-out words ("twenty-three tournaments")
+ * were an editorial flourish that's been retired. Counts render as
+ * arabic numerals inline so they sit next to the rest of the record.
  */
 function toBriefSentence(input: {
   totalTournaments: number;
@@ -204,63 +205,29 @@ function toBriefSentence(input: {
   breaks: number;
   yearStart: number | null;
 }): string {
-  const spell = (n: number): string => {
-    const words: Record<number, string> = {
-      1: 'one',
-      2: 'two',
-      3: 'three',
-      4: 'four',
-      5: 'five',
-      6: 'six',
-      7: 'seven',
-      8: 'eight',
-      9: 'nine',
-      10: 'ten',
-      11: 'eleven',
-      12: 'twelve',
-      13: 'thirteen',
-      14: 'fourteen',
-      15: 'fifteen',
-      16: 'sixteen',
-      17: 'seventeen',
-      18: 'eighteen',
-      19: 'nineteen',
-    };
-    if (n < 20) return words[n] ?? String(n);
-    return String(n);
-  };
-
   const parts: string[] = [];
   if (input.totalTournaments > 0) {
     parts.push(
-      `${capitalize(spell(input.totalTournaments))} tournament${input.totalTournaments === 1 ? '' : 's'}` +
+      `${input.totalTournaments} tournament${input.totalTournaments === 1 ? '' : 's'}` +
         (input.yearStart ? ` since ${input.yearStart}.` : '.'),
     );
   }
   if (input.breaks > 0) {
-    parts.push(
-      `${capitalize(spell(input.breaks))} break${input.breaks === 1 ? '' : 's'}.`,
-    );
+    parts.push(`${input.breaks} break${input.breaks === 1 ? '' : 's'}.`);
   }
   if (input.speakerCount > 0 && input.judgeCount > 0) {
-    parts.push(
-      `Speaker in ${spell(input.speakerCount)}, chair in ${spell(input.judgeCount)}.`,
-    );
+    parts.push(`Speaker in ${input.speakerCount}, chair in ${input.judgeCount}.`);
   } else if (input.speakerCount > 0) {
     parts.push(
-      `Speaker in ${spell(input.speakerCount)} tournament${input.speakerCount === 1 ? '' : 's'}.`,
+      `Speaker in ${input.speakerCount} tournament${input.speakerCount === 1 ? '' : 's'}.`,
     );
   } else if (input.judgeCount > 0) {
     parts.push(
-      `Chair in ${spell(input.judgeCount)} tournament${input.judgeCount === 1 ? '' : 's'}.`,
+      `Chair in ${input.judgeCount} tournament${input.judgeCount === 1 ? '' : 's'}.`,
     );
   }
 
   return parts.join(' ');
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 type HeaderMetric = {

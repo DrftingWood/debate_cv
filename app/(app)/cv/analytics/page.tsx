@@ -77,7 +77,7 @@ export default async function CvAnalyticsPage() {
           {avgTrendPoints.length > 0 ? (
             <section aria-label="Speaker average by year" className="space-y-3">
               <header>
-                <div className="kicker">I · SPEAKER AVERAGE BY YEAR</div>
+                <div className="kicker">SPEAKER AVERAGE BY YEAR</div>
               </header>
               <TrendChart points={avgTrendPoints} />
               <CoverageNote
@@ -91,7 +91,7 @@ export default async function CvAnalyticsPage() {
           {roundProfilePoints.length > 1 ? (
             <section aria-label="Round-by-round profile" className="space-y-3">
               <header>
-                <div className="kicker">II · ROUND-BY-ROUND PROFILE</div>
+                <div className="kicker">ROUND-BY-ROUND PROFILE</div>
                 <p className="mt-1 text-caption text-ink-soft">
                   Average speaker score per prelim round number, across all tournaments
                   with per-round scores — shows whether you start slow or finish strong.
@@ -109,7 +109,7 @@ export default async function CvAnalyticsPage() {
           {breakBars.length > 0 ? (
             <section aria-label="Break record by year" className="space-y-3">
               <header>
-                <div className="kicker">III · BREAK RECORD BY YEAR</div>
+                <div className="kicker">BREAK RECORD BY YEAR</div>
               </header>
               <BarList items={breakBars} className="max-w-xl" />
             </section>
@@ -118,7 +118,7 @@ export default async function CvAnalyticsPage() {
           {analytics.positionSlices.length > 0 ? (
             <section aria-label="By team position" className="space-y-3">
               <header>
-                <div className="kicker">IV · BY TEAM POSITION</div>
+                <div className="kicker">BY TEAM POSITION</div>
                 <p className="mt-1 text-caption text-ink-soft">
                   How you perform from each side of the table. Position data is parsed
                   from round-results pages — older tournaments gain it on re-ingest.
@@ -169,7 +169,7 @@ export default async function CvAnalyticsPage() {
           {analytics.formatSlices.length > 0 ? (
             <section aria-label="By format" className="space-y-3">
               <header>
-                <div className="kicker">V · BY FORMAT</div>
+                <div className="kicker">BY FORMAT</div>
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
@@ -209,7 +209,7 @@ export default async function CvAnalyticsPage() {
           {analytics.regionSlices.length > 0 ? (
             <section aria-label="By region" className="space-y-3">
               <header>
-                <div className="kicker">VI · BY REGION</div>
+                <div className="kicker">BY REGION</div>
                 <p className="mt-1 text-caption text-ink-soft">
                   Regions are community tags, reviewed before they go live —{' '}
                   <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
@@ -261,7 +261,7 @@ export default async function CvAnalyticsPage() {
           {analytics.motionTypeSlices.length > 0 || analytics.motionTopicSlices.length > 0 ? (
             <section aria-label="By motion tag" className="space-y-4">
               <header>
-                <div className="kicker">VII · BY MOTION</div>
+                <div className="kicker">BY MOTION</div>
                 <p className="mt-1 text-caption text-ink-soft">
                   Per-round performance grouped by the motion&rsquo;s approved tags: the
                   stem (THW, THBT, …) and the subject area.
@@ -277,7 +277,7 @@ export default async function CvAnalyticsPage() {
           {analytics.judgingYearTrend.length > 0 ? (
             <section aria-label="Judging by year" className="space-y-3">
               <header>
-                <div className="kicker">VIII · JUDGING BY YEAR</div>
+                <div className="kicker">JUDGING BY YEAR</div>
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">

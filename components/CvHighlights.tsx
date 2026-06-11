@@ -92,11 +92,11 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   if (tiles.length === 0) return null;
 
   return (
-    <section aria-label="Career notes">
+    <section aria-label="Highlights">
       <header className="mb-6 max-w-2xl">
-        <div className="kicker">CAREER NOTES · HIGHLIGHTS</div>
+        <div className="kicker">HIGHLIGHTS</div>
         <h2 className="mt-3 font-display text-h2 font-semibold text-ink">
-          Notable moments.
+          What stands out on this record
         </h2>
       </header>
 
@@ -107,11 +107,11 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
             className="border-t border-ink/10 pt-4"
           >
             <div className="kicker flex items-center gap-1.5">
-              <span className="text-oxblood">{t.icon}</span>
+              <span className="text-primary">{t.icon}</span>
               {t.kicker}
             </div>
             <h3 className="mt-2 font-display text-h3 font-semibold text-ink">{t.title}</h3>
-            <ul className="mt-1 space-y-0.5 font-serif text-body leading-relaxed text-ink/80">
+            <ul className="mt-1 space-y-0.5 text-body leading-relaxed text-ink/80">
               {t.items.map((item, j) => (
                 <li key={j} className="break-words">{item}</li>
               ))}

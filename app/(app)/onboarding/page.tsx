@@ -43,14 +43,14 @@ export default async function OnboardingPage() {
     return (
       <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
         <header className="space-y-3">
-          <div className="kicker">ONBOARDING · FIRST RUN</div>
+          <div className="kicker">FIRST RUN</div>
           <h1 className="font-display text-h2 font-semibold text-ink">
-            Find yourself on the rosters.
+            Already set up
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
-            You&apos;re already set up. Onboarding only runs once — use the surfaces below to manage your
-            CV and identity going forward.
+            Onboarding only runs once. Use the surfaces below to manage your
+            record and identity going forward.
           </p>
         </header>
 
@@ -67,16 +67,16 @@ export default async function OnboardingPage() {
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/cv" className="font-medium text-primary hover:underline">
-                    My CV
+                    CV
                   </Link>{' '}
-                  — view and share your tournament history.
+                  — view and share your tournament record.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/dashboard" className="font-medium text-primary hover:underline">
-                    Dashboard
+                    Imports
                   </Link>{' '}
                   — re-scan Gmail, retry failed URLs, claim unmatched tournaments.
                 </span>
@@ -103,13 +103,15 @@ export default async function OnboardingPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-6 md:py-10">
       <header className="space-y-3">
-        <div className="kicker">ONBOARDING · FIRST RUN</div>
+        <div className="kicker">FIRST RUN</div>
         <h1 className="font-display text-h2 font-semibold text-ink">
-          Find yourself on the rosters.
+          Find yourself on the rosters
         </h1>
         <hr className="hairline" />
         <p className="text-body text-ink-soft">
-          Three quick steps and your CV is ready.
+          Three quick steps and your record is ready: scan your Gmail for
+          tournament links, confirm which name on each ballot is you, then
+          jump to the CV.
         </p>
       </header>
 

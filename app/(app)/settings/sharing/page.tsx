@@ -8,11 +8,16 @@ export default function SharingSettingsPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <div className="kicker">SETTINGS · SHARING</div>
+        <div className="kicker">SHARE</div>
         <h1 className="font-display text-h2 font-semibold text-ink">
-          Your public link.
+          Your public link
         </h1>
         <hr className="hairline" />
+        <p className="text-body text-ink-soft">
+          Your record is private until you generate a link. The link is
+          revocable from this page — once revoked, it stops working
+          immediately.
+        </p>
       </header>
 
       <Card>

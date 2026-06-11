@@ -155,14 +155,15 @@ export default async function Dashboard({
       {!gmailToken ? (
         <section
           aria-label="Gmail disconnected"
-          className="flex flex-col gap-3 border border-oxblood/30 bg-oxblood/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-md border border-warning/30 bg-warning/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="space-y-1">
-            <div className="text-byline text-oxblood uppercase tracking-[0.16em]">
+            <div className="text-byline uppercase tracking-[0.16em] text-warning">
               Gmail disconnected
             </div>
-            <p className="font-serif text-body text-ink">
-              Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
+            <p className="text-body text-ink">
+              Your Google grant was removed. Reconnect to keep finding
+              tournament links in your inbox.
             </p>
           </div>
           <ReconnectGmailButton redirectTo="/dashboard" variant="primary" />
@@ -219,8 +220,8 @@ export default async function Dashboard({
         rows.length === 0 ? (
           <EmptyState
             icon={<Inbox className="h-5 w-5" aria-hidden />}
-            title="No private URLs yet"
-            description="Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
+            title="No tournament links yet"
+            description="Scan Gmail finds Tabbycat private URLs in your inbox and queues them for ingest in the same click."
           />
         ) : (
           <p className="text-caption text-ink-soft" data-print-hide="true">

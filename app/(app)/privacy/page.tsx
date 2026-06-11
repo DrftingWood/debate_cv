@@ -16,7 +16,7 @@ export default function Privacy() {
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-serif">
+      <article className="prose prose-stone max-w-none">
       <p className="lead">
         debate cv is a personal-use tool for debaters. We try to collect and retain as little as
         possible. Last updated: 2026.

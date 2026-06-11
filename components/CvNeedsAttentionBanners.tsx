@@ -109,16 +109,16 @@ export function CvNeedsAttentionBanners({
       {pendingCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-ink/10 py-3">
           <Loader2
-            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
+            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
             aria-hidden
           />
-          <p className="font-serif text-body leading-relaxed text-ink">
-            <em className="not-italic font-medium">
+          <p className="text-body leading-relaxed text-ink">
+            <span className="font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
-            </em>{' '}
+            </span>{' '}
             <span className="text-ink-soft">
               Rows below will fill in as each finishes.{' '}
-              <Link href="/dashboard?filter=pending" className="text-oxblood hover:underline">
+              <Link href="/dashboard?filter=pending" className="text-primary hover:underline">
                 View queue
               </Link>
               .
@@ -128,18 +128,18 @@ export function CvNeedsAttentionBanners({
       ) : null}
       {unmatchedCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-ink/10 py-3">
-          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
-          <p className="font-serif text-body leading-relaxed text-ink">
-            <em className="not-italic font-medium">
+          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+          <p className="text-body leading-relaxed text-ink">
+            <span className="font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
-            </em>{' '}
+            </span>{' '}
             <span className="text-ink-soft">
               We ingested them but couldn&apos;t match you to a speaker or judge.{' '}
               <Link
                 href="/dashboard?filter=unmatched"
-                className="text-oxblood hover:underline"
+                className="text-primary hover:underline"
               >
-                Find yourself on the dashboard
+                Review ambiguous matches in Imports
               </Link>
               .
             </span>
