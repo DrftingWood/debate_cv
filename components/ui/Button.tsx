@@ -6,27 +6,31 @@ type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'link'
 type Size = 'sm' | 'md' | 'lg';
 
 const base =
-  'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
-  'rounded-md transition-all duration-[180ms] ease-soft select-none ' +
+  'inline-flex items-center justify-center gap-2 font-semibold whitespace-nowrap ' +
+  'rounded-md transition-colors duration-150 select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
   'disabled:cursor-not-allowed';
 
+// Tab Sheet collapse: three visual tiers — primary (ballot green: green
+// always means act), outline (ink-ruled secondary; `secondary`/`ghost`
+// resolve here or to its borderless cousin), danger. `link` survives as a
+// green text action.
+//
 // Disabled treatment lives per-variant, not in `base`: a blanket
-// `disabled:opacity-50` turned the ink-filled primary into a muddy black
-// slab with an illegible label — and primary buttons sit disabled for
-// MINUTES during the scan→ingest flow ("Scanning Gmail…"), so the busy
-// state must stay readable. Filled variants soften their fill and keep
-// full-opacity text; light variants can dim wholesale because dark text
-// on paper degrades gracefully.
+// `disabled:opacity-50` turns a filled button into an illegible slab — and
+// primary buttons sit disabled for MINUTES during the scan→ingest flow
+// ("Scanning Gmail…"), so the busy state must stay readable. Filled
+// variants soften their fill and keep full-opacity text; light variants
+// can dim wholesale because dark text on paper degrades gracefully.
 const variants: Record<Variant, string> = {
   primary:
-    'bg-record-ink text-sheet hover:bg-record-ink/90 active:bg-record-ink disabled:bg-record-ink/70',
+    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary disabled:bg-primary/70',
   // secondary is a deprecated alias of outline — keep identical so callers
   // don't need to change and the visual result is consistent.
   secondary:
-    'bg-transparent text-record-ink border border-record-ink/15 hover:bg-record-ink/[0.04] disabled:opacity-50',
+    'bg-transparent text-record-ink border border-record-ink/25 hover:bg-record-ink/[0.04] disabled:opacity-50',
   outline:
-    'bg-transparent text-record-ink border border-record-ink/15 hover:bg-record-ink/[0.04] disabled:opacity-50',
+    'bg-transparent text-record-ink border border-record-ink/25 hover:bg-record-ink/[0.04] disabled:opacity-50',
   ghost: 'bg-transparent text-record-ink hover:bg-record-ink/[0.04] disabled:opacity-50',
   danger:
     'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/70',

@@ -1,14 +1,13 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
+// Static ruled placeholder — paper doesn't shimmer. The block reads as a
+// pencilled-in row waiting for data, not a loading animation.
 export function Skeleton({ className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       aria-hidden
-      className={cn(
-        'animate-shimmer rounded-md bg-gradient-to-r from-muted via-secondary to-muted bg-[length:400px_100%]',
-        className,
-      )}
+      className={cn('rounded-md bg-record-ink/[0.06]', className)}
       {...rest}
     />
   );

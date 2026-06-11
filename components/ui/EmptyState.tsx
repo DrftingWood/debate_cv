@@ -9,22 +9,20 @@ export type EmptyStateProps = {
   className?: string;
 };
 
+// An empty section of the record: ruled like everything else on the sheet
+// (heavy rule on top, hairline below), no decorative icon chrome.
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        'flex flex-col items-center text-center rounded-card border border-dashed border-record-ink/15 bg-sheet px-6 py-12',
+        'flex flex-col items-center border-t-2 border-record-ink border-b border-b-record-rule/50 px-6 py-12 text-center',
         className,
       )}
     >
-      {icon ? (
-        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-record-green-soft text-record-green">
-          {icon}
-        </div>
-      ) : null}
-      <h3 className="font-display text-h3 text-record-ink">{title}</h3>
+      {icon ? <div className="mb-4 text-record-muted">{icon}</div> : null}
+      <h3 className="font-display text-h3 font-semibold text-record-ink">{title}</h3>
       {description ? (
-        <p className="mt-2 max-w-md font-display text-ui leading-relaxed text-record-muted">
+        <p className="mt-2 max-w-md text-ui leading-relaxed text-record-muted">
           {description}
         </p>
       ) : null}
