@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/admin';
 import { AdminTagProposals } from '@/components/AdminTagProposals';
+import { AdminClassifyMotionsButton } from '@/components/AdminClassifyMotionsButton';
 import { Button } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
@@ -36,11 +37,14 @@ export default async function AdminTagsPage() {
             written to the canonical Tournament.region / Motion.motionType / Motion.topic
             columns and become visible on all CVs.
           </span>
-          <Link href="/admin">
-            <Button variant="outline" size="sm">
-              ← Admin
-            </Button>
-          </Link>
+          <span className="flex items-center gap-2">
+            <AdminClassifyMotionsButton />
+            <Link href="/admin">
+              <Button variant="outline" size="sm">
+                ← Admin
+              </Button>
+            </Link>
+          </span>
         </div>
       </header>
 
