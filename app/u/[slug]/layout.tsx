@@ -10,10 +10,9 @@ export const metadata: Metadata = {
  * notification bell, no settings/dashboard links — so the page reads
  * like a credentialing artifact rather than a tab in someone else's app.
  *
- * With the (app) route-group split applied in the editorial redesign,
- * the global sticky header no longer leaks into this route. This layout
- * only adds the page wrapper, the paper background, and the colophon
- * footer.
+ * Lives outside the (app) route group, so the global sticky header never
+ * leaks into this route. This layout adds only the page wrapper, the
+ * paper background, and a small "Built with debate cv" footer link.
  */
 export default function PublicCvLayout({ children }: { children: React.ReactNode }) {
   return (

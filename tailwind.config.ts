@@ -55,12 +55,13 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
 
-        // Semantic aliases — self-documenting in JSX. Names date from the
-        // editorial era but are an abstract contract (ink=fg, paper=bg,
-        // oxblood=accent); the Tab Room Terminal retheme re-pointed the
-        // VALUES (oxblood now resolves to phosphor green). Renaming the
-        // alias would churn ~30 files for zero visual change — do it only
-        // alongside a real refactor of those call sites.
+        // Semantic aliases — self-documenting in JSX. The names are an
+        // abstract contract (ink=fg, paper=bg, oxblood=accent) used across
+        // ~30 files; values are repointed in app/globals.css, not here.
+        // `oxblood` currently resolves to the tournament-green primary
+        // (see docs/DESIGN_INSTRUCTIONS.md §6 on color). Renaming the alias
+        // would churn every call site for zero visual change — do it only
+        // alongside a real refactor.
         paper: 'hsl(var(--background))',
         ink: {
           DEFAULT: 'hsl(var(--foreground))',
@@ -75,9 +76,10 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Retheme 2026-06: the serif slot intentionally renders the display
-        // grotesk — every `font-serif italic` heading becomes an oblique
-        // Space Grotesk headline without touching the call sites.
+        // The serif slot intentionally renders the display grotesk. Kept
+        // as an alias for the handful of remaining `font-serif` call sites
+        // (mobile-card tournament names, the public-CV initials avatar);
+        // brief §6 reserves italic for sparse emphasis, not the default.
         serif: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },

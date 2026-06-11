@@ -357,7 +357,7 @@ export default async function Dashboard({
               ))}
             </ul>
 
-            {/* Desktop table — same editorial hairline pattern as the CV
+            {/* Desktop table — same ledger hairline pattern as the CV
                 tables, so the two most-visited pages read as one app. */}
             <div className="hidden max-w-full overflow-x-auto md:block">
               <table className="w-full min-w-max text-table">

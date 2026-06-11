@@ -1,6 +1,13 @@
 # Debate CV Design Instructions
 
-This file is the standing product/design brief for Debate CV. Treat it as the source of truth before making visual, IA, or copy decisions.
+> **Source of truth.** This file is the standing product/design brief for
+> Debate CV. Read it before any visual, IA, or copy change. Earlier design
+> docs (the `editorial-redesign` plan/spec/UI-review under
+> `docs/superpowers/`) have been retired and removed — when older code
+> comments mention "editorial" framing, treat that as historical context,
+> not active guidance. The mechanics live in `app/globals.css` (palette
+> tokens) and `tailwind.config.ts` (semantic aliases); the philosophy
+> lives here.
 
 ## 1. Primary audience
 

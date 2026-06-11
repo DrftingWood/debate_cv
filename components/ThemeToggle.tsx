@@ -6,8 +6,8 @@ import { Moon, Sun } from 'lucide-react';
 type Theme = 'light' | 'dark';
 
 /**
- * Light/dark switch for the Tab Room Terminal theme. The source of truth
- * is `document.documentElement.dataset.theme`, set before paint by the
+ * Light/dark theme switch. The source of truth is
+ * `document.documentElement.dataset.theme`, set before paint by the
  * inline script in app/layout.tsx (stored preference, else OS). This
  * component just flips it and persists — no context/provider needed
  * because every themed style reads CSS variables, not React state.

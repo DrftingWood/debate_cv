@@ -4,14 +4,15 @@
 
 @layer base {
   /*
-   * Tab Room Terminal palette (2026-06 retheme, owner-directed).
-   * Two modes share one var contract:
-   *   :root / [data-theme='light']  — "ballot paper": green-tinted paper,
-   *     green-black ink, deep phosphor accent. Also what print uses.
-   *   [data-theme='dark']           — the terminal proper: green-black
-   *     surfaces, phosphor #3DDC84, amber warnings, signal-red errors.
-   * The editorial-era token NAMES (ink/paper/…) stay — they're an abstract
-   * contract (fg/bg/accent) used across ~40 files; only values moved.
+   * Archive palette per docs/DESIGN_INSTRUCTIONS.md §6 ("Color"):
+   * tournament green for primary action / verification / success; ink on
+   * paper for the body register; amber + red reserved for warning and
+   * destructive states. Two modes share one var contract:
+   *   :root / [data-theme='light']  — ballot-paper light. Print uses this.
+   *   [data-theme='dark']           — green-black surfaces, phosphor accent.
+   * The semantic token NAMES (ink/paper/oxblood/primary) are the abstract
+   * fg/bg/accent contract used across ~40 files — re-point values here,
+   * don't rename.
    */
   :root,
   [data-theme='light'] {
@@ -195,7 +196,8 @@
     border: 0;
   }
 
-  /* Serif display helper (preserved — used by Fraunces hero headlines) */
+  /* Display headline helper. Points at --font-display (Space Grotesk),
+     not a serif — the `font-hero` class name is kept for stability. */
   .font-hero {
     font-family: var(--font-display);
     font-feature-settings: 'ss01';

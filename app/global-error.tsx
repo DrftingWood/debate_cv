@@ -8,8 +8,9 @@
  * fallback shell so the user isn't staring at a blank screen.
  *
  * Sits outside the Tailwind layer (globals.css may not have loaded yet),
- * so colours are inline hex literals matched to the editorial palette:
- *   paper #FAF6EC, ink #181A1F, ink-soft #5C636E.
+ * so colours are inline hex literals matched to the ballot-paper palette
+ * (docs/DESIGN_INSTRUCTIONS.md §6): paper #F2F6F2, ink #142019,
+ * ink-soft #586B62.
  */
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
@@ -36,13 +37,13 @@ export default function GlobalError({
           justifyContent: 'center',
           fontFamily:
             'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          background: '#FAF6EC',
-          color: '#181A1F',
+          background: '#F2F6F2',
+          color: '#142019',
         }}
       >
         <div style={{ maxWidth: 480, padding: '2rem', textAlign: 'center' }}>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Something broke.</h1>
-          <p style={{ fontSize: '0.95rem', color: '#5C636E', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.95rem', color: '#586B62', marginBottom: '1.5rem' }}>
             An unexpected error occurred and we&apos;ve been notified. Try refreshing — if it
             persists, your session may need to be restarted.
           </p>
@@ -52,9 +53,9 @@ export default function GlobalError({
             style={{
               padding: '0.5rem 1.25rem',
               borderRadius: 6,
-              border: '1px solid rgba(24, 26, 31, 0.15)',
+              border: '1px solid rgba(20, 32, 25, 0.15)',
               background: '#FFFFFF',
-              color: '#181A1F',
+              color: '#142019',
               cursor: 'pointer',
               fontSize: '0.9rem',
             }}

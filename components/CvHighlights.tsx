@@ -2,10 +2,10 @@ import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe } from 'lucide-react';
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
 
 /**
- * Auto-generated highlights reel — restyled as editorial "career notes"
- * (a 2- or 3-column flow on paper, separated by hairlines, with oxblood
- * kickers and italic Fraunces titles). The selection logic is unchanged;
- * we only swap the presentation.
+ * Auto-generated highlights reel: a 2- or 3-column flow on paper,
+ * separated by hairlines, with primary-green kickers and upright Space
+ * Grotesk titles. Highlight selection is driven entirely by `highlights`
+ * from `buildCvData`; this component is presentation only.
  */
 export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   const {

@@ -10,6 +10,8 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 **Session status, pending operator steps, and next-agent priorities live in `docs/HANDOFF.md` — read it before starting work.**
 
+**For any visual, IA, or copy change, read `docs/DESIGN_INSTRUCTIONS.md` first — it is the single source of truth for the design philosophy (lead with the artifact, "Build my debate CV" not "Sign in with Google", privacy stated concretely, no editorial-magazine framing). Earlier `docs/superpowers/*editorial-redesign*` plans have been retired and removed.**
+
 ## Stack (from package.json)
 
 - **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)

@@ -11,7 +11,7 @@ const variants: Record<Variant, string> = {
   info: 'bg-oxblood-soft text-oxblood border-oxblood/20',
   outline: 'bg-transparent text-ink border-ink/15',
   // Quiet: small-caps text label, no pill background. Used on /cv and
-  // /u/<slug> where traffic-light pills clash with sober editorial type.
+  // /u/<slug> where the record-row register would clash with bright pills.
   quiet: 'bg-transparent text-ink-soft border-transparent uppercase tracking-[0.16em] text-kicker font-semibold px-0 py-0',
 };
 
