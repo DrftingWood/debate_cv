@@ -100,20 +100,20 @@ export function CvShareButton() {
         <div
           role="dialog"
           aria-label="Share your CV"
-          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-ink/15 bg-card p-4 shadow-lg"
         >
           {!state ? (
-            <p className="text-caption text-muted-foreground">Loading…</p>
+            <p className="text-caption text-ink-soft">Loading…</p>
           ) : !state.enabled ? (
             <div className="space-y-2.5">
-              <p className="text-[13px] text-foreground">
+              <p className="text-ui text-ink">
                 Public sharing is off. Turn it on and we&apos;ll generate a
                 link you can share.
               </p>
               <div className="flex items-center justify-between gap-2">
                 <Link
                   href="/settings/sharing"
-                  className="text-caption text-primary hover:underline"
+                  className="text-caption text-oxblood hover:underline"
                 >
                   More options →
                 </Link>
@@ -130,13 +130,13 @@ export function CvShareButton() {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-[13px] text-foreground">Anyone with this link can view your CV.</p>
+              <p className="text-ui text-ink">Anyone with this link can view your CV.</p>
               <div className="flex items-center gap-2">
                 <a
                   href={fullUrl ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 truncate font-mono text-[12.5px] text-primary hover:underline"
+                  className="flex-1 truncate font-mono text-caption text-oxblood hover:underline"
                 >
                   {fullUrl ?? '/u/...'}
                 </a>
@@ -158,16 +158,16 @@ export function CvShareButton() {
                   href={fullUrl ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
                   aria-label="Open public CV in new tab"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 </a>
               </div>
-              <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+              <div className="flex items-center justify-between gap-2 border-t border-ink/15 pt-2">
                 <Link
                   href="/settings/sharing"
-                  className="text-caption text-primary hover:underline"
+                  className="text-caption text-oxblood hover:underline"
                 >
                   Custom slug + avatar in Settings →
                 </Link>

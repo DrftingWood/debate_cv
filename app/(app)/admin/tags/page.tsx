@@ -24,7 +24,7 @@ export default async function AdminTagsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-12 space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
         <div className="kicker">ADMIN · TAG PROPOSALS</div>
         <h1 className="font-serif text-h2 italic text-ink">
@@ -49,6 +49,6 @@ export default async function AdminTagsPage() {
       </header>
 
       <AdminTagProposals />
-    </main>
+    </div>
   );
 }

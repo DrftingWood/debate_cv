@@ -126,7 +126,7 @@ export function AdminTagProposals() {
             type="button"
             onClick={() => setFilter(s)}
             className={
-              'h-8 rounded-md border px-3 text-[13px] font-medium transition-colors ' +
+              'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
                 ? 'border-ink/30 bg-ink text-paper'
                 : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]')
@@ -225,7 +225,7 @@ export function AdminTagProposals() {
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           className={
-                            'h-7 w-48 rounded border border-ink/15 bg-paper px-2 text-[12px] ' +
+                            'h-7 w-48 rounded border border-ink/15 bg-paper px-2 text-caption ' +
                             'text-ink placeholder:text-ink-soft focus:outline-none ' +
                             'focus:ring-1 focus:ring-ring'
                           }
