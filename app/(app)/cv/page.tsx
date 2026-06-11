@@ -18,6 +18,11 @@ import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { StatBlock } from '@/components/ui/StatBlock';
+import { BreakMarker } from '@/components/ui/BreakMarker';
+import { ResultLine } from '@/components/ui/ResultLine';
+import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -69,7 +74,7 @@ export default async function CvPage() {
         pendingCount={pendingCount}
         unmatchedCount={unmatched.length}
       />
-      {/* Editorial masthead — replaces the gradient profile + metric-tile grid */}
+      {/* Record masthead — name over ruled headline-fact StatBlocks */}
       <header className="space-y-4">
         <div className="eyebrow">
           DEBATE CV — PRIVATE RECORD · COMPILED{' '}
@@ -80,7 +85,7 @@ export default async function CvPage() {
           }).toUpperCase()}
         </div>
 
-        <h1 className="font-display text-h1 leading-[1.05] tracking-tight text-record-ink md:text-display">
+        <h1 className="display-expanded font-display text-h1 font-bold leading-[1.05] tracking-tight text-record-ink md:text-display">
           {user?.name ?? 'Debater'}
         </h1>
 
@@ -104,28 +109,24 @@ export default async function CvPage() {
             }
           >
             {headerMetrics.map((m, i) => (
-              <StatColumn key={i} label={m.label} value={m.value} />
+              <StatBlock key={i} label={m.label} value={m.value} />
             ))}
           </div>
         ) : null}
       </header>
 
-      {/* In Brief — sentence summary + the two surviving actions. Share and
-          Download earn standalone buttons; everything that used to hide in
-          the "More" dropdown (Analytics, Verify) lives in the tab bar now. */}
-      <section className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="md:max-w-2xl">
-          <div className="eyebrow">IN BRIEF</div>
-          <p className="mt-2 font-display text-body leading-relaxed text-record-ink/85">
-            {toBriefSentence({
-              totalTournaments: summary.totalTournaments,
-              speakerCount: speakerRows.length,
-              judgeCount: judgeRows.length,
-              breaks: summary.breaks,
-              yearStart: highlights.activeYears?.from ?? null,
-            })}
-          </p>
-        </div>
+      {/* The record's one-line summary — factual mono, not literary prose —
+          plus the two actions performed ON the record: Share and Download. */}
+      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <p className="font-mono text-caption text-record-muted md:max-w-2xl">
+          {toBriefLine({
+            totalTournaments: summary.totalTournaments,
+            speakerCount: speakerRows.length,
+            judgeCount: judgeRows.length,
+            breaks: summary.breaks,
+            yearStart: highlights.activeYears?.from ?? null,
+          })}
+        </p>
 
         <div className="flex flex-wrap items-center gap-2" data-print-hide="true">
           <CvShareButton />
@@ -157,19 +158,15 @@ export default async function CvPage() {
           <CvHighlights highlights={highlights} />
 
           {speakerRows.length > 0 ? (
-            <section aria-label="Speaking" className="space-y-4">
-              <header>
-                <div className="eyebrow">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
-              </header>
+            <section aria-label="Speaking" className="space-y-0">
+              <SectionHeader title="Speaking" count={speakerRows.length} />
               <SpeakingTable rows={speakerRows} />
             </section>
           ) : null}
 
           {judgeRows.length > 0 ? (
-            <section aria-label="Judging" className="space-y-4">
-              <header>
-                <div className="eyebrow">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
-              </header>
+            <section aria-label="Judging" className="space-y-0">
+              <SectionHeader title="Judging" count={judgeRows.length} />
               <JudgingTable rows={judgeRows} />
             </section>
           ) : null}
@@ -186,74 +183,29 @@ export default async function CvPage() {
 }
 
 /**
- * Render the CV summary as a single sober sentence in place of
- * coloured "X tournaments / Y as speaker / Z as judge" pill badges.
- * Spells out numbers below 20 in line with the publication's voice.
+ * The record's one-line factual summary: digits in the data face, parts
+ * joined with interpuncts — `12 tournaments since 2022 · 5 breaks ·
+ * speaker in 9 · chair in 3`. Replaces the editorial spelled-out-number
+ * prose.
  */
-function toBriefSentence(input: {
+function toBriefLine(input: {
   totalTournaments: number;
   speakerCount: number;
   judgeCount: number;
   breaks: number;
   yearStart: number | null;
 }): string {
-  const spell = (n: number): string => {
-    const words: Record<number, string> = {
-      1: 'one',
-      2: 'two',
-      3: 'three',
-      4: 'four',
-      5: 'five',
-      6: 'six',
-      7: 'seven',
-      8: 'eight',
-      9: 'nine',
-      10: 'ten',
-      11: 'eleven',
-      12: 'twelve',
-      13: 'thirteen',
-      14: 'fourteen',
-      15: 'fifteen',
-      16: 'sixteen',
-      17: 'seventeen',
-      18: 'eighteen',
-      19: 'nineteen',
-    };
-    if (n < 20) return words[n] ?? String(n);
-    return String(n);
-  };
-
   const parts: string[] = [];
   if (input.totalTournaments > 0) {
     parts.push(
-      `${capitalize(spell(input.totalTournaments))} tournament${input.totalTournaments === 1 ? '' : 's'}` +
-        (input.yearStart ? ` since ${input.yearStart}.` : '.'),
+      `${input.totalTournaments} tournament${input.totalTournaments === 1 ? '' : 's'}` +
+        (input.yearStart ? ` since ${input.yearStart}` : ''),
     );
   }
-  if (input.breaks > 0) {
-    parts.push(
-      `${capitalize(spell(input.breaks))} break${input.breaks === 1 ? '' : 's'}.`,
-    );
-  }
-  if (input.speakerCount > 0 && input.judgeCount > 0) {
-    parts.push(
-      `Speaker in ${spell(input.speakerCount)}, chair in ${spell(input.judgeCount)}.`,
-    );
-  } else if (input.speakerCount > 0) {
-    parts.push(
-      `Speaker in ${spell(input.speakerCount)} tournament${input.speakerCount === 1 ? '' : 's'}.`,
-    );
-  } else if (input.judgeCount > 0) {
-    parts.push(
-      `Chair in ${spell(input.judgeCount)} tournament${input.judgeCount === 1 ? '' : 's'}.`,
-    );
-  }
-
-  return parts.join(' ');
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  if (input.breaks > 0) parts.push(`${input.breaks} break${input.breaks === 1 ? '' : 's'}`);
+  if (input.speakerCount > 0) parts.push(`speaker in ${input.speakerCount}`);
+  if (input.judgeCount > 0) parts.push(`chair in ${input.judgeCount}`);
+  return parts.join(' · ');
 }
 
 type HeaderMetric = {
@@ -342,24 +294,6 @@ function pickHeaderMetrics(input: {
   return candidates.filter((c): c is HeaderMetric => c !== null).slice(0, 4);
 }
 
-function StatColumn({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <div>
-      <div className="text-label text-record-muted uppercase tracking-[0.16em]">
-        {label}
-      </div>
-      <div className="mt-1 font-display text-stat text-record-ink num">
-        {value}
-      </div>
-    </div>
-  );
-}
 
 
 // Pretty-print speaker rank columns: "#5 Open · #3 ESL"
@@ -378,9 +312,10 @@ function fmtSpeakerRanks(r: {
 import type { CvSpeakerRow as SpeakingTableRow, CvJudgeRow as JudgingTableRow } from '@/lib/cv/buildCvData';
 
 function BrokeBadge({ broke }: { broke: boolean }) {
+  if (!broke) return <span className="text-record-muted">—</span>;
   return (
-    <span role="status" className="uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
-      {broke ? 'Broken' : '—'}
+    <span role="status">
+      <BreakMarker className="text-table">Broke</BreakMarker>
     </span>
   );
 }
@@ -414,13 +349,18 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
   const hasRoundScores = r.roundScores.length > 0;
   return (
     <>
-      <tr className="align-top border-b border-record-ink/10 hover:bg-record-ink/[0.02]">
+      <tr
+        className={cn(
+          'align-top border-b border-record-rule/40 hover:bg-record-ink/[0.02]',
+          r.broke && 'border-l-2 border-l-break-gold',
+        )}
+      >
         <td className="px-4 py-2.5">
           <a
             href={r.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-w-[14rem] truncate font-medium text-record-ink hover:text-record-green"
+            className="block max-w-[14rem] truncate font-semibold text-record-ink hover:text-record-green"
             title={r.tournamentName}
           >
             {r.tournamentName}
@@ -460,7 +400,13 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
         <td className="whitespace-nowrap px-3 py-2.5">
           <BrokeBadge broke={r.broke} />
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5">{fmtLastOutroundSpoken(r)}</td>
+        <td className="whitespace-nowrap px-3 py-2.5">
+          {r.broke && fmtLastOutroundSpoken(r) !== '—' ? (
+            <BreakMarker className="text-table">{fmtLastOutroundSpoken(r)}</BreakMarker>
+          ) : (
+            fmtLastOutroundSpoken(r)
+          )}
+        </td>
         <td className="whitespace-nowrap px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             {r.hasOpenReport ? (
@@ -527,31 +473,31 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-record-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
-              <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teams</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">My name</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teammate(s)</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team rank</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team points</th>
+            <tr className="border-b border-record-rule/50 text-left align-bottom">
+              <th className="data-label whitespace-nowrap px-4 py-2.5">Tournament</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Year</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Format</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Teams</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">My name</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Teammate(s)</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Team</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Team rank</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Team points</th>
               <th
-                className="whitespace-nowrap px-3 py-2.5 font-medium"
+                className="data-label whitespace-nowrap px-3 py-2.5"
                 title="Average speaker score per prelim round spoken"
               >
                 Spkr avg
               </th>
               <th
-                className="whitespace-nowrap px-3 py-2.5 font-medium"
+                className="data-label whitespace-nowrap px-3 py-2.5"
                 title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language."
               >
                 Rank
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Broken</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Last outround spoken</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5" aria-label="Report" />
             </tr>
           </thead>
           <tbody>
@@ -562,62 +508,61 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
         </table>
       </div>
 
-      {/* Mobile stacked cards */}
-      <ul className="md:hidden">
+      {/* Mobile result lines — two dense rows per tournament, details on tap */}
+      <div className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-record-ink/10 py-5">
-            <div className="flex items-baseline justify-between gap-2">
-              <a
-                href={r.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate font-display text-body text-record-ink"
-              >
+          <ResultLine
+            key={r.tournamentId.toString()}
+            title={
+              <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer">
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-record-muted">
-                {r.year ?? '—'}
+            }
+            meta={r.year ?? undefined}
+            broke={r.broke}
+            data={
+              <span>
+                {r.teamRank != null ? `#${r.teamRank}` : '—'}
+                {r.speakerAvgScore != null ? ` · ${r.speakerAvgScore} avg` : ''}
+                {fmtSpeakerRanks(r) !== '—' ? ` · ${fmtSpeakerRanks(r)}` : ''}
               </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
-              {r.format ? <Field label="Format" value={r.format} /> : null}
-              {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
-              <Field label="My name" value={r.myName} />
-              {r.teammates.length ? <Field label="Teammates" value={r.teammates.join(', ')} /> : null}
-              {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
-              {r.teamRank != null ? <Field label="Team rank" value={`#${r.teamRank}`} mono /> : null}
-              {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
-              {r.speakerAvgScore ? (
-                <Field
-                  label={
-                    r.prelimsSpoken > 0
-                      ? `Spkr avg (${r.prelimsSpoken} ${r.prelimsSpoken === 1 ? 'round' : 'rounds'})`
-                      : 'Spkr avg'
-                  }
-                  value={r.speakerAvgScore}
-                  mono
+            }
+            result={
+              r.broke && fmtLastOutroundSpoken(r) !== '—' ? (
+                <BreakMarker>{fmtLastOutroundSpoken(r)}</BreakMarker>
+              ) : undefined
+            }
+          >
+            <details className="pt-1">
+              <summary className="cursor-pointer select-none text-meta text-record-muted">
+                Details
+              </summary>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-2 text-caption">
+                {r.format ? <Field label="Format" value={r.format} /> : null}
+                {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
+                <Field label="My name" value={r.myName} />
+                {r.teammates.length ? <Field label="Teammates" value={r.teammates.join(', ')} /> : null}
+                {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
+                {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
+                {r.speakerAvgScore && r.prelimsSpoken > 0 ? (
+                  <Field label="Prelims spoken" value={String(r.prelimsSpoken)} mono />
+                ) : null}
+              </dl>
+              <div className="flex items-center gap-1.5 pt-2">
+                {r.hasOpenReport ? (
+                  <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
+                    Reported
+                  </span>
+                ) : null}
+                <CvRowReportButton
+                  tournamentId={r.tournamentId.toString()}
+                  tournamentName={r.tournamentName}
                 />
-              ) : null}
-              {fmtSpeakerRanks(r) !== '—' ? <Field label="Rank" value={fmtSpeakerRanks(r)} /> : null}
-              <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
-              {fmtLastOutroundSpoken(r) !== '—' ? (
-                <Field label="Last outround spoken" value={fmtLastOutroundSpoken(r)} />
-              ) : null}
-            </dl>
-            <div className="flex items-center gap-1.5 pt-1">
-              {r.hasOpenReport ? (
-                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
-                  Reported
-                </span>
-              ) : null}
-              <CvRowReportButton
-                tournamentId={r.tournamentId.toString()}
-                tournamentName={r.tournamentName}
-              />
-            </div>
-          </li>
+              </div>
+            </details>
+          </ResultLine>
         ))}
-      </ul>
+      </div>
     </>
   );
 }
@@ -628,19 +573,19 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
       <div className="hidden max-w-full overflow-x-auto md:block">
         <table className="min-w-max text-table">
           <thead>
-            <tr className="border-y border-record-ink/15 text-left align-bottom uppercase tracking-[0.14em] text-label font-semibold text-record-muted">
-              <th className="whitespace-nowrap px-4 py-2.5 font-medium">Tournament</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Year</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Format</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Teams</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">My name</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Judge type</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds judged</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
-              <th className="whitespace-nowrap px-3 py-2.5 font-medium" aria-label="Report" />
+            <tr className="border-b border-record-rule/50 text-left align-bottom">
+              <th className="data-label whitespace-nowrap px-4 py-2.5">Tournament</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Year</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Format</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Teams</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">My name</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Judge type</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Inrounds judged</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Inrounds chaired</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Broken</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Last outround chaired</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5">Last outround judged</th>
+              <th className="data-label whitespace-nowrap px-3 py-2.5" aria-label="Report" />
             </tr>
           </thead>
           <tbody>
@@ -686,47 +631,51 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
         </table>
       </div>
 
-      <ul className="md:hidden">
+      <div className="md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="space-y-2 border-t border-record-ink/10 py-5">
-            <div className="flex items-baseline justify-between gap-2">
-              <a
-                href={r.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate font-display text-body text-record-ink"
-              >
+          <ResultLine
+            key={r.tournamentId.toString()}
+            title={
+              <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer">
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-record-muted">
-                {r.year ?? '—'}
+            }
+            meta={r.year ?? undefined}
+            broke={r.broke}
+            data={
+              <span>
+                {r.inroundsJudged != null ? `${r.inroundsJudged} prelims` : '—'}
+                {r.inroundsChaired != null ? ` · ${r.inroundsChaired} chaired` : ''}
+                {r.lastOutroundChaired ? ` · ${r.lastOutroundChaired} chair` : ''}
               </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-caption">
-              {r.format ? <Field label="Format" value={r.format} /> : null}
-              {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
-              <Field label="My name" value={r.myName} />
-              {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              <Field label="Inrounds judged" value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'} mono />
-              <Field label="Inrounds chaired" value={r.inroundsChaired != null ? String(r.inroundsChaired) : '—'} mono />
-              <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
-              {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
-              {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
-            </dl>
-            <div className="flex items-center gap-1.5 pt-1">
-              {r.hasOpenReport ? (
-                <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
-                  Reported
-                </span>
-              ) : null}
-              <CvRowReportButton
-                tournamentId={r.tournamentId.toString()}
-                tournamentName={r.tournamentName}
-              />
-            </div>
-          </li>
+            }
+          >
+            <details className="pt-1">
+              <summary className="cursor-pointer select-none text-meta text-record-muted">
+                Details
+              </summary>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-2 text-caption">
+                {r.format ? <Field label="Format" value={r.format} /> : null}
+                {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
+                <Field label="My name" value={r.myName} />
+                {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
+                {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
+              </dl>
+              <div className="flex items-center gap-1.5 pt-2">
+                {r.hasOpenReport ? (
+                  <span role="status" aria-label="Open report against this tournament" className="uppercase tracking-[0.14em] text-label font-semibold text-record-green border-b border-record-green/40">
+                    Reported
+                  </span>
+                ) : null}
+                <CvRowReportButton
+                  tournamentId={r.tournamentId.toString()}
+                  tournamentName={r.tournamentName}
+                />
+              </div>
+            </details>
+          </ResultLine>
         ))}
-      </ul>
+      </div>
     </>
   );
 }
