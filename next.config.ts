@@ -16,7 +16,7 @@ const securityHeaders = [
 ];
 
 const config: NextConfig = {
-  serverExternalPackages: ['@prisma/client', 'googleapis'],
+  serverExternalPackages: ['@prisma/client', 'googleapis', 'exceljs'],
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },

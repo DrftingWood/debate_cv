@@ -19,6 +19,7 @@ import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
+import { CvExportButton } from '@/components/CvExportButton';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -129,6 +130,7 @@ export default async function CvPage() {
         <div className="flex flex-wrap items-center gap-2" data-print-hide="true">
           <CvShareButton />
           <DownloadPdfButton />
+          <CvExportButton />
           <details className="group relative">
             <summary className="list-none" aria-label="More actions">
               <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-ink/15 bg-paper px-3.5 text-table font-medium text-ink transition-colors hover:bg-ink/[0.04]">
@@ -142,11 +144,11 @@ export default async function CvPage() {
                     Verify extracted fields
                   </Button>
                 </Link>
-                <a href="/api/cv/export">
+                <Link href="/cv/analytics">
                   <Button variant="outline" size="sm" className="w-full justify-start">
-                    Export CSV
+                    Analytics
                   </Button>
-                </a>
+                </Link>
               </div>
             </div>
           </details>
