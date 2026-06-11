@@ -36,7 +36,7 @@ export default function AppError({
       <h1 className="mt-4 font-serif text-h3 italic font-semibold text-ink">
         Something broke on this page.
       </h1>
-      <p className="mt-2 text-[13.5px] text-muted-foreground">
+      <p className="mt-2 text-table text-ink-soft">
         {error.message ||
           'An unexpected error occurred. Try again, or jump to a different surface from the nav above.'}
       </p>

@@ -144,7 +144,7 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
           <>
             {' '}
             · now scraping{' '}
-            <span className="font-mono text-[11.5px]">{shortUrl(data.currentUrl)}</span>
+            <span className="font-mono text-byline">{shortUrl(data.currentUrl)}</span>
           </>
         ) : null}
         {data.running === 0 && data.pending > 0 ? (

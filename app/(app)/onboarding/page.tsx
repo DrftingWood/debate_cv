@@ -58,13 +58,13 @@ export default async function OnboardingPage() {
           <CardBody className="space-y-4 p-6">
             <div className="inline-flex items-center gap-2 text-success">
               <CheckCircle2 className="h-4 w-4" aria-hidden />
-              <span className="text-[14px] font-medium">
+              <span className="text-ui font-medium">
                 {claimedCount} {claimedCount === 1 ? 'identity' : 'identities'} claimed
               </span>
             </div>
-            <ul className="space-y-2 text-[14px]">
+            <ul className="space-y-2 text-ui">
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/cv" className="font-medium text-primary hover:underline">
                     My CV
@@ -73,7 +73,7 @@ export default async function OnboardingPage() {
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/dashboard" className="font-medium text-primary hover:underline">
                     Dashboard
@@ -82,7 +82,7 @@ export default async function OnboardingPage() {
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/settings" className="font-medium text-primary hover:underline">
                     Settings

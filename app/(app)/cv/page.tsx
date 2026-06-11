@@ -430,16 +430,16 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
             {r.tournamentName}
           </a>
         </td>
-        <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.year ?? '—'}</td>
-        <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-        <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.totalTeams ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.year ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.totalTeams ?? '—'}</td>
         <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
-        <td className="px-3 py-2.5 text-muted-foreground" title={r.teammates.join(', ')}>
+        <td className="px-3 py-2.5 text-ink-soft" title={r.teammates.join(', ')}>
           <span className="block max-w-[14rem] truncate">
             {r.teammates.length ? r.teammates.join(', ') : '—'}
           </span>
         </td>
-        <td className="px-3 py-2.5 text-muted-foreground" title={r.teamName ?? undefined}>
+        <td className="px-3 py-2.5 text-ink-soft" title={r.teamName ?? undefined}>
           <span className="block max-w-[12rem] truncate">{r.teamName ?? '—'}</span>
         </td>
         <td className="whitespace-nowrap px-3 py-2.5 num">
@@ -507,7 +507,7 @@ function SpeakingRow({ r }: { r: SpeakingTableRow }) {
                       {r.roundScores.map((s) => (
                         <td
                           key={`${s.roundNumber}:${s.positionLabel ?? ''}`}
-                          className="whitespace-nowrap px-2 py-1 num text-foreground"
+                          className="whitespace-nowrap px-2 py-1 num text-ink"
                         >
                           {s.score != null ? s.score.toFixed(1) : '—'}
                         </td>
@@ -579,7 +579,7 @@ function SpeakingTable({ rows }: { rows: SpeakingTableRow[] }) {
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-muted-foreground">
+              <span className="whitespace-nowrap num text-caption text-ink-soft">
                 {r.year ?? '—'}
               </span>
             </div>
@@ -661,11 +661,11 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     {r.tournamentName}
                   </a>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.year ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.format ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 num text-muted-foreground">{r.totalTeams ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.year ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 num text-ink-soft">{r.totalTeams ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">{r.myName}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.judgeTypeTag ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{r.judgeTypeTag ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsJudged ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
@@ -702,7 +702,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               >
                 {r.tournamentName}
               </a>
-              <span className="whitespace-nowrap num text-caption text-muted-foreground">
+              <span className="whitespace-nowrap num text-caption text-ink-soft">
                 {r.year ?? '—'}
               </span>
             </div>

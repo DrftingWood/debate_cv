@@ -411,7 +411,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
               {s.label}
             </span>
             {i < steps.length - 1 ? (
-              <span aria-hidden className="hidden flex-1 border-t border-dashed border-border md:block" />
+              <span aria-hidden className="hidden flex-1 border-t border-dashed border-ink/15 md:block" />
             ) : null}
           </li>
         );
@@ -422,12 +422,12 @@ function ProgressBar({ phase }: { phase: Phase }) {
 
 function FailureWarning() {
   return (
-    <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-[13px]">
+    <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-table">
       <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
         <AlertTriangle className="h-4 w-4" aria-hidden />
         We couldn&apos;t read most of your URLs
       </div>
-      <p className="text-muted-foreground">
+      <p className="text-ink-soft">
         This usually means a Gmail connection issue or that your URLs are
         blocked at the source. Permanent failures will appear on the{' '}
         <Link href="/dashboard" className="text-primary hover:underline">

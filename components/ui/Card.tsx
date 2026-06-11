@@ -24,7 +24,7 @@ export function CardFooter({ className, ...rest }: DivProps) {
   return (
     <div
       className={cn(
-        'px-5 py-3 border-t bg-muted/30 rounded-b-card',
+        'px-5 py-3 border-t bg-ink/[0.03] rounded-b-card',
         className,
       )}
       {...rest}

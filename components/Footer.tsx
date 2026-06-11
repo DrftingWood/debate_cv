@@ -6,7 +6,7 @@ export function Footer() {
     <footer className="mt-24">
       <div className="mx-auto max-w-6xl px-5">
         <hr className="hairline" />
-        <div className="flex flex-col gap-4 py-8 text-[13px] text-ink-soft sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 py-8 text-table text-ink-soft sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <BrandMark />
             <span className="hidden font-serif italic text-ink-soft sm:inline">

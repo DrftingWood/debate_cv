@@ -125,22 +125,22 @@ export function CvRowReportButton({
         >
           <div
             ref={dialogRef}
-            className="w-full max-w-md space-y-3 rounded-card border border-border bg-card p-5 shadow-lg"
+            className="w-full max-w-md space-y-3 rounded-card border border-ink/15 bg-card p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h2 className="font-display text-h4 font-semibold text-foreground">
+                <h2 className="font-display text-h4 font-semibold text-ink">
                   Report a problem
                 </h2>
-                <p className="mt-0.5 text-caption text-muted-foreground">
+                <p className="mt-0.5 text-caption text-ink-soft">
                   {tournamentName}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={close}
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-md p-1 text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" aria-hidden />
@@ -174,7 +174,7 @@ export function CvRowReportButton({
               }}
             >
               <fieldset className="space-y-1.5">
-                <legend className="mb-1 text-[12px] font-medium text-foreground">
+                <legend className="mb-1 text-caption font-medium text-ink">
                   What looks wrong?
                 </legend>
                 <ul className="space-y-1">
@@ -182,14 +182,14 @@ export function CvRowReportButton({
                     const checked = selected.has(cat.code);
                     return (
                       <li key={cat.code}>
-                        <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 hover:bg-muted/40">
+                        <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 hover:bg-ink/[0.04]">
                           <input
                             type="checkbox"
-                            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
+                            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-ink/15 text-primary focus:ring-2 focus:ring-primary/40"
                             checked={checked}
                             onChange={() => toggleCategory(cat.code)}
                           />
-                          <span className="text-[13px] text-foreground">{cat.label}</span>
+                          <span className="text-table text-ink">{cat.label}</span>
                         </label>
                       </li>
                     );
@@ -199,7 +199,7 @@ export function CvRowReportButton({
               <div className="space-y-1">
                 <label
                   htmlFor={`report-comment-${tournamentId}`}
-                  className="block text-[12px] font-medium text-foreground"
+                  className="block text-caption font-medium text-ink"
                 >
                   Anything else? (optional)
                 </label>
@@ -210,7 +210,7 @@ export function CvRowReportButton({
                   rows={3}
                   maxLength={4000}
                   placeholder="Add detail — what did you expect to see, what's actually shown?"
-                  className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground shadow-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="w-full resize-y rounded-md border border-ink/15 bg-background px-3 py-2 text-table text-ink shadow-xs outline-none transition-colors placeholder:text-ink-soft focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
               <div className="flex items-center justify-end gap-2">
