@@ -18,7 +18,6 @@ import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
-import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -110,8 +109,6 @@ export default async function CvPage() {
           </div>
         ) : null}
       </header>
-
-      <CvSubNav active="record" />
 
       {/* In Brief — sentence summary + the two surviving actions. Share and
           Download earn standalone buttons; everything that used to hide in

@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { REGIONS, MOTION_TYPES, MOTION_TYPE_LABELS, MOTION_TOPICS, inferMotionType } from '@/lib/tags/vocabulary';
 import { TagProposalControls } from '@/components/TagProposalControls';
-import { CvSubNav } from '@/components/CvSubNav';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Tags',
@@ -109,9 +109,12 @@ export default async function CvTagsPage() {
           identically on every CV that includes that tournament. Proposals go live after
           an admin approves them, and feed the Analytics slices.
         </div>
+        <p className="meta">
+          <Link href="/cv/analytics" className="text-record-green hover:underline">
+            ← Back to Growth
+          </Link>
+        </p>
       </header>
-
-      <CvSubNav active="tags" />
 
       {tournaments.length === 0 ? (
         <p className="text-body text-record-muted">

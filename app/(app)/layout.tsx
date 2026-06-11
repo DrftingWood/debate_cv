@@ -28,20 +28,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-record-ink/15 bg-background/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b-2 border-record-ink bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-5 py-3.5">
           <Link href={logoHref} className="inline-flex items-center">
             <BrandMark />
           </Link>
           <div className="flex items-center gap-4">
+            {/* Task-named nav (teardown ruling D2): Record/Growth/Imports/
+                Settings. Share is a verb performed on the record — it lives
+                as an action on /cv, not a destination here. Tags and Verify
+                are reached contextually from Growth and Imports. */}
             <nav className="flex items-center gap-6 text-table font-medium">
-              <NavLink href="/cv">CV</NavLink>
-              {/* "Imports" not "Dashboard": the page's one job is getting
-                  tournaments out of Gmail and into the CV — naming it after
-                  the task beats naming it after the furniture. */}
+              <NavLink href="/cv" exact>Record</NavLink>
               <NavLink href="/cv/analytics">Growth</NavLink>
               <NavLink href="/dashboard">Imports</NavLink>
-              <NavLink href="/settings/sharing">Share</NavLink>
               <NavLink href="/settings">Settings</NavLink>
               {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
             </nav>

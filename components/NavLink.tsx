@@ -8,13 +8,19 @@ export function NavLink({
   href,
   children,
   className,
+  exact = false,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
+  /** Match only the exact path — needed where one nav item's href is a
+      prefix of another's (Record at /cv vs Growth at /cv/analytics). */
+  exact?: boolean;
 }) {
   const pathname = usePathname();
-  const isActive = pathname === href || (href !== '/' && pathname?.startsWith(href));
+  const isActive = exact
+    ? pathname === href
+    : pathname === href || (href !== '/' && pathname?.startsWith(href));
   return (
     <Link
       href={href}

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
-import { CvSubNav } from '@/components/CvSubNav';
+import Link from 'next/link';
 import { ReingestButton } from '@/components/ReingestButton';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 
@@ -122,8 +122,11 @@ export default async function CvVerifyPage({
           <VerifyMineOnlyToggle mine={mineOnly} />
         </div>
       </div>
-
-      <CvSubNav active="verify" />
+      <p className="meta">
+        <Link href="/dashboard" className="text-record-green hover:underline">
+          ← Back to Imports
+        </Link>
+      </p>
 
       {ordered.length === 0 ? (
         <Card>

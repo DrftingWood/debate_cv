@@ -9,7 +9,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList } from '@/components/ui/BarList';
-import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'Growth',
@@ -60,9 +59,13 @@ export default async function CvAnalyticsPage() {
           Computed from {coverage.speakerTournaments + coverage.judgeTournaments} CV row
           {coverage.speakerTournaments + coverage.judgeTournaments === 1 ? '' : 's'}.
         </div>
+        <p className="meta" data-print-hide="true">
+          Region and motion slices grow from shared tags —{' '}
+          <Link href="/cv/tags" className="text-record-green hover:underline">
+            propose tags for your tournaments →
+          </Link>
+        </p>
       </header>
-
-      <CvSubNav active="analytics" />
 
       {!hasAnything ? (
         <EmptyState

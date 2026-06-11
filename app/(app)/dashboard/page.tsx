@@ -143,6 +143,14 @@ export default async function Dashboard({
             Import your tournaments
           </h1>
           <hr className="hairline" />
+          {/* Verify lives off the imports flow now (teardown ruling D2):
+              provenance is a property of what was ingested, not a sibling
+              tab of the CV. */}
+          <p className="meta">
+            <Link href="/cv/verify" className="text-record-green hover:underline">
+              Review parsed data →
+            </Link>
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
