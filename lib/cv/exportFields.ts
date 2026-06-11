@@ -8,10 +8,10 @@ import { csvLine } from '@/lib/utils/csv';
  * so adding a column here is the whole job — it shows up in the picker
  * and in both file formats without touching the route.
  *
- * Field order below is the legacy CSV column order. When every field is
- * selected (the default, i.e. a bare GET /api/cv/export) the CSV output
- * is identical to what the route produced before the picker existed —
- * anyone who scripted against the old export keeps working.
+ * Field order below starts with the legacy CSV column order; the column
+ * set is APPEND-ONLY. New fields go at the end so anyone who scripted
+ * against the original export positionally keeps working — never insert
+ * into or reorder the middle of this list.
  */
 
 export type ExportField = {
@@ -80,6 +80,8 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'inrounds_chaired', label: 'Inrounds chaired', judge: (r) => r.inroundsChaired ?? '' },
   { id: 'last_outround_chaired', label: 'Last outround chaired', judge: (r) => r.lastOutroundChaired },
   { id: 'last_outround_judged', label: 'Last outround judged', judge: (r) => r.lastOutroundJudged },
+  // ── Post-legacy additions (append-only zone) ──────────────────────────
+  { id: 'region', label: 'Region', speaker: (r) => r.region, judge: (r) => r.region },
 ];
 
 export const EXPORT_FIELD_IDS = EXPORT_FIELDS.map((f) => f.id);

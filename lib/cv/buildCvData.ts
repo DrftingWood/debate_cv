@@ -45,6 +45,8 @@ export type CvSpeakerRow = {
   tournamentName: string;
   year: number | null;
   format: string | null;
+  /** Admin-approved region tag (lib/tags/vocabulary.ts); null until tagged. */
+  region: string | null;
   totalTeams: number | null;
   sourceUrl: string;
   myName: string;
@@ -96,6 +98,8 @@ export type CvJudgeRow = {
   tournamentName: string;
   year: number | null;
   format: string | null;
+  /** Admin-approved region tag (lib/tags/vocabulary.ts); null until tagged. */
+  region: string | null;
   totalTeams: number | null;
   sourceUrl: string;
   myName: string;
@@ -150,11 +154,25 @@ export type CvHighlights = {
   activeYears: { from: number; to: number } | null;
 };
 
+/**
+ * Motion rows (with their approved community tags) for tournaments on this
+ * CV. Carried on CvData rather than joined into speaker rows because the
+ * only consumer is the analytics motion-slice join (tournamentId +
+ * roundNumber); the CV tables and exports don't render motions per row.
+ */
+export type CvTaggedMotion = {
+  tournamentId: bigint;
+  roundNumber: number | null;
+  motionType: string | null;
+  topic: string | null;
+};
+
 export type CvData = {
   user: { name: string | null; email: string | null; image: string | null } | null;
   myDisplayName: string;
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
+  taggedMotions: CvTaggedMotion[];
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
     totalTournaments: number;
@@ -582,6 +600,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      region: t.region,
       totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
@@ -661,6 +680,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      region: t.region,
       totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
@@ -702,6 +722,16 @@ export async function buildCvData(userId: string): Promise<CvData> {
       if (ya !== yb) return yb - ya;
       return a.name.localeCompare(b.name);
     });
+
+  // Motion tags for the analytics join. Fetched late (not in the main
+  // Promise.all) because it depends only on tournamentIds and the result
+  // is small — a handful of motions per tournament, tags-only projection.
+  const taggedMotions: CvTaggedMotion[] = tournamentIds.length
+    ? await prisma.motion.findMany({
+        where: { tournamentId: { in: tournamentIds } },
+        select: { tournamentId: true, roundNumber: true, motionType: true, topic: true },
+      })
+    : [];
 
   const totalTournaments = tournamentIds.length;
   const breaks =
@@ -791,6 +821,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
     myDisplayName,
     speakerRows,
     judgeRows,
+    taggedMotions,
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
     highlights,

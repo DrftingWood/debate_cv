@@ -213,10 +213,78 @@ export default async function CvAnalyticsPage() {
             </section>
           ) : null}
 
+          {analytics.regionSlices.length > 0 ? (
+            <section aria-label="By region" className="space-y-3">
+              <header>
+                <div className="kicker">VI · BY REGION</div>
+                <p className="mt-1 text-caption text-ink-soft">
+                  Regions are community tags, reviewed before they go live —{' '}
+                  <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
+                    tag your untagged tournaments
+                  </Link>
+                  .
+                </p>
+              </header>
+              <div className="max-w-full overflow-x-auto">
+                <table className="min-w-max text-table">
+                  <thead>
+                    <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                      <th className="whitespace-nowrap px-4 py-2.5 font-medium">Region</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournaments</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Spkr avg</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Breaks</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Break rate</th>
+                      <th className="whitespace-nowrap px-3 py-2.5 font-medium">Best rank</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.regionSlices.map((s) => (
+                      <tr key={s.region} className="border-b border-ink/10">
+                        <td className="px-4 py-2.5">{s.region}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">{s.tournaments}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {s.avgSpeakerScore != null ? s.avgSpeakerScore.toFixed(1) : '—'}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">{s.breaks}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {Math.round(s.breakRate * 100)}%
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 num">
+                          {s.bestSpeakerRank != null ? `#${s.bestSpeakerRank}` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <CoverageNote
+                used={coverage.speakerWithRegion}
+                total={coverage.speakerTournaments}
+                what="tournaments with an approved region tag"
+              />
+            </section>
+          ) : null}
+
+          {analytics.motionTypeSlices.length > 0 || analytics.motionTopicSlices.length > 0 ? (
+            <section aria-label="By motion tag" className="space-y-4">
+              <header>
+                <div className="kicker">VII · BY MOTION</div>
+                <p className="mt-1 text-caption text-ink-soft">
+                  Per-round performance grouped by the motion&rsquo;s approved tags: the
+                  stem (THW, THBT, …) and the subject area.
+                </p>
+              </header>
+              <div className="flex flex-col gap-6 lg:flex-row lg:gap-12">
+                <MotionSliceTable label="Type" items={analytics.motionTypeSlices} />
+                <MotionSliceTable label="Topic" items={analytics.motionTopicSlices} />
+              </div>
+            </section>
+          ) : null}
+
           {analytics.judgingYearTrend.length > 0 ? (
             <section aria-label="Judging by year" className="space-y-3">
               <header>
-                <div className="kicker">VI · JUDGING BY YEAR</div>
+                <div className="kicker">VIII · JUDGING BY YEAR</div>
               </header>
               <div className="max-w-full overflow-x-auto">
                 <table className="min-w-max text-table">
@@ -244,12 +312,53 @@ export default async function CvAnalyticsPage() {
           ) : null}
 
           <p className="text-caption text-ink-soft">
-            Slices by motion type and region are next — motions are now being
-            stored per tournament; classification and region tagging will appear
-            here as they land.
+            Slices by motion type and region will appear here as tags land.{' '}
+            <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
+              Tag your tournaments&rsquo; regions and motions →
+            </Link>
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function MotionSliceTable({
+  label,
+  items,
+}: {
+  label: string;
+  items: { value: string; rounds: number; decidedRounds: number; wins: number; winRate: number | null; avgSpeakerScore: number | null }[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="max-w-full overflow-x-auto">
+      <table className="min-w-max text-table">
+        <thead>
+          <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+            <th className="whitespace-nowrap px-4 py-2.5 font-medium">{label}</th>
+            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Rounds</th>
+            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Win rate</th>
+            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Avg spkr score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((s) => (
+            <tr key={s.value} className="border-b border-ink/10">
+              <td className="px-4 py-2.5">{s.value}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 num">{s.rounds}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 num">
+                {s.winRate != null
+                  ? `${Math.round(s.winRate * 100)}% (${s.wins}/${s.decidedRounds})`
+                  : '—'}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 num">
+                {s.avgSpeakerScore != null ? s.avgSpeakerScore.toFixed(1) : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

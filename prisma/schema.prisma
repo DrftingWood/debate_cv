@@ -41,6 +41,7 @@ model User {
   personRejections  PersonRejection[]
   cvErrorReports    CvErrorReport[]
   notifications     Notification[]
+  tagProposals      TagProposal[]
 }
 
 /// In-app activity feed surfaced via the notification bell in the header.
@@ -202,6 +203,10 @@ model Tournament {
   /// added; CV builder falls back to MAX(TeamResult.roundNumber) in
   /// that case.
   prelimRoundCount     Int?
+  /// Approved region tag from lib/tags/vocabulary.ts REGIONS. Tab pages
+  /// don't expose location, so this is community-proposed (TagProposal)
+  /// and admin-approved — never scraped. Null until someone tags it.
+  region               String?
   sourceUrlRaw         String
   fingerprint          String   @unique
   scrapedAt            DateTime @default(now())
@@ -213,6 +218,7 @@ model Tournament {
   judgeAssignments     JudgeAssignment[]
   discoveredUrls       DiscoveredUrl[]
   motions              Motion[]
+  tagProposals         TagProposal[]
 
   @@index([year])
   @@index([format])
@@ -340,11 +346,59 @@ model Motion {
   seq          Int
   text         String  @db.Text
   infoSlide    String? @db.Text
+  /// Approved stem tag (THBT/THW/THO/...) from MOTION_TYPES. Auto-suggested
+  /// by inferMotionType in the picker, but only written here through an
+  /// approved TagProposal — the scraper never sets it.
+  motionType   String?
+  /// Approved subject-area tag from MOTION_TOPICS. Always human judgement.
+  topic        String?
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament   Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tagProposals TagProposal[]
 
   @@unique([tournamentId, roundLabel, seq])
   @@index([tournamentId])
+}
+
+enum TagProposalStatus {
+  pending
+  approved
+  rejected
+}
+
+/// A user-proposed value for a moderated community tag: a tournament's
+/// region, or a motion's type/topic. Tags describe shared facts (the same
+/// tournament appears on many CVs), so writes to the canonical columns
+/// (Tournament.region, Motion.motionType, Motion.topic) only happen when
+/// an admin approves — the proposal row is the moderation queue entry and
+/// stays around afterwards as the audit trail of who proposed what.
+/// One live proposal per (user, kind, target): the propose API updates the
+/// user's existing row back to pending instead of stacking duplicates.
+model TagProposal {
+  id           String            @id @default(cuid())
+  userId       String
+  /// 'region' | 'motion_type' | 'motion_topic'. String rather than an enum
+  /// (Notification.kind precedent) so new tag kinds don't need a migration.
+  kind         String
+  tournamentId BigInt
+  /// Set for motion_* kinds, null for region.
+  motionId     BigInt?
+  /// Must be a member of TAG_VALUES[kind] — enforced at the API boundary,
+  /// not the DB, so vocabulary edits stay a one-file change.
+  value        String
+  status       TagProposalStatus @default(pending)
+  /// Reviewer note shown back to the proposer (e.g. why it was rejected).
+  adminNote    String?
+  createdAt    DateTime          @default(now())
+  reviewedAt   DateTime?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  motion     Motion?    @relation(fields: [motionId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, tournamentId])
+  @@index([motionId])
 }
 
 model EliminationResult {

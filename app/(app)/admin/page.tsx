@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
@@ -109,6 +110,20 @@ export default async function AdminPage() {
             <dd className="text-xl font-semibold mt-1">{pendingJobs}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="rounded-lg border p-6 space-y-4">
+        <h2 className="font-serif text-h3 italic text-ink">Tag proposals</h2>
+        <p className="text-body text-ink-soft">
+          Review user-proposed region and motion tags. Approvals write directly to the
+          canonical Tournament / Motion columns.
+        </p>
+        <Link
+          href="/admin/tags"
+          className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ink/15 bg-transparent px-3.5 text-[13px] font-medium text-ink transition-all duration-[180ms] ease-soft hover:bg-ink/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          Review tag proposals →
+        </Link>
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">

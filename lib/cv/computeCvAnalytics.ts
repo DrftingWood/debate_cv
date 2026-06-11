@@ -1,4 +1,4 @@
-import type { CvSpeakerRow, CvJudgeRow } from '@/lib/cv/buildCvData';
+import type { CvSpeakerRow, CvJudgeRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 
 /**
  * Pure aggregation layer for the /cv/analytics page. Operates on the rows
@@ -59,6 +59,27 @@ export type PositionSlice = {
   avgSpeakerScore: number | null;
 };
 
+export type RegionSlice = {
+  /** Approved Tournament.region tag; untagged tournaments are excluded. */
+  region: string;
+  tournaments: number;
+  avgSpeakerScore: number | null;
+  breaks: number;
+  breakRate: number;
+  bestSpeakerRank: number | null;
+};
+
+export type MotionSlice = {
+  /** A MOTION_TYPES or MOTION_TOPICS value, depending on the slice. */
+  value: string;
+  /** Prelim rounds the user debated on a motion carrying this tag. */
+  rounds: number;
+  decidedRounds: number;
+  wins: number;
+  winRate: number | null;
+  avgSpeakerScore: number | null;
+};
+
 export type JudgingYearPoint = {
   year: number;
   tournaments: number;
@@ -72,6 +93,9 @@ export type CvAnalytics = {
   formatSlices: FormatSlice[];
   roundProfile: RoundProfilePoint[];
   positionSlices: PositionSlice[];
+  regionSlices: RegionSlice[];
+  motionTypeSlices: MotionSlice[];
+  motionTopicSlices: MotionSlice[];
   judgingYearTrend: JudgingYearPoint[];
   /**
    * How much of the CV each aggregate is actually built on. Old or
@@ -87,6 +111,8 @@ export type CvAnalytics = {
     /** Tournaments with at least one per-round team position recorded —
      * only those ingested since PARSER_VERSION 20260611.0 have it. */
     speakerWithPositions: number;
+    /** Tournaments carrying an approved region tag. */
+    speakerWithRegion: number;
     judgeTournaments: number;
     judgeWithYear: number;
   };
@@ -130,8 +156,11 @@ function numericAvg(r: CvSpeakerRow): number | null {
 export function computeCvAnalytics(input: {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
+  /** Optional: motion rows for the motion-type/-topic slices. */
+  taggedMotions?: CvTaggedMotion[];
 }): CvAnalytics {
   const { speakerRows, judgeRows } = input;
+  const taggedMotions = input.taggedMotions ?? [];
 
   // ── Speaker trend by year ────────────────────────────────────────────
   const byYear = new Map<number, CvSpeakerRow[]>();
@@ -254,6 +283,97 @@ export function computeCvAnalytics(input: {
       return a.position.localeCompare(b.position);
     });
 
+  // ── Slices by region ─────────────────────────────────────────────────
+  // Same metrics as the format slice, keyed on the admin-approved region
+  // tag. Untagged tournaments are excluded rather than bucketed as
+  // "Unknown" — unlike format (where Unknown is a parser gap worth
+  // surfacing), an untagged region just means nobody tagged it yet, and
+  // the coverage note carries that signal.
+  const byRegion = new Map<string, CvSpeakerRow[]>();
+  for (const r of speakerRows) {
+    if (!r.region) continue;
+    const list = byRegion.get(r.region) ?? [];
+    list.push(r);
+    byRegion.set(r.region, list);
+  }
+  const regionSlices: RegionSlice[] = [...byRegion.entries()]
+    .map(([region, rows]) => {
+      const avgs = rows.map(numericAvg).filter((n): n is number => n != null);
+      const breaks = rows.filter((r) => r.broke).length;
+      const ranks = rows
+        .map((r) => r.speakerRankOpen)
+        .filter((n): n is number => n != null);
+      return {
+        region,
+        tournaments: rows.length,
+        avgSpeakerScore: mean(avgs),
+        breaks,
+        breakRate: breaks / rows.length,
+        bestSpeakerRank: ranks.length ? Math.min(...ranks) : null,
+      };
+    })
+    .sort((a, b) => b.tournaments - a.tournaments || a.region.localeCompare(b.region));
+
+  // ── Slices by motion tag (type + topic) ──────────────────────────────
+  // Joins each round the user debated to that round's motion via
+  // (tournamentId, roundNumber), then aggregates per approved tag value.
+  // A round counts when the user has either a speaker score or a team
+  // result for it. Multiple motions for one round (motion-per-room
+  // formats) are all credited — without per-room draw data there is no
+  // way to know which one the user actually debated, and crediting none
+  // would hide the round entirely.
+  const motionsByRound = new Map<string, CvTaggedMotion[]>();
+  for (const m of taggedMotions) {
+    if (m.roundNumber == null) continue;
+    const key = `${m.tournamentId}:${m.roundNumber}`;
+    const list = motionsByRound.get(key) ?? [];
+    list.push(m);
+    motionsByRound.set(key, list);
+  }
+  type MotionAgg = { rounds: number; decided: number; wins: number; scores: number[] };
+  const byType = new Map<string, MotionAgg>();
+  const byTopic = new Map<string, MotionAgg>();
+  for (const r of speakerRows) {
+    const scoreByRound = new Map(
+      r.roundScores.filter((s) => s.score != null).map((s) => [s.roundNumber, s.score!]),
+    );
+    const wonByRound = new Map(r.teamRoundResults.map((tr) => [tr.roundNumber, tr.won]));
+    const debatedRounds = new Set([...scoreByRound.keys(), ...wonByRound.keys()]);
+    for (const roundNumber of debatedRounds) {
+      const motions = motionsByRound.get(`${r.tournamentId}:${roundNumber}`) ?? [];
+      const score = scoreByRound.get(roundNumber) ?? null;
+      const won = wonByRound.get(roundNumber) ?? null;
+      const credit = (map: Map<string, MotionAgg>, value: string | null) => {
+        if (!value) return;
+        const agg = map.get(value) ?? { rounds: 0, decided: 0, wins: 0, scores: [] };
+        agg.rounds += 1;
+        if (won != null) {
+          agg.decided += 1;
+          if (won) agg.wins += 1;
+        }
+        if (score != null) agg.scores.push(score);
+        map.set(value, agg);
+      };
+      for (const m of motions) {
+        credit(byType, m.motionType);
+        credit(byTopic, m.topic);
+      }
+    }
+  }
+  const toMotionSlices = (map: Map<string, MotionAgg>): MotionSlice[] =>
+    [...map.entries()]
+      .map(([value, agg]) => ({
+        value,
+        rounds: agg.rounds,
+        decidedRounds: agg.decided,
+        wins: agg.wins,
+        winRate: agg.decided > 0 ? agg.wins / agg.decided : null,
+        avgSpeakerScore: mean(agg.scores),
+      }))
+      .sort((a, b) => b.rounds - a.rounds || a.value.localeCompare(b.value));
+  const motionTypeSlices = toMotionSlices(byType);
+  const motionTopicSlices = toMotionSlices(byTopic);
+
   // ── Judging trend by year ────────────────────────────────────────────
   const judgeByYear = new Map<number, CvJudgeRow[]>();
   for (const r of judgeRows) {
@@ -276,6 +396,9 @@ export function computeCvAnalytics(input: {
     formatSlices,
     roundProfile,
     positionSlices,
+    regionSlices,
+    motionTypeSlices,
+    motionTopicSlices,
     judgingYearTrend,
     coverage: {
       speakerTournaments: speakerRows.length,
@@ -285,6 +408,7 @@ export function computeCvAnalytics(input: {
       speakerWithPositions: speakerRows.filter((r) =>
         r.teamRoundResults.some((tr) => tr.position != null),
       ).length,
+      speakerWithRegion: speakerRows.filter((r) => r.region != null).length,
       judgeTournaments: judgeRows.length,
       judgeWithYear: judgeRows.filter((r) => r.year != null).length,
     },

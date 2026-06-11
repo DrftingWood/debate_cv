@@ -57,7 +57,7 @@ describe('GET /api/cv/export', () => {
     expect(res.headers.get('content-disposition')).toContain('.csv');
     const lines = (await res.text()).trimEnd().split('\n');
     expect(lines[0].startsWith('section,tournament,year,format,teams,my_name,')).toBe(true);
-    expect(lines[0].endsWith('last_outround_chaired,last_outround_judged')).toBe(true);
+    expect(lines[0]).toContain('last_outround_chaired,last_outround_judged');
     expect(lines).toHaveLength(3); // header + 1 speaker + 1 judge
   });
 

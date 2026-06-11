@@ -13,6 +13,7 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     tournamentName: 'Test Open',
     year: 2025,
     format: 'British Parliamentary',
+    region: null,
     totalTeams: 40,
     sourceUrl: 'https://example.calicotab.com/t/',
     myName: 'Test Person',
@@ -44,6 +45,7 @@ export function makeJudgeRow(overrides: Partial<CvJudgeRow> = {}): CvJudgeRow {
     tournamentName: 'Test IV',
     year: 2025,
     format: 'British Parliamentary',
+    region: null,
     totalTeams: 24,
     sourceUrl: 'https://example.calicotab.com/t2/',
     myName: 'Test Person',
@@ -64,6 +66,7 @@ export function makeCvData(overrides: Partial<CvData> = {}): CvData {
     myDisplayName: 'Test Person',
     speakerRows: [],
     judgeRows: [],
+    taggedMotions: [],
     unmatchedTournaments: [],
     summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
     highlights: {

@@ -27,9 +27,10 @@ describe('resolveExportFields', () => {
 });
 
 describe('buildExportCsv', () => {
-  // The full-registry CSV is the legacy export format — scripts written
-  // against the pre-picker route depend on this exact header.
-  test('default header matches the legacy column set', () => {
+  // The legacy columns must stay first and in order — scripts written
+  // against the pre-picker route consume them positionally. New fields
+  // append at the tail (see the registry's append-only note).
+  test('default header keeps legacy columns first, additions at the tail', () => {
     const csv = buildExportCsv(makeCvData(), EXPORT_FIELDS);
     expect(csv.split('\n')[0]).toBe(
       [
@@ -53,6 +54,7 @@ describe('buildExportCsv', () => {
         'inrounds_chaired',
         'last_outround_chaired',
         'last_outround_judged',
+        'region',
       ].join(','),
     );
   });

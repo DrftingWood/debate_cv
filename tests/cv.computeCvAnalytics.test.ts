@@ -132,6 +132,68 @@ describe('computeCvAnalytics', () => {
     expect(a.coverage.speakerWithPositions).toBe(2);
   });
 
+  test('region slices group tagged tournaments and skip untagged ones', () => {
+    const rows = [
+      makeSpeakerRow({ tournamentId: 1n, region: 'South Asia', speakerAvgScore: '76.0', broke: true }),
+      makeSpeakerRow({ tournamentId: 2n, region: 'South Asia', speakerAvgScore: '78.0' }),
+      makeSpeakerRow({ tournamentId: 3n, region: null }),
+    ];
+    const a = computeCvAnalytics({ speakerRows: rows, judgeRows: [] });
+    expect(a.regionSlices).toHaveLength(1);
+    expect(a.regionSlices[0]).toMatchObject({
+      region: 'South Asia',
+      tournaments: 2,
+      breaks: 1,
+    });
+    expect(a.regionSlices[0].avgSpeakerScore).toBeCloseTo(77.0);
+    expect(a.coverage.speakerWithRegion).toBe(2);
+  });
+
+  test('motion slices join rounds to tagged motions by tournament + round number', () => {
+    const rows = [
+      makeSpeakerRow({
+        tournamentId: 1n,
+        roundScores: [
+          { roundNumber: 1, positionLabel: null, score: 76 },
+          { roundNumber: 2, positionLabel: null, score: 80 },
+        ],
+        teamRoundResults: [
+          { roundNumber: 1, position: 'OG', won: true, points: 3 },
+          { roundNumber: 2, position: 'CO', won: false, points: 1 },
+        ],
+      }),
+    ];
+    const taggedMotions = [
+      { tournamentId: 1n, roundNumber: 1, motionType: 'THW', topic: 'Economics & Business' },
+      { tournamentId: 1n, roundNumber: 2, motionType: 'THW', topic: null }, // untagged topic
+      { tournamentId: 1n, roundNumber: 3, motionType: 'THO', topic: 'Education' }, // round not debated
+      { tournamentId: 9n, roundNumber: 1, motionType: 'THR', topic: 'Education' }, // other tournament
+    ];
+    const a = computeCvAnalytics({ speakerRows: rows, judgeRows: [], taggedMotions });
+
+    expect(a.motionTypeSlices).toHaveLength(1);
+    expect(a.motionTypeSlices[0]).toMatchObject({
+      value: 'THW',
+      rounds: 2,
+      decidedRounds: 2,
+      wins: 1,
+      winRate: 0.5,
+    });
+    expect(a.motionTypeSlices[0].avgSpeakerScore).toBeCloseTo(78);
+
+    // Topic slice only credits round 1 (round 2's motion has no topic tag).
+    expect(a.motionTopicSlices).toEqual([
+      {
+        value: 'Economics & Business',
+        rounds: 1,
+        decidedRounds: 1,
+        wins: 1,
+        winRate: 1,
+        avgSpeakerScore: 76,
+      },
+    ]);
+  });
+
   test('canonicalPosition maps known vocabulary and passes unknowns through', () => {
     expect(canonicalPosition('Opening Government')).toBe('OG');
     expect(canonicalPosition('og')).toBe('OG');
