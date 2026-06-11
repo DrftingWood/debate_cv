@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { EXPORT_FIELDS, EXPORT_FIELD_IDS } from '@/lib/cv/exportFields';
 
@@ -36,12 +36,15 @@ function loadPrefs(): StoredPrefs | null {
 }
 
 /**
- * "Export…" popover for the /cv header: pick which columns to include and
- * whether to download CSV or Excel. The download itself is a plain
- * navigation to /api/cv/export with query params — the route streams the
- * file with Content-Disposition, so no blob handling here.
+ * Single "Download" popover for every get-my-CV-out-of-the-app action:
+ * print-to-PDF on top (the most common ask), then the column picker +
+ * CSV/Excel export below. Replaces the previous pair of side-by-side
+ * buttons ("Print to PDF" + "Export") that shared the same icon and
+ * competed for the same mental slot. The data download itself is a plain
+ * navigation to /api/cv/export — the route streams the file with
+ * Content-Disposition, so no blob handling here.
  */
-export function CvExportButton() {
+export function CvDownloadButton() {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<ExportFormat>('csv');
   const [selected, setSelected] = useState<Set<string>>(new Set(EXPORT_FIELD_IDS));
@@ -114,6 +117,13 @@ export function CvExportButton() {
     setOpen(false);
   };
 
+  const printPdf = () => {
+    // Close first so the popover (data-print-hide'd anyway) isn't part of
+    // the print snapshot, then let the dialog take over.
+    setOpen(false);
+    if (typeof window !== 'undefined') window.print();
+  };
+
   const groups: { title: string; ids: string[] }[] = [
     {
       title: 'General',
@@ -141,17 +151,35 @@ export function CvExportButton() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        Export
+        Download
       </Button>
       {open ? (
         <div
           role="dialog"
-          aria-label="Export your CV data"
-          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-border bg-card p-4 shadow-lg"
+          aria-label="Download your CV"
+          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-ink/15 bg-card p-4 shadow-lg"
         >
           <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-3">
+              <div>
+                <div className="text-caption font-medium text-ink">PDF</div>
+                <p className="text-byline text-ink-soft">
+                  Via your browser&rsquo;s print dialog.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                leftIcon={<Printer className="h-3.5 w-3.5" aria-hidden />}
+                onClick={printPdf}
+              >
+                Print to PDF
+              </Button>
+            </div>
+
             <div className="flex items-center justify-between gap-2">
-              <span className="text-caption font-medium text-foreground">Columns</span>
+              <span className="text-caption font-medium text-ink">Data export — columns</span>
               <span className="flex gap-2 text-caption">
                 <button
                   type="button"
@@ -170,7 +198,7 @@ export function CvExportButton() {
               </span>
             </div>
 
-            <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+            <div className="max-h-[260px] space-y-3 overflow-y-auto pr-1">
               {groups.map((g) =>
                 g.ids.length > 0 ? (
                   <fieldset key={g.title}>
@@ -179,7 +207,7 @@ export function CvExportButton() {
                     </legend>
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                       {g.ids.map((id) => (
-                        <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-foreground">
+                        <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-ink">
                           <input
                             type="checkbox"
                             className="h-3.5 w-3.5 accent-current"
@@ -197,7 +225,7 @@ export function CvExportButton() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
               <div role="radiogroup" aria-label="File format" className="flex gap-3 text-caption">
                 {(['csv', 'xlsx'] as const).map((f) => (
                   <label key={f} className="flex cursor-pointer items-center gap-1.5">

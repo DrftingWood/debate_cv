@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
+import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 
@@ -109,24 +108,22 @@ export default async function CvVerifyPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <header className="space-y-3">
-          <div className="kicker">CV · VERIFY EXTRACTED FIELDS</div>
+          <div className="kicker">DEBATE CV — VERIFY</div>
           <h1 className="font-serif text-h2 italic text-ink">
-            Cross-check the parser.
+            Check what we parsed.
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
-            Showing all parsed fields for your 5 most recent tournaments.
+            Everything extracted from your 5 most recent tournaments — if a number on
+            your CV looks wrong, this is where to see what the parser actually read.
           </p>
         </header>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <VerifyMineOnlyToggle mine={mineOnly} />
-          <Link href="/cv">
-            <Button variant="outline" leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
-              Back to My CV
-            </Button>
-          </Link>
         </div>
       </div>
+
+      <CvSubNav active="verify" />
 
       {ordered.length === 0 ? (
         <Card>

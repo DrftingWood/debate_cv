@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { REGIONS, MOTION_TYPES, MOTION_TYPE_LABELS, MOTION_TOPICS, inferMotionType } from '@/lib/tags/vocabulary';
 import { TagProposalControls } from '@/components/TagProposalControls';
-import { Button } from '@/components/ui/Button';
+import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'Tags',
@@ -105,19 +104,14 @@ export default async function CvTagsPage() {
           Tags.
         </h1>
         <hr className="hairline" />
-        <div className="byline flex items-center justify-between gap-2">
-          <span>
-            Tags are shared community facts — a tournament region or a motion type appears
-            identically on every CV that includes that tournament. Proposals go live after
-            an admin approves them.
-          </span>
-          <Link href="/cv/analytics" data-print-hide="true">
-            <Button variant="outline" size="sm">
-              ← Analytics
-            </Button>
-          </Link>
+        <div className="byline">
+          Tags are shared community facts — a tournament region or a motion type appears
+          identically on every CV that includes that tournament. Proposals go live after
+          an admin approves them, and feed the Analytics slices.
         </div>
       </header>
+
+      <CvSubNav active="tags" />
 
       {tournaments.length === 0 ? (
         <p className="text-body text-ink-soft italic">

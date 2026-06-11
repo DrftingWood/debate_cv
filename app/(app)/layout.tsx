@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { NavLink } from '@/components/NavLink';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
@@ -21,6 +22,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // primary in-app surface), signed-out users land on the marketing home.
   const session = await auth();
   const logoHref = session?.user?.id ? '/cv' : '/';
+  // Discoverability only — /admin still enforces requireAdmin server-side.
+  // Without this link, admins had no in-app path to the panel at all.
+  const showAdmin = isAdminEmail(session?.user?.email);
 
   return (
     <>
@@ -30,10 +34,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <BrandMark />
           </Link>
           <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-6 text-[13.5px] font-medium">
+            <nav className="flex items-center gap-6 text-table font-medium">
               <NavLink href="/cv">My CV</NavLink>
-              <NavLink href="/dashboard">Dashboard</NavLink>
+              {/* "Imports" not "Dashboard": the page's one job is getting
+                  tournaments out of Gmail and into the CV — naming it after
+                  the task beats naming it after the furniture. */}
+              <NavLink href="/dashboard">Imports</NavLink>
               <NavLink href="/settings">Settings</NavLink>
+              {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
             </nav>
             {session?.user?.id ? (
               <>

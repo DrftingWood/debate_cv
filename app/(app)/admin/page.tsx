@@ -5,6 +5,7 @@ import { Download } from 'lucide-react';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
+import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
 
@@ -113,6 +114,9 @@ export default async function AdminPage() {
             <dd className="text-xl font-semibold mt-1">{pendingJobs}</dd>
           </div>
         </dl>
+        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
+            the 2026-06 IA pass — it's operator tooling, not a debater need. */}
+        <ExportErrorsButton />
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">

@@ -18,12 +18,10 @@ import {
   IngestButton,
   ClearButton,
   LockUrlButton,
-  ExportErrorsButton,
 } from '@/components/DashboardActions';
 import { RetryFailedButton } from '@/components/RetryFailedButton';
 import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
-import { AutoScanOnVisit } from '@/components/AutoScanOnVisit';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
@@ -31,7 +29,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
-  title: 'Dashboard',
+  title: 'Imports',
   description: 'Scan Gmail, ingest Tabbycat private URLs, and track progress.',
   robots: { index: false, follow: false },
 };
@@ -61,6 +59,12 @@ export default async function Dashboard({
   if (claimedCount === 0) redirect('/onboarding');
 
   const params = await searchParams;
+  // Two-level page: the bare /dashboard is a calm summary (tracker + tiles
+  // + the two actions); the detailed URL table only renders once the user
+  // opts in via a tile or the browse link (?filter=...). The table is the
+  // single biggest source of "this feels like an engineering panel" — most
+  // visits just want "did anything new arrive, is it processing".
+  const browsing = isFilterKey(params.filter);
   const activeFilter: FilterKey = isFilterKey(params.filter) ? params.filter : 'all';
 
   const [gmailToken, urls, jobs, claimedTournamentIds] = await Promise.all([
@@ -130,11 +134,11 @@ export default async function Dashboard({
 
   return (
     <div className="space-y-10">
-      <AutoScanOnVisit />
-      {/* Page masthead */}
+      {/* Page masthead. No AutoScanOnVisit here — the background scan fires
+          on /cv only; this page is where scans are triggered deliberately. */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-3">
-          <div className="kicker">DASHBOARD · INGEST QUEUE</div>
+          <div className="kicker">IMPORTS · GMAIL → CV</div>
           <h1 className="font-serif text-h1 italic text-ink">
             Tournaments, in flight.
           </h1>
@@ -143,7 +147,6 @@ export default async function Dashboard({
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
           <ScanButton />
-          <ExportErrorsButton />
         </div>
       </header>
 
@@ -210,7 +213,26 @@ export default async function Dashboard({
         />
       </section>
 
-      {/* URL table */}
+      {!browsing ? (
+        /* Summary view: the tiles above carry the counts; the table is one
+           click away. Most visits end here. */
+        rows.length === 0 ? (
+          <EmptyState
+            icon={<Inbox className="h-5 w-5" aria-hidden />}
+            title="No private URLs yet"
+            description="Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
+          />
+        ) : (
+          <p className="text-caption text-ink-soft" data-print-hide="true">
+            <Link
+              href="/dashboard?filter=all"
+              className="underline underline-offset-2 hover:text-ink"
+            >
+              Browse all {counts.all} URLs →
+            </Link>
+          </p>
+        )
+      ) : (
       <section className="space-y-4">
         <header className="space-y-3">
           <div className="flex items-end justify-between">
@@ -222,9 +244,17 @@ export default async function Dashboard({
                   : `${filtered.length} of ${counts.all} · ${activeFilter}`}
               </p>
             </div>
+            <Link
+              href="/dashboard"
+              className="text-caption text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              ← Summary
+            </Link>
           </div>
 
-          {/* Filter chips + contextual bulk action */}
+          {/* Filter chips + contextual bulk action. The Ingest-all button
+              deliberately does NOT repeat here — it lives once, in the
+              masthead, whenever anything is pending. */}
           <div className="flex flex-wrap items-center gap-2">
             <FilterChip activeFilter={activeFilter} filter="all" label={`All (${counts.all})`} />
             <FilterChip
@@ -257,9 +287,6 @@ export default async function Dashboard({
             <span className="ml-auto" />
             {activeFilter === 'failed' && counts.failed > 0 ? (
               <RetryFailedButton count={counts.failed} />
-            ) : null}
-            {activeFilter === 'pending' && counts.pending > 0 ? (
-              <IngestAllButton pendingCount={counts.pending} />
             ) : null}
           </div>
         </header>
@@ -297,7 +324,7 @@ export default async function Dashboard({
                             href={u.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-1 flex items-center gap-1 truncate font-mono text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
+                            className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-oxblood"
                           >
                             {u.url}
                             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -305,7 +332,7 @@ export default async function Dashboard({
                         </div>
                         <StatusPill status={status} />
                       </div>
-                      <div className="flex items-center justify-between text-caption text-muted-foreground">
+                      <div className="flex items-center justify-between text-caption text-ink-soft">
                         <span>
                           {u.messageDate
                             ? new Date(u.messageDate).toLocaleDateString()
@@ -320,7 +347,7 @@ export default async function Dashboard({
                         />
                       </div>
                       {job?.lastError && status !== 'unavailable' ? (
-                        <div className="rounded-md bg-[hsl(var(--destructive)/0.08)] px-2.5 py-1.5 text-caption text-destructive whitespace-pre-wrap break-all">
+                        <div className="rounded-md bg-destructive/[0.08] px-2.5 py-1.5 text-caption text-destructive whitespace-pre-wrap break-all">
                           {job.lastError}
                         </div>
                       ) : null}
@@ -330,88 +357,88 @@ export default async function Dashboard({
               ))}
             </ul>
 
-            {/* Desktop table */}
-            <Card className="hidden md:block">
-              <div className="max-w-full overflow-x-auto">
-                <table className="w-full min-w-max text-[13.5px]">
-                  <thead className="border-b border-border bg-muted/60 text-left text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-5 py-3">URL</th>
-                      <th className="px-5 py-3">Tournament</th>
-                      <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3">Received</th>
-                      <th className="px-5 py-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filtered.map(({ u, job, status }) => (
-                      <tr
-                        key={u.id}
-                        className="align-top transition-colors hover:bg-muted/40"
-                      >
-                        <td className="px-5 py-3">
-                          <a
-                            href={u.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-[12px] text-foreground transition-colors hover:text-primary"
-                          >
-                            <span className="truncate">{u.url}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-                          </a>
-                        </td>
-                        <td className="px-5 py-3 text-foreground">
-                          <div>
-                            {u.tournament?.name ?? (
-                              <span className="text-muted-foreground/60">—</span>
-                            )}
-                          </div>
-                          <TournamentMetrics
-                            tournament={u.tournament}
-                            ingestedAt={u.ingestedAt}
-                          />
-                        </td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-2">
-                            <StatusPill status={status} />
-                            {u.reingestLocked ? (
-                              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                Locked
-                              </span>
-                            ) : null}
-                          </div>
-                          {job?.lastError && status !== 'unavailable' ? (
-                            <div
-                              className="mt-1 max-w-xs text-caption text-destructive whitespace-pre-wrap break-all"
-                              title={job.lastError}
-                            >
-                              {job.lastError}
-                            </div>
+            {/* Desktop table — same editorial hairline pattern as the CV
+                tables, so the two most-visited pages read as one app. */}
+            <div className="hidden max-w-full overflow-x-auto md:block">
+              <table className="w-full min-w-max text-table">
+                <thead>
+                  <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                    <th className="whitespace-nowrap px-4 py-2.5 font-medium">URL</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournament</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Status</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Received</th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(({ u, job, status }) => (
+                    <tr
+                      key={u.id}
+                      className="align-top border-b border-ink/10 transition-colors hover:bg-ink/[0.02]"
+                    >
+                      <td className="px-4 py-2.5">
+                        <a
+                          href={u.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-oxblood"
+                        >
+                          <span className="truncate">{u.url}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                        </a>
+                      </td>
+                      <td className="px-3 py-2.5 text-ink">
+                        <div>
+                          {u.tournament?.name ?? (
+                            <span className="text-ink-soft/60">—</span>
+                          )}
+                        </div>
+                        <TournamentMetrics
+                          tournament={u.tournament}
+                          ingestedAt={u.ingestedAt}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <StatusPill status={status} />
+                          {u.reingestLocked ? (
+                            <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                              Locked
+                            </span>
                           ) : null}
-                        </td>
-                        <td className="px-5 py-3 text-caption text-muted-foreground">
-                          {u.messageDate
-                            ? new Date(u.messageDate).toLocaleDateString()
-                            : '—'}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <RowActions
-                            url={u.url}
-                            tournamentId={u.tournament?.id.toString() ?? null}
-                            tournamentName={u.tournament?.name ?? null}
-                            status={status}
-                            locked={u.reingestLocked}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                        </div>
+                        {job?.lastError && status !== 'unavailable' ? (
+                          <div
+                            className="mt-1 max-w-xs text-caption text-destructive whitespace-pre-wrap break-all"
+                            title={job.lastError}
+                          >
+                            {job.lastError}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-caption text-ink-soft num">
+                        {u.messageDate
+                          ? new Date(u.messageDate).toLocaleDateString()
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <RowActions
+                          url={u.url}
+                          tournamentId={u.tournament?.id.toString() ?? null}
+                          tournamentName={u.tournament?.name ?? null}
+                          status={status}
+                          locked={u.reingestLocked}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </section>
+      )}
     </div>
   );
 }
@@ -428,13 +455,15 @@ function FilterChip({
   const active = activeFilter === filter;
   return (
     <Link
-      href={filter === 'all' ? '/dashboard' : `/dashboard?filter=${filter}`}
+      // Always carry the filter param — a bare /dashboard is the summary
+      // view, so "All" must say ?filter=all to keep the table open.
+      href={`/dashboard?filter=${filter}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'inline-flex items-center rounded-full border px-3 py-1 text-[12.5px] font-medium transition-colors',
+        'inline-flex items-center rounded-full border px-3 py-1 text-caption font-medium transition-colors',
         active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-card text-foreground hover:bg-muted',
+          ? 'border-ink bg-ink text-paper'
+          : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]',
       )}
     >
       {label}
@@ -509,7 +538,7 @@ function TournamentMetrics({
   if (totalParticipants) parts.push(`${totalParticipants} participants`);
 
   return (
-    <div className="mt-0.5 text-caption text-muted-foreground">{parts.join(' · ')}</div>
+    <div className="mt-0.5 text-caption text-ink-soft">{parts.join(' · ')}</div>
   );
 }
 
@@ -551,16 +580,16 @@ function FilterTile({
     success: 'text-success bg-[hsl(var(--success)/0.12)]',
     warning: 'text-warning bg-[hsl(var(--warning)/0.12)]',
     danger: 'text-destructive bg-[hsl(var(--destructive)/0.10)]',
-    neutral: 'text-muted-foreground bg-muted',
+    neutral: 'text-ink-soft bg-ink/[0.06]',
   };
   const active = activeFilter === filter;
   return (
     <Link
-      href={filter === 'all' ? '/dashboard' : `/dashboard?filter=${filter}`}
+      href={`/dashboard?filter=${filter}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'block rounded-card border bg-card transition-all duration-[180ms] ease-soft hover:shadow-md',
-        active ? 'border-primary ring-2 ring-primary/30' : 'border-border',
+        active ? 'border-oxblood ring-2 ring-oxblood/20' : 'border-ink/15',
       )}
     >
       <div className="flex items-center gap-3 p-5">
@@ -568,11 +597,11 @@ function FilterTile({
           {icon}
         </div>
         <div className="min-w-0">
-          <div className="text-caption text-muted-foreground">{label}</div>
+          <div className="text-caption text-ink-soft">{label}</div>
           <div className="mt-0.5 font-serif text-stat font-semibold leading-none text-ink">
             {value}
           </div>
-          {hint ? <div className="mt-2 text-caption text-muted-foreground">{hint}</div> : null}
+          {hint ? <div className="mt-2 text-caption text-ink-soft">{hint}</div> : null}
         </div>
       </div>
     </Link>

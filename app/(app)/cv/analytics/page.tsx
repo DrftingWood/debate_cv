@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList } from '@/components/ui/BarList';
+import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'Analytics',
@@ -55,18 +56,13 @@ export default async function CvAnalyticsPage() {
           Trends.
         </h1>
         <hr className="hairline" />
-        <div className="byline flex items-center justify-between gap-2">
-          <span>
-            Computed from {coverage.speakerTournaments + coverage.judgeTournaments} CV row
-            {coverage.speakerTournaments + coverage.judgeTournaments === 1 ? '' : 's'}.
-          </span>
-          <Link href="/cv" data-print-hide="true">
-            <Button variant="outline" size="sm">
-              ← Back to CV
-            </Button>
-          </Link>
+        <div className="byline">
+          Computed from {coverage.speakerTournaments + coverage.judgeTournaments} CV row
+          {coverage.speakerTournaments + coverage.judgeTournaments === 1 ? '' : 's'}.
         </div>
       </header>
+
+      <CvSubNav active="analytics" />
 
       {!hasAnything ? (
         <EmptyState
