@@ -4,21 +4,17 @@
 
 @layer base {
   /*
-   * Tab Room Terminal palette (2026-06 retheme, owner-directed).
-   * Two modes share one var contract:
-   *   :root / [data-theme='light']  — "ballot paper": green-tinted paper,
-   *     green-black ink, deep phosphor accent. Also what print uses.
-   *   [data-theme='dark']           — the terminal proper: green-black
-   *     surfaces, phosphor #3DDC84, amber warnings, signal-red errors.
-   * The editorial-era token NAMES (ink/paper/…) stay — they're an abstract
-   * contract (fg/bg/accent) used across ~40 files; only values moved.
+   * Competitive record palette. The UI should read as a verified archive:
+   * paper, ink, ledger rules, tournament green, break gold, and score blue.
+   * Legacy ink/paper/oxblood aliases remain mapped in Tailwind for existing
+   * surfaces, but new work should use the record-* semantic tokens below.
    */
   :root,
   [data-theme='light'] {
-    --background: 140 20% 96%;         /* ballot paper, green hint */
-    --foreground: 160 25% 10%;         /* green-black ink */
-    --muted-foreground: 160 10% 38%;
-    --border: 160 25% 10%;             /* used at low opacity for hairlines */
+    --background: 48 27% 96%;          /* archive white */
+    --foreground: 140 8% 9%;           /* record ink */
+    --muted-foreground: 100 4% 42%;
+    --border: 48 8% 66%;               /* ledger rules */
 
     --card: 0 0% 100%;
     --card-foreground: 160 25% 10%;
@@ -26,33 +22,42 @@
     --popover: 0 0% 100%;
     --popover-foreground: 160 25% 10%;
 
-    --primary: 152 70% 28%;            /* deep phosphor (AA on paper) */
-    --primary-foreground: 140 20% 96%;
-    --primary-hover: 152 70% 22%;
-    --primary-soft: 152 70% 28%;       /* used at /0.08 for accent backgrounds */
+    --primary: 155 65% 26%;            /* tournament green */
+    --primary-foreground: 48 27% 96%;
+    --primary-hover: 155 65% 20%;
+    --primary-soft: 155 65% 26%;
 
     --secondary: 150 14% 94%;
     --secondary-foreground: 160 25% 10%;
 
     --muted: 150 14% 93%;
 
-    --accent: 150 18% 90%;             /* inset surface */
-    --accent-foreground: 152 70% 28%;
+    --accent: 48 18% 91%;              /* record surface */
+    --accent-foreground: 155 65% 26%;
 
-    --success: 152 70% 28%;
+    --success: 155 65% 26%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 32 85% 36%;
+    --warning: 34 64% 44%;
     --warning-foreground: 0 0% 100%;
 
     --destructive: 0 65% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --input: 160 25% 10%;              /* used with /0.12 for input borders */
-    --ring: 152 70% 28%;
+    --input: 140 8% 9%;                /* used with /0.12 for input borders */
+    --ring: 155 65% 26%;
 
-    --radius: 0.5rem;
-    --radius-card: 0.625rem;
+    --radius: 0.375rem;
+    --radius-card: 0.75rem;
+
+    --archive-white: 48 27% 96%;
+    --record-ink: 140 8% 9%;
+    --record-muted: 100 4% 42%;
+    --record-rule: 48 8% 66%;
+    --record-surface: 48 18% 91%;
+    --record-green: 155 65% 26%;
+    --break-gold: 39 63% 44%;
+    --score-blue: 208 48% 37%;
 
     --shadow-xs: 0 1px 2px 0 hsl(160 25% 10% / 0.04);
     --shadow-sm: 0 1px 2px hsl(160 25% 10% / 0.04), 0 1px 3px hsl(160 25% 10% / 0.04);
@@ -103,6 +108,15 @@
     --shadow-md: 0 4px 12px -2px hsl(160 30% 2% / 0.5), 0 2px 4px -1px hsl(160 30% 2% / 0.4);
     --shadow-lg: 0 12px 32px -8px hsl(160 30% 2% / 0.6), 0 4px 12px -2px hsl(160 30% 2% / 0.45);
     --shadow-xl: 0 24px 56px -16px hsl(160 30% 2% / 0.7), 0 8px 24px -4px hsl(160 30% 2% / 0.5);
+
+    --archive-white: 162 21% 6%;
+    --record-ink: 140 21% 92%;
+    --record-muted: 145 9% 62%;
+    --record-rule: 140 21% 92%;
+    --record-surface: 158 17% 12%;
+    --record-green: 147 69% 55%;
+    --break-gold: 39 78% 62%;
+    --score-blue: 205 72% 67%;
   }
 
   html {
@@ -143,6 +157,29 @@
 }
 
 @layer components {
+
+  .record-panel {
+    @apply rounded-card border bg-card;
+    border-color: hsl(var(--record-rule) / 0.35);
+    box-shadow: var(--shadow-sm);
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--record-green));
+  }
+  .data-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: hsl(var(--record-muted));
+  }
+
   /* Surface tiers (drop shadows for on-surface elements; hairline borders instead) */
   .surface-card {
     @apply rounded-card border bg-card;
@@ -223,7 +260,7 @@
   [data-theme='dark'] {
     --background: 0 0% 100%;
     --foreground: 160 25% 10%;
-    --muted-foreground: 160 10% 38%;
+    --muted-foreground: 100 4% 42%;
     --border: 160 25% 10%;
     --card: 0 0% 100%;
     --card-foreground: 160 25% 10%;

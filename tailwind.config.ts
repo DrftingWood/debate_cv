@@ -71,6 +71,23 @@ const config: Config = {
           DEFAULT: 'hsl(var(--primary))',
           soft: 'hsl(var(--primary-soft) / 0.08)',
         },
+        archive: {
+          white: 'hsl(var(--archive-white))',
+        },
+        record: {
+          ink: 'hsl(var(--record-ink))',
+          muted: 'hsl(var(--record-muted))',
+          rule: 'hsl(var(--record-rule) / 0.35)',
+          surface: 'hsl(var(--record-surface))',
+          green: 'hsl(var(--record-green))',
+          'green-soft': 'hsl(var(--record-green) / 0.10)',
+        },
+        break: {
+          gold: 'hsl(var(--break-gold))',
+        },
+        score: {
+          blue: 'hsl(var(--score-blue))',
+        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],

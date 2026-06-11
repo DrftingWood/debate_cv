@@ -36,16 +36,16 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'debate cv — your debate tournament history, from your inbox',
+    default: 'debate cv — verified tournament records for debaters',
     template: '%s · debate cv',
   },
   description:
-    'Sign in with Google and we build your debate tournament CV from the Tabbycat private URLs in your Gmail. Speaker scores, break results, team mates — all in one place.',
+    'Build a private, source-backed debate CV with tournaments, breaks, speaker scores, growth signals, and share controls.',
   applicationName: 'debate cv',
   authors: [{ name: 'DrftingWood', url: 'https://github.com/DrftingWood' }],
   openGraph: {
     title: 'debate cv',
-    description: 'Your debate tournament history, compiled from your Gmail.',
+    description: 'Your debate tournament history, verified and ready to share.',
     type: 'website',
     siteName: 'debate cv',
     url: siteUrl,
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'debate cv',
-    description: 'Your debate tournament history, compiled from your Gmail.',
+    description: 'Your debate tournament history, verified and ready to share.',
   },
   robots: {
     index: true,
@@ -67,7 +67,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F2F6F2' },
+    { media: '(prefers-color-scheme: light)', color: '#F7F6F1' },
     { media: '(prefers-color-scheme: dark)', color: '#0C1311' },
   ],
 };
