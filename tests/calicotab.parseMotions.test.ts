@@ -127,6 +127,10 @@ describe('parseMotionsTab — plain HTML table', () => {
 
 // ── Vue-embedded-JSON markup ──────────────────────────────────────────────────
 
+// The cheerio path routes table markup through the same motionsFromVue
+// column matcher, so rules already proven above (round-number
+// normalisation, empty-text skipping) are not re-tested here — only the
+// Vue-specific routing and key handling are.
 describe('parseMotionsTab — Vue data island', () => {
   test('parses a Vue page with round and motion columns', () => {
     const html = vueMotionsHtml(
@@ -167,40 +171,7 @@ describe('parseMotionsTab — Vue data island', () => {
     expect(rows[0]!.infoSlide).toBe('Turnout in the last election was 45%.');
   });
 
-  test('outround labels in Vue payload give roundNumber: null', () => {
-    const html = vueMotionsHtml(
-      [
-        { key: 'round', title: 'Round' },
-        { key: 'motion', title: 'Motion' },
-      ],
-      [
-        [{ text: 'Quarterfinals' }, { text: 'THW end the war on drugs.' }],
-        [{ text: 'Grand Final' }, { text: 'THW prioritize equity over equality.' }],
-      ],
-    );
-    const rows = parseMotionsTab(html);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]!.roundNumber).toBeNull();
-    expect(rows[0]!.roundLabel).toBe('Quarterfinals');
-    expect(rows[1]!.roundNumber).toBeNull();
-    expect(rows[1]!.roundLabel).toBe('Grand Final');
-  });
 
-  test('skips rows with empty motion text in Vue payload', () => {
-    const html = vueMotionsHtml(
-      [
-        { key: 'round', title: 'Round' },
-        { key: 'motion', title: 'Motion' },
-      ],
-      [
-        [{ text: 'Round 1' }, { text: '' }],
-        [{ text: 'Round 2' }, { text: 'THW tax carbon heavily.' }],
-      ],
-    );
-    const rows = parseMotionsTab(html);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.roundNumber).toBe(2);
-  });
 
   test('Vue page using "text" key instead of "motion"', () => {
     // Some Tabbycat installs label the motion column "text" or "topic".
@@ -263,43 +234,33 @@ describe('parseMotionsTab — multiple motions per round', () => {
 // ── Garbage / empty input ─────────────────────────────────────────────────────
 
 describe('parseMotionsTab — empty and garbage input', () => {
-  test('returns [] for empty string', () => {
-    expect(parseMotionsTab('')).toEqual([]);
-  });
-
-  test('returns [] for HTML with no tables and no recognizable headings', () => {
-    expect(parseMotionsTab('<html><body><p>No data here.</p></body></html>')).toEqual([]);
-  });
-
-  test('returns [] for a table with no motion-like column', () => {
-    // A table that happens to have a "Round" column but no "Motion"/"Text"/"Topic"
-    // column should not produce any rows.
-    const html = `
+  test('anything without a motion column yields [] rather than throwing', () => {
+    // One behaviour, six ways in. parseMotionsTab is called on pages that
+    // may 404, may not be a motions tab at all, or may be a motions tab
+    // whose columns we do not recognise — all of them must degrade to an
+    // empty list, because a throw here aborts the whole tournament ingest.
+    const noMotionColumnTable = `
       <table>
         <thead><tr><th>Round</th><th>Venue</th></tr></thead>
-        <tbody>
-          <tr><td>Round 1</td><td>Hall A</td></tr>
-        </tbody>
+        <tbody><tr><td>Round 1</td><td>Hall A</td></tr></tbody>
       </table>
     `;
-    expect(parseMotionsTab(html)).toEqual([]);
-  });
-
-  test('returns [] for a Vue page whose tablesData has no motion column', () => {
-    const html = vueMotionsHtml(
+    const noMotionColumnVue = vueMotionsHtml(
       [{ key: 'round', title: 'Round' }, { key: 'venue', title: 'Venue' }],
       [[{ text: 'Round 1' }, { text: 'Hall A' }]],
     );
-    expect(parseMotionsTab(html)).toEqual([]);
-  });
+    const emptyVueTables = `<html><body><script>window.vueData = {"tablesData":[]}</script></body></html>`;
 
-  test('returns [] for entirely malformed HTML', () => {
-    expect(parseMotionsTab('<<<<>>>>>not html at all')).toEqual([]);
-  });
-
-  test('returns [] for a Vue page with an empty tablesData array', () => {
-    const html = `<html><body><script>window.vueData = {"tablesData":[]}</script></body></html>`;
-    expect(parseMotionsTab(html)).toEqual([]);
+    for (const html of [
+      '',
+      '<html><body><p>No data here.</p></body></html>',
+      '<<<<>>>>>not html at all',
+      noMotionColumnTable,
+      noMotionColumnVue,
+      emptyVueTables,
+    ]) {
+      expect(parseMotionsTab(html)).toEqual([]);
+    }
   });
 });
 
@@ -316,20 +277,16 @@ describe('parseMotionsTab — return-value shape', () => {
     expect(keys).toEqual(expect.arrayContaining(['roundNumber', 'roundLabel', 'text', 'infoSlide', 'seq']));
   });
 
-  test('info slide is null when the column is absent', () => {
-    const html = plainTableHtml([
+  test('info slide is null whether the column is absent or empty', () => {
+    const absent = plainTableHtml([
       { round: 'Round 1', motion: 'THW allow civil disobedience.' },
     ]);
-    const rows = parseMotionsTab(html);
-    expect(rows[0]!.infoSlide).toBeNull();
-  });
+    expect(parseMotionsTab(absent)[0]!.infoSlide).toBeNull();
 
-  test('info slide is null when the column is present but empty', () => {
-    const html = plainTableHtml(
+    const empty = plainTableHtml(
       [{ round: 'Round 1', motion: 'THW lower the voting age to 16.', infoSlide: '' }],
       true,
     );
-    const rows = parseMotionsTab(html);
-    expect(rows[0]!.infoSlide).toBeNull();
+    expect(parseMotionsTab(empty)[0]!.infoSlide).toBeNull();
   });
 });

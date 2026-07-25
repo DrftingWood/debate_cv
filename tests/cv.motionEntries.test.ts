@@ -94,23 +94,20 @@ describe('buildMotionEntries', () => {
     }
   });
 
-  test('an outround motion carries no round data and no siblings', () => {
-    const entries = buildMotionEntries(
-      [makeSpeakerRow({ tournamentId: 1n, roundScores: scores([[1, 75]]) })],
-      [],
-      [makeMotion({ tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 9 })],
-    );
-    expect(entries[0]).toMatchObject({ siblings: 0, score: null, won: null, debated: false });
-  });
+  test('a motion with no matching round is listed, but not marked debated', () => {
+    // Two ways to have no round data: an outround (roundNumber null, so the
+    // join short-circuits) and a prelim the user has no row for (the lookup
+    // misses). Both must still appear on the archive.
+    const rows = [makeSpeakerRow({ tournamentId: 1n, roundScores: scores([[1, 75]]) })];
+    const outround = buildMotionEntries(rows, [], [
+      makeMotion({ tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 9 }),
+    ]);
+    expect(outround[0]).toMatchObject({ siblings: 0, score: null, won: null, debated: false });
 
-  test('a round the user has no data for is listed but not marked debated', () => {
-    const entries = buildMotionEntries(
-      [makeSpeakerRow({ tournamentId: 1n, roundScores: scores([[1, 75]]) })],
-      [],
-      [makeMotion({ tournamentId: 1n, roundNumber: 4 })],
-    );
-    expect(entries[0].debated).toBe(false);
-    expect(entries[0].score).toBeNull();
+    const undebated = buildMotionEntries(rows, [], [
+      makeMotion({ tournamentId: 1n, roundNumber: 4 }),
+    ]);
+    expect(undebated[0]).toMatchObject({ score: null, debated: false });
   });
 
   test('sorts newest tournament first, then by name, then by document order', () => {
@@ -168,6 +165,11 @@ describe('pickHeaderMetrics', () => {
     expect(labels).toContain('Breaks');
     expect(labels).not.toContain('Prelims chaired');
     expect(labels).not.toContain('Outrounds chaired');
+    // The breaks tile carries its conversion rate rather than a bare count.
+    expect(tiles.find((t) => t.label === 'Breaks')).toMatchObject({
+      value: 3,
+      hint: '38% of entries',
+    });
   });
 
   test('a pure judge is never shown a breaks tile', () => {
@@ -225,15 +227,5 @@ describe('pickHeaderMetrics', () => {
       outroundsChaired: 2,
     });
     expect(tiles.length).toBeLessThanOrEqual(4);
-  });
-
-  test('the breaks tile carries its conversion rate as the hint', () => {
-    const [, breakTile] = pickHeaderMetrics({
-      ...base,
-      totalTournaments: 10,
-      speakerCount: 10,
-      breaks: 4,
-    });
-    expect(breakTile).toMatchObject({ label: 'Breaks', value: 4, hint: '40% of entries' });
   });
 });

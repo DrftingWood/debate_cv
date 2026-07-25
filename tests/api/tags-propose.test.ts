@@ -32,101 +32,58 @@ describe('POST /api/tags/propose — auth', () => {
     ));
 });
 
-// ── schema validation ────────────────────────────────────────────────────────
+// ── rejected requests ───────────────────────────────────────────────────────
+//
+// Every invalid body follows the same shape: 400, error=bad_request, and no
+// DB call, because all of these fail at the zod/vocabulary layer before the
+// route reaches Prisma. Six near-identical `it` blocks collapsed into one
+// table so the distinguishing input stays visible and the boilerplate does
+// not repeat.
 
-describe('POST /api/tags/propose — schema validation', () => {
+describe('POST /api/tags/propose — rejects invalid bodies', () => {
   beforeEach(() => authMock.mockResolvedValue(fakeSession('user-1')));
 
-  it('rejects an unknown kind', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'invalid_kind', tournamentId: '1', value: 'Europe' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('bad_request');
-    // Zod rejects at parse time — no DB calls should have been made
-    expect(prismaMock.discoveredUrl.findFirst).not.toHaveBeenCalled();
-  });
-
-  it('rejects a non-numeric tournamentId', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'region', tournamentId: 'not-a-number', value: 'Europe' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('bad_request');
-  });
-
-  it('rejects a value not in the vocabulary for the kind', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'region', tournamentId: '1', value: 'Fake Continent' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string; reason?: string }>(res);
-    expect(data.error).toBe('bad_request');
-    expect(data.reason).toMatch(/vocabulary/);
-    expect(prismaMock.discoveredUrl.findFirst).not.toHaveBeenCalled();
-  });
-
-  it('rejects a valid motion_type value with a bad value string', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'motion_type', tournamentId: '1', motionId: '5', value: 'NotAType' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string }>(res);
-    expect(data.error).toBe('bad_request');
-  });
-});
-
-// ── motionId coupling rules ──────────────────────────────────────────────────
-
-describe('POST /api/tags/propose — motionId coupling', () => {
-  beforeEach(() => authMock.mockResolvedValue(fakeSession('user-1')));
-
-  it('rejects kind=region WITH a motionId', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'region', tournamentId: '1', motionId: '5', value: 'Europe' },
-      }),
-    );
+  it.each([
+    {
+      name: 'an unknown kind',
+      body: { kind: 'invalid_kind', tournamentId: '1', value: 'Europe' },
+    },
+    {
+      name: 'a non-numeric tournamentId',
+      body: { kind: 'region', tournamentId: 'not-a-number', value: 'Europe' },
+    },
+    {
+      name: 'a value outside the vocabulary for the kind',
+      body: { kind: 'region', tournamentId: '1', value: 'Fake Continent' },
+      reason: /vocabulary/,
+    },
+    {
+      name: 'a motion_type with a value outside its vocabulary',
+      body: { kind: 'motion_type', tournamentId: '1', motionId: '5', value: 'NotAType' },
+    },
+    // motionId coupling: region must not carry one, motion tags must.
+    {
+      name: 'kind=region WITH a motionId',
+      body: { kind: 'region', tournamentId: '1', motionId: '5', value: 'Europe' },
+      reason: /region/,
+    },
+    {
+      name: 'kind=motion_type WITHOUT a motionId',
+      body: { kind: 'motion_type', tournamentId: '1', value: 'THBT' },
+      reason: /motionId is required/,
+    },
+    {
+      name: 'kind=motion_topic WITHOUT a motionId',
+      body: { kind: 'motion_topic', tournamentId: '1', value: 'Economics & Business' },
+      reason: /motionId is required/,
+    },
+  ])('rejects $name', async ({ body, reason }) => {
+    const res = await POST(jsonRequest('/api/tags/propose', { body }));
     expect(res.status).toBe(400);
     const data = await readJson<{ error: string; reason?: string }>(res);
     expect(data.error).toBe('bad_request');
-    expect(data.reason).toMatch(/region/);
+    if (reason) expect(data.reason).toMatch(reason);
     expect(prismaMock.discoveredUrl.findFirst).not.toHaveBeenCalled();
-  });
-
-  it('rejects kind=motion_type WITHOUT a motionId', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'motion_type', tournamentId: '1', value: 'THBT' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string; reason?: string }>(res);
-    expect(data.error).toBe('bad_request');
-    expect(data.reason).toMatch(/motionId is required/);
-    expect(prismaMock.discoveredUrl.findFirst).not.toHaveBeenCalled();
-  });
-
-  it('rejects kind=motion_topic WITHOUT a motionId', async () => {
-    const res = await POST(
-      jsonRequest('/api/tags/propose', {
-        body: { kind: 'motion_topic', tournamentId: '1', value: 'Economics & Business' },
-      }),
-    );
-    expect(res.status).toBe(400);
-    const data = await readJson<{ error: string; reason?: string }>(res);
-    expect(data.error).toBe('bad_request');
-    expect(data.reason).toMatch(/motionId is required/);
   });
 });
 

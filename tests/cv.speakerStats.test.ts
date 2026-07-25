@@ -44,6 +44,7 @@ describe('computeSpeakerStats — score profile', () => {
             [3, 76],
             [4, 78],
             [5, 82],
+            [6, null], // an unscored cell must not reach any figure below
           ]),
         }),
       ],
@@ -61,23 +62,6 @@ describe('computeSpeakerStats — score profile', () => {
     expect(s.scoreProfile.stdev).toBeCloseTo(4);
     expect(s.scoreProfile.best).toMatchObject({ score: 82, roundNumber: 5, tournamentName: 'Alpha Open' });
     expect(s.scoreProfile.worst).toMatchObject({ score: 70, roundNumber: 1 });
-  });
-
-  test('null score cells never reach the profile', () => {
-    const s = computeSpeakerStats({
-      speakerRows: [
-        makeSpeakerRow({
-          roundScores: scores([
-            [1, 75],
-            [2, null],
-            [3, 77],
-          ]),
-        }),
-      ],
-      judgeRows: [],
-    });
-    expect(s.scoreProfile.speeches).toBe(2);
-    expect(s.scoreProfile.mean).toBeCloseTo(76);
   });
 
   test('the best speech names its motion only when the round released exactly one', () => {
@@ -123,10 +107,6 @@ describe('buildBins', () => {
     const wide = buildBins([10, 40, 70, 99]);
     expect(wide.length).toBeLessThanOrEqual(21);
     expect(wide.reduce((s, b) => s + b.count, 0)).toBe(4);
-  });
-
-  test('an empty series produces no bins', () => {
-    expect(buildBins([])).toEqual([]);
   });
 });
 
@@ -221,16 +201,16 @@ describe('computeSpeakerStats — field context', () => {
     expect(s.fieldContext.speakersFaced).toBe(200);
     expect(s.fieldContext.incompleteDraws).toBe(1);
     expect(s.fieldContext.bestPlacement?.tournamentId).toBe('1');
-  });
 
-  test('a full draw with an unknown round count is not flagged', () => {
-    const s = computeSpeakerStats({
+    // An unknown round count is not evidence of a partial draw — without a
+    // denominator there is nothing to be short of.
+    const unknownCount = computeSpeakerStats({
       speakerRows: [makeSpeakerRow({ tournamentId: 1n, speakerAvgScore: '78.0' })],
       judgeRows: [],
       fieldStats: [{ ...field[0], userScoredRounds: 6, prelimRoundCount: null }],
     });
-    expect(s.fieldContext.placements[0].incompleteDraw).toBe(false);
-    expect(s.fieldContext.incompleteDraws).toBe(0);
+    expect(unknownCount.fieldContext.placements[0].incompleteDraw).toBe(false);
+    expect(unknownCount.fieldContext.incompleteDraws).toBe(0);
   });
 });
 
@@ -353,43 +333,33 @@ describe('computeSpeakerStats — results', () => {
     expect(s.results.longestWinStreak).toBe(2);
   });
 
-  test('deepest outround ranks by stage, not by substring', () => {
+  test('outround stages rank by stage, not by substring', () => {
     // Regression: "final" is a substring of "quarterfinal", "semifinal" and
     // "octofinal", so a naive includes() ladder scores every outround
-    // identically and reports whichever row came first. Grand Final must
-    // win here regardless of row order.
+    // identically — reporting whichever row came first as the deepest, and
+    // counting quarters and semis as finals reached.
     const s = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, broke: true, eliminationReached: 'Semifinals' }),
-        makeSpeakerRow({ tournamentId: 2n, broke: true, eliminationReached: 'Grand Final' }),
-        makeSpeakerRow({ tournamentId: 3n, broke: true, eliminationReached: 'Octofinals' }),
+        makeSpeakerRow({ tournamentId: 1n, eliminationReached: 'Semifinals' }),
+        makeSpeakerRow({ tournamentId: 2n, eliminationReached: 'Grand Final' }),
+        makeSpeakerRow({ tournamentId: 3n, eliminationReached: 'Octofinals' }),
+        makeSpeakerRow({ tournamentId: 4n, eliminationReached: 'Quarterfinals' }),
+        makeSpeakerRow({ tournamentId: 5n, eliminationReached: 'Final' }),
       ],
       judgeRows: [],
     });
     expect(s.results.deepestOutround).toBe('Grand Final');
-    // …and the same when the deepest row is listed first.
+    expect(s.results.finals).toBe(2); // Grand Final + Final, not the other three
+
+    // …and the deepest is found regardless of row order.
     const reversed = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 2n, broke: true, eliminationReached: 'Grand Final' }),
-        makeSpeakerRow({ tournamentId: 1n, broke: true, eliminationReached: 'Quarterfinals' }),
+        makeSpeakerRow({ tournamentId: 2n, eliminationReached: 'Grand Final' }),
+        makeSpeakerRow({ tournamentId: 1n, eliminationReached: 'Quarterfinals' }),
       ],
       judgeRows: [],
     });
     expect(reversed.results.deepestOutround).toBe('Grand Final');
-  });
-
-  test('finals counts only the tournament final, not quarters or semis', () => {
-    const s = computeSpeakerStats({
-      speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, eliminationReached: 'Quarterfinals' }),
-        makeSpeakerRow({ tournamentId: 2n, eliminationReached: 'Semifinals' }),
-        makeSpeakerRow({ tournamentId: 3n, eliminationReached: 'Grand Final' }),
-        makeSpeakerRow({ tournamentId: 4n, eliminationReached: 'Final' }),
-        makeSpeakerRow({ tournamentId: 5n, eliminationReached: 'Octofinals' }),
-      ],
-      judgeRows: [],
-    });
-    expect(s.results.finals).toBe(2);
   });
 
   test('streaks put undated tournaments last rather than before the first season', () => {

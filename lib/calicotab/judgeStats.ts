@@ -116,28 +116,6 @@ export function getInroundsChairedCount(
   return count;
 }
 
-export type JudgeRoundInput = {
-  roundNumber: number | null;
-  roundLabel: string | null;
-  isOutround: boolean;
-  judgeAssignments: { personKey: string; panelRole: 'chair' | 'panel' | null }[];
-};
-
-export type JudgeStats = {
-  chairedPrelimRounds: number;
-  lastOutroundChaired: string | null;
-  lastOutroundPaneled: string | null;
-};
-
-/**
- * Canonical outround stage. Source of truth for both `outroundRank`
- * (used by judge stats / CV champion check) and `outroundStageRank`
- * (used by ingest). The two functions need different numeric scales —
- * ingest gives "Grand Final" headroom over plain "Final" because it
- * also has to distinguish category-prefixed finals — but the regex
- * patterns that decide WHICH stage a label is must not drift between
- * them. Centralising the classifier keeps both call sites in lock-step.
- */
 export type OutroundStage =
   | 'grand_final'
   | 'final'
@@ -244,55 +222,3 @@ export function deepestOutroundAcrossRoles(
   return rankFor(p) > rankFor(c) ? p : c;
 }
 
-/**
- * Aggregate per-judge statistics across a tournament's rounds.
- *
- * Dedup rule for chairedPrelimRounds: a judge who chaired two rooms in the
- * same round still only counts once. Keyed by (personKey, roundNumber).
- *
- * Last-outround fields are written once and replaced only when we see a
- * strictly-later outround (per `outroundRank`). That way the order we iterate
- * `rounds` is irrelevant.
- */
-export function aggregateJudgeStats(rounds: JudgeRoundInput[]): Map<string, JudgeStats> {
-  const stats = new Map<string, JudgeStats>();
-  const chairedSeen = new Set<string>(); // personKey|roundNumber
-  const bestChair = new Map<string, number>(); // personKey -> outroundRank
-  const bestPanel = new Map<string, number>();
-
-  for (const round of rounds) {
-    const stageRank = outroundRank(round);
-    const isPrelim = !round.isOutround && round.roundNumber != null && round.roundNumber <= 5;
-
-    for (const j of round.judgeAssignments) {
-      const key = j.personKey;
-      const stat =
-        stats.get(key) ??
-        ({ chairedPrelimRounds: 0, lastOutroundChaired: null, lastOutroundPaneled: null } satisfies JudgeStats);
-
-      if (isPrelim && j.panelRole === 'chair') {
-        const dedupKey = `${key}|${round.roundNumber}`;
-        if (!chairedSeen.has(dedupKey)) {
-          chairedSeen.add(dedupKey);
-          stat.chairedPrelimRounds += 1;
-        }
-      }
-
-      if (round.isOutround) {
-        const label = round.roundLabel ?? `Round ${round.roundNumber ?? '?'}`;
-        if (j.panelRole === 'chair' && stageRank > (bestChair.get(key) ?? -Infinity)) {
-          bestChair.set(key, stageRank);
-          stat.lastOutroundChaired = label;
-        }
-        if (j.panelRole === 'panel' && stageRank > (bestPanel.get(key) ?? -Infinity)) {
-          bestPanel.set(key, stageRank);
-          stat.lastOutroundPaneled = label;
-        }
-      }
-
-      stats.set(key, stat);
-    }
-  }
-
-  return stats;
-}
