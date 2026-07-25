@@ -13,38 +13,38 @@ const config: Config = {
       colors: {
         border: 'hsl(var(--border) / 0.16)',  // hairline default
         input: 'hsl(var(--input) / 0.22)',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        ring: 'hsl(var(--ring) / <alpha-value>)',
+        background: 'hsl(var(--background) / <alpha-value>)',
+        foreground: 'hsl(var(--foreground) / <alpha-value>)',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-          hover: 'hsl(var(--primary-hover))',
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+          foreground: 'hsl(var(--primary-foreground) / <alpha-value>)',
+          hover: 'hsl(var(--primary-hover) / <alpha-value>)',
           soft: 'hsl(var(--primary-soft) / 0.08)',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: 'hsl(var(--secondary) / <alpha-value>)',
+          foreground: 'hsl(var(--secondary-foreground) / <alpha-value>)',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'hsl(var(--muted) / <alpha-value>)',
+          foreground: 'hsl(var(--muted-foreground) / <alpha-value>)',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'hsl(var(--accent) / <alpha-value>)',
+          foreground: 'hsl(var(--accent-foreground) / <alpha-value>)',
         },
         success: {
-          DEFAULT: 'hsl(var(--success))',
-          foreground: 'hsl(var(--success-foreground))',
+          DEFAULT: 'hsl(var(--success) / <alpha-value>)',
+          foreground: 'hsl(var(--success-foreground) / <alpha-value>)',
         },
         warning: {
-          DEFAULT: 'hsl(var(--warning))',
-          foreground: 'hsl(var(--warning-foreground))',
+          DEFAULT: 'hsl(var(--warning) / <alpha-value>)',
+          foreground: 'hsl(var(--warning-foreground) / <alpha-value>)',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',
+          foreground: 'hsl(var(--destructive-foreground) / <alpha-value>)',
         },
         popover: {
           DEFAULT: 'hsl(var(--popover))',
@@ -60,51 +60,57 @@ const config: Config = {
         // sheet, `surface-2` a zebra row or well, `surface-3` a chart
         // gutter / progress track.
         surface: {
-          DEFAULT: 'hsl(var(--surface))',
-          2: 'hsl(var(--surface-2))',
-          3: 'hsl(var(--surface-3))',
+          DEFAULT: 'hsl(var(--surface) / <alpha-value>)',
+          2: 'hsl(var(--surface-2) / <alpha-value>)',
+          3: 'hsl(var(--surface-3) / <alpha-value>)',
         },
         // Directional value colours. These are the ONLY tints allowed on a
         // number, and they always mean up/down — never brand, never mood.
         pos: {
-          DEFAULT: 'hsl(var(--pos))',
+          DEFAULT: 'hsl(var(--pos) / <alpha-value>)',
           soft: 'hsl(var(--pos) / 0.10)',
         },
         neg: {
-          DEFAULT: 'hsl(var(--neg))',
+          DEFAULT: 'hsl(var(--neg) / <alpha-value>)',
           soft: 'hsl(var(--neg) / 0.10)',
         },
         break: {
-          gold: 'hsl(var(--break-gold))',
+          gold: 'hsl(var(--break-gold) / <alpha-value>)',
           soft: 'hsl(var(--break-gold) / 0.12)',
         },
         score: {
-          blue: 'hsl(var(--score-blue))',
+          blue: 'hsl(var(--score-blue) / <alpha-value>)',
           soft: 'hsl(var(--score-blue) / 0.12)',
         },
 
         // Abstract aliases kept from the previous system (ink = foreground,
         // paper = background, oxblood = accent). Re-pointed at the ledger
         // values; renaming them would churn ~30 files for zero visual change.
-        paper: 'hsl(var(--background))',
+        // `<alpha-value>` is load-bearing, not decoration. Without it
+        // Tailwind cannot apply an opacity modifier to the token and
+        // silently emits NO rule at all — `text-ink-soft/60` compiled to
+        // nothing, so the element kept its inherited colour and the
+        // intended de-emphasis vanished with no build error. Every token
+        // below that any call site dims must carry the placeholder.
+        paper: 'hsl(var(--background) / <alpha-value>)',
         ink: {
-          DEFAULT: 'hsl(var(--foreground))',
-          soft: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'hsl(var(--foreground) / <alpha-value>)',
+          soft: 'hsl(var(--muted-foreground) / <alpha-value>)',
         },
         rule: 'hsl(var(--border) / 0.16)',
         oxblood: {
-          DEFAULT: 'hsl(var(--primary))',
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
           soft: 'hsl(var(--primary-soft) / 0.08)',
         },
         archive: {
-          white: 'hsl(var(--archive-white))',
+          white: 'hsl(var(--archive-white) / <alpha-value>)',
         },
         record: {
-          ink: 'hsl(var(--record-ink))',
-          muted: 'hsl(var(--record-muted))',
+          ink: 'hsl(var(--record-ink) / <alpha-value>)',
+          muted: 'hsl(var(--record-muted) / <alpha-value>)',
           rule: 'hsl(var(--record-rule) / 0.35)',
-          surface: 'hsl(var(--record-surface))',
-          green: 'hsl(var(--record-green))',
+          surface: 'hsl(var(--record-surface) / <alpha-value>)',
+          green: 'hsl(var(--record-green) / <alpha-value>)',
           'green-soft': 'hsl(var(--record-green) / 0.10)',
         },
       },

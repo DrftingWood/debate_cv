@@ -17,11 +17,11 @@ export function TableScroll({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={cn('-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0', className)}>
-      {children}
-    </div>
-  );
+  // No negative margins here. Every caller wraps this in a `.panel` with
+  // `overflow-hidden`, which clips a bleed-out — the old `-mx-4 px-4` cost
+  // the first 1rem of the table on narrow screens instead of buying edge
+  // bleed. Plain overflow keeps the table inside its sheet.
+  return <div className={cn('w-full overflow-x-auto', className)}>{children}</div>;
 }
 
 export function Table({

@@ -158,10 +158,15 @@ export function TrendChart({
           <g key={`${p.label}-${i}`}>
             <circle cx={x(i)} cy={y(p.value)} r={3} fill="hsl(var(--card))" stroke={stroke} strokeWidth={1.75} />
             {showValues ? (
+              // Anchor the end points inward. A centred label on the first
+              // point overhangs into the axis gutter and collides with the
+              // gridline values; on the last point it runs off the plot.
               <text
-                x={x(i)}
+                x={i === 0 ? x(i) - 2 : i === points.length - 1 ? x(i) + 2 : x(i)}
                 y={y(p.value) - 10}
-                textAnchor="middle"
+                textAnchor={
+                  i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'
+                }
                 fontSize={10.5}
                 fill="currentColor"
                 className="num"

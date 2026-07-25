@@ -229,7 +229,23 @@ export type CvData = {
   highlights: CvHighlights;
 };
 
-export async function buildCvData(userId: string): Promise<CvData> {
+export type BuildCvDataOptions = {
+  /**
+   * Compute the per-tournament field summary (see CvFieldStat). Costs one
+   * extra query that returns EVERY speaker published on every tournament
+   * on the CV — low tens of thousands of rows for a heavy user. Callers
+   * that don't render placement figures should pass false; the public
+   * /u/<slug> page does, since it shows the user's own averages only.
+   * Defaults to true so a new consumer gets the richer payload by default.
+   */
+  includeFieldStats?: boolean;
+};
+
+export async function buildCvData(
+  userId: string,
+  options: BuildCvDataOptions = {},
+): Promise<CvData> {
+  const includeFieldStats = options.includeFieldStats ?? true;
   const [user, urls, claimedPersons] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -800,7 +816,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
   // per tournament would be an order of magnitude more for a round-level
   // percentile nobody has asked for yet).
   const fieldStats: CvFieldStat[] = [];
-  if (tournamentIds.length > 0) {
+  if (includeFieldStats && tournamentIds.length > 0) {
     const fieldRows = await prisma.tournamentParticipant.findMany({
       where: {
         tournamentId: { in: tournamentIds },

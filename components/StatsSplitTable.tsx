@@ -68,11 +68,19 @@ export function StatsSplitTable({
                   <Td numeric className="text-ink-soft">{s.decidedRounds}</Td>
                   <Td numeric>{pct(s.winRate) ?? <Nil />}</Td>
                   <Td numeric>
-                    <DeltaText value={s.winRateDelta} format={(n) => `${signed(n, 0)}pp`} />
+                    <DeltaText
+                      value={s.winRateDelta}
+                      threshold={WIN_RATE_DELTA_THRESHOLD}
+                      format={(n) => `${signed(n, 0)}pp`}
+                    />
                   </Td>
                   <Td numeric>{s.avgScore != null ? s.avgScore.toFixed(1) : <Nil />}</Td>
                   <Td numeric>
-                    <DeltaText value={s.scoreDelta} format={(n) => signed(n, 1)!} />
+                    <DeltaText
+                      value={s.scoreDelta}
+                      threshold={SCORE_DELTA_THRESHOLD}
+                      format={(n) => signed(n, 1)!}
+                    />
                   </Td>
                   {showPoints ? (
                     <Td numeric className="pr-4">
@@ -92,19 +100,32 @@ export function StatsSplitTable({
 }
 
 /**
- * A delta against the user's own baseline. Coloured only when it clears a
- * threshold that a single round could not produce on its own — otherwise
- * the table lights up green and red for noise.
+ * Thresholds below which a delta renders neutral instead of green/red.
+ *
+ * These are per-UNIT and must stay separate: win-rate deltas are in
+ * percentage points (a 5pp swing is noise on twenty rounds) while score
+ * deltas are in speaker points (half a point is a real difference). One
+ * shared threshold lit the win-rate column up for sub-1pp noise, which is
+ * exactly the false confidence the sample-size rule exists to prevent.
+ */
+const WIN_RATE_DELTA_THRESHOLD = 5;
+const SCORE_DELTA_THRESHOLD = 0.3;
+
+/**
+ * A delta against the user's own baseline. Coloured only when it clears the
+ * threshold for its unit — otherwise the table lights up for noise.
  */
 function DeltaText({
   value,
+  threshold,
   format,
 }: {
   value: number | null;
+  threshold: number;
   format: (n: number) => string;
 }) {
   if (value == null) return <Nil />;
-  const meaningful = Math.abs(value) >= 0.3;
+  const meaningful = Math.abs(value) >= threshold;
   return (
     <span className={!meaningful ? 'val-flat' : value > 0 ? 'val-pos' : 'val-neg'}>
       {format(value)}

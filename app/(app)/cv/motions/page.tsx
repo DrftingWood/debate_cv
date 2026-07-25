@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ScrollText } from 'lucide-react';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import type { CvSpeakerRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -40,7 +41,16 @@ export default async function CvMotionsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
 
-  const data = await buildCvData(session.user.id);
+  // Same gate as /cv: without a claimed identity there is no record to join
+  // motions to, and the user belongs in the onboarding wizard rather than
+  // staring at an empty page with no path forward.
+  const claimedCount = await prisma.person.count({
+    where: { claimedByUserId: session.user.id },
+  });
+  if (claimedCount === 0) redirect('/onboarding');
+
+  // Motions don't need the field summary — no placement figures here.
+  const data = await buildCvData(session.user.id, { includeFieldStats: false });
   const entries = buildMotionEntries(data.speakerRows, data.taggedMotions);
 
   const debated = entries.filter((e) => e.debated);

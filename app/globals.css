@@ -302,7 +302,10 @@
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
     text-align: left;
-    padding: 0 0.75rem 0.5rem;
+    /* Symmetric vertical padding: these tables sit flush against the top
+       edge of a panel, so a zero top pad puts the header hard on the
+       border. */
+    padding: 0.7rem 0.75rem 0.5rem;
     border-bottom: 1px solid hsl(var(--border) / 0.22);
     white-space: nowrap;
   }

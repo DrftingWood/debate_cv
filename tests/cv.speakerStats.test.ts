@@ -301,6 +301,69 @@ describe('computeSpeakerStats — results', () => {
     expect(s.results.longestWinStreak).toBe(2);
   });
 
+  test('deepest outround ranks by stage, not by substring', () => {
+    // Regression: "final" is a substring of "quarterfinal", "semifinal" and
+    // "octofinal", so a naive includes() ladder scores every outround
+    // identically and reports whichever row came first. Grand Final must
+    // win here regardless of row order.
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, broke: true, eliminationReached: 'Semifinals' }),
+        makeSpeakerRow({ tournamentId: 2n, broke: true, eliminationReached: 'Grand Final' }),
+        makeSpeakerRow({ tournamentId: 3n, broke: true, eliminationReached: 'Octofinals' }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.deepestOutround).toBe('Grand Final');
+    // …and the same when the deepest row is listed first.
+    const reversed = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 2n, broke: true, eliminationReached: 'Grand Final' }),
+        makeSpeakerRow({ tournamentId: 1n, broke: true, eliminationReached: 'Quarterfinals' }),
+      ],
+      judgeRows: [],
+    });
+    expect(reversed.results.deepestOutround).toBe('Grand Final');
+  });
+
+  test('finals counts only the tournament final, not quarters or semis', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, eliminationReached: 'Quarterfinals' }),
+        makeSpeakerRow({ tournamentId: 2n, eliminationReached: 'Semifinals' }),
+        makeSpeakerRow({ tournamentId: 3n, eliminationReached: 'Grand Final' }),
+        makeSpeakerRow({ tournamentId: 4n, eliminationReached: 'Final' }),
+        makeSpeakerRow({ tournamentId: 5n, eliminationReached: 'Octofinals' }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.finals).toBe(2);
+  });
+
+  test('streaks put undated tournaments last rather than before the first season', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({
+          tournamentId: 1n,
+          year: null,
+          tournamentName: 'Undated Open',
+          teamRoundResults: teamRounds([[1, 'OG', false, 0]]),
+        }),
+        makeSpeakerRow({
+          tournamentId: 2n,
+          year: 2023,
+          teamRoundResults: teamRounds([
+            [1, 'OG', true, 3],
+            [2, 'OO', true, 3],
+          ]),
+        }),
+      ],
+      judgeRows: [],
+    });
+    // The undated loss sorts after 2023, so the two wins stay contiguous.
+    expect(s.results.longestWinStreak).toBe(2);
+  });
+
   test('break rate and championships come from the row flags', () => {
     const s = computeSpeakerStats({
       speakerRows: [

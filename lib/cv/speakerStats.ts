@@ -5,6 +5,7 @@ import type {
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
 import { canonicalPosition } from '@/lib/cv/computeCvAnalytics';
+import { outroundRank } from '@/lib/calicotab/judgeStats';
 
 /**
  * The deep statistics layer for a speaker's record.
@@ -288,11 +289,19 @@ function numericAvg(row: CvSpeakerRow): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Chronological order for streaks: oldest tournament first, then round. */
+/**
+ * Chronological order for streaks: oldest tournament first, then round.
+ *
+ * Undated tournaments sort to the END, not the start. A row with no year is
+ * usually a recent ingest whose landing page didn't expose one; sorting it
+ * to -Infinity would splice an unknown event into the middle of the user's
+ * earliest season and silently break or extend a run there. Ties fall back
+ * to name so the ordering is deterministic across page loads.
+ */
 function chronological(rows: CvSpeakerRow[]): CvSpeakerRow[] {
   return [...rows].sort((a, b) => {
-    const ya = a.year ?? -Infinity;
-    const yb = b.year ?? -Infinity;
+    const ya = a.year ?? Infinity;
+    const yb = b.year ?? Infinity;
     if (ya !== yb) return ya - yb;
     return a.tournamentName.localeCompare(b.tournamentName);
   });
@@ -681,9 +690,7 @@ export function computeSpeakerStats(input: {
   }
 
   const breaks = speakerRows.filter((r) => r.broke).length;
-  const finals = speakerRows.filter(
-    (r) => r.eliminationReached != null && /final/i.test(r.eliminationReached) && !/quarter|semi|octo|partial|double|triple/i.test(r.eliminationReached),
-  ).length;
+  const finals = speakerRows.filter((r) => reachedFinal(r.eliminationReached)).length;
 
   const results: ResultsProfile = {
     decidedRounds,
@@ -819,35 +826,43 @@ export function buildBins(sortedScores: number[]): ScoreBin[] {
 
 // ── Deepest outround ──────────────────────────────────────────────────────
 
-// Ordered shallow → deep. Matched as a substring against the tab's own
-// label, so "ESL Grand Final" and "Grand Final" both land on the last entry.
-const STAGE_ORDER = [
-  'partial double octofinal',
-  'triple octofinal',
-  'double octofinal',
-  'octofinal',
-  'quarterfinal',
-  'semifinal',
-  'final',
-];
-
-function stageDepth(label: string): number {
-  const norm = label.toLowerCase();
-  let depth = -1;
-  STAGE_ORDER.forEach((stage, i) => {
-    if (norm.includes(stage)) depth = Math.max(depth, i);
-  });
-  return depth;
-}
-
+/**
+ * Deepest outround stage reached anywhere on the CV.
+ *
+ * Ranking delegates to `outroundRank`, which is the one place in the
+ * codebase that knows the stage vocabulary. Do NOT re-derive this with
+ * substring matching: "final" is a substring of "quarterfinal",
+ * "semifinal" and "octofinal", so any naive `includes('final')` ladder
+ * scores every outround identically and silently reports whichever row
+ * happened to come first as the deepest.
+ */
 function pickDeepestOutround(rows: CvSpeakerRow[]): string | null {
-  let best: { label: string; depth: number } | null = null;
+  let best: { label: string; rank: number } | null = null;
   for (const row of rows) {
     if (!row.eliminationReached) continue;
-    const depth = stageDepth(row.eliminationReached);
-    if (!best || depth > best.depth) best = { label: row.eliminationReached, depth };
+    const rank = outroundRank({
+      roundLabel: row.eliminationReached,
+      roundNumber: null,
+      isOutround: true,
+    });
+    if (!best || rank > best.rank) best = { label: row.eliminationReached, rank };
   }
   return best?.label ?? null;
+}
+
+/**
+ * Did this row's deepest outround reach the tournament's final?
+ *
+ * Anchored against `outroundRank('Final')` so both "Final" and "Grand
+ * Final" qualify (installs label it either way) while "Quarterfinal" —
+ * which contains the substring "final" — correctly does not. Mirrors the
+ * champion check in buildCvData.
+ */
+function reachedFinal(label: string | null): boolean {
+  if (!label) return false;
+  const rank = outroundRank({ roundLabel: label, roundNumber: null, isOutround: true });
+  const finalRank = outroundRank({ roundLabel: 'Final', roundNumber: null, isOutround: true });
+  return rank >= finalRank;
 }
 
 // ── Quirks ────────────────────────────────────────────────────────────────

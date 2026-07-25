@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart3, Info } from 'lucide-react';
 import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { computeCvAnalytics } from '@/lib/cv/computeCvAnalytics';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
@@ -38,6 +39,12 @@ export const dynamic = 'force-dynamic';
 export default async function CvStatsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
+
+  // Same gate as /cv — an unclaimed user has no rows to compute over.
+  const claimedCount = await prisma.person.count({
+    where: { claimedByUserId: session.user.id },
+  });
+  if (claimedCount === 0) redirect('/onboarding');
 
   const data = await buildCvData(session.user.id);
   const stats = computeSpeakerStats(data);
@@ -594,10 +601,19 @@ function ResultsSection({ stats }: { stats: SpeakerStats }) {
 
 function Splits({ stats }: { stats: SpeakerStats }) {
   const { splits } = stats;
-  const blocks: { key: string; title: string; label: string; splits: typeof splits.byPosition; dimension: string; note?: string; points?: boolean }[] = [
+  // `dimension` is the column header for the split's key; `title` is the
+  // section heading above it. Both are needed — the header has to fit a
+  // narrow column, the heading is a sentence.
+  const blocks: {
+    key: string;
+    title: string;
+    splits: typeof splits.byPosition;
+    dimension: string;
+    note?: string;
+    points?: boolean;
+  }[] = [
     {
       key: 'position',
-      label: 'Seat',
       title: 'By position in the room',
       dimension: 'Seat',
       splits: splits.byPosition,
@@ -606,7 +622,6 @@ function Splits({ stats }: { stats: SpeakerStats }) {
     },
     {
       key: 'motionType',
-      label: 'Motion type',
       title: 'By motion stem',
       dimension: 'Stem',
       splits: splits.byMotionType,
@@ -614,28 +629,24 @@ function Splits({ stats }: { stats: SpeakerStats }) {
     },
     {
       key: 'motionTopic',
-      label: 'Motion topic',
       title: 'By subject area',
       dimension: 'Topic',
       splits: splits.byMotionTopic,
     },
     {
       key: 'format',
-      label: 'Format',
       title: 'By format',
       dimension: 'Format',
       splits: splits.byFormat,
     },
     {
       key: 'region',
-      label: 'Region',
       title: 'By circuit region',
       dimension: 'Region',
       splits: splits.byRegion,
     },
     {
       key: 'fieldSize',
-      label: 'Field size',
       title: 'By size of the field',
       dimension: 'Field',
       splits: splits.byFieldSize,
@@ -643,7 +654,6 @@ function Splits({ stats }: { stats: SpeakerStats }) {
     },
     {
       key: 'year',
-      label: 'Season',
       title: 'By season',
       dimension: 'Year',
       splits: splits.byYear,

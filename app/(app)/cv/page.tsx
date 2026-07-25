@@ -1,3 +1,4 @@
+import * as React from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -25,6 +26,7 @@ import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { CvSubNav } from '@/components/CvSubNav';
+import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
   title: 'My CV',
@@ -359,9 +361,11 @@ function ReportCell({ r }: { r: { tournamentId: bigint; tournamentName: string; 
 function RoundLedger({
   r,
   motionsByRound,
+  className,
 }: {
   r: SpeakingTableRow;
   motionsByRound: Map<string, CvTaggedMotion[]>;
+  className?: string;
 }) {
   const scoreByRound = new Map(r.roundScores.map((s) => [s.roundNumber, s]));
   const resultByRound = new Map(r.teamRoundResults.map((t) => [t.roundNumber, t]));
@@ -375,7 +379,7 @@ function RoundLedger({
   );
 
   return (
-    <details className="group">
+    <details className={cn('group', className)}>
       <summary className="flex cursor-pointer select-none items-center gap-1.5 py-2 text-caption text-ink-soft hover:text-ink">
         <ChevronDown
           className="h-3.5 w-3.5 text-primary transition-transform group-open:rotate-180"
@@ -487,8 +491,11 @@ function SpeakingTable({
                 const field = fieldByTournament.get(r.tournamentId.toString());
                 const outround = fmtLastOutroundSpoken(r);
                 const ranks = fmtSpeakerRanks(r);
+                const hasRoundDetail =
+                  r.roundScores.length > 0 || r.teamRoundResults.length > 0;
                 return (
-                  <Tr key={r.tournamentId.toString()} className="align-top">
+                  <React.Fragment key={r.tournamentId.toString()}>
+                  <Tr className="align-top">
                     <Td className="pl-4">
                       <a
                         href={r.sourceUrl}
@@ -504,7 +511,6 @@ function SpeakingTable({
                         />
                       </a>
                       <div className="text-caption text-ink-soft">{r.myName}</div>
-                      <RoundLedger r={r} motionsByRound={motionsByRound} />
                     </Td>
                     <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
                     <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
@@ -560,6 +566,21 @@ function SpeakingTable({
                       <ReportCell r={r} />
                     </Td>
                   </Tr>
+                  {/*
+                    The round ledger gets its own full-width row rather than
+                    living inside the Tournament cell. Nested in a cell, the
+                    long motion column forces that column wide and blows the
+                    whole ledger's geometry apart — and the print stylesheet
+                    forces <details> open, so it would do it on paper too.
+                  */}
+                  {hasRoundDetail ? (
+                    <tr className="border-b border-border">
+                      <td colSpan={13} className="px-4 py-0">
+                        <RoundLedger r={r} motionsByRound={motionsByRound} />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </React.Fragment>
                 );
               })}
             </tbody>

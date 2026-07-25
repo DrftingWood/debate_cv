@@ -75,7 +75,10 @@ export default async function PublicCvPage({
   });
   if (!user || !user.publicCvEnabled) notFound();
 
-  const data = await buildCvData(user.id);
+  // No field stats: this page shows the owner's own figures only, and the
+  // field summary is the single heaviest query in buildCvData. Skipping it
+  // keeps an unauthenticated, force-dynamic route cheap to serve.
+  const data = await buildCvData(user.id, { includeFieldStats: false });
   const { speakerRows, judgeRows, summary, highlights } = data;
   const stats = computeSpeakerStats(data);
   const totalIngestedTournaments = await prisma.discoveredUrl.count({
