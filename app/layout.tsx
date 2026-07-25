@@ -5,8 +5,8 @@ import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
 // Tab Room Terminal type stack (2026-06 retheme): Space Grotesk carries the
-// display voice (it fills BOTH the --font-display and --font-serif slots so
-// the hundreds of `font-serif italic` heading call sites lean into oblique
+// display voice (it fills BOTH the --font-display and --font-display slots so
+// the hundreds of `font-display` heading call sites lean into oblique
 // grotesk headlines without churn), IBM Plex Mono carries every numeral and
 // identifier via `.num` / `font-mono`, Inter stays on body copy.
 const fontSans = Inter({

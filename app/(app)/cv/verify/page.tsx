@@ -109,8 +109,8 @@ export default async function CvVerifyPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <header className="space-y-3">
           <div className="kicker">DEBATE CV — VERIFY</div>
-          <h1 className="font-serif text-h2 italic text-ink">
-            Check what we parsed.
+          <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+            Check what we parsed
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
@@ -144,7 +144,7 @@ export default async function CvVerifyPage({
                   {/* Tournament metadata */}
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <h2 className="font-serif text-h3 italic text-ink">
+                      <h2 className="font-display text-h3 font-medium text-ink">
                         {t.name}
                       </h2>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-caption text-ink-soft">
@@ -161,7 +161,7 @@ export default async function CvVerifyPage({
                         href={t.sourceUrlRaw}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-caption text-ink-soft hover:text-oxblood"
+                        className="inline-flex items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
                         Source <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
@@ -185,7 +185,7 @@ export default async function CvVerifyPage({
                   {/* Participants */}
                   <section className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-serif italic text-ink">
+                      <h3 className="font-display text-ink">
                         Participants {mineOnly ? '(mine only)' : `(${t.participants.length})`}
                       </h3>
                       {mineOnly && participants.length === 0 ? (
@@ -198,7 +198,7 @@ export default async function CvVerifyPage({
                     <div className="hidden max-w-full overflow-x-auto md:block">
                       <table className="min-w-max text-table">
                         <thead>
-                          <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+                          <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
                             <th className="whitespace-nowrap px-4 py-2.5 font-medium">Name</th>
                             <th className="whitespace-nowrap px-3 py-2.5 font-medium">Roles</th>
                             <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
@@ -216,7 +216,7 @@ export default async function CvVerifyPage({
                         </thead>
                         <tbody>
                           {participants.map((p) => (
-                            <tr key={p.id.toString()} className="border-b border-ink/10 hover:bg-ink/[0.02]">
+                            <tr key={p.id.toString()} className="border-b border-border hover:bg-surface-2">
                               <td className="px-4 py-2.5">
                                 {p.person.displayName}
                                 {p.person.claimedByUserId === userId ? (
@@ -268,7 +268,7 @@ export default async function CvVerifyPage({
                                       {p.speakerRoundScores.map((s) => (
                                         <span
                                           key={s.id.toString()}
-                                          className="rounded border border-ink/10 bg-paper px-1.5 py-0.5 font-mono"
+                                          className="rounded border border-border bg-paper px-1.5 py-0.5 font-mono"
                                         >
                                           R{s.roundNumber}
                                           {s.positionLabel ? ` · ${s.positionLabel}` : ''}
@@ -319,7 +319,7 @@ export default async function CvVerifyPage({
                         return (
                           <li
                             key={p.id.toString()}
-                            className="rounded-md border border-ink/10 bg-paper p-3 space-y-2.5"
+                            className="rounded-md border border-border bg-paper p-3 space-y-2.5"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
                               <div className="font-medium text-ink">
@@ -365,7 +365,7 @@ export default async function CvVerifyPage({
                               </dl>
                             ) : null}
                             {hasJudgeData ? (
-                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption border-t border-ink/10 pt-2">
+                              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption border-t border-border pt-2">
                                 {p.judgeTypeTag ? (
                                   <VerifyField label="Judge tag" value={p.judgeTypeTag} />
                                 ) : null}
@@ -391,7 +391,7 @@ export default async function CvVerifyPage({
                               </dl>
                             ) : null}
                             {p.speakerRoundScores.length > 0 ? (
-                              <details className="text-caption border-t border-ink/10 pt-2">
+                              <details className="text-caption border-t border-border pt-2">
                                 <summary className="cursor-pointer text-oxblood hover:underline">
                                   Per-round scores ({p.speakerRoundScores.length})
                                 </summary>
@@ -399,7 +399,7 @@ export default async function CvVerifyPage({
                                   {p.speakerRoundScores.map((s) => (
                                     <span
                                       key={s.id.toString()}
-                                      className="rounded border border-ink/10 bg-paper px-1.5 py-0.5 font-mono"
+                                      className="rounded border border-border bg-paper px-1.5 py-0.5 font-mono"
                                     >
                                       R{s.roundNumber}
                                       {s.positionLabel ? ` · ${s.positionLabel}` : ''}
@@ -418,7 +418,7 @@ export default async function CvVerifyPage({
 
                   {/* Judge assignments as grouped badges, not a joined string. */}
                   <section className="space-y-2">
-                    <h3 className="font-serif italic text-ink">
+                    <h3 className="font-display text-ink">
                       Judge assignments ({t.judgeAssignments.length})
                     </h3>
                     {t.judgeAssignments.length === 0 ? (
@@ -447,7 +447,7 @@ export default async function CvVerifyPage({
 
                   {/* Break rows as grouped badges. */}
                   <section className="space-y-2">
-                    <h3 className="font-serif italic text-ink">
+                    <h3 className="font-display text-ink">
                       Break results ({t.eliminationResults.length})
                     </h3>
                     {t.eliminationResults.length === 0 ? (

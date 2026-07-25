@@ -4,34 +4,42 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 
+/**
+ * Primary nav item. The active state is a filled pill rather than an
+ * underline: the header sits on a tinted canvas, and a pill reads as
+ * "you are in this section of the account" the way a banking sidebar does.
+ */
 export function NavLink({
   href,
   children,
   className,
+  exact,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Match the path exactly. Needed wherever a section root sits above its
+   * own children in the same nav — /cv would otherwise stay lit while the
+   * user is on /cv/stats, and two nav items would claim to be current.
+   */
+  exact?: boolean;
 }) {
   const pathname = usePathname();
-  const isActive = pathname === href || (href !== '/' && pathname?.startsWith(href));
+  const isActive = exact
+    ? pathname === href
+    : pathname === href || (href !== '/' && (pathname?.startsWith(href) ?? false));
   return (
     <Link
       href={href}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        'relative rounded px-0.5 py-1 transition-colors duration-[180ms] ease-soft',
-        isActive ? 'text-ink' : 'text-ink-soft hover:text-ink',
+        'rounded-md px-2.5 py-1.5 transition-colors duration-150 ease-soft',
+        isActive ? 'bg-surface-2 text-ink' : 'text-ink-soft hover:bg-surface-2 hover:text-ink',
         className,
       )}
     >
       {children}
-      {isActive ? (
-        <span
-          aria-hidden
-          className="absolute -bottom-[12px] left-0 right-0 h-[2px] bg-oxblood"
-        />
-      ) : null}
     </Link>
   );
 }

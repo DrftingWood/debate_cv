@@ -134,7 +134,7 @@ export function IdentityManager() {
 
   if (names.length === 0) {
     return (
-      <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
+      <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
         No registration names extracted from your URLs yet. Run a Gmail scan
         from the dashboard to populate this list.
       </p>
@@ -149,17 +149,17 @@ export function IdentityManager() {
         auto-linked to you by an earlier ingest).
       </p>
 
-      <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
+      <ul className="divide-y divide-border rounded-card border border-border bg-card">
         {names.map((n) => {
           const checked = selected.has(n.normalizedName);
           const wasMine = initialSelected.has(n.normalizedName);
           return (
             <li key={n.normalizedName}>
-              <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-ink/[0.02]">
+              <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
                 <span className="flex min-w-0 items-center gap-3">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 shrink-0 rounded border-ink/20 text-primary focus:ring-2 focus:ring-primary/40"
+                    className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
                     checked={checked}
                     onChange={() => toggle(n.normalizedName)}
                   />

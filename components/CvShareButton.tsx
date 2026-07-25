@@ -100,7 +100,7 @@ export function CvShareButton() {
         <div
           role="dialog"
           aria-label="Share your CV"
-          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-ink/15 bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
         >
           {!state ? (
             <p className="text-caption text-ink-soft">Loading…</p>
@@ -158,13 +158,13 @@ export function CvShareButton() {
                   href={fullUrl ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
+                  className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
                   aria-label="Open public CV in new tab"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 </a>
               </div>
-              <div className="flex items-center justify-between gap-2 border-t border-ink/15 pt-2">
+              <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
                 <Link
                   href="/settings/sharing"
                   className="text-caption text-oxblood hover:underline"

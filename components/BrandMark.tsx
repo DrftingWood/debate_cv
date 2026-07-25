@@ -1,12 +1,17 @@
 import { cn } from '@/lib/utils/cn';
 
+/**
+ * The mark: a squared emerald tile with a mono "CV" glyph, then the
+ * wordmark. Deliberately institution-shaped rather than playful — the
+ * product's job is to look like somewhere you would put a real result.
+ */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      <span className="grid h-7 w-7 place-items-center rounded-md bg-record-ink font-mono text-caption font-semibold text-archive-white">
+      <span className="grid h-7 w-7 place-items-center rounded-md bg-primary font-mono text-caption font-semibold text-primary-foreground">
         CV
       </span>
-      <span className="font-display text-h4 font-semibold tracking-tight text-record-ink">
+      <span className="font-display text-h4 font-medium tracking-tight text-ink">
         debate cv
       </span>
     </span>

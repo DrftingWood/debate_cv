@@ -66,7 +66,7 @@ export function UserMenu({
         aria-label="Account menu"
         aria-haspopup="true"
         aria-expanded={open}
-        className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-ink/15 bg-ink/[0.06] text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/[0.10]"
+        className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/[0.10]"
       >
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -85,9 +85,9 @@ export function UserMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-[240px] rounded-card border border-ink/15 bg-card shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[240px] rounded-card border border-border bg-card shadow-lg"
         >
-          <div className="border-b border-ink/15 px-4 py-3">
+          <div className="border-b border-border px-4 py-3">
             <div className="truncate text-ui font-medium text-ink" title={displayName}>
               {displayName}
             </div>
@@ -102,7 +102,7 @@ export function UserMenu({
               href="/settings/account"
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-ink/[0.04]"
+              className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2"
             >
               <Settings className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
               Account
@@ -111,7 +111,7 @@ export function UserMenu({
               <button
                 type="submit"
                 role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-ink/[0.04]"
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-surface-2"
               >
                 <LogOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
                 Sign out

@@ -1,18 +1,30 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
-type Variant = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'outline' | 'quiet';
+type Variant =
+  | 'neutral'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info'
+  | 'outline'
+  | 'quiet'
+  | 'gold';
 
+// Statement-register badges: squared-off, low-saturation fills, mono label.
+// A badge here is a data flag (BROKE / ESL / VERIFIED), not decoration, so
+// it borrows the same uppercase mono voice as the column headers.
 const variants: Record<Variant, string> = {
-  neutral: 'bg-ink/[0.06] text-ink-soft border-ink/15',
-  success: 'bg-[hsl(var(--success)/0.12)] text-success border-[hsl(var(--success)/0.22)]',
-  warning: 'bg-[hsl(var(--warning)/0.12)] text-warning border-[hsl(var(--warning)/0.22)]',
-  danger: 'bg-[hsl(var(--destructive)/0.10)] text-destructive border-[hsl(var(--destructive)/0.22)]',
-  info: 'bg-oxblood-soft text-oxblood border-oxblood/20',
-  outline: 'bg-transparent text-ink border-ink/15',
-  // Quiet: small-caps text label, no pill background. Used on /cv and
-  // /u/<slug> where traffic-light pills clash with sober editorial type.
-  quiet: 'bg-transparent text-ink-soft border-transparent uppercase tracking-[0.16em] text-kicker font-semibold px-0 py-0',
+  neutral: 'bg-surface-2 text-ink-soft border-border',
+  success: 'bg-[hsl(var(--pos)/0.10)] text-pos border-[hsl(var(--pos)/0.20)]',
+  warning: 'bg-[hsl(var(--warning)/0.10)] text-warning border-[hsl(var(--warning)/0.20)]',
+  danger: 'bg-[hsl(var(--neg)/0.10)] text-neg border-[hsl(var(--neg)/0.20)]',
+  info: 'bg-score-soft text-score-blue border-[hsl(var(--score-blue)/0.20)]',
+  // The one badge allowed to shout: a break is the standout competitive
+  // result on a debate CV, and gold is reserved for exactly that.
+  gold: 'bg-break-soft text-break-gold border-[hsl(var(--break-gold)/0.22)]',
+  outline: 'bg-transparent text-ink border-border',
+  quiet: 'bg-transparent text-ink-soft border-transparent px-0 py-0',
 };
 
 export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
@@ -24,9 +36,8 @@ export function Badge({ className, variant = 'neutral', ...rest }: BadgeProps) {
   return (
     <span
       className={cn(
-        isQuiet
-          ? 'inline-flex items-center gap-1'
-          : 'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-caption font-medium',
+        'inline-flex items-center gap-1 font-mono text-kicker font-medium uppercase tracking-[0.09em]',
+        isQuiet ? '' : 'rounded border px-1.5 py-0.5',
         variants[variant],
         className,
       )}

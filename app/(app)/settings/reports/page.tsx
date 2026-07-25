@@ -51,8 +51,8 @@ export default async function ReportsSettingsPage() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">SETTINGS · REPORTS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Open and resolved reports.
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+          Open and resolved reports
         </h1>
         <hr className="hairline" />
       </header>
@@ -61,19 +61,19 @@ export default async function ReportsSettingsPage() {
       <CardBody className="space-y-4">
         <div className="flex items-center gap-2">
           <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
-          <h2 className="font-serif text-h3 italic text-ink">
+          <h2 className="font-display text-h3 font-medium text-ink">
             Your reports
           </h2>
         </div>
 
         {reports.length === 0 ? (
-          <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
+          <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
             You haven&apos;t reported any CV issues yet. The Report button on
             each row of <strong>My CV</strong> opens a quick form for telling
             us when something looks wrong.
           </p>
         ) : (
-          <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
+          <ul className="divide-y divide-border rounded-card border border-border bg-card">
             {reports.map((r) => {
               const trainNames = r.tournamentIds
                 .map((id) => tournamentById.get(id))
@@ -109,7 +109,7 @@ export default async function ReportsSettingsPage() {
                     </p>
                   ) : null}
                   {r.adminNote ? (
-                    <p className="rounded-md border border-ink/15 bg-paper p-2 text-caption text-ink">
+                    <p className="rounded-md border border-border bg-paper p-2 text-caption text-ink">
                       <span className="font-medium">Note from us:</span> {r.adminNote}
                     </p>
                   ) : null}

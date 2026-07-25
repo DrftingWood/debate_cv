@@ -129,7 +129,7 @@ export function ParticipantSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type your name to find yourself in this tournament…"
-            className="w-full rounded-md border border-ink/15 bg-paper py-2 pl-9 pr-3 text-ui text-ink placeholder:text-ink-soft focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-md border border-border bg-paper py-2 pl-9 pr-3 text-ui text-ink placeholder:text-ink-soft focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </span>
       </label>
@@ -147,7 +147,7 @@ export function ParticipantSearch({
           No participants found with that name.
         </p>
       ) : results.length > 0 ? (
-        <ul className="divide-y divide-ink/10 rounded-md border border-ink/15 bg-card">
+        <ul className="divide-y divide-border rounded-md border border-border bg-card">
           {results.map((hit) => (
             <li
               key={hit.personId}

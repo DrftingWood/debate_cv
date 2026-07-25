@@ -38,7 +38,7 @@ export function ThemeToggle() {
       onClick={flip}
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-      className="rounded-md p-2 text-ink-soft transition-colors hover:bg-ink/[0.06] hover:text-ink"
+      className="rounded-md p-2 text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
       data-print-hide="true"
     >
       {theme === 'dark' ? (

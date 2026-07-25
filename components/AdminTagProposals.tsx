@@ -129,7 +129,7 @@ export function AdminTagProposals() {
               'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
                 ? 'border-ink/30 bg-ink text-paper'
-                : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]')
+                : 'border-border bg-paper text-ink hover:bg-surface-2')
             }
           >
             {STATUS_LABELS[s]}
@@ -149,7 +149,7 @@ export function AdminTagProposals() {
         <div className="overflow-x-auto">
           <table className="min-w-max text-table">
             <thead>
-              <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
+              <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
                 <th className="whitespace-nowrap px-4 py-2.5 font-medium">Kind</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposed value</th>
                 <th className="whitespace-nowrap px-3 py-2.5 font-medium">Current value</th>
@@ -164,7 +164,7 @@ export function AdminTagProposals() {
             </thead>
             <tbody>
               {proposals.map((p) => (
-                <tr key={p.id} className="align-top border-b border-ink/10 hover:bg-ink/[0.02]">
+                <tr key={p.id} className="align-top border-b border-border hover:bg-surface-2">
                   <td className="whitespace-nowrap px-4 py-2.5">{kindLabel(p.kind)}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-medium text-ink">{p.value}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
@@ -225,7 +225,7 @@ export function AdminTagProposals() {
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           className={
-                            'h-7 w-48 rounded border border-ink/15 bg-paper px-2 text-caption ' +
+                            'h-7 w-48 rounded border border-border bg-paper px-2 text-caption ' +
                             'text-ink placeholder:text-ink-soft focus:outline-none ' +
                             'focus:ring-1 focus:ring-ring'
                           }

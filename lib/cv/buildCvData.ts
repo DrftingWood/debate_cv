@@ -29,7 +29,7 @@ export type CvSpeakerRoundScore = {
  * their primary team. `position` (OG/OO/CG/CO on BP layouts) is only
  * present on tournaments ingested since the parser started persisting it
  * (PARSER_VERSION 20260611.0) — older rows carry null until re-ingest.
- * Feeds the by-position slice on /cv/analytics.
+ * Feeds the by-position slice on /cv/stats.
  */
 export type CvTeamRoundResult = {
   roundNumber: number;
@@ -155,16 +155,62 @@ export type CvHighlights = {
 };
 
 /**
- * Motion rows (with their approved community tags) for tournaments on this
- * CV. Carried on CvData rather than joined into speaker rows because the
- * only consumer is the analytics motion-slice join (tournamentId +
- * roundNumber); the CV tables and exports don't render motions per row.
+ * Motion rows (text + approved community tags) for tournaments on this CV.
+ *
+ * Carried on CvData rather than joined into speaker rows because the join
+ * key is (tournamentId, roundNumber) and several consumers want it at
+ * different granularities: the analytics motion slices aggregate by tag,
+ * /cv/motions lists the text per round, and the CV row detail shows the
+ * motion next to the score for that round. Text is included now that the
+ * UI renders it — the tags-only projection was a pre-rebuild economy.
  */
 export type CvTaggedMotion = {
   tournamentId: bigint;
   roundNumber: number | null;
+  /** Raw label as released ("Round 3", "Semifinals"). */
+  roundLabel: string;
+  /** Document order on the motions page; tiebreaker within a round. */
+  seq: number;
+  text: string;
+  infoSlide: string | null;
   motionType: string | null;
   topic: string | null;
+};
+
+/**
+ * Per-tournament summary of the FIELD the user competed against, derived
+ * from every speaker the tab published — not just the user's own row.
+ *
+ * This is the single most valuable thing the ingest pipeline already stores
+ * and never surfaced: a 78.4 average means nothing on its own, but "78.4
+ * against a field averaging 75.1, 12th of 214 speakers" is a real
+ * competitive statement. Computed here (next to the DB) and consumed as
+ * plain numbers by the pure stats layer.
+ *
+ * Score-unit figures are derived by dividing the field's score TOTALS by
+ * the tournament's prelim round count. That is exact when every speaker
+ * spoke every prelim and approximate otherwise (swing/absent speakers pull
+ * their own totals down); the rank-based percentile below carries no such
+ * assumption, so prefer it when both are available.
+ */
+export type CvFieldStat = {
+  tournamentId: bigint;
+  /** Speakers on the tab carrying a parsed score total. */
+  speakerCount: number;
+  /** Mean of the field's per-speaker average, in score units. */
+  fieldMeanAvg: number | null;
+  /** Population standard deviation of the same, in score units. */
+  fieldStdevAvg: number | null;
+  /** Median and 90th-percentile per-speaker average, in score units. */
+  fieldMedianAvg: number | null;
+  fieldP90Avg: number | null;
+  /**
+   * How many speakers finished strictly above the user on total score.
+   * `betterThanUser + 1` is the user's rank on this measure, computed from
+   * the tab's own numbers rather than trusting a Rank column that some
+   * installs never publish.
+   */
+  betterThanUser: number | null;
 };
 
 export type CvData = {
@@ -173,6 +219,7 @@ export type CvData = {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
   taggedMotions: CvTaggedMotion[];
+  fieldStats: CvFieldStat[];
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
     totalTournaments: number;
@@ -723,15 +770,98 @@ export async function buildCvData(userId: string): Promise<CvData> {
       return a.name.localeCompare(b.name);
     });
 
-  // Motion tags for the analytics join. Fetched late (not in the main
-  // Promise.all) because it depends only on tournamentIds and the result
-  // is small — a handful of motions per tournament, tags-only projection.
+  // Motions for the analytics join, /cv/motions, and the per-round detail
+  // on the CV. Fetched late (not in the main Promise.all) because it
+  // depends only on tournamentIds and the result is small — a handful of
+  // motions per tournament.
   const taggedMotions: CvTaggedMotion[] = tournamentIds.length
     ? await prisma.motion.findMany({
         where: { tournamentId: { in: tournamentIds } },
-        select: { tournamentId: true, roundNumber: true, motionType: true, topic: true },
+        select: {
+          tournamentId: true,
+          roundNumber: true,
+          roundLabel: true,
+          seq: true,
+          text: true,
+          infoSlide: true,
+          motionType: true,
+          topic: true,
+        },
+        orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
       })
     : [];
+
+  // ── Field context ────────────────────────────────────────────────────
+  // Every speaker the tab published for each of the user's tournaments,
+  // projected to two columns. Bounded by construction: a large tournament
+  // publishes ~800 speakers, so even a heavy CV pulls low tens of
+  // thousands of (bigint, decimal) pairs — cheaper than the per-round
+  // score rows this deliberately does NOT fetch (800 speakers × 9 rounds
+  // per tournament would be an order of magnitude more for a round-level
+  // percentile nobody has asked for yet).
+  const fieldStats: CvFieldStat[] = [];
+  if (tournamentIds.length > 0) {
+    const fieldRows = await prisma.tournamentParticipant.findMany({
+      where: {
+        tournamentId: { in: tournamentIds },
+        speakerScoreTotal: { not: null },
+        roles: { some: { role: 'speaker' } },
+      },
+      select: { tournamentId: true, speakerScoreTotal: true },
+    });
+
+    const totalsByTournament = new Map<bigint, number[]>();
+    for (const row of fieldRows) {
+      if (row.speakerScoreTotal == null) continue;
+      const value = Number(row.speakerScoreTotal);
+      if (!Number.isFinite(value)) continue;
+      const list = totalsByTournament.get(row.tournamentId) ?? [];
+      list.push(value);
+      totalsByTournament.set(row.tournamentId, list);
+    }
+
+    // The user's own total per tournament, taken from the same richest
+    // participation the speaker rows were built from, so the "better than
+    // you" count compares like with like.
+    const myTotalByTournament = new Map<bigint, number>();
+    for (const [tid, p] of speakerByTournament.entries()) {
+      if (p.speakerScoreTotal == null) continue;
+      const value = Number(p.speakerScoreTotal);
+      if (Number.isFinite(value)) myTotalByTournament.set(tid, value);
+    }
+
+    for (const [tournamentId, totals] of totalsByTournament.entries()) {
+      const sorted = [...totals].sort((a, b) => a - b);
+      const divisor = prelimRoundCountByTournament.get(tournamentId) ?? null;
+      const toAvg = (total: number | null): number | null =>
+        total == null || divisor == null || divisor <= 0 ? null : total / divisor;
+
+      const mean = sorted.reduce((s, v) => s + v, 0) / sorted.length;
+      const variance =
+        sorted.reduce((s, v) => s + (v - mean) * (v - mean), 0) / sorted.length;
+      const quantile = (q: number): number => {
+        if (sorted.length === 1) return sorted[0];
+        const pos = (sorted.length - 1) * q;
+        const lo = Math.floor(pos);
+        const hi = Math.ceil(pos);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+      };
+
+      const myTotal = myTotalByTournament.get(tournamentId) ?? null;
+      fieldStats.push({
+        tournamentId,
+        speakerCount: sorted.length,
+        fieldMeanAvg: toAvg(mean),
+        // stdev scales with the same divisor as the mean, so dividing the
+        // total-space stdev converts it to score units directly.
+        fieldStdevAvg: divisor && divisor > 0 ? Math.sqrt(variance) / divisor : null,
+        fieldMedianAvg: toAvg(quantile(0.5)),
+        fieldP90Avg: toAvg(quantile(0.9)),
+        betterThanUser:
+          myTotal == null ? null : sorted.filter((v) => v > myTotal).length,
+      });
+    }
+  }
 
   const totalTournaments = tournamentIds.length;
   const breaks =
@@ -822,6 +952,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
     speakerRows,
     judgeRows,
     taggedMotions,
+    fieldStats,
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
     highlights,

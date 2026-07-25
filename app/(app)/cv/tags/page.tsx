@@ -19,7 +19,7 @@ export default async function CvTagsPage() {
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  // Load every ingested tournament for this user — same pattern as /cv/analytics
+  // Load every ingested tournament for this user — same pattern as /cv/stats
   // but we need the motions and the user's own proposals alongside them.
   const discoveredRows = await prisma.discoveredUrl.findMany({
     where: {
@@ -100,14 +100,14 @@ export default async function CvTagsPage() {
     <div className="space-y-10">
       <header className="space-y-4">
         <div className="kicker">DEBATE CV — TAGS</div>
-        <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink">
-          Tags.
+        <h1 className="font-display text-h1 font-medium tracking-tight text-ink">
+          Tags
         </h1>
         <hr className="hairline" />
         <div className="byline">
           Tags are shared community facts — a tournament region or a motion type appears
           identically on every CV that includes that tournament. Proposals go live after
-          an admin approves them, and feed the Analytics slices.
+          an admin approves them, and feed the splits on Statistics.
         </div>
       </header>
 
@@ -164,14 +164,14 @@ export default async function CvTagsPage() {
                         return (
                           <div
                             key={mIdStr}
-                            className="space-y-3 border-l-2 border-ink/10 pl-4"
+                            className="space-y-3 border-l-2 border-border pl-4"
                           >
                             {/* Round label + motion text */}
                             <div>
                               <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
                                 {m.roundLabel}
                               </div>
-                              <p className="mt-0.5 font-serif italic text-body-serif text-ink leading-snug">
+                              <p className="mt-0.5 font-display text-body-serif text-ink leading-snug">
                                 {m.text}
                               </p>
                             </div>

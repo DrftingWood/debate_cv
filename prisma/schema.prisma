@@ -360,7 +360,7 @@ model TeamResult {
   /// rows (a tournament-long standing has no side) and on tournaments
   /// ingested before the parser started persisting it (the value was
   /// parsed and discarded for those — re-ingest backfills it). Feeds the
-  /// by-position slice on /cv/analytics.
+  /// by-position slice on /cv/stats.
   position      String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)

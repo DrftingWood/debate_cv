@@ -225,7 +225,7 @@ export function OnboardingFlow({
                 <Mail className="h-5 w-5" aria-hidden />
               </div>
               <div className="space-y-2">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-medium text-ink">
                   Scan your Gmail for private URLs
                 </h2>
                 <p className="text-ui text-ink-soft">
@@ -259,7 +259,7 @@ export function OnboardingFlow({
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               </div>
               <div className="space-y-2">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-medium text-ink">
                   Reading the names off your private URLs
                 </h2>
                 <p className="text-ui text-ink-soft">
@@ -289,7 +289,7 @@ export function OnboardingFlow({
                 <UserCheck className="h-5 w-5" aria-hidden />
               </div>
               <div className="space-y-1.5">
-                <h2 className="font-display text-h3 font-semibold text-ink">
+                <h2 className="font-display text-h3 font-medium text-ink">
                   Which of these names are you?
                 </h2>
                 <p className="text-ui text-ink-soft">
@@ -304,7 +304,7 @@ export function OnboardingFlow({
             {showFailureWarning ? <FailureWarning /> : null}
 
             {names.length === 0 ? (
-              <p className="rounded-md border border-ink/10 bg-paper p-4 text-caption text-ink-soft">
+              <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
                 No names extracted. Any URLs that failed permanently will appear on the{' '}
                 <Link href="/dashboard" className="text-primary hover:underline">
                   dashboard
@@ -312,16 +312,16 @@ export function OnboardingFlow({
                 under the <strong>Failed</strong> filter.
               </p>
             ) : (
-              <ul className="divide-y divide-ink/10 rounded-card border border-ink/15 bg-card">
+              <ul className="divide-y divide-border rounded-card border border-border bg-card">
                 {names.map((n) => {
                   const checked = selected.has(n.normalizedName);
                   return (
                     <li key={n.normalizedName}>
-                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-ink/[0.02]">
+                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
                         <span className="flex min-w-0 items-center gap-3">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 shrink-0 rounded border-ink/20 text-primary focus:ring-2 focus:ring-primary/40"
+                            className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
                             checked={checked}
                             onChange={() => toggle(n.normalizedName)}
                           />
@@ -383,7 +383,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
   const order = (p: Phase) => steps.findIndex((s) => s.key === p);
   const current = phase === 'done' ? steps.length : order(phase);
   return (
-    <ol className="flex items-center justify-between gap-2 rounded-card border border-ink/10 bg-card/60 p-3">
+    <ol className="flex items-center justify-between gap-2 rounded-card border border-border bg-card/60 p-3">
       {steps.map((s, i) => {
         const done = i < current;
         const active = i === current;
@@ -411,7 +411,7 @@ function ProgressBar({ phase }: { phase: Phase }) {
               {s.label}
             </span>
             {i < steps.length - 1 ? (
-              <span aria-hidden className="hidden flex-1 border-t border-dashed border-ink/15 md:block" />
+              <span aria-hidden className="hidden flex-1 border-t border-dashed border-border md:block" />
             ) : null}
           </li>
         );

@@ -157,10 +157,10 @@ export function CvDownloadButton() {
         <div
           role="dialog"
           aria-label="Download your CV"
-          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-ink/15 bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-border bg-card p-4 shadow-lg"
         >
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-3">
+            <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
               <div>
                 <div className="text-caption font-medium text-ink">PDF</div>
                 <p className="text-byline text-ink-soft">
@@ -225,7 +225,7 @@ export function CvDownloadButton() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
               <div role="radiogroup" aria-label="File format" className="flex gap-3 text-caption">
                 {(['csv', 'xlsx'] as const).map((f) => (
                   <label key={f} className="flex cursor-pointer items-center gap-1.5">

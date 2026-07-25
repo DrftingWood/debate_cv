@@ -1,7 +1,7 @@
 import type { CvSpeakerRow, CvJudgeRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 
 /**
- * Pure aggregation layer for the /cv/analytics page. Operates on the rows
+ * Pure aggregation layer for the /cv/stats page. Operates on the rows
  * buildCvData already produced rather than issuing its own queries — the
  * dedup rules (richest participation per tournament, merged break signals)
  * live in one place and analytics inherits them for free. Keeping this a

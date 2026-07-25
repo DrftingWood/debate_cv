@@ -95,15 +95,13 @@ Do not lead signed-out users into inaccessible app furniture such as Dashboard/M
 
 ### Signed-in IA
 
-Signed-in users are managing a record. Navigation should be task-based:
+Signed-in users are managing a record. Navigation should be task-based.
 
-1. CV
-2. Growth
-3. Imports
-4. Share
-5. Settings
+Header: **Record · Statistics · Imports · Settings** (plus Admin for allowlisted operators).
 
-Avoid naming primary surfaces after implementation objects. "Imports" is better than "Dashboard" because it names the job. "Growth" is better than "Analytics" because it names the value.
+CV sub-navigation (segmented control): **Record · Statistics · Motions · Tags · Verify**.
+
+Avoid naming primary surfaces after implementation objects. "Imports" is better than "Dashboard" because it names the job. "Record" is better than "CV" in nav because it names what the page holds.
 
 ### First-run flow
 
@@ -119,33 +117,43 @@ The desired mental model is:
 
 Implementation order may differ, but the UI should present this user story.
 
-## 6. Visual system
+## 6. Visual system — "Ledger" (owner-directed, 2026-07)
 
-The visual system should feel like a competitive archive or tournament ledger: structured, source-backed, and quietly sharp.
+The reference is a bank statement or a brokerage dashboard: the surface a person already trusts for numbers that are theirs. Structured, quiet, dense with figures, and completely unbothered about being pretty.
+
+Four rules govern everything:
+
+1. **The canvas is quiet and the data is loud.** Cool near-white (light) or graphite (dark) canvas, white / near-black surfaces, hairline rules. Nothing is tinted for decoration and nothing floats without a reason.
+2. **Every figure is monospaced and tabular.** Columns of numbers must align optically down the page. This is the single strongest signal that a table is a real ledger and not a marketing card.
+3. **Colour is a value judgement, never a mood.** Green = up / kept / verified. Red = down / lost. Gold = a standout competitive result (a break). Blue = analysis and projections. Amber = attention. A colour that is not making one of those claims does not ship.
+4. **One accent.** Emerald carries brand, primary action, and "verified". A filled emerald control should be the only saturated block of colour on most screens.
 
 ### Color
 
-Use a restrained archive palette:
-
-- Archive white / paper base.
-- Record ink for primary text.
-- Ledger gray for rules and dividers.
-- Tournament green for primary action, verification, and success.
+- Statement canvas / graphite canvas.
+- Ledger ink for primary text; a single muted grade below it.
+- Hairline rules at low opacity — never a heavy border.
+- Emerald for primary action, verification, and success.
 - Break gold for standout competitive results.
-- Score blue for growth, charts, and analysis.
+- Score blue for analysis and charts.
 - Amber/red only for warning and destructive states.
-
-Do not use color as decoration. Color must carry meaning.
 
 ### Typography
 
-Use a three-layer reading system:
+Three layers, no fourth:
 
-- Sans for interface and body copy.
-- Display grotesk for major headings and brand moments.
-- Mono for numerals, scores, ranks, years, IDs, and data labels.
+- Sans (Inter) for interface and body copy.
+- Display grotesk (Space Grotesk) for headings and the brand mark, at medium weight with tight tracking. Never semibold-and-shouty.
+- Mono (IBM Plex Mono) for every numeral, score, rank, year, ID, and micro-label.
 
-Avoid decorative italics as the default personality. Debate CV is a record system, not an editorial publication.
+No serif voice and no decorative italics. Debate CV is a record system, not an editorial publication.
+
+### Surfaces and structure
+
+- Three surface tiers only: the sheet (`panel`), the well (`panel-inset`), the floating thing (`panel-raised`).
+- Tables use the shared `.ledger` mechanics: uppercase mono headers, hairline row rules, no vertical rules, numeric columns right-aligned.
+- Wide tables scroll inside their own container. The page body must never scroll sideways.
+- Never leave a numeric cell blank — an em dash means "the source didn't publish this"; a blank cell reads as a bug.
 
 ### Layout
 
@@ -200,21 +208,31 @@ Avoid:
 - excessive OAuth/parser detail in hero copy
 - elite-signaling language that implies only top debaters belong
 
-## 9. Growth and quirks
+## 9. Statistics and findings
 
-Growth insights should initially be factual and explainable. Do not imply AI interpretation unless the product truly uses it and can explain it.
+Statistics must be factual and explainable. Do not imply AI interpretation unless the product truly uses it and can explain it.
 
-Good factual quirks:
+Three hard rules, enforced in `lib/cv/speakerStats.ts`:
 
-- "Speaker average is up 2.8 points since 2022."
-- "Breaks cluster in tournaments with seven or more preliminary rounds."
-- "Judging appears more often after the 2023 season."
+1. **Sample size travels with the number.** Every aggregate carries the count it was computed from, and the UI renders it. A 100% win rate over two rounds is not a statistic.
+2. **No style inference.** A split reports rounds, win rate and mean score with a delta against the user's own baseline. The delta is arithmetic, not a personality claim.
+3. **Every finding contains its number and clears a minimum sample**, and must be checkable against a table on the same page.
 
-Bad vague/AI quirks:
+Good findings:
+
+- "You finish stronger than you start: your last three prelims average 1.4 more than your first three." (7 tournaments)
+- "CG is your weakest seat at 41%, against a 53% overall round win rate." (22 decided rounds)
+- "Across your tournaments you finish in the top 8% of the speaker tab on average."
+
+Bad findings:
 
 - "You are becoming a strategic closer."
 - "AI detected your debate style."
 - "You are an elite performer."
+
+### Field context is the honest measure
+
+A raw speaker average is not comparable across circuits. Wherever a score is shown as evidence of level, show the placement against the field that was actually in the room next to it.
 
 ## 10. Privacy and trust requirements
 

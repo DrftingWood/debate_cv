@@ -136,13 +136,15 @@ export default async function Dashboard({
     <div className="space-y-10">
       {/* Page masthead. No AutoScanOnVisit here — the background scan fires
           on /cv only; this page is where scans are triggered deliberately. */}
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-3">
-          <div className="kicker">IMPORTS · GMAIL → CV</div>
-          <h1 className="font-serif text-h1 italic text-ink">
-            Tournaments, in flight.
+      <header className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="data-label">Imports · Gmail → record</div>
+          <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
+            Tournaments in flight
           </h1>
-          <hr className="hairline" />
+          <p className="mt-1.5 text-table text-ink-soft">
+            Scanning finds the private URLs; ingesting turns each one into rows on your record.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
@@ -155,13 +157,11 @@ export default async function Dashboard({
       {!gmailToken ? (
         <section
           aria-label="Gmail disconnected"
-          className="flex flex-col gap-3 border border-oxblood/30 bg-oxblood/[0.04] rounded-md p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-card border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <div className="space-y-1">
-            <div className="text-byline text-oxblood uppercase tracking-[0.16em]">
-              Gmail disconnected
-            </div>
-            <p className="font-serif text-body text-ink">
+          <div>
+            <div className="data-label text-warning">Gmail disconnected</div>
+            <p className="mt-1 text-table text-ink">
               Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
             </p>
           </div>
@@ -170,7 +170,7 @@ export default async function Dashboard({
       ) : null}
 
       {/* Stat tiles — clickable filter shortcuts */}
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <FilterTile
           icon={<Link2 className="h-4 w-4" aria-hidden />}
           label="Private URLs"
@@ -237,7 +237,7 @@ export default async function Dashboard({
         <header className="space-y-3">
           <div className="flex items-end justify-between">
             <div>
-              <h2 className="font-serif text-h3 italic text-ink">Private URLs</h2>
+              <h2 className="font-display text-h4 font-medium text-ink">Private URLs</h2>
               <p className="mt-0.5 text-caption text-ink-soft">
                 {filtered.length === counts.all
                   ? `${counts.all} total · most recent first`
@@ -324,7 +324,7 @@ export default async function Dashboard({
                             href={u.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-oxblood"
+                            className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-primary"
                           >
                             {u.url}
                             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -359,81 +359,77 @@ export default async function Dashboard({
 
             {/* Desktop table — same editorial hairline pattern as the CV
                 tables, so the two most-visited pages read as one app. */}
-            <div className="hidden max-w-full overflow-x-auto md:block">
-              <table className="w-full min-w-max text-table">
-                <thead>
-                  <tr className="border-y border-ink/15 text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                    <th className="whitespace-nowrap px-4 py-2.5 font-medium">URL</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournament</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Status</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 font-medium">Received</th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right font-medium">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(({ u, job, status }) => (
-                    <tr
-                      key={u.id}
-                      className="align-top border-b border-ink/10 transition-colors hover:bg-ink/[0.02]"
-                    >
-                      <td className="px-4 py-2.5">
-                        <a
-                          href={u.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-oxblood"
-                        >
-                          <span className="truncate">{u.url}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
-                        </a>
-                      </td>
-                      <td className="px-3 py-2.5 text-ink">
-                        <div>
-                          {u.tournament?.name ?? (
-                            <span className="text-ink-soft/60">—</span>
-                          )}
-                        </div>
-                        <TournamentMetrics
-                          tournament={u.tournament}
-                          ingestedAt={u.ingestedAt}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <StatusPill status={status} />
-                          {u.reingestLocked ? (
-                            <span className="uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                              Locked
-                            </span>
-                          ) : null}
-                        </div>
-                        {job?.lastError && status !== 'unavailable' ? (
-                          <div
-                            className="mt-1 max-w-xs text-caption text-destructive whitespace-pre-wrap break-all"
-                            title={job.lastError}
-                          >
-                            {job.lastError}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-caption text-ink-soft num">
-                        {u.messageDate
-                          ? new Date(u.messageDate).toLocaleDateString()
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <RowActions
-                          url={u.url}
-                          tournamentId={u.tournament?.id.toString() ?? null}
-                          tournamentName={u.tournament?.name ?? null}
-                          status={status}
-                          locked={u.reingestLocked}
-                        />
-                      </td>
+            <div className="panel hidden overflow-hidden md:block">
+              <div className="max-w-full overflow-x-auto">
+                <table className="ledger w-full min-w-max text-table">
+                  <thead>
+                    <tr>
+                      <th className="pl-4">URL</th>
+                      <th>Tournament</th>
+                      <th>Status</th>
+                      <th className="text-right">Received</th>
+                      <th className="pr-4 text-right">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtered.map(({ u, job, status }) => (
+                      <tr
+                        key={u.id}
+                        className="align-top transition-colors hover:bg-surface-2"
+                      >
+                        <td className="pl-4">
+                          <a
+                            href={u.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
+                          >
+                            <span className="truncate">{u.url}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                          </a>
+                        </td>
+                        <td className="text-ink">
+                          <div>
+                            {u.tournament?.name ?? <span className="text-ink-soft/60">—</span>}
+                          </div>
+                          <TournamentMetrics
+                            tournament={u.tournament}
+                            ingestedAt={u.ingestedAt}
+                          />
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <StatusPill status={status} />
+                            {u.reingestLocked ? (
+                              <span className="data-label">Locked</span>
+                            ) : null}
+                          </div>
+                          {job?.lastError && status !== 'unavailable' ? (
+                            <div
+                              className="mt-1 max-w-xs whitespace-pre-wrap break-all text-caption text-destructive"
+                              title={job.lastError}
+                            >
+                              {job.lastError}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="cell-num text-caption text-ink-soft">
+                          {u.messageDate ? new Date(u.messageDate).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="pr-4 text-right">
+                          <RowActions
+                            url={u.url}
+                            tournamentId={u.tournament?.id.toString() ?? null}
+                            tournamentName={u.tournament?.name ?? null}
+                            status={status}
+                            locked={u.reingestLocked}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
@@ -460,10 +456,10 @@ function FilterChip({
       href={`/dashboard?filter=${filter}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'inline-flex items-center rounded-full border px-3 py-1 text-caption font-medium transition-colors',
+        'inline-flex items-center rounded-md border px-2.5 py-1 text-caption font-medium transition-colors',
         active
           ? 'border-ink bg-ink text-paper'
-          : 'border-ink/15 bg-paper text-ink hover:bg-ink/[0.04]',
+          : 'border-border bg-card text-ink hover:bg-surface-2',
       )}
     >
       {label}
@@ -575,12 +571,15 @@ function FilterTile({
   filter: FilterKey;
   activeFilter: FilterKey;
 }) {
-  const toneRing: Record<typeof tone, string> = {
-    info: 'text-primary bg-primary-soft',
-    success: 'text-success bg-[hsl(var(--success)/0.12)]',
-    warning: 'text-warning bg-[hsl(var(--warning)/0.12)]',
-    danger: 'text-destructive bg-[hsl(var(--destructive)/0.10)]',
-    neutral: 'text-ink-soft bg-ink/[0.06]',
+  // Tone tints the ICON only. The figure itself stays ink: a count of
+  // pending imports is not a value judgement, and colouring the number
+  // would break the rule that tint on a figure means up or down.
+  const toneClass: Record<typeof tone, string> = {
+    info: 'text-primary',
+    success: 'text-pos',
+    warning: 'text-warning',
+    danger: 'text-neg',
+    neutral: 'text-ink-soft',
   };
   const active = activeFilter === filter;
   return (
@@ -588,22 +587,16 @@ function FilterTile({
       href={`/dashboard?filter=${filter}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'block rounded-card border bg-card transition-all duration-[180ms] ease-soft hover:shadow-md',
-        active ? 'border-oxblood ring-2 ring-oxblood/20' : 'border-ink/15',
+        'block rounded-card border bg-card p-4 transition-colors duration-150 ease-soft hover:bg-surface-2',
+        active ? 'border-primary ring-1 ring-primary/25' : 'border-border',
       )}
     >
-      <div className="flex items-center gap-3 p-5">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-md ${toneRing[tone]}`}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-caption text-ink-soft">{label}</div>
-          <div className="mt-0.5 font-serif text-stat font-semibold leading-none text-ink">
-            {value}
-          </div>
-          {hint ? <div className="mt-2 text-caption text-ink-soft">{hint}</div> : null}
-        </div>
+      <div className="data-label flex items-center gap-1.5">
+        <span className={toneClass[tone]}>{icon}</span>
+        <span className="truncate">{label}</span>
       </div>
+      <div className="figure mt-1.5 text-figure-md text-ink">{value}</div>
+      {hint ? <div className="mt-1 text-caption text-ink-soft">{hint}</div> : null}
     </Link>
   );
 }

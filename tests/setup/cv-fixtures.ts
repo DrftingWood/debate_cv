@@ -1,4 +1,9 @@
-import type { CvData, CvSpeakerRow, CvJudgeRow } from '@/lib/cv/buildCvData';
+import type {
+  CvData,
+  CvSpeakerRow,
+  CvJudgeRow,
+  CvTaggedMotion,
+} from '@/lib/cv/buildCvData';
 
 /**
  * Row builders for tests that exercise pure functions over CvData
@@ -60,6 +65,26 @@ export function makeJudgeRow(overrides: Partial<CvJudgeRow> = {}): CvJudgeRow {
   };
 }
 
+/**
+ * Motion row with quiet defaults. Tests that only care about tags can pass
+ * `{ motionType: 'THW' }` without spelling out the text/label/seq columns
+ * the display surfaces need.
+ */
+export function makeMotion(overrides: Partial<CvTaggedMotion> = {}): CvTaggedMotion {
+  const roundNumber = overrides.roundNumber ?? 1;
+  return {
+    tournamentId: 1n,
+    roundNumber,
+    roundLabel: roundNumber == null ? 'Grand Final' : `Round ${roundNumber}`,
+    seq: 0,
+    text: 'THW test the motion pipeline.',
+    infoSlide: null,
+    motionType: null,
+    topic: null,
+    ...overrides,
+  };
+}
+
 export function makeCvData(overrides: Partial<CvData> = {}): CvData {
   return {
     user: { name: 'Test Person', email: 'test@example.com', image: null },
@@ -67,6 +92,7 @@ export function makeCvData(overrides: Partial<CvData> = {}): CvData {
     speakerRows: [],
     judgeRows: [],
     taggedMotions: [],
+    fieldStats: [],
     unmatchedTournaments: [],
     summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
     highlights: {

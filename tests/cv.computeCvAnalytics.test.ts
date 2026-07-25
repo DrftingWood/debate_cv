@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { computeCvAnalytics, canonicalPosition } from '@/lib/cv/computeCvAnalytics';
-import { makeSpeakerRow, makeJudgeRow } from './setup/cv-fixtures';
+import { makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 
 describe('computeCvAnalytics', () => {
   test('returns empty aggregates for an empty CV', () => {
@@ -164,10 +164,10 @@ describe('computeCvAnalytics', () => {
       }),
     ];
     const taggedMotions = [
-      { tournamentId: 1n, roundNumber: 1, motionType: 'THW', topic: 'Economics & Business' },
-      { tournamentId: 1n, roundNumber: 2, motionType: 'THW', topic: null }, // untagged topic
-      { tournamentId: 1n, roundNumber: 3, motionType: 'THO', topic: 'Education' }, // round not debated
-      { tournamentId: 9n, roundNumber: 1, motionType: 'THR', topic: 'Education' }, // other tournament
+      makeMotion({ tournamentId: 1n, roundNumber: 1, motionType: 'THW', topic: 'Economics & Business' }),
+      makeMotion({ tournamentId: 1n, roundNumber: 2, motionType: 'THW', topic: null }), // untagged topic
+      makeMotion({ tournamentId: 1n, roundNumber: 3, motionType: 'THO', topic: 'Education' }), // round not debated
+      makeMotion({ tournamentId: 9n, roundNumber: 1, motionType: 'THR', topic: 'Education' }), // other tournament
     ];
     const a = computeCvAnalytics({ speakerRows: rows, judgeRows: [], taggedMotions });
 

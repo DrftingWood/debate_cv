@@ -28,7 +28,9 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 app/                          Next.js App Router (routes + API handlers)
   page.tsx                    Landing → redirects to /dashboard when signed in
   dashboard/                  Scan Gmail, ingest status, identity review
-  cv/                         Personal CV + roster picker fallback (verify/)
+  cv/                         Personal record; sub-surfaces: stats/ (deep statistics),
+                              motions/ (motion archive), tags/, verify/.
+                              analytics/ is a permanent redirect → stats/
   u/                          Public CV at /u/<slug>
   settings/                   Disconnect, delete account, export JSON, sharing
   onboarding/                 First-run flow
@@ -50,14 +52,20 @@ lib/
   admin.ts                    Admin allowlist
   gmail/                      client (OAuth + encrypt/decrypt), extract (URL regex + MIME walk), run (bounded concurrency)
   calicotab/                  fetch, parseNav, parseTabs, fingerprint, provenance, personMatch, primaryTeam, judgeStats, breakCategoryResolve, redactedSpeaker, ingest (orchestrator), version (PARSER_VERSION — bump to invalidate cached parses)
-  cv/                         buildCvData, computeSpeakerAvg, speakerSignals, teamRanks
+  cv/                         buildCvData (rows + motions + per-tournament field summary),
+                              speakerStats (the deep statistics engine — pure, sample-size-
+                              carrying), computeCvAnalytics (season slices), computeSpeakerAvg,
+                              speakerSignals, teamRanks, exportFields
   notifications/write.ts      In-app feed writer (bell icon; no email/push by design)
   sharing/slug.ts             Public CV slug helpers
   cvErrorReports/categories.ts
   utils/                      api, cn (clsx+tw-merge), csv, site
 
 components/
-  ui/                         Button, Card, Badge, Toast, Skeleton, Spinner, StatusPill, EmptyState
+  ui/                         Primitives: Button, Card (+ SectionHeader), Badge, Toast, Skeleton,
+                              Spinner, StatusPill, EmptyState, DataTable (Table/Th/Td/Tr/Nil),
+                              StatTile (+ StatRow, DeltaChip), TrendChart (+ Sparkline),
+                              BarList (+ Meter, Histogram)
   (flat)                      Feature components (DashboardActions, IdentityManager, CvHighlights, SharingManager, ...)
 
 prisma/
@@ -73,7 +81,8 @@ tests/                        Vitest, flat layout (`tests/*.test.ts` + `tests/ap
 
 - **Path alias**: `@/*` → repo root (e.g. `@/lib/db`, `@/components/ui/Button`). Both tsconfig and vitest are configured.
 - **Components**: flat in `components/`, no per-component folders, no colocated styles (Tailwind only). Primitive UI lives in `components/ui/`; feature components sit alongside.
-- **Styling**: Tailwind with HSL CSS variables (see `tailwind.config.ts` + `app/globals.css`). Use `cn()` from `lib/utils/cn.ts` for conditional classes. Custom font-size scale (`caption`/`body`/`h1`–`h3`/`display`) and shadow/radius tokens — prefer these over raw values.
+- **Styling**: Tailwind with HSL CSS variables (see `tailwind.config.ts` + `app/globals.css`). Use `cn()` from `lib/utils/cn.ts` for conditional classes. Custom font-size scale (`caption`/`body`/`h1`–`h4`/`figure-sm|md|lg`/`display`) and shadow/radius tokens — prefer these over raw values.
+- **Design language ("Ledger", 2026-07)**: the UI is a bank statement, not an editorial page. Read `docs/DESIGN_INSTRUCTIONS.md` §6 before any visual change. In practice: surfaces are `panel` / `panel-inset` / `panel-raised`; tables use the `.ledger` mechanics with `.cell-num` for numeric columns; micro-labels are `.data-label` (neutral) or `.eyebrow` (accented); headline figures use `.figure`; directional values use `.val-pos` / `.val-neg`. Colour on a number always means up/down — never brand or mood. The `ink` / `paper` / `oxblood` Tailwind aliases are an abstract contract (foreground / background / accent) and survive rethemes; prefer the explicit `surface-*`, `pos`, `neg`, `break-gold`, `score-blue` tokens in new work.
 - **Server-first**: App Router; API routes in `app/api/**/route.ts`. Heavy deps (`@prisma/client`, `googleapis`) declared in `serverExternalPackages`.
 - **DB access**: always via the `lib/db.ts` singleton, never `new PrismaClient()`.
 - **Secrets**: Gmail tokens encrypted at rest via `lib/crypto.ts` (AES-256-GCM, key from env). Don't log decrypted tokens.
@@ -118,6 +127,8 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 - [x] ~~Missing `@updatedAt` on `IngestJob` / `DiscoveredUrl`~~ — added; the queue's raw-SQL paths set `"updatedAt" = NOW()` explicitly since Prisma's @updatedAt only fires on client operations — keep that in mind for any future raw UPDATE.
 - [x] ~~Haiku classifier for motion tags~~ — `/admin/tags` "Suggest motion tags" button → `POST /api/admin/tags/classify` (claude-haiku-4-5, structured outputs constrained to the vocabulary); files PENDING proposals, approval stays in the loop. Needs `ANTHROPIC_API_KEY`.
 - [ ] Speaker order within a round (1st vs 2nd speaker) needs per-ballot pages (`/results/round/N/speaker/<token>/`) — deliberately not scraped; revisit only on demand.
+- [ ] Round-level field percentiles (how a single speech placed among all speakers that round) would need every participant's `SpeakerRoundScore`, not just their totals — ~800 speakers × 9 rounds per major. `buildCvData` deliberately fetches totals only; revisit only if someone asks for it.
+- [ ] CSV/XLSX export does not yet carry motions or the field-placement columns. The field registry in `lib/cv/exportFields.ts` is **append-only**, so adding them is safe but must go on the end.
 
 ## Out of scope for Superpowers
 

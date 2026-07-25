@@ -1,11 +1,13 @@
 import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe } from 'lucide-react';
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
+import { SectionHeader } from '@/components/ui/Card';
 
 /**
- * Auto-generated highlights reel — restyled as editorial "career notes"
- * (a 2- or 3-column flow on paper, separated by hairlines, with oxblood
- * kickers and italic Fraunces titles). The selection logic is unchanged;
- * we only swap the presentation.
+ * Auto-derived highlights, restyled as statement "positions": a compact
+ * grid of hairline-bounded cards, each with a mono label, an icon, the
+ * headline claim, and the tournaments backing it. The selection logic is
+ * unchanged — only the presentation moved from editorial career notes to
+ * the ledger register.
  */
 export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   const {
@@ -19,101 +21,102 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   } = highlights;
 
   const tiles: Array<{
-    kicker: string;
+    label: string;
     title: string;
     items: string[];
     icon: React.ReactNode;
+    gold?: boolean;
   }> = [];
 
   if (championships.length > 0) {
     tiles.push({
-      kicker: 'CHAMPIONSHIPS',
-      title: `Champion (${championships.length})`,
+      label: 'Championships',
+      title: `Won ${championships.length} ${championships.length === 1 ? 'title' : 'titles'}`,
       items: championships.map((c) => `${c.tournamentName}${c.year ? ` ${c.year}` : ''}`),
-      icon: <Trophy className="h-4 w-4" aria-hidden />,
+      icon: <Trophy className="h-3.5 w-3.5" aria-hidden />,
+      gold: true,
     });
   }
   if (topBreaks.length > 0) {
     tiles.push({
-      kicker: 'DEEPEST BREAKS',
-      title: `Top-10% break (${topBreaks.length})`,
+      label: 'Deepest breaks',
+      title: `Top-10% break × ${topBreaks.length}`,
       items: topBreaks.map(
-        (b) =>
-          `#${b.rank}/${b.totalTeams} · ${b.tournamentName}${b.year ? ` ${b.year}` : ''}`,
+        (b) => `#${b.rank} of ${b.totalTeams} · ${b.tournamentName}${b.year ? ` ${b.year}` : ''}`,
       ),
-      icon: <Mic className="h-4 w-4" aria-hidden />,
+      icon: <Mic className="h-3.5 w-3.5" aria-hidden />,
+      gold: true,
     });
   }
   if (bestSpeakerRank) {
     tiles.push({
-      kicker: 'BEST FORM',
-      title: 'Best speaker rank',
+      label: 'Best speaker rank',
+      title: `#${bestSpeakerRank.rank}`,
       items: [
-        `#${bestSpeakerRank.rank} · ${bestSpeakerRank.tournamentName}${bestSpeakerRank.year ? ` ${bestSpeakerRank.year}` : ''}`,
+        `${bestSpeakerRank.tournamentName}${bestSpeakerRank.year ? ` ${bestSpeakerRank.year}` : ''}`,
       ],
-      icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+      icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (bestSpeakerAverage) {
     tiles.push({
-      kicker: 'PEAK AVERAGE',
-      title: 'Best speaker average',
+      label: 'Peak average',
+      title: bestSpeakerAverage.score.toFixed(1),
       items: [
-        `${bestSpeakerAverage.score.toFixed(1)} · ${bestSpeakerAverage.tournamentName}${bestSpeakerAverage.year ? ` ${bestSpeakerAverage.year}` : ''}`,
+        `${bestSpeakerAverage.tournamentName}${bestSpeakerAverage.year ? ` ${bestSpeakerAverage.year}` : ''}`,
       ],
-      icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+      icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (outroundsChaired > 0) {
     tiles.push({
-      kicker: 'MOST CHAIRED',
-      title: 'Outrounds chaired',
-      items: [`${outroundsChaired} ${outroundsChaired === 1 ? 'outround' : 'outrounds'}`],
-      icon: <Gavel className="h-4 w-4" aria-hidden />,
+      label: 'Outrounds chaired',
+      title: String(outroundsChaired),
+      items: [`${outroundsChaired === 1 ? 'Tournament' : 'Tournaments'} with an outround chair`],
+      icon: <Gavel className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (adjCoreCount > 0) {
     tiles.push({
-      kicker: 'ADJUDICATION CORE',
-      title: 'Adj core',
-      items: [`${adjCoreCount} ${adjCoreCount === 1 ? 'tournament' : 'tournaments'}`],
-      icon: <Crown className="h-4 w-4" aria-hidden />,
+      label: 'Adjudication core',
+      title: `${adjCoreCount}×`,
+      items: [`${adjCoreCount === 1 ? 'Tournament' : 'Tournaments'} on the adj core`],
+      icon: <Crown className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (majorEvents.length > 0) {
     tiles.push({
-      kicker: 'MAJOR CIRCUIT',
-      title: `Major-circuit (${majorEvents.length})`,
+      label: 'Major circuit',
+      title: `${majorEvents.length} ${majorEvents.length === 1 ? 'major' : 'majors'}`,
       items: majorEvents.map((m) => `${m.tournamentName}${m.year ? ` ${m.year}` : ''}`),
-      icon: <Globe className="h-4 w-4" aria-hidden />,
+      icon: <Globe className="h-3.5 w-3.5" aria-hidden />,
     });
   }
 
   if (tiles.length === 0) return null;
 
   return (
-    <section aria-label="Career notes">
-      <header className="mb-6 max-w-2xl">
-        <div className="kicker">CAREER NOTES · HIGHLIGHTS</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Notable moments.
-        </h2>
-      </header>
-
-      <div className="grid gap-x-8 gap-y-6 md:grid-cols-2 lg:grid-cols-3">
+    <section aria-label="Highlights" className="space-y-3">
+      <SectionHeader label="Highlights" title="Standout results" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {tiles.map((t, i) => (
-          <article
-            key={i}
-            className="border-t border-ink/10 pt-4"
-          >
-            <div className="kicker flex items-center gap-1.5">
-              <span className="text-oxblood">{t.icon}</span>
-              {t.kicker}
+          <article key={i} className="panel p-4">
+            <div className="data-label flex items-center gap-1.5">
+              <span className={t.gold ? 'text-break-gold' : 'text-primary'}>{t.icon}</span>
+              {t.label}
             </div>
-            <h3 className="mt-2 font-serif text-h3 italic text-ink">{t.title}</h3>
-            <ul className="mt-1 space-y-0.5 font-serif text-body leading-relaxed text-ink/80">
+            <h3
+              className={
+                'figure mt-2 text-figure-sm ' + (t.gold ? 'text-break-gold' : 'text-ink')
+              }
+            >
+              {t.title}
+            </h3>
+            <ul className="mt-2 space-y-1 text-caption leading-relaxed text-ink-soft">
               {t.items.map((item, j) => (
-                <li key={j} className="break-words">{item}</li>
+                <li key={j} className="break-words">
+                  {item}
+                </li>
               ))}
             </ul>
           </article>

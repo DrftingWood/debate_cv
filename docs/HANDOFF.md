@@ -1,5 +1,33 @@
 # Session Handoff — debate_cv
 
+---
+
+## 2026-07-25 — Front-end rebuild ("Ledger"), motions surfaced, statistics engine
+
+**Branch:** `claude/frontend-rebuild-motions-stats-yuzub3`
+**Test baseline:** 636 vitest tests passing (was 604); typecheck / lint / `next build` clean.
+**Migrations:** none. This session is display + pure-computation only; no schema change, no `PARSER_VERSION` bump, no re-ingest required.
+
+### What shipped
+
+| Area | What exists now | Key files |
+|---|---|---|
+| Design language | Replaced "Tab Room Terminal" with **Ledger** — a bank/brokerage-statement register. New token layer (cool-white/graphite canvas, hairline rules, one emerald accent, `pos`/`neg` directional colours, `surface`/`surface-2`/`surface-3` tiers), `.ledger` table mechanics, `.data-label` / `.eyebrow` / `.figure` / `.num` type roles, tabular numerals as a base rule. All editorial signatures (serif italic headings, drop caps, "Vol." kickers, pull quotes) removed; `font-serif` swept out of 24 files. Legacy `ink`/`paper`/`oxblood` aliases kept and re-pointed. | `app/globals.css`, `tailwind.config.ts`, `docs/DESIGN_INSTRUCTIONS.md` §6 |
+| New primitives | `StatTile`/`StatRow`/`DeltaChip`, `DataTable` (`Table`/`Th`/`Td`/`Tr`/`Nil`/`TableScroll`), `Sparkline`, `Meter`, `Histogram`, `SectionHeader`. `TrendChart` rewritten (gridlines, gradient area, baseline marker). Button/Card/Badge/EmptyState/NavLink/BrandMark/CvSubNav restyled. | `components/ui/*`, `components/CvSubNav.tsx` |
+| Motions end-to-end | Motions were scraped since `20260611.0` but never displayed. `buildCvData` now carries text/roundLabel/seq/infoSlide; the CV row expands into a **round ledger** (round · side · motion · score · points · result); new **`/cv/motions`** lists every motion joined to the round the user debated it in, with info slides and tags. | `lib/cv/buildCvData.ts`, `app/(app)/cv/page.tsx`, `app/(app)/cv/motions/page.tsx` |
+| Field context (new data) | `buildCvData` now summarises the FIELD per tournament from every published speaker's score total: speaker count, field mean/median/p90/σ in score units, and how many finished above the user. This is what makes "18th of 412" and a placement percentile possible. Totals-only projection on purpose — per-round field data would be an order of magnitude larger. | `CvFieldStat` in `lib/cv/buildCvData.ts` |
+| Statistics engine | `lib/cv/speakerStats.ts` — pure, 26 unit tests. Score profile (mean/median/σ/IQR/p10–p90/histogram/best+worst speech with its motion), field placement (Δ, z, percentile, placement), round dynamics (per-round profile, opening vs closing, OLS slope, within-event σ), results (win rate, BP points distribution, streaks across the career, break rate, finals/titles, deepest outround), splits by seat / motion stem / topic / format / region / field-size bucket / season each with a delta against the user's own baseline, partner splits, and auto-derived findings that must contain their number and clear a sample floor. | `lib/cv/speakerStats.ts`, `tests/cv.speakerStats.test.ts` |
+| Surfaces | `/cv` rebuilt (account header, KPI strip, ledger tables, per-round detail). `/cv/analytics` → permanent redirect to new **`/cv/stats`**. `/u/<slug>` rebuilt with a summary strip. Landing + `/sample` rebuilt with a statistics showcase and a preview built from the real primitives. Imports, settings, tags, verify, onboarding, admin restyled. Header nav is now Record · Statistics · Imports · Settings, with a mobile strip instead of a hamburger. | `app/(app)/cv/**`, `app/u/[slug]/page.tsx`, `app/page.tsx`, `app/sample/page.tsx`, `app/(app)/layout.tsx` |
+
+### Notes for whoever picks this up
+
+- **Nothing here needs a re-ingest**, but the new surfaces are much richer on tournaments ingested since `PARSER_VERSION 20260611.0` (positions + motions). The operator checklist item "Re-ingest all" below is now worth more than it was.
+- Field figures in score units divide the tab's score *totals* by the prelim round count — exact when everyone spoke every round, slightly low otherwise. The rank-based placement carries no such assumption and both are shown; the page says so.
+- Motion joins are by `(tournament, round)`. Rounds that released several motions credit all of them and are flagged in the UI — there is no per-room draw data to disambiguate.
+- Findings ("quirks") are suppressed below `MIN_QUIRK_ROUNDS` / `MIN_QUIRK_TOURNAMENTS`. If a user reports "my stats page says nothing", that is usually the sample floors doing their job, not a bug.
+
+---
+
 **Date:** 2026-06-11 (supersedes the 2026-05-24 handoff; unresolved items from it are carried forward below)
 **Last commit on `main`:** `b439ed1 feat(ingest): harden ingest-once invariant + free 15-min queue drain`
 **Test baseline:** 604 vitest tests passing; typecheck/lint/`next build` clean.
@@ -85,4 +113,4 @@ The "ingest once, extract thereafter" invariant **holds** across all three entry
 
 Paste this to start:
 
-> Resume from `docs/HANDOFF.md` (2026-06-11). First confirm the operator checklist state with me (GitHub drain secrets? re-ingest-all run? tags seeded?), then pick up "Next steps for the next agent" — item 1 is the auto-drain-after-scan change in `components/AutoScanOnVisit.tsx`.
+> Resume from `docs/HANDOFF.md` — read the 2026-07-25 entry at the top first (front-end rebuild, motions, statistics engine), then the 2026-06-11 one for pipeline state. Confirm the operator checklist with me (GitHub drain secrets? re-ingest-all run? tags seeded?) before picking up new work.

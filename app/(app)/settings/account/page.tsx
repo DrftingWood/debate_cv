@@ -54,8 +54,8 @@ export default async function AccountSettingsPage() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">SETTINGS · ACCOUNT</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Connections and data.
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+          Connections and data
         </h1>
         <hr className="hairline" />
       </header>
@@ -65,7 +65,7 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">
+            <h2 className="font-display text-h3 font-medium text-ink">
               Gmail connection
             </h2>
           </div>
@@ -106,7 +106,7 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">Your data</h2>
+            <h2 className="font-display text-h3 font-medium text-ink">Your data</h2>
           </div>
           <dl className="grid grid-cols-3 gap-3 text-ui">
             <DataStat
@@ -136,7 +136,7 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-destructive" aria-hidden />
-            <h2 className="font-serif text-h3 italic text-ink">Delete account</h2>
+            <h2 className="font-display text-h3 font-medium text-ink">Delete account</h2>
           </div>
           <p className="text-body text-ink-soft">
             Removes your user record, Gmail tokens, discovered URLs, ingest jobs, and identity
@@ -159,11 +159,11 @@ function DataStat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-ink/10 bg-paper px-3.5 py-3">
+    <div className="rounded-md border border-border bg-paper px-3.5 py-3">
       <dt className="text-caption text-ink-soft" title={hint}>
         {label}
       </dt>
-      <dd className="mt-0.5 font-serif text-stat font-semibold text-ink">{value}</dd>
+      <dd className="mt-0.5 font-display text-stat font-semibold text-ink">{value}</dd>
       {hint ? (
         <div className="mt-1 text-byline leading-snug text-ink-soft">{hint}</div>
       ) : null}

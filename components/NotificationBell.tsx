@@ -102,7 +102,7 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-haspopup="true"
         aria-expanded={open}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-ink/[0.04] hover:text-ink"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
       >
         <Bell className="h-4 w-4" aria-hidden />
         {unreadCount > 0 ? (
@@ -122,9 +122,9 @@ export function NotificationBell() {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-ink/15 bg-card shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-border bg-card shadow-lg"
         >
-          <div className="border-b border-ink/15 px-4 py-2.5 text-table font-medium text-ink">
+          <div className="border-b border-border px-4 py-2.5 text-table font-medium text-ink">
             Notifications
           </div>
           {items.length === 0 ? (
@@ -133,7 +133,7 @@ export function NotificationBell() {
               <span>You&apos;re all caught up.</span>
             </div>
           ) : (
-            <ul className="max-h-96 divide-y divide-ink/10 overflow-auto">
+            <ul className="max-h-96 divide-y divide-border overflow-auto">
               {items.map((n) => (
                 <li key={n.id}>
                   <NotificationRow item={n} onClick={() => setOpen(false)} />
@@ -159,7 +159,7 @@ function NotificationRow({
   const inner = (
     <div
       className={cn(
-        'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-ink/[0.04]',
+        'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-surface-2',
         !item.readAt && 'bg-oxblood/[0.06]',
       )}
     >

@@ -119,7 +119,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
         placeholder={userEmail ?? 'email'}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
-        className="block w-full rounded-md border border-ink/15 bg-card px-3.5 py-2.5 text-ui shadow-xs focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/40"
+        className="block w-full rounded-md border border-border bg-card px-3.5 py-2.5 text-ui shadow-xs focus:border-destructive focus:outline-none focus:ring-2 focus:ring-destructive/40"
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button

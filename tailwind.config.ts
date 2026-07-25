@@ -11,8 +11,8 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border) / 0.14)',  // hairline default
-        input: 'hsl(var(--input) / 0.20)',
+        border: 'hsl(var(--border) / 0.16)',  // hairline default
+        input: 'hsl(var(--input) / 0.22)',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -55,18 +55,43 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
 
-        // Semantic aliases — self-documenting in JSX. Names date from the
-        // editorial era but are an abstract contract (ink=fg, paper=bg,
-        // oxblood=accent); the Tab Room Terminal retheme re-pointed the
-        // VALUES (oxblood now resolves to phosphor green). Renaming the
-        // alias would churn ~30 files for zero visual change — do it only
-        // alongside a real refactor of those call sites.
+        // ── Ledger palette ───────────────────────────────────────────────
+        // Surface tiers, in order of depth. `surface` is the statement
+        // sheet, `surface-2` a zebra row or well, `surface-3` a chart
+        // gutter / progress track.
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          2: 'hsl(var(--surface-2))',
+          3: 'hsl(var(--surface-3))',
+        },
+        // Directional value colours. These are the ONLY tints allowed on a
+        // number, and they always mean up/down — never brand, never mood.
+        pos: {
+          DEFAULT: 'hsl(var(--pos))',
+          soft: 'hsl(var(--pos) / 0.10)',
+        },
+        neg: {
+          DEFAULT: 'hsl(var(--neg))',
+          soft: 'hsl(var(--neg) / 0.10)',
+        },
+        break: {
+          gold: 'hsl(var(--break-gold))',
+          soft: 'hsl(var(--break-gold) / 0.12)',
+        },
+        score: {
+          blue: 'hsl(var(--score-blue))',
+          soft: 'hsl(var(--score-blue) / 0.12)',
+        },
+
+        // Abstract aliases kept from the previous system (ink = foreground,
+        // paper = background, oxblood = accent). Re-pointed at the ledger
+        // values; renaming them would churn ~30 files for zero visual change.
         paper: 'hsl(var(--background))',
         ink: {
           DEFAULT: 'hsl(var(--foreground))',
           soft: 'hsl(var(--muted-foreground))',
         },
-        rule: 'hsl(var(--border) / 0.14)',
+        rule: 'hsl(var(--border) / 0.16)',
         oxblood: {
           DEFAULT: 'hsl(var(--primary))',
           soft: 'hsl(var(--primary-soft) / 0.08)',
@@ -82,36 +107,36 @@ const config: Config = {
           green: 'hsl(var(--record-green))',
           'green-soft': 'hsl(var(--record-green) / 0.10)',
         },
-        break: {
-          gold: 'hsl(var(--break-gold))',
-        },
-        score: {
-          blue: 'hsl(var(--score-blue))',
-        },
       },
       fontFamily: {
         display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Retheme 2026-06: the serif slot intentionally renders the display
-        // grotesk — every `font-serif italic` heading becomes an oblique
-        // Space Grotesk headline without touching the call sites.
+        // The statement UI has no serif voice. The slot stays mapped to the
+        // display grotesk so any stray `font-serif` renders as a heading
+        // rather than falling back to Times.
         serif: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
-        kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.2em', fontWeight: '600' }],
-        byline: ['11.5px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
-        caption: ['12.5px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
+        // Micro labels → body → headings → figures. The `figure-*` steps are
+        // for monospaced numbers in stat tiles and are deliberately tighter
+        // than the heading scale at the same optical size.
+        kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.13em', fontWeight: '600' }],
+        byline: ['12px', { lineHeight: '1.45' }],
+        caption: ['12.5px', { lineHeight: '1.45' }],
         table: ['13.5px', { lineHeight: '1.5' }],
         ui: ['14px', { lineHeight: '1.5' }],
         body: ['15px', { lineHeight: '1.6' }],
-        'body-serif': ['16.5px', { lineHeight: '1.55' }],
-        h4: ['18px', { lineHeight: '1.3', letterSpacing: '-0.005em' }],
-        h3: ['22px', { lineHeight: '1.3', letterSpacing: '-0.01em' }],
-        stat: ['28px', { lineHeight: '1.1', letterSpacing: '-0.01em' }],
-        h2: ['36px', { lineHeight: '1.15', letterSpacing: '-0.015em' }],
-        h1: ['48px', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
-        display: ['64px', { lineHeight: '1.02', letterSpacing: '-0.025em' }],
+        'body-serif': ['16px', { lineHeight: '1.6' }],
+        h4: ['17px', { lineHeight: '1.35', letterSpacing: '-0.006em' }],
+        h3: ['21px', { lineHeight: '1.3', letterSpacing: '-0.012em' }],
+        stat: ['26px', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'figure-sm': ['20px', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'figure-md': ['28px', { lineHeight: '1.05', letterSpacing: '-0.025em' }],
+        'figure-lg': ['40px', { lineHeight: '1', letterSpacing: '-0.03em' }],
+        h2: ['32px', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
+        h1: ['44px', { lineHeight: '1.08', letterSpacing: '-0.024em' }],
+        display: ['60px', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -125,14 +150,13 @@ const config: Config = {
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
         xl: 'var(--shadow-xl)',
-        // glow retired
       },
       transitionTimingFunction: {
         soft: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
       keyframes: {
         'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         'fade-in': {
@@ -145,8 +169,8 @@ const config: Config = {
         },
       },
       animation: {
-        'fade-up': 'fade-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both',
-        'fade-in': 'fade-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-up': 'fade-up 480ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-in': 'fade-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both',
         shimmer: 'shimmer 1.4s linear infinite',
       },
     },

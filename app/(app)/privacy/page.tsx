@@ -10,13 +10,13 @@ export default function Privacy() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">LEGAL · PRIVACY</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          What we store, and why.
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+          What we store, and why
         </h1>
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-serif">
+      <article className="prose prose-stone max-w-none font-display">
       <p className="lead">
         debate cv is a personal-use tool for debaters. We try to collect and retain as little as
         possible. Last updated: 2026.

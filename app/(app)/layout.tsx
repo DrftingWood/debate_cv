@@ -29,38 +29,48 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-ink/15 bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-5 py-3.5">
-          <Link href={logoHref} className="inline-flex items-center">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-5 py-3">
+          <Link href={logoHref} className="inline-flex shrink-0 items-center">
             <BrandMark />
           </Link>
-          <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-6 text-table font-medium">
-              <NavLink href="/cv">CV</NavLink>
-              {/* "Imports" not "Dashboard": the page's one job is getting
-                  tournaments out of Gmail and into the CV — naming it after
-                  the task beats naming it after the furniture. */}
-              <NavLink href="/cv/analytics">Growth</NavLink>
+          <div className="flex min-w-0 items-center gap-2">
+            <nav className="hidden items-center gap-0.5 text-table font-medium md:flex">
+              {/* Task names, not object names: "Record" is what the page is
+                  for, "Imports" is what the dashboard actually does. */}
+              <NavLink href="/cv" exact>Record</NavLink>
+              <NavLink href="/cv/stats">Statistics</NavLink>
               <NavLink href="/dashboard">Imports</NavLink>
-              <NavLink href="/settings/sharing">Share</NavLink>
               <NavLink href="/settings">Settings</NavLink>
               {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
             </nav>
-            <ThemeToggle />
-            {session?.user?.id ? (
-              <>
-                <NotificationBell />
-                <UserMenu
-                  name={session.user.name ?? null}
-                  email={session.user.email ?? null}
-                  image={session.user.image ?? null}
-                />
-              </>
-            ) : null}
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle />
+              {session?.user?.id ? (
+                <>
+                  <NotificationBell />
+                  <UserMenu
+                    name={session.user.name ?? null}
+                    email={session.user.email ?? null}
+                    image={session.user.image ?? null}
+                  />
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
+        {/* Below md the nav moves to its own scrollable strip rather than
+            collapsing into a hamburger: five destinations fit, and a menu
+            that hides the record behind a tap is the wrong trade here. */}
+        <nav className="flex items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1.5 text-table font-medium md:hidden">
+          <NavLink href="/cv" exact>Record</NavLink>
+          <NavLink href="/cv/stats">Statistics</NavLink>
+          <NavLink href="/dashboard">Imports</NavLink>
+          <NavLink href="/settings">Settings</NavLink>
+          {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+        </nav>
       </header>
-      <div className="mx-auto max-w-screen-2xl px-5 py-10">{children}</div>
+      <div className="mx-auto max-w-screen-2xl px-5 py-8">{children}</div>
       <Footer />
     </>
   );

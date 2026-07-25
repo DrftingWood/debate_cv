@@ -4,119 +4,155 @@
 
 @layer base {
   /*
-   * Competitive record palette. The UI should read as a verified archive:
-   * paper, ink, ledger rules, tournament green, break gold, and score blue.
-   * Legacy ink/paper/oxblood aliases remain mapped in Tailwind for existing
-   * surfaces, but new work should use the record-* semantic tokens below.
+   * ── Design language: "Ledger" ──────────────────────────────────────────
+   *
+   * The 2026-07 front-end rebuild moved the product from an editorial /
+   * terminal register to the one users already trust for numbers they own:
+   * a bank statement or a brokerage dashboard. The rules that follow from
+   * that reference, and that the whole UI is built on:
+   *
+   *   1. The canvas is quiet and the DATA is loud. Cool near-white (light)
+   *      or graphite (dark) canvas, white/near-black surfaces, hairline
+   *      rules. Nothing is tinted for decoration.
+   *   2. Every figure is monospaced and tabular. Columns of numbers must
+   *      align optically down the page — that is the single strongest
+   *      signal that a table is a real ledger and not a marketing card.
+   *   3. Colour is a value judgement, never a mood. Green = up / kept /
+   *      verified. Red = down / lost. Gold = a standout competitive result
+   *      (a break). Blue = analysis and projections. Amber = attention.
+   *      If a colour is not making one of those claims, it does not ship.
+   *   4. One accent. Emerald carries brand, primary action and "verified".
+   *
+   * Token contract: the ink / paper / oxblood aliases predate this and are
+   * an abstract contract (ink = foreground, paper = background, oxblood =
+   * accent), so they survive the retheme with new values. New work should
+   * prefer the explicit tokens below: surface / surface-2, pos / neg,
+   * break-gold, score-blue.
    */
   :root,
   [data-theme='light'] {
-    --background: 48 27% 96%;          /* archive white */
-    --foreground: 140 8% 9%;           /* record ink */
-    --muted-foreground: 100 4% 42%;
-    --border: 48 8% 66%;               /* ledger rules */
+    --background: 210 20% 97%;         /* statement canvas */
+    --foreground: 213 27% 11%;         /* ledger ink */
+    --muted-foreground: 213 11% 43%;
+    --border: 213 18% 40%;             /* used at low opacity for hairlines */
 
-    --card: 0 0% 100%;
-    --card-foreground: 160 25% 10%;
+    --card: 0 0% 100%;                 /* statement paper */
+    --card-foreground: 213 27% 11%;
+
+    --surface: 0 0% 100%;
+    --surface-2: 210 22% 98%;          /* zebra rows, inset wells */
+    --surface-3: 212 20% 95%;          /* chart gutters, track fills */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 25% 10%;
+    --popover-foreground: 213 27% 11%;
 
-    --primary: 155 65% 26%;            /* tournament green */
-    --primary-foreground: 48 27% 96%;
-    --primary-hover: 155 65% 20%;
-    --primary-soft: 155 65% 26%;
+    --primary: 166 76% 22%;            /* emerald — action + verified */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 166 78% 17%;
+    --primary-soft: 166 76% 22%;
 
-    --secondary: 150 14% 94%;
-    --secondary-foreground: 160 25% 10%;
+    --secondary: 210 22% 96%;
+    --secondary-foreground: 213 27% 11%;
 
-    --muted: 150 14% 93%;
+    --muted: 210 22% 96%;
 
-    --accent: 48 18% 91%;              /* record surface */
-    --accent-foreground: 155 65% 26%;
+    --accent: 210 22% 96%;
+    --accent-foreground: 166 76% 22%;
 
-    --success: 155 65% 26%;
+    --pos: 160 68% 27%;                /* up / won / gained */
+    --neg: 356 68% 45%;                /* down / lost */
+
+    --success: 160 68% 27%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 34 64% 44%;
+    --warning: 33 82% 42%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 65% 45%;
+    --destructive: 356 68% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --input: 140 8% 9%;                /* used with /0.12 for input borders */
-    --ring: 155 65% 26%;
+    --input: 213 18% 40%;
+    --ring: 166 76% 22%;
 
-    --radius: 0.375rem;
+    --radius: 0.5rem;
     --radius-card: 0.75rem;
 
-    --archive-white: 48 27% 96%;
-    --record-ink: 140 8% 9%;
-    --record-muted: 100 4% 42%;
-    --record-rule: 48 8% 66%;
-    --record-surface: 48 18% 91%;
-    --record-green: 155 65% 26%;
-    --break-gold: 39 63% 44%;
-    --score-blue: 208 48% 37%;
+    /* Legacy semantic aliases, re-pointed at the ledger palette. */
+    --archive-white: 210 20% 97%;
+    --record-ink: 213 27% 11%;
+    --record-muted: 213 11% 43%;
+    --record-rule: 213 18% 40%;
+    --record-surface: 210 22% 96%;
+    --record-green: 166 76% 22%;
+    --break-gold: 38 74% 38%;          /* standout result */
+    --score-blue: 214 72% 40%;         /* analysis */
 
-    --shadow-xs: 0 1px 2px 0 hsl(160 25% 10% / 0.04);
-    --shadow-sm: 0 1px 2px hsl(160 25% 10% / 0.04), 0 1px 3px hsl(160 25% 10% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(160 25% 10% / 0.06), 0 2px 4px -1px hsl(160 25% 10% / 0.04);
-    --shadow-lg: 0 12px 32px -8px hsl(160 25% 10% / 0.10), 0 4px 12px -2px hsl(160 25% 10% / 0.05);
-    --shadow-xl: 0 24px 56px -16px hsl(160 25% 10% / 0.14), 0 8px 24px -4px hsl(160 25% 10% / 0.06);
+    /* Shadows stay almost invisible: a statement is printed, not floating. */
+    --shadow-xs: 0 1px 1px 0 hsl(213 27% 11% / 0.04);
+    --shadow-sm: 0 1px 2px hsl(213 27% 11% / 0.05), 0 0 0 1px hsl(213 27% 11% / 0.03);
+    --shadow-md: 0 2px 6px -1px hsl(213 27% 11% / 0.07), 0 1px 2px hsl(213 27% 11% / 0.04);
+    --shadow-lg: 0 10px 26px -8px hsl(213 27% 11% / 0.12), 0 3px 8px -2px hsl(213 27% 11% / 0.05);
+    --shadow-xl: 0 22px 48px -16px hsl(213 27% 11% / 0.16), 0 6px 18px -6px hsl(213 27% 11% / 0.06);
   }
 
   [data-theme='dark'] {
-    --background: 162 21% 6%;          /* terminal green-black */
-    --foreground: 140 21% 92%;         /* phosphor-tinted white */
-    --muted-foreground: 145 9% 62%;
-    --border: 140 21% 92%;             /* light hairlines via low opacity */
+    --background: 216 24% 7%;          /* terminal graphite */
+    --foreground: 210 22% 93%;
+    --muted-foreground: 213 12% 60%;
+    --border: 210 22% 93%;             /* hairlines via low opacity */
 
-    --card: 158 17% 10%;
-    --card-foreground: 140 21% 92%;
+    --card: 216 22% 10%;
+    --card-foreground: 210 22% 93%;
 
-    --popover: 158 17% 10%;
-    --popover-foreground: 140 21% 92%;
+    --surface: 216 22% 10%;
+    --surface-2: 216 20% 12%;
+    --surface-3: 216 18% 16%;
 
-    --primary: 147 69% 55%;            /* phosphor #3DDC84 */
-    --primary-foreground: 162 21% 6%;
-    --primary-hover: 147 69% 47%;
-    --primary-soft: 147 69% 55%;
+    --popover: 216 22% 11%;
+    --popover-foreground: 210 22% 93%;
 
-    --secondary: 158 17% 12%;
-    --secondary-foreground: 140 21% 92%;
+    --primary: 160 62% 48%;
+    --primary-foreground: 216 24% 7%;
+    --primary-hover: 160 62% 42%;
+    --primary-soft: 160 62% 48%;
 
-    --muted: 158 17% 12%;
+    --secondary: 216 20% 14%;
+    --secondary-foreground: 210 22% 93%;
 
-    --accent: 158 17% 14%;
-    --accent-foreground: 147 69% 55%;
+    --muted: 216 20% 14%;
 
-    --success: 147 69% 55%;
-    --success-foreground: 162 21% 6%;
+    --accent: 216 20% 15%;
+    --accent-foreground: 160 62% 48%;
 
-    --warning: 34 100% 66%;            /* amber #FFB454 */
-    --warning-foreground: 162 21% 6%;
+    --pos: 158 60% 50%;
+    --neg: 356 82% 65%;
 
-    --destructive: 0 100% 68%;         /* signal red #FF5C5C */
-    --destructive-foreground: 162 21% 6%;
+    --success: 158 60% 50%;
+    --success-foreground: 216 24% 7%;
 
-    --input: 140 21% 92%;
-    --ring: 147 69% 55%;
+    --warning: 36 90% 60%;
+    --warning-foreground: 216 24% 7%;
 
-    --shadow-xs: 0 1px 2px 0 hsl(160 30% 2% / 0.4);
-    --shadow-sm: 0 1px 2px hsl(160 30% 2% / 0.4), 0 1px 3px hsl(160 30% 2% / 0.35);
-    --shadow-md: 0 4px 12px -2px hsl(160 30% 2% / 0.5), 0 2px 4px -1px hsl(160 30% 2% / 0.4);
-    --shadow-lg: 0 12px 32px -8px hsl(160 30% 2% / 0.6), 0 4px 12px -2px hsl(160 30% 2% / 0.45);
-    --shadow-xl: 0 24px 56px -16px hsl(160 30% 2% / 0.7), 0 8px 24px -4px hsl(160 30% 2% / 0.5);
+    --destructive: 356 82% 65%;
+    --destructive-foreground: 216 24% 7%;
 
-    --archive-white: 162 21% 6%;
-    --record-ink: 140 21% 92%;
-    --record-muted: 145 9% 62%;
-    --record-rule: 140 21% 92%;
-    --record-surface: 158 17% 12%;
-    --record-green: 147 69% 55%;
-    --break-gold: 39 78% 62%;
-    --score-blue: 205 72% 67%;
+    --input: 210 22% 93%;
+    --ring: 160 62% 48%;
+
+    --archive-white: 216 24% 7%;
+    --record-ink: 210 22% 93%;
+    --record-muted: 213 12% 60%;
+    --record-rule: 210 22% 93%;
+    --record-surface: 216 20% 14%;
+    --record-green: 160 62% 48%;
+    --break-gold: 40 80% 60%;
+    --score-blue: 210 82% 66%;
+
+    --shadow-xs: 0 1px 1px 0 hsl(216 40% 2% / 0.5);
+    --shadow-sm: 0 1px 2px hsl(216 40% 2% / 0.5), 0 0 0 1px hsl(210 22% 93% / 0.04);
+    --shadow-md: 0 2px 8px -1px hsl(216 40% 2% / 0.6), 0 1px 2px hsl(216 40% 2% / 0.4);
+    --shadow-lg: 0 10px 28px -8px hsl(216 40% 2% / 0.7), 0 3px 10px -2px hsl(216 40% 2% / 0.5);
+    --shadow-xl: 0 22px 52px -16px hsl(216 40% 2% / 0.8), 0 6px 20px -6px hsl(216 40% 2% / 0.55);
   }
 
   html {
@@ -128,7 +164,18 @@
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'cv11';
+    font-feature-settings: 'ss01', 'cv11', 'tnum';
+  }
+
+  /*
+   * Tabular figures everywhere by default. In a statement UI a number that
+   * shifts width between 1 and 8 breaks the column, so this is a base rule
+   * rather than something each table has to remember.
+   */
+  table,
+  .num,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
   }
 
   ::selection {
@@ -157,82 +204,137 @@
 }
 
 @layer components {
-
-  .record-panel {
+  /* ── Surfaces ─────────────────────────────────────────────────────────
+   * Three tiers only. `panel` is the default statement sheet; `panel-inset`
+   * is a well drilled into it (chart gutters, code/URL blocks); `panel-raised`
+   * is reserved for things that genuinely float (popovers, menus).
+   */
+  .panel {
     @apply rounded-card border bg-card;
-    border-color: hsl(var(--record-rule) / 0.35);
-    box-shadow: var(--shadow-sm);
+    border-color: hsl(var(--border) / 0.16);
   }
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: hsl(var(--record-green));
+  .panel-inset {
+    @apply rounded-md;
+    background: hsl(var(--surface-2));
+    border: 1px solid hsl(var(--border) / 0.12);
   }
-  .data-label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: hsl(var(--record-muted));
+  .panel-raised {
+    @apply rounded-card border bg-popover shadow-lg;
+    border-color: hsl(var(--border) / 0.18);
   }
 
-  /* Surface tiers (drop shadows for on-surface elements; hairline borders instead) */
+  /* Back-compat aliases for surfaces named in the previous system. */
+  .record-panel,
   .surface-card {
-    @apply rounded-card border bg-card;
-    border-color: hsl(var(--border) / 0.14);
+    @apply panel;
   }
   .surface-elevated {
-    @apply rounded-card border bg-card shadow-md;
-    border-color: hsl(var(--border) / 0.14);
+    @apply panel shadow-md;
   }
 
-  /* Editorial signatures */
+  /* ── Micro-labels ─────────────────────────────────────────────────────
+   * The statement vocabulary: every figure sits under a small, uppercase,
+   * letterspaced mono label. `.data-label` is the neutral one; `.eyebrow`
+   * is the accented section marker; `.kicker` survives as an alias so the
+   * older call sites keep rendering something sensible.
+   */
+  .data-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+  .eyebrow,
   .kicker {
-    font-family: var(--font-display);
+    font-family: var(--font-mono);
     font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     color: hsl(var(--primary));
   }
   .byline {
     font-family: var(--font-sans);
-    font-size: 11.5px;
+    font-size: 12px;
     color: hsl(var(--muted-foreground));
-    letter-spacing: 0.04em;
   }
+
+  /* Figures. `.num` is the workhorse: mono, tabular, slightly tightened. */
   .num {
     font-family: var(--font-mono);
-    font-size: 0.95em;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
-  .dropcap::first-letter {
-    font-family: var(--font-display);
-    font-size: 40px;
-    font-weight: 600;
-    color: hsl(var(--primary));
-    float: left;
-    line-height: 0.9;
-    padding: 4px 6px 0 0;
-  }
-  .pull-quote {
-    border-left: 2px solid hsl(var(--primary));
-    padding-left: 14px;
-    font-family: var(--font-display);
-    font-style: italic;
+  /* The headline figure in a stat tile. */
+  .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.02em;
     color: hsl(var(--foreground));
   }
+
+  /* Directional value colours — the only place tint is allowed to mean
+     something on a number. */
+  .val-pos { color: hsl(var(--pos)); }
+  .val-neg { color: hsl(var(--neg)); }
+  .val-flat { color: hsl(var(--muted-foreground)); }
+
   .hairline {
     height: 1px;
-    background: hsl(var(--border) / 0.14);
+    background: hsl(var(--border) / 0.16);
     border: 0;
   }
 
-  /* Serif display helper (preserved — used by Fraunces hero headlines) */
+  /* Ledger table: hairline row rules, no vertical rules, numeric columns
+     right-aligned by the `.cell-num` helper. */
+  .ledger {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ledger thead th {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    text-align: left;
+    padding: 0 0.75rem 0.5rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.22);
+    white-space: nowrap;
+  }
+  .ledger tbody td {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.1);
+    vertical-align: middle;
+  }
+  .ledger tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .cell-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* Deprecated editorial signatures. Kept as no-op-ish shims so any missed
+     call site degrades to plain text instead of an italic drop-cap. */
+  .dropcap::first-letter {
+    font-size: inherit;
+    float: none;
+    padding: 0;
+    color: inherit;
+  }
+  .pull-quote {
+    border-left: 2px solid hsl(var(--border) / 0.3);
+    padding-left: 14px;
+    color: hsl(var(--muted-foreground));
+    font-style: normal;
+  }
   .font-hero {
     font-family: var(--font-display);
     font-feature-settings: 'ss01';
@@ -240,31 +342,25 @@
 }
 
 /*
- * Print stylesheet — Q22 of the design review. The "Download PDF" button
- * on /cv and /u/<slug> just calls window.print(); these rules make the
- * printed output a clean credentialing artifact.
- *
- * Strategy:
- *  - Hide interactive affordances (header nav, notification bell, share
- *    button, report buttons, banners, footer link, More-actions dropdown)
- *    so the page reads as a static document. Owner-only/dynamic elements
- *    opt out via `data-print-hide="true"`.
- *  - Drop the page background so paper stays white, and avoid mid-row
- *    page breaks (`break-inside: avoid`).
- *  - Force <details> open so per-row score breakdowns print expanded —
- *    selection panels want to see the detail, not click to reveal it.
+ * Print stylesheet. "Download PDF" on /cv and /u/<slug> is window.print(),
+ * so these rules decide what the credentialing artifact looks like: a
+ * statement, always light, no interactive chrome, no mid-row page breaks,
+ * every <details> forced open so selection panels see the detail without
+ * clicking.
  */
 @media print {
-  /* Print is always ballot-paper light, regardless of data-theme. */
   :root,
   [data-theme='dark'] {
     --background: 0 0% 100%;
-    --foreground: 160 25% 10%;
-    --muted-foreground: 100 4% 42%;
-    --border: 160 25% 10%;
+    --foreground: 213 27% 11%;
+    --muted-foreground: 213 11% 43%;
+    --border: 213 18% 30%;
     --card: 0 0% 100%;
-    --card-foreground: 160 25% 10%;
-    --primary: 152 70% 24%;
+    --card-foreground: 213 27% 11%;
+    --surface: 0 0% 100%;
+    --surface-2: 0 0% 100%;
+    --surface-3: 210 20% 94%;
+    --primary: 166 76% 22%;
     --primary-foreground: 0 0% 100%;
   }
   html, body {
@@ -272,33 +368,29 @@
     color: black !important;
   }
   body {
-    font-size: 11pt;
+    font-size: 10.5pt;
   }
   @page {
     margin: 14mm 12mm;
   }
 
-  /* Hide chrome / interactive UI */
   header[class*="sticky"],
   footer,
   [data-print-hide="true"] {
     display: none !important;
   }
 
-  /* Plain links — keep readable, drop hover/colour noise */
   a {
     color: inherit !important;
     text-decoration: none !important;
   }
 
-  /* Avoid splitting tournament rows across pages */
   tr,
   li {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* Force expand any <details> blocks */
   details {
     display: block !important;
   }
@@ -306,13 +398,11 @@
     display: none !important;
   }
 
-  /* Drop card shadows for clean print */
   .shadow-xs,
   .shadow-sm,
   .shadow-md,
   .shadow-lg,
-  .shadow-xl,
-  .shadow-glow {
+  .shadow-xl {
     box-shadow: none !important;
   }
 }

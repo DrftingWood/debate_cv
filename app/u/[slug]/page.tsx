@@ -3,17 +3,22 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
+import { Badge } from '@/components/ui/Badge';
+import { StatTile, StatRow } from '@/components/ui/StatTile';
+import { SectionHeader } from '@/components/ui/Card';
+import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 
-function fmtPublicLastOutround(r: CvSpeakerRow): string {
+function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
     const joined = r.eliminationReachedByCategory
       .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (Champion)` : joined;
   }
-  if (!r.eliminationReached) return '—';
+  if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
   return r.wonTournament === true ? `${display} (Champion)` : display;
 }
@@ -41,13 +46,16 @@ export async function generateMetadata({
 }
 
 /**
- * Public read-only CV view (`/u/<slug>`). Same data shape as the owner
- * `/cv` view, but with all owner-only affordances stripped: no Report
- * buttons, no banners, no Share/Settings links, no per-row "Reported"
- * badges, no auto-scan. Uses CvHighlights as the headline + a static
- * profile header + the Speaking/Judging tables (rendered inline rather
- * than via the owner-side CollapsibleSection so the public artifact
- * prints cleanly).
+ * Public read-only CV (`/u/<slug>`) — the credentialing artifact.
+ *
+ * Same data as the owner's /cv with every owner-only affordance stripped:
+ * no report buttons, no banners, no share/settings links, no auto-scan, no
+ * expandable round ledger (a public record should be readable in one pass,
+ * and the print stylesheet forces <details> open anyway).
+ *
+ * Where this deliberately goes beyond the owner view is the summary strip:
+ * a reader who does not know the person needs the headline position before
+ * the table, the same way a statement leads with the balance.
  */
 export default async function PublicCvPage({
   params,
@@ -69,163 +77,223 @@ export default async function PublicCvPage({
 
   const data = await buildCvData(user.id);
   const { speakerRows, judgeRows, summary, highlights } = data;
+  const stats = computeSpeakerStats(data);
   const totalIngestedTournaments = await prisma.discoveredUrl.count({
     where: { userId: user.id, ingestedAt: { not: null } },
   });
 
-  return (
-    <div className="space-y-10">
-      {/* Public CV masthead — formal mode */}
-      <header className="space-y-4">
-        <div className="kicker">
-          DEBATE CV — PUBLIC RECORD · COMPILED{' '}
-          {new Date().toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          }).toUpperCase()}
-        </div>
+  const compiled = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="flex items-end gap-5">
+  const summaryTiles: React.ReactNode[] = [];
+  if (summary.totalTournaments > 0) {
+    summaryTiles.push(
+      <StatTile
+        key="t"
+        label="Tournaments"
+        value={summary.totalTournaments}
+        hint={
+          speakerRows.length > 0 && judgeRows.length > 0
+            ? `${speakerRows.length} speaking · ${judgeRows.length} judging`
+            : undefined
+        }
+      />,
+    );
+  }
+  if (summary.breaks > 0) {
+    summaryTiles.push(<StatTile key="b" label="Breaks" value={summary.breaks} accent="gold" />);
+  }
+  if (stats.scoreProfile.mean != null) {
+    summaryTiles.push(
+      <StatTile
+        key="a"
+        label="Career speaker average"
+        value={stats.scoreProfile.mean.toFixed(1)}
+        hint={`${stats.scoreProfile.speeches} scored speeches`}
+      />,
+    );
+  }
+  if (highlights.activeYears) {
+    summaryTiles.push(
+      <StatTile
+        key="y"
+        label="Active"
+        value={
+          highlights.activeYears.from === highlights.activeYears.to
+            ? `${highlights.activeYears.from}`
+            : `${highlights.activeYears.from}–${highlights.activeYears.to}`
+        }
+      />,
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <header className="border-b border-border pb-6">
+        <div className="data-label">Public debate record · compiled {compiled}</div>
+        <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="flex items-center gap-4">
             {user.publicAvatarEnabled && user.image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={user.image}
                 alt={user.name ?? 'Debater'}
-                className="h-20 w-20 rounded border border-ink/20 object-cover"
+                className="h-16 w-16 rounded-lg border border-border object-cover"
               />
             ) : (
               <div
                 role="img"
                 aria-label={`${user.name ?? 'Debater'} initials`}
-                className="flex h-20 w-20 items-center justify-center rounded border border-ink/20 bg-paper font-serif italic text-[26px] text-ink"
+                className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-surface-2 font-mono text-h3 text-ink"
               >
                 {initials(user.name)}
               </div>
             )}
-            <h1 className="font-serif text-h1 italic leading-[1.05] tracking-tight text-ink md:text-display">
-              {user.name ?? 'Debater'}.
-            </h1>
+            <div>
+              <h1 className="font-display text-h1 font-medium tracking-tight text-ink">
+                {user.name ?? 'Debater'}
+              </h1>
+              <p className="mt-1 text-table text-ink-soft">
+                {totalIngestedTournaments} verified tournament
+                {totalIngestedTournaments === 1 ? '' : 's'} · sourced from tournament tab pages
+              </p>
+            </div>
           </div>
           <div data-print-hide="true">
             <DownloadPdfButton />
           </div>
         </div>
-
-        <hr className="hairline" />
-
-        <div className="byline uppercase tracking-[0.16em] text-byline text-ink-soft">
-          {spellOrCount(totalIngestedTournaments)} tournament{totalIngestedTournaments === 1 ? '' : 's'} · verified via private URLs
-          {summary.totalTournaments > 0 && summary.totalTournaments !== totalIngestedTournaments
-            ? ` · ${summary.totalTournaments} on record`
-            : ''}
-        </div>
       </header>
+
+      {summaryTiles.length > 0 ? (
+        <StatRow columns={Math.min(summaryTiles.length, 4)}>{summaryTiles}</StatRow>
+      ) : null}
 
       <CvHighlights highlights={highlights} />
 
       {speakerRows.length > 0 ? (
-        <section aria-label="Speaking" className="space-y-4">
-          <header>
-            <div className="kicker">I · SPEAKING — {speakerRows.length} TOURNAMENT{speakerRows.length === 1 ? '' : 'S'}</div>
-          </header>
-          <div className="overflow-x-auto">
-            <table className="min-w-max text-table">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                <tr>
-                  <th className="px-4 py-2.5 text-left">Tournament</th>
-                  <th className="px-4 py-2.5 text-left">Year</th>
-                  <th className="px-4 py-2.5 text-left">Format</th>
-                  <th className="px-4 py-2.5 text-left">Team</th>
-                  <th className="px-4 py-2.5 text-left">Team rank</th>
-                  <th className="px-4 py-2.5 text-left">Speaker rank</th>
-                  <th className="px-4 py-2.5 text-left">Avg score</th>
-                  <th className="px-4 py-2.5 text-left">Outround</th>
-                </tr>
-              </thead>
-              <tbody>
-                {speakerRows.map((r) => (
-                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
-                    <td className="px-4 py-2.5">
-                      <a
-                        href={r.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
-                      >
-                        {r.tournamentName}
-                      </a>
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink">{r.teamName ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">
-                      {r.teamRank != null ? `#${r.teamRank}` : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">
-                      {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.speakerAvgScore ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{fmtPublicLastOutround(r)}</td>
+        <section aria-label="Speaking" className="space-y-3">
+          <SectionHeader
+            label="Speaking"
+            title={`${speakerRows.length} tournament${speakerRows.length === 1 ? '' : 's'}`}
+          />
+          <div className="panel overflow-hidden">
+            <TableScroll>
+              <Table className="min-w-max">
+                <thead>
+                  <tr>
+                    <Th className="pl-4">Tournament</Th>
+                    <Th numeric>Year</Th>
+                    <Th>Format</Th>
+                    <Th>Team</Th>
+                    <Th numeric>Team rank</Th>
+                    <Th numeric>Speaker rank</Th>
+                    <Th numeric>Avg score</Th>
+                    <Th className="pr-4">Result</Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {speakerRows.map((r) => {
+                    const outround = fmtPublicLastOutround(r);
+                    return (
+                      <Tr key={r.tournamentId.toString()}>
+                        <Td className="pl-4">
+                          <a
+                            href={r.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-ink hover:text-primary"
+                          >
+                            {r.tournamentName}
+                          </a>
+                        </Td>
+                        <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
+                        <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                        <Td className="text-ink">{r.teamName ?? <Nil />}</Td>
+                        <Td numeric>{r.teamRank != null ? `#${r.teamRank}` : <Nil />}</Td>
+                        <Td numeric>
+                          {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : <Nil />}
+                        </Td>
+                        <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
+                        <Td className="whitespace-nowrap pr-4">
+                          {outround ? (
+                            <span className="flex items-center gap-1.5">
+                              {r.broke ? <Badge variant="gold">Broke</Badge> : null}
+                              <span className="text-ink">{outround}</span>
+                            </span>
+                          ) : r.broke ? (
+                            <Badge variant="gold">Broke</Badge>
+                          ) : (
+                            <Nil />
+                          )}
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </TableScroll>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
-            Source: tournament tabs at calicotab.com · herokuapp.com.
-          </p>
         </section>
       ) : null}
 
       {judgeRows.length > 0 ? (
-        <section aria-label="Judging" className="space-y-4">
-          <header>
-            <div className="kicker">II · JUDGING — {judgeRows.length} TOURNAMENT{judgeRows.length === 1 ? '' : 'S'}</div>
-          </header>
-          <div className="overflow-x-auto">
-            <table className="min-w-max text-table">
-              <thead className="border-y border-ink/15 uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                <tr>
-                  <th className="px-4 py-2.5 text-left">Tournament</th>
-                  <th className="px-4 py-2.5 text-left">Year</th>
-                  <th className="px-4 py-2.5 text-left">Format</th>
-                  <th className="px-4 py-2.5 text-left">Prelims chaired</th>
-                  <th className="px-4 py-2.5 text-left">Prelims judged</th>
-                  <th className="px-4 py-2.5 text-left">Last outround chaired</th>
-                  <th className="px-4 py-2.5 text-left">Last outround judged</th>
-                </tr>
-              </thead>
-              <tbody>
-                {judgeRows.map((r) => (
-                  <tr key={r.tournamentId.toString()} className="border-b border-ink/10">
-                    <td className="px-4 py-2.5">
-                      <a
-                        href={r.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-serif italic text-ink hover:text-oxblood"
-                      >
-                        {r.tournamentName}
-                      </a>
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.year ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsChaired ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsJudged ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundChaired ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundJudged ?? '—'}</td>
+        <section aria-label="Judging" className="space-y-3">
+          <SectionHeader
+            label="Judging"
+            title={`${judgeRows.length} tournament${judgeRows.length === 1 ? '' : 's'}`}
+          />
+          <div className="panel overflow-hidden">
+            <TableScroll>
+              <Table className="min-w-max">
+                <thead>
+                  <tr>
+                    <Th className="pl-4">Tournament</Th>
+                    <Th numeric>Year</Th>
+                    <Th>Format</Th>
+                    <Th numeric>Prelims chaired</Th>
+                    <Th numeric>Prelims judged</Th>
+                    <Th>Last outround chaired</Th>
+                    <Th className="pr-4">Last outround judged</Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {judgeRows.map((r) => (
+                    <Tr key={r.tournamentId.toString()}>
+                      <Td className="pl-4">
+                        <a
+                          href={r.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-ink hover:text-primary"
+                        >
+                          {r.tournamentName}
+                        </a>
+                      </Td>
+                      <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                      <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
+                      <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap">{r.lastOutroundChaired ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap pr-4">
+                        {r.lastOutroundJudged ?? <Nil />}
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </TableScroll>
           </div>
-          <p className="font-serif italic text-byline text-ink-soft">
-            Source: tournament tabs at calicotab.com · herokuapp.com.
-          </p>
         </section>
       ) : null}
+
+      <p className="border-t border-border pt-4 text-caption text-ink-soft">
+        Every row links to the tournament tab it was read from, at calicotab.com or
+        herokuapp.com. Figures are as the tab published them.
+      </p>
     </div>
   );
 }
@@ -235,29 +303,4 @@ function initials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
-
-function spellOrCount(n: number): string {
-  const words: Record<number, string> = {
-    1: 'one',
-    2: 'two',
-    3: 'three',
-    4: 'four',
-    5: 'five',
-    6: 'six',
-    7: 'seven',
-    8: 'eight',
-    9: 'nine',
-    10: 'ten',
-    11: 'eleven',
-    12: 'twelve',
-    13: 'thirteen',
-    14: 'fourteen',
-    15: 'fifteen',
-    16: 'sixteen',
-    17: 'seventeen',
-    18: 'eighteen',
-    19: 'nineteen',
-  };
-  return n < 20 ? (words[n] ?? String(n)) : String(n);
 }

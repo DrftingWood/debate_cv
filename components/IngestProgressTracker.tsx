@@ -103,7 +103,7 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
     <section
       aria-label="Ingestion progress"
       aria-live="polite"
-      className="space-y-2 border-y border-ink/10 py-3"
+      className="space-y-2 border-y border-border py-3"
       data-print-hide="true"
     >
       <div className="flex items-baseline justify-between gap-2">

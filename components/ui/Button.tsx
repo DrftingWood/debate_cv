@@ -7,37 +7,41 @@ type Size = 'sm' | 'md' | 'lg';
 
 const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
-  'rounded-md transition-all duration-[180ms] ease-soft select-none ' +
+  'rounded-md transition-colors duration-150 ease-soft select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
   'disabled:cursor-not-allowed';
 
 // Disabled treatment lives per-variant, not in `base`: a blanket
-// `disabled:opacity-50` turned the ink-filled primary into a muddy black
-// slab with an illegible label — and primary buttons sit disabled for
-// MINUTES during the scan→ingest flow ("Scanning Gmail…"), so the busy
-// state must stay readable. Filled variants soften their fill and keep
-// full-opacity text; light variants can dim wholesale because dark text
-// on paper degrades gracefully.
+// `disabled:opacity-50` turned the filled primary into a muddy slab with an
+// illegible label — and primary buttons sit disabled for MINUTES during the
+// scan→ingest flow ("Scanning Gmail…"), so the busy state must stay
+// readable. Filled variants soften their fill and keep full-opacity text;
+// light variants can dim wholesale because dark text on a light surface
+// degrades gracefully.
 const variants: Record<Variant, string> = {
+  // Emerald is the single accent: primary action, verified, "up". A filled
+  // emerald button is the only saturated block of colour on most screens.
   primary:
-    'bg-ink text-paper hover:bg-ink/90 active:bg-ink disabled:bg-ink/70',
-  // secondary is a deprecated alias of outline — keep identical so callers
-  // don't need to change and the visual result is consistent.
+    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-primary/60',
+  // secondary is a deprecated alias of outline — kept identical so callers
+  // don't need to change and the visual result stays consistent.
   secondary:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
+    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
   outline:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04] disabled:opacity-50',
-  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04] disabled:opacity-50',
+    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  ghost: 'bg-transparent text-ink hover:bg-surface-2 disabled:opacity-50',
   danger:
-    'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/70',
+    'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/60',
   link:
-    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
+    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
 };
 
+// Denser than the previous scale — a statement UI packs controls tightly
+// alongside tables rather than giving each one a generous landing pad.
 const sizes: Record<Size, string> = {
-  sm: 'text-table h-9 px-3.5',
-  md: 'text-ui h-11 px-4',
-  lg: 'text-body h-12 px-5',
+  sm: 'text-table h-8 px-3',
+  md: 'text-ui h-10 px-3.5',
+  lg: 'text-body h-11 px-5',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
