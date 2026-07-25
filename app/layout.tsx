@@ -110,7 +110,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>
           <a href="#main" className="skip-link">Skip to content</a>
-          <main id="main" className="flex-1">
+          {/*
+            A flex COLUMN, not just a flex child. The footer is rendered by
+            the route layouts (inside this element), so `flex-1` on <main>
+            alone did nothing to push it down — on the dashboard the footer
+            sat at 756px in a 900px viewport with dead space beneath it.
+            Making main a column lets each route's content wrapper claim
+            flex-1 and pin the footer to the bottom.
+          */}
+          <main id="main" className="flex flex-1 flex-col">
             {children}
           </main>
         </ToastProvider>

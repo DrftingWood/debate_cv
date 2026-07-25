@@ -65,7 +65,10 @@
     --success: 160 68% 27%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 33 82% 42%;
+    /* 42% lightness measured 3.61:1 on white — below AA for the 12.5px
+       "Partial draw" note and the "Gmail disconnected" label. 33% clears
+       4.5:1 on white, on surface-2, and on its own 6% tint. */
+    --warning: 33 82% 33%;
     --warning-foreground: 0 0% 100%;
 
     --destructive: 356 68% 45%;
@@ -84,7 +87,11 @@
     --record-rule: 213 18% 40%;
     --record-surface: 210 22% 96%;
     --record-green: 166 76% 22%;
-    --break-gold: 38 74% 38%;          /* standout result */
+    /* Gold is the one celebratory colour and at 38% it failed AA at every
+       size it ships in: 4.04:1 for the .figure headline numbers, 3.52:1 for
+       a "Broke" badge on its own 12% tint. 32% clears 4.5:1 on all three
+       backgrounds. Dark-theme gold (40 80% 60%) already passes at 9.4:1. */
+    --break-gold: 38 74% 32%;          /* standout result */
     --score-blue: 214 72% 40%;         /* analysis */
 
     /* Shadows stay almost invisible: a statement is printed, not floating. */
@@ -178,6 +185,35 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /*
+   * Flex items default to `min-width: auto`, which means they refuse to
+   * shrink below their content's intrinsic minimum. Once <main> became a
+   * flex column (so route layouts could pin the footer to the bottom), a
+   * page containing a `min-w-[820px]` table stopped letting its
+   * `overflow-x-auto` wrapper scroll and stretched the whole document to
+   * 822px inside a 390px phone instead.
+   *
+   * Scoped to direct children of #main: these are page roots, and a page
+   * root should always be free to be exactly as wide as the viewport.
+   */
+  #main > * {
+    min-width: 0;
+  }
+
+  /*
+   * Scraped motions, tournament names and the OAuth scope URL on /privacy
+   * are all strings whose length we do not control. Without this, one
+   * 46-character token pushed the privacy page 33px wider than a 390px
+   * phone and the whole document scrolled sideways.
+   */
+  code,
+  kbd,
+  samp,
+  pre {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   ::selection {
     background: hsl(var(--primary) / 0.18);
     color: hsl(var(--foreground));
@@ -200,6 +236,30 @@
   }
   .skip-link:focus {
     top: 0;
+  }
+
+  /*
+   * Nothing honoured this before: nine elements kept animating with reduce
+   * requested (seven spinners, a shimmer skeleton, a fade-up).
+   *
+   * Spinners keep a slowed rotation rather than freezing outright. A
+   * motionless spinner reads as a hung request, and replacing "this is
+   * working" with "this is broken" is a worse outcome for the people the
+   * setting exists to protect than the motion itself.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .animate-spin {
+      animation-duration: 1.6s !important;
+      animation-iteration-count: infinite !important;
+    }
   }
 }
 
@@ -238,20 +298,49 @@
    * is the accented section marker; `.kicker` survives as an alias so the
    * older call sites keep rendering something sensible.
    */
+  /*
+   * 12px floor. These labels were 10.5px, which put 648 text nodes — every
+   * column header, stat caption and section eyebrow, i.e. the text that
+   * explains what each number IS — below the size at which uppercase
+   * letterspaced mono stays legible. Tracking is trimmed slightly so the
+   * larger size does not widen the ledger columns it labels.
+   */
   .data-label {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 500;
-    letter-spacing: 0.11em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
+  /*
+   * The eyebrow for a panel painted `bg-ink` — the inverted CTA band.
+   *
+   * `.eyebrow` uses `--primary`, which is tuned for the normal canvas, so
+   * on an inverted panel it measured 2.4:1 in light mode and 1.85:1 in
+   * dark: the worst contrast in the product, on its final call to action.
+   * The fix flips the accent with the surface. `--primary` and `--ink`
+   * both invert between themes, so the two swap places: light mode gets
+   * the bright emerald (dark panel), dark mode the deep one (light panel).
+   */
+  .eyebrow-on-ink {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: hsl(160 62% 58%);
+  }
+  [data-theme='dark'] .eyebrow-on-ink {
+    color: hsl(166 76% 22%);
+  }
+
   .eyebrow,
   .kicker {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.13em;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
     color: hsl(var(--primary));
   }
@@ -296,9 +385,13 @@
   }
   .ledger thead th {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    /* 12px floor, same as .data-label — these ARE the labels that name every
+       column of every ledger in the product, and they were the largest
+       remaining block of sub-12px text after the micro-label fix. Tracking
+       trimmed so the wider glyphs do not push the column out. */
+    font-size: 12px;
     font-weight: 500;
-    letter-spacing: 0.11em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
     text-align: left;
@@ -392,6 +485,24 @@
   li {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /*
+   * Repeat column headers on every printed page. Without this, page 2 of a
+   * printed record is a grid of unlabelled numbers — and handing a PDF to a
+   * selector is the feature this whole stylesheet exists for. `table` has
+   * to opt back INTO breaking, because the tr rule above would otherwise
+   * try to keep a 20-row ledger on one page.
+   */
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  table {
+    break-inside: auto;
+    page-break-inside: auto;
   }
 
   details {

@@ -69,7 +69,15 @@ function formatMetrics(totalTeams: number | null, totalParticipants: number | nu
   return parts.join(' · ');
 }
 
-export function ScanButton() {
+/**
+ * `disconnected` is why this takes a prop at all. With the Gmail grant
+ * revoked, the page showed a warning banner telling the user to reconnect
+ * and, six inches above it, a fully-enabled green "Scan Gmail" — two
+ * primary buttons competing, one of which could only ever 400. The scan
+ * button now steps back to a disabled secondary and says why, leaving
+ * "Reconnect Gmail" as the single live action on the screen.
+ */
+export function ScanButton({ disconnected = false }: { disconnected?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -78,7 +86,9 @@ export function ScanButton() {
   return (
     <Button
       type="button"
-      variant="primary"
+      variant={disconnected ? 'outline' : 'primary'}
+      disabled={disconnected}
+      title={disconnected ? 'Reconnect Gmail before scanning' : undefined}
       loading={isPending}
       leftIcon={!isPending ? <Search className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {

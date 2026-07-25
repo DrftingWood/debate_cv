@@ -138,7 +138,7 @@ export default async function Dashboard({
           on /cv only; this page is where scans are triggered deliberately. */}
       <header className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="data-label">Imports · Gmail → record</div>
+          <div className="data-label">Imports · from Gmail to your record</div>
           <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
             Tournaments in flight
           </h1>
@@ -148,7 +148,7 @@ export default async function Dashboard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
-          <ScanButton />
+          <ScanButton disconnected={!gmailToken} />
         </div>
       </header>
 
@@ -202,10 +202,15 @@ export default async function Dashboard({
           icon={<XCircle className="h-4 w-4" aria-hidden />}
           label="Failed"
           value={counts.failed}
+          // With nothing failed there is no retry chip to point at, and the
+          // hint sat under a "0" telling the user to act on something that
+          // was not on the page.
           hint={
             abandonedCount > 0
               ? `${abandonedCount} dead link${abandonedCount === 1 ? '' : 's'}`
-              : 'retry from chip below'
+              : counts.failed > 0
+                ? 'retry from the chip below'
+                : 'nothing to retry'
           }
           tone={counts.failed > 0 ? 'danger' : 'neutral'}
           filter="failed"
@@ -223,12 +228,13 @@ export default async function Dashboard({
             description="Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
           />
         ) : (
-          <p className="text-caption text-ink-soft" data-print-hide="true">
+          <p data-print-hide="true">
             <Link
               href="/dashboard?filter=all"
-              className="underline underline-offset-2 hover:text-ink"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md text-ui text-ink underline underline-offset-4 hover:text-primary"
             >
-              Browse all {counts.all} URLs →
+              Browse all {counts.all} URLs
+              <span aria-hidden>→</span>
             </Link>
           </p>
         )
@@ -390,7 +396,7 @@ export default async function Dashboard({
                         </td>
                         <td className="text-ink">
                           <div>
-                            {u.tournament?.name ?? <span className="text-ink-soft/60">—</span>}
+                            {u.tournament?.name ?? <span className="text-ink-soft">—</span>}
                           </div>
                           <TournamentMetrics
                             tournament={u.tournament}

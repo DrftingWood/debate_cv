@@ -134,19 +134,34 @@ export function ParticipantSearch({
         </span>
       </label>
 
-      {tooShort ? (
-        <p className="text-caption text-ink-soft">
-          Type at least {MIN_QUERY_LENGTH} characters.
-        </p>
-      ) : isLoading ? (
-        <p className="text-caption text-ink-soft">Searching…</p>
-      ) : error ? (
-        <p className="text-caption text-destructive">{error}</p>
-      ) : hasSearched && results.length === 0 ? (
-        <p className="text-caption text-ink-soft">
-          No participants found with that name.
-        </p>
-      ) : results.length > 0 ? (
+      {/*
+        The status line is a live region. Results, "Searching…", the empty
+        result and the error all arrived silently before — and this is the
+        identity-claim flow, where picking the wrong row takes a record that
+        is not yours. `role="alert"` for the error so a failure interrupts;
+        polite for everything else so typing is not narrated over.
+      */}
+      <div aria-live="polite" aria-atomic="true">
+        {tooShort ? (
+          <p className="text-caption text-ink-soft">
+            Type at least {MIN_QUERY_LENGTH} characters.
+          </p>
+        ) : isLoading ? (
+          <p className="text-caption text-ink-soft">Searching…</p>
+        ) : error ? (
+          <p role="alert" className="text-caption text-destructive">
+            {error}
+          </p>
+        ) : hasSearched && results.length === 0 ? (
+          <p className="text-caption text-ink-soft">No participants found with that name.</p>
+        ) : results.length > 0 ? (
+          <p className="sr-only">
+            {results.length} participant{results.length === 1 ? '' : 's'} found.
+          </p>
+        ) : null}
+      </div>
+
+      {tooShort || isLoading || error ? null : results.length > 0 ? (
         <ul className="divide-y divide-border rounded-md border border-border bg-card">
           {results.map((hit) => (
             <li

@@ -34,7 +34,11 @@ const trend = [71.1, 71.8, 71.4, 72.6, 73.1, 73.4, 74.2, 73.9, 74.6];
 export function SampleCvPreview({ compact = false, className }: SampleCvPreviewProps) {
   return (
     <article
-      className={cn('panel overflow-hidden shadow-md', className)}
+      // min-w-0: this sits in a grid on both the landing page and /sample,
+      // and grid items default to min-width:auto — so the ledger inside
+      // refused to shrink, defeating its own overflow-x-auto wrapper and
+      // stretching the document to 862px inside a 390px phone.
+      className={cn('panel min-w-0 overflow-hidden shadow-md', className)}
       aria-label="Sample debate CV preview"
     >
       <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-3.5">
@@ -66,14 +70,18 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
         ))}
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="w-full overflow-x-auto">
         <table className="ledger text-caption">
+          <caption className="sr-only">
+            Sample debate record: four tournaments with speaker average, tab
+            placement and result
+          </caption>
           <thead>
             <tr>
-              <th className="pl-4">Tournament</th>
-              <th className="text-right">Avg</th>
-              <th className="text-right">On the tab</th>
-              <th className="pr-4">Result</th>
+              <th scope="col" className="pl-4">Tournament</th>
+              <th scope="col" className="text-right">Avg</th>
+              <th scope="col" className="text-right">On the tab</th>
+              <th scope="col" className="pr-4">Result</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +100,7 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
                       <span className="text-ink">{row.result}</span>
                     </span>
                   ) : (
-                    <span className="text-ink-soft/60">{row.result}</span>
+                    <span className="text-ink-soft">{row.result}</span>
                   )}
                 </td>
               </tr>
@@ -115,7 +123,7 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
         <div className="border-t border-border px-4 py-3">
           <Link
             href="/sample"
-            className="inline-flex items-center gap-1.5 text-table font-medium text-primary hover:underline"
+            className="inline-flex min-h-[44px] items-center gap-1.5 text-table font-medium text-primary hover:underline"
           >
             Open the full sample <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </Link>

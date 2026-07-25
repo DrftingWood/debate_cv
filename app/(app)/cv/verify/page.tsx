@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { ExternalLink, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -22,13 +23,13 @@ export const dynamic = 'force-dynamic';
 export default async function CvVerifyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mine?: string }>;
+  searchParams: Promise<{ mine?: string; t?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
 
-  const { mine: mineParam } = await searchParams;
+  const { mine: mineParam, t: selectedParam } = await searchParams;
   const mineOnly = mineParam === '1';
 
   // Top 5 most recent tournaments: order DiscoveredUrl by message date then
@@ -73,6 +74,23 @@ export default async function CvVerifyPage({
   const ordered = tournamentIds
     .map((id) => tournaments.find((t) => t.id === id))
     .filter((t): t is (typeof tournaments)[number] => !!t);
+
+  /*
+   * Only ONE tournament renders its parser output at a time.
+   *
+   * Rendering all five produced a 9.4 MB HTML document — 1,302 participant
+   * rows, each with a desktop table row and a mobile card, on a page whose
+   * entire purpose is "I think ONE number on my CV is wrong, show me what
+   * the parser read". Folding it behind <details> fixed the 144-screen
+   * scroll but still shipped every byte, so the page still took seconds to
+   * parse and blew past a Playwright load timeout.
+   *
+   * The headers all render (they are cheap, and they are the index); the
+   * selected one renders its detail. Selection is a query param so it
+   * survives a refresh and can be linked to.
+   */
+  const selectedId =
+    ordered.find((t) => t.id.toString() === selectedParam)?.id ?? ordered[0]?.id ?? null;
 
   // Pull the latest ParserRun warnings per (tournament, parserName). When a
   // parser silently fails (e.g. the Debates card heading doesn't match, the
@@ -138,6 +156,7 @@ export default async function CvVerifyPage({
             const participants = mineOnly
               ? t.participants.filter((p) => p.person.claimedByUserId === userId)
               : t.participants;
+            const isSelected = t.id === selectedId;
 
             return (
               <Card key={t.id.toString()}>
@@ -162,7 +181,7 @@ export default async function CvVerifyPage({
                         href={t.sourceUrlRaw}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-caption text-ink-soft hover:text-primary"
+                        className="inline-flex min-h-[44px] items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
                         Source <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
@@ -183,6 +202,34 @@ export default async function CvVerifyPage({
                     </section>
                   ) : null}
 
+                  {/*
+                    Everything below folds away by default.
+
+                    Expanded, this page measured 41,435px on desktop and
+                    129,987px on a phone — 144 screens of parser output, all
+                    of it rendered whether or not anyone was checking it.
+                    Verify is a page you come to with ONE tournament in mind,
+                    so the tournament headers stay visible as an index and
+                    the detail opens on demand. Parser warnings stay outside
+                    the fold: a warning nobody can see is not a warning.
+                  */}
+                  {!isSelected ? (
+                    <Link
+                      href={`/cv/verify?t=${t.id}${mineOnly ? '&mine=1' : ''}`}
+                      scroll={false}
+                      className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
+                    >
+                      <ChevronDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                      Show what the parser read
+                      <span className="text-caption">
+                        ({participants.length} participant
+                        {participants.length === 1 ? '' : 's'} · {t.judgeAssignments.length} judge
+                        assignment{t.judgeAssignments.length === 1 ? '' : 's'})
+                      </span>
+                    </Link>
+                  ) : (
+                    <div className="space-y-5">
+
                   {/* Participants */}
                   <section className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -198,21 +245,24 @@ export default async function CvVerifyPage({
                     {/* Desktop: 13-column table. md+ only. */}
                     <div className="hidden max-w-full overflow-x-auto md:block">
                       <table className="min-w-max text-table">
+                        <caption className="sr-only">
+                          Everything the parser read for {t.name}
+                        </caption>
                         <thead>
                           <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                            <th className="whitespace-nowrap px-4 py-2.5 font-medium">Name</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Roles</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Speaker total</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Open / ESL / EFL rank</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Team break rank</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Judge tag</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
-                            <th className="whitespace-nowrap px-3 py-2.5 font-medium">Per-round scores</th>
+                            <th scope="col" className="whitespace-nowrap px-4 py-2.5 font-medium">Name</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Roles</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Speaker total</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Open / ESL / EFL rank</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Team break rank</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Judge tag</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Per-round scores</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -262,7 +312,7 @@ export default async function CvVerifyPage({
                                   '—'
                                 ) : (
                                   <details>
-                                    <summary className="cursor-pointer text-oxblood hover:underline">
+                                    <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-oxblood hover:underline">
                                       {p.speakerRoundScores.length} rounds
                                     </summary>
                                     <div className="mt-1 flex flex-wrap gap-1">
@@ -393,7 +443,7 @@ export default async function CvVerifyPage({
                             ) : null}
                             {p.speakerRoundScores.length > 0 ? (
                               <details className="text-caption border-t border-border pt-2">
-                                <summary className="cursor-pointer text-oxblood hover:underline">
+                                <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-oxblood hover:underline">
                                   Per-round scores ({p.speakerRoundScores.length})
                                 </summary>
                                 <div className="mt-1 flex flex-wrap gap-1">
@@ -475,6 +525,8 @@ export default async function CvVerifyPage({
                       </div>
                     )}
                   </section>
+                    </div>
+                  )}
                 </CardBody>
               </Card>
             );

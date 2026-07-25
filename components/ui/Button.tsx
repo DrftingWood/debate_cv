@@ -21,8 +21,12 @@ const base =
 const variants: Record<Variant, string> = {
   // Emerald is the single accent: primary action, verified, "up". A filled
   // emerald button is the only saturated block of colour on most screens.
+  // Disabled fills drop to a neutral surface with muted ink rather than a
+  // washed-out accent. `bg-primary/60` kept white text over a 60%-opacity
+  // emerald, which measured 2.91:1 — a label you have to squint at, which
+  // reads as "broken" rather than "not available yet".
   primary:
-    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-primary/60',
+    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-surface-3 disabled:text-ink-soft',
   // secondary is a deprecated alias of outline — kept identical so callers
   // don't need to change and the visual result stays consistent.
   secondary:

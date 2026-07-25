@@ -34,7 +34,9 @@ export function NavLink({
       href={href}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        'rounded-md px-2.5 py-1.5 transition-colors duration-150 ease-soft',
+        // min-h-[44px]: these were 21px tall — the app's primary navigation,
+        // on every page, below the 24x24 WCAG 2.2 AA floor.
+        'inline-flex min-h-[44px] items-center rounded-md px-2.5 transition-colors duration-150 ease-soft',
         isActive ? 'bg-surface-2 text-ink' : 'text-ink-soft hover:bg-surface-2 hover:text-ink',
         className,
       )}

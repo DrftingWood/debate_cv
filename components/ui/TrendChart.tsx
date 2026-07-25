@@ -134,7 +134,7 @@ export function TrendChart({
               x={padL - 6}
               y={y(v) + 3}
               textAnchor="end"
-              fontSize={9.5}
+              fontSize={12}
               fill="currentColor"
               fillOpacity={0.45}
               className="num"
@@ -175,7 +175,7 @@ export function TrendChart({
                       x={atStart ? padL + 4 : W - padR}
                       y={y(baseline) + dy}
                       textAnchor={atStart ? 'start' : 'end'}
-                      fontSize={9.5}
+                      fontSize={12}
                       fill="currentColor"
                       fillOpacity={0.5}
                     >
@@ -203,7 +203,7 @@ export function TrendChart({
                 textAnchor={
                   i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'
                 }
-                fontSize={10.5}
+                fontSize={12}
                 fill="currentColor"
                 className="num"
               >
@@ -216,7 +216,7 @@ export function TrendChart({
                   x={x(i)}
                   y={H - padBottom + 15}
                   textAnchor="middle"
-                  fontSize={10}
+                  fontSize={12}
                   fill="currentColor"
                   fillOpacity={0.55}
                   className="num"
@@ -228,7 +228,7 @@ export function TrendChart({
                     x={x(i)}
                     y={H - padBottom + 26}
                     textAnchor="middle"
-                    fontSize={9}
+                    fontSize={12}
                     fill="currentColor"
                     fillOpacity={0.38}
                   >

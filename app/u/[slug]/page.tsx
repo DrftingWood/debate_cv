@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
@@ -134,9 +135,21 @@ export default async function PublicCvPage({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="w-full flex-1 space-y-8">
       <header className="border-b border-border pb-6">
-        <div className="data-label">Public debate record · compiled {compiled}</div>
+        {/*
+          The public CV sits outside the (app) layout so it reads as a
+          standalone document — which also meant it inherited no theme
+          control. It followed the visitor's OS preference with no way to
+          override, on the one page in the product a stranger is most
+          likely to land on cold.
+        */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="data-label">Public debate record · compiled {compiled}</div>
+          <div data-print-hide="true">
+            <ThemeToggle />
+          </div>
+        </div>
         <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-4">
             {user.publicAvatarEnabled && user.image ? (
@@ -185,7 +198,7 @@ export default async function PublicCvPage({
           />
           <div className="panel overflow-hidden">
             <TableScroll>
-              <Table className="min-w-max">
+              <Table className="min-w-max" label="Speaking record by tournament">
                 <thead>
                   <tr>
                     <Th className="pl-4">Tournament</Th>
@@ -208,7 +221,7 @@ export default async function PublicCvPage({
                             href={r.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-medium text-ink hover:text-primary"
+                            className="inline-flex min-h-[44px] items-center font-medium text-ink hover:text-primary"
                           >
                             {r.tournamentName}
                           </a>
@@ -251,7 +264,7 @@ export default async function PublicCvPage({
           />
           <div className="panel overflow-hidden">
             <TableScroll>
-              <Table className="min-w-max">
+              <Table className="min-w-max" label="Judging record by tournament">
                 <thead>
                   <tr>
                     <Th className="pl-4">Tournament</Th>
@@ -271,7 +284,7 @@ export default async function PublicCvPage({
                           href={r.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-ink hover:text-primary"
+                          className="inline-flex min-h-[44px] items-center font-medium text-ink hover:text-primary"
                         >
                           {r.tournamentName}
                         </a>

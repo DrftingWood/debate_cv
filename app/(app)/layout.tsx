@@ -62,7 +62,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Below md the nav moves to its own scrollable strip rather than
             collapsing into a hamburger: five destinations fit, and a menu
             that hides the record behind a tap is the wrong trade here. */}
-        <nav className="flex items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1.5 text-table font-medium md:hidden">
+        {/*
+          `snap-x` plus the edge fade: the strip is 415px of destinations in
+          a 390px viewport, so the last item sat off-screen with nothing to
+          say it was there. The mask makes the cut edge visibly a cut edge
+          rather than the end of the list.
+        */}
+        <nav
+          aria-label="Sections"
+          className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1.5 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
+        >
           <NavLink href="/cv" exact>Record</NavLink>
           <NavLink href="/cv/stats">Statistics</NavLink>
           <NavLink href="/dashboard">Imports</NavLink>
@@ -70,7 +79,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
         </nav>
       </header>
-      <div className="mx-auto max-w-screen-2xl px-5 py-8">{children}</div>
+      {/* flex-1 keeps the footer at the bottom on short pages — see the
+          note on <main> in app/layout.tsx. */}
+      <div className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">{children}</div>
       <Footer />
     </>
   );

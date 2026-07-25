@@ -127,7 +127,11 @@ const config: Config = {
         // Micro labels → body → headings → figures. The `figure-*` steps are
         // for monospaced numbers in stat tiles and are deliberately tighter
         // than the heading scale at the same optical size.
-        kicker: ['10.5px', { lineHeight: '1.2', letterSpacing: '0.13em', fontWeight: '600' }],
+        // 12px floor, matching the .kicker / .eyebrow component classes in
+        // globals.css. At 10.5px this tier carried 648 text nodes — every
+        // column header and stat caption, i.e. the text that says what each
+        // number IS — below a legible size for uppercase letterspaced mono.
+        kicker: ['12px', { lineHeight: '1.2', letterSpacing: '0.11em', fontWeight: '600' }],
         byline: ['12px', { lineHeight: '1.45' }],
         caption: ['12.5px', { lineHeight: '1.45' }],
         table: ['13.5px', { lineHeight: '1.5' }],

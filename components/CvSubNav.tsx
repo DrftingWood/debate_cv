@@ -25,7 +25,7 @@ export function CvSubNav({ active }: { active: CvTab }) {
     <nav
       aria-label="CV sections"
       data-print-hide="true"
-      className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+      className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 sm:mx-0 sm:px-0"
     >
       <div className="inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1">
         {TABS.map((tab) => (

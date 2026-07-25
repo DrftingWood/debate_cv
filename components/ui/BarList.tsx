@@ -153,7 +153,7 @@ export function Histogram({
       <div className="flex h-28 items-end gap-1">
         {bins.map((b, i) => (
           <div key={`${b.from}-${b.to}`} className="flex flex-1 flex-col items-center justify-end gap-1">
-            <span className="num text-[9.5px] leading-none text-ink-soft">
+            <span className="num text-[12px] leading-none text-ink-soft">
               {b.count > 0 ? b.count : ''}
             </span>
             <div
@@ -171,7 +171,7 @@ export function Histogram({
         {bins.map((b) => (
           <span
             key={`${b.from}-${b.to}-label`}
-            className="num flex-1 text-center text-[9.5px] leading-none text-ink-soft"
+            className="num flex-1 text-center text-[12px] leading-none text-ink-soft"
           >
             {label(b.from, b.to)}
           </span>

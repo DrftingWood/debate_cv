@@ -42,7 +42,7 @@ export function StatsSplitTable({
   return (
     <div className="panel overflow-hidden">
       <TableScroll>
-        <Table className="min-w-max">
+        <Table className="min-w-max" label={`Results split by ${dimensionLabel.toLowerCase()}`}>
           <thead>
             <tr>
               <Th className="pl-4">{dimensionLabel}</Th>

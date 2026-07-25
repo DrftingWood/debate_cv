@@ -13,9 +13,15 @@ export default async function Home() {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-5">
+      {/*
+        flex-1 so the footer sits at the bottom of a short viewport instead
+        of floating mid-page. The inner wrapper was a second <main> nested
+        inside the root layout's — two main landmarks on one document, which
+        leaves a screen reader with no unambiguous "skip to content" target.
+      */}
+      <div className="mx-auto w-full max-w-6xl flex-1 px-5">
         <LandingMasthead />
-        <main className="space-y-20 pb-16 md:space-y-24">
+        <div className="space-y-20 pb-16 md:space-y-24">
           <Hero />
           <ValueStrip />
           <StatisticsShowcase />
@@ -23,7 +29,7 @@ export default async function Home() {
           <PrivacyProof />
           <Faq />
           <FinalCta />
-        </main>
+        </div>
       </div>
       <Footer />
     </>
@@ -50,16 +56,42 @@ async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg
   );
 }
 
+async function SignInLink() {
+  return (
+    <form
+      action={async () => {
+        'use server';
+        await signIn('google', { redirectTo: '/cv' });
+      }}
+    >
+      <button
+        type="submit"
+        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
+      >
+        Sign in
+      </button>
+    </form>
+  );
+}
+
 function LandingMasthead() {
   return (
     <header className="flex items-center justify-between gap-4 py-5 md:py-6">
       <Link href="/" aria-label="debate cv home">
         <BrandMark />
       </Link>
+      {/*
+        The nav used to be three marketing anchors with no way back in. Every
+        route into the product was the hero's "Build my debate CV" — copy
+        aimed at someone who has never used it, shown to a returning user who
+        just wants their record. Sign in is now where a returning user looks
+        for it, and it is the same Google flow the hero button runs.
+      */}
       <nav className="flex items-center gap-4 text-table font-medium text-ink-soft sm:gap-6">
-        <Link href="/sample" className="hover:text-ink">Sample CV</Link>
-        <a href="#stats" className="hidden hover:text-ink sm:inline">Statistics</a>
-        <a href="#privacy" className="hover:text-ink">Privacy</a>
+        <Link href="/sample" className="py-2 hover:text-ink">Sample CV</Link>
+        <a href="#stats" className="hidden py-2 hover:text-ink sm:inline">Statistics</a>
+        <a href="#privacy" className="py-2 hover:text-ink">Privacy</a>
+        <SignInLink />
       </nav>
     </header>
   );
@@ -300,20 +332,32 @@ function Faq() {
 
   return (
     <section className="grid gap-8 md:grid-cols-[0.7fr_1.3fr]">
-      <div>
+      {/*
+        The heading column was a title floating above ~600px of nothing next
+        to five accordion rows. Sticky pins it to the questions it heads, and
+        the sub-line gives the column something to be.
+      */}
+      <div className="md:sticky md:top-24 md:self-start">
         <div className="eyebrow">Questions worth asking</div>
         <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
           No magic, no elite gate
         </h2>
+        <p className="mt-3 text-ui leading-relaxed text-ink-soft">
+          The things people actually ask before handing over a Gmail scope.
+        </p>
       </div>
       <div className="divide-y divide-border border-y border-border">
         {items.map((item) => (
-          <details key={item.q} className="group py-4">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-ui font-medium text-ink">
+          <details key={item.q} className="group">
+            {/* py-3 on the summary rather than the details, so the whole
+                44px-tall row is the click target and not just the text. */}
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-ui font-medium text-ink">
               {item.q}
-              <span className="text-primary transition group-open:rotate-45">+</span>
+              <span className="text-primary transition group-open:rotate-45" aria-hidden>
+                +
+              </span>
             </summary>
-            <p className="mt-2 max-w-2xl text-ui leading-relaxed text-ink-soft">{item.a}</p>
+            <p className="max-w-2xl pb-4 text-ui leading-relaxed text-ink-soft">{item.a}</p>
           </details>
         ))}
       </div>
@@ -326,7 +370,7 @@ function FinalCta() {
     <section className="panel bg-ink p-6 text-paper md:p-8">
       <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
         <div>
-          <div className="eyebrow text-primary">Start the record</div>
+          <div className="eyebrow-on-ink">Start the record</div>
           <h2 className="mt-3 font-display text-h2 font-medium tracking-tight">
             Know what you have done. Share it when it matters
           </h2>

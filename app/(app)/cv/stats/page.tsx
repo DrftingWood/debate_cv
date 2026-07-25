@@ -16,6 +16,7 @@ import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
 import { CvSubNav } from '@/components/CvSubNav';
+import { PageJumpNav } from '@/components/PageJumpNav';
 
 export const metadata: Metadata = {
   title: 'Statistics',
@@ -24,6 +25,21 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
+
+// Order matches the render order below. Labels are shorter than the section
+// headings on purpose — this is a rail, not a table of contents.
+const STATS_SECTIONS = [
+  { id: 'headline', label: 'Headline' },
+  { id: 'findings', label: 'Findings' },
+  { id: 'distribution', label: 'Distribution' },
+  { id: 'field', label: 'Field' },
+  { id: 'dynamics', label: 'Across a draw' },
+  { id: 'results', label: 'Results' },
+  { id: 'splits', label: 'Splits' },
+  { id: 'partners', label: 'Partners' },
+  { id: 'seasons', label: 'Seasons' },
+  { id: 'coverage', label: 'Coverage' },
+];
 
 /**
  * The analysis surface — everything the record implies but doesn't say.
@@ -84,17 +100,26 @@ export default async function CvStatsPage() {
           }
         />
       ) : (
-        <div className="space-y-10">
-          <HeadlineStats stats={stats} />
-          <Quirks stats={stats} />
-          <ScoreDistribution stats={stats} />
-          <FieldStanding stats={stats} />
-          <RoundDynamicsSection stats={stats} />
-          <ResultsSection stats={stats} />
-          <Splits stats={stats} />
-          <Partners stats={stats} />
-          <SeasonTrends seasons={stats.seasons} judging={stats.judgingSeasons} />
-          <Coverage coverage={coverage} />
+        /*
+          Eight screens of analysis on desktop, eleven on a phone, and before
+          this the only way to reach the partner table was to scroll past
+          everything else. The rail becomes a sidebar from lg up and a
+          horizontal strip below it.
+        */
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-10">
+          <div className="space-y-10 lg:order-1">
+            <HeadlineStats stats={stats} />
+            <Quirks stats={stats} />
+            <ScoreDistribution stats={stats} />
+            <FieldStanding stats={stats} />
+            <RoundDynamicsSection stats={stats} />
+            <ResultsSection stats={stats} />
+            <Splits stats={stats} />
+            <Partners stats={stats} />
+            <SeasonTrends seasons={stats.seasons} judging={stats.judgingSeasons} />
+            <Coverage coverage={coverage} />
+          </div>
+          <PageJumpNav className="mb-6 lg:order-2 lg:mb-0" targets={STATS_SECTIONS} />
         </div>
       )}
     </div>
@@ -171,7 +196,7 @@ function HeadlineStats({ stats }: { stats: SpeakerStats }) {
   }
 
   return (
-    <section aria-label="Headline figures" className="space-y-3">
+    <section id="headline" aria-label="Headline figures" className="scroll-mt-24 space-y-3">
       <StatRow columns={Math.min(tiles.length, 5)}>{tiles.slice(0, 5)}</StatRow>
       <p className="text-caption text-ink-soft">
         Speaker scores are compared across tournaments. Circuits scale differently, so the tab
@@ -187,7 +212,7 @@ function HeadlineStats({ stats }: { stats: SpeakerStats }) {
 function Quirks({ stats }: { stats: SpeakerStats }) {
   if (stats.quirks.length === 0) return null;
   return (
-    <section aria-label="What the numbers say" className="space-y-3">
+    <section id="findings" aria-label="What the numbers say" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Findings"
         title="What the numbers say"
@@ -223,7 +248,7 @@ function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
   if (p.speeches === 0) return null;
 
   return (
-    <section aria-label="Score distribution" className="space-y-3">
+    <section id="distribution" aria-label="Score distribution" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Distribution"
         title="Every speech you have been scored on"
@@ -298,7 +323,7 @@ function StatLine({
       </div>
       {hint ? <div className="mt-0.5 text-caption text-ink-soft">{hint}</div> : null}
       {note ? (
-        <div className="mt-1 line-clamp-2 text-caption italic text-ink-soft/80" title={note}>
+        <div className="mt-1 line-clamp-2 text-caption italic text-ink-soft" title={note}>
           “{note}”
         </div>
       ) : null}
@@ -322,7 +347,7 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
     .map((p) => ({ label: String(p.year), value: p.percentile! }));
 
   return (
-    <section aria-label="Standing against the field" className="space-y-3">
+    <section id="field" aria-label="Standing against the field" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Field"
         title="How you placed against the people in the room"
@@ -372,7 +397,7 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
 
         <div className="panel overflow-hidden lg:col-span-2">
           <TableScroll>
-            <Table className="min-w-max">
+            <Table className="min-w-max" label="Your average against the field, tournament by tournament">
               <thead>
                 <tr>
                   <Th className="pl-4">Tournament</Th>
@@ -482,7 +507,7 @@ function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
   }));
 
   return (
-    <section aria-label="Across a tournament" className="space-y-3">
+    <section id="dynamics" aria-label="Across a tournament" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Round dynamics"
         title="What happens across a tournament"
@@ -570,7 +595,7 @@ function ResultsSection({ stats }: { stats: SpeakerStats }) {
   }));
 
   return (
-    <section aria-label="Results" className="space-y-3">
+    <section id="results" aria-label="Results" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Results"
         title="Rounds, runs and conversions"
@@ -686,7 +711,7 @@ function Splits({ stats }: { stats: SpeakerStats }) {
   if (blocks.length === 0) return null;
 
   return (
-    <section aria-label="Splits" className="space-y-6">
+    <section id="splits" aria-label="Splits" className="scroll-mt-24 space-y-6">
       <SectionHeader
         label="Splits"
         title="Where the wins and losses concentrate"
@@ -716,7 +741,7 @@ function Partners({ stats }: { stats: SpeakerStats }) {
   if (partners.length === 0) return null;
 
   return (
-    <section aria-label="Partners" className="space-y-3">
+    <section id="partners" aria-label="Partners" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Partners"
         title="Who you debated with"
@@ -724,7 +749,7 @@ function Partners({ stats }: { stats: SpeakerStats }) {
       />
       <div className="panel overflow-hidden">
         <TableScroll>
-          <Table className="min-w-max">
+          <Table className="min-w-max" label="Results by speaking partner">
             <thead>
               <tr>
                 <Th className="pl-4">Partner</Th>
@@ -811,7 +836,7 @@ function SeasonTrends({
   if (avgTrend.length === 0 && breakBars.length === 0 && judging.length === 0) return null;
 
   return (
-    <section aria-label="Season by season" className="space-y-3">
+    <section id="seasons" aria-label="Season by season" className="scroll-mt-24 space-y-3">
       <SectionHeader label="Seasons" title="Year by year" />
       <div className="grid gap-3 lg:grid-cols-2">
         {avgTrend.length > 0 ? (
@@ -858,7 +883,7 @@ function Coverage({ coverage }: { coverage: SpeakerStats['coverage'] }) {
   ];
 
   return (
-    <section aria-label="Coverage" className="panel p-4">
+    <section id="coverage" aria-label="Coverage" className="scroll-mt-24 panel p-4">
       <div className="flex items-start gap-2.5">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
         <div className="min-w-0">

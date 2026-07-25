@@ -165,7 +165,7 @@ function NotificationRow({
     >
       <span className="font-medium text-ink">{item.title}</span>
       {item.body ? <span className="text-ink-soft">{item.body}</span> : null}
-      <span className="text-byline text-ink-soft/80">{time}</span>
+      <span className="text-byline text-ink-soft">{time}</span>
     </div>
   );
   if (item.href) {

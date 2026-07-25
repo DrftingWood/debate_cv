@@ -59,11 +59,16 @@ export default async function CvPage() {
   });
   if (claimedCount === 0) redirect('/onboarding');
 
-  const [data, pendingCount] = await Promise.all([
+  const [data, pendingCount, gmailToken] = await Promise.all([
     buildCvData(userId),
     prisma.ingestJob.count({
       where: { userId, status: { in: ['pending', 'running'] } },
     }),
+    // A revoked Gmail grant was only ever surfaced on /dashboard, but
+    // AutoScanOnVisit fires here too and swallows the resulting 400 by
+    // design. A user who bookmarks /cv — the product's home — would watch
+    // their record silently stop updating with nothing on screen to say why.
+    prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } }),
   ]);
   const {
     user,
@@ -109,6 +114,24 @@ export default async function CvPage() {
   return (
     <div className="space-y-8">
       <AutoScanOnVisit />
+      {!gmailToken ? (
+        <section
+          aria-label="Gmail disconnected"
+          data-print-hide="true"
+          className="flex flex-col gap-3 rounded-card border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div className="data-label text-warning">Gmail disconnected</div>
+            <p className="mt-1 text-table text-ink">
+              New tournaments have stopped arriving. Your record below is still accurate for
+              everything already imported.
+            </p>
+          </div>
+          <Link href="/dashboard">
+            <Button variant="primary">Reconnect from imports</Button>
+          </Link>
+        </section>
+      ) : null}
       <CvNeedsAttentionBanners
         pendingCount={pendingCount}
         unmatchedCount={unmatched.length}
@@ -312,7 +335,7 @@ function RoundLedger({
         {anyMotion ? ' with motions' : ''}
       </summary>
       <div className="panel-inset mb-3 overflow-x-auto p-3">
-        <Table className="text-caption">
+        <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
           <thead>
             <tr>
               <Th>Round</Th>
@@ -340,7 +363,7 @@ function RoundLedger({
                         <span title={motions.map((m) => m.text).join('\n\n')}>
                           {motions[0].text}
                           {motions.length > 1 ? (
-                            <span className="ml-1 text-ink-soft/70">
+                            <span className="ml-1 text-ink-soft">
                               (+{motions.length - 1} more this round)
                             </span>
                           ) : null}
@@ -385,7 +408,7 @@ function SpeakingTable({
       {/* Desktop ledger */}
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max">
+          <Table className="min-w-max" label="Speaking record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
@@ -424,7 +447,7 @@ function SpeakingTable({
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group inline-flex max-w-[16rem] items-center gap-1 truncate font-medium text-ink hover:text-primary"
+                        className="group inline-flex min-h-[44px] max-w-[16rem] items-center gap-1 truncate font-medium text-ink hover:text-primary"
                         title={r.tournamentName}
                       >
                         <span className="truncate">{r.tournamentName}</span>
@@ -575,7 +598,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max">
+          <Table className="min-w-max" label="Judging record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>

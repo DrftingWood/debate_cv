@@ -24,13 +24,23 @@ export function TableScroll({
   return <div className={cn('w-full overflow-x-auto', className)}>{children}</div>;
 }
 
+/**
+ * `label` is not optional dressing. An audit found 92 unlabelled tables
+ * across the app — /cv alone renders 26, one per tournament round ledger —
+ * which leaves a screen-reader user with two dozen anonymous grids and no
+ * way to tell which tournament any of them belongs to. It renders as a
+ * visually-hidden <caption> rather than aria-label so the name survives
+ * both assistive tech and a printed page.
+ */
 export function Table({
   children,
   className,
+  label,
   ...rest
-}: React.TableHTMLAttributes<HTMLTableElement>) {
+}: React.TableHTMLAttributes<HTMLTableElement> & { label: string }) {
   return (
     <table className={cn('ledger text-table', className)} {...rest}>
+      <caption className="sr-only">{label}</caption>
       {children}
     </table>
   );
@@ -90,7 +100,11 @@ export function Tr({
  */
 export function Nil({ title }: { title?: string }) {
   return (
-    <span className="text-ink-soft/60" title={title ?? 'Not published by the tab site'}>
+    // No opacity modifier. `ink-soft` is already the muted tier and passes
+    // AA at full strength (5.31:1); at /60 this measured 2.38:1, and it is
+    // the marker on every missing cell in every table in the product —
+    // the single most repeated piece of text in the UI.
+    <span className="text-ink-soft" title={title ?? 'Not published by the tab site'}>
       —
     </span>
   );

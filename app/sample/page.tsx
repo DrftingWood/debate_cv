@@ -55,7 +55,7 @@ const trend = [
 
 export default function SamplePage() {
   return (
-    <div className="mx-auto max-w-6xl px-5 py-5 md:py-6">
+    <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-5 md:py-6">
       <header className="flex items-center justify-between gap-4">
         <Link href="/" aria-label="debate cv home">
           <BrandMark />
@@ -67,8 +67,12 @@ export default function SamplePage() {
         </Link>
       </header>
 
-      <main className="space-y-10 py-10 md:py-12">
-        <section className="grid items-end gap-8 md:grid-cols-[0.8fr_1.2fr]">
+      <div className="space-y-10 py-10 md:py-12">
+        {/* grid-cols-[minmax(0,1fr)] on the BASE breakpoint, not just md.
+            An unspecified single-column grid track is auto-sized, so it grew
+            to the 820px min-width of the ledger inside and min-w-0 on the item
+            could not help — the track, not the item, was the constraint. */}
+        <section className="grid grid-cols-[minmax(0,1fr)] items-end gap-8 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
           <div>
             <div className="eyebrow">Sample record</div>
             <h1 className="mt-4 font-display text-h1 font-medium leading-[1.04] tracking-tight text-ink md:text-display">
@@ -99,18 +103,19 @@ export default function SamplePage() {
               </span>
             }
           />
-          <div className="panel overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="panel min-w-0 overflow-hidden">
+            <div className="w-full overflow-x-auto">
               <table className="ledger min-w-[820px] text-table">
+                <caption className="sr-only">Sample speaking record by tournament</caption>
                 <thead>
                   <tr>
-                    <th className="pl-4">Tournament</th>
-                    <th className="text-right">Year</th>
+                    <th scope="col" className="pl-4">Tournament</th>
+                    <th scope="col" className="text-right">Year</th>
                     <th>Role</th>
                     <th>Team</th>
-                    <th className="text-right">Spk avg</th>
-                    <th className="text-right">On the tab</th>
-                    <th className="pr-4">Result</th>
+                    <th scope="col" className="text-right">Spk avg</th>
+                    <th scope="col" className="text-right">On the tab</th>
+                    <th scope="col" className="pr-4">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -124,7 +129,7 @@ export default function SamplePage() {
                       <td className="cell-num text-ink-soft">{row.field}</td>
                       <td className="whitespace-nowrap pr-4">
                         {row.result === '—' ? (
-                          <span className="text-ink-soft/60">—</span>
+                          <span className="text-ink-soft">—</span>
                         ) : row.role === 'Judge' ? (
                           <span className="text-ink">{row.result}</span>
                         ) : (
@@ -149,16 +154,17 @@ export default function SamplePage() {
             title="Australs 2024, round by round"
             meta="Motions come from the tournament's own motions tab"
           />
-          <div className="panel overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="panel min-w-0 overflow-hidden">
+            <div className="w-full overflow-x-auto">
               <table className="ledger min-w-[720px] text-table">
+                <caption className="sr-only">Sample round-by-round ledger with motions</caption>
                 <thead>
                   <tr>
-                    <th className="pl-4">Round</th>
+                    <th scope="col" className="pl-4">Round</th>
                     <th>Side</th>
                     <th>Motion</th>
-                    <th className="text-right">Score</th>
-                    <th className="pr-4">Result</th>
+                    <th scope="col" className="text-right">Score</th>
+                    <th scope="col" className="pr-4">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -242,7 +248,7 @@ export default function SamplePage() {
             </Link>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

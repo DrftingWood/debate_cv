@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ScrollText } from 'lucide-react';
+import { ScrollText, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
@@ -10,7 +10,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
-import { SectionHeader } from '@/components/ui/Card';
 import { Nil } from '@/components/ui/DataTable';
 import { CvSubNav } from '@/components/CvSubNav';
 
@@ -146,22 +145,43 @@ export default async function CvMotionsPage() {
             />
           </StatRow>
 
-          <div className="space-y-8">
-            {[...byTournament.entries()].map(([key, list]) => {
+          {/*
+            One <details> per tournament, and only the most recent opens.
+
+            Every motion for every tournament rendered at once made this
+            page 20,593px on desktop and 24,937px on a phone — 28 screens of
+            motion cards with no index. Grouping by tournament already
+            existed; it just was not foldable, so the grouping bought
+            nothing. The headers now act as the archive's table of contents.
+          */}
+          <div className="space-y-3">
+            {[...byTournament.entries()].map(([key, list], index) => {
               const first = list[0];
               return (
-                <section key={key} className="space-y-3">
-                  <SectionHeader
-                    label={first.year ? `${first.year}` : 'Undated'}
-                    title={first.tournamentName}
-                    meta={`${list.length} motion${list.length === 1 ? '' : 's'}`}
-                  />
-                  <ul className="space-y-2">
+                <details key={key} className="group panel px-4" open={index === 0}>
+                  <summary className="flex cursor-pointer select-none items-center justify-between gap-3 py-4">
+                    <span className="min-w-0">
+                      <span className="data-label block">
+                        {first.year ? `${first.year}` : 'Undated'}
+                      </span>
+                      <span className="mt-1 block truncate font-display text-h4 font-medium text-ink">
+                        {first.tournamentName}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2 text-caption text-ink-soft">
+                      {list.length} motion{list.length === 1 ? '' : 's'}
+                      <ChevronDown
+                        className="h-4 w-4 text-primary transition-transform group-open:rotate-180"
+                        aria-hidden
+                      />
+                    </span>
+                  </summary>
+                  <ul className="space-y-2 pb-4">
                     {list.map((e) => (
                       <MotionCard key={`${e.tournamentKey}:${e.motion.seq}`} entry={e} />
                     ))}
                   </ul>
-                </section>
+                </details>
               );
             })}
           </div>
@@ -199,7 +219,9 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
 
       {motion.infoSlide ? (
         <details className="mt-2">
-          <summary className="cursor-pointer text-caption text-ink-soft hover:text-ink">
+          {/* inline-flex + min-h so the disclosure is a 44px target rather
+              than an 18px line of text. */}
+          <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-caption text-ink-soft hover:text-ink">
             Info slide
           </summary>
           <p className="panel-inset mt-1.5 p-3 text-caption leading-relaxed text-ink-soft">

@@ -177,7 +177,7 @@ export default async function CvTagsPage() {
                             </div>
 
                             {/* Type and topic pickers side by side on wider viewports */}
-                            <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                               <div className="space-y-1">
                                 <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
                                   Motion type
