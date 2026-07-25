@@ -55,7 +55,11 @@ export async function GET(req: Request) {
     );
   }
 
-  const data = await buildCvData(session.user.id);
+  // No field stats: the export field registry (lib/cv/exportFields.ts) is
+  // built from CvSpeakerRow / CvJudgeRow only, so paying for buildCvData's
+  // heaviest query here would be pure waste. Revisit if placement columns
+  // are ever appended to the registry.
+  const data = await buildCvData(session.user.id, { includeFieldStats: false });
   const stamp = new Date().toISOString().slice(0, 10);
 
   if (parsed.data.format === 'xlsx') {
