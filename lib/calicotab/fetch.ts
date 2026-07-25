@@ -2,6 +2,7 @@ import { gzipSync } from 'node:zlib';
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
 import { FetchSession } from './fetchSession';
+import { isAllowedTabHost } from '@/lib/gmail/extract';
 
 /**
  * Realistic Chrome-on-macOS fingerprint. Tabbycat sits behind Cloudflare on
@@ -112,26 +113,65 @@ const MAX_STORED_BODY_BYTES = 5 * 1024 * 1024;
 // other ~16+ tab fetches to also have their chance.
 const FETCH_TIMEOUT_MS = 15_000;
 
-async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
-  const host = new URL(url).host;
-  // Serial per-host slot — see FetchSession.acquireSlot for why this
-  // matters for Cloudflare-fronted Tabbycat instances.
-  await session.acquireSlot(host, MIN_INTERVAL_MS);
+// Redirect hops to follow when talking to a Tabbycat host directly.
+// Tabbycat itself redirects for trailing slashes and http→https, and
+// Cloudflare adds its own, so a handful is normal; more than this is a
+// loop or an attempt to walk us somewhere.
+const MAX_REDIRECT_HOPS = 5;
 
-  const cookie = session.getCookieHeader(host);
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  // When SCRAPER_API_KEY is set every request goes through ScraperAPI, so
+  // the proxy — not this process — resolves redirects, and it is the one
+  // exposed to whatever they point at. Following automatically is correct
+  // there. Talking to a host directly, we must resolve each hop ourselves:
+  // `redirect: 'follow'` would let a 302 from a legitimate calicotab host
+  // walk the fetch onto an internal address, which is exactly the
+  // allowlist bypass the entry-point validation is meant to prevent.
+  const proxied = Boolean(process.env.SCRAPER_API_KEY);
+
   try {
-    const res = await fetch(buildTargetUrl(url), {
-      headers: {
-        ...browserHeaders(referer),
-        ...(cookie ? { Cookie: cookie } : {}),
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
-    session.storeCookies(host, res);
-    return res;
+    let current = url;
+    for (let hop = 0; ; hop += 1) {
+      const host = new URL(current).host;
+      // Serial per-host slot — see FetchSession.acquireSlot for why this
+      // matters for Cloudflare-fronted Tabbycat instances. Re-acquired per
+      // hop because a redirect can cross hosts.
+      await session.acquireSlot(host, MIN_INTERVAL_MS);
+      const cookie = session.getCookieHeader(host);
+
+      const res = await fetch(buildTargetUrl(current), {
+        headers: {
+          ...browserHeaders(referer),
+          ...(cookie ? { Cookie: cookie } : {}),
+        },
+        redirect: proxied ? 'follow' : 'manual',
+        signal: controller.signal,
+      });
+      session.storeCookies(host, res);
+
+      if (proxied || !REDIRECT_STATUSES.has(res.status)) return res;
+
+      const location = res.headers.get('location');
+      // A redirect status with no Location is malformed; hand it back and
+      // let the caller treat it as the failure it is.
+      if (!location) return res;
+
+      const next = new URL(location, current);
+      if (!isAllowedTabHost(next.hostname) || next.port || next.username || next.password) {
+        throw new Error(
+          `refusing redirect off the allowlist: ${host} → ${next.hostname}`,
+        );
+      }
+      if (hop >= MAX_REDIRECT_HOPS) {
+        throw new Error(`too many redirects (${MAX_REDIRECT_HOPS}) starting at ${url}`);
+      }
+      current = next.toString();
+    }
   } catch (err) {
     // AbortError surfaces as a generic "aborted" message in Node 18+. Re-raise
     // with a clearer error so fetchWarnings show "fetch: tab timeout (15s)"

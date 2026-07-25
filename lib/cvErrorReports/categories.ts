@@ -18,6 +18,7 @@ export const REPORT_CATEGORIES = [
   'wrong_team_result',
   'wrong_outround',
   'wrong_identity',
+  'claimed_by_someone_else',
   'other',
 ] as const;
 
@@ -30,6 +31,7 @@ export const CATEGORY_LABELS: Record<ReportCategory, string> = {
   wrong_team_result: 'Wrong team result',
   wrong_outround: 'Wrong outround',
   wrong_identity: "Didn't speak/judge here",
+  claimed_by_someone_else: 'Someone claimed my identity',
   other: 'Other',
 };
 
@@ -45,6 +47,8 @@ export const CATEGORY_LONG_LABELS: Record<ReportCategory, string> = {
   wrong_team_result: 'Wrong team result (rank, points, win/loss)',
   wrong_outround: 'Wrong outround / Champion marker',
   wrong_identity: "I didn't speak/judge at this tournament",
+  claimed_by_someone_else:
+    'My results at this tournament are on someone else\u2019s account',
   other: 'Other (describe in comment)',
 };
 

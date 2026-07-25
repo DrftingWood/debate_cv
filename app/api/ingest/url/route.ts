@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
-import { PRIVATE_URL_RE, privateUrlVariants } from '@/lib/gmail/extract';
+import { isPrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
@@ -22,12 +23,18 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('ingest:url', session.user.id);
+  if (limited) return limited;
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
     return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
   }
-  PRIVATE_URL_RE.lastIndex = 0;
-  if (!PRIVATE_URL_RE.test(parse.data.url)) {
+  // isPrivateUrl, NOT PRIVATE_URL_RE.test — the regex is an unanchored
+  // scanner for finding URLs inside email prose, so testing a whole string
+  // against it passes anything that merely contains a match. That was an
+  // SSRF: `http://169.254.169.254/?x=https://a.calicotab.com/t/privateurls/a`
+  // satisfied the regex and the server then fetched the attacker's host.
+  if (!isPrivateUrl(parse.data.url)) {
     return NextResponse.json({ error: 'not_a_private_url' }, { status: 400 });
   }
   const urlVariants = privateUrlVariants(parse.data.url);

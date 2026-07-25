@@ -38,7 +38,7 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
-import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
+import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -263,6 +263,13 @@ async function loadLandingAndFingerprint(
   userId: string,
 ): Promise<LoadedState> {
   const normalized = normalizePrivateUrl(url);
+  // Re-validate here, not just at the API boundary. Jobs reach this
+  // function from three places — /api/ingest/url, the queue drain, and the
+  // admin re-ingest — and a URL persisted before the gate was tightened
+  // would otherwise still be fetched when the cron picks it up.
+  if (!isPrivateUrl(normalized)) {
+    throw new Error(`refusing to fetch non-private URL: ${normalized.slice(0, 120)}`);
+  }
   const urlVariants = privateUrlVariants(url);
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
@@ -281,14 +288,17 @@ async function loadLandingAndFingerprint(
   // Landing page fetch — with provenance so every parse has a stable source.
   const landingResult = await fetchHtmlWithProvenance(normalized, { session: fetchSession });
   if (!landingResult.ok) {
-    // Surface the HTTP failure as the job's error so it shows up on the
-    // dashboard and in ParserRun history. `bodyPreview` gives the operator
-    // a hint when the upstream serves an HTML error page (e.g. Cloudflare).
-    throw new Error(
-      `fetch landing ${normalized} → HTTP ${landingResult.status}: ${landingResult.bodyPreview
-        .replace(/\s+/g, ' ')
-        .slice(0, 180)}`,
-    );
+    // The status reaches the user's dashboard; the response BODY does not.
+    // bodyPreview is genuinely useful when upstream serves a Cloudflare
+    // error page, but echoing a fetched body back to whoever submitted the
+    // URL turns any fetch-target confusion into a read primitive. Operators
+    // get it in the server log and in the ParserRun row instead.
+    console.warn('[ingest] landing fetch failed', {
+      url: normalized,
+      status: landingResult.status,
+      bodyPreview: landingResult.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
+    });
+    throw new Error(`fetch landing ${normalized} → HTTP ${landingResult.status}`);
   }
   const landingDoc = landingResult;
   const landingHtml = landingDoc.html;
@@ -447,8 +457,17 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       r.status === 403 && !process.env.SCRAPER_API_KEY
         ? ' (set SCRAPER_API_KEY to bypass Cloudflare blocking)'
         : '';
+    // Status + hint only — see the landing-fetch note above for why the
+    // response body stays server-side.
+    if (r.bodyPreview) {
+      console.warn('[ingest] tab fetch failed', {
+        label,
+        status: r.status,
+        bodyPreview: r.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
+      });
+    }
     fetchWarnings.push(
-      `fetch: ${label} HTTP ${r.status}${hint}${r.bodyPreview ? ` — ${r.bodyPreview.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`,
+      `fetch: ${label} HTTP ${r.status}${hint}`,
     );
     return null;
   };
@@ -1442,7 +1461,11 @@ async function preCommitPersons(
         INSERT INTO "Person" ("displayName", "normalizedName")
         VALUES (${displayName}, ${normalizedName})
         ON CONFLICT ("normalizedName")
+        -- Never refresh the name of someone who has asked to be withdrawn:
+        -- the next re-ingest of any tournament they appear at would
+        -- otherwise silently undo their erasure.
         DO UPDATE SET "displayName" = EXCLUDED."displayName"
+        WHERE "Person"."suppressedAt" IS NULL
         RETURNING id
       `,
     );
@@ -1568,8 +1591,15 @@ async function linkRegistrationPerson(
     VALUES (${personName}, ${normalizedName}, ${claimUserId})
     ON CONFLICT ("normalizedName")
     DO UPDATE SET
-      "displayName" = EXCLUDED."displayName",
-      "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+      -- Suppressed rows keep their masked state and stay unclaimable.
+      "displayName" = CASE
+        WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."displayName"
+        ELSE EXCLUDED."displayName"
+      END,
+      "claimedByUserId" = CASE
+        WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."claimedByUserId"
+        ELSE COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+      END
     RETURNING id, "claimedByUserId"
   `;
   const row = rows[0];

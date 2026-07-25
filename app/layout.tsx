@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Inter, Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 import { cn } from '@/lib/utils/cn';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -77,7 +78,11 @@ export const viewport: Viewport = {
 // string (not a component) because it must execute synchronously in <head>.
 const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Nonce minted per request by middleware.ts. The theme script must carry
+  // it or the CSP blocks it and every visitor gets a flash of the wrong
+  // theme before hydration.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <html
       lang="en"
@@ -87,7 +92,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/*
+          suppressHydrationWarning is load-bearing, not cosmetic. Browsers
+          blank the `nonce` CONTENT attribute once the document is parsed —
+          `getAttribute('nonce')` returns '' even though the script ran —
+          so React's hydration pass compares the server's real nonce against
+          an empty string and reports a mismatch on every single page. The
+          value is still live on the `.nonce` IDL property; nothing is
+          actually wrong, and there is nothing to patch up.
+        */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
       </head>
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>

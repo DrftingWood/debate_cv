@@ -9,6 +9,7 @@ import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
+import { displayNameFor } from '@/lib/privacy/suppression';
 
 export const metadata: Metadata = {
   title: 'Extracted Data Verification',
@@ -218,7 +219,7 @@ export default async function CvVerifyPage({
                           {participants.map((p) => (
                             <tr key={p.id.toString()} className="border-b border-border hover:bg-surface-2">
                               <td className="px-4 py-2.5">
-                                {p.person.displayName}
+                                {displayNameFor(p.person)}
                                 {p.person.claimedByUserId === userId ? (
                                   <Badge variant="success" className="ml-2">You</Badge>
                                 ) : null}
@@ -323,7 +324,7 @@ export default async function CvVerifyPage({
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
                               <div className="font-medium text-ink">
-                                {p.person.displayName}
+                                {displayNameFor(p.person)}
                                 {isYou ? (
                                   <Badge variant="success" className="ml-2">You</Badge>
                                 ) : null}
@@ -432,7 +433,7 @@ export default async function CvVerifyPage({
                             key={a.id.toString()}
                             variant={a.panelRole === 'chair' ? 'info' : 'outline'}
                           >
-                            <span className="font-medium">{a.person.displayName}</span>
+                            <span className="font-medium">{displayNameFor(a.person)}</span>
                             <span className="opacity-60">·</span>
                             <span>{a.panelRole ?? 'panel'}</span>
                             <span className="opacity-60">·</span>

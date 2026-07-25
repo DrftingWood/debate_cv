@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { TAG_VALUES, type TagKind } from '@/lib/tags/vocabulary';
 
@@ -26,6 +27,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('tags:propose', session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   const parse = Body.safeParse(await req.json().catch(() => ({})));

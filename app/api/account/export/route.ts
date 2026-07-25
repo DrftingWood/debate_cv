@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -36,6 +37,8 @@ export async function GET() {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
+    const limited = await enforceRateLimit('account:export', session.user.id);
+    if (limited) return limited;
     const userId = session.user.id;
 
     const [user, discoveredUrls, ingestJobs, claimedPersons] = await Promise.all([

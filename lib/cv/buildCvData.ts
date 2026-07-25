@@ -7,6 +7,7 @@ import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount } from '@/lib/calicotab/prelimRoundCount';
+import { displayNameFor } from '@/lib/privacy/suppression';
 import {
   deepestOutroundsByCategory,
   isEudcTournament,
@@ -414,14 +415,14 @@ export async function buildCvData(
             tournamentId: true,
             teamName: true,
             personId: true,
-            person: { select: { displayName: true } },
+            person: { select: { displayName: true, suppressedAt: true } },
           },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
           teamName: string | null;
           personId: bigint;
-          person: { displayName: string };
+          person: { displayName: string; suppressedAt: Date | null };
         }>),
     tournamentIds.length
       ? prisma.teamResult.findMany({
@@ -648,7 +649,9 @@ export async function buildCvData(
     if (!myTeamPairKeys.has(key)) continue;
     if (claimedPersonIds.has(tm.personId)) continue;
     const list = teammatesByKey.get(key) ?? [];
-    list.push(tm.person.displayName);
+    // Masked, not raw — a withdrawn debater must not reappear as a
+    // teammate name on someone else's CV or public share link.
+    list.push(displayNameFor(tm.person));
     teammatesByKey.set(key, list);
   }
 

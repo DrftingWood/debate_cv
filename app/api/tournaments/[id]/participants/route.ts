@@ -97,10 +97,15 @@ export async function GET(
 
   // Only consider participants that aren't already owned by someone else.
   // Users can re-claim Persons already claimed by themselves, so we include
-  // their own claims in the candidate set.
+  // their own claims in the candidate set. Suppressed Persons (people who
+  // asked to be erased under lib/privacy/suppression.ts) are excluded
+  // outright rather than masked: a placeholder row in a name search would
+  // be useless to claim and would still confirm that the person is in the
+  // dataset, which is the thing they asked us to stop doing.
   const participants = await prisma.tournamentParticipant.findMany({
     where: {
       tournamentId,
+      person: { suppressedAt: null },
       OR: [
         { person: { claimedByUserId: null } },
         { person: { claimedByUserId: session.user.id } },

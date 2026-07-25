@@ -265,6 +265,19 @@ model Person {
   displayName       String
   normalizedName    String   @unique
   claimedByUserId   String?
+  /// When the claim was made. Null for rows claimed before this column
+  /// existed. Exists so a disputed claim can be reasoned about — who took
+  /// an identity, and when — rather than only "someone holds it now".
+  claimedAt         DateTime?
+  /// Set when this person has asked to be withdrawn from the product.
+  /// They are almost never account holders — the database holds names
+  /// scraped from public tabs for thousands of debaters who never signed
+  /// up, and they are entitled to erasure too. When set, the display name
+  /// is masked everywhere, ingest stops refreshing it, and the row cannot
+  /// be claimed. The participation rows stay so the tournament record and
+  /// other users' teammate slots do not corrupt — it is the NAME that
+  /// identifies a person, not an anonymous score in a draw.
+  suppressedAt      DateTime?
   createdAt         DateTime @default(now())
 
   claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
@@ -570,4 +583,24 @@ model ParserRun {
 
   @@index([sourceDocumentId])
   @@index([parserVersion, parserName])
+}
+
+/// Fixed-window rate-limit counter, keyed by "<route>:<subject>" where the
+/// subject is normally a user id.
+///
+/// Postgres rather than an in-memory map because the app runs on serverless
+/// functions: each invocation may be a fresh process, so an in-memory
+/// counter limits nothing. Postgres is already a hard dependency, and the
+/// increment is a single atomic upsert (see lib/rateLimit.ts), so this adds
+/// one round trip to the routes that need it rather than a new service.
+///
+/// Rows are self-expiring in effect — a key whose window has passed is
+/// reset in place on next use — but abandoned keys are pruned by the daily
+/// cron so the table cannot grow without bound.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
 }

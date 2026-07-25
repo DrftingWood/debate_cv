@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { REPORT_CATEGORIES } from '@/lib/cvErrorReports/categories';
 
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('cv:errorReport', session.user.id);
+  if (limited) return limited;
 
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {

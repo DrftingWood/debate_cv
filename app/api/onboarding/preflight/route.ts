@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { fetchHtmlWithProvenance } from '@/lib/calicotab/fetch';
 import { parsePrivateUrlPage } from '@/lib/calicotab/parseNav';
@@ -29,6 +30,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('onboarding:preflight', session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   // Retry modes:
@@ -73,8 +76,13 @@ export async function POST(req: Request) {
       try {
         const r = await fetchHtmlWithProvenance(url);
         if (!r.ok) {
-          const preview = r.bodyPreview.replace(/\s+/g, ' ').slice(0, 200);
-          errMsg = `HTTP ${r.status}${preview ? ` — ${preview}` : ''}`;
+          // Status only. The fetched body never travels back to the caller
+          // — see the note in lib/calicotab/ingest.ts's landing fetch.
+          console.warn('[preflight] fetch failed', {
+            status: r.status,
+            bodyPreview: r.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
+          });
+          errMsg = `HTTP ${r.status}`;
         } else {
           const snap = parsePrivateUrlPage(r.html, url);
           name = (snap.registration.personName ?? '').trim();

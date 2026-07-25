@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
+import { pruneRateLimits } from '@/lib/rateLimit';
 import {
   claimOnePending,
   isPermanentError,
@@ -119,6 +120,10 @@ async function runOnce() {
     if (new Date().getUTCHours() === 3) {
       try {
         pruned = await pruneIngestArtifacts();
+        // Rate-limit counters expire in place, but abandoned keys (a user
+        // who used a route once and never again) would otherwise persist
+        // forever — one row per (route, user) pair.
+        await pruneRateLimits();
       } catch (err) {
         Sentry.captureException(err, {
           tags: { route: 'api/cron/process-queue', stage: 'prune' },

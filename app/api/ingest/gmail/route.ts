@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { getOAuthClientForUser, revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { extractAllFromGmail } from '@/lib/gmail/run';
@@ -39,6 +40,8 @@ export async function POST() {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
+    const limited = await enforceRateLimit('ingest:gmail', session.user.id);
+    if (limited) return limited;
     userId = session.user.id;
 
     const oauth = await getOAuthClientForUser(userId);
