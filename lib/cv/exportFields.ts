@@ -1,4 +1,10 @@
-import type { CvData, CvSpeakerRow, CvJudgeRow } from '@/lib/cv/buildCvData';
+import type {
+  CvData,
+  CvSpeakerRow,
+  CvJudgeRow,
+  CvFieldStat,
+  CvTaggedMotion,
+} from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 
@@ -14,14 +20,48 @@ import { csvLine } from '@/lib/utils/csv';
  * into or reorder the middle of this list.
  */
 
+/**
+ * Everything an accessor may need that does not live on the row itself.
+ *
+ * Field placement and motions are per-TOURNAMENT facts sitting in sibling
+ * arrays on CvData, not columns on CvSpeakerRow, so the accessors need a
+ * second argument to reach them. Built once per export by
+ * `buildExportContext` rather than re-scanned per row — a heavy CV has
+ * hundreds of motions and the naive version is quadratic.
+ */
+export type ExportContext = {
+  fieldByTournament: Map<string, CvFieldStat>;
+  motionsByTournament: Map<string, CvTaggedMotion[]>;
+};
+
+export function buildExportContext(data: CvData): ExportContext {
+  const fieldByTournament = new Map<string, CvFieldStat>();
+  for (const f of data.fieldStats) fieldByTournament.set(f.tournamentId.toString(), f);
+
+  const motionsByTournament = new Map<string, CvTaggedMotion[]>();
+  for (const m of data.taggedMotions) {
+    const key = m.tournamentId.toString();
+    const list = motionsByTournament.get(key) ?? [];
+    list.push(m);
+    motionsByTournament.set(key, list);
+  }
+  // Round order, then document order within a round, so a motion-per-room
+  // tournament exports its motions in the sequence the tab printed them.
+  for (const list of motionsByTournament.values()) {
+    list.sort((a, b) => (a.roundNumber ?? 0) - (b.roundNumber ?? 0) || a.seq - b.seq);
+  }
+
+  return { fieldByTournament, motionsByTournament };
+}
+
 export type ExportField = {
   id: string;
   /** Human label for the picker UI and the XLSX header row. */
   label: string;
   /** Accessor for speaker rows; omitted = blank cell in the speaker section. */
-  speaker?: (r: CvSpeakerRow) => unknown;
+  speaker?: (r: CvSpeakerRow, ctx: ExportContext) => unknown;
   /** Accessor for judge rows; omitted = blank cell in the judge section. */
-  judge?: (r: CvJudgeRow) => unknown;
+  judge?: (r: CvJudgeRow, ctx: ExportContext) => unknown;
 };
 
 function fmtSpeakerRanks(r: CvSpeakerRow): string {
@@ -82,7 +122,103 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'last_outround_judged', label: 'Last outround judged', judge: (r) => r.lastOutroundJudged },
   // ── Post-legacy additions (append-only zone) ──────────────────────────
   { id: 'region', label: 'Region', speaker: (r) => r.region, judge: (r) => r.region },
+  {
+    id: 'field_placement',
+    label: 'Field placement',
+    speaker: (r, ctx) => {
+      const f = ctx.fieldByTournament.get(r.tournamentId.toString());
+      if (!f || f.betterThanUser == null || f.speakerCount <= 0) return '';
+      return `${f.betterThanUser + 1}/${f.speakerCount}`;
+    },
+  },
+  {
+    id: 'field_average',
+    label: 'Field average',
+    speaker: (r, ctx) => round1(ctx.fieldByTournament.get(r.tournamentId.toString())?.fieldMeanAvg),
+  },
+  {
+    id: 'field_delta',
+    label: 'Vs field',
+    // Signed on purpose: an export column that reads "-1.4" is unambiguous
+    // in a spreadsheet, where a bare 1.4 next to a field average invites
+    // the reader to guess the direction.
+    speaker: (r, ctx) => {
+      const f = ctx.fieldByTournament.get(r.tournamentId.toString());
+      const mine = numericAvg(r.speakerAvgScore);
+      if (!f || f.fieldMeanAvg == null || mine == null) return '';
+      const delta = mine - f.fieldMeanAvg;
+      return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`;
+    },
+  },
+  {
+    id: 'motions',
+    label: 'Motions',
+    speaker: (r, ctx) =>
+      debatedMotions(r, ctx)
+        .map((m) => `${m.roundLabel}: ${m.text}`)
+        .join(' | '),
+  },
+  {
+    id: 'motion_types',
+    label: 'Motion types',
+    speaker: (r, ctx) => distinct(debatedMotions(r, ctx).map((m) => m.motionType)).join(' | '),
+  },
+  {
+    id: 'motion_topics',
+    label: 'Motion topics',
+    speaker: (r, ctx) => distinct(debatedMotions(r, ctx).map((m) => m.topic)).join(' | '),
+  },
 ];
+
+/**
+ * The fields above that need `buildCvData`'s field-summary query, which is
+ * by far its most expensive (it reads every speaker published at every
+ * tournament on the CV). The export route consults this so an export that
+ * doesn't ask for placement doesn't pay for it.
+ */
+export const FIELD_STAT_FIELD_IDS = new Set(['field_placement', 'field_average', 'field_delta']);
+
+export function exportNeedsFieldStats(fields: ExportField[]): boolean {
+  return fields.some((f) => FIELD_STAT_FIELD_IDS.has(f.id));
+}
+
+function round1(n: number | null | undefined): string {
+  return n == null ? '' : n.toFixed(1);
+}
+
+/** The formatted average is a display string; parse it back or give up. */
+function numericAvg(avg: string | null): number | null {
+  if (!avg) return null;
+  const n = Number(avg);
+  return Number.isFinite(n) ? n : null;
+}
+
+function distinct(values: (string | null)[]): string[] {
+  return [...new Set(values.filter((v): v is string => !!v))];
+}
+
+/**
+ * The motions released for rounds this user actually debated — a round
+ * counts when they were scored in it or their team has a result for it.
+ * Motions for rounds they sat out (a swing, a bye, an outround they didn't
+ * reach) are the tournament's, not theirs, and putting them on the CV row
+ * would claim rounds they never spoke in.
+ *
+ * Formats running more than one motion per round export all of them, for
+ * the same reason the statistics layer credits all of them: without
+ * per-room draw data there is no way to tell which one was debated, and
+ * dropping the round entirely is the worse error.
+ */
+function debatedMotions(r: CvSpeakerRow, ctx: ExportContext): CvTaggedMotion[] {
+  const all = ctx.motionsByTournament.get(r.tournamentId.toString());
+  if (!all || all.length === 0) return [];
+  const debated = new Set<number>([
+    ...r.roundScores.filter((s) => s.score != null).map((s) => s.roundNumber),
+    ...r.teamRoundResults.map((tr) => tr.roundNumber),
+  ]);
+  if (debated.size === 0) return [];
+  return all.filter((m) => m.roundNumber != null && debated.has(m.roundNumber));
+}
 
 export const EXPORT_FIELD_IDS = EXPORT_FIELDS.map((f) => f.id);
 
@@ -112,12 +248,13 @@ export function resolveExportFields(ids: string[] | null): {
  * as blank cells.
  */
 export function buildExportCsv(data: CvData, fields: ExportField[]): string {
+  const ctx = buildExportContext(data);
   const lines = [csvLine(['section', ...fields.map((f) => f.id)])];
   for (const r of data.speakerRows) {
-    lines.push(csvLine(['speaker', ...fields.map((f) => (f.speaker ? f.speaker(r) : ''))]));
+    lines.push(csvLine(['speaker', ...fields.map((f) => (f.speaker ? f.speaker(r, ctx) : ''))]));
   }
   for (const r of data.judgeRows) {
-    lines.push(csvLine(['judge', ...fields.map((f) => (f.judge ? f.judge(r) : ''))]));
+    lines.push(csvLine(['judge', ...fields.map((f) => (f.judge ? f.judge(r, ctx) : ''))]));
   }
   return lines.join('\n') + '\n';
 }
@@ -136,13 +273,14 @@ export type ExportSheet = {
  * route owns the workbook serialization.
  */
 export function buildExportSheets(data: CvData, fields: ExportField[]): ExportSheet[] {
+  const ctx = buildExportContext(data);
   const sheets: ExportSheet[] = [];
   const speakerFields = fields.filter((f) => f.speaker);
   if (speakerFields.length > 0 && data.speakerRows.length > 0) {
     sheets.push({
       name: 'Speaking',
       header: speakerFields.map((f) => f.label),
-      rows: data.speakerRows.map((r) => speakerFields.map((f) => f.speaker!(r) ?? '')),
+      rows: data.speakerRows.map((r) => speakerFields.map((f) => f.speaker!(r, ctx) ?? '')),
     });
   }
   const judgeFields = fields.filter((f) => f.judge);
@@ -150,7 +288,7 @@ export function buildExportSheets(data: CvData, fields: ExportField[]): ExportSh
     sheets.push({
       name: 'Judging',
       header: judgeFields.map((f) => f.label),
-      rows: data.judgeRows.map((r) => judgeFields.map((f) => f.judge!(r) ?? '')),
+      rows: data.judgeRows.map((r) => judgeFields.map((f) => f.judge!(r, ctx) ?? '')),
     });
   }
   return sheets;

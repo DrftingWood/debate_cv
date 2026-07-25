@@ -30,9 +30,18 @@ const CATEGORIES = REPORT_CATEGORIES.map((code) => ({
 export function CvRowReportButton({
   tournamentId,
   tournamentName,
+  /**
+   * Drop the "Report" label and render the icon alone. The desktop ledger
+   * is already wider than a 1440px viewport, and a labelled ghost button
+   * in every row cost ~60px of a column that carries no data — the icon
+   * plus its title/aria-label says the same thing. The mobile cards, which
+   * have the room and no column budget, keep the word.
+   */
+  iconOnly = false,
 }: {
   tournamentId: string;
   tournamentName: string;
+  iconOnly?: boolean;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -108,12 +117,13 @@ export function CvRowReportButton({
         type="button"
         size="sm"
         variant="ghost"
-        leftIcon={<AlertCircle className="h-3.5 w-3.5" aria-hidden />}
+        leftIcon={iconOnly ? undefined : <AlertCircle className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => setOpen(true)}
         title={`Report a problem with ${tournamentName}`}
+        aria-label={iconOnly ? `Report a problem with ${tournamentName}` : undefined}
         data-print-hide="true"
       >
-        Report
+        {iconOnly ? <AlertCircle className="h-3.5 w-3.5" aria-hidden /> : 'Report'}
       </Button>
       {open ? (
         <div

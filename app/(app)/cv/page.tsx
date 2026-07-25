@@ -13,6 +13,7 @@ import type {
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -248,7 +249,13 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string | null {
   return display;
 }
 
-function ReportCell({ r }: { r: { tournamentId: bigint; tournamentName: string; hasOpenReport: boolean } }) {
+function ReportCell({
+  r,
+  compact = false,
+}: {
+  r: { tournamentId: bigint; tournamentName: string; hasOpenReport: boolean };
+  compact?: boolean;
+}) {
   return (
     <div className="flex items-center justify-end gap-1.5" data-print-hide="true">
       {r.hasOpenReport ? (
@@ -259,6 +266,7 @@ function ReportCell({ r }: { r: { tournamentId: bigint; tournamentName: string; 
       <CvRowReportButton
         tournamentId={r.tournamentId.toString()}
         tournamentName={r.tournamentName}
+        iconOnly={compact}
       />
     </div>
   );
@@ -386,7 +394,7 @@ function SpeakingTable({
                 <Th numeric>Teams</Th>
                 <Th>Team</Th>
                 <Th>Partner</Th>
-                <Th numeric>Team rank</Th>
+                <Th numeric title="Where the team finished on the team tab">Rank</Th>
                 <Th numeric>Pts</Th>
                 <Th numeric title="Average speaker score per prelim round spoken">
                   Spk avg
@@ -395,7 +403,7 @@ function SpeakingTable({
                   Field
                 </Th>
                 <Th title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language.">
-                  Rank
+                  Spk rank
                 </Th>
                 <Th>Result</Th>
                 <Th className="pr-4" aria-label="Report" />
@@ -428,7 +436,9 @@ function SpeakingTable({
                       <div className="text-caption text-ink-soft">{r.myName}</div>
                     </Td>
                     <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                    <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                      {formatAbbrev(r.format) ?? <Nil />}
+                    </Td>
                     <Td numeric className="text-ink-soft">{r.totalTeams ?? <Nil />}</Td>
                     <Td className="max-w-[10rem] truncate" title={r.teamName ?? undefined}>
                       {r.teamName ?? <Nil />}
@@ -465,20 +475,24 @@ function SpeakingTable({
                       )}
                     </Td>
                     <Td className="whitespace-nowrap">{ranks ?? <Nil />}</Td>
+                    {/*
+                      A "Broke" badge next to "Quarterfinals" says the same
+                      thing twice — reaching an outround IS the break — and
+                      the pair was the widest column on the ledger. The gold
+                      badge is what carries the break visually, so the label
+                      moves inside it instead of sitting beside it.
+                    */}
                     <Td className="whitespace-nowrap">
-                      {outround ? (
-                        <span className="flex items-center gap-1.5">
-                          {r.broke ? <Badge variant="gold">Broke</Badge> : null}
-                          <span className="text-ink">{outround}</span>
-                        </span>
-                      ) : r.broke ? (
-                        <Badge variant="gold">Broke</Badge>
+                      {r.broke ? (
+                        <Badge variant="gold">{outround ?? 'Broke'}</Badge>
+                      ) : outround ? (
+                        <span className="text-ink">{outround}</span>
                       ) : (
                         <Nil />
                       )}
                     </Td>
                     <Td className="pr-4">
-                      <ReportCell r={r} />
+                      <ReportCell r={r} compact />
                     </Td>
                   </Tr>
                   {/*
@@ -592,7 +606,9 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     <div className="text-caption text-ink-soft">{r.myName}</div>
                   </Td>
                   <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                  <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                  <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                    {formatAbbrev(r.format) ?? <Nil />}
+                  </Td>
                   <Td numeric className="text-ink-soft">{r.totalTeams ?? <Nil />}</Td>
                   <Td className="whitespace-nowrap text-ink-soft">
                     {r.judgeTypeTag ?? <Nil />}
@@ -613,7 +629,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                   </Td>
                   <Td className="whitespace-nowrap">{r.lastOutroundJudged ?? <Nil />}</Td>
                   <Td className="pr-4">
-                    <ReportCell r={r} />
+                    <ReportCell r={r} compact />
                   </Td>
                 </Tr>
               ))}

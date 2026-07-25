@@ -5,7 +5,6 @@ import { BarChart3, Info } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import { computeCvAnalytics } from '@/lib/cv/computeCvAnalytics';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import type { SpeakerStats } from '@/lib/cv/speakerStats';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -48,14 +47,13 @@ export default async function CvStatsPage() {
 
   const data = await buildCvData(session.user.id);
   const stats = computeSpeakerStats(data);
-  const analytics = computeCvAnalytics(data);
   const { scoreProfile, results, volume, coverage } = stats;
 
   const hasAnything =
     scoreProfile.speeches > 0 ||
     results.decidedRounds > 0 ||
-    analytics.speakerYearTrend.length > 0 ||
-    analytics.judgingYearTrend.length > 0;
+    stats.seasons.length > 0 ||
+    stats.judgingSeasons.length > 0;
 
   return (
     <div className="space-y-8">
@@ -95,7 +93,7 @@ export default async function CvStatsPage() {
           <ResultsSection stats={stats} />
           <Splits stats={stats} />
           <Partners stats={stats} />
-          <SeasonTrends analytics={analytics} />
+          <SeasonTrends seasons={stats.seasons} judging={stats.judgingSeasons} />
           <Coverage coverage={coverage} />
         </div>
       )}
@@ -790,24 +788,25 @@ function Partners({ stats }: { stats: SpeakerStats }) {
 // ── Season trends ─────────────────────────────────────────────────────────
 
 function SeasonTrends({
-  analytics,
+  seasons,
+  judging,
 }: {
-  analytics: ReturnType<typeof computeCvAnalytics>;
+  seasons: SpeakerStats['seasons'];
+  judging: SpeakerStats['judgingSeasons'];
 }) {
-  const avgTrend = analytics.speakerYearTrend
+  const avgTrend = seasons
     .filter((p) => p.avgSpeakerScore != null)
     .map((p) => ({
       label: String(p.year),
       value: p.avgSpeakerScore!,
       sub: `${p.tournaments} ${p.tournaments === 1 ? 'event' : 'events'}`,
     }));
-  const breakBars = analytics.speakerYearTrend.map((p) => ({
+  const breakBars = seasons.map((p) => ({
     label: String(p.year),
     value: p.breakRate,
     display: `${p.breaks}/${p.tournaments} · ${Math.round(p.breakRate * 100)}%`,
     tone: 'gold' as const,
   }));
-  const judging = analytics.judgingYearTrend;
 
   if (avgTrend.length === 0 && breakBars.length === 0 && judging.length === 0) return null;
 

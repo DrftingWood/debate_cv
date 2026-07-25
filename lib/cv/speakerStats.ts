@@ -4,20 +4,29 @@ import type {
   CvTaggedMotion,
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
-import { canonicalPosition } from '@/lib/cv/computeCvAnalytics';
 import { outroundRank } from '@/lib/calicotab/judgeStats';
 
 /**
  * The deep statistics layer for a speaker's record.
  *
- * `computeCvAnalytics` answers "how did the seasons go?" — a handful of
- * top-line slices. This module answers the questions a debater actually
- * argues about after a tournament: am I consistent, do I start slow, is CG
- * really my worst seat, does my average mean anything against the field I
- * was in, and which motion types do I quietly lose on.
+ * This answers the questions a debater actually argues about after a
+ * tournament: am I consistent, do I start slow, is CG really my worst seat,
+ * does my average mean anything against the field I was in, which motion
+ * types do I quietly lose on, and how did the seasons go.
  *
- * Three rules govern everything below, and they are the reason this is a
- * separate module rather than more branches inside the analytics one:
+ * It used to be two modules. `computeCvAnalytics` came first and produced
+ * eight top-line slices; this one was written later and re-derived seven of
+ * them from the same rows with more care (sample counts, baselines, deltas),
+ * so the page ended up computing every split twice and rendering only one
+ * copy. The dead half is gone and the two genuinely distinct outputs — the
+ * per-season speaking and judging trends — moved here, which is why
+ * `seasons` and `judgingSeasons` sit alongside `splits.byYear` despite
+ * keying on the same year. They answer different questions: a split is
+ * per-ROUND (rounds, win rate, mean score), a season is per-TOURNAMENT
+ * (events entered, breaks, best rank), and averaging tournament averages is
+ * not the same number as averaging rounds.
+ *
+ * Three rules govern everything below:
  *
  *  1. **Pure.** Input is the rows `buildCvData` already produced; there are
  *     no queries here. Every figure is reproducible from those rows, which
@@ -209,6 +218,36 @@ export type PartnerSplit = {
   decidedRounds: number;
 };
 
+/**
+ * One competitive season, counted in TOURNAMENTS rather than rounds — the
+ * unit a debater plans a year in ("I did four this year and broke at two").
+ * `splits.byYear` answers the per-round version of the same question.
+ */
+export type SeasonPoint = {
+  year: number;
+  tournaments: number;
+  /**
+   * Mean of the per-tournament speaker averages that year, so a nine-round
+   * major and a five-round local weigh the same. Null when no tournament
+   * that year published an average.
+   */
+  avgSpeakerScore: number | null;
+  breaks: number;
+  /** breaks / tournaments, 0..1. */
+  breakRate: number;
+  /** Best (lowest) open speaker rank achieved that year. */
+  bestSpeakerRank: number | null;
+};
+
+/** The judging counterpart to SeasonPoint. */
+export type JudgingSeasonPoint = {
+  year: number;
+  tournaments: number;
+  inroundsChaired: number;
+  /** Tournaments where the user judged at least one outround. */
+  outroundTournaments: number;
+};
+
 export type Quirk = {
   /** Stable id so the UI can order or suppress specific ones. */
   id: string;
@@ -246,6 +285,8 @@ export type SpeakerStats = {
     byYear: Split[];
     byFieldSize: Split[];
   };
+  seasons: SeasonPoint[];
+  judgingSeasons: JudgingSeasonPoint[];
   partners: PartnerSplit[];
   quirks: Quirk[];
   coverage: {
@@ -396,6 +437,25 @@ const byRoundsDesc = (a: Split, b: Split) => b.rounds - a.rounds || a.key.locale
 
 // Stable bench order for BP, then two-team sides, then anything novel.
 const POSITION_ORDER = ['OG', 'OO', 'CG', 'CO', 'Prop', 'Opp'];
+
+/**
+ * Canonicalize the team-position strings Tabbycat results pages use.
+ * BP installs emit either the abbreviation ("OG") or the spelled-out
+ * column header ("Opening Government"); two-team formats emit a side
+ * column with assorted vocabulary ("Proposition", "Gov", "Affirmative").
+ * Unrecognized labels pass through trimmed so a novel format still
+ * groups consistently rather than vanishing from the slice.
+ */
+export function canonicalPosition(label: string): string {
+  const norm = label.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (norm === 'og' || norm === 'opening government' || norm === '1st proposition') return 'OG';
+  if (norm === 'oo' || norm === 'opening opposition' || norm === '1st opposition') return 'OO';
+  if (norm === 'cg' || norm === 'closing government' || norm === '2nd proposition') return 'CG';
+  if (norm === 'co' || norm === 'closing opposition' || norm === '2nd opposition') return 'CO';
+  if (/^(prop(osition)?|gov(ernment)?|aff(irmative)?)$/.test(norm)) return 'Prop';
+  if (/^(opp(osition)?|neg(ative)?)$/.test(norm)) return 'Opp';
+  return label.trim();
+}
 const byPositionOrder = (a: Split, b: Split) => {
   const ia = POSITION_ORDER.indexOf(a.key);
   const ib = POSITION_ORDER.indexOf(b.key);
@@ -762,6 +822,49 @@ export function computeSpeakerStats(input: {
     byFieldSize: toSplits(byFieldSize, baseline, byFieldSizeOrder),
   };
 
+  // ── Seasons ─────────────────────────────────────────────────────────
+  // Per-tournament, not per-round: see the SeasonPoint doc comment for why
+  // this coexists with splits.byYear. Undated tournaments drop out of both
+  // trends rather than being bucketed into a fake year.
+  const rowsByYear = new Map<number, CvSpeakerRow[]>();
+  for (const r of speakerRows) {
+    if (r.year == null) continue;
+    const list = rowsByYear.get(r.year) ?? [];
+    list.push(r);
+    rowsByYear.set(r.year, list);
+  }
+  const seasons: SeasonPoint[] = [...rowsByYear.entries()]
+    .map(([year, rows]) => {
+      const avgs = rows.map(numericAvg).filter((n): n is number => n != null);
+      const breaks = rows.filter((r) => r.broke).length;
+      const ranks = rows.map((r) => r.speakerRankOpen).filter((n): n is number => n != null);
+      return {
+        year,
+        tournaments: rows.length,
+        avgSpeakerScore: mean(avgs),
+        breaks,
+        breakRate: breaks / rows.length,
+        bestSpeakerRank: ranks.length ? Math.min(...ranks) : null,
+      };
+    })
+    .sort((a, b) => a.year - b.year);
+
+  const judgeRowsByYear = new Map<number, CvJudgeRow[]>();
+  for (const r of judgeRows) {
+    if (r.year == null) continue;
+    const list = judgeRowsByYear.get(r.year) ?? [];
+    list.push(r);
+    judgeRowsByYear.set(r.year, list);
+  }
+  const judgingSeasons: JudgingSeasonPoint[] = [...judgeRowsByYear.entries()]
+    .map(([year, rows]) => ({
+      year,
+      tournaments: rows.length,
+      inroundsChaired: rows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0),
+      outroundTournaments: rows.filter((r) => !!r.lastOutroundJudged).length,
+    }))
+    .sort((a, b) => a.year - b.year);
+
   // ── Volume ──────────────────────────────────────────────────────────
   const years = [...speakerRows, ...judgeRows]
     .map((r) => r.year)
@@ -797,6 +900,8 @@ export function computeSpeakerStats(input: {
     roundDynamics,
     results,
     splits,
+    seasons,
+    judgingSeasons,
     partners,
     coverage: {
       tournaments: speakerRows.length,

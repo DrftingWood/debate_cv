@@ -54,7 +54,7 @@ lib/
   calicotab/                  fetch, parseNav, parseTabs, fingerprint, provenance, personMatch, primaryTeam, judgeStats, breakCategoryResolve, redactedSpeaker, ingest (orchestrator), version (PARSER_VERSION — bump to invalidate cached parses)
   cv/                         buildCvData (rows + motions + per-tournament field summary),
                               speakerStats (the deep statistics engine — pure, sample-size-
-                              carrying), computeCvAnalytics (season slices), computeSpeakerAvg,
+                              carrying; also owns the per-season trends), computeSpeakerAvg,
                               speakerSignals, teamRanks, exportFields
   notifications/write.ts      In-app feed writer (bell icon; no email/push by design)
   sharing/slug.ts             Public CV slug helpers
@@ -155,7 +155,7 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 - [x] ~~Haiku classifier for motion tags~~ — `/admin/tags` "Suggest motion tags" button → `POST /api/admin/tags/classify` (claude-haiku-4-5, structured outputs constrained to the vocabulary); files PENDING proposals, approval stays in the loop. Needs `ANTHROPIC_API_KEY`.
 - [ ] Speaker order within a round (1st vs 2nd speaker) needs per-ballot pages (`/results/round/N/speaker/<token>/`) — deliberately not scraped; revisit only on demand.
 - [ ] Round-level field percentiles (how a single speech placed among all speakers that round) would need every participant's `SpeakerRoundScore`, not just their totals — ~800 speakers × 9 rounds per major. `buildCvData` deliberately fetches totals only; revisit only if someone asks for it.
-- [ ] CSV/XLSX export does not yet carry motions or the field-placement columns. The field registry in `lib/cv/exportFields.ts` is **append-only**, so adding them is safe but must go on the end.
+- [x] ~~CSV/XLSX export carries neither motions nor field placement~~ — six columns appended to `lib/cv/exportFields.ts` (`field_placement`, `field_average`, `field_delta`, `motions`, `motion_types`, `motion_topics`). Accessors now take a second `ExportContext` argument because those are per-tournament facts on sibling `CvData` arrays, not row columns. `/api/cv/export` asks `exportNeedsFieldStats()` before deciding whether to pay for `buildCvData`'s field-summary query. The registry stays **append-only** — new fields go on the end.
 
 ## Out of scope for Superpowers
 

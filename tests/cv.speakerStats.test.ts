@@ -3,6 +3,7 @@ import {
   computeSpeakerStats,
   buildBins,
   deriveQuirks,
+  canonicalPosition,
 } from '@/lib/cv/speakerStats';
 import type { CvFieldStat } from '@/lib/cv/buildCvData';
 import { makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
@@ -606,5 +607,85 @@ describe('deriveQuirks', () => {
       expect(q.basis.length).toBeGreaterThan(0);
       expect(/\d/.test(q.text)).toBe(true);
     }
+  });
+});
+
+// Seasons are the one aggregate counted per TOURNAMENT rather than per
+// round, so they are not a restatement of splits.byYear — a nine-round
+// major and a five-round local contribute one point each.
+describe('computeSpeakerStats — seasons', () => {
+  test('groups tournaments by year with break rate, mean of averages and best rank', () => {
+    const stats = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, year: 2024, speakerAvgScore: '76.0', broke: true, speakerRankOpen: 12 }),
+        makeSpeakerRow({ tournamentId: 2n, year: 2024, speakerAvgScore: '78.0', broke: false, speakerRankOpen: 30 }),
+        makeSpeakerRow({ tournamentId: 3n, year: 2025, speakerAvgScore: null, broke: true }),
+      ],
+      judgeRows: [],
+    });
+
+    expect(stats.seasons).toHaveLength(2);
+    expect(stats.seasons[0]).toMatchObject({
+      year: 2024,
+      tournaments: 2,
+      breaks: 1,
+      bestSpeakerRank: 12,
+    });
+    expect(stats.seasons[0].avgSpeakerScore).toBeCloseTo(77.0);
+    expect(stats.seasons[0].breakRate).toBeCloseTo(0.5);
+
+    // A year with no parsed average still appears; the average is null
+    // rather than the year being dropped.
+    expect(stats.seasons[1]).toMatchObject({ year: 2025, avgSpeakerScore: null, breakRate: 1 });
+  });
+
+  test('undated tournaments are excluded from the trend, not bucketed into a fake year', () => {
+    const stats = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, year: null }),
+        makeSpeakerRow({ tournamentId: 2n, year: 2025 }),
+      ],
+      judgeRows: [],
+    });
+    expect(stats.seasons).toHaveLength(1);
+    expect(stats.coverage.tournaments).toBe(2);
+  });
+
+  test('non-numeric speakerAvgScore strings are ignored, not NaN-poisoned', () => {
+    const stats = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, year: 2025, speakerAvgScore: 'n/a' }),
+        makeSpeakerRow({ tournamentId: 2n, year: 2025, speakerAvgScore: '80.0' }),
+      ],
+      judgeRows: [],
+    });
+    expect(stats.seasons[0].avgSpeakerScore).toBeCloseTo(80.0);
+  });
+
+  test('judging seasons sum chaired inrounds and count tournaments with outrounds', () => {
+    const stats = computeSpeakerStats({
+      speakerRows: [],
+      judgeRows: [
+        makeJudgeRow({ tournamentId: 1n, year: 2025, inroundsChaired: 4, lastOutroundJudged: 'Semifinals' }),
+        makeJudgeRow({ tournamentId: 2n, year: 2025, inroundsChaired: 2, lastOutroundJudged: null }),
+        makeJudgeRow({ tournamentId: 3n, year: 2023, inroundsChaired: null }),
+      ],
+    });
+    expect(stats.judgingSeasons).toEqual([
+      { year: 2023, tournaments: 1, inroundsChaired: 0, outroundTournaments: 0 },
+      { year: 2025, tournaments: 2, inroundsChaired: 6, outroundTournaments: 1 },
+    ]);
+  });
+});
+
+describe('canonicalPosition', () => {
+  test('maps every vocabulary Tabbycat emits and passes unknowns through', () => {
+    expect(canonicalPosition('Opening Government')).toBe('OG');
+    expect(canonicalPosition('og')).toBe('OG');
+    expect(canonicalPosition('1st Proposition')).toBe('OG');
+    expect(canonicalPosition('Closing  Opposition')).toBe('CO');
+    expect(canonicalPosition('Affirmative')).toBe('Prop');
+    expect(canonicalPosition('Neg')).toBe('Opp');
+    expect(canonicalPosition('Bench 3')).toBe('Bench 3');
   });
 });

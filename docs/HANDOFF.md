@@ -62,10 +62,8 @@ maps to a display branch. Setup is documented in `CLAUDE.md`.
 
 ### Still open
 
-- `computeCvAnalytics` and `computeSpeakerStats` compute overlapping slices
-  in different shapes; `/cv/stats` calls both. Worth collapsing.
-- The speaking ledger is 13 columns and scrolls horizontally at 1440px.
-- CSV/XLSX export still carries neither motions nor field placement.
+- The speaking ledger still scrolls horizontally below ~1320px (it fits at
+  1440 now). Mobile gets cards, so this only bites 13" laptops.
 
 ---
 
@@ -108,7 +106,7 @@ maps to a display branch. Setup is documented in `CLAUDE.md`.
 
 | Area | What exists now | Key files |
 |---|---|---|
-| Analytics | `/cv/analytics`: speaker avg by year, round-by-round profile, break record, by-position, by-format, by-region, by-motion (type + topic), judging trend. Pure aggregation over `buildCvData` rows; coverage notes on thin samples; hand-rolled SVG charts (no chart lib). | `lib/cv/computeCvAnalytics.ts`, `components/ui/TrendChart.tsx`, `components/ui/BarList.tsx` |
+| Analytics | `/cv/stats` (`/cv/analytics` permanently redirects there): speaker avg by season, round-by-round profile, break record, by-seat, by-format, by-region, by-motion (type + topic), judging trend. Pure aggregation over `buildCvData` rows; coverage notes on thin samples; hand-rolled SVG charts (no chart lib). `computeCvAnalytics` was deleted 2026-07-25 — it duplicated seven of `computeSpeakerStats`'s splits in a weaker shape and the page rendered only the two season trends, which now live on `stats.seasons` / `stats.judgingSeasons`. | `lib/cv/speakerStats.ts`, `components/ui/TrendChart.tsx`, `components/ui/BarList.tsx` |
 | Configurable export | `GET /api/cv/export?format=csv\|xlsx&fields=...` driven by one field registry; "Export" picker popover on `/cv` with localStorage prefs; XLSX via exceljs (one sheet per role). Bare GET = legacy CSV. **Column order is append-only.** | `lib/cv/exportFields.ts`, `components/CvExportButton.tsx` |
 | Parser expansion | Motions tab scraped (3 markup generations), per-round team positions persisted (`TeamResult.position` — was parsed-and-discarded before), gzipped raw HTML retained (`SourceDocument.bodyGzip`, 5MB raw cap) so future fields can re-derive from storage. `PARSER_VERSION = '20260611.0'`. | `lib/calicotab/parseMotions.ts`, `ingest.ts`, `fetch.ts`, `version.ts` |
 | Moderated tags | Fixed vocabularies: REGIONS; MOTION_TYPES (stems THBT/THW/THS/THO/THR/THP/Other); MOTION_TOPICS (14 subject areas). Users propose at `/cv/tags` (only for tournaments on their CV), admins review at `/admin/tags`; **only approval writes canonical columns** (`Tournament.region`, `Motion.motionType/topic`). `TagProposal` = queue + audit trail; one live proposal per (user, kind, target). | `lib/tags/vocabulary.ts`, `app/api/tags/propose/`, `app/api/admin/tag-proposals/`, `components/TagProposalControls.tsx`, `components/AdminTagProposals.tsx` |

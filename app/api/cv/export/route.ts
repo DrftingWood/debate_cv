@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import {
   buildExportCsv,
   buildExportSheets,
+  exportNeedsFieldStats,
   resolveExportFields,
 } from '@/lib/cv/exportFields';
 
@@ -37,6 +39,8 @@ export async function GET(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('cv:export', session.user.id);
+  if (limited) return limited;
 
   const url = new URL(req.url);
   const parsed = querySchema.safeParse({
@@ -55,11 +59,14 @@ export async function GET(req: Request) {
     );
   }
 
-  // No field stats: the export field registry (lib/cv/exportFields.ts) is
-  // built from CvSpeakerRow / CvJudgeRow only, so paying for buildCvData's
-  // heaviest query here would be pure waste. Revisit if placement columns
-  // are ever appended to the registry.
-  const data = await buildCvData(session.user.id, { includeFieldStats: false });
+  // The field summary is buildCvData's most expensive query — it reads
+  // every speaker published at every tournament on the CV — so it is paid
+  // for only when the caller actually selected a placement column. A bare
+  // GET selects the whole registry, placement columns included, and does
+  // pay for it.
+  const data = await buildCvData(session.user.id, {
+    includeFieldStats: exportNeedsFieldStats(fields),
+  });
   const stamp = new Date().toISOString().slice(0, 10);
 
   if (parsed.data.format === 'xlsx') {

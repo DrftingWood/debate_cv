@@ -5,8 +5,9 @@ import {
   resolveExportFields,
   buildExportCsv,
   buildExportSheets,
+  exportNeedsFieldStats,
 } from '@/lib/cv/exportFields';
-import { makeCvData, makeSpeakerRow, makeJudgeRow } from './setup/cv-fixtures';
+import { makeCvData, makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 
 describe('resolveExportFields', () => {
   test('null/empty selects the full registry in order', () => {
@@ -55,6 +56,12 @@ describe('buildExportCsv', () => {
         'last_outround_chaired',
         'last_outround_judged',
         'region',
+        'field_placement',
+        'field_average',
+        'field_delta',
+        'motions',
+        'motion_types',
+        'motion_topics',
       ].join(','),
     );
   });
@@ -146,5 +153,89 @@ describe('registry invariants', () => {
     for (const f of EXPORT_FIELDS) {
       expect(Boolean(f.speaker || f.judge)).toBe(true);
     }
+  });
+});
+
+// Field placement and motions are per-TOURNAMENT facts on sibling arrays,
+// not row columns, so these exercise the ExportContext join rather than a
+// plain accessor.
+describe('export context columns', () => {
+  const rows = [
+    makeSpeakerRow({
+      tournamentId: 1n,
+      tournamentName: 'Mumbai Open',
+      speakerAvgScore: '77.5',
+      roundScores: [
+        { roundNumber: 1, positionLabel: null, score: 77 },
+        { roundNumber: 2, positionLabel: null, score: 78 },
+      ],
+      teamRoundResults: [
+        { roundNumber: 1, position: 'OG', won: true, points: 3 },
+        { roundNumber: 2, position: 'CO', won: false, points: 1 },
+      ],
+    }),
+  ];
+
+  test('placement, field average and signed delta come from the field summary', () => {
+    const data = makeCvData({
+      speakerRows: rows,
+      fieldStats: [
+        {
+          tournamentId: 1n,
+          speakerCount: 91,
+          fieldMeanAvg: 73.14,
+          fieldStdevAvg: 2.4,
+          fieldMedianAvg: 73,
+          fieldP90Avg: 77,
+          betterThanUser: 8,
+          userScoredRounds: 5,
+          prelimRoundCount: 5,
+        },
+      ],
+    });
+    const { fields } = resolveExportFields(['field_placement', 'field_average', 'field_delta']);
+    const lines = buildExportCsv(data, fields).trimEnd().split('\n');
+    // betterThanUser is a count of speakers ABOVE, so the rank is +1.
+    expect(lines[1]).toBe('speaker,9/91,73.1,+4.4');
+  });
+
+  test('a tournament with no field summary exports blanks, not zeroes', () => {
+    const { fields } = resolveExportFields(['field_placement', 'field_average', 'field_delta']);
+    const lines = buildExportCsv(makeCvData({ speakerRows: rows }), fields).trimEnd().split('\n');
+    expect(lines[1]).toBe('speaker,,,');
+  });
+
+  test('motions cover only the rounds the user actually debated', () => {
+    const data = makeCvData({
+      speakerRows: rows,
+      taggedMotions: [
+        makeMotion({ tournamentId: 1n, roundNumber: 2, seq: 1, text: 'THW b', motionType: 'THW', topic: 'Law' }),
+        makeMotion({ tournamentId: 1n, roundNumber: 1, seq: 0, text: 'THW a', motionType: 'THW', topic: 'Economics' }),
+        // Round 4 was never debated by this user; round 9's motion belongs
+        // to a different tournament entirely.
+        makeMotion({ tournamentId: 1n, roundNumber: 4, seq: 0, text: 'THO c', motionType: 'THO', topic: 'Health' }),
+        makeMotion({ tournamentId: 2n, roundNumber: 1, seq: 0, text: 'THR d', motionType: 'THR', topic: 'Health' }),
+      ],
+    });
+    const { fields } = resolveExportFields(['motions', 'motion_types', 'motion_topics']);
+    const lines = buildExportCsv(data, fields).trimEnd().split('\n');
+    const cell = lines[1];
+    expect(cell).toContain('THW a');
+    expect(cell).toContain('THW b');
+    expect(cell).not.toContain('THO c');
+    expect(cell).not.toContain('THR d');
+    // Sorted by round number even though the fixture listed round 2 first.
+    expect(cell.indexOf('THW a')).toBeLessThan(cell.indexOf('THW b'));
+    // Types dedupe; topics keep both distinct values in round order.
+    expect(cell).toContain('THW');
+    expect(cell.endsWith('Economics | Law')).toBe(true);
+  });
+
+  test('only placement columns force the expensive field-summary query', () => {
+    expect(exportNeedsFieldStats(resolveExportFields(['field_placement']).fields)).toBe(true);
+    expect(exportNeedsFieldStats(resolveExportFields(['field_delta']).fields)).toBe(true);
+    expect(exportNeedsFieldStats(resolveExportFields(['motions', 'tournament']).fields)).toBe(false);
+    // A bare GET selects everything, so it does pay for it.
+    expect(exportNeedsFieldStats(EXPORT_FIELDS)).toBe(true);
   });
 });
