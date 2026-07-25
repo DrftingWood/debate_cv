@@ -29,7 +29,7 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
           <div className="data-label">Compiled by debate cv</div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-paper px-3 py-1.5 text-table font-medium text-ink hover:bg-surface-2"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-border bg-paper px-3.5 text-table font-medium text-ink hover:bg-surface-2"
           >
             Build your own →
           </Link>

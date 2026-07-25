@@ -25,7 +25,7 @@ export function CvSubNav({ active }: { active: CvTab }) {
     <nav
       aria-label="CV sections"
       data-print-hide="true"
-      className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 sm:mx-0 sm:px-0"
+      className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] sm:mx-0 sm:px-0 sm:[mask-image:none]"
     >
       <div className="inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1">
         {TABS.map((tab) => (
@@ -34,7 +34,7 @@ export function CvSubNav({ active }: { active: CvTab }) {
             href={tab.href}
             aria-current={tab.key === active ? 'page' : undefined}
             className={cn(
-              'rounded-md px-3 py-1.5 text-table font-medium transition-colors',
+              'inline-flex items-center rounded-md px-3 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
               tab.key === active
                 ? 'bg-card text-ink shadow-xs'
                 : 'text-ink-soft hover:text-ink',

@@ -66,7 +66,7 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn('flex items-end justify-between gap-4 pb-2', className)}>
+    <div className={cn('flex flex-wrap items-end justify-between gap-x-4 gap-y-1 pb-2', className)}>
       <div className="min-w-0">
         {label ? <div className="data-label">{label}</div> : null}
         {title ? (
@@ -75,7 +75,7 @@ export function SectionHeader({
           </h2>
         ) : null}
       </div>
-      {meta ? <div className="shrink-0 text-caption text-ink-soft">{meta}</div> : null}
+      {meta ? <div className="min-w-0 text-caption text-ink-soft sm:shrink-0">{meta}</div> : null}
     </div>
   );
 }

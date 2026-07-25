@@ -36,7 +36,7 @@ export function NavLink({
       className={cn(
         // min-h-[44px]: these were 21px tall — the app's primary navigation,
         // on every page, below the 24x24 WCAG 2.2 AA floor.
-        'inline-flex min-h-[44px] items-center rounded-md px-2.5 transition-colors duration-150 ease-soft',
+        'inline-flex items-center rounded-md px-2.5 py-1.5 transition-colors duration-150 ease-soft coarse:min-h-[44px] coarse:py-0',
         isActive ? 'bg-surface-2 text-ink' : 'text-ink-soft hover:bg-surface-2 hover:text-ink',
         className,
       )}

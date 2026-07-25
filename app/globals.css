@@ -172,6 +172,121 @@
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
     font-feature-settings: 'ss01', 'cv11', 'tnum';
+    /*
+     * The layout asks for `min-h-screen` (100vh). On a phone browser 100vh
+     * is measured against the viewport with the URL bar RETRACTED, so it is
+     * always taller than what you can actually see — the footer sits below
+     * the fold on a page that should exactly fill the screen, and the page
+     * resizes as the bar hides and shows. `100dvh` is the visible height.
+     * Declared after the utility so it wins, and guarded by @supports so
+     * browsers without dvh keep the 100vh fallback.
+     */
+    min-height: 100vh;
+  }
+  @supports (min-height: 100dvh) {
+    body {
+      min-height: 100dvh;
+    }
+  }
+
+  /*
+   * `viewportFit: 'cover'` in app/layout.tsx lets the page paint into the
+   * notch and home-indicator areas — which is what you want for the
+   * background, and wrong for everything else. Nothing in the app declared
+   * a single safe-area inset, so on any notched phone the sticky header ran
+   * under the status bar and the footer under the home indicator.
+   *
+   * The insets are 0 on every device without a cutout, so this costs
+   * nothing elsewhere.
+   */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /*
+   * iOS Safari zooms the entire page when a form control smaller than 16px
+   * takes focus, and does not zoom back out afterwards — the user is left
+   * on a magnified, sideways-scrolling page. Every field in the product was
+   * 13.5px or 14px, which is 940 measured instances across the tag pickers,
+   * the share-slug field and the delete-account confirmation.
+   *
+   * `!important` is deliberate: the size has to beat the `text-table` /
+   * `text-ui` utility on each call site, and this is a platform-behaviour
+   * guard rather than a style choice. Individual components still declare
+   * `md:text-*` so the dense desktop sizing is unchanged.
+   */
+  @media (max-width: 767px), (pointer: coarse) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /*
+   * Touch sizing keyed on the POINTER, not the width.
+   *
+   * Every `md:` breakpoint in the app is a width query, so a phone held in
+   * landscape (844x390) is "desktop" by that measure and was handed back
+   * the dense 32px controls and the 13.5px fields it had just been spared
+   * in portrait. Rotating the device is not a change of input device.
+   *
+   * `pointer: coarse` asks the real question. Scoped to the controls that
+   * were actually under the 44px floor, so it does not inflate the whole
+   * interface on a touchscreen laptop.
+   */
+  @media (pointer: coarse) {
+    /*
+     * Kept as its own rule per selector group on purpose: one invalid
+     * selector invalidates an entire comma-separated list, and an earlier
+     * version used `a[href]:not(:where(p, li) a)` here, which silently
+     * dropped the button and select rules with it.
+     */
+    button,
+    [role='button'] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    select {
+      min-height: 44px;
+    }
+    summary {
+      min-height: 44px;
+    }
+    /*
+     * Navigation and header links. Deliberately NOT `a[href]` in general —
+     * that would inflate every inline link inside a paragraph, which the
+     * target-size guidance exempts anyway. These are the standalone
+     * destinations: the section strips, the sub-nav pills and the brand.
+     *
+     * min-height ONLY. An earlier version also forced `display: inline-flex`
+     * here, which would have broken the settings sidebar on a touch tablet:
+     * those links are `block` so they fill the column, and inline-flex would
+     * have collapsed each one to its text width. The links that need to
+     * centre their label already declare inline-flex themselves.
+     */
+    nav a,
+    header a {
+      min-height: 44px;
+    }
+  }
+
+  /*
+   * Tap feedback. `-webkit-tap-highlight-color: transparent` above removes
+   * the platform's grey flash, which is the right call visually — but
+   * nothing replaced it, so a tap on a button on a phone produced no
+   * acknowledgement at all until the next screen painted. On a slow
+   * connection that reads as "the tap didn't register" and gets tapped
+   * again. Hover styles do not fire on touch; :active does.
+   */
+  @media (hover: none) {
+    a:active,
+    button:active,
+    summary:active,
+    [role='button']:active {
+      opacity: 0.7;
+    }
   }
 
   /*
@@ -227,8 +342,11 @@
 
   .skip-link {
     position: absolute;
-    top: -40px;
+    top: -60px;
     left: 0;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     padding: 0.5rem 1rem;
     background: hsl(var(--foreground));
     color: hsl(var(--background));

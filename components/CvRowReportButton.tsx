@@ -220,7 +220,7 @@ export function CvRowReportButton({
                   rows={3}
                   maxLength={4000}
                   placeholder="Add detail — what did you expect to see, what's actually shown?"
-                  className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-table text-ink shadow-xs outline-none transition-colors placeholder:text-ink-soft focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-base text-ink shadow-xs md:text-table outline-none transition-colors placeholder:text-ink-soft focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
               <div className="flex items-center justify-end gap-2">

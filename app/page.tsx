@@ -76,7 +76,7 @@ async function SignInLink() {
 
 function LandingMasthead() {
   return (
-    <header className="flex items-center justify-between gap-4 py-5 md:py-6">
+    <header className="flex items-center justify-between gap-3 py-5 md:py-6">
       <Link href="/" aria-label="debate cv home">
         <BrandMark />
       </Link>
@@ -87,8 +87,12 @@ function LandingMasthead() {
         just wants their record. Sign in is now where a returning user looks
         for it, and it is the same Google flow the hero button runs.
       */}
-      <nav className="flex items-center gap-4 text-table font-medium text-ink-soft sm:gap-6">
-        <Link href="/sample" className="py-2 hover:text-ink">Sample CV</Link>
+      <nav className="flex items-center gap-3 whitespace-nowrap text-table font-medium text-ink-soft sm:gap-6">
+        {/* Below sm there is room for Privacy + Sign in and nothing else;
+            the sample has its own full-width button in the hero, and the
+            anchors are reachable by scrolling. Crammed in, all four wrapped
+            onto two lines each at 320px. */}
+        <Link href="/sample" className="hidden py-2 hover:text-ink sm:inline">Sample CV</Link>
         <a href="#stats" className="hidden py-2 hover:text-ink sm:inline">Statistics</a>
         <a href="#privacy" className="py-2 hover:text-ink">Privacy</a>
         <SignInLink />

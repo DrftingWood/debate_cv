@@ -1,5 +1,6 @@
 import type { Config } from 'tailwindcss';
 import typography from '@tailwindcss/typography';
+import plugin from 'tailwindcss/plugin';
 
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
@@ -139,14 +140,23 @@ const config: Config = {
         body: ['15px', { lineHeight: '1.6' }],
         'body-serif': ['16px', { lineHeight: '1.6' }],
         h4: ['17px', { lineHeight: '1.35', letterSpacing: '-0.006em' }],
-        h3: ['21px', { lineHeight: '1.3', letterSpacing: '-0.012em' }],
-        stat: ['26px', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-        'figure-sm': ['20px', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-        'figure-md': ['28px', { lineHeight: '1.05', letterSpacing: '-0.025em' }],
-        'figure-lg': ['40px', { lineHeight: '1', letterSpacing: '-0.03em' }],
-        h2: ['32px', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
-        h1: ['44px', { lineHeight: '1.08', letterSpacing: '-0.024em' }],
-        display: ['60px', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
+        // ── Fluid from here up ────────────────────────────────────────────
+        // These were fixed desktop sizes used on 29 call sites with no
+        // mobile step: `text-h1` put a 44px headline on a 320px screen,
+        // where "Your debate history, kept like an account" ran to four
+        // lines and ~340px before any content. clamp() makes the scale
+        // mobile-first by construction — the small end is the phone size,
+        // the large end is exactly what desktop rendered before, so no
+        // desktop layout moves. Two call sites still step h1 → display at
+        // md and keep working.
+        h3: ['clamp(19px, 1rem + 0.6vw, 21px)', { lineHeight: '1.3', letterSpacing: '-0.012em' }],
+        stat: ['clamp(22px, 1rem + 1.6vw, 26px)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'figure-sm': ['clamp(18px, 1rem + 0.7vw, 20px)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'figure-md': ['clamp(23px, 1rem + 2vw, 28px)', { lineHeight: '1.05', letterSpacing: '-0.025em' }],
+        'figure-lg': ['clamp(30px, 1rem + 4vw, 40px)', { lineHeight: '1', letterSpacing: '-0.03em' }],
+        h2: ['clamp(24px, 1rem + 2.6vw, 32px)', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
+        h1: ['clamp(30px, 1rem + 4.6vw, 44px)', { lineHeight: '1.08', letterSpacing: '-0.024em' }],
+        display: ['clamp(34px, 1rem + 7vw, 60px)', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -185,7 +195,23 @@ const config: Config = {
       },
     },
   },
-  plugins: [typography],
+  plugins: [
+    typography,
+    /*
+     * `coarse:` — a media query on the POINTER rather than the viewport.
+     *
+     * Every other responsive prefix here is a width query, which quietly
+     * assumes width predicts input device. It does not: a phone in
+     * landscape is 844px wide and still operated by a thumb, so it was
+     * being handed the dense 32px desktop controls. Touch sizing keys off
+     * `coarse:`; visual density keys off `md:`. They are different
+     * questions and now have different answers.
+     */
+    plugin(({ addVariant }) => {
+      addVariant('coarse', '@media (pointer: coarse)');
+      addVariant('fine', '@media (pointer: fine)');
+    }),
+  ],
 };
 
 export default config;

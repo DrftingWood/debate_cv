@@ -3,7 +3,7 @@ import { BrandMark } from './BrandMark';
 
 export function Footer() {
   return (
-    <footer className="mt-24">
+    <footer className="mt-24 pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto max-w-6xl px-5">
         <hr className="hairline" />
         <div className="flex flex-col gap-4 py-8 text-table text-ink-soft sm:flex-row sm:items-center sm:justify-between">
@@ -24,17 +24,17 @@ export function Footer() {
             aria-label="Site links"
             className="-my-2 flex flex-wrap items-center gap-x-6 gap-y-1"
           >
-            <Link href="/privacy" className="inline-flex min-h-[44px] items-center hover:text-ink">
+            <Link href="/privacy" className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start">
               Privacy
             </Link>
-            <Link href="/terms" className="inline-flex min-h-[44px] items-center hover:text-ink">
+            <Link href="/terms" className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start">
               Terms
             </Link>
             <a
               href="https://github.com/DrftingWood/debate_cv"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center hover:text-ink"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start"
             >
               GitHub
             </a>

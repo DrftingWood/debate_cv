@@ -29,7 +29,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
+      {/*
+        Sticky only from md up.
+
+        On a phone the header is two stacked rows — brand/account, then the
+        section strip — and pinning both cost 118px, 21% of a 390x844
+        viewport and 30% in landscape, permanently, on every page. A record
+        page is something you scroll and read; giving a fifth of the screen
+        to chrome that repeats what the page already says is the wrong
+        trade. The strip scrolls away with the page and comes back with an
+        upward flick, which is the platform-native behaviour anyway.
+        `top-[env(safe-area-inset-top)]` keeps the pinned desktop header
+        clear of a notch when the browser is in landscape.
+      */}
+      <header className="z-40 border-b border-border bg-background/90 backdrop-blur-md md:sticky md:top-0">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-5 py-3">
           <Link href={logoHref} className="inline-flex shrink-0 items-center">
             <BrandMark />
@@ -70,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         */}
         <nav
           aria-label="Sections"
-          className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1.5 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
+          className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
         >
           <NavLink href="/cv" exact>Record</NavLink>
           <NavLink href="/cv/stats">Statistics</NavLink>

@@ -155,7 +155,7 @@ export function SharingManager() {
               href={fullUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
               aria-label="Open public CV in new tab"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -168,7 +168,7 @@ export function SharingManager() {
             >
               Custom slug (optional)
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-caption text-ink-soft">/u/</span>
               <input
                 id="custom-slug"
@@ -177,7 +177,7 @@ export function SharingManager() {
                 onChange={(e) => setCustomSlugInput(e.currentTarget.value)}
                 maxLength={30}
                 placeholder="your-name"
-                className="flex-1 rounded-md border border-border bg-paper px-3 py-1.5 font-mono text-table text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="flex-1 rounded-md border border-border bg-paper px-3 py-2.5 font-mono text-base text-ink md:py-1.5 md:text-table outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               <Button
                 type="button"

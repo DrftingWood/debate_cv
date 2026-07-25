@@ -40,12 +40,26 @@ const variants: Record<Variant, string> = {
     'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
 };
 
-// Denser than the previous scale — a statement UI packs controls tightly
-// alongside tables rather than giving each one a generous landing pad.
+/*
+ * Touch-first, dense at md+.
+ *
+ * The scale used to be the dense one at every width, so on a phone `sm`
+ * was a 32px-tall target and `md` 40px — both under the 44px the platform
+ * guidelines ask for, on 1,969 measured instances across the app. The
+ * "Propose" button on /cv/tags (32px) and the per-row "Report" (32px) were
+ * the worst, because those pages are mostly made of them.
+ *
+ * A statement UI genuinely does want tight controls beside a table, so the
+ * dense values stay as the base and `coarse:` (a pointer media query, see
+ * tailwind.config.ts) overrides them wherever the input device is a finger.
+ * A width breakpoint would have missed a phone in landscape, which is
+ * 844px wide and still driven by a thumb. `min-h` rather than `h` so a
+ * button that wraps its label on a narrow screen grows instead of clipping.
+ */
 const sizes: Record<Size, string> = {
-  sm: 'text-table h-8 px-3',
-  md: 'text-ui h-10 px-3.5',
-  lg: 'text-body h-11 px-5',
+  sm: 'text-table h-8 px-3 coarse:h-auto coarse:min-h-[44px] coarse:px-3.5',
+  md: 'text-ui h-10 px-3.5 coarse:h-auto coarse:min-h-[44px] coarse:px-4',
+  lg: 'text-body h-11 px-5 coarse:h-auto coarse:min-h-[48px]',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

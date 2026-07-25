@@ -215,6 +215,22 @@ export default async function CvPage() {
                 motionsByRound={motionsByRound}
                 fieldByTournament={fieldByTournament}
               />
+              {/*
+                The abbreviated column headers explain themselves through
+                `title`, which needs a hover. A tablet gets this same desktop
+                table and has no pointer, so the explanation was unreachable
+                on exactly the devices that most need it. Visible on the
+                table breakpoint only — the mobile cards spell the labels out
+                in full already.
+              */}
+              <p className="hidden text-caption text-ink-soft md:block">
+                <span className="font-medium text-ink">Spk avg</span> is your speaker score per
+                prelim round. <span className="font-medium text-ink">Field</span> is where that
+                average placed among every speaker on the tab.{' '}
+                <span className="font-medium text-ink">Spk rank</span> is the tab&rsquo;s own rank
+                within each break category — Open, ESL (English as Second Language) and EFL
+                (English as Foreign Language).
+              </p>
             </section>
           ) : null}
 

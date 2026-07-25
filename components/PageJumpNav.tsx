@@ -105,7 +105,9 @@ export function PageJumpNav({
         aria-label="Back to top"
         data-print-hide="true"
         className={cn(
-          'fixed bottom-5 right-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-ink shadow-md transition-opacity hover:bg-surface-2',
+          'fixed right-5 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-ink shadow-md transition-opacity hover:bg-surface-2 md:h-11 md:w-11',
+          // Clear of the home indicator on a notched phone.
+          'bottom-[calc(1.25rem+env(safe-area-inset-bottom))]',
           showTop ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       >

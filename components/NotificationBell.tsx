@@ -102,7 +102,7 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-haspopup="true"
         aria-expanded={open}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
       >
         <Bell className="h-4 w-4" aria-hidden />
         {unreadCount > 0 ? (

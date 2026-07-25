@@ -103,7 +103,7 @@ export function TagProposalControls({
           onChange={(e) => setSelected(e.target.value)}
           disabled={!!approvedValue || isPending}
           className={
-            'h-9 min-w-0 flex-1 rounded-md border border-border bg-paper px-2.5 text-table text-ink ' +
+            'h-9 min-w-0 flex-1 rounded-md border border-border bg-paper px-2.5 text-table text-ink coarse:h-auto coarse:min-h-[44px] ' +
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 ' +
             'disabled:opacity-50 disabled:cursor-not-allowed'
           }

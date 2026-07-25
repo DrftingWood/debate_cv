@@ -158,7 +158,7 @@ export function CvShareButton() {
                   href={fullUrl ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md p-1.5 text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
                   aria-label="Open public CV in new tab"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
