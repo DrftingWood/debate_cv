@@ -116,6 +116,13 @@ export function resetPrismaMock() {
     }
     return undefined;
   });
+  // Raw reads default to an empty result set rather than `undefined`. The
+  // real client always resolves an array, and callers iterate the result
+  // directly — a bare mockReset() made every raw query return undefined and
+  // blew up at the for-of, which is a property of the mock, not of the code
+  // under test.
+  prismaMock.$queryRaw.mockResolvedValue([]);
+  prismaMock.$executeRaw.mockResolvedValue(0);
 }
 
 // ── request helpers ─────────────────────────────────────────────────

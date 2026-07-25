@@ -9,6 +9,16 @@ import { SectionHeader } from '@/components/ui/Card';
  * unchanged — only the presentation moved from editorial career notes to
  * the ledger register.
  */
+/**
+ * "Hart House IV 2023" + year → "Hart House IV 2023", not
+ * "Hart House IV 2023 2023". Most tournaments put the year in their own
+ * name, so appending it unconditionally stuttered on nearly every row.
+ */
+function withYear(name: string, year: number | null): string {
+  if (year == null) return name;
+  return new RegExp(`\\b${year}\\b`).test(name) ? name : `${name} ${year}`;
+}
+
 export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   const {
     championships,
@@ -32,7 +42,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Championships',
       title: `Won ${championships.length} ${championships.length === 1 ? 'title' : 'titles'}`,
-      items: championships.map((c) => `${c.tournamentName}${c.year ? ` ${c.year}` : ''}`),
+      items: championships.map((c) => withYear(c.tournamentName, c.year)),
       icon: <Trophy className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });
@@ -42,7 +52,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Deepest breaks',
       title: `Top-10% break × ${topBreaks.length}`,
       items: topBreaks.map(
-        (b) => `#${b.rank} of ${b.totalTeams} · ${b.tournamentName}${b.year ? ` ${b.year}` : ''}`,
+        (b) => `#${b.rank} of ${b.totalTeams} · ${withYear(b.tournamentName, b.year)}`,
       ),
       icon: <Mic className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
@@ -53,7 +63,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Best speaker rank',
       title: `#${bestSpeakerRank.rank}`,
       items: [
-        `${bestSpeakerRank.tournamentName}${bestSpeakerRank.year ? ` ${bestSpeakerRank.year}` : ''}`,
+        withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year),
       ],
       icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
@@ -63,7 +73,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Peak average',
       title: bestSpeakerAverage.score.toFixed(1),
       items: [
-        `${bestSpeakerAverage.tournamentName}${bestSpeakerAverage.year ? ` ${bestSpeakerAverage.year}` : ''}`,
+        withYear(bestSpeakerAverage.tournamentName, bestSpeakerAverage.year),
       ],
       icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
@@ -88,7 +98,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Major circuit',
       title: `${majorEvents.length} ${majorEvents.length === 1 ? 'major' : 'majors'}`,
-      items: majorEvents.map((m) => `${m.tournamentName}${m.year ? ` ${m.year}` : ''}`),
+      items: majorEvents.map((m) => withYear(m.tournamentName, m.year)),
       icon: <Globe className="h-3.5 w-3.5" aria-hidden />,
     });
   }

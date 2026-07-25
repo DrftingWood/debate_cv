@@ -33,7 +33,16 @@ WHERE a."userId" = b."userId"
 -- 2. Drop the orphan column. NULL for every row (Prisma never wrote it).
 ALTER TABLE "GmailToken" DROP COLUMN IF EXISTS "email";
 
--- 3. Restore the unique constraint. Name matches Prisma's default
+-- 3. Restore the uniqueness guarantee. Name matches Prisma's default
 --    generator output (`<Model>_<field>_key`) so a later
 --    `prisma migrate diff` against the repo schema sees a clean state.
-ALTER TABLE "GmailToken" ADD CONSTRAINT "GmailToken_userId_key" UNIQUE ("userId");
+--
+--    Guarded, and expressed as an INDEX rather than a constraint. The
+--    unguarded `ALTER TABLE ... ADD CONSTRAINT` this replaces only worked
+--    on production, where the orphan 20260512000000_multi_gmail_tokens
+--    migration (applied to prod, never in this repo) had dropped the
+--    original index first. On a FRESH database that orphan never runs, the
+--    index from 20260424120000_init is still present, and adding a
+--    same-named constraint raises 42P07 — aborting `prisma migrate deploy`
+--    partway through and leaving the new database unusable.
+CREATE UNIQUE INDEX IF NOT EXISTS "GmailToken_userId_key" ON "GmailToken"("userId");

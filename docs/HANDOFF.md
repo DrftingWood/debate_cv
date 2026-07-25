@@ -2,6 +2,73 @@
 
 ---
 
+## 2026-07-25 (later) — Seeded local data; migrations fixed; review items closed
+
+**Branch:** merged to `main`. **Tests:** 658 passing (was 636).
+
+### The project could not bootstrap a new database
+
+`prisma migrate deploy` failed on any fresh database, and had done since
+2026-05. Two "idempotent cleanup" migrations were only idempotent against the
+exact production state they were written for:
+
+- `20260428200000_person_disambiguation_cleanup` caught `duplicate_object`
+  when adding a UNIQUE constraint. `ADD CONSTRAINT ... UNIQUE` builds an
+  index, so the collision raises `duplicate_table` (42P07) — a code the
+  handler never sees. It also added a *constraint* where `init` had created
+  an *index*.
+- `20260524130000_restore_gmailtoken_constraints` added
+  `GmailToken_userId_key` unguarded, assuming an orphan migration (applied to
+  prod, absent from this repo) had dropped it first.
+
+Both now use `CREATE UNIQUE INDEX IF NOT EXISTS`, which no-ops on production
+and restores the index on a fresh database. **Verified safe for prod:**
+`migrate deploy` does not re-verify checksums of already-applied migrations
+(tested), so editing them cannot trigger a re-run. This unblocks new Vercel
+preview databases, local dev, and restore-from-schema.
+
+### Local data (`npm run seed:dev`)
+
+`scripts/seed-dev-data.mjs` seeds 14 tournaments, ~1,300 people, full speaker
+fields, per-round scores, team results, 110 motions and a signed-in session
+token. Deterministic (fixed-seed LCG), refuses to run off localhost. The
+dataset is deliberately awkward — see the header comment; every edge case
+maps to a display branch. Setup is documented in `CLAUDE.md`.
+
+### What rendering against it exposed (all fixed)
+
+| Defect | Detail |
+|---|---|
+| Percentile chart plotted on a −4…104 axis | A bounded series was auto-fitting its domain. `TrendChart` now takes `domain`. |
+| 11 x-axis labels overlapped into a smear | Labels thin past 8 points; the percentile chart labels by year. |
+| Baseline label overprinted a data point | Now placed at whichever end has the most clearance, on the far side of that end's point. |
+| Self-contradictory field row: "+3.4 above the field mean, placed 89th of 89" | A partial draw. Placement ranks on TOTAL score so a missed round sinks it while the average is untouched. `CvFieldStat` now carries `userScoredRounds`/`prelimRoundCount`; such rows are flagged in the UI and excluded from the career aggregates. |
+| Field figures blank whenever `prelimRoundCount` was unknown | `pickPrelimRoundCount` gained a third source: `MAX(SpeakerRoundScore.roundNumber)` across the tab (one aggregate query, no rows transferred). |
+| "Hart House IV 2023 2023" | Highlights appended the year to names that already contained it. |
+| "−0.0" and "+0pp" in the splits tables | Signed zeros — now signed by what the value rounds to. |
+| Motions from judged tournaments were invisible | The join went through speaker rows only. Judged tournaments now appear, marked, and excluded from "debated" counts. |
+
+### Also closed from the review
+
+- **`buildCvData` round trips: 7 → 4.** Measured over a 6ms-RTT link
+  (a latency-injecting TCP proxy in front of Postgres): **215ms → 161ms**.
+  No gain on loopback — the benefit is proportional to network RTT, which is
+  what production actually has.
+- `pickHeaderMetrics` → `lib/cv/headerMetrics.ts`, `buildMotionEntries` →
+  `lib/cv/motionEntries.ts`, both now unit-tested (14 new tests).
+- `loading.tsx` for `/cv/stats` and `/cv/motions`.
+- `resetPrismaMock` now defaults `$queryRaw`/`$executeRaw` to `[]`/`0` — a
+  bare `mockReset()` returned `undefined` and blew up any raw-query caller.
+
+### Still open
+
+- `computeCvAnalytics` and `computeSpeakerStats` compute overlapping slices
+  in different shapes; `/cv/stats` calls both. Worth collapsing.
+- The speaking ledger is 13 columns and scrolls horizontally at 1440px.
+- CSV/XLSX export still carries neither motions nor field placement.
+
+---
+
 ## 2026-07-25 — Front-end rebuild ("Ledger"), motions surfaced, statistics engine
 
 **Branch:** `claude/frontend-rebuild-motions-stats-yuzub3`

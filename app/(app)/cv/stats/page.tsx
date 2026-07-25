@@ -315,10 +315,13 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
   const rows = f.placements.filter((p) => p.percentile != null || p.delta != null);
   if (rows.length === 0) return null;
 
+  // Label by YEAR, not tournament name. Eleven truncated names at this
+  // width overlapped into an unreadable smear; the name lives in the table
+  // directly above, so the axis only has to carry the ordering.
   const trend = [...f.placements]
-    .filter((p) => p.percentile != null && p.year != null)
+    .filter((p) => p.percentile != null && p.year != null && !p.incompleteDraw)
     .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
-    .map((p) => ({ label: p.tournamentName.slice(0, 12), value: p.percentile! }));
+    .map((p) => ({ label: String(p.year), value: p.percentile! }));
 
   return (
     <section aria-label="Standing against the field" className="space-y-3">
@@ -385,9 +388,19 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
               </thead>
               <tbody>
                 {rows.map((p) => (
-                  <Tr key={p.tournamentId}>
-                    <Td className="max-w-[14rem] truncate pl-4 font-medium" title={p.tournamentName}>
-                      {p.tournamentName}
+                  <Tr key={p.tournamentId} className={p.incompleteDraw ? 'text-ink-soft' : undefined}>
+                    <Td className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block truncate" title={p.tournamentName}>
+                        {p.tournamentName}
+                      </span>
+                      {p.incompleteDraw ? (
+                        <span
+                          className="text-caption font-normal text-warning"
+                          title="You were scored in fewer rounds than the tournament ran. Placement ranks on total score, so a missed round sinks it even though your per-round average is unaffected — this row is excluded from the career figures on the left."
+                        >
+                          Partial draw — placement not comparable
+                        </span>
+                      ) : null}
                     </Td>
                     <Td numeric className="text-ink-soft">{p.year ?? <Nil />}</Td>
                     <Td numeric>{p.userAvg != null ? p.userAvg.toFixed(1) : <Nil />}</Td>
@@ -431,6 +444,9 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
             points={trend}
             color="blue"
             formatValue={(n) => `${Math.round(n)}`}
+            // A percentile is bounded; without a fixed domain the axis
+            // auto-fitted to −4…104, which are not values it can take.
+            domain={[0, 100]}
             baseline={50}
             baselineLabel="median of the field"
           />
@@ -440,7 +456,16 @@ function FieldStanding({ stats }: { stats: SpeakerStats }) {
       <p className="text-caption text-ink-soft">
         Field averages divide the tab&rsquo;s published score totals by the tournament&rsquo;s prelim
         round count, so they are exact when everyone spoke every round and slightly low when some
-        speakers missed rounds. The placement column carries no such assumption.
+        speakers missed rounds.
+        {f.incompleteDraws > 0 ? (
+          <>
+            {' '}
+            {f.incompleteDraws} {f.incompleteDraws === 1 ? 'tournament is' : 'tournaments are'}{' '}
+            marked as a partial draw and left out of the figures on the left: placement ranks on
+            total score, so a round you weren&rsquo;t scored in drops it regardless of how you
+            performed in the rounds you did speak.
+          </>
+        ) : null}
       </p>
     </section>
   );

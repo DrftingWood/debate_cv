@@ -5,7 +5,7 @@ import { ScrollText } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import type { CvSpeakerRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
+import { buildMotionEntries, type MotionEntry } from '@/lib/cv/motionEntries';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -51,13 +51,18 @@ export default async function CvMotionsPage() {
 
   // Motions don't need the field summary — no placement figures here.
   const data = await buildCvData(session.user.id, { includeFieldStats: false });
-  const entries = buildMotionEntries(data.speakerRows, data.taggedMotions);
+  const entries = buildMotionEntries(data.speakerRows, data.judgeRows, data.taggedMotions);
 
   const debated = entries.filter((e) => e.debated);
   const tagged = debated.filter((e) => e.motion.motionType || e.motion.topic).length;
   const withScore = debated.filter((e) => e.score != null);
   const decided = debated.filter((e) => e.won != null);
   const wins = decided.filter((e) => e.won).length;
+  // Count tournaments the user SPOKE at for the summary strip — the page
+  // below also lists tournaments they only judged, which would inflate a
+  // "motions debated across N tournaments" figure.
+  const debatedTournaments = new Set(debated.map((e) => e.tournamentKey)).size;
+  const judgedEntries = entries.filter((e) => e.judgedOnly);
 
   const byTournament = new Map<string, MotionEntry[]>();
   for (const e of entries) {
@@ -98,7 +103,14 @@ export default async function CvMotionsPage() {
             <StatTile
               label="Motions debated"
               value={debated.length}
-              hint={`Across ${byTournament.size} tournament${byTournament.size === 1 ? '' : 's'}`}
+              hint={
+                <>
+                  Across {debatedTournaments} tournament{debatedTournaments === 1 ? '' : 's'}
+                  {judgedEntries.length > 0
+                    ? ` · ${judgedEntries.length} more judged`
+                    : ''}
+                </>
+              }
             />
             <StatTile
               label="With a speaker score"
@@ -159,84 +171,6 @@ export default async function CvMotionsPage() {
   );
 }
 
-type MotionEntry = {
-  tournamentKey: string;
-  tournamentName: string;
-  year: number | null;
-  motion: CvTaggedMotion;
-  /** True when the user has a score or a result for this round. */
-  debated: boolean;
-  /** Other motions released for the same round, if any. */
-  siblings: number;
-  score: number | null;
-  position: string | null;
-  won: boolean | null;
-  points: number | null;
-};
-
-/**
- * Join motions to the user's rounds. Exported shape is flat and sorted for
- * display: tournaments newest first, motions in the order the tab released
- * them, which for prelims is round order.
- */
-function buildMotionEntries(
-  speakerRows: CvSpeakerRow[],
-  motions: CvTaggedMotion[],
-): MotionEntry[] {
-  const rowByTournament = new Map(speakerRows.map((r) => [r.tournamentId.toString(), r]));
-
-  const siblingCount = new Map<string, number>();
-  for (const m of motions) {
-    if (m.roundNumber == null) continue;
-    const key = `${m.tournamentId}:${m.roundNumber}`;
-    siblingCount.set(key, (siblingCount.get(key) ?? 0) + 1);
-  }
-
-  const entries: MotionEntry[] = [];
-  for (const motion of motions) {
-    const tid = motion.tournamentId.toString();
-    const row = rowByTournament.get(tid);
-    // Motions from a tournament the user only judged at have no speaker
-    // row; they still belong on the page as part of the record, just
-    // without personal round data attached.
-    if (!row) continue;
-
-    const score =
-      motion.roundNumber == null
-        ? null
-        : (row.roundScores.find((s) => s.roundNumber === motion.roundNumber)?.score ?? null);
-    const result =
-      motion.roundNumber == null
-        ? null
-        : (row.teamRoundResults.find((t) => t.roundNumber === motion.roundNumber) ?? null);
-
-    entries.push({
-      tournamentKey: tid,
-      tournamentName: row.tournamentName,
-      year: row.year,
-      motion,
-      debated: score != null || result != null,
-      siblings:
-        motion.roundNumber == null ? 0 : (siblingCount.get(`${tid}:${motion.roundNumber}`) ?? 1) - 1,
-      score,
-      position: result?.position ?? null,
-      won: result?.won ?? null,
-      points: result?.points ?? null,
-    });
-  }
-
-  entries.sort((a, b) => {
-    const ya = a.year ?? -Infinity;
-    const yb = b.year ?? -Infinity;
-    if (ya !== yb) return yb - ya;
-    if (a.tournamentName !== b.tournamentName) {
-      return a.tournamentName.localeCompare(b.tournamentName);
-    }
-    return a.motion.seq - b.motion.seq;
-  });
-  return entries;
-}
-
 function MotionCard({ entry }: { entry: MotionEntry }) {
   const { motion } = entry;
   return (
@@ -252,6 +186,11 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
             title="This round released more than one motion; the round data shown applies to the round, not necessarily to this motion."
           >
             1 of {entry.siblings + 1} this round
+          </Badge>
+        ) : null}
+        {entry.judgedOnly ? (
+          <Badge variant="neutral" title="You judged at this tournament rather than speaking.">
+            Judged
           </Badge>
         ) : null}
       </div>

@@ -27,8 +27,17 @@ export function StatsSplitTable({
   if (splits.length === 0) return null;
 
   const pct = (n: number | null) => (n == null ? null : `${Math.round(n * 100)}%`);
-  const signed = (n: number | null, digits = 1) =>
-    n == null ? null : `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(digits)}`;
+  /**
+   * Sign by what the number ROUNDS to, not by its raw sign. Signing first
+   * produced "−0.0" and "+0pp" — a signed zero reads as a real difference
+   * the table is too coarse to show, which is the opposite of the truth.
+   */
+  const signed = (n: number | null, digits = 1) => {
+    if (n == null) return null;
+    const rounded = Number(n.toFixed(digits));
+    const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '';
+    return `${sign}${Math.abs(rounded).toFixed(digits)}`;
+  };
 
   return (
     <div className="panel overflow-hidden">

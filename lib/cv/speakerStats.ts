@@ -122,11 +122,29 @@ export type FieldPlacement = {
   percentile: number | null;
   /** 1-based placement among speakers, from the tab's own totals. */
   placement: number | null;
+  /**
+   * The user was scored in fewer rounds than the tournament ran, so their
+   * TOTAL is not comparable with a field of full-draw totals even though
+   * their per-round average is.
+   *
+   * This is not a hypothetical: a seeded record with one missed round
+   * produced "+3.4 above the field mean, z +1.36 — placed 89th of 89",
+   * which is a self-contradictory row. Placement ranks on total score and
+   * a missing round sinks it; the average is unaffected. Flagged rows are
+   * still shown (the placement is what the tab really published) but they
+   * are excluded from the career aggregates below, which would otherwise
+   * be dragged by an artifact of attendance rather than performance.
+   */
+  incompleteDraw: boolean;
 };
 
 export type FieldContext = {
   placements: FieldPlacement[];
-  /** Mean percentile across tournaments where it could be computed. */
+  /**
+   * Career aggregates. All four exclude `incompleteDraw` rows — see the
+   * note on that flag. `placements` still carries them so the table can
+   * show the row and say why it is set aside.
+   */
   meanPercentile: number | null;
   bestPlacement: FieldPlacement | null;
   /** Mean of (userAvg − fieldMeanAvg) across tournaments. */
@@ -135,6 +153,8 @@ export type FieldContext = {
   meanZ: number | null;
   /** Total speakers the user has been ranked against across the CV. */
   speakersFaced: number;
+  /** How many rows were set aside as incomplete draws. */
+  incompleteDraws: number;
 };
 
 export type RoundDynamics = {
@@ -505,11 +525,17 @@ export function computeSpeakerStats(input: {
           ? (1 - field.betterThanUser / field.speakerCount) * 100
           : null,
       placement: field.betterThanUser != null ? field.betterThanUser + 1 : null,
+      incompleteDraw:
+        field.userScoredRounds != null &&
+        field.prelimRoundCount != null &&
+        field.userScoredRounds > 0 &&
+        field.userScoredRounds < field.prelimRoundCount,
     });
   }
   placements.sort((a, b) => (b.year ?? -Infinity) - (a.year ?? -Infinity));
 
-  const withPercentile = placements.filter((p) => p.percentile != null);
+  const comparable = placements.filter((p) => !p.incompleteDraw);
+  const withPercentile = comparable.filter((p) => p.percentile != null);
   const fieldContext: FieldContext = {
     placements,
     meanPercentile: mean(withPercentile.map((p) => p.percentile!)),
@@ -517,9 +543,10 @@ export function computeSpeakerStats(input: {
       (best, p) => (!best || p.percentile! > best.percentile! ? p : best),
       null,
     ),
-    meanDelta: mean(placements.map((p) => p.delta).filter((d): d is number => d != null)),
-    meanZ: mean(placements.map((p) => p.z).filter((z): z is number => z != null)),
-    speakersFaced: placements.reduce((s, p) => s + p.speakerCount, 0),
+    meanDelta: mean(comparable.map((p) => p.delta).filter((d): d is number => d != null)),
+    meanZ: mean(comparable.map((p) => p.z).filter((z): z is number => z != null)),
+    speakersFaced: comparable.reduce((s, p) => s + p.speakerCount, 0),
+    incompleteDraws: placements.length - comparable.length,
   };
 
   // ── Round dynamics ──────────────────────────────────────────────────

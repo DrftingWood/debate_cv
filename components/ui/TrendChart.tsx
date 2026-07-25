@@ -29,6 +29,7 @@ export function TrendChart({
   baselineLabel,
   height = 168,
   showValues = true,
+  domain,
 }: {
   points: TrendPoint[];
   formatValue?: (n: number) => string;
@@ -38,6 +39,13 @@ export function TrendChart({
   baselineLabel?: string;
   height?: number;
   showValues?: boolean;
+  /**
+   * Fixed y-axis range. Required for BOUNDED series: a percentile lives on
+   * 0–100, and letting the axis auto-fit produced gridlines at −4 and 104,
+   * which are not values the quantity can take. Auto-fit stays the default
+   * for unbounded series like speaker scores.
+   */
+  domain?: [number, number];
 }) {
   // Hooks before any early return — the gradient id has to be stable across
   // renders and hooks cannot sit behind the empty-series guard.
@@ -68,8 +76,7 @@ export function TrendChart({
   const max = Math.max(...withBase);
   // A flat series (or a single point) still needs a non-zero range to map on.
   const range = max - min || Math.abs(max) * 0.1 || 1;
-  const lo = min - range * 0.2;
-  const hi = max + range * 0.2;
+  const [lo, hi] = domain ?? [min - range * 0.2, max + range * 0.2];
 
   const x = (i: number) =>
     points.length === 1 ? (W - padL - padR) / 2 + padL : padL + (i * (W - padL - padR)) / (points.length - 1);
@@ -83,8 +90,20 @@ export function TrendChart({
       ? `${line} L ${x(points.length - 1).toFixed(1)} ${H - padBottom} L ${x(0).toFixed(1)} ${H - padBottom} Z`
       : '';
 
-  // Three gridlines: floor, midpoint, ceiling of the plotted band.
-  const gridValues = [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1];
+  // Three gridlines. On a fixed domain they sit at the ends and the middle
+  // (0 / 50 / 100 for a percentile); on an auto-fitted one they inset so the
+  // labels don't sit on the plot's edge.
+  const gridValues = domain
+    ? [lo, (lo + hi) / 2, hi]
+    : [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1];
+
+  // Label thinning. Past roughly eight points the category labels collide —
+  // at eleven tournaments they overlapped into an unreadable smear. Drop
+  // every other label rather than shrinking the type past legibility, and
+  // always keep the first and last so the axis stays anchored.
+  const labelStride = points.length > 8 ? 2 : 1;
+  const showLabel = (i: number) =>
+    labelStride === 1 || i === 0 || i === points.length - 1 || i % labelStride === 0;
 
   return (
     <div className={cn('text-ink', className)}>
@@ -136,18 +155,35 @@ export function TrendChart({
               strokeOpacity={0.35}
               strokeDasharray="3 3"
             />
-            {baselineLabel ? (
-              <text
-                x={W - padR}
-                y={y(baseline) - 5}
-                textAnchor="end"
-                fontSize={9.5}
-                fill="currentColor"
-                fillOpacity={0.5}
-              >
-                {baselineLabel}
-              </text>
-            ) : null}
+            {baselineLabel
+              ? (() => {
+                  // Place the label at whichever END of the plot has the most
+                  // vertical clearance from the baseline, on the far side of
+                  // that end's data point. Fixed placement collided in both
+                  // directions: right-anchored it overprinted the last
+                  // point's value label, left-anchored it ran through a
+                  // series that starts near the baseline.
+                  const first = points[0].value;
+                  const last = points[points.length - 1].value;
+                  const atStart =
+                    Math.abs(y(first) - y(baseline)) >= Math.abs(y(last) - y(baseline));
+                  const anchorValue = atStart ? first : last;
+                  // Point above the line → label below it, and vice versa.
+                  const dy = y(anchorValue) < y(baseline) ? 13 : -6;
+                  return (
+                    <text
+                      x={atStart ? padL + 4 : W - padR}
+                      y={y(baseline) + dy}
+                      textAnchor={atStart ? 'start' : 'end'}
+                      fontSize={9.5}
+                      fill="currentColor"
+                      fillOpacity={0.5}
+                    >
+                      {baselineLabel}
+                    </text>
+                  );
+                })()
+              : null}
           </g>
         ) : null}
 
@@ -174,28 +210,32 @@ export function TrendChart({
                 {formatValue(p.value)}
               </text>
             ) : null}
-            <text
-              x={x(i)}
-              y={H - padBottom + 15}
-              textAnchor="middle"
-              fontSize={10}
-              fill="currentColor"
-              fillOpacity={0.55}
-              className="num"
-            >
-              {p.label}
-            </text>
-            {p.sub ? (
-              <text
-                x={x(i)}
-                y={H - padBottom + 26}
-                textAnchor="middle"
-                fontSize={9}
-                fill="currentColor"
-                fillOpacity={0.38}
-              >
-                {p.sub}
-              </text>
+            {showLabel(i) ? (
+              <>
+                <text
+                  x={x(i)}
+                  y={H - padBottom + 15}
+                  textAnchor="middle"
+                  fontSize={10}
+                  fill="currentColor"
+                  fillOpacity={0.55}
+                  className="num"
+                >
+                  {p.label}
+                </text>
+                {p.sub ? (
+                  <text
+                    x={x(i)}
+                    y={H - padBottom + 26}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="currentColor"
+                    fillOpacity={0.38}
+                  >
+                    {p.sub}
+                  </text>
+                ) : null}
+              </>
             ) : null}
           </g>
         ))}

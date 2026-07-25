@@ -140,6 +140,8 @@ describe('computeSpeakerStats — field context', () => {
       fieldMedianAvg: 74,
       fieldP90Avg: 78,
       betterThanUser: 19,
+      userScoredRounds: 9,
+      prelimRoundCount: 9,
     },
   ];
 
@@ -179,6 +181,56 @@ describe('computeSpeakerStats — field context', () => {
       fieldStats: [{ ...field[0], fieldStdevAvg: 0 }],
     });
     expect(s.fieldContext.placements[0].z).toBeNull();
+  });
+
+  test('a partial draw is flagged and kept out of the career aggregates', () => {
+    // Regression: placement ranks on TOTAL score, so a speaker who missed a
+    // round sinks to the bottom of the tab while their per-round average is
+    // untouched. Seeded data produced "+3.4 above the field mean, placed
+    // 89th of 89" — a self-contradictory row that also dragged the headline
+    // "average tab placement" down with it.
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, year: 2024, speakerAvgScore: '78.0' }),
+        makeSpeakerRow({ tournamentId: 2n, year: 2023, speakerAvgScore: '78.0' }),
+      ],
+      judgeRows: [],
+      fieldStats: [
+        field[0],
+        {
+          ...field[0],
+          tournamentId: 2n,
+          // Scored in 8 of 9 rounds: total is one round short of the field's.
+          userScoredRounds: 8,
+          prelimRoundCount: 9,
+          betterThanUser: 199,
+        },
+      ],
+    });
+
+    const [full, partial] = [
+      s.fieldContext.placements.find((p) => p.tournamentId === '1')!,
+      s.fieldContext.placements.find((p) => p.tournamentId === '2')!,
+    ];
+    expect(full.incompleteDraw).toBe(false);
+    expect(partial.incompleteDraw).toBe(true);
+    // Both rows still render…
+    expect(partial.placement).toBe(200);
+    // …but only the comparable one feeds the career figures.
+    expect(s.fieldContext.meanPercentile).toBeCloseTo(90.5);
+    expect(s.fieldContext.speakersFaced).toBe(200);
+    expect(s.fieldContext.incompleteDraws).toBe(1);
+    expect(s.fieldContext.bestPlacement?.tournamentId).toBe('1');
+  });
+
+  test('a full draw with an unknown round count is not flagged', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [makeSpeakerRow({ tournamentId: 1n, speakerAvgScore: '78.0' })],
+      judgeRows: [],
+      fieldStats: [{ ...field[0], userScoredRounds: 6, prelimRoundCount: null }],
+    });
+    expect(s.fieldContext.placements[0].incompleteDraw).toBe(false);
+    expect(s.fieldContext.incompleteDraws).toBe(0);
   });
 });
 

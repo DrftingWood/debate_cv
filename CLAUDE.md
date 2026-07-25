@@ -110,7 +110,34 @@ When adding new parsing logic or queue/lock changes, add a vitest case alongside
 - `npm run typecheck` — `tsc --noEmit`
 - `npm test` — `vitest run`
 - `npm run prisma:migrate` / `prisma:migrate:dev` / `prisma:generate`
+- `npm run seed:dev` — wipe a LOCAL database and seed a realistic record (`scripts/seed-dev-data.mjs`)
 - `scripts/test-scrape.mjs` — manual scrape dev helper
+
+## Local development against real data
+
+The display layer is a projection of scraped tournament data, so reading the
+code is not enough to review it — three shipped defects in the 2026-07
+rebuild were invisible until the pages were rendered against a database.
+
+```bash
+service postgresql start
+su postgres -c "createdb debate_cv_dev"
+# .env.local (gitignored): POSTGRES_PRISMA_URL + POSTGRES_URL_NON_POOLING
+#   → postgres://postgres:<pw>@127.0.0.1:5432/debate_cv_dev
+npx prisma migrate deploy
+npm run seed:dev          # prints a session token
+npm run dev
+```
+
+`seed:dev` refuses to run against a non-localhost URL (it deletes rows). It
+prints an `authjs.session-token` value — set that cookie to browse as the
+seeded user without going through Google. Note that **`next dev` is required**
+for cookie auth locally: `next start` runs in production mode, where Auth.js
+uses `__Secure-` prefixed cookies that a plain-http localhost will not send.
+
+The dataset is deliberately awkward — a tournament with no prelim-round
+count, one the user only judged at, an undated one, a partial draw, rounds
+with two motions, a tab with no score totals. Each maps to a display branch.
 
 ## Deploy
 
