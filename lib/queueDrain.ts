@@ -8,6 +8,17 @@ import {
   rescheduleJob,
 } from '@/lib/queue';
 
+/**
+ * How many ingests run at once. Exported so the Prisma client can size its
+ * connection pool to match — a pool smaller than this makes workers block
+ * on a connection instead of the network, and Prisma's interactive write
+ * transactions can then time out (P2024) under a full queue.
+ */
+export const DRAIN_CONCURRENCY = (() => {
+  const raw = Number(process.env.INGEST_DRAIN_CONCURRENCY);
+  return Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), 16) : 6;
+})();
+
 export type DrainJob = { id: string; userId: string; url: string; attempts: number };
 export type DrainOutcome = 'done' | 'failed' | 'abandoned' | 'retry';
 export type DrainResult = { id: string; status: DrainOutcome; error?: string };

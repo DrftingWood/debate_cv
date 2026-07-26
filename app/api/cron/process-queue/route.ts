@@ -5,7 +5,7 @@ import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
 import { pruneRateLimits } from '@/lib/rateLimit';
 import { resetStuckRunning } from '@/lib/queue';
-import { drainQueue } from '@/lib/queueDrain';
+import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,27 +34,6 @@ const TIME_BUDGET_MS = 55_000;
  */
 const JOB_HEADROOM_MS = 30_000;
 
-/*
- * How many ingests run at once, capped to one per upstream host by
- * claimOnePending's `excludeHosts` (see lib/queueDrain.ts for the full
- * reasoning).
- *
- * A job is mostly deliberate waiting: ~16 same-host fetches at the 1500ms
- * politeness floor is ~24s of an ingest spent idle. Serially that idle time
- * was the queue's throughput ceiling — one job per invocation. Running 6
- * concurrently overlaps the waiting without changing the per-host request
- * rate at all, because each host still has exactly one ingest in flight.
- *
- * 6 rather than more: the pooled Postgres URL is configured with a small
- * connection_limit, and every worker needs a connection for its claim and
- * its writes. Past that point workers queue on the pool instead of the
- * network and the extra parallelism buys nothing. Tunable per deployment
- * without a code change.
- */
-const DRAIN_CONCURRENCY = (() => {
-  const raw = Number(process.env.INGEST_DRAIN_CONCURRENCY);
-  return Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), 16) : 6;
-})();
 
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
