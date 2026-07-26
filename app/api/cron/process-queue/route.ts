@@ -4,15 +4,8 @@ import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
 import { pruneRateLimits } from '@/lib/rateLimit';
-import {
-  claimOnePending,
-  isPermanentError,
-  markJobAbandoned,
-  markJobDone,
-  markJobFailed,
-  rescheduleJob,
-  resetStuckRunning,
-} from '@/lib/queue';
+import { resetStuckRunning } from '@/lib/queue';
+import { drainQueue } from '@/lib/queueDrain';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +33,28 @@ const TIME_BUDGET_MS = 55_000;
  * budget.
  */
 const JOB_HEADROOM_MS = 30_000;
+
+/*
+ * How many ingests run at once, capped to one per upstream host by
+ * claimOnePending's `excludeHosts` (see lib/queueDrain.ts for the full
+ * reasoning).
+ *
+ * A job is mostly deliberate waiting: ~16 same-host fetches at the 1500ms
+ * politeness floor is ~24s of an ingest spent idle. Serially that idle time
+ * was the queue's throughput ceiling — one job per invocation. Running 6
+ * concurrently overlaps the waiting without changing the per-host request
+ * rate at all, because each host still has exactly one ingest in flight.
+ *
+ * 6 rather than more: the pooled Postgres URL is configured with a small
+ * connection_limit, and every worker needs a connection for its claim and
+ * its writes. Past that point workers queue on the pool instead of the
+ * network and the extra parallelism buys nothing. Tunable per deployment
+ * without a code change.
+ */
+const DRAIN_CONCURRENCY = (() => {
+  const raw = Number(process.env.INGEST_DRAIN_CONCURRENCY);
+  return Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), 16) : 6;
+})();
 
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
@@ -73,84 +88,28 @@ export async function POST(req: Request) {
 
 async function runOnce() {
   try {
-    const started = Date.now();
-    const results: Array<{ id: string; status: 'done' | 'failed' | 'abandoned' | 'retry'; error?: string }> = [];
-
     await resetStuckRunning({});
 
-    let stoppedForBudget = false;
-    while (true) {
-      if (Date.now() - started >= TIME_BUDGET_MS - JOB_HEADROOM_MS) {
-        stoppedForBudget = true;
-        break;
-      }
-      const job = await claimOnePending();
-      if (!job) break;
-
-      /*
-       * A job can only arrive above the attempt ceiling by having been
-       * claimed and then killed mid-ingest — the graceful failure paths all
-       * terminate at MAX_ATTEMPTS inside the catch below. Left alone it
-       * would retry forever at the head of the queue. Fail it here, before
-       * spending another invocation on it, and report it: a job that
-       * consistently outlives the function budget is a real operational
-       * problem (usually a tab page that has grown past what a 60s
-       * serverless invocation can parse) and needs a human, not a retry.
-       */
-      if (job.attempts > MAX_ATTEMPTS) {
-        const msg = `Exceeded ${MAX_ATTEMPTS} attempts without completing — the ingest does not fit in the function time budget.`;
-        Sentry.captureException(new Error(msg), {
-          tags: { route: 'api/cron/process-queue', stage: 'ingest-budget-exhausted' },
-          extra: { url: job.url, attempts: job.attempts },
-          user: { id: job.userId },
-        });
-        await markJobFailed(job.id, msg);
-        results.push({ id: job.id, status: 'failed', error: msg });
-        continue;
-      }
-
-      try {
-        await ingestPrivateUrl(job.url, job.userId);
-        await markJobDone(job.id);
-        results.push({ id: job.id, status: 'done' });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // Deadlock-class failures are transient by definition (postgres
-        // aborts the loser of a write race) — always reschedule, never
-        // hard-fail, even past MAX_ATTEMPTS. See audit issue #8.
-        if (isDeadlockError(err)) {
-          await rescheduleJob(job.id, msg);
-          results.push({ id: job.id, status: 'retry', error: msg });
-        } else if (isPermanentError(msg)) {
-          // Fast-fail to terminal `abandoned` on first attempt — the landing
-          // page returned 404 (dead Heroku app, removed tournament). No
-          // recovery path exists, so we skip the 2 remaining retries and
-          // report immediately (this IS the final attempt by design).
+    const report = await drainQueue(
+      {
+        ingest: (url, userId) => ingestPrivateUrl(url, userId),
+        isDeadlockError,
+        onTerminal: (stage, err, job) => {
           Sentry.captureException(err, {
-            tags: { route: 'api/cron/process-queue', stage: 'ingest-abandoned' },
+            tags: { route: 'api/cron/process-queue', stage },
             extra: { url: job.url, attempts: job.attempts },
             user: { id: job.userId },
           });
-          await markJobAbandoned(job.id, msg);
-          results.push({ id: job.id, status: 'abandoned', error: msg });
-        } else if (job.attempts >= MAX_ATTEMPTS) {
-          // Only report on the FINAL attempt — earlier attempts are expected
-          // to occasionally fail (Cloudflare flakes, slow Tabbycat hosts).
-          // Reporting every retry would noise up Sentry without surfacing
-          // anything actionable.
-          Sentry.captureException(err, {
-            tags: { route: 'api/cron/process-queue', stage: 'ingest-failed-final' },
-            extra: { url: job.url, attempts: job.attempts },
-            user: { id: job.userId },
-          });
-          await markJobFailed(job.id, msg);
-          results.push({ id: job.id, status: 'failed', error: msg });
-        } else {
-          await rescheduleJob(job.id, msg);
-          results.push({ id: job.id, status: 'retry', error: msg });
-        }
-      }
-    }
+        },
+      },
+      {
+        budgetMs: TIME_BUDGET_MS,
+        headroomMs: JOB_HEADROOM_MS,
+        maxAttempts: MAX_ATTEMPTS,
+        concurrency: DRAIN_CONCURRENCY,
+      },
+    );
+    const { results, stoppedForBudget } = report;
 
     // Retention pass for pipeline history (superseded SourceDocument
     // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
@@ -181,10 +140,12 @@ async function runOnce() {
     // (or a human reading the JSON) cannot tell a finished queue from a
     // truncated one, which is exactly the state worth alerting on.
     return NextResponse.json({
-      processed: results.length,
+      processed: report.processed,
       results,
       pruned,
       stoppedForBudget,
+      peakInFlight: report.peakInFlight,
+      elapsedMs: report.elapsedMs,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

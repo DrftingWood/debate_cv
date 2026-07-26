@@ -76,12 +76,37 @@ export async function resetStuckRunning(params: { userId?: string; olderThanMinu
   }
 }
 
-/** Atomically claim a single pending job. Returns null when queue is empty. */
+/**
+ * SQL expression extracting the host from a job's URL.
+ *
+ * Every Tabbycat tournament lives on its own subdomain
+ * (`delhi2025.calicotab.com`, `wudc2024.calicotab.com`, …), so the host is
+ * an exact proxy for "which upstream server does this job hammer". That is
+ * what makes the drain safely concurrent: the fetch throttle in
+ * lib/calicotab/fetchSession.ts is per-host, and two jobs on different
+ * hosts share no rate budget at all.
+ */
+const JOB_HOST_SQL = Prisma.sql`split_part(split_part("url", '//', 2), '/', 1)`;
+
+/**
+ * Atomically claim a single pending job. Returns null when queue is empty.
+ *
+ * `excludeHosts` keeps a concurrent drain to at most one in-flight job per
+ * upstream host. FetchSession serializes requests WITHIN one ingest, which
+ * is what stopped the Cloudflare burst-403s; running two ingests against
+ * the same host at once would reintroduce exactly the bursts that fix
+ * removed, because each ingest carries its own independent throttle chain.
+ * Different hosts are unrelated, so those run in parallel freely.
+ */
 export async function claimOnePending(
-  params: { userId?: string } = {},
+  params: { userId?: string; excludeHosts?: string[] } = {},
 ): Promise<{ id: string; userId: string; url: string; attempts: number } | null> {
   const whereUser = params.userId
     ? Prisma.sql`AND "userId" = ${params.userId}`
+    : Prisma.sql``;
+  const busy = params.excludeHosts?.filter((h) => h.length > 0) ?? [];
+  const whereHost = busy.length
+    ? Prisma.sql`AND ${JOB_HOST_SQL} NOT IN (${Prisma.join(busy)})`
     : Prisma.sql``;
   const rows = await prisma.$queryRaw<Array<{ id: string; userId: string; url: string; attempts: number }>>(
     Prisma.sql`
@@ -89,7 +114,7 @@ export async function claimOnePending(
       SET "status" = 'running', "attempts" = "attempts" + 1, "startedAt" = NOW(), "updatedAt" = NOW()
       WHERE "id" = (
         SELECT "id" FROM "IngestJob"
-        WHERE "status" = 'pending' ${whereUser}
+        WHERE "status" = 'pending' ${whereUser} ${whereHost}
         ORDER BY "scheduledAt" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
@@ -98,6 +123,15 @@ export async function claimOnePending(
     `,
   );
   return rows[0] ?? null;
+}
+
+/** The host a job's fetches will target, or '' if the URL is unparseable. */
+export function jobHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
 }
 
 export async function markJobDone(id: string): Promise<void> {
