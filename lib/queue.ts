@@ -41,12 +41,26 @@ export async function resetStuckRunning(params: { userId?: string; olderThanMinu
   // rejects with "function make_interval(mins => bigint) does not exist".
   const minutes = Math.max(0, Math.floor(params.olderThanMinutes ?? 5));
   const threshold = Prisma.sql`(NOW() - (${minutes}::int * INTERVAL '1 minute'))`;
+  /*
+   * `scheduledAt = NOW()` sends the recovered job to the BACK of the queue.
+   *
+   * rescheduleJob already does this for jobs that fail gracefully (see the
+   * note there on audit issue #9), but the platform-kill path landed here
+   * instead and left scheduledAt at the original submit time. Since
+   * claimOnePending orders by `scheduledAt ASC`, a job whose ingest runs
+   * longer than the serverless function's remaining budget came straight
+   * back to the head of the queue on the next tick, was claimed first
+   * again, was killed again, and starved every other user's jobs behind it
+   * — indefinitely, because the attempt-limit check lives in the catch
+   * block and a killed function never reaches it.
+   */
   if (params.userId) {
     // Raw SQL bypasses Prisma's @updatedAt — set it explicitly (see the
     // schema comment on IngestJob.updatedAt).
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
-      SET "status" = 'pending', "startedAt" = NULL, "updatedAt" = NOW()
+      SET "status" = 'pending', "startedAt" = NULL,
+          "scheduledAt" = NOW(), "updatedAt" = NOW()
       WHERE "userId" = ${params.userId}
         AND "status" = 'running'
         AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
@@ -54,7 +68,8 @@ export async function resetStuckRunning(params: { userId?: string; olderThanMinu
   } else {
     await prisma.$executeRaw(Prisma.sql`
       UPDATE "IngestJob"
-      SET "status" = 'pending', "startedAt" = NULL, "updatedAt" = NOW()
+      SET "status" = 'pending', "startedAt" = NULL,
+          "scheduledAt" = NOW(), "updatedAt" = NOW()
       WHERE "status" = 'running'
         AND ("startedAt" IS NULL OR "startedAt" < ${threshold})
     `);

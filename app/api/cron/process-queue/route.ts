@@ -23,6 +23,24 @@ export const maxDuration = 60;
 const MAX_ATTEMPTS = 3;
 const TIME_BUDGET_MS = 55_000;
 
+/*
+ * Headroom reserved for the job we are about to start.
+ *
+ * The loop used to test only "is there budget left?" and then start an
+ * ingest that can take half a minute on a WUDC-scale tab. A job claimed at
+ * t=54s ran until the platform killed the function at maxDuration, so
+ * neither markJobDone nor any catch branch executed: the job stayed
+ * `running`, was recovered to `pending` by resetStuckRunning, and came back
+ * for another doomed attempt. Nothing ever marked it failed, because the
+ * attempt-limit check lives in the catch a killed function never reaches.
+ *
+ * 30s is the observed worst case for a large tournament plus its writes.
+ * Starting a job with less than that left is knowingly starting one we
+ * cannot finish — better to end the tick and let the next one have a full
+ * budget.
+ */
+const JOB_HEADROOM_MS = 30_000;
+
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
@@ -60,9 +78,36 @@ async function runOnce() {
 
     await resetStuckRunning({});
 
-    while (Date.now() - started < TIME_BUDGET_MS) {
+    let stoppedForBudget = false;
+    while (true) {
+      if (Date.now() - started >= TIME_BUDGET_MS - JOB_HEADROOM_MS) {
+        stoppedForBudget = true;
+        break;
+      }
       const job = await claimOnePending();
       if (!job) break;
+
+      /*
+       * A job can only arrive above the attempt ceiling by having been
+       * claimed and then killed mid-ingest — the graceful failure paths all
+       * terminate at MAX_ATTEMPTS inside the catch below. Left alone it
+       * would retry forever at the head of the queue. Fail it here, before
+       * spending another invocation on it, and report it: a job that
+       * consistently outlives the function budget is a real operational
+       * problem (usually a tab page that has grown past what a 60s
+       * serverless invocation can parse) and needs a human, not a retry.
+       */
+      if (job.attempts > MAX_ATTEMPTS) {
+        const msg = `Exceeded ${MAX_ATTEMPTS} attempts without completing — the ingest does not fit in the function time budget.`;
+        Sentry.captureException(new Error(msg), {
+          tags: { route: 'api/cron/process-queue', stage: 'ingest-budget-exhausted' },
+          extra: { url: job.url, attempts: job.attempts },
+          user: { id: job.userId },
+        });
+        await markJobFailed(job.id, msg);
+        results.push({ id: job.id, status: 'failed', error: msg });
+        continue;
+      }
 
       try {
         await ingestPrivateUrl(job.url, job.userId);
@@ -131,7 +176,16 @@ async function runOnce() {
       }
     }
 
-    return NextResponse.json({ processed: results.length, results, pruned });
+    // `stoppedForBudget` tells the caller the queue was NOT drained — the
+    // tick ran out of time with work still pending. Without it a caller
+    // (or a human reading the JSON) cannot tell a finished queue from a
+    // truncated one, which is exactly the state worth alerting on.
+    return NextResponse.json({
+      processed: results.length,
+      results,
+      pruned,
+      stoppedForBudget,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/cron/process-queue]', msg);

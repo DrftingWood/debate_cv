@@ -528,6 +528,25 @@
   .ledger tbody tr:last-child td {
     border-bottom: 0;
   }
+  /*
+   * Numeric headers must sit over their own numbers.
+   *
+   * `.ledger thead th` above sets `text-align: left` at specificity (0,1,2),
+   * which silently outranks the `text-right` utility (0,1,0) that
+   * `<Th numeric>` emits. Every numeric column in the product was therefore
+   * a left-aligned header over a right-aligned column of figures — YEAR,
+   * TEAMS, RANK, PTS, SPK AVG and FIELD on the speaking ledger alone, plus
+   * the judging table, both stats tables, the public CV and the sample.
+   *
+   * Matching both class names covers the `<Th numeric>` component and the
+   * hand-written `<th className="text-right">` on /sample, which does not
+   * go through it.
+   */
+  .ledger thead th.text-right,
+  .ledger thead th.cell-num {
+    text-align: right;
+  }
+
   .cell-num {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
