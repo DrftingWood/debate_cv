@@ -401,6 +401,42 @@
     border-color: hsl(var(--border) / 0.18);
   }
 
+  /*
+   * Scroll shadows for horizontally scrollable tables.
+   *
+   * Every wide table in the product already scrolled inside its own box —
+   * that part of the design rule was honoured — but nothing on screen ever
+   * said so. The public CV hid its Result column at every viewport and the
+   * speaking ledger hides ~80px at 1280, and in both cases the only clue
+   * was to try dragging a table that looked complete.
+   *
+   * Pure CSS, no JS, no client component: four background layers, two
+   * anchored to the content (`local`) and two to the viewport (`scroll`).
+   * When the box is scrolled to an edge, the content-anchored cover slides
+   * over that edge's shadow and hides it; when there is more to see, the
+   * shadow shows. So the hint appears exactly on the sides that have
+   * something beyond them, and disappears as you reach each end.
+   */
+  .scroll-shadow {
+    background-image:
+      linear-gradient(to right, hsl(var(--card)) 30%, hsl(var(--card) / 0)),
+      linear-gradient(to left, hsl(var(--card)) 30%, hsl(var(--card) / 0)),
+      linear-gradient(to right, hsl(var(--foreground) / 0.13), hsl(var(--foreground) / 0)),
+      linear-gradient(to left, hsl(var(--foreground) / 0.13), hsl(var(--foreground) / 0));
+    background-position:
+      left center,
+      right center,
+      left center,
+      right center;
+    background-repeat: no-repeat;
+    background-size:
+      28px 100%,
+      28px 100%,
+      12px 100%,
+      12px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
   /* Back-compat aliases for surfaces named in the previous system. */
   .record-panel,
   .surface-card {

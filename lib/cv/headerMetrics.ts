@@ -25,8 +25,10 @@ export function pickHeaderMetrics(input: {
   breaks: number;
   totalRoundsChaired: number;
   outroundsChaired: number;
-  bestSpeakerRank: number | null;
-  bestSpeakerAverage: number | null;
+  /** Speeches-weighted mean across the whole record; null when unscored. */
+  careerSpeakerAverage: number | null;
+  /** How many scored speeches that average was computed from. */
+  scoredSpeeches: number;
   speakerCount: number;
   judgeCount: number;
   activeYears: { from: number; to: number } | null;
@@ -36,8 +38,8 @@ export function pickHeaderMetrics(input: {
     breaks,
     totalRoundsChaired,
     outroundsChaired,
-    bestSpeakerRank,
-    bestSpeakerAverage,
+    careerSpeakerAverage,
+    scoredSpeeches,
     speakerCount,
     judgeCount,
   } = input;
@@ -67,11 +69,28 @@ export function pickHeaderMetrics(input: {
         hint: totalTournaments > 0 ? `${Math.round((breaks / totalTournaments) * 100)}% of entries` : undefined,
       });
     }
-    if (bestSpeakerAverage != null) {
-      candidates.push({ label: 'Best speaker avg', value: bestSpeakerAverage.toFixed(1) });
-    }
-    if (bestSpeakerRank != null) {
-      candidates.push({ label: 'Best speaker rank', value: `#${bestSpeakerRank}` });
+    /*
+     * The CAREER average, not the best tournament's.
+     *
+     * This strip used to carry "Best speaker avg" and "Best speaker rank",
+     * both of which the Highlights grid renders again — with the tournament
+     * that earned them — about 200px further down the same screen. Two
+     * copies of one fact, side by side, and the copy up here was the one
+     * without its attribution.
+     *
+     * Picking the career figure also settles a contradiction: /u and
+     * /cv/stats both headline the career average, so the owner's own page
+     * was the only surface reporting a different, flattering number under
+     * the words "speaker avg". Peak figures still belong on this page —
+     * they belong in Highlights, where the tournament name travels with
+     * them.
+     */
+    if (careerSpeakerAverage != null) {
+      candidates.push({
+        label: 'Career speaker avg',
+        value: careerSpeakerAverage.toFixed(1),
+        hint: scoredSpeeches > 0 ? `${scoredSpeeches} scored speeches` : undefined,
+      });
     }
   } else if (judgeLeaning) {
     if (totalRoundsChaired > 0) {

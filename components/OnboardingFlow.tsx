@@ -321,7 +321,7 @@ export function OnboardingFlow({
                         <span className="flex min-w-0 items-center gap-3">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
+                            className="h-[18px] w-[18px] shrink-0 accent-primary"
                             checked={checked}
                             onChange={() => toggle(n.normalizedName)}
                           />

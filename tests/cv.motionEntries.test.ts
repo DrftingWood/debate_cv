@@ -141,8 +141,8 @@ describe('pickHeaderMetrics', () => {
     breaks: 0,
     totalRoundsChaired: 0,
     outroundsChaired: 0,
-    bestSpeakerRank: null,
-    bestSpeakerAverage: null,
+    careerSpeakerAverage: null,
+    scoredSpeeches: 0,
     speakerCount: 0,
     judgeCount: 0,
     activeYears: null,
@@ -158,8 +158,8 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 8,
       speakerCount: 8,
       breaks: 3,
-      bestSpeakerRank: 6,
-      bestSpeakerAverage: 77.2,
+      careerSpeakerAverage: 75.6,
+      scoredSpeeches: 40,
     });
     const labels = tiles.map((t) => t.label);
     expect(labels).toContain('Breaks');
@@ -210,9 +210,31 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 4,
       speakerCount: 4,
       breaks: 0,
-      bestSpeakerAverage: 71.4,
+      careerSpeakerAverage: 71.4,
+      scoredSpeeches: 18,
     });
-    expect(tiles.map((t) => t.label)).toEqual(['Tournaments', 'Best speaker avg']);
+    expect(tiles.map((t) => t.label)).toEqual(['Tournaments', 'Career speaker avg']);
+  });
+
+  test('reports the career average, never a peak the Highlights grid already owns', () => {
+    const tiles = pickHeaderMetrics({
+      ...base,
+      totalTournaments: 12,
+      speakerCount: 12,
+      breaks: 7,
+      careerSpeakerAverage: 75.6,
+      scoredSpeeches: 69,
+    });
+    // "Best speaker avg" / "Best speaker rank" are rendered by CvHighlights
+    // with the tournament that earned them; duplicating them here put the
+    // same figure on screen twice, and the copy up here had no attribution.
+    const labels = tiles.map((t) => t.label);
+    expect(labels).not.toContain('Best speaker avg');
+    expect(labels).not.toContain('Best speaker rank');
+    expect(tiles.find((t) => t.label === 'Career speaker avg')).toMatchObject({
+      value: '75.6',
+      hint: '69 scored speeches',
+    });
   });
 
   test('never returns more tiles than the strip can lay out', () => {
@@ -221,8 +243,8 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 20,
       speakerCount: 20,
       breaks: 9,
-      bestSpeakerRank: 3,
-      bestSpeakerAverage: 78.1,
+      careerSpeakerAverage: 78.1,
+      scoredSpeeches: 96,
       totalRoundsChaired: 5,
       outroundsChaired: 2,
     });

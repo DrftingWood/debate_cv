@@ -210,7 +210,7 @@ export function CvDownloadButton() {
                         <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-ink">
                           <input
                             type="checkbox"
-                            className="h-3.5 w-3.5 accent-current"
+                            className="h-4 w-4 accent-primary"
                             checked={selected.has(id)}
                             onChange={() => toggle(id)}
                           />
@@ -232,7 +232,7 @@ export function CvDownloadButton() {
                     <input
                       type="radio"
                       name="cv-export-format"
-                      className="h-3.5 w-3.5 accent-current"
+                      className="h-4 w-4 accent-primary"
                       checked={format === f}
                       onChange={() => pickFormat(f)}
                     />

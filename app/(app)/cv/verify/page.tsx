@@ -30,7 +30,17 @@ export default async function CvVerifyPage({
   const userId = session.user.id;
 
   const { mine: mineParam, t: selectedParam } = await searchParams;
-  const mineOnly = mineParam === '1';
+  /*
+   * Default to the user's OWN rows, with `?mine=0` as the opt-out.
+   *
+   * This defaulted to every participant, which meant the page whose whole
+   * job is "check what we parsed about you" opened on ~1,300 strangers:
+   * 9,700px of other people's names on a phone before your own row, and no
+   * hint that the thing you came to check was further down. The full field
+   * is still one click away and still worth having — it is how you spot a
+   * teammate wrongly claimed as you — but it is the secondary view.
+   */
+  const mineOnly = mineParam !== '0';
 
   // Top 5 most recent tournaments: order DiscoveredUrl by message date then
   // creation, dedup by tournamentId, stop at 5.
@@ -215,7 +225,7 @@ export default async function CvVerifyPage({
                   */}
                   {!isSelected ? (
                     <Link
-                      href={`/cv/verify?t=${t.id}${mineOnly ? '&mine=1' : ''}`}
+                      href={`/cv/verify?t=${t.id}${mineOnly ? '' : '&mine=0'}`}
                       scroll={false}
                       className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
                     >

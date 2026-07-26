@@ -125,6 +125,9 @@ export default async function Dashboard({
     done: rows.filter((r) => r.status === 'done').length,
   };
 
+  // Anything the user can actually act on from this page.
+  const needsAttention = counts.failed + counts.unmatched;
+
   const filtered = rows.filter((r) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'pending')
@@ -139,11 +142,26 @@ export default async function Dashboard({
       <header className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="data-label">Imports · from Gmail to your record</div>
+          {/*
+            The heading has to describe the state it is sitting on top of.
+            "Tournaments in flight" was hard-coded, so the steady state — the
+            one a returning user sees almost every visit, with nothing
+            queued, nothing failed and nothing to claim — announced motion
+            above four zeroes and a done count.
+          */}
           <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
-            Tournaments in flight
+            {counts.pending > 0
+              ? 'Tournaments in flight'
+              : needsAttention > 0
+                ? 'Imports need a look'
+                : 'Everything is imported'}
           </h1>
           <p className="mt-1.5 text-table text-ink-soft">
-            Scanning finds the private URLs; ingesting turns each one into rows on your record.
+            {counts.pending > 0
+              ? 'Scanning finds the private URLs; ingesting turns each one into rows on your record.'
+              : needsAttention > 0
+                ? 'Nothing is queued. The rows below could not be turned into record entries on their own.'
+                : `All ${counts.done} tournament${counts.done === 1 ? '' : 's'} found in your Gmail are on your record. New ones appear here after a scan.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

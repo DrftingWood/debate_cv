@@ -21,7 +21,15 @@ export function TableScroll({
   // `overflow-hidden`, which clips a bleed-out — the old `-mx-4 px-4` cost
   // the first 1rem of the table on narrow screens instead of buying edge
   // bleed. Plain overflow keeps the table inside its sheet.
-  return <div className={cn('w-full overflow-x-auto', className)}>{children}</div>;
+  //
+  // `scroll-shadow` (globals.css) is the affordance: a CSS-only edge shadow
+  // that appears only on a side with content beyond it. Without it a table
+  // that scrolls is indistinguishable from one that doesn't, which is how
+  // the public CV managed to hide its Result column at every viewport
+  // without anyone noticing.
+  return (
+    <div className={cn('scroll-shadow w-full overflow-x-auto', className)}>{children}</div>
+  );
 }
 
 /**

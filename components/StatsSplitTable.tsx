@@ -1,4 +1,4 @@
-import type { Split } from '@/lib/cv/speakerStats';
+import { MIN_QUIRK_ROUNDS, type Split } from '@/lib/cv/speakerStats';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { cn } from '@/lib/utils/cn';
 
@@ -15,8 +15,17 @@ import { cn } from '@/lib/utils/cn';
 export function StatsSplitTable({
   splits,
   dimensionLabel,
-  /** Rows below this many rounds render muted — visible, but not evidence. */
-  thinBelow = 4,
+  /**
+   * Rows below this many rounds render muted — visible, but not evidence.
+   *
+   * Pinned to the same floor the findings engine uses before it will state
+   * a claim. At the old value of 4, a row with four decided rounds and a
+   * 100% win rate printed a bold green "+31pp" with no caveat, while the
+   * findings section above refused to say anything about the same split
+   * because it hadn't cleared six. One page, two standards of evidence, and
+   * the louder one was the weaker.
+   */
+  thinBelow = MIN_QUIRK_ROUNDS,
   showPoints = false,
 }: {
   splits: Split[];
@@ -49,11 +58,19 @@ export function StatsSplitTable({
               <Th numeric>Rounds</Th>
               <Th numeric title="Rounds where the tab recorded a win or loss">Decided</Th>
               <Th numeric>Win rate</Th>
+              {/*
+                Both delta columns used to read "vs you", which left two
+                different measurements in different units under one header —
+                indistinguishable to a screen reader moving across the row,
+                and ambiguous to anyone reading the table cold. The unit is
+                the disambiguator and it is already in the cells (+31pp,
+                +1.4), so it belongs in the header.
+              */}
               <Th numeric title="Win rate minus your overall win rate, in percentage points">
-                vs you
+                vs you (pp)
               </Th>
               <Th numeric>Speaker avg</Th>
-              <Th numeric title="Speaker average minus your career average">vs you</Th>
+              <Th numeric title="Speaker average minus your career average">vs you (pts)</Th>
               {showPoints ? <Th numeric className="pr-4">Avg pts</Th> : <Th className="pr-4" />}
             </tr>
           </thead>

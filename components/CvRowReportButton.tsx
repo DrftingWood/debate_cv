@@ -195,7 +195,7 @@ export function CvRowReportButton({
                         <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 hover:bg-surface-2">
                           <input
                             type="checkbox"
-                            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
                             checked={checked}
                             onChange={() => toggleCategory(cat.code)}
                           />

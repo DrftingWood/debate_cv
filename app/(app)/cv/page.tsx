@@ -28,6 +28,7 @@ import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { CvSubNav } from '@/components/CvSubNav';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
+import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
@@ -93,13 +94,18 @@ export default async function CvPage() {
   }
   const fieldByTournament = new Map(fieldStats.map((f) => [f.tournamentId.toString(), f]));
 
+  // Pure in-memory pass over rows already loaded above — no extra queries.
+  // Sharing the computation with /u and /cv/stats is the point: all three
+  // surfaces must print the same career average, to the same decimal.
+  const scoreProfile = computeSpeakerStats(data).scoreProfile;
+
   const headerMetrics = pickHeaderMetrics({
     totalTournaments,
     breaks,
     totalRoundsChaired,
     outroundsChaired: highlights.outroundsChaired,
-    bestSpeakerRank: highlights.bestSpeakerRank?.rank ?? null,
-    bestSpeakerAverage: highlights.bestSpeakerAverage?.score ?? null,
+    careerSpeakerAverage: scoreProfile.mean,
+    scoredSpeeches: scoreProfile.speeches,
     speakerCount: speakerRows.length,
     judgeCount: judgeRows.length,
     activeYears: highlights.activeYears,
@@ -214,6 +220,7 @@ export default async function CvPage() {
                 rows={speakerRows}
                 motionsByRound={motionsByRound}
                 fieldByTournament={fieldByTournament}
+                accountName={user?.name ?? null}
               />
               {/*
                 The abbreviated column headers explain themselves through
@@ -240,7 +247,7 @@ export default async function CvPage() {
                 label="Judging"
                 title={`${judgeRows.length} tournament${judgeRows.length === 1 ? '' : 's'}`}
               />
-              <JudgingTable rows={judgeRows} />
+              <JudgingTable rows={judgeRows} accountName={user?.name ?? null} />
             </section>
           ) : null}
 
@@ -414,10 +421,13 @@ function SpeakingTable({
   rows,
   motionsByRound,
   fieldByTournament,
+  accountName,
 }: {
   rows: SpeakingTableRow[];
   motionsByRound: Map<string, CvTaggedMotion[]>;
   fieldByTournament: Map<string, CvFieldStat>;
+  /** The name on the account, so a row can suppress a matching alias. */
+  accountName: string | null;
 }) {
   return (
     <>
@@ -472,7 +482,17 @@ function SpeakingTable({
                           aria-hidden
                         />
                       </a>
-                      <div className="text-caption text-ink-soft">{r.myName}</div>
+                      {/*
+                        The registration name only when it is NOT the name
+                        already at the top of the page. It earns its line
+                        when a tournament registered you as "M. Rao" and you
+                        need to see which alias matched; printed on every row
+                        it was the account holder's own name repeated once
+                        per tournament, directly under an h1 saying it.
+                      */}
+                      {aliasNote(r.myName, accountName) ? (
+                        <div className="text-caption text-ink-soft">{r.myName}</div>
+                      ) : null}
                     </Td>
                     <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
                     <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
@@ -570,7 +590,11 @@ function SpeakingTable({
                   href={r.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="truncate font-display text-h4 font-medium text-ink"
+                  // py-1 is a tap target, not spacing. At the bare
+                  // line-height these titles were 23px tall — under the 24px
+                  // WCAG 2.2 minimum, and they are the only way into the
+                  // source tab from a phone.
+                  className="inline-block truncate py-1 font-display text-h4 font-medium text-ink"
                 >
                   {r.tournamentName}
                 </a>
@@ -609,7 +633,13 @@ function SpeakingTable({
   );
 }
 
-function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
+function JudgingTable({
+  rows,
+  accountName,
+}: {
+  rows: JudgingTableRow[];
+  accountName: string | null;
+}) {
   return (
     <>
       <div className="panel hidden overflow-hidden md:block">
@@ -642,7 +672,9 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     >
                       {r.tournamentName}
                     </a>
-                    <div className="text-caption text-ink-soft">{r.myName}</div>
+                    {aliasNote(r.myName, accountName) ? (
+                      <div className="text-caption text-ink-soft">{r.myName}</div>
+                    ) : null}
                   </Td>
                   <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
@@ -685,7 +717,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 href={r.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-display text-h4 font-medium text-ink"
+                className="inline-block truncate py-1 font-display text-h4 font-medium text-ink"
               >
                 {r.tournamentName}
               </a>
@@ -722,6 +754,18 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
       </ul>
     </>
   );
+}
+
+/**
+ * True when a row's matched registration name says something the page
+ * header does not. Compared case- and punctuation-insensitively so
+ * "maya rao" and "Maya Rao" don't count as different spellings.
+ */
+function aliasNote(rowName: string | null, accountName: string | null): boolean {
+  if (!rowName) return false;
+  if (!accountName) return true;
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return norm(rowName) !== norm(accountName);
 }
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {

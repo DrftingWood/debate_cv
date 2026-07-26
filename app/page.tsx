@@ -64,9 +64,17 @@ async function SignInLink() {
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
+      {/*
+        Outlined, not another text link. This is the returning user's way
+        back into their record, and it sat in a row of four items styled
+        the same as the three marketing anchors beside it — separated only
+        by being a shade darker. Outline rather than a filled emerald so it
+        reads as an affordance without competing with the hero's
+        "Build my debate CV", which is still the primary action on the page.
+      */}
       <button
         type="submit"
-        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
+        className="rounded-md border border-border px-3 py-2 font-medium text-ink hover:border-primary hover:text-primary"
       >
         Sign in
       </button>

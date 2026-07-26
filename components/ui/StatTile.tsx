@@ -81,7 +81,14 @@ export function StatTile({
 
   return (
     <div className={cn('min-w-0', className)}>
-      <div className="data-label truncate" title={label}>
+      {/*
+        Wraps rather than truncates. `truncate` cut "With a speaker score"
+        to "With a speaker s…" on a phone and left the full text reachable
+        only through a `title` tooltip — which a touch device never shows.
+        A micro-label that runs to two lines costs a few pixels; one that
+        loses its last word costs the reader the meaning of the figure.
+      */}
+      <div className="data-label" title={label}>
         {label}
       </div>
       <div className="mt-1.5 flex items-baseline gap-2">

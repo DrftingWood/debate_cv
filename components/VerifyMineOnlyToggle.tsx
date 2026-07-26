@@ -17,23 +17,32 @@ export function VerifyMineOnlyToggle({ mine }: { mine: boolean }) {
 
   const toggle = useCallback(() => {
     const next = new URLSearchParams(Array.from(params.entries()));
-    if (mine) next.delete('mine');
-    else next.set('mine', '1');
+    // "Only me" is the default, so it is the ABSENCE of the param and
+    // "everyone" is the explicit `mine=0`.
+    if (mine) next.set('mine', '0');
+    else next.delete('mine');
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }, [mine, params, pathname, router]);
 
+  /*
+   * Labelled by what the click DOES, not by what is currently on screen.
+   * The old label read "Everyone" while showing everyone, so it was equally
+   * readable as a state badge or as an action — and the two readings imply
+   * opposite outcomes from the same click.
+   */
   return (
     <Button
       type="button"
-      variant={mine ? 'primary' : 'secondary'}
+      variant="secondary"
       size="sm"
+      aria-pressed={!mine}
       leftIcon={
-        mine ? <UserCheck className="h-4 w-4" aria-hidden /> : <Users className="h-4 w-4" aria-hidden />
+        mine ? <Users className="h-4 w-4" aria-hidden /> : <UserCheck className="h-4 w-4" aria-hidden />
       }
       onClick={toggle}
     >
-      {mine ? 'Only me' : 'Everyone'}
+      {mine ? 'Show everyone' : 'Show only me'}
     </Button>
   );
 }

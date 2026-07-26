@@ -150,15 +150,25 @@ export function Histogram({
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="flex h-28 items-end gap-1">
+      {/*
+        `items-stretch` (the default) rather than `items-end`, and `h-full`
+        on each column, are both load-bearing: a percentage height only
+        resolves against a parent with a DEFINITE height. Under `items-end`
+        the columns shrink-wrap their label, the bar's `height: N%` resolves
+        against an indefinite height, and every bar in the chart renders at
+        exactly 0px — which is what this component did until it was rendered
+        against real data. The columns now fill the h-28 track and push the
+        bar to the bottom with `mt-auto`.
+      */}
+      <div className="flex h-28 gap-1 sm:h-36 lg:h-44">
         {bins.map((b, i) => (
-          <div key={`${b.from}-${b.to}`} className="flex flex-1 flex-col items-center justify-end gap-1">
+          <div key={`${b.from}-${b.to}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
             <span className="num text-[12px] leading-none text-ink-soft">
               {b.count > 0 ? b.count : ''}
             </span>
             <div
               className={cn(
-                'w-full rounded-t-sm',
+                'w-full shrink-0 rounded-t-sm',
                 i === highlightIndex ? 'bg-primary' : 'bg-ink/15',
               )}
               style={{ height: `${Math.max((b.count / max) * 100, b.count > 0 ? 4 : 0)}%` }}

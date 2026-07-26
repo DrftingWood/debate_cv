@@ -157,9 +157,18 @@ export function IdentityManager() {
             <li key={n.normalizedName}>
               <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
                 <span className="flex min-w-0 items-center gap-3">
+                  {/*
+                    `accent-primary`, not `text-primary`. Tailwind's text
+                    colour does nothing to a native checkbox without
+                    @tailwindcss/forms, which this project does not install —
+                    so every one of these rendered in the browser's default
+                    blue, the only saturated non-emerald block on the page
+                    and a direct breach of the one-accent rule. `accent-color`
+                    is the property that actually tints a native control.
+                  */}
                   <input
                     type="checkbox"
-                    className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
+                    className="h-[18px] w-[18px] shrink-0 accent-primary"
                     checked={checked}
                     onChange={() => toggle(n.normalizedName)}
                   />

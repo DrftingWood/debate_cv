@@ -1076,7 +1076,11 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     if (strongest.winRateDelta! >= 10) {
       quirks.push({
         id: 'motion-type',
-        text: `You win ${Math.round(strongest.winRateDelta!)} points more often on ${strongest.key} motions than your overall rate.`,
+        // "points" is speaker points to a debater — the unit two findings
+        // below genuinely uses. A win-rate delta is percentage points, and
+        // the split table beside it prints "+31pp", so the finding has to
+        // say the same thing for the claim to be checkable against it.
+        text: `You win ${Math.round(strongest.winRateDelta!)} percentage points more often on ${strongest.key} motions than your overall rate.`,
         basis: `${strongest.decidedRounds} decided rounds on ${strongest.key}`,
         tone: 'pos',
       });
@@ -1113,8 +1117,8 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
           id: 'field-size',
           text:
             gap > 0
-              ? `Your round win rate drops ${Math.round(gap)} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`
-              : `Your round win rate rises ${Math.round(Math.abs(gap))} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`,
+              ? `Your round win rate drops ${Math.round(gap)} percentage points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`
+              : `Your round win rate rises ${Math.round(Math.abs(gap))} percentage points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`,
           basis: `${smallest.decidedRounds} and ${biggest.decidedRounds} decided rounds respectively`,
           tone: gap > 0 ? 'neg' : 'pos',
         });

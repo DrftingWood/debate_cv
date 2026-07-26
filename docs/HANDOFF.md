@@ -2,6 +2,48 @@
 
 ---
 
+## 2026-07-26 — UI/UX audit against rendered pages
+
+**Branch:** `claude/ui-ux-issues-audit-62ja8z`. **Tests:** 652 passing.
+No schema change, no `PARSER_VERSION` bump, no re-ingest.
+
+Every surface was rendered against the seeded database at 390 / 1280 / 1512
+in both themes, signed in and signed out, and measured in-page (overflow,
+tap targets, heading order, console). Everything below was found that way,
+not by reading code — three of the defects are invisible in the source.
+
+### Broken
+
+| Defect | Detail |
+|---|---|
+| The score histogram drew **no bars at all** | Every bar rendered at 0px. The columns were `items-end`, so they shrink-wrapped their count label and the bars' `height: N%` resolved against an indefinite height. `/cv/stats` had been shipping a 260px empty panel where the distribution chart should be. |
+| The public CV hid its **Result** column at every viewport | `min-w-max` + full-width format names made the table 1,135px inside a 1,024px document, so the break/outround — the single most load-bearing fact on a shareable credential — sat permanently off the right edge, behind a scroller with no affordance. Now abbreviates format (the `formatAbbrev` helper already existed for exactly this and was never applied here), lets the tournament name wrap, and fits at 1280. |
+| The public CV had **no mobile layout** | It rendered the desktop table at 390px, needing 468px of sideways scroll. It now gets the same card treatment the private record has had since the rebuild. |
+| The theme toggle on `/u/<slug>` was a **dead control** | The layout pins `data-theme="light"` on the wrapper, so the button swapped its own icon and changed nothing on the page. Removed; forced-light stands. |
+
+### Misleading
+
+- **`/cv` printed two different "speaker averages"** — the header strip showed the *best* tournament average while `/u` and `/cv/stats` show the *career* one. The strip also duplicated two Highlights tiles sitting 200px below it, and its copy was the one without the tournament attribution. It now carries the career average with its speech count, computed from the same `computeSpeakerStats` the other two surfaces use.
+- **"You win 31 points more often on THS motions"** — "points" is speaker points to a debater. These are percentage points, and the split table beside them prints `+31pp`. Both win-rate findings now say "percentage points"; the topic finding that genuinely means speaker points is unchanged.
+- **`/cv/verify` opened on ~1,300 strangers.** The page for checking *your* parse defaulted to every participant — 9,700px of other people's names on a phone before your own row. Default is now `mine`, `?mine=0` is the opt-out, and the toggle is labelled by what the click does rather than by what is on screen.
+- **Splits marked rows "thin" below 4 rounds** while the findings engine refuses to make a claim below 6 — so a 4-round 100% win rate printed a bold `+31pp` that the same page declined to state in words. Pinned to `MIN_QUIRK_ROUNDS`.
+- **Imports was headed "Tournaments in flight"** in the steady state, above four zeroes. The heading and its subtitle now describe the state they sit on.
+
+### Design system / a11y
+
+- **Checkboxes rendered in browser blue.** `text-primary` does nothing to a native checkbox without `@tailwindcss/forms`, which this repo does not install — so the identity picker, onboarding and the row-report popover all put an unbranded saturated blue on screen, against the one-accent rule. All five controls now use `accent-primary` (`CvDownloadButton` had `accent-current`, which worked but was a third spelling).
+- **Two columns headed `vs you`** in every split table, in different units. Now `vs you (pp)` and `vs you (pts)`.
+- **Scroll affordance for wide tables** — pure-CSS shadows in `TableScroll`, shown only on a side with content beyond it. Every table in the product scrolled inside its box with nothing on screen saying so; that is how the public CV hid a column at every viewport without anyone noticing.
+- Settings tabs wrapped "Public sharing" onto two lines at 390px (flex items shrink by default — needed `shrink-0`); `StatTile` truncated "With a speaker score" to a `title` tooltip a touch device never shows; mobile card titles were 23px tall, under the WCAG 2.2 24px minimum.
+- The record no longer repeats the account holder's own name under all 12 rows — the matched registration name shows only when it differs from the account name, which is the case it was there to explain.
+
+### Still open
+
+- `/cv`'s speaking ledger still needs ~80px more than a 1280px viewport. It now shows a scroll shadow so the hidden column is at least discoverable; genuinely fixing it means dropping or merging a column.
+- `AutoScanOnVisit` fires on `/cv` for users with no Gmail token and logs a console 400 each time. Handled silently in the UI, but it is avoidable noise.
+
+---
+
 ## 2026-07-25 (later) — Seeded local data; migrations fixed; review items closed
 
 **Branch:** merged to `main`. **Tests:** 658 passing (was 636).

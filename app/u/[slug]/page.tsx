@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatAbbrev } from '@/lib/calicotab/format';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
@@ -10,7 +11,6 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
@@ -138,18 +138,14 @@ export default async function PublicCvPage({
     <div className="w-full flex-1 space-y-8">
       <header className="border-b border-border pb-6">
         {/*
-          The public CV sits outside the (app) layout so it reads as a
-          standalone document — which also meant it inherited no theme
-          control. It followed the visitor's OS preference with no way to
-          override, on the one page in the product a stranger is most
-          likely to land on cold.
+          No theme toggle here. This page's layout pins `data-theme="light"`
+          on its wrapper so the credential looks identical for every viewer
+          and matches print — which meant the toggle that used to sit in
+          this corner swapped its own sun/moon icon and changed nothing else
+          on the page. A control that visibly does nothing is worse than no
+          control; the forced-light decision is the one that stands.
         */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="data-label">Public debate record · compiled {compiled}</div>
-          <div data-print-hide="true">
-            <ThemeToggle />
-          </div>
-        </div>
+        <div className="data-label">Public debate record · compiled {compiled}</div>
         <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-4">
             {user.publicAvatarEnabled && user.image ? (
@@ -196,12 +192,29 @@ export default async function PublicCvPage({
             label="Speaking"
             title={`${speakerRows.length} tournament${speakerRows.length === 1 ? '' : 's'}`}
           />
-          <div className="panel overflow-hidden">
+          <div className="panel hidden overflow-hidden md:block">
             <TableScroll>
-              <Table className="min-w-max" label="Speaking record by tournament">
+              {/*
+                Deliberately NOT `min-w-max` here, unlike the private ledger.
+                Spelling every column to its widest content made this table
+                1,135px wide inside a max-w-5xl document, so the Result
+                column — the break, the outround, the single most load-
+                bearing fact on a shareable credential — sat permanently
+                off the right edge at EVERY viewport, reachable only by
+                scrolling a container with no visible affordance. Letting
+                the tournament name wrap costs a second line on the longest
+                names and buys a table that fits the sheet.
+              */}
+              <Table className="w-full" label="Speaking record by tournament">
                 <thead>
                   <tr>
-                    <Th className="pl-4">Tournament</Th>
+                    {/*
+                      The width hint makes the tournament name the column
+                      that absorbs the slack. Without it the auto table
+                      layout squeezed Team instead and broke "Maya G" across
+                      two lines mid-name.
+                    */}
+                    <Th className="w-[34%] pl-4">Tournament</Th>
                     <Th numeric>Year</Th>
                     <Th>Format</Th>
                     <Th>Team</Th>
@@ -227,8 +240,10 @@ export default async function PublicCvPage({
                           </a>
                         </Td>
                         <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                        <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
-                        <Td className="text-ink">{r.teamName ?? <Nil />}</Td>
+                        <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                          {formatAbbrev(r.format) ?? <Nil />}
+                        </Td>
+                        <Td className="whitespace-nowrap text-ink">{r.teamName ?? <Nil />}</Td>
                         <Td numeric>{r.teamRank != null ? `#${r.teamRank}` : <Nil />}</Td>
                         <Td numeric>
                           {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : <Nil />}
@@ -253,6 +268,53 @@ export default async function PublicCvPage({
               </Table>
             </TableScroll>
           </div>
+
+          {/*
+            Phones get cards, not a squeezed ledger — the same treatment the
+            private record has had since the rebuild. A shared CV link is
+            opened on a phone at least as often as on a laptop, and the
+            table needed 468px of sideways scroll at 390px wide with no
+            visible affordance that there was anything to the right of it.
+          */}
+          <ul className="space-y-3 md:hidden">
+            {speakerRows.map((r) => {
+              const outround = fmtPublicLastOutround(r);
+              return (
+                <li key={r.tournamentId.toString()} className="panel p-4">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <a
+                      href={r.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block min-w-0 py-1 font-display text-h4 font-medium text-ink"
+                    >
+                      {r.tournamentName}
+                    </a>
+                    <span className="num shrink-0 text-caption text-ink-soft">{r.year ?? '—'}</span>
+                  </div>
+                  {r.broke || outround ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {r.broke ? <Badge variant="gold">Broke</Badge> : null}
+                      {outround ? <span className="text-caption text-ink">{outround}</span> : null}
+                    </div>
+                  ) : null}
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
+                    {r.speakerAvgScore ? (
+                      <PublicField label="Avg score" value={r.speakerAvgScore} mono />
+                    ) : null}
+                    {r.speakerRankOpen != null ? (
+                      <PublicField label="Speaker rank" value={`#${r.speakerRankOpen}`} mono />
+                    ) : null}
+                    {r.teamRank != null ? (
+                      <PublicField label="Team rank" value={`#${r.teamRank}`} mono />
+                    ) : null}
+                    {r.teamName ? <PublicField label="Team" value={r.teamName} /> : null}
+                    {r.format ? <PublicField label="Format" value={r.format} /> : null}
+                  </dl>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
 
@@ -262,12 +324,12 @@ export default async function PublicCvPage({
             label="Judging"
             title={`${judgeRows.length} tournament${judgeRows.length === 1 ? '' : 's'}`}
           />
-          <div className="panel overflow-hidden">
+          <div className="panel hidden overflow-hidden md:block">
             <TableScroll>
-              <Table className="min-w-max" label="Judging record by tournament">
+              <Table className="w-full" label="Judging record by tournament">
                 <thead>
                   <tr>
-                    <Th className="pl-4">Tournament</Th>
+                    <Th className="w-[34%] pl-4">Tournament</Th>
                     <Th numeric>Year</Th>
                     <Th>Format</Th>
                     <Th numeric>Prelims chaired</Th>
@@ -290,7 +352,9 @@ export default async function PublicCvPage({
                         </a>
                       </Td>
                       <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                      <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                        {formatAbbrev(r.format) ?? <Nil />}
+                      </Td>
                       <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                       <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
                       <Td className="whitespace-nowrap">{r.lastOutroundChaired ?? <Nil />}</Td>
@@ -303,6 +367,39 @@ export default async function PublicCvPage({
               </Table>
             </TableScroll>
           </div>
+
+          <ul className="space-y-3 md:hidden">
+            {judgeRows.map((r) => (
+              <li key={r.tournamentId.toString()} className="panel p-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <a
+                    href={r.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block min-w-0 py-1 font-display text-h4 font-medium text-ink"
+                  >
+                    {r.tournamentName}
+                  </a>
+                  <span className="num shrink-0 text-caption text-ink-soft">{r.year ?? '—'}</span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
+                  {r.inroundsChaired != null ? (
+                    <PublicField label="Prelims chaired" value={String(r.inroundsChaired)} mono />
+                  ) : null}
+                  {r.inroundsJudged != null ? (
+                    <PublicField label="Prelims judged" value={String(r.inroundsJudged)} mono />
+                  ) : null}
+                  {r.lastOutroundChaired ? (
+                    <PublicField label="Last outround chaired" value={r.lastOutroundChaired} />
+                  ) : null}
+                  {r.lastOutroundJudged ? (
+                    <PublicField label="Last outround judged" value={r.lastOutroundJudged} />
+                  ) : null}
+                  {r.format ? <PublicField label="Format" value={r.format} /> : null}
+                </dl>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -310,6 +407,22 @@ export default async function PublicCvPage({
         Every row links to the tournament tab it was read from, at calicotab.com or
         herokuapp.com. Figures are as the tab published them.
       </p>
+    </div>
+  );
+}
+
+/**
+ * One label/value pair inside a mobile record card. `truncate` on the value
+ * with the full string in `title` keeps a long team or outround name from
+ * blowing out the two-column grid.
+ */
+function PublicField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="data-label truncate">{label}</dt>
+      <dd className={'mt-0.5 truncate text-table text-ink ' + (mono ? 'num' : '')} title={value}>
+        {value}
+      </dd>
     </div>
   );
 }
