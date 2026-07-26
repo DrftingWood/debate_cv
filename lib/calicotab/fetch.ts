@@ -15,35 +15,42 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-// Per-host minimum interval between consecutive request starts. Enforced by
-// FetchSession.acquireSlot, which makes concurrent calls (Promise.all of 3
-// tab fetches + many round results) serial rather than racing — important
-// because Cloudflare-fronted Tabbycat instances 403 bursts of simultaneous
-// requests even when each individual gap looks polite.
+// Per-host minimum interval between consecutive request starts — a FLOOR,
+// not a fixed rate. FetchSession raises it per host the first time that host
+// pushes back (see noteRateLimited), so the value here is the optimistic
+// starting point rather than a guess that has to be safe for every host in
+// the world simultaneously.
 //
 // History: 750ms (original) → 2500ms (2026-05, post Cloudflare-403 audit)
-// → 1500ms (2026-05-24, post Vercel 60s 504 timeout audit).
+// → 1500ms (2026-05-24, post Vercel 60s 504 timeout audit) → 600ms + learned
+// backoff (2026-07).
 //
-// The 2500ms bump was paired with the serialization fix in FetchSession.
-// The serialization itself is what stopped the burst-triggered 403s; the
-// 2500ms was an overcautious headroom on top. At ~16 same-host fetches
-// per ingest, 2500ms blew past Vercel's 60s Hobby cap (40s throttle
-// floor + fetch latency + parse/write). 1500ms keeps the throttle 2x
-// above the 750ms level that was failing for *concurrent bursts* — but
-// with serialization eliminating bursts, it's a comfortable steady-state
-// rate (~40 req/min per host, well below typical Cloudflare managed
-// thresholds). 16 × 1500ms = 24s throttle floor, leaving ~30s for the
-// fetch + parse + write phases inside a 60s budget.
+// The 403s that drove the increases were caused by CONCURRENT BURSTS, and
+// the fix for those was the serialization in FetchSession.acquireSlot — the
+// interval on top was headroom, as the 2500ms→1500ms note already conceded.
+// Charging every host the strictest host's rate made a 13-fetch ingest spend
+// 18.0s of its 28.7s simply waiting (63%, measured against a live
+// tournament).
 //
-// TABBYCAT_MIN_INTERVAL_MS env var overrides for tuning on specific
-// deployments without a code change. Empty / unparseable values fall
-// back to the default below.
+// So: start at 600ms and let evidence set the rest. A host that returns 403,
+// 429 or 503 is immediately moved to SAFE_INTERVAL_MS (the old 1500ms) and
+// doubles from there to a 3s ceiling, process-wide. Those statuses are
+// already in RETRYABLE_STATUSES, so the first push-back costs a retry rather
+// than a failed ingest, and the retry goes out at the slowed rate.
+//
+// TABBYCAT_MIN_INTERVAL_MS overrides the floor for tuning a specific
+// deployment without a code change. Empty / unparseable values fall back to
+// the default.
 const MIN_INTERVAL_MS = (() => {
   const raw = process.env.TABBYCAT_MIN_INTERVAL_MS;
-  if (!raw) return 1500;
+  if (!raw) return 600;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1500;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
 })();
+
+// Statuses that mean "you are going too fast" as opposed to "that page is
+// missing". Only these escalate the per-host interval.
+const RATE_LIMIT_STATUSES = new Set([403, 429, 503]);
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
@@ -153,6 +160,13 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
         signal: controller.signal,
       });
       session.storeCookies(host, res);
+
+      // Learn from push-back before returning: the retry that follows, and
+      // every later fetch to this host in this process, then goes out at the
+      // slower rate rather than repeating the mistake.
+      if (RATE_LIMIT_STATUSES.has(res.status)) {
+        session.noteRateLimited(host, MIN_INTERVAL_MS);
+      }
 
       if (proxied || !REDIRECT_STATUSES.has(res.status)) return res;
 

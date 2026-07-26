@@ -10,6 +10,38 @@
  * each get a fresh single-shot session implicitly (created inside the
  * fetch.ts public functions when no session is supplied).
  */
+/**
+ * Per-host interval learned from how a host has actually behaved, kept at
+ * module scope so it survives across ingests within one warm process.
+ *
+ * The throttle used to be one fixed number chosen for the strictest
+ * imaginable host and applied to every host. That is the wrong shape: the
+ * hosts that 403 bursts are the Cloudflare-fronted ones, and a fixed
+ * interval either runs too fast for them or — as it did — too slow for
+ * everyone else. Learning per host lets the common case be quick while a
+ * strict host still gets backed off from, automatically, on its first
+ * complaint rather than by a guess made months earlier.
+ *
+ * Deliberately NOT persisted to the database: it is a hint, it is cheap to
+ * relearn, and one bad row should never be able to slow every ingest.
+ */
+const learnedIntervalByHost = new Map<string, number>();
+
+/** Ceiling for the learned backoff — past this a host is simply too slow to serve. */
+export const MAX_LEARNED_INTERVAL_MS = 3000;
+
+/**
+ * The interval a host is moved to the moment it rate-limits us: the value
+ * that was previously applied to every host unconditionally, and which is
+ * known to keep Cloudflare-fronted Tabbycat instances happy.
+ */
+export const SAFE_INTERVAL_MS = 1500;
+
+/** Test seam: forget everything learned so far. */
+export function resetLearnedIntervals(): void {
+  learnedIntervalByHost.clear();
+}
+
 export class FetchSession {
   private readonly cookieJars = new Map<string, Map<string, string>>();
   private readonly lastRequestAtByHost = new Map<string, number>();
@@ -50,6 +82,26 @@ export class FetchSession {
     return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
   }
 
+  /**
+   * Record that `host` pushed back (403 / 429 / 503) and slow down for it.
+   *
+   * Doubling from the current effective interval, floored at the historical
+   * safe value and capped, means one complaint is enough to reach a polite
+   * rate immediately rather than creeping toward it over many failures. The
+   * escalation is process-wide, so later ingests of the same host in the
+   * same lambda start already slowed rather than rediscovering the limit.
+   */
+  noteRateLimited(host: string, baseIntervalMs: number): void {
+    const current = Math.max(baseIntervalMs, learnedIntervalByHost.get(host) ?? 0);
+    const next = Math.min(Math.max(current * 2, SAFE_INTERVAL_MS), MAX_LEARNED_INTERVAL_MS);
+    learnedIntervalByHost.set(host, next);
+  }
+
+  /** The interval currently in force for `host`, for logging and tests. */
+  effectiveInterval(host: string, baseIntervalMs: number): number {
+    return Math.max(baseIntervalMs, learnedIntervalByHost.get(host) ?? 0);
+  }
+
   /** Milliseconds-since-epoch of the last request we sent to `host`, or 0 if none. */
   getLastRequestAt(host: string): number {
     return this.lastRequestAtByHost.get(host) ?? 0;
@@ -74,10 +126,16 @@ export class FetchSession {
     const prev = this.chainByHost.get(host) ?? Promise.resolve();
     const slot = (async () => {
       await prev;
+      // The caller's interval is a FLOOR, not the final say: a host that has
+      // already rate-limited us carries a larger learned interval and that
+      // wins. Read at wait time rather than at call time so an escalation
+      // triggered by an in-flight request applies to everything queued
+      // behind it, which is the whole point of backing off.
+      const interval = Math.max(minIntervalMs, learnedIntervalByHost.get(host) ?? 0);
       const last = this.lastRequestAtByHost.get(host) ?? 0;
       const gap = Date.now() - last;
-      if (gap < minIntervalMs) {
-        await new Promise<void>((resolve) => setTimeout(resolve, minIntervalMs - gap));
+      if (gap < interval) {
+        await new Promise<void>((resolve) => setTimeout(resolve, interval - gap));
       }
       this.lastRequestAtByHost.set(host, Date.now());
     })();
