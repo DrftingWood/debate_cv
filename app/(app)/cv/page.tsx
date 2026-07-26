@@ -667,7 +667,9 @@ function JudgingTable({
                       href={r.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block max-w-[16rem] truncate font-medium text-ink hover:text-primary"
+                      // Same 44px target the speaking table's link has. This
+                      // one was left at the bare 20px line box.
+                      className="flex min-h-[44px] max-w-[16rem] items-center truncate font-medium text-ink hover:text-primary"
                       title={r.tournamentName}
                     >
                       {r.tournamentName}
