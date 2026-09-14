@@ -114,6 +114,41 @@ describe('team tab — the roster in the popover', () => {
     expect(rows[0]!.speakers).toEqual(['Ann Lee', 'Bo Ng', 'Cy Ray']);
   });
 
+  test('skips a labelled entry to find the real roster', () => {
+    // Anonymised tournaments put a code name ahead of the roster:
+    //   [ "Code name: <strong>Straight Line</strong>",
+    //     "David Africa, Maeca Pansensoy",
+    //     "View ...'s Record" (link) ]
+    // Taking the first entry without a link grabbed the code name, which is
+    // why 793 teams came back with a one-person "roster".
+    const cell = {
+      text: 'Ateneo 1',
+      popover: {
+        title: 'Ateneo de Manila University 1',
+        content: [
+          { text: 'Code name: <strong>Straight Line</strong>' },
+          { text: 'David Africa, Maeca Pansensoy' },
+          { text: "View Ateneo 1's Record", link: '/t/participants/team/1/' },
+        ],
+      },
+    };
+    const rows = parseTeamTab(
+      teamTabPage(HEAD, [[{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }]]),
+    );
+    expect(rows[0]!.speakers).toEqual(['David Africa', 'Maeca Pansensoy']);
+  });
+
+  test('never returns markup as a speaker name', () => {
+    const cell = {
+      text: 'T',
+      popover: { content: [{ text: 'Code name: <strong>Lacrosse</strong>' }] },
+    };
+    const rows = parseTeamTab(
+      teamTabPage(HEAD, [[{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }]]),
+    );
+    for (const n of rows[0]!.speakers) expect(n).not.toMatch(/<[a-zA-Z/]/);
+  });
+
   test('the team name itself is unaffected', () => {
     const rows = parseTeamTab(
       teamTabPage(HEAD, [row('1', 'Cat Woman', 'Michael Kwak, Roman Num', '13', '3', '2')]),

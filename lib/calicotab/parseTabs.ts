@@ -547,9 +547,20 @@ function teamSpeakersFromCell(cell: VueCell | undefined): string[] {
   const popover = cell?.popover as { content?: Array<{ text?: string; link?: string }> } | undefined;
   const entries = popover?.content;
   if (!Array.isArray(entries)) return [];
-  const roster = entries.find((e) => e && !e.link && typeof e.text === 'string' && e.text.trim());
+  // More than one entry can lack a link. An anonymised tournament puts a
+  // code name first — "Code name: <strong>Straight Line</strong>" — and the
+  // roster after it, so taking the first link-less entry grabbed the code
+  // name and reported a one-person team. A labelled entry is never a roster.
+  const roster = entries.find(
+    (e) =>
+      e &&
+      !e.link &&
+      typeof e.text === 'string' &&
+      e.text.trim() &&
+      !/^\s*[\w ]{2,24}:/.test(e.text),
+  );
   if (!roster?.text) return [];
-  return decodeHtmlEntities(roster.text)
+  return decodeHtmlEntities(roster.text.replace(/<[^>]*>/g, ' '))
     .split(',')
     .map((n) => n.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
