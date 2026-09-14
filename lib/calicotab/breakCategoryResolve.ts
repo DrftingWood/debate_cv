@@ -1,3 +1,4 @@
+import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 /**
  * BP-style tournaments often run multiple break categories (Open + ESL +
  * EFL + sometimes Novice): one team can appear in more than one break
@@ -74,10 +75,15 @@ export function resolveTeamBreaks(rows: BreakRowLike[]): {
 }
 
 /**
- * EUDC-style outround stage labels embed the break category as a prefix
- * ("ESL Grand Final", "EFL Octofinals"); the Open category uses bare
- * labels ("Octofinals", "Grand Final"). Splits the prefix off so callers
- * can group outround appearances by category.
+ * Outround stage labels embed the break category alongside the stage
+ * ("ESL Grand Final", "Gold Final", "Semifinais de Iniciados"); the Open
+ * category uses bare labels ("Octofinals", "Grand Final"). Splits the two
+ * apart so callers can group outround appearances by category.
+ *
+ * Delegates to the stage lexicon: the STAGE phrase is what gets matched,
+ * and the leftover text is the category. An allowlist was tried first and
+ * could not work — a sweep of 625 live tournaments found 76 distinct
+ * category tokens, of which Open|ESL|EFL|Novice covered 8.
  *
  * Returns `category: null` when the stage is unparseable (caller treats
  * it as "Open" by convention; see `deepestOutroundsByCategory`).
@@ -88,21 +94,9 @@ export function splitOutroundStage(stage: string | null | undefined): {
 } {
   if (!stage) return { category: null, baseStage: null };
   const trimmed = stage.trim();
-  // Match a leading category token followed by whitespace, then the rest
-  // of the label. Anchored so we only strip a known prefix — random
-  // capitalised words at the start (e.g. a tournament-specific stage
-  // name) are left intact.
-  const match = trimmed.match(/^(Open|ESL|EFL|Novice)\s+(.+)$/i);
-  if (match) {
-    const category = match[1]!;
-    // Normalise capitalisation: "esl final" → "ESL".
-    const normalised =
-      category.toUpperCase() === 'ESL' || category.toUpperCase() === 'EFL'
-        ? category.toUpperCase()
-        : category[0]!.toUpperCase() + category.slice(1).toLowerCase();
-    return { category: normalised, baseStage: match[2]!.trim() };
-  }
-  return { category: null, baseStage: trimmed };
+  const m = matchStage(trimmed);
+  if (!m) return { category: null, baseStage: trimmed };
+  return { category: splitStageLabel(trimmed).category, baseStage: m.matched };
 }
 
 /**
