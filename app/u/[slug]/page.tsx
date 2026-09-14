@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, formatStageOrDash } from '@/lib/cv/formatStage';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 
@@ -214,8 +214,8 @@ export default async function PublicCvPage({
                     <td className="px-4 py-2.5 text-ink-soft">{r.format ?? '—'}</td>
                     <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsChaired ?? '—'}</td>
                     <td className="px-4 py-2.5 text-ink-soft num">{r.inroundsJudged ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundChaired ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.lastOutroundJudged ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{formatStageOrDash(r.lastOutroundChaired)}</td>
+                    <td className="px-4 py-2.5 text-ink-soft">{formatStageOrDash(r.lastOutroundJudged)}</td>
                   </tr>
                 ))}
               </tbody>

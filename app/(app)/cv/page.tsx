@@ -9,7 +9,7 @@ import {
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, formatStageOrDash } from '@/lib/cv/formatStage';
 import { volumeRoman } from '@/lib/cv/volumeRoman';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -689,8 +689,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsJudged ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 num">{r.inroundsChaired ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2.5"><BrokeBadge broke={r.broke} /></td>
-                <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundChaired ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2.5">{r.lastOutroundJudged ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{formatStageOrDash(r.lastOutroundChaired)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{formatStageOrDash(r.lastOutroundJudged)}</td>
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <div className="flex items-center gap-1.5">
                     {r.hasOpenReport ? (
@@ -734,8 +734,8 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               <Field label="Inrounds judged" value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'} mono />
               <Field label="Inrounds chaired" value={r.inroundsChaired != null ? String(r.inroundsChaired) : '—'} mono />
               <Field label="Broken" value={r.broke ? 'Yes' : 'No'} />
-              {r.lastOutroundChaired ? <Field label="Last outround chaired" value={r.lastOutroundChaired} /> : null}
-              {r.lastOutroundJudged ? <Field label="Last outround judged" value={r.lastOutroundJudged} /> : null}
+              {r.lastOutroundChaired ? <Field label="Last outround chaired" value={formatStageForDisplay(r.lastOutroundChaired)} /> : null}
+              {r.lastOutroundJudged ? <Field label="Last outround judged" value={formatStageForDisplay(r.lastOutroundJudged)} /> : null}
             </dl>
             <div className="flex items-center gap-1.5 pt-1">
               {r.hasOpenReport ? (

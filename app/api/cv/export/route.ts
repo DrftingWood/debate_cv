@@ -110,8 +110,8 @@ export async function GET() {
         r.judgeTypeTag,
         r.inroundsJudged ?? '',
         r.inroundsChaired ?? '',
-        r.lastOutroundChaired,
-        r.lastOutroundJudged,
+        formatStageForDisplay(r.lastOutroundChaired),
+        formatStageForDisplay(r.lastOutroundJudged),
       ]),
     );
   }

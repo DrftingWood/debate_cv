@@ -78,3 +78,15 @@ export function formatStageForDisplay(raw: string | null | undefined): string {
   if (!category || category === 'Open') return base;
   return `${category} ${base}`;
 }
+
+/**
+ * Table-cell variant: canonical stage label, or an em dash when absent.
+ *
+ * The judging rows (`lastOutroundChaired` / `lastOutroundJudged`) used to
+ * print their raw stored label while the speaking table directly above
+ * them was canonicalised, so one CV page showed "Final" in one table and
+ * "GF" or "Grand Final" in the other.
+ */
+export function formatStageOrDash(raw: string | null | undefined): string {
+  return formatStageForDisplay(raw) || '—';
+}
