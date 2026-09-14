@@ -142,8 +142,18 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
         nav.resultsRoundLabels[absolute] = linkText;
       }
     } else if (/\/break\/[^/]+\/?/.test(pathname)) {
-      nav.breakTabs.push(absolute);
-      discovered.add('breakTabs');
+      // /break/bracket/<category>/ is the bracket *diagram* — a Vue-rendered
+      // tree with no <table> and no tablesData, sitting in the nav right
+      // beside the standings it illustrates. parseBreakPage can only read
+      // /break/teams/<category>/ and /break/adjudicators/, so a bracket URL
+      // is guaranteed to parse to zero rows. Excluding it here rather than
+      // in the parser is what saves the work: ingest fetches every entry of
+      // breakTabs, and each fetch costs the full per-host politeness
+      // interval that the drain's time budget is built from.
+      if (!/\/break\/bracket\//.test(pathname)) {
+        nav.breakTabs.push(absolute);
+        discovered.add('breakTabs');
+      }
     } else if (/\/participants\/list\/?$/.test(pathname)) {
       if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
     } else if (/\/participants\/institutions\/?$/.test(pathname)) {
