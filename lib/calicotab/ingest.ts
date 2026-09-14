@@ -841,6 +841,8 @@ async function writeIngestTransaction(
           rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
+          firsts: row.firsts,
+          seconds: row.seconds,
         },
         create: {
           tournamentId: t.id,
@@ -849,6 +851,8 @@ async function writeIngestTransaction(
           rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
+          firsts: row.firsts,
+          seconds: row.seconds,
         },
       });
     }

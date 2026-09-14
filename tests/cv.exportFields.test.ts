@@ -63,6 +63,8 @@ describe('buildExportCsv', () => {
         'motion_types',
         'motion_topics',
         'speaker_categories',
+        'team_firsts',
+        'team_seconds',
       ].join(','),
     );
   });

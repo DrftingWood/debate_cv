@@ -177,6 +177,18 @@ export const EXPORT_FIELDS: ExportField[] = [
     // install this is the only such statement available.
     speaker: (r) => r.speakerCategories.join(' | '),
   },
+  {
+    id: 'team_firsts',
+    label: 'Firsts',
+    // BP's tiebreaker: rooms this team topped. Two teams on the same points
+    // are not equally placed, and this is what separates them.
+    speaker: (r) => r.teamFirsts ?? '',
+  },
+  {
+    id: 'team_seconds',
+    label: 'Seconds',
+    speaker: (r) => r.teamSeconds ?? '',
+  },
 ];
 
 /**

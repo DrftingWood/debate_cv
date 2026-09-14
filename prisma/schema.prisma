@@ -383,6 +383,12 @@ model TeamResult {
   rank          Int?
   wins          Int?
   points        Decimal?
+  /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
+  /// BP scores 3/2/1/0 and breaks ties on firsts then seconds, so two teams
+  /// level on points are not level on the tab. Null for the two-team
+  /// formats, which publish a wins column instead.
+  firsts        Int?
+  seconds       Int?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
   /// column said on two-team formats. Null on roundNumber=0 standings

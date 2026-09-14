@@ -98,7 +98,10 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
           if (p.kind === 'teamTab') {
             for (const r of parseTeamTab(h)) {
               teams.push(
-                row([tid, r.rank, r.teamName, r.institution, r.wins, r.totalPoints, r.speakers.join(' | ')]),
+                row([
+                  tid, r.rank, r.teamName, r.institution, r.wins, r.totalPoints,
+                  r.speakers.join(' | '), r.firsts, r.seconds,
+                ]),
               );
             }
           } else if (p.kind === 'speakerTab') {

@@ -449,9 +449,24 @@ export type TeamTabRow = {
   rank: number | null;
   teamName: string;
   institution: string | null;
+  /**
+   * The team's roster, from the team cell's popover. Present on every team
+   * tab in a 625-tournament corpus, and the most direct evidence of how
+   * many speakers a team fields — which is how the format (BP / AP / WSDC)
+   * is inferred when the registration block does not say.
+   */
   speakers: string[];
   wins: number | null;
   totalPoints: number | null;
+  /**
+   * Rooms won and rooms placed second. BP scores 3/2/1/0 and ranks on total
+   * points, with firsts then seconds as the tiebreakers — so two teams on
+   * the same points are not equally placed, and the tab publishes exactly
+   * this to separate them. On 82 of 100 team tabs; null on the two-team
+   * formats, which carry a wins column instead.
+   */
+  firsts: number | null;
+  seconds: number | null;
 };
 
 export type SpeakerTabRow = {
@@ -520,6 +535,26 @@ export type ParticipantsRow = {
 
 // ── parseTeamTab ─────────────────────────────────────────────────────────────
 
+/**
+ * Pull a team's roster out of its cell.
+ *
+ * Tabbycat hangs a popover off the team name whose first content entry is
+ * the comma-separated roster; the entries after it are "View <team>'s
+ * Record" links. Keying on the ABSENCE of a link is what separates them —
+ * the roster is the only entry that is plain text.
+ */
+function teamSpeakersFromCell(cell: VueCell | undefined): string[] {
+  const popover = cell?.popover as { content?: Array<{ text?: string; link?: string }> } | undefined;
+  const entries = popover?.content;
+  if (!Array.isArray(entries)) return [];
+  const roster = entries.find((e) => e && !e.link && typeof e.text === 'string' && e.text.trim());
+  if (!roster?.text) return [];
+  return decodeHtmlEntities(roster.text)
+    .split(',')
+    .map((n) => n.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 function teamTabFromVue(tables: VueTable[]): TeamTabRow[] | null {
   const table = tables[0];
   if (!table?.head?.length || !table?.data?.length) return null;
@@ -531,6 +566,14 @@ function teamTabFromVue(tables: VueTable[]): TeamTabRow[] | null {
   const rankCol = vueCol(heads, 'rk', 'rank', '#');
   const instCol = vueCol(heads, 'inst', 'school', 'uni');
   const winsCol = vueCol(heads, 'win');
+  // Exact keys: a substring match on "1st" would also take a round column
+  // headed "R1" on some installs, and "2nd" is a substring of nothing safe.
+  const firstsCol = heads.findIndex((h) =>
+    /^(?:1sts?|firsts?)$/i.test((h.key ?? '').trim()) || /^(?:1sts?|firsts?)$/i.test((h.title ?? '').trim()),
+  );
+  const secondsCol = heads.findIndex((h) =>
+    /^(?:2nds?|seconds?)$/i.test((h.key ?? '').trim()) || /^(?:2nds?|seconds?)$/i.test((h.title ?? '').trim()),
+  );
   // Prefer explicit "pts"/"points"/"total" col; fall back to speaker score
   let ptsCol = vueCol(heads, 'pts', 'point', 'total');
   if (ptsCol < 0) ptsCol = vueCol(heads, 'spk', 'speak', 'score');
@@ -543,9 +586,11 @@ function teamTabFromVue(tables: VueTable[]): TeamTabRow[] | null {
       rank: rankCol >= 0 ? parseNumber(cellText(row[rankCol])) : null,
       teamName,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
-      speakers: [],
+      speakers: teamSpeakersFromCell(row[teamCol]),
       wins: winsCol >= 0 ? parseNumber(cellText(row[winsCol])) : null,
       totalPoints: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
+      firsts: firstsCol >= 0 ? parseNumber(cellText(row[firstsCol])) : null,
+      seconds: secondsCol >= 0 ? parseNumber(cellText(row[secondsCol])) : null,
     });
   }
   return rows.length > 0 ? rows : null;
