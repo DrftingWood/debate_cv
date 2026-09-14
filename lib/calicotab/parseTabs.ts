@@ -272,6 +272,86 @@ function isAverageHeader(s: string): boolean {
  * data on `/cv` do so because their column heads lacked the literal "R" or
  * "Round" prefix this regex previously demanded.
  */
+/**
+ * Read the adjudicator cell of a results row.
+ *
+ * Tabbycat renders this cell as MARKUP, not text: each adjudicator sits in
+ * its own `span.d-inline`, the chair carries an `i.adj-symbol`, and the
+ * comma separators live inside their own `span.d-none.d-md-inline`. The
+ * previous code took the cell verbatim and split it on commas, which cut
+ * straight through the tags — every judge row in a 101-tournament corpus
+ * was stored with its name as an HTML fragment, and the role, which the
+ * symbol states outright, came back null every time.
+ *
+ * Returns [] for a plain-text cell so the caller keeps its comma handling
+ * for installs that render one.
+ */
+export function parseAdjudicatorCell(
+  raw: string,
+): Array<{ name: string; role: 'chair' | 'panel' }> {
+  if (!raw || !/<[a-z]/i.test(raw)) return [];
+  const $ = cheerio.load(`<div id="adjcell">${raw}</div>`);
+  const out: Array<{ name: string; role: 'chair' | 'panel' }> = [];
+  $('#adjcell span.d-inline').each((_i, el) => {
+    const $el = $(el);
+    const isChair = $el.find('i.adj-symbol').length > 0 || /[\u24b8\u24d2]/.test($el.text());
+    const clone = $el.clone();
+    clone.find('i').remove();
+    const name = decodeHtmlEntities(clone.text()).replace(/\s+/g, ' ').trim();
+    if (name.length >= 2) out.push({ name, role: isChair ? 'chair' : 'panel' });
+  });
+  return out;
+}
+
+/**
+ * Read a British Parliamentary placing out of a result cell.
+ *
+ * A BP result cell says "1st".."4th"; none of those match the word-form
+ * win test, so the team that PLACED FIRST came back `won: false` — and
+ * ingest treats false as a recorded loss, so the winner of a grand final
+ * was written down as having lost it.
+ *
+ * Only ordinals count. A bare "3" is what caused a false-positive Champion
+ * once before, when a points column was mistaken for a result column; an
+ * ordinal cannot be confused with a points value.
+ */
+export function parseBpPlacing(
+  text: string,
+): { place: number; points: number; won: boolean } | null {
+  if (!text) return null;
+  const m = text.match(/\b([1-4])\s*(?:st|nd|rd|th)\b/i);
+  if (!m) return null;
+  const place = Number(m[1]);
+  return { place, points: 4 - place, won: place === 1 };
+}
+
+/**
+ * Read a team's outcome out of a results-table result cell.
+ *
+ * Tabbycat writes three different vocabularies into this one column:
+ *   prelim, BP       "1st" .. "4th"      (placing, and the points with it)
+ *   outround         "advancing" / "eliminated"
+ *   two-team formats "Win" / "Loss"
+ *
+ * Only the third was recognised. "advancing" matched nothing, so the team
+ * that WON a grand final came back `won: false`, and ingest records a false
+ * as a loss — the champion was written down as having lost the final.
+ *
+ * Returns null when the cell says nothing we understand, so the caller can
+ * leave `won` unknown rather than asserting a loss.
+ */
+export function readTeamOutcome(text: string): { won: boolean; points: number | null } | null {
+  if (!text || !text.trim()) return null;
+  const t = text.toLowerCase();
+  const placing = parseBpPlacing(text);
+  if (placing) return { won: placing.won, points: placing.points };
+  if (/\badvanc(?:ing|es|ed)\b/.test(t)) return { won: true, points: null };
+  if (/\beliminated\b|\bknocked out\b/.test(t)) return { won: false, points: null };
+  if (/\bwon\b|\bwins?\b|\u2713|\u2714/.test(t)) return { won: true, points: null };
+  if (/\blost\b|\bloss\b|\bloses\b/.test(t)) return { won: false, points: null };
+  return null;
+}
+
 function isRoundColumnHeader(label: string, key: string): boolean {
   const labelTrimmed = label.trim();
   // `R1`, and `R1A`/`R1B` when a round is run in two halves. The \b rule
@@ -612,12 +692,18 @@ function roundResultsFromVue(
         // misidentified them as a "result" column — flipping fourth
         // place into a "won this debate" mark and ultimately a
         // false-positive Champion. Only word-form signals count now.
-        const won = winCol >= 0 ? /won|win|✓|✔/.test(winText) : null;
+        // A BP result cell states the placing ("1st".."4th"), which carries
+        // both the win and the points; word-form signals cover the
+        // two-team formats.
+        const outcome = winCol >= 0 ? readTeamOutcome(winText) : null;
         teamResults.push({
           teamName,
           position: posCol >= 0 ? cellText(row[posCol]) || null : null,
-          points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : null,
-          won,
+          points:
+            ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : (outcome?.points ?? null),
+          // null, not false, when the cell says nothing we recognise:
+          // ingest treats a false as a recorded loss.
+          won: outcome ? outcome.won : null,
         });
       }
     } else {
@@ -636,6 +722,18 @@ function roundResultsFromVue(
       const raw = cellText(row[adjCol]);
       if (!raw) continue;
       const roleText = roleCol >= 0 ? cellText(row[roleCol]).toLowerCase() : '';
+      // Markup cell: the spans already separate the adjudicators and name
+      // the chair, so never fall back to splitting the raw string.
+      const structured = parseAdjudicatorCell(raw);
+      if (structured.length > 0) {
+        for (const a of structured) {
+          const key = `${a.name}|${a.role}`;
+          if (judgeSeen.has(key)) continue;
+          judgeSeen.add(key);
+          judgeAssignments.push({ personName: a.name, panelRole: a.role });
+        }
+        continue;
+      }
       const tokens = raw.split(/[,;\n]|\s+\/\s+/).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
       for (const token of tokens) {
         const lower = token.toLowerCase();
@@ -946,4 +1044,10 @@ export const __test__ = {
 };
 
 /** Internals exercised directly by tests/parseTabs.cellDecoding.test.ts. */
-export const __cellTest__ = { decodeHtmlEntities, isRoundColumnHeader };
+export const __cellTest__ = {
+  decodeHtmlEntities,
+  isRoundColumnHeader,
+  parseAdjudicatorCell,
+  parseBpPlacing,
+  readTeamOutcome,
+};

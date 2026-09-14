@@ -271,14 +271,25 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
       expectNoViolations('break ranks out of order', bad);
     });
 
-    it('a debate never has two chairs', () => {
+    it('every judge on a results page has a role, and each page has a chair', () => {
+      // NOT "one chair per debate": a /results/round/N/ page lists EVERY
+      // debate in that round, so many chairs on one page is correct. This
+      // assertion used to pass only because panelRole came back null for
+      // every judge in the corpus — it was green for the wrong reason.
       const bad: string[] = [];
       for (const { p } of pagesOf('roundResults')) {
         const d = parseRoundResults(html(p.file!), p.url, null);
-        const chairs = d.judgeAssignments.filter((j) => j.panelRole === 'chair').length;
-        if (chairs > 1) bad.push(`${p.url} → ${chairs} chairs`);
+        if (d.judgeAssignments.length === 0) continue;
+        const roleless = d.judgeAssignments.filter((j) => j.panelRole === null).length;
+        if (roleless > 0) {
+          bad.push(`${p.url} → ${roleless}/${d.judgeAssignments.length} judges with no role`);
+          continue;
+        }
+        if (!d.judgeAssignments.some((j) => j.panelRole === 'chair')) {
+          bad.push(`${p.url} → ${d.judgeAssignments.length} judges, no chair among them`);
+        }
       }
-      expectNoViolations('multiple chairs in one debate', bad);
+      expectNoViolations('judge role not resolved', bad, 10);
     });
 
     it('a speaker total equals the sum of their own round scores', () => {

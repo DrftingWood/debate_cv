@@ -325,7 +325,7 @@ describe('parseRoundResults — win column false-positive guards', () => {
       [[{ text: 'Third Place' }, { text: '1' }]],
     );
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
-    expect(round.teamResults[0]!.won).toBe(false);
+    expect(round.teamResults[0]!.won).not.toBe(true);
   });
 
   test('Vue path: "won" / "win" cell text still marks as won', () => {
@@ -365,7 +365,10 @@ describe('parseRoundResults — win column false-positive guards', () => {
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
     const third = round.teamResults.find((t) => t.teamName === 'Third Place');
     const champ = round.teamResults.find((t) => t.teamName === 'Champion');
-    expect(third?.won).toBe(false);
+    // The guard is against a false POSITIVE. `null` meets it and is more
+    // honest than `false`: a bare "1" tells us nothing about the outcome,
+    // and ingest records a `false` as a loss the team never took.
+    expect(third?.won).not.toBe(true);
     expect(champ?.won).toBe(true);
   });
 });
