@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { matchStage } from '@/lib/calicotab/stageLexicon';
 import { parseJsValue } from './parseJsValue';
 import { extractFromCheerio } from './cheerioToVue';
 
@@ -197,8 +198,43 @@ export function diagnoseVueData(html: string, colNeedles: string[]): string {
   return `vueData: columns=[${heads.join(',')}] rows=${rowCount} — columns matched but returned 0 rows`;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+/**
+ * Undo one level of HTML escaping.
+ *
+ * Tabbycat serialises its table data as a JS payload INSIDE the HTML
+ * document, so every string in it is HTML-escaped. The cheerio path gets
+ * decoding for free from `.text()`; the Vue path reads the JS string
+ * literal directly and did not, so a team called "M&Ms" was stored and
+ * rendered as "M&amp;Ms". Exactly one pass, so a team whose name really
+ * does contain "&amp;" keeps it.
+ */
+export function decodeHtmlEntities(input: string): string {
+  if (!input || !input.includes('&')) return input;
+  return input.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, body: string) => {
+    const b = body.toLowerCase();
+    if (b.startsWith('#x')) {
+      const code = Number.parseInt(b.slice(2), 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+    if (b.startsWith('#')) {
+      const code = Number.parseInt(b.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+    return NAMED_ENTITIES[b] ?? whole;
+  });
+}
+
 function cellText(cell: VueCell | undefined): string {
-  return String(cell?.text ?? '').replace(/\s+/g, ' ').trim();
+  return decodeHtmlEntities(String(cell?.text ?? '')).replace(/\s+/g, ' ').trim();
 }
 
 /** Find column index by matching key or title against any of the given needles. */
@@ -238,12 +274,23 @@ function isAverageHeader(s: string): boolean {
  */
 function isRoundColumnHeader(label: string, key: string): boolean {
   const labelTrimmed = label.trim();
-  if (/\b(r(ound)?\s*\d+|final|semi|quarter|octo|grand)\b/i.test(labelTrimmed)) return true;
-  if (/^r\d+$/i.test(key)) return true;
+  // `R1`, and `R1A`/`R1B` when a round is run in two halves. The \b rule
+  // below cannot see the split form (no word boundary between "1" and "A"),
+  // so both halves were dropped and the speaker's total stopped matching the
+  // scores we kept.
+  if (/^r\d+[a-z]?$/i.test(key) || /^r\d+[a-z]?$/i.test(labelTrimmed)) return true;
+  if (/\br(ound)?\s*\d+/i.test(labelTrimmed)) return true;
   if (/^\d+$/.test(labelTrimmed)) return true;
   if (/\b(speech|debate|match)\s*\d+/i.test(labelTrimmed)) return true;
+  // Outround columns, in whatever vocabulary this tournament uses. Asking
+  // the lexicon means "Semifinals", "Quarterfinals" and "Cuartos de Final"
+  // are all recognised — the previous \bsemi\b / \bfinal\b alternation
+  // could not match them, because neither word stands alone inside
+  // "Semifinals".
+  if (matchStage(labelTrimmed)) return true;
   return false;
 }
+
 
 // ── Cheerio helpers (fallback for server-rendered Tabbycat) ──────────────────
 
@@ -897,3 +944,6 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
 export const __test__ = {
   findBalancedJsRegion,
 };
+
+/** Internals exercised directly by tests/parseTabs.cellDecoding.test.ts. */
+export const __cellTest__ = { decodeHtmlEntities, isRoundColumnHeader };
