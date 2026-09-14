@@ -27,6 +27,7 @@ import {
   parseRoundResults,
 } from '@/lib/calicotab/parseTabs';
 import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
+import { parseMotionsTab } from '@/lib/calicotab/parseMotions';
 
 type PageRef = { url: string; kind: string; status: number; file: string | null };
 type Entry = { root: string; rootStatus: number; pages: PageRef[] };
@@ -60,6 +61,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
     const judges: string[] = [];
     const participants: string[] = [];
     const roundLabels: string[] = [];
+    const motions: string[] = [];
 
     let tid = 0;
     let sid = 0; // surrogate key: speaker NAME is not unique within a tournament
@@ -115,6 +117,13 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
                 row([tid, p.url, r.rank, r.entityType, r.entityName, r.institution, r.score, r.stage ?? null]),
               );
             }
+          } else if (p.kind === 'motionsTab') {
+            for (const m of parseMotionsTab(h)) {
+              const { category, stage } = splitStageLabel(m.roundLabel);
+              motions.push(
+                row([tid, p.url, m.roundNumber, m.roundLabel, stage, category, m.seq, m.text, m.infoSlide]),
+              );
+            }
           } else if (p.kind === 'participants') {
             for (const r of parseParticipantsList(h)) {
               participants.push(row([tid, r.name, r.role, r.judgeTag, r.teamName, r.institution]));
@@ -146,6 +155,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
       ['judge_assignments', judges],
       ['participants', participants],
       ['round_labels', roundLabels],
+      ['motions', motions],
     ];
     for (const [nm, rows] of files) {
       writeFileSync(join(OUT, `${nm}.csv`), rows.join('\n') + (rows.length ? '\n' : ''), 'utf-8');

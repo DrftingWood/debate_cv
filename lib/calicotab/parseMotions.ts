@@ -129,6 +129,58 @@ function motionsFromVue(tables: VueTable[]): MotionRow[] | null {
  * Strategy: try the VueTable adapter first (covers case 1); if that finds
  * nothing, do a bespoke heading+text walk for case 2.
  */
+/**
+ * Case 3: the bootstrap-card layout Tabbycat 2.11 serves at /motions/.
+ *
+ * No table and no Vue island. Each round is a `.list-group` whose first
+ * item holds an `<h4 class="card-title">` with the round label, followed by
+ * one `li.list-group-item` per motion: a `.badge` with its number, a
+ * `.lead` with the text, and an optional modal carrying the info slide.
+ *
+ * The heading walk in case 2 cannot see this. It collects the heading's own
+ * following siblings, but here the motions are siblings of the DIV that
+ * wraps the heading, so it finds nothing — which is why a 625-tournament
+ * sweep produced 13 motions from 84 motion pages.
+ */
+function motionsFromCards(html: string): MotionRow[] {
+  const $ = cheerio.load(html);
+  const rows: MotionRow[] = [];
+  let seq = 0;
+
+  $('.list-group').each((_i, group) => {
+    let roundLabel: string | null = null;
+    $(group)
+      .children()
+      .each((_j, child) => {
+        const $child = $(child);
+
+        // A round heading resets which round the motions below belong to.
+        const heading = cleanText($child.find('.card-title').first().text());
+        if (heading) {
+          roundLabel = heading;
+          return;
+        }
+        if (!roundLabel) return;
+
+        // `.lead` is the motion text. Taking the whole item would swallow
+        // the badge number and the "View Info Slide" button label.
+        const text = cleanText($child.find('.lead').first().text());
+        if (!text) return;
+
+        const infoRaw = cleanText($child.find('.modal-body').first().text());
+        rows.push({
+          roundNumber: extractRoundNumber(roundLabel),
+          roundLabel,
+          text,
+          infoSlide: infoRaw || null,
+          seq: seq++,
+        });
+      });
+  });
+
+  return rows;
+}
+
 function motionsFromCheerio(html: string): MotionRow[] {
   // Case 1: table-based layout — let the adapter produce VueTable shape and
   // re-use motionsFromVue so the column-matching logic lives in one place.
@@ -248,8 +300,10 @@ export function parseMotionsTab(html: string): MotionRow[] {
       if (rows && rows.length > 0) return rows;
     }
 
-    // Plain-HTML fallback: table or heading+list layout.
-    return motionsFromCheerio(html);
+    // Plain-HTML fallbacks: table, heading+list, or the 2.11 card layout.
+    const cheerioRows = motionsFromCheerio(html);
+    if (cheerioRows.length > 0) return cheerioRows;
+    return motionsFromCards(html);
   } catch {
     // Guard against any unexpected cheerio/acorn error so callers always
     // receive a stable [] rather than an unhandled exception.
