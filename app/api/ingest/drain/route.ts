@@ -87,8 +87,14 @@ export async function POST() {
       }
     }
 
+    // Count 'running' as remaining, not just 'pending'. A job whose
+    // lambda was killed mid-ingest (Vercel 504) stays 'running' until
+    // resetStuckRunning reclaims it ~5 min later, so a pending-only
+    // count answered remaining: 0 while that tournament was still
+    // unprocessed — which let the client report a finished batch and
+    // left the URL silently missing until the nightly cron.
     const remaining = await prisma.ingestJob.count({
-      where: { userId, status: IngestJobStatus.pending },
+      where: { userId, status: { in: [IngestJobStatus.pending, IngestJobStatus.running] } },
     });
 
     return NextResponse.json({ processed: results.length, remaining, results });
