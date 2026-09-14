@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 
 function fmtPublicLastOutround(r: CvSpeakerRow): string {
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
     const joined = r.eliminationReachedByCategory
-      .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
+      .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (Champion)` : joined;
   }
