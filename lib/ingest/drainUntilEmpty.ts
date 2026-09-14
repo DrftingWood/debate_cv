@@ -33,6 +33,29 @@ function isTransientFailure(status: number): boolean {
   return status === 0 || status >= 500;
 }
 
+/**
+ * Sleep that gives up the moment the batch is aborted.
+ *
+ * The loop only checks `signal.aborted` at the top of each iteration, so a
+ * bare timer left Stop unacknowledged for the full backoff.
+ */
+function waitUnlessAborted(
+  ms: number,
+  sleep: (ms: number) => Promise<void>,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!signal) return sleep(ms);
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const onAbort = () => resolve();
+    signal.addEventListener('abort', onAbort, { once: true });
+    void sleep(ms).then(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    });
+  });
+}
+
 const MAX_CONSECUTIVE_FAILURES = 3;
 const RETRY_BACKOFF_MS = 5_000;
 const BETWEEN_CALLS_MS = 2_000;
@@ -64,7 +87,7 @@ export async function drainUntilEmpty(
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         throw new Error(result.error);
       }
-      await sleep(RETRY_BACKOFF_MS);
+      await waitUnlessAborted(RETRY_BACKOFF_MS, sleep, signal);
       continue;
     }
     consecutiveFailures = 0;
@@ -72,7 +95,7 @@ export async function drainUntilEmpty(
     remaining = result.data.remaining ?? 0;
     onProgress({ processed: totalProcessed, remaining });
     if ((result.data.processed ?? 0) === 0 || remaining === 0) break;
-    if (remaining > 0) await sleep(BETWEEN_CALLS_MS);
+    if (remaining > 0) await waitUnlessAborted(BETWEEN_CALLS_MS, sleep, signal);
   }
   return { processed: totalProcessed, remaining, failed };
 }

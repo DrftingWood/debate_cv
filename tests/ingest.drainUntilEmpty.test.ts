@@ -76,6 +76,32 @@ describe('drainUntilEmpty', () => {
     expect(summary.processed).toBe(0);
   });
 
+  test('abandons the retry backoff as soon as Stop is pressed', async () => {
+    // The backoff was a bare setTimeout, so Stop left the button stuck
+    // in its pending state for the full 5s before the loop noticed.
+    // `sleep` here never resolves: if the wait isn't raced against the
+    // abort signal, this test hangs rather than fails.
+    const controller = new AbortController();
+    const post = vi.fn(async () => fail(504));
+    const sleep = () => {
+      controller.abort();
+      return new Promise<void>(() => {});
+    };
+    await drainUntilEmpty(() => {}, { post, sleep, signal: controller.signal });
+    expect(post).toHaveBeenCalledTimes(1);
+  }, 2_000);
+
+  test('abandons the between-call wait as soon as Stop is pressed', async () => {
+    const controller = new AbortController();
+    const post = vi.fn(async () => ok(1, 5));
+    const sleep = () => {
+      controller.abort();
+      return new Promise<void>(() => {});
+    };
+    const summary = await drainUntilEmpty(() => {}, { post, sleep, signal: controller.signal });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(summary.processed).toBe(1);
+  }, 2_000);
 });
 
 describe('summariseDrain', () => {
