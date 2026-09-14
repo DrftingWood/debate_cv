@@ -53,6 +53,15 @@ type Rule = { stage: OutroundStage; re: RegExp };
 const CONNECTED_FINAL = String.raw`(?:\s*(?:de|of|do|da|dos|das)?\s*finals?(?:es|is)?)?`;
 
 const RULES: Rule[] = [
+  // ── "pre-<stage>": the round BEFORE the one it names ──────────────────
+  // Checked first, because every one of these contains the name of the
+  // stage that follows it. Reading "Pre-Quarterfinals" as the quarterfinals
+  // credits a team with a round it did not reach — the same overstatement
+  // this lexicon exists to prevent, and the corpus has ~40 such labels.
+  { stage: 'double_octofinal', re: /\bpre[-\s]*octo[-\s]*finals?\b|\bpre[-\s]*octos?\b/i },
+  { stage: 'octofinal', re: /\bpre[-\s]*qua(?:r)?ter[-\s]*finals?\b|\bpre[-\s]*quarters?\b/i },
+  { stage: 'quarterfinal', re: /\bpre[-\s]*semi[-\s]*finals?\b|\bpre[-\s]*semis?\b/i },
+  { stage: 'semifinal', re: /\bpre[-\s]*finals?\b/i },
   // ── triple octofinals ──
   { stage: 'triple_octofinal', re: /\btriple[-\s]*octo(?:finals?)?\b|\btriples\b|\btriples[-\s]*octavos\b/i },
   // ── double octofinals (incl. partials and round-of-32) ──
@@ -111,6 +120,13 @@ export function matchStage(label: string | null | undefined): StageMatch | null 
   return null;
 }
 
+/**
+ * Words that qualify a stage rather than name a bracket. "Partial
+ * Octofinals" is an octofinal with byes, so "Partial" must not end up
+ * reported as a break category the way "Gold" or "ESL" would be.
+ */
+const STAGE_MODIFIERS = /^(?:partial|parcial|double|triple|doble|pre|pré)$/i;
+
 /** Words that join a category to a stage and belong to neither. */
 const CONNECTORS = /^(?:de|del|of|the|do|da|dos|das|por|para|da|e|y|and|-|–|—|:|,)$/i;
 
@@ -157,7 +173,7 @@ export function splitStageLabel(label: string | null | undefined): SplitStage {
   // "Quarterfinals Quarterfinals". Dropping them is also what makes this
   // function idempotent, which the CV relies on when it re-formats a label
   // it has already stored.
-  const categoryWords = words.filter((w) => !matchStage(w));
+  const categoryWords = words.filter((w) => !matchStage(w) && !STAGE_MODIFIERS.test(w));
   if (categoryWords.length === 0) return { category: null, stage: m.stage };
   // Keep multi-word categories intact ("English as a Second Language"), but
   // normalise the casing of a single token.
