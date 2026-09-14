@@ -24,6 +24,12 @@ import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
 const STAGE_DISPLAY: Record<OutroundStage, string> = {
   grand_final: 'Final',
   final: 'Final',
+  // Shown as the round it is. Collapsing a play-in into the round it feeds
+  // would credit a team with reaching it.
+  pre_final: 'Pre-Final',
+  pre_semifinal: 'Pre-Semifinals',
+  pre_quarterfinal: 'Pre-Quarterfinals',
+  pre_octofinal: 'Pre-Octofinals',
   semifinal: 'Semifinals',
   quarterfinal: 'Quarterfinals',
   octofinal: 'Octofinals',

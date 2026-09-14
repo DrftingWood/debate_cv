@@ -153,9 +153,17 @@ export function classifyOutroundStage(
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   grand_final: 100,
   final: 95,
+  // A play-in sits between the round it feeds and the round below it. Going
+  // out in a 6-break pre-final means placing 3rd-6th — further than a
+  // semifinalist of an 8-break, not as far as a finalist. The gaps in this
+  // scale were already wide enough to hold them.
+  pre_final: 92,
   semifinal: 90,
+  pre_semifinal: 85,
   quarterfinal: 80,
+  pre_quarterfinal: 75,
   octofinal: 70,
+  pre_octofinal: 65,
   double_octofinal: 60,
   triple_octofinal: 50,
 };

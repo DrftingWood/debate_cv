@@ -39,9 +39,35 @@
 export type OutroundStage =
   | 'grand_final'
   | 'final'
+  // Play-in rounds, for a break that is not a power of two. The top teams
+  // sit out protected while the rest play in for the remaining places, so
+  // a pre-round always runs at 1.5x the field of the round it feeds.
+  //
+  // BP — four to a room, two advance:
+  //   break 6   pre-final      6,5,4,3 debate;  1,2   protected to the Final
+  //   break 12  pre-semis      5-12 debate;     1-4   protected to Semis
+  //   break 24  pre-quarters   9-24 debate;     1-8   protected to Quarters
+  //   break 48  pre-octos      17-48 debate;    1-16  protected to Octos
+  //
+  // AP / Australs — two to a room, one advances, so the same rounds occur
+  // at half those break sizes:
+  //   break 6   pre-semis      3-6 debate;      1,2   protected to Semis
+  //   break 12  pre-quarters   5-12 debate;     1-4   protected to Quarters
+  //   break 24  pre-octos      9-24 debate;     1-8   protected to Octos
+  // AP has no pre-final in practice: it would need a three-team break, and
+  // a single room before the final is just called the semifinal.
+  //
+  // Each is a round in its own right: it is not the round it feeds (a team
+  // in the pre-final has not reached the final) and not the round below
+  // either — a 6-break BP pre-final has no semifinal to be. The ranks in
+  // judgeStats place each between the two, which holds for both formats.
+  | 'pre_final'
   | 'semifinal'
+  | 'pre_semifinal'
   | 'quarterfinal'
+  | 'pre_quarterfinal'
   | 'octofinal'
+  | 'pre_octofinal'
   | 'double_octofinal'
   | 'triple_octofinal';
 
@@ -58,6 +84,20 @@ type Rule = { stage: OutroundStage; re: RegExp };
 const CONNECTED_FINAL = String.raw`(?:\s*(?:de|of|do|da|dos|das)?\s*finals?(?:es|is)?)?`;
 
 const RULES: Rule[] = [
+  // ── play-in rounds ────────────────────────────────────────────────────
+  // First, because "Pre-Semifinals" contains "Semifinals" and would
+  // otherwise be read as the round it merely feeds.
+  { stage: 'pre_octofinal', re: /\bpr[eé][-\s]*octo[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*octos?\b/i },
+  {
+    stage: 'pre_quarterfinal',
+    re: /\bpr[eé][-\s]*qua(?:r)?ter[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*quarters?\b/i,
+  },
+  {
+    stage: 'pre_semifinal',
+    re: /\bpr[eé][-\s]*semi[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*semis?\b/i,
+  },
+  { stage: 'pre_final', re: /\bpr[eé][-\s]*grand[-\s]*fin(?:als?|ais|ales)\b/i },
+  { stage: 'pre_final', re: /\bpr[eé][-\s]*fin(?:als?|ais|ales)\b/i },
   // ── triple octofinals ──
   { stage: 'triple_octofinal', re: /\btriple[-\s]*octo(?:finals?)?\b|\btriples\b|\btriples[-\s]*octavos\b/i },
   // ── double octofinals (incl. partials and round-of-32) ──
@@ -105,19 +145,9 @@ export type StageMatch = {
 };
 
 /**
- * A round named "pre-<something>" is a play-in, not the round it mentions
- * and not the one before it either.
- *
- * With 12 teams breaking, a "pre-quarterfinal" has 8 teams debating while 4
- * bye — so it is neither an octofinal (16) nor a quarterfinal (8 survivors).
- * Its size and standing depend on the bracket, so there is no honest place
- * for it on the canonical ladder. Reading it as the round it names
- * overstates how far a team went; reading it as the round before overstates
- * it too, just less. It therefore classifies as nothing: the label renders
- * as written, and it does not rank.
- *
- * `pr[eé]` because Portuguese and Spanish write it "Pré", and the accented
- * form was slipping past into the stage it names.
+ * Does this label name a play-in round? The accented, spaced and grand
+ * spellings are easy to miss ("Pré-Semifinal", "Pre - Finals", "Pre-Grand
+ * Finals"), so the pattern lives here once.
  */
 const PRE_ROUND =
   /\bpr[eé][-\s]*(?:grand[-\s]*)?(?:octo|qua(?:r)?ter|semi|final)/i;
@@ -137,7 +167,6 @@ export function matchStage(label: string | null | undefined): StageMatch | null 
   if (!label) return null;
   const text = label.trim();
   if (!text) return null;
-  if (PRE_ROUND.test(text)) return null;
   for (const { stage, re } of RULES) {
     const m = text.match(re);
     if (m) return { stage, matched: m[0] };

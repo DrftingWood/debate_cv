@@ -28,7 +28,7 @@ import {
 } from '@/lib/calicotab/parseTabs';
 import { classifyOutroundStage, normalizeStageLabel, outroundRank } from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
-import { isPreRound, matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
+import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { computeFingerprint, extractYearFromName } from '@/lib/calicotab/fingerprint';
 
@@ -163,15 +163,11 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
 
     it('outround round labels classify to a canonical stage', () => {
       // Prelims legitimately do not classify; outround-looking labels should.
-      const outroundish = [...roundLabels].filter(
-        (l) =>
-          /final|semi|quarter|octo|elim|break|round of/i.test(l) &&
-          // A play-in round ("Pre-Semifinals", "Pré-Final", "Pre-Grand
-          // Finals") is neither the round it names nor the one before it,
-          // so it stays unclassified on purpose. Asking the lexicon keeps
-          // the accented and spaced spellings in step with it — this filter
-          // had its own regex and missed all three.
-          !isPreRound(l),
+      // Play-in rounds are included now: they carry their own stages
+      // (pre_final, pre_semifinal, ...), so an outround-looking label has
+      // no excuse left for not classifying.
+      const outroundish = [...roundLabels].filter((l) =>
+        /final|semi|quarter|octo|elim|break|round of/i.test(l),
       );
       const bad: string[] = [];
       for (const l of outroundish) {
