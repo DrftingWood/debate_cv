@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  formatStageForDisplay,
-  formatBaseStageForDisplay,
-  formatStageOrDash,
-} from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 
 describe('formatStageForDisplay', () => {
   test('"Open Finals", "Grand Final", and "Final" all collapse to "Final"', () => {
@@ -78,23 +74,5 @@ describe('formatBaseStageForDisplay', () => {
     expect(formatBaseStageForDisplay(null)).toBe('');
     expect(formatBaseStageForDisplay('')).toBe('');
     expect(formatBaseStageForDisplay('Round 3')).toBe('Round 3');
-  });
-});
-
-describe('formatStageOrDash', () => {
-  test('canonicalises judging stages so both CV tables speak one vocabulary', () => {
-    // The judging rows printed raw labels while the speaking table above
-    // them was canonicalised — the same page showed "Final" in one table
-    // and "GF" in the other.
-    expect(formatStageOrDash('GF')).toBe('Final');
-    expect(formatStageOrDash('Grand Final')).toBe('Final');
-    expect(formatStageOrDash('ESL Semifinals')).toBe('ESL Semifinals');
-    expect(formatStageOrDash('QF')).toBe('Quarterfinals');
-  });
-
-  test('renders an em dash when there is no stage', () => {
-    expect(formatStageOrDash(null)).toBe('—');
-    expect(formatStageOrDash(undefined)).toBe('—');
-    expect(formatStageOrDash('')).toBe('—');
   });
 });

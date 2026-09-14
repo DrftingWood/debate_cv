@@ -5,8 +5,13 @@ generator client {
 datasource db {
   provider  = "postgresql"
   // Vercel Postgres / Neon auto-inject both. When bringing your own Postgres,
-  // set POSTGRES_PRISMA_URL (pooled; add `?pgbouncer=true&connection_limit=1`
-  // if using a pooler) and POSTGRES_URL_NON_POOLING (direct, for migrations).
+  // set POSTGRES_PRISMA_URL (pooled; add `?pgbouncer=true` if using a pooler)
+  // and POSTGRES_URL_NON_POOLING (direct, for migrations).
+  //
+  // connection_limit is raised at runtime to match INGEST_DRAIN_CONCURRENCY —
+  // see poolSizedUrl in lib/db.ts. The pooled URL is integration-managed, so
+  // the pool is sized in code rather than trusting the env var to keep a
+  // hand-edited value.
   url       = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
@@ -41,6 +46,7 @@ model User {
   personRejections  PersonRejection[]
   cvErrorReports    CvErrorReport[]
   notifications     Notification[]
+  tagProposals      TagProposal[]
 }
 
 /// In-app activity feed surfaced via the notification bell in the header.
@@ -130,6 +136,12 @@ model DiscoveredUrl {
   userId                 String
   url                    String
   host                   String
+  /// tournamentSlug / token / subject are written at Gmail-scan time and
+  /// never queried by application code (slug and token are re-derivable
+  /// from `url`). Kept deliberately: they surface in the user's account
+  /// data export (/api/account/export) as provenance for "which email
+  /// gave us this URL", which the privacy page commits to. Don't add new
+  /// read paths without checking the export's schemaVersion implications.
   tournamentSlug         String?
   token                  String?
   subject                String?
@@ -142,13 +154,19 @@ model DiscoveredUrl {
   ingestedAt             DateTime?
   reingestLocked         Boolean   @default(false)
   createdAt              DateTime  @default(now())
+  /// Maintained by the Prisma client (@updatedAt) — note the queue's raw
+  /// SQL paths set it explicitly with NOW(); any future raw UPDATE must
+  /// do the same or this column silently goes stale for those writes.
+  updatedAt              DateTime  @default(now()) @updatedAt
 
   user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament           Tournament? @relation(fields: [tournamentId], references: [id])
   registrationPerson   Person?     @relation("DiscoveredUrlPerson", fields: [registrationPersonId], references: [id], onDelete: SetNull)
 
   @@unique([userId, url])
-  @@index([userId])
+  // No standalone (userId) index: the (userId, url) unique above serves
+  // every userId-only filter via its leading column. The previous extra
+  // @@index([userId]) was pure write/storage overhead.
   // /cv and /onboarding/names both filter `where: { userId, ingestedAt:
   // ... }` (and tournamentId-not-null); the (userId) index alone forces
   // a row scan on ingestedAt. Compound index turns those queries into an
@@ -178,11 +196,19 @@ model IngestJob {
   scheduledAt DateTime        @default(now())
   startedAt   DateTime?
   finishedAt  DateTime?
+  /// Maintained by the Prisma client (@updatedAt) — note the queue's raw
+  /// SQL claim/reset paths set it explicitly with NOW(); any future raw
+  /// UPDATE must do the same or this column silently goes stale.
+  updatedAt   DateTime        @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, url])
   @@index([status, scheduledAt])
+  // markJobDone counts `{ userId, status IN (pending, running) }` after
+  // every job, and per-user drains filter the same way; neither is served
+  // by (status, scheduledAt) once jobs accumulate across users.
+  @@index([userId, status])
 }
 
 // -------------------- Tabbycat tournament data --------------------
@@ -202,8 +228,28 @@ model Tournament {
   /// added; CV builder falls back to MAX(TeamResult.roundNumber) in
   /// that case.
   prelimRoundCount     Int?
+  /// Approved region tag from lib/tags/vocabulary.ts REGIONS. Tab pages
+  /// don't expose location, so this is community-proposed (TagProposal)
+  /// and admin-approved — never scraped. Null until someone tags it.
+  region               String?
   sourceUrlRaw         String
   fingerprint          String   @unique
+  /// PARSER_VERSION that produced the stored data. The cache-freshness
+  /// check compares this against the current constant — tournament-scoped
+  /// on purpose. The old check (latest ParserRun on the caller's landing
+  /// SourceDocument) was accidentally per-private-URL: a second user's
+  /// first touch of a cached tournament had no runs on THEIR landing doc
+  /// and so triggered a full redundant re-scrape. Null on rows written
+  /// before this column existed (falls back to the per-doc check).
+  parserVersion        String?
+  /// Short-lived scrape claim (see acquireScrapeClaim in ingest.ts):
+  /// set just before the tab-fetch phase, cleared by the write tx on
+  /// success, expired by TTL on failure. Prevents two concurrent
+  /// cache-miss ingests of the same tournament from BOTH doing the
+  /// ~15-fetch scrape — the advisory lock in the write tx only
+  /// serializes writes, by which point the duplicate fetches already
+  /// happened.
+  scrapeClaimedAt      DateTime?
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -212,6 +258,8 @@ model Tournament {
   eliminationResults   EliminationResult[]
   judgeAssignments     JudgeAssignment[]
   discoveredUrls       DiscoveredUrl[]
+  motions              Motion[]
+  tagProposals         TagProposal[]
 
   @@index([year])
   @@index([format])
@@ -222,6 +270,19 @@ model Person {
   displayName       String
   normalizedName    String   @unique
   claimedByUserId   String?
+  /// When the claim was made. Null for rows claimed before this column
+  /// existed. Exists so a disputed claim can be reasoned about — who took
+  /// an identity, and when — rather than only "someone holds it now".
+  claimedAt         DateTime?
+  /// Set when this person has asked to be withdrawn from the product.
+  /// They are almost never account holders — the database holds names
+  /// scraped from public tabs for thousands of debaters who never signed
+  /// up, and they are entitled to erasure too. When set, the display name
+  /// is masked everywhere, ingest stops refreshing it, and the row cannot
+  /// be claimed. The participation rows stay so the tournament record and
+  /// other users' teammate slots do not corrupt — it is the NAME that
+  /// identifies a person, not an anonymous score in a draw.
+  suppressedAt      DateTime?
   createdAt         DateTime @default(now())
 
   claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
@@ -262,7 +323,6 @@ model TournamentParticipant {
   chairedPrelimRounds    Int?
   lastOutroundChaired    String?
   lastOutroundPaneled    String?
-  wins                   Int?
   eliminationReached     String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -290,7 +350,13 @@ model SpeakerRoundScore {
   id                      BigInt   @id @default(autoincrement())
   tournamentParticipantId BigInt
   roundNumber             Int
-  positionLabel           String?
+  /// '' for ordinary per-round cells, 'average' for the speaker tab's
+  /// Average column. Non-nullable on purpose: this column is part of the
+  /// unique key below, and Postgres treats NULLs as distinct in unique
+  /// indexes — a NULL here would silently bypass dedup. The ingest writer
+  /// always coerced null → '' anyway; the schema now enforces the
+  /// invariant instead of trusting every future writer to remember.
+  positionLabel           String   @default("")
   score                   Decimal?
 
   participant TournamentParticipant @relation(fields: [tournamentParticipantId], references: [id], onDelete: Cascade)
@@ -305,12 +371,92 @@ model TeamResult {
   roundNumber   Int?
   rank          Int?
   wins          Int?
-  losses        Int?
   points        Decimal?
+  /// Team side in this round as shown on the round-results page — "OG" /
+  /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
+  /// column said on two-team formats. Null on roundNumber=0 standings
+  /// rows (a tournament-long standing has no side) and on tournaments
+  /// ingested before the parser started persisting it (the value was
+  /// parsed and discarded for those — re-ingest backfills it). Feeds the
+  /// by-position slice on /cv/stats.
+  position      String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, teamName, roundNumber])
+}
+
+/// One motion as released on the tournament's /tab/motions/ page. Multiple
+/// rows per round are legal (motion-per-room formats, replaced motions) —
+/// `seq` preserves document order. Slicing analytics by motion *type*
+/// (IR / econ / ethics …) is a classification layer on top of this raw
+/// text, deliberately not a column yet: classification needs a taxonomy +
+/// versioning story and shouldn't block storing the source data.
+model Motion {
+  id           BigInt  @id @default(autoincrement())
+  tournamentId BigInt
+  /// Numeric prelim round when the label parsed as one ("Round 3" → 3);
+  /// null for outround motions ("Semifinals") and unparseable labels.
+  roundNumber  Int?
+  roundLabel   String
+  /// 0-based document order on the motions page; tiebreaker for rounds
+  /// that released more than one motion.
+  seq          Int
+  text         String  @db.Text
+  infoSlide    String? @db.Text
+  /// Approved stem tag (THBT/THW/THO/...) from MOTION_TYPES. Auto-suggested
+  /// by inferMotionType in the picker, but only written here through an
+  /// approved TagProposal — the scraper never sets it.
+  motionType   String?
+  /// Approved subject-area tag from MOTION_TOPICS. Always human judgement.
+  topic        String?
+
+  tournament   Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tagProposals TagProposal[]
+
+  @@unique([tournamentId, roundLabel, seq])
+  @@index([tournamentId])
+}
+
+enum TagProposalStatus {
+  pending
+  approved
+  rejected
+}
+
+/// A user-proposed value for a moderated community tag: a tournament's
+/// region, or a motion's type/topic. Tags describe shared facts (the same
+/// tournament appears on many CVs), so writes to the canonical columns
+/// (Tournament.region, Motion.motionType, Motion.topic) only happen when
+/// an admin approves — the proposal row is the moderation queue entry and
+/// stays around afterwards as the audit trail of who proposed what.
+/// One live proposal per (user, kind, target): the propose API updates the
+/// user's existing row back to pending instead of stacking duplicates.
+model TagProposal {
+  id           String            @id @default(cuid())
+  userId       String
+  /// 'region' | 'motion_type' | 'motion_topic'. String rather than an enum
+  /// (Notification.kind precedent) so new tag kinds don't need a migration.
+  kind         String
+  tournamentId BigInt
+  /// Set for motion_* kinds, null for region.
+  motionId     BigInt?
+  /// Must be a member of TAG_VALUES[kind] — enforced at the API boundary,
+  /// not the DB, so vocabulary edits stay a one-file change.
+  value        String
+  status       TagProposalStatus @default(pending)
+  /// Reviewer note shown back to the proposer (e.g. why it was rejected).
+  adminNote    String?
+  createdAt    DateTime          @default(now())
+  reviewedAt   DateTime?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  motion     Motion?    @relation(fields: [motionId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, tournamentId])
+  @@index([motionId])
 }
 
 model EliminationResult {
@@ -319,6 +465,13 @@ model EliminationResult {
   stage        String
   entityType   String
   entityName   String
+  /// 'won'/'lost' for team outround results (read by buildCvData's champion
+  /// check); null otherwise. Break-page rows historically wrote legacy
+  /// 'rank:N' strings here that nothing read back (the rank lives on
+  /// TournamentParticipant.teamBreakRank) — those writes stopped and the
+  /// rows were nulled in the 20260611160000 migration. Readers must still
+  /// filter `result IN ('won','lost')` rather than assuming non-null means
+  /// an outcome; see buildCvData.ts for the canonical read.
   result       String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -384,6 +537,10 @@ model CvErrorReport {
   @@index([createdAt])
   @@index([resolvedAt])
   @@index([status])
+  // buildCvData's per-row "Reported" badge filters on (userId, status) for
+  // every /cv render — the composite avoids filtering all of a user's
+  // reports by status (or all open reports by user) on each page view.
+  @@index([userId, status])
 }
 
 // -------------------- Provenance + parser versioning --------------------
@@ -396,6 +553,15 @@ model SourceDocument {
   status        Int
   contentHash   String
   contentLength Int
+  /// Gzipped raw HTML of the fetched page. Added 2026-06: before this we
+  /// kept only the hash, which meant every new parsed field (motions,
+  /// team positions) forced a full re-scrape of every tournament — and
+  /// dead Heroku tabs made that lossy. With bodies retained, future
+  /// parser additions can re-derive from storage. Null on rows fetched
+  /// before the column existed and on oversized pages (see
+  /// MAX_STORED_BODY_BYTES in fetch.ts). Dedup'd by the (url,
+  /// contentHash) unique, so unchanged pages cost one stored copy.
+  bodyGzip      Bytes?
   fetchedAt     DateTime    @default(now())
 
   parserRuns    ParserRun[]
@@ -422,4 +588,24 @@ model ParserRun {
 
   @@index([sourceDocumentId])
   @@index([parserVersion, parserName])
+}
+
+/// Fixed-window rate-limit counter, keyed by "<route>:<subject>" where the
+/// subject is normally a user id.
+///
+/// Postgres rather than an in-memory map because the app runs on serverless
+/// functions: each invocation may be a fresh process, so an in-memory
+/// counter limits nothing. Postgres is already a hard dependency, and the
+/// increment is a single atomic upsert (see lib/rateLimit.ts), so this adds
+/// one round trip to the routes that need it rather than a new service.
+///
+/// Rows are self-expiring in effect — a key whose window has passed is
+/// reset in place on next use — but abandoned keys are pruned by the daily
+/// cron so the table cannot grow without bound.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
 }

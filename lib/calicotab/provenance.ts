@@ -15,6 +15,59 @@ export type RegistrationWarningContext = {
   now?: Date;
 };
 
+/**
+ * Retention window for superseded pipeline history. 90 days keeps enough
+ * trail to debug "why did this tournament parse differently last month"
+ * while bounding growth — SourceDocument now carries gzipped page bodies,
+ * so the table is the storage-heavy one.
+ */
+const RETENTION_DAYS = 90;
+
+/**
+ * Prune pipeline history that no live code path can ever read again. Runs
+ * at the end of the cron drain; failures are reported to the caller but
+ * must never block queue processing.
+ *
+ * Two rules, both deliberately conservative:
+ *
+ * 1. SourceDocument: delete rows past retention that are NOT the newest
+ *    snapshot for their URL. The newest row per URL is the re-derivation
+ *    archive (the whole point of storing bodies) and is kept forever —
+ *    and because fetchHtmlWithProvenance updates fetchedAt on every
+ *    content-match, any document still being served fresh is always the
+ *    newest for its URL and therefore never eligible. ParserRuns cascade
+ *    with their document.
+ *
+ * 2. ParserRun: delete rows past retention EXCEPT each document's most
+ *    recent successful run. isLatestParserRun() reads exactly that row to
+ *    decide cache freshness — deleting it would silently force a full
+ *    re-scrape of every cached tournament on its next touch.
+ */
+export async function pruneIngestArtifacts(): Promise<{
+  sourceDocumentsDeleted: number;
+  parserRunsDeleted: number;
+}> {
+  const sourceDocumentsDeleted = await prisma.$executeRaw`
+    DELETE FROM "SourceDocument" sd
+    WHERE sd."fetchedAt" < NOW() - (${RETENTION_DAYS}::int * INTERVAL '1 day')
+      AND EXISTS (
+        SELECT 1 FROM "SourceDocument" newer
+        WHERE newer."url" = sd."url" AND newer."fetchedAt" > sd."fetchedAt"
+      )
+  `;
+  const parserRunsDeleted = await prisma.$executeRaw`
+    DELETE FROM "ParserRun" pr
+    WHERE pr."createdAt" < NOW() - (${RETENTION_DAYS}::int * INTERVAL '1 day')
+      AND pr."id" NOT IN (
+        SELECT DISTINCT ON ("sourceDocumentId") "id"
+        FROM "ParserRun"
+        WHERE "success" = true
+        ORDER BY "sourceDocumentId", "createdAt" DESC
+      )
+  `;
+  return { sourceDocumentsDeleted, parserRunsDeleted };
+}
+
 /** Always runs — if the provenance write fails we swallow it so ingest isn't blocked. */
 export async function recordParserRun(input: RecordParserRunInput): Promise<void> {
   try {

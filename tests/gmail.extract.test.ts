@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
+  isPrivateUrl,
+  isAllowedTabHost,
   PRIVATE_URL_RE,
   extractUrlsFromText,
   parsePrivateUrl,
@@ -154,5 +156,55 @@ describe('dedupeByUrl', () => {
     ]);
     expect(r).toHaveLength(1);
     expect(r[0]!.messageDate).toBe('2024-01-01T00:00:00Z');
+  });
+});
+
+describe('isPrivateUrl — the gate that decides whether the server will fetch', () => {
+  test('accepts a genuine private URL on either allowed host', () => {
+    expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123')).toBe(true);
+    expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123/')).toBe(true);
+    expect(isPrivateUrl('http://tab.herokuapp.com/slug/privateurls/tok')).toBe(true);
+  });
+
+  test('rejects a URL that merely CONTAINS a private URL (the SSRF)', () => {
+    // PRIVATE_URL_RE is an unanchored scanner, so `.test()` returns true for
+    // every one of these. Gating a server-side fetch on it meant an attacker
+    // could name any host they liked and have it fetched.
+    const smuggled = [
+      'http://169.254.169.254/latest/meta-data/iam/security-credentials/?x=https://a.calicotab.com/t/privateurls/abc',
+      'http://localhost:5432/?u=https://a.calicotab.com/t/privateurls/abc',
+      'http://127.0.0.1/admin?next=https://a.calicotab.com/t/privateurls/abc',
+      'https://attacker.example/collect?next=https://a.calicotab.com/t/privateurls/abc',
+      'https://a.calicotab.com.evil.example/t/privateurls/abc',
+    ];
+    for (const url of smuggled) {
+      PRIVATE_URL_RE.lastIndex = 0;
+      expect(isPrivateUrl(url)).toBe(false);
+    }
+  });
+
+  test('rejects credentials, explicit ports and non-http schemes', () => {
+    expect(isPrivateUrl('https://user:pw@foo.calicotab.com/t/privateurls/abc')).toBe(false);
+    expect(isPrivateUrl('https://foo.calicotab.com:8080/t/privateurls/abc')).toBe(false);
+    expect(isPrivateUrl('file:///etc/passwd')).toBe(false);
+    expect(isPrivateUrl('gopher://foo.calicotab.com/t/privateurls/abc')).toBe(false);
+    expect(isPrivateUrl('not a url at all')).toBe(false);
+  });
+
+  test('rejects an allowed host whose path is not a private URL', () => {
+    // Keeps the fetch target the shape the pipeline expects rather than an
+    // arbitrary page on an allowed host.
+    expect(isPrivateUrl('https://foo.calicotab.com/')).toBe(false);
+    expect(isPrivateUrl('https://foo.calicotab.com/t/admin/secrets')).toBe(false);
+  });
+});
+
+describe('isAllowedTabHost — per-redirect-hop check', () => {
+  test('suffix match cannot be spoofed by a prefix', () => {
+    expect(isAllowedTabHost('foo.calicotab.com')).toBe(true);
+    expect(isAllowedTabHost('FOO.HEROKUAPP.COM')).toBe(true);
+    expect(isAllowedTabHost('calicotab.com.evil.example')).toBe(false);
+    expect(isAllowedTabHost('169.254.169.254')).toBe(false);
+    expect(isAllowedTabHost('localhost')).toBe(false);
   });
 });

@@ -51,8 +51,8 @@ export default async function ReportsSettingsPage() {
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">SETTINGS · REPORTS</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Open and resolved reports.
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+          Open and resolved reports
         </h1>
         <hr className="hairline" />
       </header>
@@ -61,13 +61,13 @@ export default async function ReportsSettingsPage() {
       <CardBody className="space-y-4">
         <div className="flex items-center gap-2">
           <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
-          <h2 className="font-serif text-h3 italic text-ink">
+          <h2 className="font-display text-h3 font-medium text-ink">
             Your reports
           </h2>
         </div>
 
         {reports.length === 0 ? (
-          <p className="rounded-md border border-border bg-muted/40 p-4 text-caption text-muted-foreground">
+          <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
             You haven&apos;t reported any CV issues yet. The Report button on
             each row of <strong>My CV</strong> opens a quick form for telling
             us when something looks wrong.
@@ -83,14 +83,14 @@ export default async function ReportsSettingsPage() {
                 <li key={r.id} className="space-y-2 px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     {trainNames.length > 0 ? (
-                      <span className="font-medium text-foreground">
+                      <span className="font-medium text-ink">
                         {trainNames.join(', ')}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">Unknown tournament</span>
+                      <span className="text-ink-soft">Unknown tournament</span>
                     )}
                     {statusBadge(r.status)}
-                    <span className="text-caption text-muted-foreground">
+                    <span className="text-caption text-ink-soft">
                       {r.createdAt.toLocaleDateString()}
                     </span>
                   </div>
@@ -104,12 +104,12 @@ export default async function ReportsSettingsPage() {
                     </div>
                   ) : null}
                   {r.comment ? (
-                    <p className="whitespace-pre-wrap text-[13px] text-muted-foreground">
+                    <p className="whitespace-pre-wrap text-table text-ink-soft">
                       {r.comment}
                     </p>
                   ) : null}
                   {r.adminNote ? (
-                    <p className="rounded-md border border-info/30 bg-info/5 p-2 text-[12.5px] text-foreground">
+                    <p className="rounded-md border border-border bg-paper p-2 text-caption text-ink">
                       <span className="font-medium">Note from us:</span> {r.adminNote}
                     </p>
                   ) : null}

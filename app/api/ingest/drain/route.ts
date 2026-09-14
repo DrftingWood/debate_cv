@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { IngestJobStatus } from '@prisma/client';
@@ -39,6 +40,8 @@ export async function POST() {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
+    const limited = await enforceRateLimit('ingest:drain', session.user.id);
+    if (limited) return limited;
     const userId = session.user.id;
     const started = Date.now();
     const results: Array<{ url: string; status: 'done' | 'failed' | 'abandoned' | 'retry'; error?: string }> = [];

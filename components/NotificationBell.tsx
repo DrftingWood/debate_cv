@@ -102,7 +102,7 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-haspopup="true"
         aria-expanded={open}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
       >
         <Bell className="h-4 w-4" aria-hidden />
         {unreadCount > 0 ? (
@@ -124,11 +124,11 @@ export function NotificationBell() {
           role="menu"
           className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-border bg-card shadow-lg"
         >
-          <div className="border-b border-border px-4 py-2.5 text-[13.5px] font-medium text-foreground">
+          <div className="border-b border-border px-4 py-2.5 text-table font-medium text-ink">
             Notifications
           </div>
           {items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-muted-foreground">
+            <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-ink-soft">
               <Inbox className="h-5 w-5" aria-hidden />
               <span>You&apos;re all caught up.</span>
             </div>
@@ -159,13 +159,13 @@ function NotificationRow({
   const inner = (
     <div
       className={cn(
-        'flex flex-col gap-0.5 px-4 py-3 text-[13px] transition-colors hover:bg-muted/40',
+        'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-surface-2',
         !item.readAt && 'bg-oxblood/[0.06]',
       )}
     >
-      <span className="font-medium text-foreground">{item.title}</span>
-      {item.body ? <span className="text-muted-foreground">{item.body}</span> : null}
-      <span className="text-[11.5px] text-muted-foreground/80">{time}</span>
+      <span className="font-medium text-ink">{item.title}</span>
+      {item.body ? <span className="text-ink-soft">{item.body}</span> : null}
+      <span className="text-byline text-ink-soft">{time}</span>
     </div>
   );
   if (item.href) {

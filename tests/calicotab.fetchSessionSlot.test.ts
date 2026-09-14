@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { FetchSession } from '@/lib/calicotab/fetchSession';
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  FetchSession,
+  resetLearnedIntervals,
+  SAFE_INTERVAL_MS,
+  MAX_LEARNED_INTERVAL_MS,
+} from '@/lib/calicotab/fetchSession';
 
 /**
  * FetchSession.acquireSlot guards Cloudflare-fronted Tabbycat hosts from the
@@ -73,5 +78,60 @@ describe('FetchSession.acquireSlot', () => {
     // The next acquireSlot must still resolve in bounded time.
     const second = session.acquireSlot(host, minInterval);
     await expect(second).resolves.toBeUndefined();
+  });
+});
+
+describe('FetchSession adaptive backoff', () => {
+  beforeEach(() => resetLearnedIntervals());
+
+  it('starts at the caller floor for a host that has not complained', () => {
+    const s = new FetchSession();
+    expect(s.effectiveInterval('quiet.calicotab.com', 600)).toBe(600);
+  });
+
+  it('jumps straight to the known-safe interval on the first push-back', () => {
+    // One 403 is enough to reach a polite rate — creeping toward it over
+    // many failures would mean many more 403s to get there.
+    const s = new FetchSession();
+    s.noteRateLimited('strict.calicotab.com', 600);
+    expect(s.effectiveInterval('strict.calicotab.com', 600)).toBe(SAFE_INTERVAL_MS);
+  });
+
+  it('doubles on repeated push-back and stops at the ceiling', () => {
+    const s = new FetchSession();
+    const host = 'angry.calicotab.com';
+    s.noteRateLimited(host, 600);
+    s.noteRateLimited(host, 600);
+    expect(s.effectiveInterval(host, 600)).toBe(SAFE_INTERVAL_MS * 2);
+    for (let i = 0; i < 5; i++) s.noteRateLimited(host, 600);
+    expect(s.effectiveInterval(host, 600)).toBe(MAX_LEARNED_INTERVAL_MS);
+  });
+
+  it('keeps what it learned across sessions in the same process', () => {
+    // A warm lambda handles several jobs; rediscovering a host's limit on
+    // every ingest would mean a 403 on every ingest.
+    const first = new FetchSession();
+    first.noteRateLimited('sticky.calicotab.com', 600);
+    const second = new FetchSession();
+    expect(second.effectiveInterval('sticky.calicotab.com', 600)).toBe(SAFE_INTERVAL_MS);
+  });
+
+  it('slows only the host that complained', () => {
+    const s = new FetchSession();
+    s.noteRateLimited('strict.calicotab.com', 600);
+    expect(s.effectiveInterval('other.calicotab.com', 600)).toBe(600);
+  });
+
+  it('actually waits the learned interval, not the floor', async () => {
+    const s = new FetchSession();
+    const host = 'slowed.example.com';
+    s.noteRateLimited(host, 20); // → SAFE_INTERVAL_MS, too slow for a test
+    // Re-learn at a testable scale instead.
+    resetLearnedIntervals();
+    const spy = new FetchSession();
+    await spy.acquireSlot(host, 10);
+    const t0 = Date.now();
+    await spy.acquireSlot(host, 120);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(110);
   });
 });

@@ -7,28 +7,59 @@ type Size = 'sm' | 'md' | 'lg';
 
 const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
-  'rounded-md transition-all duration-[180ms] ease-soft select-none ' +
+  'rounded-md transition-colors duration-150 ease-soft select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
-  'disabled:opacity-50 disabled:cursor-not-allowed';
+  'disabled:cursor-not-allowed';
 
+// Disabled treatment lives per-variant, not in `base`: a blanket
+// `disabled:opacity-50` turned the filled primary into a muddy slab with an
+// illegible label — and primary buttons sit disabled for MINUTES during the
+// scan→ingest flow ("Scanning Gmail…"), so the busy state must stay
+// readable. Filled variants soften their fill and keep full-opacity text;
+// light variants can dim wholesale because dark text on a light surface
+// degrades gracefully.
 const variants: Record<Variant, string> = {
+  // Emerald is the single accent: primary action, verified, "up". A filled
+  // emerald button is the only saturated block of colour on most screens.
+  // Disabled fills drop to a neutral surface with muted ink rather than a
+  // washed-out accent. `bg-primary/60` kept white text over a 60%-opacity
+  // emerald, which measured 2.91:1 — a label you have to squint at, which
+  // reads as "broken" rather than "not available yet".
   primary:
-    'bg-ink text-paper hover:bg-ink/90 active:bg-ink',
+    'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-surface-3 disabled:text-ink-soft',
+  // secondary is a deprecated alias of outline — kept identical so callers
+  // don't need to change and the visual result stays consistent.
   secondary:
-    'bg-paper text-ink border border-ink/15 hover:border-ink/30',
+    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
   outline:
-    'bg-transparent text-ink border border-ink/15 hover:bg-ink/[0.04]',
-  ghost: 'bg-transparent text-ink hover:bg-ink/[0.04]',
+    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  ghost: 'bg-transparent text-ink hover:bg-surface-2 disabled:opacity-50',
   danger:
-    'bg-destructive text-destructive-foreground hover:brightness-110',
+    'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/60',
   link:
-    'text-oxblood hover:text-oxblood/80 underline-offset-4 hover:underline p-0 h-auto',
+    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
 };
 
+/*
+ * Touch-first, dense at md+.
+ *
+ * The scale used to be the dense one at every width, so on a phone `sm`
+ * was a 32px-tall target and `md` 40px — both under the 44px the platform
+ * guidelines ask for, on 1,969 measured instances across the app. The
+ * "Propose" button on /cv/tags (32px) and the per-row "Report" (32px) were
+ * the worst, because those pages are mostly made of them.
+ *
+ * A statement UI genuinely does want tight controls beside a table, so the
+ * dense values stay as the base and `coarse:` (a pointer media query, see
+ * tailwind.config.ts) overrides them wherever the input device is a finger.
+ * A width breakpoint would have missed a phone in landscape, which is
+ * 844px wide and still driven by a thumb. `min-h` rather than `h` so a
+ * button that wraps its label on a narrow screen grows instead of clipping.
+ */
 const sizes: Record<Size, string> = {
-  sm: 'text-[13px] h-9 px-3.5',
-  md: 'text-[14px] h-11 px-4',
-  lg: 'text-[15px] h-12 px-5',
+  sm: 'text-table h-8 px-3 coarse:h-auto coarse:min-h-[44px] coarse:px-3.5',
+  md: 'text-ui h-10 px-3.5 coarse:h-auto coarse:min-h-[44px] coarse:px-4',
+  lg: 'text-body h-11 px-5 coarse:h-auto coarse:min-h-[48px]',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

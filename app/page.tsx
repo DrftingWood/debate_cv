@@ -1,31 +1,34 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  ChevronDown,
-  ShieldAlert,
-} from 'lucide-react';
+import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Footer } from '@/components/Footer';
+import { BrandMark } from '@/components/BrandMark';
+import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
 
 export default async function Home() {
   const session = await auth();
-  // CV-first: signed-in users land on /cv (their tournament history). The
-  // /cv page handles its own onboarding/empty-state redirects internally,
-  // so we don't have to special-case "no claims yet" here.
   if (session?.user) redirect('/cv');
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-5">
+      {/*
+        flex-1 so the footer sits at the bottom of a short viewport instead
+        of floating mid-page. The inner wrapper was a second <main> nested
+        inside the root layout's — two main landmarks on one document, which
+        leaves a screen reader with no unambiguous "skip to content" target.
+      */}
+      <div className="mx-auto w-full max-w-6xl flex-1 px-5">
         <LandingMasthead />
-        <div className="space-y-24">
+        <div className="space-y-20 pb-16 md:space-y-24">
           <Hero />
+          <ValueStrip />
+          <StatisticsShowcase />
           <HowItWorks />
-          <Colophon />
+          <PrivacyProof />
           <Faq />
-          <Subscribe />
+          <FinalCta />
         </div>
       </div>
       <Footer />
@@ -33,7 +36,7 @@ export default async function Home() {
   );
 }
 
-async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
+async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
   return (
     <form
       action={async () => {
@@ -47,211 +50,183 @@ async function SignInButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg'
         variant="primary"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
-        Sign in with Google
+        Build my debate CV
       </Button>
     </form>
   );
 }
 
-/**
- * Admin entry point. Same Google OAuth flow as the user sign-in — auth
- * itself doesn't differ, only the post-login destination. The /admin route
- * server-side `requireAdmin()`s against the ADMIN_EMAIL env var; non-admins
- * who click this fall through to / and re-redirect to /cv, so the
- * button is safe to expose publicly.
- */
-async function AdminSignInButton() {
+async function SignInLink() {
   return (
     <form
       action={async () => {
         'use server';
-        await signIn('google', { redirectTo: '/admin' });
+        await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <Button
+      <button
         type="submit"
-        size="md"
-        variant="outline"
-        leftIcon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden />}
+        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
       >
-        Admin sign-in
-      </Button>
+        Sign in
+      </button>
     </form>
   );
 }
 
 function LandingMasthead() {
   return (
-    <header className="pt-8 pb-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="font-serif italic text-h3 tracking-tight text-ink">
-          debate <span className="text-oxblood">cv</span>
-        </span>
-        <span className="hidden text-byline uppercase tracking-[0.22em] text-ink-soft sm:inline">
-          A personal record of the parliamentary kind
-        </span>
-      </div>
-      <hr className="hairline mt-3" />
+    <header className="flex items-center justify-between gap-3 py-5 md:py-6">
+      <Link href="/" aria-label="debate cv home">
+        <BrandMark />
+      </Link>
+      {/*
+        The nav used to be three marketing anchors with no way back in. Every
+        route into the product was the hero's "Build my debate CV" — copy
+        aimed at someone who has never used it, shown to a returning user who
+        just wants their record. Sign in is now where a returning user looks
+        for it, and it is the same Google flow the hero button runs.
+      */}
+      <nav className="flex items-center gap-3 whitespace-nowrap text-table font-medium text-ink-soft sm:gap-6">
+        {/* Below sm there is room for Privacy + Sign in and nothing else;
+            the sample has its own full-width button in the hero, and the
+            anchors are reachable by scrolling. Crammed in, all four wrapped
+            onto two lines each at 320px. */}
+        <Link href="/sample" className="hidden py-2 hover:text-ink sm:inline">Sample CV</Link>
+        <a href="#stats" className="hidden py-2 hover:text-ink sm:inline">Statistics</a>
+        <a href="#privacy" className="py-2 hover:text-ink">Privacy</a>
+        <SignInLink />
+      </nav>
     </header>
   );
 }
 
 function Hero() {
   return (
-    <section className="relative pt-10 pb-6 md:pt-16">
-      <div className="grid items-start gap-12 md:grid-cols-[1.05fr_0.95fr] md:gap-16">
-        <div>
-          <div className="kicker">A CAREER IN PARLIAMENTARY DEBATE</div>
+    <section className="grid items-center gap-10 pt-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:pt-12">
+      <div>
+        <div className="eyebrow">Verified tournament record</div>
+        <h1 className="mt-4 max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display">
+          Your debate history, kept like an account
+        </h1>
+        <p className="mt-5 max-w-xl text-body leading-relaxed text-ink-soft">
+          Every tournament, every round, every motion — pulled from the tab pages you were
+          already sent, and laid out as a record you can read, measure and share. Speaker
+          scores get the context they never had: the field you were in.
+        </p>
 
-          <h1 className="mt-4 font-serif text-h1 leading-[1.04] tracking-tight text-ink md:text-display">
-            Your debate cv,{' '}
-            <em className="font-serif italic">compiled from your inbox.</em>
-          </h1>
-
-          <div className="byline mt-5 inline-block border-b border-ink/15 pb-2">
-            Vol. I  ·  Spring 2026  ·  by Google's Gmail API
-          </div>
-
-          <p className="dropcap mt-6 max-w-xl font-serif text-body-serif text-ink/85">
-            Sign in with Google. We scan your inbox for the Tabbycat private
-            URLs you were already sent, fetch each tournament's team, speaker,
-            and break tabs, and stitch your personal history into one page. No
-            essays. No drag-and-drop. Just a CV.
-          </p>
-
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <SignInButton />
-            <AdminSignInButton />
-          </div>
-
-          <div className="mt-4 text-byline text-ink-soft">
-            read-only Gmail · private to you · delete any time
-          </div>
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <BuildCvButton />
+          <Link href="/sample">
+            <Button type="button" size="lg" variant="outline">
+              View sample CV
+            </Button>
+          </Link>
         </div>
 
-        <div>
-          <PaperCvExcerpt />
+        <div className="mt-5 grid gap-2 text-caption text-ink-soft sm:grid-cols-3 sm:gap-3">
+          <span className="inline-flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> read-only Gmail
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <Lock className="h-4 w-4 text-primary" aria-hidden /> private until shared
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
+          </span>
         </div>
       </div>
+
+      <SampleCvPreview />
+    </section>
+  );
+}
+
+function ValueStrip() {
+  const values = [
+    {
+      title: 'Know the record',
+      body: 'Tournaments, teams, seats, breaks and speaker results in one ledger instead of forty inbox links you will never open again.',
+    },
+    {
+      title: 'Read the motion',
+      body: 'Each round carries the motion released for it, so a speaker score sits next to what you were actually arguing.',
+    },
+    {
+      title: 'Share the proof',
+      body: 'Private by default. Publish a clean link or export a PDF when another debater, society or selector asks for receipts.',
+    },
+  ];
+
+  return (
+    <section className="grid gap-3 md:grid-cols-3" aria-label="Product value">
+      {values.map((value) => (
+        <article key={value.title} className="panel p-5">
+          <h2 className="font-display text-h4 font-medium text-ink">{value.title}</h2>
+          <p className="mt-2 text-ui leading-relaxed text-ink-soft">{value.body}</p>
+        </article>
+      ))}
     </section>
   );
 }
 
 /**
- * Right-column hero illustration: a typeset paper CV excerpt. Replaces
- * the previous glass-card screenshot pastiche. Self-referential — the
- * site shows what it produces, in the style of what it produces.
+ * The statistics pitch. This is the section that justifies the product over
+ * a spreadsheet, so it shows real figure shapes rather than describing them
+ * — a debater should recognise the questions before reading the labels.
  */
-function PaperCvExcerpt() {
-  return (
-    <div className="surface-card p-6">
-      <div className="kicker">DEBATE CV — VOL. III · COMPILED 23 MAY 2026</div>
-      <div className="mt-3 font-serif italic text-stat leading-tight text-ink">
-        Abhishek Acharya.
-      </div>
-      <hr className="hairline my-3" />
-      <div className="byline">IGNOU · a.acharya@example.com</div>
-
-      <div className="mt-5 grid grid-cols-4 gap-3">
-        {[
-          { label: 'Tournaments', value: '23' },
-          { label: 'Breaks', value: '9' },
-          { label: 'Best spkr rank', value: '#3' },
-          { label: 'Best avg', value: '74.2' },
-        ].map((m) => (
-          <div key={m.label}>
-            <div className="text-kicker text-ink-soft uppercase tracking-[0.16em]">
-              {m.label}
-            </div>
-            <div className="mt-1 font-serif text-h3 text-ink num">{m.value}</div>
-          </div>
-        ))}
-      </div>
-
-      <hr className="hairline my-5" />
-
-      <ul className="space-y-3">
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">WUDC · Vietnam</span>
-          <span className="text-byline text-ink-soft num">2024 · Octofinalist</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">EUDC · Tallinn</span>
-          <span className="text-byline text-ink-soft num">2023 · ESL Semis</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">Hart House IV</span>
-          <span className="text-byline text-ink-soft num">2023 · Champion</span>
-        </li>
-        <li className="flex items-baseline justify-between gap-3">
-          <span className="font-serif italic text-body text-ink">ABP · Manila</span>
-          <span className="text-byline text-ink-soft num">2022 · Quarterfinalist</span>
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-function HowItWorks() {
-  const items = [
+function StatisticsShowcase() {
+  const questions = [
     {
-      roman: 'I.',
-      title: 'Connect Gmail',
-      body: (
-        <>
-          One-click sign-in with Google. The scope is read-only{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            gmail.readonly
-          </code>{' '}
-          — nothing else.
-        </>
-      ),
+      label: 'Level',
+      figure: 'Top 8%',
+      body: 'Where your average placed among every speaker on the tab, tournament by tournament — not a raw number that means something different on every circuit.',
     },
     {
-      roman: 'II.',
-      title: 'We find your Tabbycat links',
-      body: (
-        <>
-          A narrow regex matches tournament private URLs on{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            calicotab.com
-          </code>{' '}
-          and{' '}
-          <code className="rounded bg-oxblood-soft px-1 py-0.5 font-mono text-caption text-oxblood">
-            herokuapp.com
-          </code>
-          . Email bodies are never stored.
-        </>
-      ),
+      label: 'Consistency',
+      figure: '±2.1',
+      body: 'The spread of your speeches: median, middle 50%, floor and ceiling, and how far you swing inside a single tournament.',
     },
     {
-      roman: 'III.',
-      title: 'Your CV appears',
-      body: (
-        <>
-          Each tournament's team, speaker, round, and break tabs are parsed
-          and stitched into a clean personal history page. The queue drains
-          in the background while you watch.
-        </>
-      ),
+      label: 'Momentum',
+      figure: '+1.4',
+      body: 'What happens across a draw. Opening rounds against closing rounds, and the fitted trend per round over every tournament long enough to have one.',
+    },
+    {
+      label: 'Seat',
+      figure: 'CG −9pp',
+      body: 'Win rate and speaker average from each position in the room, measured against your own baseline rather than an abstract average.',
+    },
+    {
+      label: 'Motion',
+      figure: 'THW +12pp',
+      body: 'Results by motion stem and subject area, joined round by round from each tournament’s published motions.',
+    },
+    {
+      label: 'Conversion',
+      figure: '9 / 23',
+      body: 'Break rate, longest winning run, outround record, and how all of it changes with the size of the field.',
     },
   ];
 
   return (
-    <section id="how" className="space-y-8">
-      <header className="max-w-2xl">
-        <div className="kicker">EDITOR'S NOTE · ON METHOD</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Three steps from sign-in to a complete history page.
+    <section id="stats" className="scroll-mt-24">
+      <div className="max-w-2xl">
+        <div className="eyebrow">Statistics</div>
+        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
+          The questions you argue about after a tournament
         </h2>
-      </header>
-
-      <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
-        {items.map((it) => (
-          <article key={it.roman} className="space-y-3">
-            <div className="font-serif italic text-h3 text-oxblood">{it.roman}</div>
-            <h3 className="font-serif text-h3 italic text-ink">{it.title}</h3>
-            <p className="font-serif text-body leading-relaxed text-ink/85">{it.body}</p>
+        <p className="mt-3 text-body leading-relaxed text-ink-soft">
+          Answered from the tab pages themselves, with the sample size attached to every
+          figure. Nothing here guesses at your style or scores your personality.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {questions.map((q) => (
+          <article key={q.label} className="panel p-5">
+            <div className="data-label">{q.label}</div>
+            <div className="figure mt-1.5 text-figure-md text-ink">{q.figure}</div>
+            <p className="mt-2.5 text-caption leading-relaxed text-ink-soft">{q.body}</p>
           </article>
         ))}
       </div>
@@ -259,52 +234,76 @@ function HowItWorks() {
   );
 }
 
-function Colophon() {
-  const points = [
+function HowItWorks() {
+  const steps = [
     {
-      label: 'Scope',
-      title: 'We only read what we need',
-      body:
-        'The regex runs inside a narrow Gmail search. Message bodies are never stored — only the matched URLs.',
+      label: '01',
+      title: 'Connect or import',
+      body: 'Read-only Gmail finds the Tabbycat private URLs you were sent. Paste any link the scan missed.',
     },
     {
-      label: 'Storage',
-      title: 'Encrypted at rest',
-      body:
-        'OAuth refresh tokens are stored with AES-256-GCM, keyed from a server-only secret. No emails. No message metadata.',
+      label: '02',
+      title: 'Claim your identity',
+      body: 'Confirm which speaker and judge rows are yours. Ambiguous names stay out of the record until you approve them.',
     },
     {
-      label: 'Revocation',
-      title: 'Revoke any time',
-      body: (
-        <>
-          Settings → <Link href="/settings" className="text-oxblood hover:underline">Disconnect</Link>{' '}
-          revokes the OAuth grant. Delete your account and everything goes — tokens, URLs, jobs, claims.
-        </>
-      ),
+      label: '03',
+      title: 'Read the record',
+      body: 'Rounds, motions, scores and results become a structured ledger with statistics and share controls on top.',
     },
   ];
 
   return (
-    <section>
-      <header className="max-w-2xl">
-        <div className="kicker">COLOPHON · PROCESS &amp; POLICY</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Plain English, zero surprises.
+    <section id="how" className="scroll-mt-24">
+      <div className="max-w-2xl">
+        <div className="eyebrow">From links to record</div>
+        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
+          The import exists to get out of your way
         </h2>
-        <p className="mt-3 font-serif text-body-serif text-ink/80">
-          During sign-in you'll see Google's "unverified app" notice — we're still in their Testing
-          program. The underlying scope is read-only Gmail, same as any inbox-parsing productivity tool.
-        </p>
-      </header>
-
-      <div className="mt-8 grid gap-x-10 gap-y-6 md:grid-cols-3">
-        {points.map((p) => (
-          <article key={p.label} className="space-y-2">
-            <div className="kicker">{p.label}</div>
-            <h3 className="font-serif text-h3 italic text-ink">{p.title}</h3>
-            <p className="font-serif text-body leading-relaxed text-ink/85">{p.body}</p>
+      </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        {steps.map((step) => (
+          <article key={step.label} className="border-l-2 border-primary pl-4">
+            <div className="num text-caption font-medium text-primary">{step.label}</div>
+            <h3 className="mt-2 font-display text-h4 font-medium text-ink">{step.title}</h3>
+            <p className="mt-2 text-ui leading-relaxed text-ink-soft">{step.body}</p>
           </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PrivacyProof() {
+  const rows = [
+    ['Gmail scope', 'gmail.readonly — used to find tournament links you were sent.'],
+    ['Stored', 'Matched private URLs, import jobs, claimed identities, and parsed tournament data.'],
+    ['Not stored', 'Email bodies and unrelated message metadata.'],
+    ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
+    ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
+    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM; legacy rows re-encrypt on next access.'],
+  ];
+
+  return (
+    <section id="privacy" className="panel scroll-mt-24 overflow-hidden">
+      <div className="grid gap-6 border-b border-border p-5 md:grid-cols-[0.7fr_1.3fr] md:p-6">
+        <div>
+          <div className="eyebrow">Privacy before polish</div>
+          <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
+            The trust model, stated plainly
+          </h2>
+        </div>
+        <p className="text-body leading-relaxed text-ink-soft">
+          Debate CV asks for a sensitive permission, so the product has to say exactly what it
+          reads, what it stores, and how you leave. The import is narrow; the record stays yours.
+        </p>
+      </div>
+      <div className="divide-y divide-border">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid gap-1 px-5 py-3 md:grid-cols-[180px_1fr] md:px-6">
+            <div className="data-label">{label}</div>
+            <div className="text-ui text-ink">{value}</div>
+          </div>
         ))}
       </div>
     </section>
@@ -314,71 +313,55 @@ function Colophon() {
 function Faq() {
   const items: { q: string; a: React.ReactNode }[] = [
     {
-      q: 'Why does Google say "unverified app"?',
-      a: (
-        <>
-          Apps that request Gmail scopes need Google's verification for broad public use. We're
-          still in Google's Testing mode, so only addresses added as Test Users can sign in. The
-          "Advanced → Go to debate cv (unsafe)" flow is the standard dev-mode prompt — expected
-          and safe.
-        </>
-      ),
+      q: 'Is this an AI tool?',
+      a: 'No. The product parses tournament pages and presents structured records. It should read like a ledger, not a chatbot.',
+    },
+    {
+      q: 'Why Gmail?',
+      a: 'Many Tabbycat private URLs arrive by email. Read-only Gmail lets the importer find those links without asking you to rebuild years of tournament history by hand.',
+    },
+    {
+      q: 'Where do the statistics come from?',
+      a: 'Entirely from the public tab pages — your own rows plus every other speaker published on the same tab, which is what makes a placement percentile possible. Nothing is modelled or estimated.',
+    },
+    {
+      q: 'What if a tournament is missing?',
+      a: 'Paste the private URL or re-run imports. Missing and ambiguous rows are treated as review tasks, not silently added guesses.',
     },
     {
       q: 'Is this affiliated with Tabbycat or Calico?',
-      a: (
-        <>
-          No. debate cv is an independent tool that reads publicly available Tabbycat tournament
-          pages linked in your own inbox. Tabbycat is MIT-licensed open-source software built by
-          the wider debate community.
-        </>
-      ),
-    },
-    {
-      q: "What if my name isn't detected on a private URL?",
-      a: (
-        <>
-          Some tournament pages use non-standard text that our parser can't extract. On your CV,
-          every tournament has a roster picker so you can pick yourself manually — stats appear
-          in one click.
-        </>
-      ),
-    },
-    {
-      q: 'Can I delete all my data?',
-      a: (
-        <>
-          Yes. Go to <Link href="/settings" className="text-oxblood hover:underline">Settings</Link>,
-          click <strong>Delete my data</strong>, confirm by typing your email. The account, tokens,
-          URLs, jobs, and identity claims are removed.
-        </>
-      ),
+      a: 'No. Debate CV is independent. It reads tournament pages linked from your own imports and turns them into your personal record.',
     },
   ];
 
   return (
-    <section className="space-y-6">
-      <header className="max-w-2xl">
-        <div className="kicker">LETTERS · FREQUENTLY ASKED</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          From the inbox.
+    <section className="grid gap-8 md:grid-cols-[0.7fr_1.3fr]">
+      {/*
+        The heading column was a title floating above ~600px of nothing next
+        to five accordion rows. Sticky pins it to the questions it heads, and
+        the sub-line gives the column something to be.
+      */}
+      <div className="md:sticky md:top-24 md:self-start">
+        <div className="eyebrow">Questions worth asking</div>
+        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
+          No magic, no elite gate
         </h2>
-      </header>
-      <div className="border-y border-ink/15">
-        {items.map((it, i) => (
-          <details
-            key={i}
-            className={'group px-1 py-4 ' + (i > 0 ? 'border-t border-ink/10' : '')}
-          >
-            <summary className="cursor-pointer list-none font-serif text-body-serif text-ink [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex w-full items-center justify-between gap-4">
-                <span>{it.q}</span>
-                <ChevronDown className="h-4 w-4 text-oxblood transition-transform duration-[180ms] ease-soft group-open:rotate-180" aria-hidden />
+        <p className="mt-3 text-ui leading-relaxed text-ink-soft">
+          The things people actually ask before handing over a Gmail scope.
+        </p>
+      </div>
+      <div className="divide-y divide-border border-y border-border">
+        {items.map((item) => (
+          <details key={item.q} className="group">
+            {/* py-3 on the summary rather than the details, so the whole
+                44px-tall row is the click target and not just the text. */}
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-ui font-medium text-ink">
+              {item.q}
+              <span className="text-primary transition group-open:rotate-45" aria-hidden>
+                +
               </span>
             </summary>
-            <div className="mt-3 font-serif text-body leading-relaxed text-ink/85">
-              {it.a}
-            </div>
+            <p className="max-w-2xl pb-4 text-ui leading-relaxed text-ink-soft">{item.a}</p>
           </details>
         ))}
       </div>
@@ -386,17 +369,31 @@ function Faq() {
   );
 }
 
-function Subscribe() {
+function FinalCta() {
   return (
-    <section>
-      <hr className="hairline" />
-      <div className="mt-10 max-w-2xl">
-        <div className="kicker">SUBSCRIBE</div>
-        <h2 className="mt-3 font-serif text-h2 italic text-ink">
-          Sign in, run the scan, watch your history compile.
-        </h2>
-        <div className="mt-6">
-          <SignInButton />
+    <section className="panel bg-ink p-6 text-paper md:p-8">
+      <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
+        <div>
+          <div className="eyebrow-on-ink">Start the record</div>
+          <h2 className="mt-3 font-display text-h2 font-medium tracking-tight">
+            Know what you have done. Share it when it matters
+          </h2>
+          <p className="mt-3 max-w-2xl text-ui leading-relaxed text-paper/70">
+            Build a private debate CV first. Publish or export only when the record is ready.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
+          <BuildCvButton />
+          <Link href="/sample">
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="border-paper/20 bg-transparent text-paper hover:bg-paper/10"
+            >
+              View sample
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

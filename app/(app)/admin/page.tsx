@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
+import { ExportErrorsButton } from '@/components/DashboardActions';
+import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
+import { Button } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -80,51 +84,65 @@ export default async function AdminPage() {
     .slice(0, 20);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-3">
         <div className="kicker">ADMIN · INTERNAL</div>
-        <h1 className="font-serif text-h2 italic text-ink">
-          Operator tools.
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
+          Operator tools
         </h1>
         <hr className="hairline" />
       </header>
 
+      <IngestProgressTracker scope="global" />
+
       <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-serif text-h3 italic text-ink">Current state</h2>
-        <dl className="grid grid-cols-4 gap-4 text-sm">
+        <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
+        <dl className="grid grid-cols-4 gap-4 text-table">
           <div>
-            <dt className="text-muted-foreground">Tournaments</dt>
-            <dd className="text-xl font-semibold mt-1">{tournaments}</dd>
+            <dt className="text-ink-soft">Tournaments</dt>
+            <dd className="text-stat font-semibold mt-1">{tournaments}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Discovered URLs</dt>
-            <dd className="text-xl font-semibold mt-1">{discoveredUrls}</dd>
+            <dt className="text-ink-soft">Discovered URLs</dt>
+            <dd className="text-stat font-semibold mt-1">{discoveredUrls}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Locked URLs</dt>
-            <dd className="text-xl font-semibold mt-1">{lockedUrls}</dd>
+            <dt className="text-ink-soft">Locked URLs</dt>
+            <dd className="text-stat font-semibold mt-1">{lockedUrls}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Pending jobs</dt>
-            <dd className="text-xl font-semibold mt-1">{pendingJobs}</dd>
+            <dt className="text-ink-soft">Pending jobs</dt>
+            <dd className="text-stat font-semibold mt-1">{pendingJobs}</dd>
           </div>
         </dl>
+        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
+            the 2026-06 IA pass — it's operator tooling, not a debater need. */}
+        <ExportErrorsButton />
+      </section>
+
+      <section className="rounded-lg border p-6 space-y-4">
+        <h2 className="font-display text-h3 font-medium text-ink">Tag proposals</h2>
+        <p className="text-body text-ink-soft">
+          Review user-proposed region and motion tags. Approvals write directly to the
+          canonical Tournament / Motion columns.
+        </p>
+        <Link href="/admin/tags">
+          <Button variant="outline" size="sm">Review tag proposals →</Button>
+        </Link>
       </section>
 
       <section className="rounded-lg border p-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-serif text-h3 italic text-ink">CV error reports</h2>
+            <h2 className="font-display text-h3 font-medium text-ink">CV error reports</h2>
             <p className="text-body text-ink-soft mt-1">
               Beta reports users submitted from their CV page.
             </p>
           </div>
-          <a
-            href="/api/admin/cv-error-reports-export"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-transparent px-3.5 text-[13px] font-medium text-foreground transition-all duration-[180ms] ease-soft hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <Download className="h-3.5 w-3.5" aria-hidden />
-            Export CSV
+          <a href="/api/admin/cv-error-reports-export">
+            <Button variant="outline" size="sm" leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}>
+              Export CSV
+            </Button>
           </a>
         </div>
         {cvReports.length === 0 ? (
@@ -134,15 +152,15 @@ export default async function AdminPage() {
             {cvReports.map((report) => (
               <li key={report.id} className="space-y-2 px-3 py-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="text-sm font-medium text-foreground">
+                  <div className="text-ui font-medium text-ink">
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
-                  <div className="text-caption text-muted-foreground">
+                  <div className="text-caption text-ink-soft">
                     {report.createdAt.toLocaleString()}
                   </div>
                 </div>
                 {report.user.email ? (
-                  <div className="text-caption text-muted-foreground">{report.user.email}</div>
+                  <div className="text-caption text-ink-soft">{report.user.email}</div>
                 ) : null}
                 <div className="flex flex-wrap gap-1">
                   {report.tournamentIds.map((id) => {
@@ -150,7 +168,7 @@ export default async function AdminPage() {
                     return (
                       <span
                         key={id}
-                        className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                        className="rounded-full bg-surface-2 px-2 py-0.5 text-byline text-ink-soft"
                       >
                         {tournament ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}` : `#${id}`}
                       </span>
@@ -162,7 +180,7 @@ export default async function AdminPage() {
                     {report.categories.map((c) => (
                       <span
                         key={c}
-                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-byline font-medium text-warning"
                       >
                         {categoryLabel(c)}
                       </span>
@@ -170,7 +188,7 @@ export default async function AdminPage() {
                   </div>
                 ) : null}
                 {report.comment ? (
-                  <p className="whitespace-pre-wrap break-words rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">
+                  <p className="whitespace-pre-wrap break-words rounded-md bg-surface-2 px-3 py-2 text-ui text-ink">
                     {report.comment}
                   </p>
                 ) : null}
@@ -182,7 +200,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Recent parser warnings</h2>
+          <h2 className="font-display text-h3 font-medium text-ink">Recent parser warnings</h2>
           <p className="text-body text-ink-soft mt-1">
             Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
             many tournaments are hitting the same parsing issue — usually a structural change in
@@ -198,12 +216,12 @@ export default async function AdminPage() {
             {sortedWarnings.map(([key, { count, sample, latest }]) => (
               <li key={key} className="px-3 py-2 space-y-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <code className="font-mono text-[12px] text-foreground break-all">{key}</code>
-                  <span className="shrink-0 text-caption font-mono text-muted-foreground">
+                  <code className="font-mono text-caption text-ink break-all">{key}</code>
+                  <span className="shrink-0 text-caption font-mono text-ink-soft">
                     ×{count}
                   </span>
                 </div>
-                <div className="text-[11px] text-muted-foreground">
+                <div className="text-byline text-ink-soft">
                   Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
                   {sample.length > 200 ? '…' : ''}
                 </div>
@@ -215,7 +233,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Clear ingested data</h2>
+          <h2 className="font-display text-h3 font-medium text-ink">Clear ingested data</h2>
           <p className="text-body text-ink-soft mt-1">
             Deletes scraped tournament records and resets ingest state on every DiscoveredUrl. User
             identity claims (Person records) and discovered URLs are preserved, so the next scan
@@ -227,14 +245,14 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border border-destructive/30 bg-destructive/[0.03] p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Full wipe (destructive)</h2>
+          <h2 className="font-display text-h3 font-medium text-ink">Full wipe (destructive)</h2>
           <p className="text-body text-ink-soft mt-1">
             All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and
             every PersonRejection across all users. User accounts and Gmail tokens are preserved
             so users can re-run the Gmail scan from zero. Use only to test the discovery + claim
             flow end-to-end.
           </p>
-          <p className="text-sm text-destructive mt-2">
+          <p className="text-table text-destructive mt-2">
             Irreversible. Every user loses their claimed identities.
           </p>
         </div>
@@ -243,7 +261,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>
-          <h2 className="font-serif text-h3 italic text-ink">Re-ingest all URLs</h2>
+          <h2 className="font-display text-h3 font-medium text-ink">Re-ingest all URLs</h2>
           <p className="text-body text-ink-soft mt-1">
             Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
             tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}
@@ -252,6 +270,6 @@ export default async function AdminPage() {
         </div>
         <ReingestAllButton />
       </section>
-    </main>
+    </div>
   );
 }

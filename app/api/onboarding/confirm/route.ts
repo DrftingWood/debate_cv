@@ -63,8 +63,19 @@ export async function POST(req: Request) {
       VALUES (${display}, ${norm}, ${userId})
       ON CONFLICT ("normalizedName")
       DO UPDATE SET
-        "displayName" = EXCLUDED."displayName",
-        "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+        -- A suppressed Person (see lib/privacy/suppression.ts) is frozen:
+        -- onboarding must not refresh the withdrawn name back onto the row,
+        -- and must not hand ownership of it to whoever typed the name into
+        -- the picker. The row still updates so the query returns an id and
+        -- the caller's flow is unchanged.
+        "displayName" = CASE
+          WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."displayName"
+          ELSE EXCLUDED."displayName"
+        END,
+        "claimedByUserId" = CASE
+          WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."claimedByUserId"
+          ELSE COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+        END
       RETURNING id
     `;
     if (rows[0]) claimed++;

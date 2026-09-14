@@ -35,6 +35,41 @@ export function inferTournamentYear(
   return messageDate ? messageDate.getUTCFullYear() : null;
 }
 
+/**
+ * All fingerprints under which an existing Tournament row for this event
+ * might be stored, most-likely first. One real tournament can be keyed
+ * under different fingerprints when its year had to be INFERRED from the
+ * private-URL email date rather than read from the name: a tournament
+ * named "Autumn Novice" whose emails straddle a year boundary gives one
+ * user year=2024 and the next year=2025, and very old rows predate year
+ * inference entirely (year=null). Ingest tries each candidate in order
+ * and adopts the first existing row's stored fingerprint, so a lookup
+ * via any candidate still converges on one Tournament row.
+ *
+ * When the year is explicit in the name there is exactly one candidate —
+ * "Oxford IV 2024" and "Oxford IV 2025" are genuinely different events
+ * and must never merge.
+ */
+export function candidateFingerprints(parts: {
+  host: string;
+  tournamentSlug: string | null;
+  tournamentName: string | null;
+  explicitYear: number | null;
+  inferredYear: number | null;
+}): string[] {
+  const fp = (year: number | null) =>
+    computeFingerprint({
+      host: parts.host,
+      tournamentSlug: parts.tournamentSlug,
+      tournamentName: parts.tournamentName,
+      year,
+    });
+  if (parts.explicitYear != null) return [fp(parts.explicitYear)];
+  const year = parts.inferredYear;
+  if (year == null) return [fp(null)];
+  return [fp(year), fp(null), fp(year - 1), fp(year + 1)];
+}
+
 export function normalizePersonName(name: string): string {
   return name
     .toLowerCase()

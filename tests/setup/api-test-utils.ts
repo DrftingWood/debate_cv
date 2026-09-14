@@ -27,8 +27,22 @@ export const authMock = vi.fn();
 export const authMockModule = { auth: authMock };
 
 /** Build a fake session shape that matches what NextAuth returns. */
-export function fakeSession(userId: string, email = 'test@example.com') {
-  return { user: { id: userId, email, name: 'Test User', image: null } };
+export function fakeSession(
+  userId: string,
+  overrides: { email?: string; name?: string | null } | string = {},
+) {
+  // Historically the second arg was just an email string; keep that working
+  // while letting newer tests override the display name, which the identity
+  // check on /api/persons/[id]/claim reads.
+  const opts = typeof overrides === 'string' ? { email: overrides } : overrides;
+  return {
+    user: {
+      id: userId,
+      email: opts.email ?? 'test@example.com',
+      name: opts.name === undefined ? 'Test User' : opts.name,
+      image: null,
+    },
+  };
 }
 
 // ── prisma mock ─────────────────────────────────────────────────────
@@ -67,6 +81,8 @@ export const prismaMock = {
   speakerRoundScore: makeModelMock(),
   teamResult: makeModelMock(),
   eliminationResult: makeModelMock(),
+  motion: makeModelMock(),
+  tagProposal: makeModelMock(),
   judgeAssignment: makeModelMock(),
   person: makeModelMock(),
   personRejection: makeModelMock(),
@@ -114,6 +130,13 @@ export function resetPrismaMock() {
     }
     return undefined;
   });
+  // Raw reads default to an empty result set rather than `undefined`. The
+  // real client always resolves an array, and callers iterate the result
+  // directly — a bare mockReset() made every raw query return undefined and
+  // blew up at the for-of, which is a property of the mock, not of the code
+  // under test.
+  prismaMock.$queryRaw.mockResolvedValue([]);
+  prismaMock.$executeRaw.mockResolvedValue(0);
 }
 
 // ── request helpers ─────────────────────────────────────────────────

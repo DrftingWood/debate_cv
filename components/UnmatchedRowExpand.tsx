@@ -38,7 +38,7 @@ export function UnmatchedRowExpand({
         {open ? 'Hide search' : 'Find me'}
       </Button>
       {open ? (
-        <div className="rounded-md border border-border bg-muted/20 p-3">
+        <div className="rounded-md border border-border bg-surface-2/20 p-3">
           <ParticipantSearch
             tournamentId={tournamentId}
             tournamentName={tournamentName}

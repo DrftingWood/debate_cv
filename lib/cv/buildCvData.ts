@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/lib/calicotab/judgeStats';
@@ -6,6 +7,7 @@ import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount } from '@/lib/calicotab/prelimRoundCount';
+import { displayNameFor } from '@/lib/privacy/suppression';
 import {
   deepestOutroundsByCategory,
   isEudcTournament,
@@ -24,11 +26,29 @@ export type CvSpeakerRoundScore = {
   score: number | null;
 };
 
+/**
+ * The user's team's per-round result, joined from TeamResult rows for
+ * their primary team. `position` (OG/OO/CG/CO on BP layouts) is only
+ * present on tournaments ingested since the parser started persisting it
+ * (PARSER_VERSION 20260611.0) — older rows carry null until re-ingest.
+ * Feeds the by-position slice on /cv/stats.
+ */
+export type CvTeamRoundResult = {
+  roundNumber: number;
+  position: string | null;
+  /** Round outcome when the results page recorded one; null otherwise. */
+  won: boolean | null;
+  /** Team points for the round (BP: 0–3); null when not parsed. */
+  points: number | null;
+};
+
 export type CvSpeakerRow = {
   tournamentId: bigint;
   tournamentName: string;
   year: number | null;
   format: string | null;
+  /** Admin-approved region tag (lib/tags/vocabulary.ts); null until tagged. */
+  region: string | null;
   totalTeams: number | null;
   sourceUrl: string;
   myName: string;
@@ -71,6 +91,8 @@ export type CvSpeakerRow = {
   hasOpenReport: boolean;
   /** Per-round speaker scores for the expandable row UI. */
   roundScores: CvSpeakerRoundScore[];
+  /** The user's team's per-round results (position / outcome / points). */
+  teamRoundResults: CvTeamRoundResult[];
 };
 
 export type CvJudgeRow = {
@@ -78,6 +100,8 @@ export type CvJudgeRow = {
   tournamentName: string;
   year: number | null;
   format: string | null;
+  /** Admin-approved region tag (lib/tags/vocabulary.ts); null until tagged. */
+  region: string | null;
   totalTeams: number | null;
   sourceUrl: string;
   myName: string;
@@ -132,11 +156,88 @@ export type CvHighlights = {
   activeYears: { from: number; to: number } | null;
 };
 
+/**
+ * Motion rows (text + approved community tags) for tournaments on this CV.
+ *
+ * Carried on CvData rather than joined into speaker rows because the join
+ * key is (tournamentId, roundNumber) and several consumers want it at
+ * different granularities: the analytics motion slices aggregate by tag,
+ * /cv/motions lists the text per round, and the CV row detail shows the
+ * motion next to the score for that round. Text is included now that the
+ * UI renders it — the tags-only projection was a pre-rebuild economy.
+ */
+export type CvTaggedMotion = {
+  tournamentId: bigint;
+  roundNumber: number | null;
+  /** Raw label as released ("Round 3", "Semifinals"). */
+  roundLabel: string;
+  /** Document order on the motions page; tiebreaker within a round. */
+  seq: number;
+  text: string;
+  infoSlide: string | null;
+  motionType: string | null;
+  topic: string | null;
+};
+
+/**
+ * Per-tournament summary of the FIELD the user competed against, derived
+ * from every speaker the tab published — not just the user's own row.
+ *
+ * This is the single most valuable thing the ingest pipeline already stores
+ * and never surfaced: a 78.4 average means nothing on its own, but "78.4
+ * against a field averaging 75.1, 12th of 214 speakers" is a real
+ * competitive statement. Computed here (next to the DB) and consumed as
+ * plain numbers by the pure stats layer.
+ *
+ * Score-unit figures are derived by dividing the field's score TOTALS by
+ * the tournament's prelim round count. That is exact when every speaker
+ * spoke every prelim and approximate otherwise (swing/absent speakers pull
+ * their own totals down); the rank-based percentile below carries no such
+ * assumption, so prefer it when both are available.
+ */
+export type CvFieldStat = {
+  tournamentId: bigint;
+  /** Speakers on the tab carrying a parsed score total. */
+  speakerCount: number;
+  /** Mean of the field's per-speaker average, in score units. */
+  fieldMeanAvg: number | null;
+  /** Population standard deviation of the same, in score units. */
+  fieldStdevAvg: number | null;
+  /** Median and 90th-percentile per-speaker average, in score units. */
+  fieldMedianAvg: number | null;
+  fieldP90Avg: number | null;
+  /**
+   * How many speakers finished strictly above the user on total score.
+   * `betterThanUser + 1` is the user's rank on this measure, computed from
+   * the tab's own numbers rather than trusting a Rank column that some
+   * installs never publish.
+   */
+  betterThanUser: number | null;
+  /**
+   * Prelim rounds the user was actually scored in, against the
+   * tournament's prelim round count.
+   *
+   * These differ when the user swung, arrived late, or the tab simply
+   * didn't publish one of their cells — and when they differ, the
+   * placement above is NOT comparable with the per-round figures beside
+   * it. Placement ranks on TOTAL score, so a speaker who missed a round
+   * sinks to the bottom of the tab while their per-round average stays
+   * well above the field mean. Displaying both without saying so produced
+   * a genuinely contradictory row: "+3.4 above the field, placed 89th of
+   * 89". Consumers use this to mark the row and to exclude it from career
+   * aggregates. Null when the round count is unknown.
+   */
+  userScoredRounds: number | null;
+  prelimRoundCount: number | null;
+};
+
 export type CvData = {
   user: { name: string | null; email: string | null; image: string | null } | null;
   myDisplayName: string;
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
+  taggedMotions: CvTaggedMotion[];
+  fieldStats: CvFieldStat[];
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
     totalTournaments: number;
@@ -146,7 +247,23 @@ export type CvData = {
   highlights: CvHighlights;
 };
 
-export async function buildCvData(userId: string): Promise<CvData> {
+export type BuildCvDataOptions = {
+  /**
+   * Compute the per-tournament field summary (see CvFieldStat). Costs one
+   * extra query that returns EVERY speaker published on every tournament
+   * on the CV — low tens of thousands of rows for a heavy user. Callers
+   * that don't render placement figures should pass false; the public
+   * /u/<slug> page does, since it shows the user's own averages only.
+   * Defaults to true so a new consumer gets the richer payload by default.
+   */
+  includeFieldStats?: boolean;
+};
+
+export async function buildCvData(
+  userId: string,
+  options: BuildCvDataOptions = {},
+): Promise<CvData> {
+  const includeFieldStats = options.includeFieldStats ?? true;
   const [user, urls, claimedPersons] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -224,22 +341,28 @@ export async function buildCvData(userId: string): Promise<CvData> {
   // speaker tab gave us `speakerScoreTotal` but no per-round columns (an AP
   // tab pattern where round headers are bare digits or are simply not
   // released, so we have a total but can't count speeches directly).
-  // Two sources, in priority order:
+  // Three sources, in priority order — the rule itself lives in
+  // pickPrelimRoundCount so the read path and any future call site share
+  // one definition:
   //   1. Tournament.prelimRoundCount — set at ingest time from the
-  //      authoritative landing-nav round list (counts only prelim, non-outround
-  //      results URLs). Most reliable.
-  //   2. MAX(TeamResult.roundNumber) for prelim rounds — derived from how many
-  //      rounds we successfully parsed per-team data for. Fallback for older
-  //      tournaments ingested before #1 was stored, or where the team-tab
-  //      had no per-round breakdown either.
-  // Resolve the prelim-round count per tournament from the two known
-  // sources (stored Tournament.prelimRoundCount first, MAX(TeamResult
-  // .roundNumber) fallback). The rule itself lives in pickPrelimRoundCount
-  // so the read path and any future call site share one definition.
-  // Run the two queries in parallel — neither depends on the other.
+  //      authoritative landing-nav round list (counts only prelim,
+  //      non-outround results URLs). Most reliable.
+  //   2. MAX(TeamResult.roundNumber) for prelim rounds — derived from how
+  //      many rounds we parsed per-team data for. Fallback for older
+  //      tournaments ingested before #1 was stored, or where the team tab
+  //      had no per-round breakdown.
+  //   3. MAX(SpeakerRoundScore.roundNumber) across every participant —
+  //      last resort for tournaments that published a speaker tab with
+  //      per-round columns but neither of the above. Without it, the field
+  //      summary loses its divisor and every score-unit figure blanks out
+  //      while the placement still renders, which reads as a bug.
+  //
+  // Source 3 needs a join (SpeakerRoundScore has no tournamentId), so it is
+  // raw SQL. It is an aggregate: one row per tournament, no score rows
+  // cross the wire. All three run in parallel — none depends on another.
   const prelimRoundCountByTournament = new Map<bigint, number>();
   if (tournamentIds.length > 0) {
-    const [tournamentRows, maxRoundRows] = await Promise.all([
+    const [tournamentRows, maxRoundRows, maxSpeakerRoundRows] = await Promise.all([
       prisma.tournament.findMany({
         where: { id: { in: tournamentIds } },
         select: { id: true, prelimRoundCount: true },
@@ -249,7 +372,21 @@ export async function buildCvData(userId: string): Promise<CvData> {
         where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
         _max: { roundNumber: true },
       }),
+      prisma.$queryRaw<{ tournamentId: bigint; maxRound: number | null }[]>`
+        SELECT tp."tournamentId" AS "tournamentId",
+               MAX(srs."roundNumber")::int AS "maxRound"
+        FROM "SpeakerRoundScore" srs
+        JOIN "TournamentParticipant" tp ON tp."id" = srs."tournamentParticipantId"
+        WHERE tp."tournamentId" IN (${Prisma.join(tournamentIds)})
+          AND srs."roundNumber" > 0
+          AND srs."positionLabel" <> 'average'
+        GROUP BY tp."tournamentId"
+      `,
     ]);
+    const maxSpeakerRoundByTournament = new Map<bigint, number | null>();
+    for (const r of maxSpeakerRoundRows) {
+      maxSpeakerRoundByTournament.set(r.tournamentId, r.maxRound);
+    }
     const maxByTournament = new Map<bigint, number | null>();
     for (const r of maxRoundRows) {
       maxByTournament.set(r.tournamentId, r._max.roundNumber);
@@ -258,12 +395,13 @@ export async function buildCvData(userId: string): Promise<CvData> {
       const picked = pickPrelimRoundCount({
         stored: t.prelimRoundCount,
         maxTeamRoundNumber: maxByTournament.get(t.id) ?? null,
+        maxSpeakerRoundNumber: maxSpeakerRoundByTournament.get(t.id) ?? null,
       });
       if (picked != null) prelimRoundCountByTournament.set(t.id, picked);
     }
   }
 
-  const [teammateRows, teamResultRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
+  const [teammateRows, teamResultRows, teamRoundRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
     myTeamPairs.length
       ? prisma.tournamentParticipant.findMany({
           where: {
@@ -277,14 +415,14 @@ export async function buildCvData(userId: string): Promise<CvData> {
             tournamentId: true,
             teamName: true,
             personId: true,
-            person: { select: { displayName: true } },
+            person: { select: { displayName: true, suppressedAt: true } },
           },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
           teamName: string | null;
           personId: bigint;
-          person: { displayName: string };
+          person: { displayName: string; suppressedAt: Date | null };
         }>),
     tournamentIds.length
       ? prisma.teamResult.findMany({
@@ -295,6 +433,36 @@ export async function buildCvData(userId: string): Promise<CvData> {
           tournamentId: bigint;
           teamName: string | null;
           rank: number | null;
+          wins: number | null;
+          points: { toString(): string } | null;
+        }>),
+    // Per-round rows for the user's own teams only — position/outcome/points
+    // feed the by-position analytics slice. Scoped to myTeamPairs rather
+    // than the whole tournament so a WUDC-sized ingest doesn't drag
+    // hundreds of teams × 9 rounds through the CV build.
+    myTeamPairs.length
+      ? prisma.teamResult.findMany({
+          where: {
+            OR: myTeamPairs.map((p) => ({
+              tournamentId: p.tournamentId,
+              teamName: p.teamName,
+            })),
+            roundNumber: { gt: 0 },
+          },
+          select: {
+            tournamentId: true,
+            teamName: true,
+            roundNumber: true,
+            position: true,
+            wins: true,
+            points: true,
+          },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          teamName: string | null;
+          roundNumber: number | null;
+          position: string | null;
           wins: number | null;
           points: { toString(): string } | null;
         }>),
@@ -331,51 +499,132 @@ export async function buildCvData(userId: string): Promise<CvData> {
         }>),
   ]);
 
-  // Outround team win/loss results, indexed by (tid, teamName, stage). Used
-  // to compute `wonTournament` per speaker row — i.e. did the user's team
-  // win the deepest outround they reached, and was that outround the GF.
-  const teamOutroundResultByKey = new Map<string, 'won' | 'lost'>();
-  if (tournamentIds.length > 0) {
-    const rows = await prisma.eliminationResult.findMany({
-      where: {
-        tournamentId: { in: tournamentIds },
-        entityType: 'team',
-        result: { in: ['won', 'lost'] },
-      },
-      select: { tournamentId: true, entityName: true, stage: true, result: true },
-    });
-    for (const r of rows) {
-      teamOutroundResultByKey.set(
-        `${r.tournamentId}:${r.entityName}:${r.stage}`,
-        r.result as 'won' | 'lost',
-      );
-    }
-  }
-
-  // EUDC-only: collect every outround stage label per (tournament, team) so
-  // we can derive deepest-per-category for the EUDC dual-break case (a
-  // team that breaks in Open AND ESL has different deepest outrounds in
-  // each bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and
-  // we want to surface both on the CV instead of collapsing to one).
-  // Pulls all team EliminationResult rows regardless of result so a row
-  // missing its win/loss indicator still contributes the stage. Skipped
-  // entirely on non-EUDC tournaments to keep the query bounded.
+  // ── Everything else this function needs, in one round trip ───────────
+  //
+  // These five reads are mutually independent and depend only on values
+  // already resolved above (tournamentIds, userId, tournamentById). They
+  // used to be awaited one after another, spread across the body of the
+  // function next to the code that consumed each one — five sequential
+  // round trips on top of the three batched ones. That reads nicely and
+  // costs real latency: locally it is a couple of milliseconds, but the
+  // production database is a pooled Neon instance where every round trip
+  // is a network hop, and /cv, /cv/stats and the export all pay it.
+  //
+  // The QUERIES are batched here; the map-building that consumes each one
+  // stays where it was, next to the logic that explains it.
   const eudcTournamentIds = tournamentIds.filter((tid) => {
     const t = tournamentById.get(tid);
     return t ? isEudcTournament(t.name) : false;
   });
+
+  const [
+    teamOutroundRows,
+    eudcOutroundRows,
+    openReportRows,
+    motionRows,
+    fieldRows,
+  ] = await Promise.all([
+    // Outround team win/loss results. Feed `wonTournament` per speaker row
+    // — did the user's team win the deepest outround they reached, and was
+    // that outround the Grand Final.
+    tournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: {
+            tournamentId: { in: tournamentIds },
+            entityType: 'team',
+            result: { in: ['won', 'lost'] },
+          },
+          select: { tournamentId: true, entityName: true, stage: true, result: true },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          entityName: string;
+          stage: string;
+          result: string | null;
+        }>),
+
+    // EUDC-only: every outround stage label per (tournament, team), so we
+    // can derive deepest-per-category for the dual-break case (a team that
+    // breaks in Open AND ESL has different deepest outrounds in each
+    // bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and the CV
+    // shows both instead of collapsing to one). Pulls all team rows
+    // regardless of result so a row missing its win/loss indicator still
+    // contributes its stage. Skipped entirely on non-EUDC tournaments.
+    eudcTournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
+          select: { tournamentId: true, entityName: true, stage: true },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          entityName: string;
+          stage: string;
+        }>),
+
+    // Unresolved (open or acknowledged) CvErrorReports, for the per-row
+    // "Reported" badge.
+    tournamentIds.length
+      ? prisma.cvErrorReport.findMany({
+          where: { userId, status: { in: ['open', 'acknowledged'] } },
+          select: { tournamentIds: true },
+        })
+      : Promise.resolve([] as Array<{ tournamentIds: string[] }>),
+
+    // Motions, for the analytics join, /cv/motions and the per-round
+    // detail on the CV.
+    tournamentIds.length
+      ? prisma.motion.findMany({
+          where: { tournamentId: { in: tournamentIds } },
+          select: {
+            tournamentId: true,
+            roundNumber: true,
+            roundLabel: true,
+            seq: true,
+            text: true,
+            infoSlide: true,
+            motionType: true,
+            topic: true,
+          },
+          orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
+        })
+      : Promise.resolve([] as CvTaggedMotion[]),
+
+    // Every speaker the tab published for each tournament, projected to two
+    // columns — the raw material for the field summary. Bounded by
+    // construction: a large tournament publishes ~800 speakers, so even a
+    // heavy CV pulls low tens of thousands of (bigint, decimal) pairs. It
+    // deliberately does NOT fetch per-round score rows for the field (800
+    // speakers × 9 rounds per tournament would be an order of magnitude
+    // more, for a round-level percentile nobody has asked for yet).
+    includeFieldStats && tournamentIds.length
+      ? prisma.tournamentParticipant.findMany({
+          where: {
+            tournamentId: { in: tournamentIds },
+            speakerScoreTotal: { not: null },
+            roles: { some: { role: 'speaker' } },
+          },
+          select: { tournamentId: true, speakerScoreTotal: true },
+        })
+      : Promise.resolve([] as Array<{
+          tournamentId: bigint;
+          speakerScoreTotal: { toString(): string } | null;
+        }>),
+  ]);
+
+  const teamOutroundResultByKey = new Map<string, 'won' | 'lost'>();
+  for (const r of teamOutroundRows) {
+    teamOutroundResultByKey.set(
+      `${r.tournamentId}:${r.entityName}:${r.stage}`,
+      r.result as 'won' | 'lost',
+    );
+  }
+
   const teamOutroundStagesByKey = new Map<string, string[]>();
-  if (eudcTournamentIds.length > 0) {
-    const rows = await prisma.eliminationResult.findMany({
-      where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
-      select: { tournamentId: true, entityName: true, stage: true },
-    });
-    for (const r of rows) {
-      const key = `${r.tournamentId}:${r.entityName}`;
-      const list = teamOutroundStagesByKey.get(key) ?? [];
-      list.push(r.stage);
-      teamOutroundStagesByKey.set(key, list);
-    }
+  for (const r of eudcOutroundRows) {
+    const key = `${r.tournamentId}:${r.entityName}`;
+    const list = teamOutroundStagesByKey.get(key) ?? [];
+    list.push(r.stage);
+    teamOutroundStagesByKey.set(key, list);
   }
 
   // Tournaments the user has filed an unresolved (open or acknowledged)
@@ -384,13 +633,9 @@ export async function buildCvData(userId: string): Promise<CvData> {
   // (fixed/wont_fix) intentionally don't gate the badge — once the report
   // is closed, the row goes back to its baseline appearance.
   const reportedTournamentIds = new Set<string>();
-  if (tournamentIds.length > 0) {
-    const openReports = await prisma.cvErrorReport.findMany({
-      where: { userId, status: { in: ['open', 'acknowledged'] } },
-      select: { tournamentIds: true },
-    });
+  {
     const tournamentIdSet = new Set(tournamentIds.map((id) => id.toString()));
-    for (const r of openReports) {
+    for (const r of openReportRows) {
       for (const id of r.tournamentIds) {
         if (tournamentIdSet.has(id)) reportedTournamentIds.add(id);
       }
@@ -404,7 +649,9 @@ export async function buildCvData(userId: string): Promise<CvData> {
     if (!myTeamPairKeys.has(key)) continue;
     if (claimedPersonIds.has(tm.personId)) continue;
     const list = teammatesByKey.get(key) ?? [];
-    list.push(tm.person.displayName);
+    // Masked, not raw — a withdrawn debater must not reappear as a
+    // teammate name on someone else's CV or public share link.
+    list.push(displayNameFor(tm.person));
     teammatesByKey.set(key, list);
   }
 
@@ -420,6 +667,24 @@ export async function buildCvData(userId: string): Promise<CvData> {
     });
   }
   const teamRankByKey = buildTeamRankLookup(teamResultRows);
+
+  const teamRoundsByKey = new Map<string, CvTeamRoundResult[]>();
+  for (const tr of teamRoundRows) {
+    if (!tr.teamName || tr.roundNumber == null) continue;
+    const key = teamResultKey(tr.tournamentId, tr.teamName);
+    if (!myTeamPairKeys.has(key)) continue;
+    const list = teamRoundsByKey.get(key) ?? [];
+    list.push({
+      roundNumber: tr.roundNumber,
+      position: tr.position,
+      won: tr.wins == null ? null : tr.wins > 0,
+      points: tr.points == null ? null : Number(tr.points),
+    });
+    teamRoundsByKey.set(key, list);
+  }
+  for (const list of teamRoundsByKey.values()) {
+    list.sort((a, b) => a.roundNumber - b.roundNumber);
+  }
 
   const judgeBrokeTournaments = new Set<bigint>();
   if (claimedPersons.length > 0 && adjudicatorBreakRows.length > 0) {
@@ -516,6 +781,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      region: t.region,
       totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
@@ -523,7 +789,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       teamName: p.teamName,
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
       teamPoints: tr?.points ?? null,
-      teamWins: tr?.wins ?? p.wins ?? null,
+      teamWins: tr?.wins ?? null,
       speakerAvgScore,
       prelimsSpoken,
       // Open rank: prefer the parser's value; fall back to the ingest-time
@@ -547,6 +813,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
           score: s.score == null ? null : Number(s.score),
         }))
         .sort((a, b) => a.roundNumber - b.roundNumber),
+      teamRoundResults: teamKey ? (teamRoundsByKey.get(teamKey) ?? []) : [],
     });
   }
   speakerRows.sort((a, b) => {
@@ -594,6 +861,7 @@ export async function buildCvData(userId: string): Promise<CvData> {
       tournamentName: t.name,
       year: t.year,
       format: t.format,
+      region: t.region,
       totalTeams: t.totalTeams,
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
@@ -635,6 +903,79 @@ export async function buildCvData(userId: string): Promise<CvData> {
       if (ya !== yb) return yb - ya;
       return a.name.localeCompare(b.name);
     });
+
+  // Motions — fetched in the batched read above.
+  const taggedMotions: CvTaggedMotion[] = motionRows;
+
+  // ── Field context ────────────────────────────────────────────────────
+  // Summarised from the field rows fetched in the batched read above. The
+  // aggregation stays here, next to the speaker rows it compares against.
+  const fieldStats: CvFieldStat[] = [];
+  if (includeFieldStats && fieldRows.length > 0) {
+    const totalsByTournament = new Map<bigint, number[]>();
+    for (const row of fieldRows) {
+      if (row.speakerScoreTotal == null) continue;
+      const value = Number(row.speakerScoreTotal);
+      if (!Number.isFinite(value)) continue;
+      const list = totalsByTournament.get(row.tournamentId) ?? [];
+      list.push(value);
+      totalsByTournament.set(row.tournamentId, list);
+    }
+
+    // The user's own total per tournament, taken from the same richest
+    // participation the speaker rows were built from, so the "better than
+    // you" count compares like with like.
+    const myTotalByTournament = new Map<bigint, number>();
+    const myScoredRoundsByTournament = new Map<bigint, number>();
+    for (const [tid, p] of speakerByTournament.entries()) {
+      // Count the rounds the tab actually scored the user in, so consumers
+      // can tell a full draw from a partial one. The 'average' row and
+      // round 0 are metadata, not speeches.
+      myScoredRoundsByTournament.set(
+        tid,
+        (p.speakerRoundScores ?? []).filter(
+          (s) => s.roundNumber > 0 && s.positionLabel !== 'average' && s.score != null,
+        ).length,
+      );
+      if (p.speakerScoreTotal == null) continue;
+      const value = Number(p.speakerScoreTotal);
+      if (Number.isFinite(value)) myTotalByTournament.set(tid, value);
+    }
+
+    for (const [tournamentId, totals] of totalsByTournament.entries()) {
+      const sorted = [...totals].sort((a, b) => a - b);
+      const divisor = prelimRoundCountByTournament.get(tournamentId) ?? null;
+      const toAvg = (total: number | null): number | null =>
+        total == null || divisor == null || divisor <= 0 ? null : total / divisor;
+
+      const mean = sorted.reduce((s, v) => s + v, 0) / sorted.length;
+      const variance =
+        sorted.reduce((s, v) => s + (v - mean) * (v - mean), 0) / sorted.length;
+      const quantile = (q: number): number => {
+        if (sorted.length === 1) return sorted[0];
+        const pos = (sorted.length - 1) * q;
+        const lo = Math.floor(pos);
+        const hi = Math.ceil(pos);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+      };
+
+      const myTotal = myTotalByTournament.get(tournamentId) ?? null;
+      fieldStats.push({
+        tournamentId,
+        speakerCount: sorted.length,
+        fieldMeanAvg: toAvg(mean),
+        // stdev scales with the same divisor as the mean, so dividing the
+        // total-space stdev converts it to score units directly.
+        fieldStdevAvg: divisor && divisor > 0 ? Math.sqrt(variance) / divisor : null,
+        fieldMedianAvg: toAvg(quantile(0.5)),
+        fieldP90Avg: toAvg(quantile(0.9)),
+        betterThanUser:
+          myTotal == null ? null : sorted.filter((v) => v > myTotal).length,
+        userScoredRounds: myScoredRoundsByTournament.get(tournamentId) ?? null,
+        prelimRoundCount: divisor,
+      });
+    }
+  }
 
   const totalTournaments = tournamentIds.length;
   const breaks =
@@ -724,6 +1065,8 @@ export async function buildCvData(userId: string): Promise<CvData> {
     myDisplayName,
     speakerRows,
     judgeRows,
+    taggedMotions,
+    fieldStats,
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
     highlights,

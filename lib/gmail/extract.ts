@@ -1,5 +1,73 @@
+/**
+ * Scanner for private URLs embedded in email bodies.
+ *
+ * Deliberately unanchored and global — its job is to FIND private URLs
+ * inside prose. That makes it the wrong tool for deciding whether a URL is
+ * safe to fetch: `.test()` on it returns true for any string that merely
+ * contains a match, so
+ *
+ *   http://169.254.169.254/latest/meta-data/?x=https://a.calicotab.com/t/privateurls/abc
+ *
+ * passes. Use {@link isPrivateUrl} for that. Never gate a fetch on this.
+ */
 export const PRIVATE_URL_RE =
   /https?:\/\/[\w\-]+\.(?:calicotab\.com|herokuapp\.com)\/[\w\-]+\/privateurls\/[\w]+\/?/gi;
+
+/**
+ * Hosts the server is willing to make outbound requests to. Tabbycat is
+ * either self-hosted on Heroku or on Calico's managed platform; nothing
+ * else is ever a legitimate scrape target.
+ */
+export const ALLOWED_TAB_HOST_SUFFIXES = ['.calicotab.com', '.herokuapp.com'] as const;
+
+/**
+ * Is this hostname one we will fetch from?
+ *
+ * Suffix match on a parsed hostname, so `a.calicotab.com.evil.example` is
+ * rejected (it does not END with the suffix) while `foo.calicotab.com` is
+ * accepted. Exported for the per-redirect-hop check in
+ * lib/calicotab/fetch.ts — an allowlist that only inspects the initial URL
+ * is bypassed by a 302 from an allowed host to an internal address.
+ */
+export function isAllowedTabHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  return ALLOWED_TAB_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
+/**
+ * Strict gate for "may the server fetch this URL?".
+ *
+ * Validates the PARSED URL rather than the raw string, because string
+ * matching is what made the SSRF possible: every property below is one an
+ * attacker could otherwise smuggle past a substring test.
+ *
+ *   - protocol must be http/https — blocks file:, data:, gopher: and the
+ *     rest of the URL-scheme zoo
+ *   - hostname must be under an allowed suffix
+ *   - no embedded credentials (`https://user:pass@host/`), which some
+ *     fetch stacks and proxies parse differently from the WHATWG parser
+ *   - no explicit port, so an allowed host cannot be used to reach an
+ *     unexpected service on that host
+ *   - the path must actually be a private-URL path, so the fetch target is
+ *     the shape the ingest pipeline expects
+ */
+export function isPrivateUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+  if (!isAllowedTabHost(u.hostname)) return false;
+  if (u.username || u.password) return false;
+  if (u.port) return false;
+  const segments = u.pathname.split('/').filter(Boolean);
+  if (segments.length < 3) return false;
+  if (segments[1].toLowerCase() !== 'privateurls') return false;
+  if (!/^[\w-]+$/.test(segments[0]) || !/^\w+$/.test(segments[2])) return false;
+  return true;
+}
 
 export type PrivateUrlRecord = {
   url: string;

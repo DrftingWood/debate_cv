@@ -107,12 +107,12 @@ export function CvNeedsAttentionBanners({
     <section className="space-y-2" data-print-hide="true" aria-label="Needs attention">
       <div className="kicker">NEEDS ATTENTION</div>
       {pendingCount > 0 ? (
-        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
+        <div className="flex items-start gap-3 border-t border-border py-3">
           <Loader2
             className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
             aria-hidden
           />
-          <p className="font-serif text-body leading-relaxed text-ink">
+          <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
             </em>{' '}
@@ -127,9 +127,9 @@ export function CvNeedsAttentionBanners({
         </div>
       ) : null}
       {unmatchedCount > 0 ? (
-        <div className="flex items-start gap-3 border-t border-ink/10 py-3">
+        <div className="flex items-start gap-3 border-t border-border py-3">
           <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
-          <p className="font-serif text-body leading-relaxed text-ink">
+          <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
             </em>{' '}

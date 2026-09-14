@@ -108,7 +108,7 @@ export function IdentityManager() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-[14px] text-muted-foreground">
+      <div className="flex items-center gap-2 text-ui text-ink-soft">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
         Loading identities…
       </div>
@@ -118,7 +118,7 @@ export function IdentityManager() {
   if (loadError) {
     return (
       <div className="space-y-2">
-        <p className="text-[14px] text-destructive">{loadError}</p>
+        <p className="text-ui text-destructive">{loadError}</p>
         <Button
           type="button"
           variant="outline"
@@ -134,7 +134,7 @@ export function IdentityManager() {
 
   if (names.length === 0) {
     return (
-      <p className="rounded-md border border-border bg-muted/40 p-4 text-caption text-muted-foreground">
+      <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
         No registration names extracted from your URLs yet. Run a Gmail scan
         from the dashboard to populate this list.
       </p>
@@ -143,7 +143,7 @@ export function IdentityManager() {
 
   return (
     <div className="space-y-4">
-      <p className="text-[14px] text-muted-foreground">
+      <p className="text-ui text-ink-soft">
         Tick every spelling that's you — we'll merge them into one identity on
         your CV. Untick a name to remove it (e.g. a teammate's URL that was
         auto-linked to you by an earlier ingest).
@@ -155,7 +155,7 @@ export function IdentityManager() {
           const wasMine = initialSelected.has(n.normalizedName);
           return (
             <li key={n.normalizedName}>
-              <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30">
+              <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
                 <span className="flex min-w-0 items-center gap-3">
                   <input
                     type="checkbox"
@@ -163,7 +163,7 @@ export function IdentityManager() {
                     checked={checked}
                     onChange={() => toggle(n.normalizedName)}
                   />
-                  <span className="font-medium text-foreground">{n.displayName}</span>
+                  <span className="font-medium text-ink">{n.displayName}</span>
                   {wasMine ? (
                     <Badge variant={checked ? 'success' : 'warning'}>
                       {checked ? 'Claimed' : 'Will be removed'}
@@ -172,7 +172,7 @@ export function IdentityManager() {
                     <Badge variant="info">Will be claimed</Badge>
                   ) : null}
                 </span>
-                <span className="whitespace-nowrap text-caption text-muted-foreground">
+                <span className="whitespace-nowrap text-caption text-ink-soft">
                   {n.urlCount} {n.urlCount === 1 ? 'URL' : 'URLs'}
                 </span>
               </label>
@@ -182,7 +182,7 @@ export function IdentityManager() {
       </ul>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-caption text-muted-foreground">
+        <p className="text-caption text-ink-soft">
           {selected.size} of {names.length} selected
         </p>
         <Button

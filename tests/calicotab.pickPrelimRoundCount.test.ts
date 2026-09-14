@@ -31,4 +31,36 @@ describe('pickPrelimRoundCount', () => {
     expect(pickPrelimRoundCount({ stored: -1, maxTeamRoundNumber: 5 })).toBe(5);
     expect(pickPrelimRoundCount({ stored: 3, maxTeamRoundNumber: -1 })).toBe(3);
   });
+  test('falls back to the speaker tab when neither of the first two is set', () => {
+    // The case that motivated the third source: a tournament that published
+    // per-round speaker columns but no nav round list and no per-round team
+    // rows. Without it the field summary loses its divisor and every
+    // score-unit figure blanks out while the placement still renders.
+    expect(
+      pickPrelimRoundCount({
+        stored: null,
+        maxTeamRoundNumber: null,
+        maxSpeakerRoundNumber: 6,
+      }),
+    ).toBe(6);
+  });
+
+  test('the speaker tab never overrides a more authoritative source', () => {
+    // A speaker who swung or missed a round must not drag the divisor down.
+    expect(
+      pickPrelimRoundCount({ stored: 9, maxTeamRoundNumber: null, maxSpeakerRoundNumber: 6 }),
+    ).toBe(9);
+    expect(
+      pickPrelimRoundCount({ stored: null, maxTeamRoundNumber: 8, maxSpeakerRoundNumber: 6 }),
+    ).toBe(8);
+  });
+
+  test('all three missing is still null', () => {
+    expect(
+      pickPrelimRoundCount({ stored: null, maxTeamRoundNumber: null, maxSpeakerRoundNumber: null }),
+    ).toBeNull();
+    expect(
+      pickPrelimRoundCount({ stored: 0, maxTeamRoundNumber: 0, maxSpeakerRoundNumber: 0 }),
+    ).toBeNull();
+  });
 });

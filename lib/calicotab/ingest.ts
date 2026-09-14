@@ -17,7 +17,9 @@ import {
   parseParticipantsList,
   diagnoseVueData,
 } from './parseTabs';
+import { parseMotionsTab } from './parseMotions';
 import {
+  candidateFingerprints,
   computeFingerprint,
   extractYearFromName,
   inferTournamentYear,
@@ -36,7 +38,7 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
-import { normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
+import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -91,6 +93,7 @@ type FetchedTabs = {
   mergedParticipantRows: ReturnType<typeof parseParticipantsList>;
   rounds: ReturnType<typeof parseRoundResults>[];
   breakRows: ReturnType<typeof parseBreakPage>;
+  motions: ReturnType<typeof parseMotionsTab>;
   tournamentName: string;
   totalParticipants: number | null;
   totalTeams: number | null;
@@ -124,6 +127,38 @@ export async function ingestPrivateUrl(
   const cacheCheck = await checkCacheFreshness(loaded, userId, options);
   if (cacheCheck.kind === 'cache-hit') return cacheCheck.result;
 
+  // Concurrent-scrape guard. The advisory lock in writeIngestTransaction
+  // serializes the WRITES, but two cache-miss ingests of the same
+  // tournament would both have run the ~15-fetch tab phase by then. Claim
+  // the scrape slot first; if another ingest holds it, wait briefly for
+  // it to finish and serve their result from cache. If the wait times out
+  // (slow scrape, crashed holder) we proceed unclaimed — correctness is
+  // still guaranteed by the write lock, we just lose the fetch dedup.
+  // First-ever ingests (no Tournament row to claim on) skip the guard;
+  // the queue drains serially per process, so that window is narrow.
+  const claim = await acquireScrapeClaim(loaded.existing?.id ?? null);
+  if (claim === 'busy') {
+    const settled = await awaitConcurrentScrape(loaded, userId, options);
+    if (settled) return settled;
+  }
+
+  try {
+    return await runFullScrape(loaded, userId, options);
+  } catch (err) {
+    // Release an acquired claim on failure so the next attempt (queue
+    // retry, other user) doesn't have to wait out the TTL.
+    if (claim === 'acquired' && loaded.existing) {
+      await releaseScrapeClaim(loaded.existing.id);
+    }
+    throw err;
+  }
+}
+
+async function runFullScrape(
+  loaded: LoadedState,
+  userId: string,
+  options: { force?: boolean },
+): Promise<IngestResult> {
   const fetched = await fetchAndParseTabs(loaded);
   await recordPipelineParserRun(loaded, fetched);
 
@@ -148,6 +183,75 @@ export async function ingestPrivateUrl(
   return finalizePostTransaction(loaded, fetched, txResult, userId);
 }
 
+// ─── Concurrent-scrape claim ──────────────────────────────────────────────
+//
+// A claim is a single conditional UPDATE on the Tournament row — atomic in
+// Postgres, safe under the pgbouncer-pooled connection (unlike session
+// advisory locks, which can't be trusted to release on the same pooled
+// connection; the WRITE-phase lock is fine because pg_advisory_xact_lock
+// is transaction-scoped). TTL covers crashed holders: a claim older than
+// the TTL is treated as abandoned and stealable.
+
+const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
+const SCRAPE_AWAIT_POLL_MS = 3_000;
+const SCRAPE_AWAIT_MAX_MS = 15_000;
+
+async function acquireScrapeClaim(
+  tournamentId: bigint | null,
+): Promise<'acquired' | 'busy' | 'none'> {
+  if (tournamentId == null) return 'none';
+  const stealCutoff = new Date(Date.now() - SCRAPE_CLAIM_TTL_MS);
+  const res = await prisma.tournament.updateMany({
+    where: {
+      id: tournamentId,
+      OR: [{ scrapeClaimedAt: null }, { scrapeClaimedAt: { lt: stealCutoff } }],
+    },
+    data: { scrapeClaimedAt: new Date() },
+  });
+  return res.count > 0 ? 'acquired' : 'busy';
+}
+
+async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
+  try {
+    await prisma.tournament.updateMany({
+      where: { id: tournamentId },
+      data: { scrapeClaimedAt: null },
+    });
+  } catch {
+    // Best-effort — an unreleased claim self-expires via the TTL.
+  }
+}
+
+/**
+ * Another ingest holds the scrape claim for this tournament. Poll briefly:
+ * if their scrape commits (scrapedAt advances), re-run the cache check
+ * against the refreshed row and serve their result; if their claim
+ * disappears without a commit (they failed), or the wait times out, return
+ * null and let the caller scrape — duplicated fetches in that case, but
+ * never a wrong result.
+ */
+async function awaitConcurrentScrape(
+  loaded: LoadedState,
+  userId: string,
+  options: { force?: boolean },
+): Promise<IngestResult | null> {
+  const previous = loaded.existing;
+  if (!previous) return null;
+  const deadline = Date.now() + SCRAPE_AWAIT_MAX_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, SCRAPE_AWAIT_POLL_MS));
+    const current = await prisma.tournament.findUnique({ where: { id: previous.id } });
+    if (!current) return null;
+    if (current.scrapedAt.getTime() > previous.scrapedAt.getTime()) {
+      loaded.existing = current;
+      const recheck = await checkCacheFreshness(loaded, userId, options);
+      return recheck.kind === 'cache-hit' ? recheck.result : null;
+    }
+    if (current.scrapeClaimedAt == null) return null;
+  }
+  return null;
+}
+
 // ─── Phase functions for ingestPrivateUrl ─────────────────────────────────
 // See spec at docs/superpowers/specs/2026-05-23-ingest-pipeline-decomposition-design.md.
 // Each phase function is private (not exported) and takes typed input from
@@ -159,6 +263,13 @@ async function loadLandingAndFingerprint(
   userId: string,
 ): Promise<LoadedState> {
   const normalized = normalizePrivateUrl(url);
+  // Re-validate here, not just at the API boundary. Jobs reach this
+  // function from three places — /api/ingest/url, the queue drain, and the
+  // admin re-ingest — and a URL persisted before the gate was tightened
+  // would otherwise still be fetched when the cron picks it up.
+  if (!isPrivateUrl(normalized)) {
+    throw new Error(`refusing to fetch non-private URL: ${normalized.slice(0, 120)}`);
+  }
   const urlVariants = privateUrlVariants(url);
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
@@ -177,14 +288,17 @@ async function loadLandingAndFingerprint(
   // Landing page fetch — with provenance so every parse has a stable source.
   const landingResult = await fetchHtmlWithProvenance(normalized, { session: fetchSession });
   if (!landingResult.ok) {
-    // Surface the HTTP failure as the job's error so it shows up on the
-    // dashboard and in ParserRun history. `bodyPreview` gives the operator
-    // a hint when the upstream serves an HTML error page (e.g. Cloudflare).
-    throw new Error(
-      `fetch landing ${normalized} → HTTP ${landingResult.status}: ${landingResult.bodyPreview
-        .replace(/\s+/g, ' ')
-        .slice(0, 180)}`,
-    );
+    // The status reaches the user's dashboard; the response BODY does not.
+    // bodyPreview is genuinely useful when upstream serves a Cloudflare
+    // error page, but echoing a fetched body back to whoever submitted the
+    // URL turns any fetch-target confusion into a read primitive. Operators
+    // get it in the server log and in the ParserRun row instead.
+    console.warn('[ingest] landing fetch failed', {
+      url: normalized,
+      status: landingResult.status,
+      bodyPreview: landingResult.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
+    });
+    throw new Error(`fetch landing ${normalized} → HTTP ${landingResult.status}`);
   }
   const landingDoc = landingResult;
   const landingHtml = landingDoc.html;
@@ -203,18 +317,22 @@ async function loadLandingAndFingerprint(
     tournamentName: snapshot.tournamentName,
     year,
   });
-  const legacyFingerprint =
-    year != null && explicitYear == null
-      ? computeFingerprint({
-          host: parsedUrl.host,
-          tournamentSlug,
-          tournamentName: snapshot.tournamentName,
-          year: null,
-        })
-      : null;
-  let existing = await prisma.tournament.findUnique({ where: { fingerprint: inferredFingerprint } });
-  if (!existing && legacyFingerprint && legacyFingerprint !== inferredFingerprint) {
-    existing = await prisma.tournament.findUnique({ where: { fingerprint: legacyFingerprint } });
+  // When the year was INFERRED from the email date (not explicit in the
+  // name), the same event may already be stored under a neighbouring year
+  // (two users' emails straddling a year boundary) or under year=null
+  // (legacy rows). Try every candidate before concluding the tournament
+  // is new, and adopt the existing row's stored fingerprint so all
+  // writers converge on one row. See candidateFingerprints.
+  let existing: Awaited<ReturnType<typeof prisma.tournament.findUnique>> = null;
+  for (const candidate of candidateFingerprints({
+    host: parsedUrl.host,
+    tournamentSlug,
+    tournamentName: snapshot.tournamentName,
+    explicitYear,
+    inferredYear: year,
+  })) {
+    existing = await prisma.tournament.findUnique({ where: { fingerprint: candidate } });
+    if (existing) break;
   }
   const tournamentFingerprint = existing?.fingerprint ?? inferredFingerprint;
 
@@ -247,9 +365,17 @@ async function checkCacheFreshness(
 
   const ageMs = Date.now() - existing.scrapedAt.getTime();
   const fresh = ageMs < FRESH_WINDOW_MS;
-  // Reparse invalidation: if PARSER_VERSION bumped since the last successful
-  // parser run for this tournament's landing page, skip the cache and re-ingest.
-  const parserUpToDate = await isLatestParserRun(landingDoc.sourceDocumentId);
+  // Reparse invalidation: was the stored data produced by the current
+  // PARSER_VERSION? Tournament-scoped via Tournament.parserVersion — the
+  // old per-landing-document check (isLatestParserRun) meant a SECOND
+  // user's first touch of a cached tournament always cache-missed,
+  // because their private URL is a different SourceDocument with no runs
+  // yet, and the tournament got fully re-scraped for nothing. The
+  // per-doc check remains only as a fallback for rows written before the
+  // column existed.
+  const parserUpToDate = existing.parserVersion
+    ? existing.parserVersion === PARSER_VERSION
+    : await isLatestParserRun(landingDoc.sourceDocumentId);
   // Smart cache bust: if the landing nav advertises more rounds than we
   // have stored TeamResult rows for, the tournament has progressed since
   // the last ingest — fall through to a full refresh instead of serving
@@ -331,8 +457,17 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       r.status === 403 && !process.env.SCRAPER_API_KEY
         ? ' (set SCRAPER_API_KEY to bypass Cloudflare blocking)'
         : '';
+    // Status + hint only — see the landing-fetch note above for why the
+    // response body stays server-side.
+    if (r.bodyPreview) {
+      console.warn('[ingest] tab fetch failed', {
+        label,
+        status: r.status,
+        bodyPreview: r.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
+      });
+    }
     fetchWarnings.push(
-      `fetch: ${label} HTTP ${r.status}${hint}${r.bodyPreview ? ` — ${r.bodyPreview.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`,
+      `fetch: ${label} HTTP ${r.status}${hint}`,
     );
     return null;
   };
@@ -345,10 +480,23 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     return null;
   };
 
-  const [teamHtml, speakerHtml, participantsHtml] = await Promise.all([
+  // Motions tab is optional enrichment: plenty of tournaments never release
+  // motions, and the nav link can exist while the page 404s. Failures here
+  // must NOT go through fetchTab — its `fetch:` warning prefix feeds
+  // fetchLevelFailures, which aborts the entire ingest, and losing a whole
+  // tournament because motions were withheld is the wrong trade.
+  const fetchOptionalTab = async (targetUrl: string, label: string): Promise<string | null> => {
+    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
+    if (r.ok) return r.html;
+    fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
+    return null;
+  };
+
+  const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     nav.teamTab ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
     nav.speakerTab ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
     nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
+    nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and
   // adjudicators are scoped to their own debate (sidesteps double-counting
@@ -417,6 +565,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const breakRows = breakHtmls
     .filter((x): x is { url: string; html: string } => !!x)
     .flatMap(({ url: u, html }) => parseBreakPage(html, u));
+  // Zero motions from a fetched page is normal (tab released before
+  // motions are public) — no diagnose warning, unlike the core tabs.
+  const motions = motionsHtml ? parseMotionsTab(motionsHtml) : [];
   const tournamentName = snapshot.tournamentName ?? loaded.tournamentSlug ?? 'Unknown tournament';
   const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
   const totalTeams = teamRows.length || null;
@@ -465,6 +616,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     mergedParticipantRows,
     rounds,
     breakRows,
+    motions,
     tournamentName,
     totalParticipants,
     totalTeams,
@@ -619,6 +771,7 @@ async function writeIngestTransaction(
     mergedParticipantRows,
     rounds,
     breakRows,
+    motions,
     tournamentName,
     totalParticipants,
     totalTeams,
@@ -651,6 +804,11 @@ async function writeIngestTransaction(
         prelimRoundCount,
         sourceUrlRaw: normalized,
         scrapedAt: new Date(),
+        // Stamp the version that produced this data (tournament-scoped
+        // cache invalidation) and release the scrape claim — committing
+        // the write IS the success signal concurrent waiters poll for.
+        parserVersion: PARSER_VERSION,
+        scrapeClaimedAt: null,
       },
       create: {
         name: tournamentName,
@@ -661,6 +819,7 @@ async function writeIngestTransaction(
         prelimRoundCount,
         sourceUrlRaw: normalized,
         fingerprint: tournamentFingerprint,
+        parserVersion: PARSER_VERSION,
       },
     });
 
@@ -711,6 +870,7 @@ async function writeIngestTransaction(
           update: {
             points: r.points,
             wins: r.won === true ? 1 : r.won === false ? 0 : null,
+            position: r.position,
           },
           create: {
             tournamentId: t.id,
@@ -718,9 +878,48 @@ async function writeIngestTransaction(
             roundNumber: round.roundNumber,
             points: r.points,
             wins: r.won === true ? 1 : r.won === false ? 0 : null,
+            position: r.position,
           },
         });
       }
+    }
+
+    // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
+    // rather than delete-then-recreate, and only when this parse actually
+    // produced motions. Upserting preserves Motion row ids across
+    // re-ingests, which matters because TagProposal rows cascade-delete
+    // with their motion — a recreate would wipe the approval audit trail
+    // (and the approved motionType/topic values, which the update branch
+    // deliberately leaves untouched). The trailing deleteMany clears only
+    // rows absent from the new parse. Motion counts are small (≤ ~15 per
+    // tournament) so per-row upserts inside the tx are cheap.
+    if (motions.length > 0) {
+      for (const m of motions) {
+        await tx.motion.upsert({
+          where: {
+            tournamentId_roundLabel_seq: {
+              tournamentId: t.id,
+              roundLabel: m.roundLabel,
+              seq: m.seq,
+            },
+          },
+          update: { roundNumber: m.roundNumber, text: m.text, infoSlide: m.infoSlide },
+          create: {
+            tournamentId: t.id,
+            roundNumber: m.roundNumber,
+            roundLabel: m.roundLabel,
+            seq: m.seq,
+            text: m.text,
+            infoSlide: m.infoSlide,
+          },
+        });
+      }
+      await tx.motion.deleteMany({
+        where: {
+          tournamentId: t.id,
+          NOT: { OR: motions.map((m) => ({ roundLabel: m.roundLabel, seq: m.seq })) },
+        },
+      });
     }
 
     // Outround team win/loss → EliminationResult. We mark each team that
@@ -929,7 +1128,14 @@ async function writeIngestTransaction(
       });
     }
 
-    // Break rows -> elimination_results
+    // Break rows -> elimination_results. The row's existence (stage +
+    // entityName) is the signal readers use — adjudicator-break detection
+    // and EUDC stage collection in buildCvData both ignore `result`.
+    // Historically this wrote `rank:N` into result; nothing ever read it
+    // back (the rank lives on TournamentParticipant.teamBreakRank), so the
+    // write stopped and the legacy rows were nulled by migration. `update`
+    // is deliberately empty: a break row must never clobber a won/lost
+    // value that the outround-results loop wrote for the same key.
     for (const row of breakRows) {
       await tx.eliminationResult.upsert({
         where: {
@@ -940,13 +1146,12 @@ async function writeIngestTransaction(
             entityName: row.entityName,
           },
         },
-        update: { result: row.rank != null ? `rank:${row.rank}` : null },
+        update: {},
         create: {
           tournamentId: t.id,
           stage: row.stage ?? 'break',
           entityType: row.entityType,
           entityName: row.entityName,
-          result: row.rank != null ? `rank:${row.rank}` : null,
         },
       });
     }
@@ -1256,7 +1461,11 @@ async function preCommitPersons(
         INSERT INTO "Person" ("displayName", "normalizedName")
         VALUES (${displayName}, ${normalizedName})
         ON CONFLICT ("normalizedName")
+        -- Never refresh the name of someone who has asked to be withdrawn:
+        -- the next re-ingest of any tournament they appear at would
+        -- otherwise silently undo their erasure.
         DO UPDATE SET "displayName" = EXCLUDED."displayName"
+        WHERE "Person"."suppressedAt" IS NULL
         RETURNING id
       `,
     );
@@ -1382,8 +1591,15 @@ async function linkRegistrationPerson(
     VALUES (${personName}, ${normalizedName}, ${claimUserId})
     ON CONFLICT ("normalizedName")
     DO UPDATE SET
-      "displayName" = EXCLUDED."displayName",
-      "claimedByUserId" = COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+      -- Suppressed rows keep their masked state and stay unclaimable.
+      "displayName" = CASE
+        WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."displayName"
+        ELSE EXCLUDED."displayName"
+      END,
+      "claimedByUserId" = CASE
+        WHEN "Person"."suppressedAt" IS NOT NULL THEN "Person"."claimedByUserId"
+        ELSE COALESCE("Person"."claimedByUserId", EXCLUDED."claimedByUserId")
+      END
     RETURNING id, "claimedByUserId"
   `;
   const row = rows[0];
@@ -1631,32 +1847,39 @@ async function recordJudgeRoundsFromRoundResults(
     };
   }
 
-  let written = 0;
-  for (const h of hits) {
-    const existing = await prisma.judgeAssignment.findFirst({
-      where: {
+  // Atomic per-person replace, mirroring the landing path's delete+create.
+  // The previous findFirst+create-per-hit pattern had two holes: the
+  // (tournamentId, personId, stage, panelRole, roundNumber) unique can't
+  // dedup rows whose roundNumber is NULL (outround hits — Postgres treats
+  // NULLs as distinct in unique indexes), and two concurrent ingests
+  // sharing a judge could both pass the findFirst check before either
+  // created (TOCTOU). Deduping in memory and replacing inside one
+  // transaction closes both for the common case; the audit migration
+  // cleaned up duplicates the old window let through.
+  const seen = new Set<string>();
+  const dedupedHits = hits.filter((h) => {
+    const key = `${h.stage}|${h.role}|${h.roundNumber ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  await prisma.$transaction([
+    prisma.judgeAssignment.deleteMany({
+      where: { tournamentId, personId, source: 'round_results' },
+    }),
+    prisma.judgeAssignment.createMany({
+      data: dedupedHits.map((h) => ({
         tournamentId,
         personId,
         stage: h.stage,
         panelRole: h.role,
         roundNumber: h.roundNumber,
-      },
-      select: { id: true },
-    });
-    if (!existing) {
-      await prisma.judgeAssignment.create({
-        data: {
-          tournamentId,
-          personId,
-          stage: h.stage,
-          panelRole: h.role,
-          roundNumber: h.roundNumber,
-          source: 'round_results',
-        },
-      });
-      written += 1;
-    }
-  }
+        source: 'round_results',
+      })),
+      skipDuplicates: true,
+    }),
+  ]);
+  const written = dedupedHits.length;
 
   // Compute aggregates (same semantics as the landing-path writer; both
   // sites share lib/calicotab/judgeAggregates.ts). Round-results hits use

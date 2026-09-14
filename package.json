@@ -2,7 +2,7 @@
   "name": "debate-cv",
   "version": "0.2.0",
   "private": true,
-  "description": "Debate CV: Gmail -> Calicotab scrape -> Postgres -> personal tournament history.",
+  "description": "Debate CV: verified, shareable tournament records for university debaters.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && node scripts/migrate-if-configured.mjs && next build",
@@ -13,9 +13,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:dev": "node scripts/seed-dev-data.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
     "@auth/prisma-adapter": "^2.7.4",
     "@prisma/client": "^6.1.0",
     "@sentry/nextjs": "^10.50.0",
@@ -23,6 +25,7 @@
     "acorn": "^8.16.0",
     "cheerio": "^1.0.0",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "googleapis": "^144.0.0",
     "lucide-react": "^1.9.0",
     "next": "^15.1.0",

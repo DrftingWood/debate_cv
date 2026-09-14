@@ -121,7 +121,7 @@ export function ParticipantSearch({
         <span className="sr-only">Search participants</span>
         <span className="relative block">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
             aria-hidden
           />
           <input
@@ -129,24 +129,39 @@ export function ParticipantSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type your name to find yourself in this tournament…"
-            className="w-full rounded-md border border-border bg-bg py-2 pl-9 pr-3 text-[14px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-md border border-border bg-paper py-2 pl-9 pr-3 text-base text-ink md:text-ui placeholder:text-ink-soft focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </span>
       </label>
 
-      {tooShort ? (
-        <p className="text-caption text-muted-foreground">
-          Type at least {MIN_QUERY_LENGTH} characters.
-        </p>
-      ) : isLoading ? (
-        <p className="text-caption text-muted-foreground">Searching…</p>
-      ) : error ? (
-        <p className="text-caption text-destructive">{error}</p>
-      ) : hasSearched && results.length === 0 ? (
-        <p className="text-caption text-muted-foreground">
-          No participants found with that name.
-        </p>
-      ) : results.length > 0 ? (
+      {/*
+        The status line is a live region. Results, "Searching…", the empty
+        result and the error all arrived silently before — and this is the
+        identity-claim flow, where picking the wrong row takes a record that
+        is not yours. `role="alert"` for the error so a failure interrupts;
+        polite for everything else so typing is not narrated over.
+      */}
+      <div aria-live="polite" aria-atomic="true">
+        {tooShort ? (
+          <p className="text-caption text-ink-soft">
+            Type at least {MIN_QUERY_LENGTH} characters.
+          </p>
+        ) : isLoading ? (
+          <p className="text-caption text-ink-soft">Searching…</p>
+        ) : error ? (
+          <p role="alert" className="text-caption text-destructive">
+            {error}
+          </p>
+        ) : hasSearched && results.length === 0 ? (
+          <p className="text-caption text-ink-soft">No participants found with that name.</p>
+        ) : results.length > 0 ? (
+          <p className="sr-only">
+            {results.length} participant{results.length === 1 ? '' : 's'} found.
+          </p>
+        ) : null}
+      </div>
+
+      {tooShort || isLoading || error ? null : results.length > 0 ? (
         <ul className="divide-y divide-border rounded-md border border-border bg-card">
           {results.map((hit) => (
             <li
@@ -154,8 +169,8 @@ export function ParticipantSearch({
               className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
             >
               <div className="min-w-0">
-                <span className="text-foreground">{hit.displayName}</span>
-                <span className="ml-2 text-caption text-muted-foreground">
+                <span className="text-ink">{hit.displayName}</span>
+                <span className="ml-2 text-caption text-ink-soft">
                   {hit.role}
                   {hit.teamName ? ` · ${hit.teamName}` : ''}
                 </span>

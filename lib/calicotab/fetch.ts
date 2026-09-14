@@ -1,6 +1,8 @@
+import { gzipSync } from 'node:zlib';
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
 import { FetchSession } from './fetchSession';
+import { isAllowedTabHost } from '@/lib/gmail/extract';
 
 /**
  * Realistic Chrome-on-macOS fingerprint. Tabbycat sits behind Cloudflare on
@@ -13,35 +15,42 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-// Per-host minimum interval between consecutive request starts. Enforced by
-// FetchSession.acquireSlot, which makes concurrent calls (Promise.all of 3
-// tab fetches + many round results) serial rather than racing — important
-// because Cloudflare-fronted Tabbycat instances 403 bursts of simultaneous
-// requests even when each individual gap looks polite.
+// Per-host minimum interval between consecutive request starts — a FLOOR,
+// not a fixed rate. FetchSession raises it per host the first time that host
+// pushes back (see noteRateLimited), so the value here is the optimistic
+// starting point rather than a guess that has to be safe for every host in
+// the world simultaneously.
 //
 // History: 750ms (original) → 2500ms (2026-05, post Cloudflare-403 audit)
-// → 1500ms (2026-05-24, post Vercel 60s 504 timeout audit).
+// → 1500ms (2026-05-24, post Vercel 60s 504 timeout audit) → 600ms + learned
+// backoff (2026-07).
 //
-// The 2500ms bump was paired with the serialization fix in FetchSession.
-// The serialization itself is what stopped the burst-triggered 403s; the
-// 2500ms was an overcautious headroom on top. At ~16 same-host fetches
-// per ingest, 2500ms blew past Vercel's 60s Hobby cap (40s throttle
-// floor + fetch latency + parse/write). 1500ms keeps the throttle 2x
-// above the 750ms level that was failing for *concurrent bursts* — but
-// with serialization eliminating bursts, it's a comfortable steady-state
-// rate (~40 req/min per host, well below typical Cloudflare managed
-// thresholds). 16 × 1500ms = 24s throttle floor, leaving ~30s for the
-// fetch + parse + write phases inside a 60s budget.
+// The 403s that drove the increases were caused by CONCURRENT BURSTS, and
+// the fix for those was the serialization in FetchSession.acquireSlot — the
+// interval on top was headroom, as the 2500ms→1500ms note already conceded.
+// Charging every host the strictest host's rate made a 13-fetch ingest spend
+// 18.0s of its 28.7s simply waiting (63%, measured against a live
+// tournament).
 //
-// TABBYCAT_MIN_INTERVAL_MS env var overrides for tuning on specific
-// deployments without a code change. Empty / unparseable values fall
-// back to the default below.
+// So: start at 600ms and let evidence set the rest. A host that returns 403,
+// 429 or 503 is immediately moved to SAFE_INTERVAL_MS (the old 1500ms) and
+// doubles from there to a 3s ceiling, process-wide. Those statuses are
+// already in RETRYABLE_STATUSES, so the first push-back costs a retry rather
+// than a failed ingest, and the retry goes out at the slowed rate.
+//
+// TABBYCAT_MIN_INTERVAL_MS overrides the floor for tuning a specific
+// deployment without a code change. Empty / unparseable values fall back to
+// the default.
 const MIN_INTERVAL_MS = (() => {
   const raw = process.env.TABBYCAT_MIN_INTERVAL_MS;
-  if (!raw) return 1500;
+  if (!raw) return 600;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1500;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
 })();
+
+// Statuses that mean "you are going too fast" as opposed to "that page is
+// missing". Only these escalate the per-host interval.
+const RATE_LIMIT_STATUSES = new Set([403, 429, 503]);
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
@@ -98,6 +107,12 @@ function browserHeaders(referer?: string): Record<string, string> {
   return headers;
 }
 
+// Raw-HTML retention cap, measured on the uncompressed page. Tabbycat tab
+// pages run 100–800KB; WUDC-scale speaker tabs reach a few MB. 5MB raw
+// gzips to roughly 0.5–1MB, comfortably under Postgres row/TOAST limits.
+// Anything bigger is almost certainly not a tab page we'd want to re-parse.
+const MAX_STORED_BODY_BYTES = 5 * 1024 * 1024;
+
 // Per-fetch timeout. Tabbycat hosts can hang under load; without an explicit
 // abort, a single slow tab fetch consumes the entire serverless function
 // budget (Vercel: 60s) and burns the whole ingest. 15s is generous for a
@@ -105,26 +120,72 @@ function browserHeaders(referer?: string): Record<string, string> {
 // other ~16+ tab fetches to also have their chance.
 const FETCH_TIMEOUT_MS = 15_000;
 
-async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
-  const host = new URL(url).host;
-  // Serial per-host slot — see FetchSession.acquireSlot for why this
-  // matters for Cloudflare-fronted Tabbycat instances.
-  await session.acquireSlot(host, MIN_INTERVAL_MS);
+// Redirect hops to follow when talking to a Tabbycat host directly.
+// Tabbycat itself redirects for trailing slashes and http→https, and
+// Cloudflare adds its own, so a handful is normal; more than this is a
+// loop or an attempt to walk us somewhere.
+const MAX_REDIRECT_HOPS = 5;
 
-  const cookie = session.getCookieHeader(host);
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  // When SCRAPER_API_KEY is set every request goes through ScraperAPI, so
+  // the proxy — not this process — resolves redirects, and it is the one
+  // exposed to whatever they point at. Following automatically is correct
+  // there. Talking to a host directly, we must resolve each hop ourselves:
+  // `redirect: 'follow'` would let a 302 from a legitimate calicotab host
+  // walk the fetch onto an internal address, which is exactly the
+  // allowlist bypass the entry-point validation is meant to prevent.
+  const proxied = Boolean(process.env.SCRAPER_API_KEY);
+
   try {
-    const res = await fetch(buildTargetUrl(url), {
-      headers: {
-        ...browserHeaders(referer),
-        ...(cookie ? { Cookie: cookie } : {}),
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
-    session.storeCookies(host, res);
-    return res;
+    let current = url;
+    for (let hop = 0; ; hop += 1) {
+      const host = new URL(current).host;
+      // Serial per-host slot — see FetchSession.acquireSlot for why this
+      // matters for Cloudflare-fronted Tabbycat instances. Re-acquired per
+      // hop because a redirect can cross hosts.
+      await session.acquireSlot(host, MIN_INTERVAL_MS);
+      const cookie = session.getCookieHeader(host);
+
+      const res = await fetch(buildTargetUrl(current), {
+        headers: {
+          ...browserHeaders(referer),
+          ...(cookie ? { Cookie: cookie } : {}),
+        },
+        redirect: proxied ? 'follow' : 'manual',
+        signal: controller.signal,
+      });
+      session.storeCookies(host, res);
+
+      // Learn from push-back before returning: the retry that follows, and
+      // every later fetch to this host in this process, then goes out at the
+      // slower rate rather than repeating the mistake.
+      if (RATE_LIMIT_STATUSES.has(res.status)) {
+        session.noteRateLimited(host, MIN_INTERVAL_MS);
+      }
+
+      if (proxied || !REDIRECT_STATUSES.has(res.status)) return res;
+
+      const location = res.headers.get('location');
+      // A redirect status with no Location is malformed; hand it back and
+      // let the caller treat it as the failure it is.
+      if (!location) return res;
+
+      const next = new URL(location, current);
+      if (!isAllowedTabHost(next.hostname) || next.port || next.username || next.password) {
+        throw new Error(
+          `refusing redirect off the allowlist: ${host} → ${next.hostname}`,
+        );
+      }
+      if (hop >= MAX_REDIRECT_HOPS) {
+        throw new Error(`too many redirects (${MAX_REDIRECT_HOPS}) starting at ${url}`);
+      }
+      current = next.toString();
+    }
   } catch (err) {
     // AbortError surfaces as a generic "aborted" message in Node 18+. Re-raise
     // with a clearer error so fetchWarnings show "fetch: tab timeout (15s)"
@@ -232,10 +293,20 @@ export async function fetchHtmlWithProvenance(
   const contentHash = sha256Hex(html);
   const contentLength = Buffer.byteLength(html, 'utf8');
 
+  // Retain the gzipped body alongside the hash. Historically we kept only
+  // the hash, which made every new parsed field (motions, team positions)
+  // require re-scraping every tournament — impossible once a Heroku tab
+  // dies. Oversized pages are skipped rather than truncated: a partial
+  // body would parse as a structurally-broken page and is worse than no
+  // body. The (url, contentHash) unique already dedups unchanged pages,
+  // and the update branch backfills bodies onto pre-column rows when the
+  // same content is re-fetched.
+  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(html) : null;
+
   const doc = await prisma.sourceDocument.upsert({
     where: { url_contentHash: { url, contentHash } },
-    update: { fetchedAt: new Date(), status: res.status, contentLength },
-    create: { url, contentHash, contentLength, status: res.status },
+    update: { fetchedAt: new Date(), status: res.status, contentLength, bodyGzip },
+    create: { url, contentHash, contentLength, status: res.status, bodyGzip },
   });
 
   return {

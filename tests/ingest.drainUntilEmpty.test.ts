@@ -67,6 +67,15 @@ describe('drainUntilEmpty', () => {
     await expect(drainUntilEmpty(() => {}, offline)).resolves.toMatchObject({ processed: 1, failed: true });
   });
 
+  test('retries a rate-limited drain rather than failing the batch', async () => {
+    // The drain route is behind enforceRateLimit, which answers 429.
+    // That's a wait-and-come-back signal, not a permanent failure, so it
+    // belongs with the 5xx/offline cases even though it's a 4xx.
+    const h = harness([fail(429, 'rate_limited'), ok(2, 0)]);
+    await expect(drainUntilEmpty(() => {}, h)).resolves.toMatchObject({ processed: 2, failed: true });
+    expect(h.calls()).toBe(2);
+  });
+
   test('stops immediately when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();

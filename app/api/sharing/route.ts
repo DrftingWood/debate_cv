@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import {
   generateRandomSlug,
@@ -21,6 +22,8 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
+  const limited = await enforceRateLimit('sharing:update', session.user.id);
+  if (limited) return limited;
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {

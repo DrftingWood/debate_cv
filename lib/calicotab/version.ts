@@ -5,4 +5,9 @@
  *
  * Convention: YYYYMMDD.N where N starts at 1 and increments within a day.
  */
-export const PARSER_VERSION = '20260523.0';
+// 20260611.0: deliberate full-invalidation bump — the parser now fetches
+// the motions tab, persists per-round team positions (previously parsed
+// and discarded), and fetch.ts retains gzipped page bodies. All three
+// only materialize for a tournament on re-parse, so cached parses from
+// older versions must be considered stale.
+export const PARSER_VERSION = '20260611.0';

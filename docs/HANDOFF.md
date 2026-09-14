@@ -1,106 +1,176 @@
 # Session Handoff — debate_cv
 
-**Date:** 2026-05-24
-**Last commit on `main`:** `65d4915 fix(auth): resolve userId via fallbacks + log when Gmail token write skips`
-**Production:** Vercel + Neon Postgres; both latest deploys (`2a6488b` and `65d4915`) are READY.
-
 ---
 
-## Where things stand right now
+## 2026-07-25 (later) — Seeded local data; migrations fixed; review items closed
 
-### Open critical issue — Reconnect Gmail token write
+**Branch:** merged to `main`. **Tests:** 658 passing (was 636).
 
-The user disconnected their GmailToken row. Clicking **Reconnect Gmail** runs the Google OAuth flow, the user grants consent, but lands back on `/settings/account` with `Gmail not connected` — same as before the consent. The follow-up scan still returns `400 no_gmail_token`.
+### The project could not bootstrap a new database
 
-**What I shipped to diagnose:** `lib/auth.ts` now has:
-- A `resolveUserId()` helper with three fallbacks (`user.id` → Account by `providerAccountId` → User by email).
-- `console.warn` / `console.info` traces in both `events.signIn` and `events.linkAccount` so the next failure surfaces the exact short-circuit.
+`prisma migrate deploy` failed on any fresh database, and had done since
+2026-05. Two "idempotent cleanup" migrations were only idempotent against the
+exact production state they were written for:
 
-**What needs to happen next session:**
-1. Ask the user to test the Reconnect Gmail flow on the live deploy (`65d4915`):
-   - Disconnect Google on `/settings/account` (to start from clean state).
-   - Click Reconnect Gmail. Complete the Google consent screen.
-   - Land back on `/settings/account`. Note whether badge says "connected" or "not connected".
-2. Pull Vercel runtime logs filtered to `auth.signIn` / `auth.linkAccount`:
-   ```
-   mcp__claude_ai_Vercel__get_runtime_logs
-     projectId: prj_zFvbnnORfRVVayf5TBs2Lh1xZBDo
-     teamId:    team_rwui4f7Nb7InhcNLs5v9BowM
-     query:     "auth"
-     since:     "30m"
-   ```
-3. Branch the next step on what the log shows:
-   - **`persisting Gmail tokens` then a Prisma error** → fix the DB write path.
-   - **`could not resolve userId`** → deeper issue with NextAuth event payload; consider abandoning server-action signIn entirely and switching `components/ReconnectGmailButton.tsx` to render a `<form action="/api/auth/signin/google" method="POST">` that goes through the standard NextAuth handler.
-   - **`no access_token on account`** → Google's OAuth response is missing the token; check the provider config in `lib/auth.ts` and whether the disconnect flow is somehow disturbing the OAuth state.
-   - **No `[auth.*]` lines at all** → events aren't firing on server-action signIn. Same fix as the "could not resolve userId" case: ditch the server action, use a form post to the standard NextAuth endpoint.
+- `20260428200000_person_disambiguation_cleanup` caught `duplicate_object`
+  when adding a UNIQUE constraint. `ADD CONSTRAINT ... UNIQUE` builds an
+  index, so the collision raises `duplicate_table` (42P07) — a code the
+  handler never sees. It also added a *constraint* where `init` had created
+  an *index*.
+- `20260524130000_restore_gmailtoken_constraints` added
+  `GmailToken_userId_key` unguarded, assuming an orphan migration (applied to
+  prod, absent from this repo) had dropped it first.
 
-### Already-shipped backlog (all live on `65d4915`)
+Both now use `CREATE UNIQUE INDEX IF NOT EXISTS`, which no-ops on production
+and restores the index on a fresh database. **Verified safe for prod:**
+`migrate deploy` does not re-verify checksums of already-applied migrations
+(tested), so editing them cannot trigger a re-run. This unblocks new Vercel
+preview databases, local dev, and restore-from-schema.
 
-| Area | Status |
+### Local data (`npm run seed:dev`)
+
+`scripts/seed-dev-data.mjs` seeds 14 tournaments, ~1,300 people, full speaker
+fields, per-round scores, team results, 110 motions and a signed-in session
+token. Deterministic (fixed-seed LCG), refuses to run off localhost. The
+dataset is deliberately awkward — see the header comment; every edge case
+maps to a display branch. Setup is documented in `CLAUDE.md`.
+
+### What rendering against it exposed (all fixed)
+
+| Defect | Detail |
 |---|---|
-| Editorial redesign (Landing + /cv + /u/<slug>) | ✅ live |
-| (app) route-group refactor | ✅ live |
-| UI audit pass 1 (typography token sweep + favicons + copy) | ✅ live |
-| UI audit pass 2 (a11y + visual nits + cv/verify palette + global-error) | ✅ live |
-| Cloudflare throttle serialization | ✅ live |
-| Abandoned IngestJob terminal status + backfill | ✅ live (migration applied via the GH Action prisma-resolve workflow) |
-| Broad editorial coat — Dashboard / Settings / Onboarding / Admin / cv-verify / Privacy / Terms | ✅ live |
-| Reconnect Gmail button (Settings + Dashboard banner) | ⚠️ UI present, but token-write side broken — see open issue above |
+| Percentile chart plotted on a −4…104 axis | A bounded series was auto-fitting its domain. `TrendChart` now takes `domain`. |
+| 11 x-axis labels overlapped into a smear | Labels thin past 8 points; the percentile chart labels by year. |
+| Baseline label overprinted a data point | Now placed at whichever end has the most clearance, on the far side of that end's point. |
+| Self-contradictory field row: "+3.4 above the field mean, placed 89th of 89" | A partial draw. Placement ranks on TOTAL score so a missed round sinks it while the average is untouched. `CvFieldStat` now carries `userScoredRounds`/`prelimRoundCount`; such rows are flagged in the UI and excluded from the career aggregates. |
+| Field figures blank whenever `prelimRoundCount` was unknown | `pickPrelimRoundCount` gained a third source: `MAX(SpeakerRoundScore.roundNumber)` across the tab (one aggregate query, no rows transferred). |
+| "Hart House IV 2023 2023" | Highlights appended the year to names that already contained it. |
+| "−0.0" and "+0pp" in the splits tables | Signed zeros — now signed by what the value rounds to. |
+| Motions from judged tournaments were invisible | The join went through speaker rows only. Judged tournaments now appear, marked, and excluded from "debated" counts. |
 
-### Auth + token data model summary
+### Also closed from the review
 
-- **NextAuth v5 beta, database session strategy** (`session: { strategy: 'database' }` in `lib/auth.ts`).
-- Custom `GmailToken` table written by `persistTokensFromAccount` from `events.linkAccount` and `events.signIn` (see `lib/gmail/client.ts`).
-- Disconnect (`POST /api/account/disconnect`) deletes both `GmailToken` row AND the `Account` row (`provider=google`). Leaves the `Session` row intact (user remains signed in).
-- Reconnect server action: `lib/auth/reconnectGmail.ts` calls `signIn('google', { authorizationParams: { prompt: 'consent', access_type: 'offline' } })`.
-- Provider already has `prompt: 'consent'` + `access_type: 'offline'` in its `authorization.params` at `lib/auth.ts:13-20`, plus `events.signIn` always tries to write tokens. So there's redundancy in the consent forcing; only one is needed.
+- **`buildCvData` round trips: 7 → 4.** Measured over a 6ms-RTT link
+  (a latency-injecting TCP proxy in front of Postgres): **215ms → 161ms**.
+  No gain on loopback — the benefit is proportional to network RTT, which is
+  what production actually has.
+- `pickHeaderMetrics` → `lib/cv/headerMetrics.ts`, `buildMotionEntries` →
+  `lib/cv/motionEntries.ts`, both now unit-tested (14 new tests).
+- `loading.tsx` for `/cv/stats` and `/cv/motions`.
+- `resetPrismaMock` now defaults `$queryRaw`/`$executeRaw` to `[]`/`0` — a
+  bare `mockReset()` returned `undefined` and blew up any raw-query caller.
 
----
+### Still open
 
-## Open follow-ups (non-urgent)
-
-1. **Two orphan migrations in production DB** (`20260428100000_person_disambiguation`, `20260512000000_multi_gmail_tokens`) exist in `_prisma_migrations` but not in the local repo. They're applied to prod but the code doesn't reference them. `prisma migrate status` exits 1 because of this drift but `prisma migrate deploy` is unaffected. Investigation: are these abandoned features with permanent schema state, or rolled-back migrations whose log rows should be removed?
-
-2. **17 dead-Heroku failed ingests** — should now be marked `abandoned` post-backfill (the migration converted `failed` rows with `lastError LIKE '%HTTP 404%'` to `abandoned`). User can verify by visiting `/dashboard` — the "Failed" tile count should have dropped by ~17.
-
-3. **6 Cloudflare-blocked ingests** — were 4 rate-limit-ish + 2 blanket-blocked. The Cloudflare throttle fix (`b21b244`) made the throttle serial per-host with 2500ms intervals. Once the user retries them via `/api/ingest/retry-failed`, the 4 rate-limit-ish cases should clear; the 2 blanket-blocked (`iitmpd`, `sbsdebate`) may still need manual recovery or self-hosted FlareSolverr on Oracle Always-Free.
-
-4. **Open UI audit advisories from `2026-05-23-editorial-redesign-ui-review.md`** that weren't blocking-fixed:
-   - `StatColumn` `mono` prop is dead code (cosmetic cleanup).
-   - `HeaderMetric.accent` field is vestigial (cosmetic cleanup).
-   - Dashboard `Failed` tile hint shows "X dead links" even when `counts.failed === 0` (minor UX inconsistency — when there are no actionable failures, the hint points to an empty filter).
-   - `enqueueUrl` doesn't reset `abandoned → pending` (currently unreachable in UI; latent).
-
-5. **Deploy pipeline structural improvement** (recommended in this session, not yet acted on): move `prisma migrate deploy` out of `npm run build` and into a separate step (separate GitHub Action gated on build success, OR a Neon webhook trigger). Today's incident — where `prisma migrate deploy` failed inside the build and blocked every subsequent deploy until manual `prisma migrate resolve --rolled-back` — recurs structurally with the current pipeline. Splitting them prevents the blocking pattern.
+- The speaking ledger still scrolls horizontally below ~1320px (it fits at
+  1440 now). Mobile gets cards, so this only bites 13" laptops.
 
 ---
 
-## Reference files & locations
+## 2026-07-25 — Front-end rebuild ("Ledger"), motions surfaced, statistics engine
 
-- **Project source:** `C:\Users\achar\Documents\Github\debate_cv` (Windows, PowerShell, npm-only)
-- **Repo:** `https://github.com/DrftingWood/debate_cv`
-- **Vercel project:** `prj_zFvbnnORfRVVayf5TBs2Lh1xZBDo` (team `team_rwui4f7Nb7InhcNLs5v9BowM`)
-- **Design contract:** `docs/superpowers/specs/2026-05-23-editorial-redesign-design.md`
-- **Implementation plan:** `docs/superpowers/plans/2026-05-23-editorial-redesign.md`
-- **UI audit report:** `docs/superpowers/specs/2026-05-23-editorial-redesign-ui-review.md`
-- **Prisma resolve workflow:** `.github/workflows/prisma-resolve.yml` (run from GitHub Actions UI; secrets `POSTGRES_PRISMA_URL` + `POSTGRES_URL_NON_POOLING` already configured)
-- **Failed migration recovery path:** Run the prisma-resolve workflow with `migration_name` input and `action` (defaults `rolled-back`); then trigger a Vercel redeploy (empty commit or UI button).
+**Branch:** `claude/frontend-rebuild-motions-stats-yuzub3`
+**Test baseline:** 636 vitest tests passing (was 604); typecheck / lint / `next build` clean.
+**Migrations:** none. This session is display + pure-computation only; no schema change, no `PARSER_VERSION` bump, no re-ingest required.
 
-## User preferences (from memory)
+### What shipped
 
-- **Truly free** infrastructure only — no freemium/trial-tier services dressed up as free. ScraperAPI was rejected on these grounds; FlareSolverr on Oracle Always-Free is the durable alternative if Cloudflare bypass becomes recurring.
-- Editorial design language already locked: cream paper `#FAF6EC`, ink `#181A1F`, oxblood accent `#7A2528`, Fraunces italic display, Plus Jakarta small-caps kickers, Inter body. Tokens in `tailwind.config.ts`, utilities in `app/globals.css`.
-- On Windows / PowerShell; remote-control mobile is common; prefers tight decisive options over open discussion.
+| Area | What exists now | Key files |
+|---|---|---|
+| Design language | Replaced "Tab Room Terminal" with **Ledger** — a bank/brokerage-statement register. New token layer (cool-white/graphite canvas, hairline rules, one emerald accent, `pos`/`neg` directional colours, `surface`/`surface-2`/`surface-3` tiers), `.ledger` table mechanics, `.data-label` / `.eyebrow` / `.figure` / `.num` type roles, tabular numerals as a base rule. All editorial signatures (serif italic headings, drop caps, "Vol." kickers, pull quotes) removed; `font-serif` swept out of 24 files. Legacy `ink`/`paper`/`oxblood` aliases kept and re-pointed. | `app/globals.css`, `tailwind.config.ts`, `docs/DESIGN_INSTRUCTIONS.md` §6 |
+| New primitives | `StatTile`/`StatRow`/`DeltaChip`, `DataTable` (`Table`/`Th`/`Td`/`Tr`/`Nil`/`TableScroll`), `Sparkline`, `Meter`, `Histogram`, `SectionHeader`. `TrendChart` rewritten (gridlines, gradient area, baseline marker). Button/Card/Badge/EmptyState/NavLink/BrandMark/CvSubNav restyled. | `components/ui/*`, `components/CvSubNav.tsx` |
+| Motions end-to-end | Motions were scraped since `20260611.0` but never displayed. `buildCvData` now carries text/roundLabel/seq/infoSlide; the CV row expands into a **round ledger** (round · side · motion · score · points · result); new **`/cv/motions`** lists every motion joined to the round the user debated it in, with info slides and tags. | `lib/cv/buildCvData.ts`, `app/(app)/cv/page.tsx`, `app/(app)/cv/motions/page.tsx` |
+| Field context (new data) | `buildCvData` now summarises the FIELD per tournament from every published speaker's score total: speaker count, field mean/median/p90/σ in score units, and how many finished above the user. This is what makes "18th of 412" and a placement percentile possible. Totals-only projection on purpose — per-round field data would be an order of magnitude larger. | `CvFieldStat` in `lib/cv/buildCvData.ts` |
+| Statistics engine | `lib/cv/speakerStats.ts` — pure, 26 unit tests. Score profile (mean/median/σ/IQR/p10–p90/histogram/best+worst speech with its motion), field placement (Δ, z, percentile, placement), round dynamics (per-round profile, opening vs closing, OLS slope, within-event σ), results (win rate, BP points distribution, streaks across the career, break rate, finals/titles, deepest outround), splits by seat / motion stem / topic / format / region / field-size bucket / season each with a delta against the user's own baseline, partner splits, and auto-derived findings that must contain their number and clear a sample floor. | `lib/cv/speakerStats.ts`, `tests/cv.speakerStats.test.ts` |
+| Surfaces | `/cv` rebuilt (account header, KPI strip, ledger tables, per-round detail). `/cv/analytics` → permanent redirect to new **`/cv/stats`**. `/u/<slug>` rebuilt with a summary strip. Landing + `/sample` rebuilt with a statistics showcase and a preview built from the real primitives. Imports, settings, tags, verify, onboarding, admin restyled. Header nav is now Record · Statistics · Imports · Settings, with a mobile strip instead of a hamburger. | `app/(app)/cv/**`, `app/u/[slug]/page.tsx`, `app/page.tsx`, `app/sample/page.tsx`, `app/(app)/layout.tsx` |
 
-## Project guidance (from CLAUDE.md highlights)
+### Notes for whoever picks this up
 
-- npm-only — do NOT re-introduce pnpm-lock.yaml.
-- Don't retroactively TDD existing components/routes; new logic gets tests.
-- Don't bump PARSER_VERSION casually.
-- Print stylesheet in `app/globals.css` is preserved verbatim — don't touch.
-- Comments explain WHY when non-obvious, not WHAT.
-- 488 vitest tests baseline; new helpers add to the count.
+- **Nothing here needs a re-ingest**, but the new surfaces are much richer on tournaments ingested since `PARSER_VERSION 20260611.0` (positions + motions). The operator checklist item "Re-ingest all" below is now worth more than it was.
+- Field figures in score units divide the tab's score *totals* by the prelim round count — exact when everyone spoke every round, slightly low otherwise. The rank-based placement carries no such assumption and both are shown; the page says so.
+- Motion joins are by `(tournament, round)`. Rounds that released several motions credit all of them and are flagged in the UI — there is no per-room draw data to disambiguate.
+- Findings ("quirks") are suppressed below `MIN_QUIRK_ROUNDS` / `MIN_QUIRK_TOURNAMENTS`. If a user reports "my stats page says nothing", that is usually the sample floors doing their job, not a bug.
+
+---
+
+**Date:** 2026-06-11 (supersedes the 2026-05-24 handoff; unresolved items from it are carried forward below)
+**Last commit on `main`:** `b439ed1 feat(ingest): harden ingest-once invariant + free 15-min queue drain`
+**Test baseline:** 604 vitest tests passing; typecheck/lint/`next build` clean.
+**Production:** Vercel + Neon Postgres. Five migrations shipped this session (`20260611*`), all additive / `IF NOT EXISTS`-guarded, applied automatically at deploy via `migrate-if-configured.mjs`.
+
+> Read `CLAUDE.md` first for conventions — this doc is status only.
+
+---
+
+## What shipped this session (2026-06-11, all on `main`)
+
+| Area | What exists now | Key files |
+|---|---|---|
+| Analytics | `/cv/stats` (`/cv/analytics` permanently redirects there): speaker avg by season, round-by-round profile, break record, by-seat, by-format, by-region, by-motion (type + topic), judging trend. Pure aggregation over `buildCvData` rows; coverage notes on thin samples; hand-rolled SVG charts (no chart lib). `computeCvAnalytics` was deleted 2026-07-25 — it duplicated seven of `computeSpeakerStats`'s splits in a weaker shape and the page rendered only the two season trends, which now live on `stats.seasons` / `stats.judgingSeasons`. | `lib/cv/speakerStats.ts`, `components/ui/TrendChart.tsx`, `components/ui/BarList.tsx` |
+| Configurable export | `GET /api/cv/export?format=csv\|xlsx&fields=...` driven by one field registry; "Export" picker popover on `/cv` with localStorage prefs; XLSX via exceljs (one sheet per role). Bare GET = legacy CSV. **Column order is append-only.** | `lib/cv/exportFields.ts`, `components/CvExportButton.tsx` |
+| Parser expansion | Motions tab scraped (3 markup generations), per-round team positions persisted (`TeamResult.position` — was parsed-and-discarded before), gzipped raw HTML retained (`SourceDocument.bodyGzip`, 5MB raw cap) so future fields can re-derive from storage. `PARSER_VERSION = '20260611.0'`. | `lib/calicotab/parseMotions.ts`, `ingest.ts`, `fetch.ts`, `version.ts` |
+| Moderated tags | Fixed vocabularies: REGIONS; MOTION_TYPES (stems THBT/THW/THS/THO/THR/THP/Other); MOTION_TOPICS (14 subject areas). Users propose at `/cv/tags` (only for tournaments on their CV), admins review at `/admin/tags`; **only approval writes canonical columns** (`Tournament.region`, `Motion.motionType/topic`). `TagProposal` = queue + audit trail; one live proposal per (user, kind, target). | `lib/tags/vocabulary.ts`, `app/api/tags/propose/`, `app/api/admin/tag-proposals/`, `components/TagProposalControls.tsx`, `components/AdminTagProposals.tsx` |
+| Haiku classifier | `/admin/tags` → "Suggest motion tags (Haiku)" → `POST /api/admin/tags/classify`: claude-haiku-4-5 via `@anthropic-ai/sdk`, structured outputs constrained to the vocabulary, re-validated with zod; files PENDING proposals authored by the admin (approval gate intact). 40 motions/click, reports backlog. 503 without `ANTHROPIC_API_KEY` — feature is optional. | `lib/tags/classifyMotions.ts`, `app/api/admin/tags/classify/route.ts` |
+| DB hygiene (audit-driven) | Dropped verified-dead columns (`TeamResult.losses`, `TournamentParticipant.wins`); `SpeakerRoundScore.positionLabel` NOT NULL DEFAULT `''` (was a NULL-in-unique-key hazard); JudgeAssignment round_results writer = atomic deduped replace (was findFirst+create TOCTOU); motion writes = id-preserving upserts (protects TagProposal audit rows); composite indexes `(userId, status)` on IngestJob + CvErrorReport; dropped redundant DiscoveredUrl `(userId)` index; `@updatedAt` on IngestJob/DiscoveredUrl. Kept deliberately (documented in schema comments): `DiscoveredUrl.subject/token/tournamentSlug` (in the account data export), `EliminationResult.result` dual history. | migrations `20260611150000`, `20260611160000`; `lib/queue.ts` |
+| Legacy rank:N | Break-page rows no longer write `rank:N` into `EliminationResult.result` (verified unread); historical rows nulled; break upsert has empty `update` so it can't clobber won/lost. | `ingest.ts`, migration `20260611160000` |
+| Retention | `pruneIngestArtifacts()` at end of cron drain, **gated to the 03:00 UTC hour**: 90-day retention; always keeps newest SourceDocument per URL (raw-HTML archive) and each doc's latest successful ParserRun (load-bearing for cache freshness + /cv/verify + admin parser health). | `lib/calicotab/provenance.ts`, `app/api/cron/process-queue/route.ts` |
+| Ingest-once hardening | (a) `Tournament.parserVersion` — tournament-scoped cache check; fixed real bug where a 2nd user's first touch of a cached tournament always full-re-scraped (old check was per-landing-SourceDocument). (b) `candidateFingerprints()` probes year/null/year±1 when year was inferred from email date → year-boundary duplicates converge on one row; explicit-year names get exactly one candidate. (c) `Tournament.scrapeClaimedAt` claim (conditional UPDATE, 2-min TTL, 15s bounded wait) so concurrent cache-miss ingests don't both run the ~16-fetch tab phase. | `lib/calicotab/fingerprint.ts`, `ingest.ts`, migration `20260611170000` |
+| UI/UX pass (2026-06-11, late) | Three-agent audit (inventory, nav/IA, visual consistency) then implemented with owner sign-off: CvSubNav tab bar (Record/Analytics/Tags/Verify) replacing the buried "More" dropdown + footnote-only Tags path; /cv actions 4→2 (Share + merged Download popover = print-to-PDF + column-picker export; CvExportButton→CvDownloadButton); Dashboard renamed "Imports" with calm summary default (URL table behind ?filter=, editorial table style, dupes removed, Export-errors→/admin, AutoScanOnVisit on /cv only); conditional Admin NavLink (isAdminEmail in lib/admin.ts); app-wide editorial-token migration (new text-ui 14px token, Button/Badge/StatusPill/popovers/settings/verify/onboarding/admin off raw px + shadcn family, secondary Button variant = deprecated alias of outline, admin pages aligned to max-w-5xl). | `components/CvSubNav.tsx`, `CvDownloadButton.tsx`, `app/(app)/dashboard/page.tsx`, `tailwind.config.ts` |
+| Free 15-min drain | `.github/workflows/drain-queue.yml` curls `POST /api/cron/process-queue` every 15 min (GH Actions schedules are free; Vercel Hobby crons are daily-only). Needs **repository** secrets `APP_URL` + `CRON_SECRET`; no-ops green until set; concurrency-grouped. Vercel 03:00 cron = guaranteed backstop + owns the prune. | `.github/workflows/drain-queue.yml` |
+
+### Ingestion dedup audit — verdict (2026-06-11)
+
+The "ingest once, extract thereafter" invariant **holds** across all three entry paths (admin re-queue, user private URL / Gmail scan, name-only claiming — the last never scrapes). Cache hit = 1 landing fetch + ~6 DB ops, no tab fetches; full scrape only on >30-day staleness, parser-version change, round-count growth, or `force`. Residual known gaps (deliberate, low-frequency): duplicate Tournament rows possible if the same event is served from two hostnames or renamed mid-event on the tab site. Conclusions are encoded as code comments in `ingest.ts` and `fingerprint.ts`.
+
+---
+
+## Operator checklist (human steps — check off as completed)
+
+- [ ] Verify Vercel deploy of `b439ed1` green; five `20260611*` migrations applied; smoke-check `/cv/analytics`, `/cv/tags`, `/admin/tags`, Export button on `/cv`.
+- [ ] Add GitHub **repository** secrets `CRON_SECRET` + `APP_URL` (Settings → Secrets and variables → Actions → *Repository* secrets — NOT environment secrets; the workflow job has no `environment:` key and would skip silently). Verify: Actions → "Drain ingest queue" → Run workflow → step prints JSON. **Until this is done, the queue still only drains daily at 03:00 UTC.**
+- [ ] (Optional) `ANTHROPIC_API_KEY` in Vercel env → enables the Haiku classifier button.
+- [ ] `/admin` → **Re-ingest all** to backfill positions/motions under the new parser version. Dead Heroku tabs going `abandoned` is expected.
+- [ ] After backfill: `/admin/tags` → run the Haiku classifier until backlog clear + approve; set regions at `/cv/tags` + approve. Region/motion analytics sections appear once approved tags exist.
+
+## Next steps for the next agent (priority order)
+
+1. **Auto-drain after scan** (discussed + accepted in spirit, NOT yet built): `components/AutoScanOnVisit.tsx` already knows when a scan found new URLs — chain it into the same `/api/ingest/drain` loop the dashboard's "Ingest all" button uses (see `DashboardActions`), so on-page users see tournaments appear live instead of waiting ≤15 min for the GH tick. Client-side only.
+2. **Admin tournament-merge tool** for the residual duplicate cases (host change, mid-event rename — see audit verdict above).
+3. **Region auto-suggestion**: parse the institutions page (`nav.institutions` is discovered but never fetched) → majority institution country → region, filed as a pre-filled TagProposal through the same moderation flow as the Haiku classifier.
+4. **Speaker order within a round** (1st vs 2nd speaker): needs per-ballot pages — deliberately not scraped; build only on real user demand.
+5. **Post-rollout watches**: Sentry `stage: 'prune'` + ingest errors; Neon storage growth from `bodyGzip` (knob: `RETENTION_DAYS` in `lib/calicotab/provenance.ts`).
+
+## Landmines / invariants (read before touching)
+
+- `PARSER_VERSION` bump = fleet-wide re-scrape. Bundle parser changes; never bump casually.
+- Export field registry / CSV columns: **append-only** (positional consumers).
+- Tag vocabularies: **append-mostly** — rename/removal needs a data migration for approved rows.
+- The scrape claim is a conditional UPDATE on purpose — session-level advisory locks are unsafe on the pgbouncer-pooled connection. The tx-scoped `pg_advisory_xact_lock` in the write phase is fine. Don't merge the two.
+- Prune must keep: newest SourceDocument per URL + latest successful ParserRun per doc.
+- Queue lock ordering: rerun `tests/calicotab.deadlock.test.ts` after touching `lib/queue.ts` or the ingest tx.
+- Raw SQL UPDATEs on IngestJob/DiscoveredUrl must set `"updatedAt" = NOW()` (Prisma `@updatedAt` fires only on client ops).
+
+---
+
+## Carried forward from the 2026-05-24 handoff (status unknown — verify before assuming)
+
+1. **Reconnect Gmail token write** — was broken (OAuth consent completes but `GmailToken` row not written; diagnostic logging shipped in `lib/auth.ts` on `65d4915`). Not touched this session. If still broken: pull Vercel runtime logs for `auth.signIn` / `auth.linkAccount` traces and branch per the diagnosis table in the 2026-05-24 handoff (git history of this file).
+2. **Two orphan migrations in prod** (`20260428100000_person_disambiguation`, `20260512000000_multi_gmail_tokens`) — in `_prisma_migrations` but not in the repo; `prisma migrate status` exits 1, `migrate deploy` unaffected.
+3. **Cloudflare blanket-blocked ingests** (`iitmpd`, `sbsdebate`) — may need FlareSolverr on Oracle Always-Free if recurring (ScraperAPI rejected: must be truly free).
+4. **Deploy pipeline improvement** — move `prisma migrate deploy` out of `npm run build` into a gated separate step (a failed migration inside build blocks all deploys until manual `prisma migrate resolve`). Recovery path exists: `.github/workflows/prisma-resolve.yml`.
+5. Minor UI advisories from the editorial-redesign review (dead `mono`/`accent` props, Failed-tile hint when count is 0, `enqueueUrl` doesn't reset `abandoned → pending`).
+
+## Reference locations
+
+- Repo: `https://github.com/DrftingWood/debate_cv` (npm-only; owner often works from Windows/PowerShell or mobile)
+- Vercel project: `prj_zFvbnnORfRVVayf5TBs2Lh1xZBDo` (team `team_rwui4f7Nb7InhcNLs5v9BowM`)
+- Failed-migration recovery: run `.github/workflows/prisma-resolve.yml` with `migration_name` + `action`, then redeploy.
+
+## User preferences
+
+- **Truly free infrastructure only** — no freemium/trial tiers dressed up as free.
+- Design language: **Tab Room Terminal** (owner-directed retheme 2026-06-11, replacing the locked editorial theme): dark green-black terminal + phosphor #3DDC84 accent with a light "ballot paper" mode; Space Grotesk display (fills the old font-serif slot), IBM Plex Mono numerals via `.num`/`font-mono`, Inter body. Theme = `data-theme` on <html> (inline no-FOUC script in app/layout.tsx, ThemeToggle in the app header, localStorage + OS fallback). Public CV (/u) and print are FORCED light — credential artifacts must not depend on viewer theme. Token NAMES kept (ink/paper/oxblood = fg/bg/accent contract); only values moved.
+- Prefers tight, decisive options over open-ended discussion; uses sub-agents deliberately (Haiku for context reads, Sonnet for parsing tasks).
 
 ---
 
@@ -108,6 +178,4 @@ The user disconnected their GmailToken row. Clicking **Reconnect Gmail** runs th
 
 Paste this to start:
 
-> Resume from `docs/HANDOFF.md`. The Reconnect Gmail token write is broken — I shipped diagnostic logging on commit `65d4915`. Pull Vercel runtime logs for the last `auth.signIn` / `auth.linkAccount` traces (project `prj_zFvbnnORfRVVayf5TBs2Lh1xZBDo`, team `team_rwui4f7Nb7InhcNLs5v9BowM`, query `auth`, since `30m`) and tell me which short-circuit fired. Then propose a fix.
-
-The first thing the next session should do is read this doc and the linked refs, then either: (a) ask the user to retest if logs are empty, or (b) read the captured traces and diagnose from there.
+> Resume from `docs/HANDOFF.md` — read the 2026-07-25 entry at the top first (front-end rebuild, motions, statistics engine), then the 2026-06-11 one for pipeline state. Confirm the operator checklist with me (GitHub drain secrets? re-ingest-all run? tags seeded?) before picking up new work.

@@ -22,15 +22,19 @@ export type DrainDeps = {
 };
 
 /**
- * Only 5xx and network errors are worth a retry.
+ * Only failures that might succeed on a retry are worth one.
  *
  * postJson flattens every non-2xx into ok:false, so without this gate an
  * expired session (401), a deterministic 500-class bug, or an offline
  * browser each cost three round trips and two 5s sleeps before the real
  * error surfaced. `status: 0` is postJson's marker for a fetch that threw.
+ *
+ * 429 is the one 4xx that belongs here: the drain route sits behind
+ * enforceRateLimit, and being told to slow down is a wait-and-come-back
+ * signal, not a permanent failure.
  */
 function isTransientFailure(status: number): boolean {
-  return status === 0 || status >= 500;
+  return status === 0 || status === 429 || status >= 500;
 }
 
 /**

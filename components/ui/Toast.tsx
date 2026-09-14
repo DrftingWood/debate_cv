@@ -98,7 +98,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       ? 'text-success'
       : item.kind === 'error'
         ? 'text-destructive'
-        : 'text-primary';
+        : 'text-oxblood';
   return (
     <div
       role={item.kind === 'error' ? 'alert' : 'status'}
@@ -108,16 +108,16 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
     >
       <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', color)} aria-hidden />
       <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-semibold text-foreground">{item.title}</div>
+        <div className="text-ui font-semibold text-ink">{item.title}</div>
         {item.description ? (
-          <div className="mt-0.5 text-caption text-muted-foreground break-words">
+          <div className="mt-0.5 text-caption text-ink-soft break-words">
             {item.description}
           </div>
         ) : null}
         {item.action ? (
           <a
             href={item.action.href}
-            className="mt-1.5 inline-block text-caption font-medium text-primary underline-offset-2 hover:underline"
+            className="mt-1.5 inline-block text-caption font-medium text-oxblood underline-offset-2 hover:underline"
           >
             {item.action.label} →
           </a>
@@ -126,7 +126,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       <button
         type="button"
         onClick={onDismiss}
-        className="text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="text-ink-soft hover:text-ink rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" aria-hidden />
