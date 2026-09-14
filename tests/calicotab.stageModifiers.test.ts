@@ -4,41 +4,42 @@ import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 const stageOf = (s: string) => matchStage(s)?.stage ?? null;
 const catOf = (s: string) => splitStageLabel(s).category;
 
-describe('"pre-" names the round BEFORE the stage it mentions', () => {
-  // Found by querying the corpus database: "Pre-Quarterfinals" was
-  // classifying as `quarterfinal` because the quarter rule matched the word
-  // inside it. That is the overstatement this whole lexicon exists to stop —
-  // a team knocked out in pre-quarters had not reached the quarterfinals.
-  test('pre-quarterfinals is the octofinal round', () => {
-    expect(stageOf('Pre-Quarterfinals')).toBe('octofinal');
-    expect(stageOf('Pre Quarterfinals')).toBe('octofinal');
-    expect(stageOf('Pre-quarterfinals')).toBe('octofinal');
-    expect(stageOf('High School Pre Quarter')).toBe('octofinal');
+describe('"pre-" rounds are their own thing', () => {
+  // A pre-semifinal is a play-in: with 12 teams breaking, 8 debate while 4
+  // bye. It has neither the field size nor the standing of a quarterfinal,
+  // so calling it one overstates the round — and calling it a semifinal,
+  // which is what the bare stage rules did, overstates it further. There is
+  // no honest mapping onto the canonical ladder, so it gets none: the label
+  // is shown as written and simply does not rank.
+  test('a pre-round does not classify as the round it names', () => {
+    expect(stageOf('Pre-Quarterfinals')).toBe(null);
+    expect(stageOf('Pre-Semifinals')).toBe(null);
+    expect(stageOf('Pre-Octofinals')).toBe(null);
+    expect(stageOf('Prefinals')).toBe(null);
+    expect(stageOf('Pre-Grand Finals')).toBe(null);
   });
 
-  test('pre-semifinals is the quarterfinal round', () => {
-    expect(stageOf('Pre-Semifinals')).toBe('quarterfinal');
-    expect(stageOf('Pre Semi Finals')).toBe('quarterfinal');
-    expect(stageOf('Pre-Semi Final')).toBe('quarterfinal');
-    expect(stageOf('Senior Pre Semi')).toBe('quarterfinal');
+  test('nor as the round before it', () => {
+    for (const label of ['Pre-Quarterfinals', 'Pre-Semifinals', 'Pre-Grand Finals']) {
+      expect(stageOf(label), label).toBe(null);
+    }
   });
 
-  test('pre-octofinals is the double-octofinal round', () => {
-    expect(stageOf('Pre-Octofinals')).toBe('double_octofinal');
+  test('the accented and spaced spellings behave the same', () => {
+    expect(stageOf('Pré-Semifinal')).toBe(null);
+    expect(stageOf('PréSemifinais')).toBe(null);
+    expect(stageOf('Iniciado Pré-Final')).toBe(null);
+    expect(stageOf('Pre Semi Finals')).toBe(null);
+    expect(stageOf('High School Pre Quarter')).toBe(null);
+    expect(stageOf('Senior Pre Semi')).toBe(null);
   });
 
-  test('prefinals is the semifinal round', () => {
-    expect(stageOf('Prefinals')).toBe('semifinal');
-    expect(stageOf('Pre-Finals')).toBe('semifinal');
-  });
-
-  test('"pre" is never a break category', () => {
-    expect(catOf('Pre-Quarterfinals')).toBe(null);
-    expect(catOf('Pre-Semifinals')).toBe(null);
-    // …and a real category alongside it still survives.
-    expect(catOf('Open Pre-Quarterfinals')).toBe('Open');
-    expect(catOf('Novice Pre-Quarterfinals')).toBe('Novice');
-    expect(catOf('High School Pre Quarter')).toBe('High School');
+  test('an ordinary round of the same name is unaffected', () => {
+    expect(stageOf('Quarterfinals')).toBe('quarterfinal');
+    expect(stageOf('Semifinals')).toBe('semifinal');
+    expect(stageOf('Grand Final')).toBe('grand_final');
+    expect(stageOf('High School Grand Final')).toBe('grand_final');
+    expect(catOf('Gold Final')).toBe('Gold');
   });
 });
 
@@ -69,5 +70,23 @@ describe('ordinary stages are untouched by the modifier handling', () => {
   test('a real category is still read', () => {
     expect(catOf('Gold Final')).toBe('Gold');
     expect(catOf('ESL Grand Final')).toBe('ESL');
+  });
+});
+
+describe('"pre-" forms found only by querying the corpus', () => {
+  // Each of these was landing on a real stage and breaking the round-order
+  // invariant (within one tournament and break category, a later round
+  // cannot be a shallower stage). None of them is that stage.
+  test('accented and grand forms do not classify either', () => {
+    expect(matchStage('Pré-Semifinal')).toBe(null);
+    expect(matchStage('PréSemifinais')).toBe(null);
+    expect(matchStage('Pré-Final')).toBe(null);
+    expect(matchStage('Pre-Grand Finals')).toBe(null);
+    expect(matchStage('Pre Grand Final')).toBe(null);
+  });
+
+  test('a real grand final is still read', () => {
+    expect(matchStage('Grand Final')?.stage).toBe('grand_final');
+    expect(matchStage('High School Grand Final')?.stage).toBe('grand_final');
   });
 });

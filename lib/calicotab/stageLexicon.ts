@@ -58,15 +58,6 @@ type Rule = { stage: OutroundStage; re: RegExp };
 const CONNECTED_FINAL = String.raw`(?:\s*(?:de|of|do|da|dos|das)?\s*finals?(?:es|is)?)?`;
 
 const RULES: Rule[] = [
-  // ── "pre-<stage>": the round BEFORE the one it names ──────────────────
-  // Checked first, because every one of these contains the name of the
-  // stage that follows it. Reading "Pre-Quarterfinals" as the quarterfinals
-  // credits a team with a round it did not reach — the same overstatement
-  // this lexicon exists to prevent, and the corpus has ~40 such labels.
-  { stage: 'double_octofinal', re: /\bpre[-\s]*octo[-\s]*finals?\b|\bpre[-\s]*octos?\b/i },
-  { stage: 'octofinal', re: /\bpre[-\s]*qua(?:r)?ter[-\s]*finals?\b|\bpre[-\s]*quarters?\b/i },
-  { stage: 'quarterfinal', re: /\bpre[-\s]*semi[-\s]*finals?\b|\bpre[-\s]*semis?\b/i },
-  { stage: 'semifinal', re: /\bpre[-\s]*finals?\b/i },
   // ── triple octofinals ──
   { stage: 'triple_octofinal', re: /\btriple[-\s]*octo(?:finals?)?\b|\btriples\b|\btriples[-\s]*octavos\b/i },
   // ── double octofinals (incl. partials and round-of-32) ──
@@ -113,11 +104,40 @@ export type StageMatch = {
   matched: string;
 };
 
+/**
+ * A round named "pre-<something>" is a play-in, not the round it mentions
+ * and not the one before it either.
+ *
+ * With 12 teams breaking, a "pre-quarterfinal" has 8 teams debating while 4
+ * bye — so it is neither an octofinal (16) nor a quarterfinal (8 survivors).
+ * Its size and standing depend on the bracket, so there is no honest place
+ * for it on the canonical ladder. Reading it as the round it names
+ * overstates how far a team went; reading it as the round before overstates
+ * it too, just less. It therefore classifies as nothing: the label renders
+ * as written, and it does not rank.
+ *
+ * `pr[eé]` because Portuguese and Spanish write it "Pré", and the accented
+ * form was slipping past into the stage it names.
+ */
+const PRE_ROUND =
+  /\bpr[eé][-\s]*(?:grand[-\s]*)?(?:octo|qua(?:r)?ter|semi|final)/i;
+
+/**
+ * Is this label a play-in round? Exported so callers that reason about
+ * "should this have classified?" use the same definition rather than
+ * re-deriving one — the accented, spaced and grand spellings are easy to
+ * miss ("Pré-Semifinal", "Pre - Finals", "Pre-Grand Finals").
+ */
+export function isPreRound(label: string | null | undefined): boolean {
+  return !!label && PRE_ROUND.test(label.trim());
+}
+
 /** Identify the outround a label names, and which words named it. */
 export function matchStage(label: string | null | undefined): StageMatch | null {
   if (!label) return null;
   const text = label.trim();
   if (!text) return null;
+  if (PRE_ROUND.test(text)) return null;
   for (const { stage, re } of RULES) {
     const m = text.match(re);
     if (m) return { stage, matched: m[0] };
@@ -130,7 +150,7 @@ export function matchStage(label: string | null | undefined): StageMatch | null 
  * Octofinals" is an octofinal with byes, so "Partial" must not end up
  * reported as a break category the way "Gold" or "ESL" would be.
  */
-const STAGE_MODIFIERS = /^(?:partial|parcial|double|triple|doble|pre|pré)$/i;
+const STAGE_MODIFIERS = /^(?:partial|parcial|double|triple|doble)$/i;
 
 /** Words that join a category to a stage and belong to neither. */
 const CONNECTORS = /^(?:de|del|of|the|do|da|dos|das|por|para|da|e|y|and|-|–|—|:|,)$/i;
