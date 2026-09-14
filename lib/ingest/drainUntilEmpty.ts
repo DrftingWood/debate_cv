@@ -21,6 +21,18 @@ export type DrainDeps = {
   sleep?: (ms: number) => Promise<void>;
 };
 
+/**
+ * Only 5xx and network errors are worth a retry.
+ *
+ * postJson flattens every non-2xx into ok:false, so without this gate an
+ * expired session (401), a deterministic 500-class bug, or an offline
+ * browser each cost three round trips and two 5s sleeps before the real
+ * error surfaced. `status: 0` is postJson's marker for a fetch that threw.
+ */
+function isTransientFailure(status: number): boolean {
+  return status === 0 || status >= 500;
+}
+
 const MAX_CONSECUTIVE_FAILURES = 3;
 const RETRY_BACKOFF_MS = 5_000;
 const BETWEEN_CALLS_MS = 2_000;
@@ -42,8 +54,13 @@ export async function drainUntilEmpty(
     if (signal?.aborted) break;
     const result = await post();
     if (!result.ok) {
-      consecutiveFailures += 1;
       failed = true;
+      // Retrying a permanent failure only delays the error the user needs
+      // to see, so surface it immediately.
+      if (!isTransientFailure(result.status)) {
+        throw new Error(result.error);
+      }
+      consecutiveFailures += 1;
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         throw new Error(result.error);
       }

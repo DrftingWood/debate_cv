@@ -47,6 +47,26 @@ describe('drainUntilEmpty', () => {
     await expect(drainUntilEmpty(() => {}, h)).rejects.toThrow('boom');
   });
 
+  test('fails fast on a permanent error instead of burning two backoffs', async () => {
+    // postJson reports every non-2xx as ok:false, so an expired session
+    // (the drain route's 401 branch) or a deterministic 500-class bug
+    // used to cost three round trips and two 5s sleeps before the real
+    // error reached the user.
+    const h = harness([fail(401, 'unauthorized')]);
+    await expect(drainUntilEmpty(() => {}, h)).rejects.toThrow('unauthorized');
+    expect(h.calls()).toBe(1);
+  });
+
+  test('still retries genuinely transient failures', async () => {
+    // 5xx is the Vercel-504 case this tolerance exists for; status 0 is
+    // postJson's marker for a network error / offline browser.
+    const gateway = harness([fail(504), ok(1, 0)]);
+    await expect(drainUntilEmpty(() => {}, gateway)).resolves.toMatchObject({ processed: 1, failed: true });
+
+    const offline = harness([fail(0, 'Network error'), ok(1, 0)]);
+    await expect(drainUntilEmpty(() => {}, offline)).resolves.toMatchObject({ processed: 1, failed: true });
+  });
+
   test('stops immediately when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
