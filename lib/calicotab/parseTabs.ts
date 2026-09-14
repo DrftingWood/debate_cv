@@ -17,6 +17,10 @@ export type VueCell = {
   tooltip?: string;
   link?: string;
   popover?: unknown;
+  // Tabbycat marks a boolean flag column (adj core, independent) with an
+  // icon rather than text: {"icon": "check", "sort": 1} against
+  // {"icon": "", "sort": 2}. Unmodelled, it was invisible to every reader.
+  icon?: string;
   // Populated only by the cheerio→VueTable adapter (lib/calicotab/cheerioToVue.ts).
   // Native Vue payloads from Tabbycat leave this undefined — they embed HTML
   // inside `text` instead, which is why parseNav's HTML-aware consumers read
@@ -929,8 +933,7 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
           const t = (h.title ?? '').toLowerCase();
           return k.includes('rating') || t.includes('rating');
         }));
-    // TODO(adj-core): promote adj-core flag to its own judgeTag once the union
-    // grows a 'core' variant. Until then we collapse it into 'normal' below.
+    const adjCoreCol = vueCol(heads, 'adjcore', 'adj core', 'adj_core');
     const independentCol = vueCol(heads, 'independent');
 
     for (const row of table.data) {
@@ -947,23 +950,32 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
       } else if (isAdjTable) {
         role = 'adjudicator';
         // For adjudicators without an explicit role-column tag, derive the
-        // judgeTag from check-icon presence on Adj Core / Independent flag
-        // columns. The cheerio adapter populates VueCell.html with raw inner
-        // HTML (where the feather-check svg lives); native Vue payloads put
-        // the flag in `text` or `class`, so check both.
+        // judgeTag from check presence on the Adj Core / Independent flag
+        // columns. Three shapes, because the sources differ: the cheerio
+        // adapter puts the feather-check svg in VueCell.html, some payloads
+        // carry it as a class, and a native Tabbycat payload uses a
+        // dedicated `icon` field ({"icon": "check"}). The icon form was not
+        // modelled, so every adjudicator on a native payload came back
+        // 'normal' — 5857 of them across a 99-page corpus, with no 'core'
+        // and no 'invited' anywhere.
         const cellHasCheck = (idx: number): boolean => {
           if (idx < 0) return false;
           const cell = row[idx];
           if (!cell) return false;
           const html = cell.html ?? '';
           const cls = cell.class ?? '';
-          return /feather-check\b/i.test(html) || /\bfeather-check\b/i.test(cls);
+          const icon = cell.icon ?? '';
+          return (
+            /feather-check\b/i.test(html) ||
+            /\bfeather-check\b/i.test(cls) ||
+            /^check$/i.test(icon.trim())
+          );
         };
+        const isCore = cellHasCheck(adjCoreCol);
         const isIndependent = cellHasCheck(independentCol);
-        // Adj-core flag's closest semantic in our judgeTag union is 'normal'
-        // (matching the previous cheerio fallback's decision). See the
-        // TODO(adj-core) above for the planned refinement.
-        judgeTag = isIndependent ? 'invited' : 'normal';
+        // Adjudication core outranks independent: shaping the tournament is
+        // the more notable credential, and the CV shows it as one.
+        judgeTag = isCore ? 'core' : isIndependent ? 'invited' : 'normal';
       }
       // Em-dash means "none stated" — normalize to null so callers don't
       // have to. Mirrors what the deleted cheerio block did for the
