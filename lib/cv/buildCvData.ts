@@ -62,6 +62,13 @@ export type CvSpeakerRow = {
   speakerRankOpen: number | null;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
+  /**
+   * Break categories the tournament declared for this speaker. Tabbycat
+   * 2.11 publishes these instead of the ESL/EFL RANK columns above, so on
+   * a modern install those ranks are null and this is the only statement
+   * of which brackets the speaker was eligible for.
+   */
+  speakerCategories: string[];
   teamBreakRank: number | null;
   eliminationReached: string | null;
   /**
@@ -799,6 +806,7 @@ export async function buildCvData(
       speakerRankOpen: p.speakerRankOpen ?? p.speakerRankOpenDerived ?? null,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
+      speakerCategories: p.speakerCategories ?? [],
       teamBreakRank: speakerSignals.teamBreakRank,
       eliminationReached: speakerSignals.eliminationReached,
       eliminationReachedByCategory,

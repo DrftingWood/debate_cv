@@ -1024,6 +1024,7 @@ async function writeIngestTransaction(
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
+          speakerCategories: sp.categories,
           teamBreakRank: breakRankForTeam,
         },
         create: {
@@ -1034,6 +1035,7 @@ async function writeIngestTransaction(
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
+          speakerCategories: sp.categories,
           teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
         },
       });

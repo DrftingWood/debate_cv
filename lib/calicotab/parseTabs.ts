@@ -433,6 +433,21 @@ export type SpeakerTabRow = {
   rank: number | null;
   rankEsl: number | null;
   rankEfl: number | null;
+  /**
+   * Break categories this speaker belongs to, as the tournament declares
+   * them ("Novice", "ESL", "High School", "Personas Novatas").
+   *
+   * This is the tournament's own tagging, which makes it better evidence
+   * than inferring a category from the wording of a round label. Tabbycat
+   * 2.11 publishes it in place of the separate ESL/EFL RANK columns —
+   * those came back null for all 14371 speakers in a 625-tournament sweep
+   * because they are no longer published, while 86 of 100 speaker tabs
+   * carry this one and every one of them has values.
+   *
+   * Empty when the tab has no such column, or the speaker is in none
+   * beyond the default Open bracket.
+   */
+  categories: string[];
   speakerName: string;
   teamName: string | null;
   institution: string | null;
@@ -542,7 +557,13 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
     const t = (h.title ?? '').toLowerCase();
     return (k.includes('efl') || t.includes('efl'));
   });
-  const exclude = new Set([rankEslCol, rankEflCol].filter((i) => i >= 0));
+  // Matched on the exact key so it cannot collide with the ESL/EFL RANK
+  // columns above, nor with a "category" substring in some other header.
+  const categoryCol = heads.findIndex((h) =>
+    /^categor(?:y|ies)$/i.test((h.key ?? '').trim()) ||
+    /^categor(?:y|ies)$/i.test((h.title ?? '').trim()),
+  );
+  const exclude = new Set([rankEslCol, rankEflCol, categoryCol].filter((i) => i >= 0));
   const rankCol = vueColExcluding(heads, exclude, 'rk', 'rank', '#');
 
   const avgCol = heads.findIndex((h) => isAverageHeader(`${h.key ?? ''} ${h.title ?? ''}`));
@@ -613,10 +634,18 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
         : noRankColumnsAtAll
           ? rowIdx
           : null;
+    const categories =
+      categoryCol >= 0
+        ? cellText(row[categoryCol])
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean)
+        : [];
     rows.push({
       rank,
       rankEsl: rankEslCol >= 0 ? parseNumber(cellText(row[rankEslCol])) : null,
       rankEfl: rankEflCol >= 0 ? parseNumber(cellText(row[rankEflCol])) : null,
+      categories,
       speakerName,
       teamName: teamCol >= 0 ? cellText(row[teamCol]) || null : null,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,

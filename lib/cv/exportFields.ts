@@ -168,6 +168,15 @@ export const EXPORT_FIELDS: ExportField[] = [
     label: 'Motion topics',
     speaker: (r, ctx) => distinct(debatedMotions(r, ctx).map((m) => m.topic)).join(' | '),
   },
+  {
+    id: 'speaker_categories',
+    label: 'Break categories',
+    // The tournament's own statement of which brackets this speaker was
+    // eligible for ("Novice", "ESL", "High School"). Tabbycat 2.11
+    // publishes it in place of the ESL/EFL rank columns, so on a modern
+    // install this is the only such statement available.
+    speaker: (r) => r.speakerCategories.join(' | '),
+  },
 ];
 
 /**

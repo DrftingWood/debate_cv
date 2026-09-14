@@ -17,6 +17,7 @@ function row(overrides: Partial<SpeakerTabRow>): SpeakerTabRow {
     rank: null,
     rankEsl: null,
     rankEfl: null,
+    categories: [],
     speakerName: 'Some Name',
     teamName: null,
     institution: null,

@@ -292,6 +292,10 @@ model Person {
   rejections        PersonRejection[]
 
   @@index([claimedByUserId])
+  // Created by migration 20260725162000_person_suppression but never
+  // declared here, so every later `prisma migrate dev` proposed dropping
+  // it. Declared now so the schema matches the database.
+  @@index([suppressedAt])
 }
 
 /// Records that a user has explicitly said "this Person is not me", so we
@@ -317,6 +321,13 @@ model TournamentParticipant {
   speakerRankOpen        Int?
   speakerRankEsl         Int?
   speakerRankEfl         Int?
+  // Break categories the tournament itself declares for this speaker
+  // ("Novice", "ESL", "High School"). Tabbycat 2.11 publishes these in a
+  // category column on the speaker tab, having stopped publishing the
+  // separate ESL/EFL RANK columns above — which is why those are null for
+  // every speaker on a modern install. Empty array when the tab has no
+  // such column, or the speaker is only in the default Open bracket.
+  speakerCategories      String[]
   speakerRankOpenDerived Int?
   teamBreakRank          Int?
   judgeTypeTag           String?
