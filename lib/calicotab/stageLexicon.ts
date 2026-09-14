@@ -13,6 +13,11 @@
  *   language   "Cuartos de Final", "Semifinais", "Gran Final"
  *   category   "Gold Final", "HS Grand Finals", "Semifinais de Iniciados"
  *
+ * CJK labels are matched WITHOUT \b. JavaScript defines a word boundary
+ * against [A-Za-z0-9_], so \b next to a Han or kana character does not
+ * mean what it appears to mean; these forms are distinctive enough that a
+ * plain substring match is both safe and correct.
+ *
  * The old classifier handled only the first, and its last resort was a bare
  * `\bfinals?\b`. That is actively dangerous rather than merely incomplete:
  * "Cuartos de Final" is Spanish for QUARTERfinals and contains the word
@@ -68,7 +73,7 @@ const RULES: Rule[] = [
   {
     stage: 'double_octofinal',
     re: new RegExp(
-      String.raw`\b(?:partial\s+)?double[-\s]*octo(?:finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdoble[-\s]*octavos${CONNECTED_FINAL}|\bdobles[-\s]*oitavas${CONNECTED_FINAL}`,
+      String.raw`\b(?:partial\s+)?double[-\s]*octo(?:finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdoble[-\s]*octavos${CONNECTED_FINAL}|\bdobles[-\s]*oitavas${CONNECTED_FINAL}|\bdouble[-\s]*octas\b|三十二强赛?|三十二強賽?`,
       'i',
     ),
   },
@@ -76,7 +81,7 @@ const RULES: Rule[] = [
   {
     stage: 'octofinal',
     re: new RegExp(
-      String.raw`\bocto[-\s]*finals?\b|\boctos\b|\bround\s*of\s*16\b|\boctavos${CONNECTED_FINAL}|\boitavas${CONNECTED_FINAL}`,
+      String.raw`\bocto[-\s]*finals?\b|\boctos\b|\boctas\b|\bround\s*of\s*16\b|\boctavos${CONNECTED_FINAL}|\boitavas${CONNECTED_FINAL}|十六强赛?|十六強賽?`,
       'i',
     ),
   },
@@ -84,7 +89,7 @@ const RULES: Rule[] = [
   {
     stage: 'quarterfinal',
     re: new RegExp(
-      String.raw`\bqua(?:r)?ter[-\s]*finals?\b|\bqf\b|\bquarters\b|\bcuartos${CONNECTED_FINAL}|\bquartas${CONNECTED_FINAL}`,
+      String.raw`\bqua(?:r)?ter[-\s]*finals?\b|\bqf\b|\bquarters\b|\bcuartos${CONNECTED_FINAL}|\bquartas${CONNECTED_FINAL}|八强赛?|八強賽?|四分之一决赛|四分之一決賽|準々決勝|准准决胜`,
       'i',
     ),
   },
@@ -92,14 +97,14 @@ const RULES: Rule[] = [
   {
     stage: 'semifinal',
     re: new RegExp(
-      String.raw`\bsemi[-\s]*finals?\b|\bsf\b|\bsemi'?s?\b|\bsemi[-\s]*finales\b|\bsemi[-\s]*finais\b|\bsemi[-\s]*finais${CONNECTED_FINAL}`,
+      String.raw`\bsemi[-\s]*finals?\b|\bsf\b|\bsemi'?s?\b|\bsemi[-\s]*finales\b|\bsemi[-\s]*finais\b|\bsemi[-\s]*finais${CONNECTED_FINAL}|四强赛?|四強賽?|半决赛|半決賽|準決勝`,
       'i',
     ),
   },
   // ── grand final ──
-  { stage: 'grand_final', re: /\bgrand[-\s]*final(?:e|s)?\b|\bgf\b|\bgran[-\s]*finals?(?:es)?\b|\bgrande[-\s]*finals?(?:is)?\b/i },
+  { stage: 'grand_final', re: /\bgrand[-\s]*final(?:e|s)?\b|\bgf\b|\bgran[-\s]*finals?(?:es)?\b|\bgrande[-\s]*finals?(?:is)?\b|总决赛|總決賽/i },
   // ── plain final: last resort, after every more specific phrase above ──
-  { stage: 'final', re: /\bfinals?\b|\bfinales\b|\bfinais\b/i },
+  { stage: 'final', re: /\bfinals?\b|\bfinales\b|\bfinais\b|决赛|決賽|決勝/i },
 ];
 
 export type StageMatch = {
@@ -164,7 +169,10 @@ export function splitStageLabel(label: string | null | undefined): SplitStage {
 
   const words = `${before} ${after}`
     .split(/\s+/)
-    .map((w) => w.replace(/^[-–—:,]+|[-–—:,]+$/g, '').trim())
+    // 的 / 之 join a category to a stage in Chinese ("Novice的决赛") and are
+    // not separated by spaces, so they are stripped here rather than being
+    // caught by the space-delimited connector list below.
+    .map((w) => w.replace(/^[-–—:,的之]+|[-–—:,的之]+$/g, '').trim())
     .filter((w) => w && !CONNECTORS.test(w));
 
   // A leftover word that is itself a stage name is redundant, not a
