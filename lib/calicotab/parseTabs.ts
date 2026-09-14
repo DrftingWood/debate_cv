@@ -290,18 +290,43 @@ function isAverageHeader(s: string): boolean {
  * Returns [] for a plain-text cell so the caller keeps its comma handling
  * for installs that render one.
  */
+/**
+ * Is this adjudicator cell markup rather than plain text?
+ *
+ * Separate from parseAdjudicatorCell returning [] , because those mean
+ * different things: an empty result on a PLAIN cell means "use the comma
+ * path", but on a markup cell it means "this panel has no readable names"
+ * — every adjudicator opted out. Conflating them made the caller fall back
+ * and store the markup itself as somebody's name.
+ */
+export function isMarkupAdjudicatorCell(raw: string): boolean {
+  return !!raw && /<[a-z]/i.test(raw);
+}
+
 export function parseAdjudicatorCell(
   raw: string,
 ): Array<{ name: string; role: 'chair' | 'panel' }> {
-  if (!raw || !/<[a-z]/i.test(raw)) return [];
+  if (!isMarkupAdjudicatorCell(raw)) return [];
   const $ = cheerio.load(`<div id="adjcell">${raw}</div>`);
   const out: Array<{ name: string; role: 'chair' | 'panel' }> = [];
   $('#adjcell span.d-inline').each((_i, el) => {
     const $el = $(el);
     const isChair = $el.find('i.adj-symbol').length > 0 || /[\u24b8\u24d2]/.test($el.text());
-    const clone = $el.clone();
-    clone.find('i').remove();
-    const name = decodeHtmlEntities(clone.text()).replace(/\s+/g, ' ').trim();
+    // The NAME is this span's own text. Everything Tabbycat hangs off it is
+    // an element child: <i class="adj-symbol"> for the chair, and a nested
+    // <span class="text-danger"> carrying a conflict emoji. Taking the
+    // subtree text swept those in, so 153 of 8024 judge rows in the corpus
+    // were stored with an emoji on the end and stopped matching the same
+    // person's participants-list entry. Reading only the direct text nodes
+    // drops every annotation without having to enumerate them.
+    const name = decodeHtmlEntities(
+      $el
+        .contents()
+        .filter((_j, n) => n.type === 'text')
+        .text(),
+    )
+      .replace(/\s+/g, ' ')
+      .trim();
     if (name.length >= 2) out.push({ name, role: isChair ? 'chair' : 'panel' });
   });
   return out;
@@ -758,7 +783,7 @@ function roundResultsFromVue(
       // Markup cell: the spans already separate the adjudicators and name
       // the chair, so never fall back to splitting the raw string.
       const structured = parseAdjudicatorCell(raw);
-      if (structured.length > 0) {
+      if (isMarkupAdjudicatorCell(raw)) {
         for (const a of structured) {
           const key = `${a.name}|${a.role}`;
           if (judgeSeen.has(key)) continue;
@@ -1089,6 +1114,7 @@ export const __cellTest__ = {
   decodeHtmlEntities,
   isRoundColumnHeader,
   parseAdjudicatorCell,
+  isMarkupAdjudicatorCell,
   parseBpPlacing,
   readTeamOutcome,
 };

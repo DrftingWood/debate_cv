@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { __cellTest__ } from '@/lib/calicotab/parseTabs';
 
-const { parseAdjudicatorCell, parseBpPlacing, readTeamOutcome } = __cellTest__;
+const { parseAdjudicatorCell, isMarkupAdjudicatorCell, parseBpPlacing, readTeamOutcome } =
+  __cellTest__;
 
 // Verbatim from https://15thiitbombaydebate.calicotab.com/.../results/round/10/
 // — Tabbycat renders the adjudicator cell as markup, with the chair marked
@@ -48,9 +49,46 @@ describe('parseAdjudicatorCell', () => {
     expect(got[0]!.role).toBe('chair');
   });
 
+  test('strips the annotations Tabbycat hangs off the name', () => {
+    // Verbatim from 45mpdc round 1. Alongside the chair symbol there is a
+    // NESTED span carrying a conflict marker; the name is the span's direct
+    // text and everything else is an annotation. 153 of 8024 judge rows in
+    // the corpus carried an emoji into the stored name, which is enough to
+    // stop the same person matching their participants-list entry.
+    const got = parseAdjudicatorCell(
+      '<span class="d-inline">Ray John Li Mantigue<i class=\'adj-symbol\'>Ⓒ</i> ' +
+        '<span class=\'text-danger\'>💢</span></span>' +
+        '<span class=\'d-none d-md-inline\'>, </span>' +
+        '<span class="d-inline">Ronald Idan</span>',
+    );
+    expect(got.map((a) => a.name)).toEqual(['Ray John Li Mantigue', 'Ronald Idan']);
+    expect(got[0]!.role).toBe('chair');
+  });
+
+  test('keeps accented characters, which are part of real names', () => {
+    const got = parseAdjudicatorCell(
+      '<span class="d-inline">Esmé Nelson</span>' +
+        '<span class=\'d-none d-md-inline\'>, </span>' +
+        '<span class="d-inline">Gabrielle Pacaño</span>',
+    );
+    expect(got.map((a) => a.name)).toEqual(['Esmé Nelson', 'Gabrielle Pacaño']);
+  });
+
   test('plain text is left to the existing comma handling', () => {
     expect(parseAdjudicatorCell('Alice Smith, Bob Jones')).toEqual([]);
     expect(parseAdjudicatorCell('')).toEqual([]);
+  });
+
+  test('says so when a markup cell yields nobody', () => {
+    // A panel whose every adjudicator opted out has a real name for none of
+    // them. The caller must be able to tell that apart from "this is plain
+    // text, use the comma path" — otherwise it falls back and stores the
+    // markup itself as a person's name, which is what happened to a
+    // redacted panel in the corpus.
+    expect(isMarkupAdjudicatorCell('<span class="d-inline"><em>Redacted</em></span>')).toBe(true);
+    expect(isMarkupAdjudicatorCell('Alice Smith, Bob Jones')).toBe(false);
+    expect(isMarkupAdjudicatorCell('')).toBe(false);
+    expect(parseAdjudicatorCell('<span class="d-inline"><em>Redacted</em></span>')).toEqual([]);
   });
 });
 
