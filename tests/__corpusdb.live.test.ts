@@ -8,7 +8,8 @@
  * matching team, category vocabulary by region, and so on.
  *
  * Not a test; it is a tool that borrows vitest for the `@/` alias and the
- * TypeScript pipeline. Reads the corpus off disk, no network.
+ * TypeScript pipeline. Reads the corpus off disk, no network. The table
+ * definitions, the load script and the questions live in tests/corpusdb/.
  *
  *   RUN_CORPUS_DB=1 CORPUS_DIR=<dir> CSV_OUT=<dir> \
  *   npx vitest run tests/__corpusdb.live.test.ts
@@ -54,6 +55,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
     const tournaments: string[] = [];
     const teams: string[] = [];
     const speakers: string[] = [];
+    const speakerCategories: string[] = [];
     const roundScores: string[] = [];
     const breakRows: string[] = [];
     const debates: string[] = [];
@@ -73,12 +75,18 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
       const home = e.pages.find((p) => p.kind === 'home' && p.file);
       let name: string | null = null;
       let version: string | null = null;
+      // The nav label for each results page. Ingest hands this to
+      // parseRoundResults, and without it every page reads as "Round N" and
+      // no outround is ever recognised — which made round_debates.is_outround
+      // false for all 303 pages, finals included.
+      let navLabels: Record<string, string> = {};
       if (home) {
         const h = html(home.file!);
         name = h.match(/<title>([^<]*)<\/title>/i)?.[1]?.split('|')[0]?.trim() ?? null;
         version = h.match(/runs on Tabbycat\s*([0-9.]+[a-z-]*)/i)?.[1] ?? null;
         try {
           const nav = extractNavigation(h, e.root);
+          navLabels = nav.resultsRoundLabels;
           for (const [url, label] of Object.entries(nav.resultsRoundLabels)) {
             const { category, stage } = splitStageLabel(label);
             roundLabels.push(row([tid, url, label, stage, category]));
@@ -110,6 +118,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
               speakers.push(
                 row([sid, tid, r.rank, r.rankEsl, r.rankEfl, r.speakerName, r.teamName, r.institution, r.totalScore]),
               );
+              for (const c of r.categories) speakerCategories.push(row([sid, tid, c]));
               for (const rs of r.roundScores) {
                 roundScores.push(row([sid, tid, r.speakerName, rs.roundLabel, rs.score, rs.positionLabel]));
               }
@@ -132,7 +141,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
               participants.push(row([tid, r.name, r.role, r.judgeTag, r.teamName, r.institution]));
             }
           } else if (p.kind === 'roundResults') {
-            const d = parseRoundResults(h, p.url, null);
+            const d = parseRoundResults(h, p.url, navLabels[p.url] ?? null);
             debates.push(row([tid, p.url, d.roundLabel, d.isOutround, d.roundNumber]));
             for (const t of d.teamResults) {
               teamResults.push(row([tid, p.url, t.teamName, t.position, t.points, t.won]));
@@ -151,6 +160,7 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
       ['tournaments', tournaments],
       ['teams', teams],
       ['speakers', speakers],
+      ['speaker_categories', speakerCategories],
       ['speaker_round_scores', roundScores],
       ['break_rows', breakRows],
       ['round_debates', debates],
