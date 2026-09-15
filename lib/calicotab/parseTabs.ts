@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
-import { matchStage } from '@/lib/calicotab/stageLexicon';
+import { matchStage, normaliseCategory } from '@/lib/calicotab/stageLexicon';
+import { stripAttendanceTag } from '@/lib/calicotab/names';
 import { parseJsValue } from './parseJsValue';
 import { extractFromCheerio } from './cheerioToVue';
 
@@ -241,6 +242,18 @@ function cellText(cell: VueCell | undefined): string {
   return decodeHtmlEntities(String(cell?.text ?? '')).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * A person or team cell: its text, less a hybrid event's "[o]"/"[i]" tag.
+ *
+ * A dash is the tab saying "none" — 158 speakers in 35 corpus tournaments
+ * had "—" for a team. Kept as a name, it was a team, and every teamless
+ * speaker in a tournament became every other one's teammate.
+ */
+function nameText(cell: VueCell | undefined): string {
+  const text = stripAttendanceTag(cellText(cell));
+  return /^[-–—]+$/.test(text) ? '' : text;
+}
+
 /** Find column index by matching key or title against any of the given needles. */
 function vueCol(heads: VueHead[], ...needles: string[]): number {
   return heads.findIndex((h) => {
@@ -280,8 +293,9 @@ function isAverageHeader(s: string): boolean {
  * Read the adjudicator cell of a results row.
  *
  * Tabbycat renders this cell as MARKUP, not text: each adjudicator sits in
- * its own `span.d-inline`, the chair carries an `i.adj-symbol`, and the
- * comma separators live inside their own `span.d-none.d-md-inline`. The
+ * its own `span.d-inline`, a chair or trainee carries an `i.adj-symbol`
+ * (Ⓒ / Ⓣ), and the comma separators live inside their own
+ * `span.d-none.d-md-inline`. The
  * previous code took the cell verbatim and split it on commas, which cut
  * straight through the tags — every judge row in a 101-tournament corpus
  * was stored with its name as an HTML fragment, and the role, which the
@@ -303,15 +317,27 @@ export function isMarkupAdjudicatorCell(raw: string): boolean {
   return !!raw && /<[a-z]/i.test(raw);
 }
 
+export type AdjudicatorRole = 'chair' | 'panel' | 'trainee';
+
 export function parseAdjudicatorCell(
   raw: string,
-): Array<{ name: string; role: 'chair' | 'panel' }> {
+): Array<{ name: string; role: AdjudicatorRole }> {
   if (!isMarkupAdjudicatorCell(raw)) return [];
   const $ = cheerio.load(`<div id="adjcell">${raw}</div>`);
-  const out: Array<{ name: string; role: 'chair' | 'panel' }> = [];
+  const out: Array<{ name: string; role: AdjudicatorRole }> = [];
   $('#adjcell span.d-inline').each((_i, el) => {
     const $el = $(el);
-    const isChair = $el.find('i.adj-symbol').length > 0 || /[\u24b8\u24d2]/.test($el.text());
+    // The symbol names the role: \u24b8 chair, \u24c9 trainee, none for a panellist.
+    // Any symbol at all used to mean chair, which filed every trainee mark in
+    // the corpus (5310 of them) as a chair \u2014 96 chairs for 30 rooms on one
+    // CMUDE page, inflating chaired-round counts wherever the round-results
+    // path supplies a judge's history.
+    const marks = $el.text();
+    const role: AdjudicatorRole = /[\u24b8\u24d2]/.test(marks)
+      ? 'chair'
+      : /[\u24c9\u24e3]/.test(marks)
+        ? 'trainee'
+        : 'panel';
     // The NAME is this span's own text. Everything Tabbycat hangs off it is
     // an element child: <i class="adj-symbol"> for the chair, and a nested
     // <span class="text-danger"> carrying a conflict emoji. Taking the
@@ -327,7 +353,8 @@ export function parseAdjudicatorCell(
     )
       .replace(/\s+/g, ' ')
       .trim();
-    if (name.length >= 2) out.push({ name, role: isChair ? 'chair' : 'panel' });
+    const bare = stripAttendanceTag(name);
+    if (bare.length >= 2) out.push({ name: bare, role });
   });
   return out;
 }
@@ -352,6 +379,25 @@ export function parseBpPlacing(
   if (!m) return null;
   const place = Number(m[1]);
   return { place, points: 4 - place, won: place === 1 };
+}
+
+/**
+ * Read a two-team result out of the result cell's popover.
+ *
+ * The cell's text is " vs <opponent>"; the outcome is only in the popover
+ * title, "Won against <opponent>" / "Lost to <opponent>". Reading the text
+ * found no outcome for 1083 of 1084 two-team prelim rows in the corpus, and
+ * where it did find one it was reading the opponent's name — a win over a
+ * team called "Lost Boys" reads as a loss. The title's first word is the
+ * outcome whatever the opponent is called.
+ */
+function outcomeFromPopoverTitle(cell: VueCell | undefined): { won: boolean; points: number | null } | null {
+  const title = (cell?.popover as { title?: unknown } | undefined)?.title;
+  if (typeof title !== 'string') return null;
+  const t = decodeHtmlEntities(title).trim();
+  if (/^won\b/i.test(t)) return { won: true, points: null };
+  if (/^(?:lost|loss)\b/i.test(t)) return { won: false, points: null };
+  return null;
 }
 
 /**
@@ -438,9 +484,26 @@ function classifyParticipantRole(roleText: string): { role: ParticipantsRow['rol
 
 function parseNumber(s: string | undefined | null): number | null {
   if (s == null) return null;
-  const t = s.replace(/[, ]+/g, '').trim();
+  // Tabbycat prints a score's decimals in their own element:
+  // `78<small class="text-muted">.50</small>`. Left in, the tag made the
+  // cell unreadable, so every speech score and average on such a tab was
+  // stored as empty — twelve corpus speaker tabs, all four Australs among
+  // them, came back with no scores at all.
+  const t = s.replace(/<[^>]*>/g, '').replace(/[, ]+/g, '').trim();
   if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return null;
   return Number(t);
+}
+
+/**
+ * A place in a standings table. Tabbycat marks a shared place with a
+ * trailing "=" — "1=", "1=", "3" — which parseNumber rejects, so every tied
+ * row came back with no rank at all. On speaker tabs that is most rows, not
+ * an edge case: totals are small integers and collide constantly. Across a
+ * 625-tournament corpus 9896 of 14371 speakers and 316 of 6707 teams carried
+ * the marker, and each was stored as unranked.
+ */
+function parseRank(cell: VueCell | undefined): number | null {
+  return parseNumber(cellText(cell).replace(/^=|=$/g, ''));
 }
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -460,10 +523,11 @@ export type TeamTabRow = {
   totalPoints: number | null;
   /**
    * Rooms won and rooms placed second. BP scores 3/2/1/0 and ranks on total
-   * points, with firsts then seconds as the tiebreakers — so two teams on
-   * the same points are not equally placed, and the tab publishes exactly
-   * this to separate them. On 82 of 100 team tabs; null on the two-team
-   * formats, which carry a wins column instead.
+   * points; these are tiebreaks the tournament may apply after that, in an
+   * order it chooses. Most corpus tabs break point ties on speaker score
+   * first — 1627 of 5264 adjacent team pairs sit in the opposite order to
+   * their firsts — so do not read a rank as implied by these. On 82 of 100
+   * team tabs; null on the two-team formats, which carry a wins column instead.
    */
   firsts: number | null;
   seconds: number | null;
@@ -500,7 +564,7 @@ export type RoundDebate = {
   isOutround: boolean;
   roundNumber: number | null;
   teamResults: Array<{ teamName: string; position: string | null; points: number | null; won: boolean | null }>;
-  judgeAssignments: Array<{ personName: string; panelRole: 'chair' | 'panel' | null }>;
+  judgeAssignments: Array<{ personName: string; panelRole: AdjudicatorRole | null }>;
 };
 
 export type BreakRow = {
@@ -562,7 +626,7 @@ function teamSpeakersFromCell(cell: VueCell | undefined): string[] {
   if (!roster?.text) return [];
   return decodeHtmlEntities(roster.text.replace(/<[^>]*>/g, ' '))
     .split(',')
-    .map((n) => n.replace(/\s+/g, ' ').trim())
+    .map((n) => stripAttendanceTag(n.replace(/\s+/g, ' ').trim()))
     .filter(Boolean);
 }
 
@@ -591,10 +655,10 @@ function teamTabFromVue(tables: VueTable[]): TeamTabRow[] | null {
 
   const rows: TeamTabRow[] = [];
   for (const row of table.data) {
-    const teamName = cellText(row[teamCol]);
+    const teamName = nameText(row[teamCol]);
     if (!teamName) continue;
     rows.push({
-      rank: rankCol >= 0 ? parseNumber(cellText(row[rankCol])) : null,
+      rank: rankCol >= 0 ? parseRank(row[rankCol]) : null,
       teamName,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
       speakers: teamSpeakersFromCell(row[teamCol]),
@@ -692,7 +756,7 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   // applies on the public tab.
   let rowIdx = 0;
   for (const row of table.data) {
-    const speakerName = cellText(row[nameCol]);
+    const speakerName = nameText(row[nameCol]);
     if (!speakerName) continue;
     const roundScores: SpeakerTabRow['roundScores'] = roundCols.map(({ idx, label }) => ({
       roundLabel: label,
@@ -711,7 +775,7 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
     const noRankColumnsAtAll = rankCol < 0 && rankEslCol < 0 && rankEflCol < 0;
     const rank =
       rankCol >= 0
-        ? parseNumber(cellText(row[rankCol]))
+        ? parseRank(row[rankCol])
         : noRankColumnsAtAll
           ? rowIdx
           : null;
@@ -721,20 +785,35 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
             .split(',')
             .map((c) => c.trim())
             .filter(Boolean)
+            // Cased the way the stage lexicon cases a category, so one
+            // bracket is not "novice" on one tab and "Novice" on the next.
+            .map(normaliseCategory)
         : [];
     rows.push({
       rank,
-      rankEsl: rankEslCol >= 0 ? parseNumber(cellText(row[rankEslCol])) : null,
-      rankEfl: rankEflCol >= 0 ? parseNumber(cellText(row[rankEflCol])) : null,
+      rankEsl: rankEslCol >= 0 ? parseRank(row[rankEslCol]) : null,
+      rankEfl: rankEflCol >= 0 ? parseRank(row[rankEflCol]) : null,
       categories,
       speakerName,
-      teamName: teamCol >= 0 ? cellText(row[teamCol]) || null : null,
+      teamName: teamCol >= 0 ? nameText(row[teamCol]) || null : null,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
-      totalScore: totalCol >= 0 ? parseNumber(cellText(row[totalCol])) : null,
+      // No Total column is common — tabs publishing Avg / Stdev / Num
+      // instead. A published total is the sum of the scored speeches (it
+      // holds for every speaker in the corpus that has both), so derive it
+      // rather than leave the field summary nothing to place the speaker by.
+      totalScore: totalCol >= 0 ? parseNumber(cellText(row[totalCol])) : sumOfSpeeches(roundScores),
       roundScores,
     });
   }
   return rows.length > 0 ? rows : null;
+}
+
+function sumOfSpeeches(roundScores: SpeakerTabRow['roundScores']): number | null {
+  const scores = roundScores
+    .filter((s) => s.positionLabel !== 'average' && s.score != null)
+    .map((s) => s.score as number);
+  if (scores.length === 0) return null;
+  return Math.round(scores.reduce((a, b) => a + b, 0) * 100) / 100;
 }
 
 export function parseSpeakerTab(html: string): SpeakerTabRow[] {
@@ -797,7 +876,7 @@ function roundResultsFromVue(
   const judgeSeen = new Set<string>();
   for (const row of table.data) {
     if (teamCol >= 0) {
-      const teamName = cellText(row[teamCol]);
+      const teamName = nameText(row[teamCol]);
       if (teamName) {
         const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
         // Match explicit win text only. The previous form also accepted
@@ -809,7 +888,8 @@ function roundResultsFromVue(
         // A BP result cell states the placing ("1st".."4th"), which carries
         // both the win and the points; word-form signals cover the
         // two-team formats.
-        const outcome = winCol >= 0 ? readTeamOutcome(winText) : null;
+        const outcome =
+          winCol >= 0 ? (outcomeFromPopoverTitle(row[winCol]) ?? readTeamOutcome(winText)) : null;
         teamResults.push({
           teamName,
           position: posCol >= 0 ? cellText(row[posCol]) || null : null,
@@ -822,7 +902,7 @@ function roundResultsFromVue(
       }
     } else {
       for (const { idx, pos } of bpPosCols) {
-        const teamName = cellText(row[idx]);
+        const teamName = nameText(row[idx]);
         if (!teamName) continue;
         teamResults.push({
           teamName,
@@ -852,7 +932,7 @@ function roundResultsFromVue(
       for (const token of tokens) {
         const lower = token.toLowerCase();
         const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
-        const cleanedName = token
+        const cleanedName = stripAttendanceTag(token)
           .replace(/\(\s*c\s*\)$/i, '')
           .replace(/\s+\(chair\)$/i, '')
           .replace(/\s+\(chief\)$/i, '')
@@ -905,9 +985,10 @@ export function parseRoundResults(
     trimmedNavLabel ||
     (headingLooksRoundRelated ? headingLabel : '') ||
     roundLabelFallback;
-  const isOutround =
-    isOutroundFromUrl ||
-    /final|semi|quarter|octo|grand/i.test(roundLabel);
+  // Ask the stage lexicon, not an English word list. The list missed "GF",
+  // "Octavos" and "Cuartos", so those rounds read as prelims and ingest
+  // skipped recording who won them — which is what the champion check reads.
+  const isOutround = isOutroundFromUrl || matchStage(roundLabel) != null;
 
   const vue = extractVueData(html);
   if (vue) {
@@ -951,10 +1032,10 @@ function breakPageFromVue(
 
   const rows: BreakRow[] = [];
   for (const row of table.data) {
-    const entityName = nameCol >= 0 ? cellText(row[nameCol]) : cellText(row[0]);
+    const entityName = nameCol >= 0 ? nameText(row[nameCol]) : nameText(row[0]);
     if (!entityName) continue;
     rows.push({
-      rank: rankCol >= 0 ? parseNumber(cellText(row[rankCol])) : null,
+      rank: rankCol >= 0 ? parseRank(row[rankCol]) : null,
       entityType: isAdj ? 'adjudicator' : 'team',
       entityName,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
@@ -989,6 +1070,11 @@ function normalizeBreakStage(fragment: string | null): string | null {
   if (slug === 'open') return 'Open';
   if (slug === 'esl') return 'ESL';
   if (slug === 'efl') return 'EFL';
+  // A short all-letter slug is an acronym ("hs", "ele"), cased the way the
+  // stage lexicon cases a category token. Title-casing it stored "Hs" for
+  // seven tournaments whose round labels say "HS Grand Final", so one bracket
+  // carried two spellings.
+  if (/^[a-z]{2,3}$/.test(slug)) return slug.toUpperCase();
   // Title-case anything else: "novice" → "Novice", "pro-am" → "Pro-Am".
   return slug
     .split(/([\s-])/)
@@ -1047,7 +1133,7 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
     const independentCol = vueCol(heads, 'independent');
 
     for (const row of table.data) {
-      const name = cellText(row[nameCol]);
+      const name = nameText(row[nameCol]);
       if (!name) continue;
       let role: ParticipantsRow['role'] = 'other';
       let judgeTag: ParticipantsRow['judgeTag'] = null;
@@ -1096,7 +1182,7 @@ function participantsFromVue(tables: VueTable[]): ParticipantsRow[] | null {
         name,
         role,
         judgeTag,
-        teamName: teamCol >= 0 ? cellText(row[teamCol]) || null : null,
+        teamName: teamCol >= 0 ? nameText(row[teamCol]) || null : null,
         institution,
       });
     }
@@ -1128,7 +1214,7 @@ export function parseParticipantsList(html: string): ParticipantsRow[] {
     const $group = $(group);
     const title = cleanText($group.find('.card-title').first().text());
     const m = title.match(/^Registration\s*\((.+)\)$/i);
-    const name = m ? cleanText(m[1] ?? '') : '';
+    const name = m ? stripAttendanceTag(cleanText(m[1] ?? '')) : '';
     if (!name) return;
 
     const roleBullets = $group

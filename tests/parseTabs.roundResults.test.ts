@@ -25,6 +25,18 @@ describe('parseRoundResults — isOutround classification', () => {
     const round = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/9/');
     expect(round.isOutround).toBe(true);
   });
+
+  test('a nav label the stage lexicon reads is an outround, in any vocabulary', () => {
+    // anu "Novice GF", cmude2019 "Octavos" / "Cuartos": an English word list
+    // read all three as prelims, so nobody was recorded as winning them.
+    const html = `<html><body></body></html>`;
+    for (const label of ['Novice GF', 'Octavos', 'Cuartos', 'Semifinais', '决赛']) {
+      const round = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/9/', label);
+      expect(round.isOutround, label).toBe(true);
+    }
+    const prelim = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/3/', 'Round 3');
+    expect(prelim.isOutround).toBe(false);
+  });
 });
 
 // Builds a minimal HTML page with a Vue data island shaped the way modern

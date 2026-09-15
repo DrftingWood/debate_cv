@@ -39,13 +39,34 @@ describe('parseAdjudicatorCell', () => {
     expect(got[2]!.role).toBe('panel');
   });
 
-  test('keeps an institution prefix, which is part of how tabs name people', () => {
+  test('a trainee symbol is a trainee, not a chair', () => {
+    // Verbatim from cmudemadrid2020 round 1. Ⓣ rides in the same
+    // <i class="adj-symbol"> as Ⓒ, and "has a symbol" was the chair test, so
+    // this room reported three chairs. The popover confirms the roles:
+    // "(chair, CIDEUP)", "(panellist)", "(trainee, SDCH)", "(trainee, UIS)".
+    const got = parseAdjudicatorCell(
+      '<span class="d-inline">Jorge Jean Pierre Bullon Sirumball<i class=\'adj-symbol\'>Ⓒ</i></span>' +
+        '<span class=\'d-none d-md-inline\'>, </span>' +
+        '<span class="d-inline">Samuel Moreiro</span>' +
+        '<span class=\'d-none d-md-inline\'>, </span>' +
+        '<span class="d-inline">César Arturo Tapia Parra<i class=\'adj-symbol\'>Ⓣ</i></span>' +
+        '<span class=\'d-none d-md-inline\'>, </span>' +
+        '<span class="d-inline">Daniel Mauricio Pallares Ropero<i class=\'adj-symbol\'>Ⓣ</i></span>',
+    );
+    expect(got.map((a) => a.role)).toEqual(['chair', 'panel', 'trainee', 'trainee']);
+    expect(got[2]!.name).toBe('César Arturo Tapia Parra');
+  });
+
+  test('drops a hybrid event\'s attendance tag from the name', () => {
+    // anu spring21 marks online / in-person attendance as "[o]" / "[i]" on
+    // judges and teams, but not on its speaker tab — kept, the tag split one
+    // person or team into two spellings.
     const got = parseAdjudicatorCell(
       '<span class="d-inline">[o] Vladimira Suflaj<i class=\'adj-symbol\'>Ⓒ</i></span>' +
         '<span class=\'d-none d-md-inline\'>, </span>' +
         '<span class="d-inline">[i] Kethmi Gamage</span>',
     );
-    expect(got.map((a) => a.name)).toEqual(['[o] Vladimira Suflaj', '[i] Kethmi Gamage']);
+    expect(got.map((a) => a.name)).toEqual(['Vladimira Suflaj', 'Kethmi Gamage']);
     expect(got[0]!.role).toBe('chair');
   });
 
