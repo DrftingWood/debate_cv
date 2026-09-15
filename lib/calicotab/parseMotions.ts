@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { extractVueData } from './parseTabs';
+import { decodeHtmlEntities, extractVueData } from './parseTabs';
 import { extractFromCheerio } from './cheerioToVue';
 import { normalizeStageLabel } from './judgeStats';
 import type { VueTable } from './parseTabs';
@@ -44,6 +44,16 @@ function extractRoundNumber(rawLabel: string): number | null {
 
 function cleanText(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Motion and info-slide text as the audience reads it. Organisers paste
+ * rich text into these fields, and Tabbycat escapes it, so the page's own
+ * text carries literal markup ("<div>Under a seniority-based…") and
+ * double-escaped entities ("&amp;") that no reader should see.
+ */
+function readableText(s: string): string {
+  return cleanText(decodeHtmlEntities(s.replace(/<[^>]*>/g, ' ')));
 }
 
 // ── Vue path ─────────────────────────────────────────────────────────────────
@@ -164,10 +174,10 @@ function motionsFromCards(html: string): MotionRow[] {
 
         // `.lead` is the motion text. Taking the whole item would swallow
         // the badge number and the "View Info Slide" button label.
-        const text = cleanText($child.find('.lead').first().text());
+        const text = readableText($child.find('.lead').first().text());
         if (!text) return;
 
-        const infoRaw = cleanText($child.find('.modal-body').first().text());
+        const infoRaw = readableText($child.find('.modal-body').first().text());
         rows.push({
           roundNumber: extractRoundNumber(roundLabel),
           roundLabel,
