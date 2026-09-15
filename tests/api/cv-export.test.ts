@@ -6,6 +6,12 @@ vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => m.auth
 // the builder issues a deep query cascade that's already covered by its own
 // tests, and this route only cares about the shape it returns.
 vi.mock('@/lib/cv/buildCvData', () => ({ buildCvData: vi.fn() }));
+// The route is behind enforceRateLimit, which talks to the REAL prisma:
+// this file mocks @/lib/auth and buildCvData but not @/lib/db, so the
+// limiter was counting against whatever database the environment points
+// at and the suite started returning 429 after ~30 runs on one machine.
+// The subject here is the export shape, not the limiter.
+vi.mock('@/lib/rateLimit', () => ({ enforceRateLimit: vi.fn().mockResolvedValue(null) }));
 
 import { GET } from '@/app/api/cv/export/route';
 import { buildCvData } from '@/lib/cv/buildCvData';

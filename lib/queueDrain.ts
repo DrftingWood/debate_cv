@@ -63,8 +63,10 @@ export type DrainOptions = {
  * request to a tournament host goes through a per-host minimum interval
  * (lib/calicotab/fetchSession.ts) that exists because Cloudflare-fronted
  * Tabbycat instances return 403 for bursts. A typical tournament needs ~16
- * same-host fetches, so at the 1500ms floor roughly 24 seconds of each job
- * is the process sitting still, holding no CPU and no connection.
+ * same-host fetches, so even at the current sub-second floor a large part of
+ * each job is the process sitting still, holding no CPU and no connection.
+ * (The floor is lib/calicotab/fetch.ts MIN_INTERVAL_MS, and it moves — do
+ * not restate its value here.)
  *
  * Draining serially meant the whole queue paid that wait end to end: one
  * job per invocation, and with a daily platform cron plus a best-effort

@@ -38,6 +38,13 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
+import { isPlaceholderPersonName } from './names';
+import {
+  assignMotionRounds,
+  isPrelimRoundLabel,
+  prelimRoundsFromNav,
+  speakerColumnRounds,
+} from './roundNumbers';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -591,8 +598,10 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   //      but no fetch succeeded. The over-count slightly under-states
   //      avg, which is better than producing no avg at all (the
   //      previously-shipped behaviour for NLSD 2025 / SRDF 2024).
+  // A "Debate-off" is neither a prelim nor an outround; counted, it put a
+  // ninth round on an eight-round tournament (see isPrelimRoundLabel).
   const parsedPrelimCount = rounds.filter(
-    (r) => !r.isOutround && r.roundNumber != null,
+    (r) => !r.isOutround && r.roundNumber != null && isPrelimRoundLabel(r.roundLabel),
   ).length;
   const prelimRoundCount =
     parsedPrelimCount > 0 ? parsedPrelimCount : nav.resultsRounds.length || null;
@@ -731,24 +740,50 @@ async function preCommitPeopleAndBuildIndex(
   for (const round of fetched.rounds) {
     for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
   }
+  // "Speaker 1" and the like are stand-ins, not people. A Person row for one
+  // is shared by every tournament that used the same stand-in; their rows
+  // are simply not attributed to anyone — with one exception. A stand-in
+  // somebody has already CLAIMED is kept, or the forced re-parse would
+  // silently strip those tournaments from that user's CV; the claim is
+  // theirs to undo.
+  const claimedStandIns = await claimedPlaceholderNorms(allPersonNames);
+  const isUnclaimedStandIn = (name: string) =>
+    isPlaceholderPersonName(name) && !claimedStandIns.has(normalizePersonName(name));
+  for (const name of allPersonNames) {
+    if (isUnclaimedStandIn(name)) allPersonNames.delete(name);
+  }
   // Pre-commit the URL owner's registration name even when no other table
   // surfaces it. Tabbycat lets the URL owner redact their own name from the
   // public speaker tab — their row stays in the table with a coded /
   // anonymous label, so the speaker upsert below can't match them by name.
   // Adding the registration name here means the team-anchored fallback
   // further down has an actual Person row to attribute the redacted row to.
-  if (loaded.snapshot.registration.personName) {
-    allPersonNames.add(loaded.snapshot.registration.personName);
+  const registrationName = loaded.snapshot.registration.personName;
+  if (registrationName && !isUnclaimedStandIn(registrationName)) {
+    allPersonNames.add(registrationName);
   }
   const personIdByNormalized = await preCommitPersons(allPersonNames);
   // Pre-build the fuzzy-match index once so the speaker / participant /
   // round-results loops below can fall back from exact-name lookup to
   // substring + token-subset matching without per-row rebuilding.
   const personMatchIndex = buildPersonIndex(personIdByNormalized);
+  // The stand-in guard sits here too, not only above: the fuzzy fallback
+  // would otherwise resolve "Speaker 1" to any known name containing it.
   const lookupPersonId = (name: string): bigint | null =>
-    findPersonId(name, personIdByNormalized, personMatchIndex);
+    isUnclaimedStandIn(name) ? null : findPersonId(name, personIdByNormalized, personMatchIndex);
 
   return { personIdByNormalized, lookupPersonId };
+}
+
+/** Normalised stand-in names among these that already belong to somebody. */
+async function claimedPlaceholderNorms(names: Iterable<string>): Promise<Set<string>> {
+  const norms = [...new Set([...names].filter(isPlaceholderPersonName).map(normalizePersonName))];
+  if (norms.length === 0) return new Set();
+  const rows = await prisma.person.findMany({
+    where: { normalizedName: { in: norms }, claimedByUserId: { not: null } },
+    select: { normalizedName: true },
+  });
+  return new Set(rows.map((r) => r.normalizedName));
 }
 
 async function writeIngestTransaction(
@@ -841,6 +876,8 @@ async function writeIngestTransaction(
           rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
+          firsts: row.firsts,
+          seconds: row.seconds,
         },
         create: {
           tournamentId: t.id,
@@ -849,6 +886,8 @@ async function writeIngestTransaction(
           rank: row.rank,
           wins: row.wins,
           points: row.totalPoints,
+          firsts: row.firsts,
+          seconds: row.seconds,
         },
       });
     }
@@ -894,7 +933,14 @@ async function writeIngestTransaction(
     // rows absent from the new parse. Motion counts are small (≤ ~15 per
     // tournament) so per-row upserts inside the tx are cheap.
     if (motions.length > 0) {
-      for (const m of motions) {
+      // Key each motion by its round's URL sequence, as team results are,
+      // not by the number in its label — see lib/calicotab/roundNumbers.ts.
+      const motionRounds = assignMotionRounds(
+        motions,
+        prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
+      );
+      for (let i = 0; i < motions.length; i++) {
+        const m = { ...motions[i]!, roundNumber: motionRounds[i] ?? null };
         await tx.motion.upsert({
           where: {
             tournamentId_roundLabel_seq: {
@@ -1000,6 +1046,21 @@ async function writeIngestTransaction(
     }
     const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
 
+    // Which round each score column is — by the nav round its label names,
+    // else by position, never by the bare digit in "R1A". Every row of a
+    // speaker tab carries the same columns in the same order, so the first
+    // row with score columns stands for all. See lib/calicotab/roundNumbers.ts.
+    const scoreColumns = (
+      speakerRows.find((sp) => sp.roundScores.some((rs) => rs.positionLabel !== 'average'))
+        ?.roundScores ?? []
+    )
+      .filter((rs) => rs.positionLabel !== 'average')
+      .map((rs) => rs.roundLabel);
+    const roundByColumn = speakerColumnRounds(
+      scoreColumns,
+      prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
+    );
+
     for (const sp of speakerRows) {
       // Fuzzy lookup: exact-match first, then substring + token-subset
       // fallbacks. Strict exact-match used to silently drop a user's
@@ -1024,6 +1085,7 @@ async function writeIngestTransaction(
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
+          speakerCategories: sp.categories,
           teamBreakRank: breakRankForTeam,
         },
         create: {
@@ -1034,6 +1096,7 @@ async function writeIngestTransaction(
           speakerRankOpen: sp.rank,
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
+          speakerCategories: sp.categories,
           teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
         },
       });
@@ -1048,11 +1111,11 @@ async function writeIngestTransaction(
         create: { tournamentParticipantId: participant.id, role: 'speaker' },
       });
       speakerParticipantIds.push(participant.id);
+      let column = 0;
       for (const rs of sp.roundScores) {
-        const m = rs.roundLabel.match(/\d+/);
         const isAverageScore = rs.positionLabel === 'average';
-        if (!m && !isAverageScore) continue;
-        const rn = isAverageScore ? 0 : Number(m![0]);
+        const rn = isAverageScore ? 0 : roundByColumn[column++];
+        if (rn == null) continue;
         speakerRoundScoreCreates.push({
           tournamentParticipantId: participant.id,
           roundNumber: rn,
@@ -1574,6 +1637,10 @@ async function linkRegistrationPerson(
   urlVariants: string[],
 ): Promise<{ personId: bigint; claimed: boolean } | null> {
   if (!personName) return null;
+  // A registration named "Speaker 1" is a stand-in's private URL. Linking it
+  // would point the URL at the shared stand-in Person and write the landing
+  // page's judging history onto it.
+  if (isPlaceholderPersonName(personName)) return null;
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 
@@ -1812,7 +1879,7 @@ async function recordJudgeRoundsFromRoundResults(
     return { written: 0, matched: 0, diagnostic: null };
   }
 
-  type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
+  type Hit = { stage: string; role: JudgeRound['role']; roundNumber: number | null };
   const hits: Hit[] = [];
   let totalJudgeEntries = 0;
   for (const round of rounds) {
@@ -1828,7 +1895,9 @@ async function recordJudgeRoundsFromRoundResults(
       );
       hits.push({
         stage,
-        role: j.panelRole === 'chair' ? 'chair' : 'panellist',
+        // Trainees keep their role, as they do on the landing path: filing
+        // one as a panellist would credit a non-voting seat as a panel.
+        role: j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
         roundNumber: round.isOutround ? null : round.roundNumber,
       });
     }
@@ -1883,9 +1952,8 @@ async function recordJudgeRoundsFromRoundResults(
 
   // Compute aggregates (same semantics as the landing-path writer; both
   // sites share lib/calicotab/judgeAggregates.ts). Round-results hits use
-  // role: 'chair' | 'panellist' — no trainee role here. The aggregate
-  // helper accepts 'trainee' as a possibility but the filter is a no-op
-  // for this input shape.
+  // role: 'chair' | 'panellist' | 'trainee', read off the adjudicator
+  // cell's symbol.
   const aggregates = computeJudgeAggregates(
     hits.map(
       (h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber }),

@@ -57,11 +57,26 @@ export type CvSpeakerRow = {
   teamRank: number | null;
   teamPoints: string | null;
   teamWins: number | null;
+  /**
+   * Rooms topped and rooms placed second. BP ranks on points and breaks
+   * ties on these, so two teams level on points are not level on the tab —
+   * this is what separates them. Null on the two-team formats, which
+   * publish wins instead.
+   */
+  teamFirsts: number | null;
+  teamSeconds: number | null;
   speakerAvgScore: string | null;
   prelimsSpoken: number;
   speakerRankOpen: number | null;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
+  /**
+   * Break categories the tournament declared for this speaker. Tabbycat
+   * 2.11 publishes these instead of the ESL/EFL RANK columns above, so on
+   * a modern install those ranks are null and this is the only statement
+   * of which brackets the speaker was eligible for.
+   */
+  speakerCategories: string[];
   teamBreakRank: number | null;
   eliminationReached: string | null;
   /**
@@ -427,7 +442,15 @@ export async function buildCvData(
     tournamentIds.length
       ? prisma.teamResult.findMany({
           where: { tournamentId: { in: tournamentIds }, roundNumber: 0 },
-          select: { tournamentId: true, teamName: true, rank: true, wins: true, points: true },
+          select: {
+            tournamentId: true,
+            teamName: true,
+            rank: true,
+            wins: true,
+            points: true,
+            firsts: true,
+            seconds: true,
+          },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
@@ -435,6 +458,8 @@ export async function buildCvData(
           rank: number | null;
           wins: number | null;
           points: { toString(): string } | null;
+          firsts: number | null;
+          seconds: number | null;
         }>),
     // Per-round rows for the user's own teams only — position/outcome/points
     // feed the by-position analytics slice. Scoped to myTeamPairs rather
@@ -655,7 +680,16 @@ export async function buildCvData(
     teammatesByKey.set(key, list);
   }
 
-  const teamPointsByKey = new Map<string, { rank: number | null; wins: number | null; points: string | null }>();
+  const teamPointsByKey = new Map<
+    string,
+    {
+      rank: number | null;
+      wins: number | null;
+      points: string | null;
+      firsts: number | null;
+      seconds: number | null;
+    }
+  >();
   for (const tr of teamResultRows) {
     if (!tr.teamName) continue;
     const key = teamResultKey(tr.tournamentId, tr.teamName);
@@ -664,6 +698,8 @@ export async function buildCvData(
       rank: tr.rank,
       wins: tr.wins,
       points: tr.points ? tr.points.toString() : null,
+      firsts: tr.firsts,
+      seconds: tr.seconds,
     });
   }
   const teamRankByKey = buildTeamRankLookup(teamResultRows);
@@ -790,6 +826,8 @@ export async function buildCvData(
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? null,
+      teamFirsts: tr?.firsts ?? null,
+      teamSeconds: tr?.seconds ?? null,
       speakerAvgScore,
       prelimsSpoken,
       // Open rank: prefer the parser's value; fall back to the ingest-time
@@ -799,6 +837,7 @@ export async function buildCvData(
       speakerRankOpen: p.speakerRankOpen ?? p.speakerRankOpenDerived ?? null,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
+      speakerCategories: p.speakerCategories ?? [],
       teamBreakRank: speakerSignals.teamBreakRank,
       eliminationReached: speakerSignals.eliminationReached,
       eliminationReachedByCategory,

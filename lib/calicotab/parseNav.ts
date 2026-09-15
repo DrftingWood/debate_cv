@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import { extractVueData, type VueCell, type VueTable } from './parseTabs';
 import { extractFromCheerio } from './cheerioToVue';
 import { personNameMatches } from './personMatch';
+import { stripAttendanceTag } from './names';
 
 export type NavigationStructure = {
   home: string | null;
@@ -128,7 +129,12 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
       if (!nav.teamTab) { nav.teamTab = absolute; discovered.add('teamTab'); }
     } else if (/\/tab\/speaker(-standings)?\/?$/.test(pathname)) {
       if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
-    } else if (/\/tab\/motions\/?$/.test(pathname)) {
+    } else if (/\/tab\/motions\/?$/.test(pathname) || /\/motions\/?$/.test(pathname)) {
+      // Tabbycat moved the motions list from /tab/motions/ to /motions/:
+      // across 625 live tournaments, NOT ONE still linked the old path, so
+      // this branch never fired and the label-text fallback below picked up
+      // whatever was labelled "Motions Tab" — usually /motions/statistics/,
+      // a different page with no motions on it.
       if (!nav.motionsTab) { nav.motionsTab = absolute; discovered.add('motionsTab'); }
     } else if (/\/results\/round\/\d+\/?(?:by-team\/|by-debate\/)?$/.test(pathname)) {
       nav.resultsRounds.push(absolute);
@@ -142,8 +148,18 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
         nav.resultsRoundLabels[absolute] = linkText;
       }
     } else if (/\/break\/[^/]+\/?/.test(pathname)) {
-      nav.breakTabs.push(absolute);
-      discovered.add('breakTabs');
+      // /break/bracket/<category>/ is the bracket *diagram* — a Vue-rendered
+      // tree with no <table> and no tablesData, sitting in the nav right
+      // beside the standings it illustrates. parseBreakPage can only read
+      // /break/teams/<category>/ and /break/adjudicators/, so a bracket URL
+      // is guaranteed to parse to zero rows. Excluding it here rather than
+      // in the parser is what saves the work: ingest fetches every entry of
+      // breakTabs, and each fetch costs the full per-host politeness
+      // interval that the drain's time budget is built from.
+      if (!/\/break\/bracket\//.test(pathname)) {
+        nav.breakTabs.push(absolute);
+        discovered.add('breakTabs');
+      }
     } else if (/\/participants\/list\/?$/.test(pathname)) {
       if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
     } else if (/\/participants\/institutions\/?$/.test(pathname)) {
@@ -158,7 +174,12 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
       } else if (label === 'speaker tab') {
         if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
       } else if (label === 'motions tab') {
-        if (!nav.motionsTab) { nav.motionsTab = absolute; discovered.add('motionsTab'); }
+        // Only when it is not the statistics page, which carries the same
+        // nav label but none of the motions.
+        if (!nav.motionsTab && !/\/motions\/statistics\//.test(absolute)) {
+          nav.motionsTab = absolute;
+          discovered.add('motionsTab');
+        }
       } else if (label === 'participants') {
         if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
       } else if (label === 'institutions') {
@@ -276,6 +297,12 @@ function extractRegistration(html: string): RegistrationSnapshot {
       if (m) snapshot.institution = cleanWhitespace(m[1]!);
     }
   });
+
+  // The tab pages drop a hybrid event's "[o]"/"[i]" tag from names; the
+  // registration block must too, or the owner never matches their own rows.
+  if (snapshot.personName) snapshot.personName = stripAttendanceTag(snapshot.personName);
+  if (snapshot.teamName) snapshot.teamName = stripAttendanceTag(snapshot.teamName);
+  snapshot.speakers = snapshot.speakers.map(stripAttendanceTag);
 
   return snapshot;
 }

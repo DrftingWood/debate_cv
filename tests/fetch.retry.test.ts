@@ -45,10 +45,14 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
   });
 
-  test('403 then 200 → retries and returns ok', async () => {
+  test('CDN 403 then 200 → retries and returns ok', async () => {
+    // cf-ray marks this as Cloudflare push-back rather than a tab the
+    // tournament made private; only the former is worth retrying.
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce(new Response('blocked', { status: 403 }))
+      .mockResolvedValueOnce(
+        new Response('blocked', { status: 403, headers: { 'cf-ray': '8f2a1b3c-LHR' } }),
+      )
       .mockResolvedValueOnce(new Response('<html>tab rows</html>', { status: 200 }));
     globalThis.fetch = mockFetch;
     const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
@@ -60,10 +64,15 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
     if (result.ok) expect(result.html).toContain('tab rows');
   });
 
-  test('persistent 403 → returns {ok:false, status:403, bodyPreview}', async () => {
+  test('persistent CDN 403 → returns {ok:false, status:403, bodyPreview}', async () => {
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(new Response('<!doctype html>Cloudflare blocked', { status: 403 }));
+      .mockResolvedValue(
+        new Response('<!doctype html>Cloudflare blocked', {
+          status: 403,
+          headers: { 'cf-ray': '8f2a1b3c-LHR' },
+        }),
+      );
     const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
     const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/tab/team/');
     await advance(10_000);
@@ -74,6 +83,25 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
       expect(result.bodyPreview).toContain('Cloudflare blocked');
     }
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(3);
+  });
+
+  test('origin 403 (a private tab) → no retry', async () => {
+    // Tabbycat answers 403 from the origin for a tab the tournament chose
+    // not to publish. It will answer 403 identically forever, so the two
+    // retries were pure cost — and the escalation they triggered slowed
+    // every later fetch to that host.
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response('<!doctype html>Forbidden', { status: 403, headers: { server: 'nginx' } }),
+      );
+    const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
+    const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/participants/list/');
+    await advance(10_000);
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(403);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
   });
 
   test('404 → no retry, returns ok:false immediately', async () => {

@@ -6,8 +6,8 @@ import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock, Squa
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import { drainUntilEmpty, summariseDrain } from '@/lib/ingest/drainUntilEmpty';
 
-type DrainResponse = { processed: number; remaining: number };
 type ScanResponse = { scanned: number; found: number };
 type IngestUrlResponse = {
   tournamentId: string;
@@ -20,47 +20,6 @@ type IngestUrlResponse = {
   totalParticipants: number | null;
   warnings?: string[];
 };
-
-async function drainUntilEmpty(
-  onProgress: (summary: { processed: number; remaining: number }) => void,
-  signal?: AbortSignal,
-): Promise<{ processed: number; remaining: number }> {
-  let totalProcessed = 0;
-  let remaining = 0;
-  // Tolerate a few consecutive drain failures (typically a Vercel 504
-  // when one URL exceeds the per-function 60s budget). The job that
-  // timed out is stuck in 'running' on the server; resetStuckRunning
-  // will reclaim it after ~5 min, and meanwhile other queued jobs can
-  // still be claimed and processed. The old code rethrew immediately,
-  // which halted the whole batch on a single slow URL and gave the
-  // user a misleading "Ingest failed" toast even though most jobs
-  // would have been fine on the next call.
-  const MAX_CONSECUTIVE_FAILURES = 3;
-  const RETRY_BACKOFF_MS = 5_000;
-  let consecutiveFailures = 0;
-  for (let i = 0; i < 50; i++) {
-    if (signal?.aborted) break;
-    const result = await postJson<DrainResponse>('/api/ingest/drain');
-    if (!result.ok) {
-      consecutiveFailures += 1;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        throw new Error(result.error);
-      }
-      // Give the runtime a moment to recycle before retrying — back-to-back
-      // calls right after a 504 tend to land on the same warm-but-broken
-      // lambda instance.
-      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
-      continue;
-    }
-    consecutiveFailures = 0;
-    totalProcessed += result.data.processed ?? 0;
-    remaining = result.data.remaining ?? 0;
-    onProgress({ processed: totalProcessed, remaining });
-    if ((result.data.processed ?? 0) === 0 || remaining === 0) break;
-    if (remaining > 0) await new Promise((r) => setTimeout(r, 2000));
-  }
-  return { processed: totalProcessed, remaining };
-}
 
 function formatMetrics(totalTeams: number | null, totalParticipants: number | null): string {
   const parts: string[] = [];
@@ -107,13 +66,7 @@ export function ScanButton({ disconnected = false }: { disconnected?: boolean })
             if (scan.data.found > 0) {
               setPhase('ingesting');
               const drain = await drainUntilEmpty(() => router.refresh());
-              toast.show({
-                kind: 'success',
-                title: 'Ingest complete',
-                description: drain.remaining
-                  ? `Ingested ${drain.processed}. ${drain.remaining} still queued — click "Ingest all" to continue.`
-                  : `Ingested ${drain.processed} private URLs.`,
-              });
+              toast.show(summariseDrain(drain, false));
               router.refresh();
             }
             setPhase('idle');
@@ -153,17 +106,14 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
           abortRef.current = controller;
           startTransition(async () => {
             try {
-              const drain = await drainUntilEmpty((p) => {
-                setProgress(p);
-                router.refresh();
-              }, controller.signal);
-              toast.show({
-                kind: controller.signal.aborted ? 'info' : 'success',
-                title: controller.signal.aborted ? 'Stopped' : 'Done',
-                description: drain.remaining
-                  ? `Ingested ${drain.processed} · ${drain.remaining} queued for later.`
-                  : `Ingested ${drain.processed} private URLs.`,
-              });
+              const drain = await drainUntilEmpty(
+                (p) => {
+                  setProgress(p);
+                  router.refresh();
+                },
+                { signal: controller.signal },
+              );
+              toast.show(summariseDrain(drain, controller.signal.aborted));
               router.refresh();
             } catch (e) {
               toast.show({

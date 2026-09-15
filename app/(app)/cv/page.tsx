@@ -12,7 +12,7 @@ import type {
   CvTaggedMotion,
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
@@ -278,7 +278,7 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string | null {
   // category together, e.g. "Open: Octofinals · ESL: Grand Final".
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
     const joined = r.eliminationReachedByCategory
-      .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
+      .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (Champion)` : joined;
   }
@@ -658,7 +658,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                     {r.lastOutroundChaired ? (
                       <span className="flex items-center gap-1.5">
                         {r.broke ? <Badge variant="gold">Broke</Badge> : null}
-                        {r.lastOutroundChaired}
+                        {formatStageForDisplay(r.lastOutroundChaired)}
                       </span>
                     ) : r.broke ? (
                       <Badge variant="gold">Broke</Badge>
@@ -666,7 +666,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                       <Nil />
                     )}
                   </Td>
-                  <Td className="whitespace-nowrap">{r.lastOutroundJudged ?? <Nil />}</Td>
+                  <Td className="whitespace-nowrap">{formatStageForDisplay(r.lastOutroundJudged) || <Nil />}</Td>
                   <Td className="pr-4">
                     <ReportCell r={r} compact />
                   </Td>
@@ -710,10 +710,10 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
               />
               {r.format ? <Field label="Format" value={r.format} /> : null}
               {r.lastOutroundChaired ? (
-                <Field label="Last outround chaired" value={r.lastOutroundChaired} />
+                <Field label="Last outround chaired" value={formatStageForDisplay(r.lastOutroundChaired)} />
               ) : null}
               {r.lastOutroundJudged ? (
-                <Field label="Last outround judged" value={r.lastOutroundJudged} />
+                <Field label="Last outround judged" value={formatStageForDisplay(r.lastOutroundJudged)} />
               ) : null}
             </dl>
             <ReportCell r={r} />

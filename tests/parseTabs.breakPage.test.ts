@@ -64,6 +64,16 @@ describe('parseBreakPage — stage normalization from URL fragment', () => {
     expect(rows[0]!.stage).toBe('Pro-Am');
   });
 
+  test('a short slug is an acronym: "teams/hs" → "HS", not "Hs"', () => {
+    // The stage lexicon reads "HS Grand Final" as category "HS"; the break
+    // tab for the same bracket has to agree with it.
+    const rows = parseBreakPage(
+      TABLE_HTML(ROW('1', 'School A')),
+      'https://x.calicotab.com/foo/break/teams/hs/',
+    );
+    expect(rows[0]!.stage).toBe('HS');
+  });
+
   test('"adjudicators" URL → "Adjudicators"', () => {
     const rows = parseBreakPage(
       TABLE_HTML(ROW('1', 'Some Judge')),

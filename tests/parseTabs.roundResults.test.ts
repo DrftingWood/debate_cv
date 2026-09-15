@@ -25,6 +25,18 @@ describe('parseRoundResults — isOutround classification', () => {
     const round = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/9/');
     expect(round.isOutround).toBe(true);
   });
+
+  test('a nav label the stage lexicon reads is an outround, in any vocabulary', () => {
+    // anu "Novice GF", cmude2019 "Octavos" / "Cuartos": an English word list
+    // read all three as prelims, so nobody was recorded as winning them.
+    const html = `<html><body></body></html>`;
+    for (const label of ['Novice GF', 'Octavos', 'Cuartos', 'Semifinais', '决赛']) {
+      const round = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/9/', label);
+      expect(round.isOutround, label).toBe(true);
+    }
+    const prelim = parseRoundResults(html, 'https://h.calicotab.com/t/results/round/3/', 'Round 3');
+    expect(prelim.isOutround).toBe(false);
+  });
 });
 
 // Builds a minimal HTML page with a Vue data island shaped the way modern
@@ -325,7 +337,7 @@ describe('parseRoundResults — win column false-positive guards', () => {
       [[{ text: 'Third Place' }, { text: '1' }]],
     );
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
-    expect(round.teamResults[0]!.won).toBe(false);
+    expect(round.teamResults[0]!.won).not.toBe(true);
   });
 
   test('Vue path: "won" / "win" cell text still marks as won', () => {
@@ -365,7 +377,10 @@ describe('parseRoundResults — win column false-positive guards', () => {
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/break/finals/');
     const third = round.teamResults.find((t) => t.teamName === 'Third Place');
     const champ = round.teamResults.find((t) => t.teamName === 'Champion');
-    expect(third?.won).toBe(false);
+    // The guard is against a false POSITIVE. `null` meets it and is more
+    // honest than `false`: a bare "1" tells us nothing about the outcome,
+    // and ingest records a `false` as a loss the team never took.
+    expect(third?.won).not.toBe(true);
     expect(champ?.won).toBe(true);
   });
 });

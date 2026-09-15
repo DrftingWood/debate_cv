@@ -14,6 +14,7 @@ const SAMPLE_PRIVATE_HTML = `
     <a href="/ilnurr2026/results/round/2/">Round 2</a>
     <a href="/ilnurr2026/results/round/6/">Grand Final</a>
     <a href="/ilnurr2026/break/teams/open/">Open</a>
+    <a href="/ilnurr2026/break/bracket/open/">Open Bracket</a>
     <a href="/ilnurr2026/break/adjudicators/">Adjudicators</a>
     <a href="/ilnurr2026/participants/list/">Participants</a>
     <a href="/ilnurr2026/participants/institutions/">Institutions</a>
@@ -61,6 +62,23 @@ describe('parsePrivateUrlPage', () => {
     );
     expect(snapshot.navigation.participants).toBe(
       'https://ilnuroundrobin.calicotab.com/ilnurr2026/participants/list/',
+    );
+  });
+
+  test('skips /break/bracket/ — a diagram page with no standings table', () => {
+    // Tabbycat links the bracket visualisation next to the break standings.
+    // It renders a Vue bracket with no <table>, so parseBreakPage can only
+    // ever return 0 rows from it — but ingest fetches every breakTabs entry,
+    // and each fetch costs the full per-host politeness interval that the
+    // drain's time budget is calculated from.
+    expect(snapshot.navigation.breakTabs).toContain(
+      'https://ilnuroundrobin.calicotab.com/ilnurr2026/break/teams/open/',
+    );
+    expect(snapshot.navigation.breakTabs).toContain(
+      'https://ilnuroundrobin.calicotab.com/ilnurr2026/break/adjudicators/',
+    );
+    expect(snapshot.navigation.breakTabs).not.toContain(
+      'https://ilnuroundrobin.calicotab.com/ilnurr2026/break/bracket/open/',
     );
   });
 

@@ -172,6 +172,9 @@ model DiscoveredUrl {
   // a row scan on ingestedAt. Compound index turns those queries into an
   // index-only seek.
   @@index([userId, ingestedAt])
+  // Deleting a Person sets this null; without an index every such delete
+  // scans the table.
+  @@index([registrationPersonId])
 }
 
 enum IngestJobStatus {
@@ -292,6 +295,10 @@ model Person {
   rejections        PersonRejection[]
 
   @@index([claimedByUserId])
+  // Created by migration 20260725162000_person_suppression but never
+  // declared here, so every later `prisma migrate dev` proposed dropping
+  // it. Declared now so the schema matches the database.
+  @@index([suppressedAt])
 }
 
 /// Records that a user has explicitly said "this Person is not me", so we
@@ -317,6 +324,13 @@ model TournamentParticipant {
   speakerRankOpen        Int?
   speakerRankEsl         Int?
   speakerRankEfl         Int?
+  // Break categories the tournament itself declares for this speaker
+  // ("Novice", "ESL", "High School"). Tabbycat 2.11 publishes these in a
+  // category column on the speaker tab, having stopped publishing the
+  // separate ESL/EFL RANK columns above — which is why those are null for
+  // every speaker on a modern install. Empty array when the tab has no
+  // such column, or the speaker is only in the default Open bracket.
+  speakerCategories      String[]
   speakerRankOpenDerived Int?
   teamBreakRank          Int?
   judgeTypeTag           String?
@@ -372,6 +386,14 @@ model TeamResult {
   rank          Int?
   wins          Int?
   points        Decimal?
+  /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
+  /// BP scores 3/2/1/0; these are among the tiebreaks a tournament can rank
+  /// on, but the order is the tournament's own setting — most tabs in the
+  /// corpus separate teams level on points by speaker score first, so a
+  /// team can sit above another with more firsts. Null for the two-team
+  /// formats, which publish a wins column instead.
+  firsts        Int?
+  seconds       Int?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
   /// column said on two-team formats. Null on roundNumber=0 standings
@@ -501,6 +523,10 @@ model JudgeAssignment {
 
   @@unique([tournamentId, personId, stage, panelRole, roundNumber])
   @@index([tournamentId, source])
+  // The unique above leads with tournamentId, so deleting a Person (which
+  // cascades here) scanned the table: 11.9s per placeholder sweep on a
+  // production-sized synthetic dataset.
+  @@index([personId])
 }
 
 // -------------------- Beta feedback --------------------

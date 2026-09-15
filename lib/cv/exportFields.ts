@@ -5,7 +5,7 @@ import type {
   CvFieldStat,
   CvTaggedMotion,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 
 /**
@@ -82,7 +82,7 @@ function fmtLastOutroundSpoken(r: CvSpeakerRow): string {
   const multi = r.eliminationReachedByCategory;
   if (multi && multi.length > 1) {
     const joined = multi
-      .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
+      .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (W)` : joined;
   }
@@ -118,8 +118,8 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'judge_type', label: 'Judge type', judge: (r) => r.judgeTypeTag },
   { id: 'inrounds_judged', label: 'Inrounds judged', judge: (r) => r.inroundsJudged ?? '' },
   { id: 'inrounds_chaired', label: 'Inrounds chaired', judge: (r) => r.inroundsChaired ?? '' },
-  { id: 'last_outround_chaired', label: 'Last outround chaired', judge: (r) => r.lastOutroundChaired },
-  { id: 'last_outround_judged', label: 'Last outround judged', judge: (r) => r.lastOutroundJudged },
+  { id: 'last_outround_chaired', label: 'Last outround chaired', judge: (r) => formatStageForDisplay(r.lastOutroundChaired) },
+  { id: 'last_outround_judged', label: 'Last outround judged', judge: (r) => formatStageForDisplay(r.lastOutroundJudged) },
   // ── Post-legacy additions (append-only zone) ──────────────────────────
   { id: 'region', label: 'Region', speaker: (r) => r.region, judge: (r) => r.region },
   {
@@ -167,6 +167,27 @@ export const EXPORT_FIELDS: ExportField[] = [
     id: 'motion_topics',
     label: 'Motion topics',
     speaker: (r, ctx) => distinct(debatedMotions(r, ctx).map((m) => m.topic)).join(' | '),
+  },
+  {
+    id: 'speaker_categories',
+    label: 'Break categories',
+    // The tournament's own statement of which brackets this speaker was
+    // eligible for ("Novice", "ESL", "High School"). Tabbycat 2.11
+    // publishes it in place of the ESL/EFL rank columns, so on a modern
+    // install this is the only such statement available.
+    speaker: (r) => r.speakerCategories.join(' | '),
+  },
+  {
+    id: 'team_firsts',
+    label: 'Firsts',
+    // Rooms this team topped — one of the BP tiebreaks, though which one a
+    // tab applies first is the tournament's choice (usually speaker score).
+    speaker: (r) => r.teamFirsts ?? '',
+  },
+  {
+    id: 'team_seconds',
+    label: 'Seconds',
+    speaker: (r) => r.teamSeconds ?? '',
   },
 ];
 

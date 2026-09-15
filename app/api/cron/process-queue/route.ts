@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
-import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
+import { pruneIngestArtifacts, prunePlaceholderPersons } from '@/lib/calicotab/provenance';
 import { pruneRateLimits } from '@/lib/rateLimit';
 import { resetStuckRunning } from '@/lib/queue';
 import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
@@ -107,6 +107,9 @@ async function runOnce() {
         // who used a route once and never again) would otherwise persist
         // forever — one row per (route, user) pair.
         await pruneRateLimits();
+        // Stand-in Persons made by a path that should not have made them —
+        // see prunePlaceholderPersons.
+        await prunePlaceholderPersons();
       } catch (err) {
         Sentry.captureException(err, {
           tags: { route: 'api/cron/process-queue', stage: 'prune' },

@@ -135,9 +135,16 @@ describe('parseParticipantsList — modern card-based layout (mukmem78)', () => 
     expect(rows.find((r) => r.name === 'Adya Sharma')?.judgeTag).toBe('invited');
   });
 
-  test('non-independent adjudicators get judgeTag="normal" (incl. adj-core members)', () => {
+  test('plain institutional adjudicators get judgeTag="normal"', () => {
     expect(rows.find((r) => r.name === 'Aadyant')?.judgeTag).toBe('normal');
-    expect(rows.find((r) => r.name === 'Abhishek Acharya')?.judgeTag).toBe('normal');
+  });
+
+  test('adjudication core members get judgeTag="core"', () => {
+    // This used to expect 'normal': the adj-core column was read but
+    // collapsed, under a TODO waiting for the judgeTag union to grow a
+    // 'core' variant. The union already had one, so the flag is now kept —
+    // it is a real credential and the CV displays it.
+    expect(rows.find((r) => r.name === 'Abhishek Acharya')?.judgeTag).toBe('core');
   });
 
   test('extracts speaker team names from the hidden sort span, not the popover blob', () => {

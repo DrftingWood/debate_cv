@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 
 describe('formatStageForDisplay', () => {
   test('"Open Finals", "Grand Final", and "Final" all collapse to "Final"', () => {
@@ -14,11 +14,25 @@ describe('formatStageForDisplay', () => {
     expect(formatStageForDisplay('GF')).toBe('Final');
   });
 
-  test('strips category prefixes from non-final outround stages', () => {
-    expect(formatStageForDisplay('Quarterfinals')).toBe('Quarterfinals');
+  test('keeps the break category so an ESL run is not shown as the Open result', () => {
+    // Regression: eliminationReached stores the raw landing-page label
+    // ("ESL Grand Final"). Dropping the prefix rendered a bare "Final",
+    // claiming a deeper run than the debater actually had — and combined
+    // with wonTournament it read "Final (Champion)", i.e. won the whole
+    // tournament outright.
+    expect(formatStageForDisplay('ESL Grand Final')).toBe('ESL Final');
+    expect(formatStageForDisplay('ESL Final')).toBe('ESL Final');
+    expect(formatStageForDisplay('ESL Semifinals')).toBe('ESL Semifinals');
+    expect(formatStageForDisplay('Novice Octofinals')).toBe('Novice Octofinals');
+    expect(formatStageForDisplay('EFL QF')).toBe('EFL Quarterfinals');
+  });
+
+  test('"Open" is the implicit default category and stays off the label', () => {
+    // Bare labels and Open-prefixed labels mean the same bracket, so
+    // showing "Open Quarterfinals" for one and "Quarterfinals" for the
+    // other would reintroduce the inconsistency this helper removes.
     expect(formatStageForDisplay('Open Quarterfinals')).toBe('Quarterfinals');
-    expect(formatStageForDisplay('ESL Semifinals')).toBe('Semifinals');
-    expect(formatStageForDisplay('Novice Octofinals')).toBe('Octofinals');
+    expect(formatStageForDisplay('Quarterfinals')).toBe('Quarterfinals');
   });
 
   test('canonicalises abbreviation forms', () => {
@@ -42,5 +56,23 @@ describe('formatStageForDisplay', () => {
     // hide data the classifier hasn't been taught to recognise.
     expect(formatStageForDisplay('Round 3')).toBe('Round 3');
     expect(formatStageForDisplay('Something Weird')).toBe('Something Weird');
+  });
+});
+
+describe('formatBaseStageForDisplay', () => {
+  test('strips every category prefix, for callers that render one themselves', () => {
+    // The eliminationReachedByCategory call sites print `${category}: ${stage}`,
+    // so the stage half must not repeat the category ("ESL: ESL Final").
+    expect(formatBaseStageForDisplay('ESL Grand Final')).toBe('Final');
+    expect(formatBaseStageForDisplay('ESL Semifinals')).toBe('Semifinals');
+    expect(formatBaseStageForDisplay('Novice Octofinals')).toBe('Octofinals');
+    expect(formatBaseStageForDisplay('Open Quarterfinals')).toBe('Quarterfinals');
+    expect(formatBaseStageForDisplay('Grand Final')).toBe('Final');
+  });
+
+  test('null / empty / unknown labels degrade gracefully', () => {
+    expect(formatBaseStageForDisplay(null)).toBe('');
+    expect(formatBaseStageForDisplay('')).toBe('');
+    expect(formatBaseStageForDisplay('Round 3')).toBe('Round 3');
   });
 });

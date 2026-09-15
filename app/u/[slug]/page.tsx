@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
@@ -15,7 +15,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
   if (r.eliminationReachedByCategory && r.eliminationReachedByCategory.length > 1) {
     const joined = r.eliminationReachedByCategory
-      .map((e) => `${e.category}: ${formatStageForDisplay(e.stage)}`)
+      .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
     return r.wonTournament === true ? `${joined} (Champion)` : joined;
   }
@@ -293,9 +293,9 @@ export default async function PublicCvPage({
                       <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
                       <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                       <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
-                      <Td className="whitespace-nowrap">{r.lastOutroundChaired ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap">{formatStageForDisplay(r.lastOutroundChaired) || <Nil />}</Td>
                       <Td className="whitespace-nowrap pr-4">
-                        {r.lastOutroundJudged ?? <Nil />}
+                        {formatStageForDisplay(r.lastOutroundJudged) || <Nil />}
                       </Td>
                     </Tr>
                   ))}

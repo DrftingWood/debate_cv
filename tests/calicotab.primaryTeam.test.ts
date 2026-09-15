@@ -11,6 +11,7 @@ function row(
     rank: null,
     rankEsl: null,
     rankEfl: null,
+    categories: [],
     speakerName,
     teamName,
     institution: null,

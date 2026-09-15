@@ -43,14 +43,63 @@ const DEFAULT_USER_AGENT =
 // the default.
 const MIN_INTERVAL_MS = (() => {
   const raw = process.env.TABBYCAT_MIN_INTERVAL_MS;
-  if (!raw) return 600;
+  if (!raw) return 400;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 400;
 })();
 
-// Statuses that mean "you are going too fast" as opposed to "that page is
-// missing". Only these escalate the per-host interval.
-const RATE_LIMIT_STATUSES = new Set([403, 429, 503]);
+/**
+ * The configured per-host floor, for callers that budget against it.
+ * Exported so the drain's time budget is derived rather than restated —
+ * ESTIMATED_JOB_MS was hand-copied from the 1500ms era and silently went
+ * stale when the floor moved, leaving the drain reserving 40s per job for
+ * work that no longer takes that long.
+ */
+export const FETCH_MIN_INTERVAL_MS = MIN_INTERVAL_MS;
+
+/** Same-host fetches a typical tournament ingest makes. */
+const FETCHES_PER_INGEST = 16;
+/** Median round-trip latency per fetch, on top of the politeness wait. */
+const FETCH_LATENCY_MS = 300;
+/** Parse + bulk DB writes, independent of the throttle. */
+const PARSE_AND_WRITE_MS = 10_000;
+
+/**
+ * Wall-clock a single ingest should be expected to take at a given per-host
+ * interval. The drain uses it to decide whether it has time to start
+ * another job before its own deadline.
+ */
+export function estimateIngestMs(intervalMs: number): number {
+  return FETCHES_PER_INGEST * (intervalMs + FETCH_LATENCY_MS) + PARSE_AND_WRITE_MS;
+}
+
+/**
+ * Does this response mean "you are going too fast"?
+ *
+ * 429 and 503 are unambiguous. 403 is not: Cloudflare-fronted installs
+ * answer a burst with 403 (the case this escalation exists for), but
+ * Tabbycat also returns 403 for a tab a tournament has made private —
+ * straight off the origin, with an ordinary HTML body. A sweep of 625 live
+ * installs found 35 such 403s across participants lists and speaker/team
+ * tabs, and every one of those hosts served 200s in the same pass; none
+ * was throttling. Treating them as push-back moved the host to the 1.5s
+ * safe interval and doubled from there, for a page that will 403 forever.
+ */
+export function isCdnRateLimit(status: number, headers: Headers): boolean {
+  if (status === 429 || status === 503) return true;
+  if (status !== 403) return false;
+  return (
+    headers.has('cf-ray') ||
+    headers.has('cf-mitigated') ||
+    /cloudflare/i.test(headers.get('server') ?? '')
+  );
+}
+
+/** Should this response be retried? 403 only when a CDN issued it. */
+export function isRetryableStatus(status: number, headers: Headers): boolean {
+  if (status === 403) return isCdnRateLimit(403, headers);
+  return RETRYABLE_STATUSES.has(status);
+}
 
 // HTTP statuses that deserve a retry with backoff. 404/410 are genuine
 // missing; 401 means auth-required, retrying won't help; other 4xx bodies
@@ -164,7 +213,7 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
       // Learn from push-back before returning: the retry that follows, and
       // every later fetch to this host in this process, then goes out at the
       // slower rate rather than repeating the mistake.
-      if (RATE_LIMIT_STATUSES.has(res.status)) {
+      if (isCdnRateLimit(res.status, res.headers)) {
         session.noteRateLimited(host, MIN_INTERVAL_MS);
       }
 
@@ -209,7 +258,7 @@ async function fetchWithRetry(url: string, session: FetchSession, referer?: stri
   for (const delay of delays) {
     if (delay > 0) await wait(delay);
     const res = await throttledFetch(url, session, referer);
-    if (!RETRYABLE_STATUSES.has(res.status)) return res;
+    if (!isRetryableStatus(res.status, res.headers)) return res;
     lastRes = res;
   }
   return lastRes!;

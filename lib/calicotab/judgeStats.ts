@@ -70,13 +70,18 @@ export function classifyRoundLabel(stage: string | null | undefined): RoundKind 
   // "Round " prefix strip is anchored to a numeric body so labels like
   // "Round of 16" (an outround) aren't mis-stripped to "of 16".
   if (/^\d+$/.test(trimmed)) return 'inround';
-  if (/^round\s+\d+$/i.test(trimmed)) return 'inround';
-  if (/^r\d+$/i.test(trimmed)) return 'inround';
+  // Split and translated prelims too — "Round 1A", "Round 1-B", "Rodada 0",
+  // "Ronda 3" — or a chair at a split-round tournament chaired no prelims.
+  if (/^(?:round|ronda|rodada|runde)\s*\d+(?:\s*-?\s*[a-z])?$/i.test(trimmed)) return 'inround';
+  if (/^r\d+[a-z]?$/i.test(trimmed)) return 'inround';
 
-  // Outrounds: standard abbreviations or full-word forms.
+  // Outrounds: standard abbreviations or full-word forms, then anything the
+  // stage lexicon reads ("Partial Double Quarters", "Pre-Octofinals"), so
+  // the two classifiers never disagree about what an outround is.
   if (OUTROUND_ABBREVS.test(trimmed)) return 'outround';
   if (OUTROUND_WORDS.test(trimmed)) return 'outround';
   if (OUTROUND_BARE.test(trimmed)) return 'outround';
+  if (matchStage(trimmed)) return 'outround';
   return 'unknown';
 }
 
@@ -116,14 +121,9 @@ export function getInroundsChairedCount(
   return count;
 }
 
-export type OutroundStage =
-  | 'grand_final'
-  | 'final'
-  | 'semifinal'
-  | 'quarterfinal'
-  | 'octofinal'
-  | 'double_octofinal'
-  | 'triple_octofinal';
+export type { OutroundStage } from '@/lib/calicotab/stageLexicon';
+import type { OutroundStage } from '@/lib/calicotab/stageLexicon';
+import { matchStage } from '@/lib/calicotab/stageLexicon';
 
 /**
  * Map a raw outround label ("Grand Final", "ESL Quarterfinals",
@@ -146,26 +146,32 @@ export type OutroundStage =
 export function classifyOutroundStage(
   label: string | null | undefined,
 ): OutroundStage | null {
-  if (!label) return null;
-  const s = label.toLowerCase();
-  if (/grand\s*final|\bgf\b/.test(s)) return 'grand_final';
-  if (/semi[-\s]?final|\bsf\b|\bsemis?\b/.test(s)) return 'semifinal';
-  if (/quarter[-\s]?final|\bqf\b|\bquarters?\b/.test(s)) return 'quarterfinal';
-  if (/triple\s*octo|\btriples?\b/.test(s)) return 'triple_octofinal';
-  if (/partial|double\s*octo|\bdoubles?\b|round\s*of\s*32/.test(s)) return 'double_octofinal';
-  if (/octo[-\s]?final|\boctos?\b|round\s*of\s*16/.test(s)) return 'octofinal';
-  if (/\bfinals?\b/.test(s)) return 'final';
-  return null;
+  // Delegates to the lexicon so every caller sees the same vocabulary —
+  // stock English, the Spanish/Portuguese variants, and any category prefix
+  // a tournament invents. Ordering lives there: the bare "final" rule is
+  // reached only after every more specific phrase has failed, which is what
+  // stops "Cuartos de Final" (quarterfinals) reading as the final.
+  return matchStage(label)?.stage ?? null;
 }
+
 
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   grand_final: 100,
   final: 95,
+  // Each rung, and just below it the same rung run partially — with byes
+  // (see "One nomenclature" in stageLexicon.ts). Partial sits under its full
+  // rung and over the rung beneath, and no two stages share a rank, so
+  // "deepest outround" never depends on the order rounds were listed in.
   semifinal: 90,
+  partial_semifinal: 85,
   quarterfinal: 80,
+  partial_quarterfinal: 75,
   octofinal: 70,
+  partial_octofinal: 65,
   double_octofinal: 60,
+  partial_double_octofinal: 55,
   triple_octofinal: 50,
+  partial_triple_octofinal: 45,
 };
 
 /**

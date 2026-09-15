@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
+import { estimateIngestMs, FETCH_MIN_INTERVAL_MS } from '@/lib/calicotab/fetch';
 import { IngestJobStatus } from '@prisma/client';
 import {
   claimOnePending,
@@ -22,17 +23,13 @@ export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;
 const TIME_BUDGET_MS = 50_000;
-// Conservative estimate of one ingest's wall-clock cost at the current
-// per-host throttle (lib/calicotab/fetch.ts MIN_INTERVAL_MS = 1500ms):
-//   ~16 same-host fetches × 1.5s throttle  = 24s
-//   + fetch latency (median ~0.3s × 16)    = ~5s
-//   + parse + bulk DB writes               = ~5-10s
-//   ≈ 35-40s
-// We use 40s so the budget pre-check below never claims a job we can't
-// finish before Vercel's 60s function limit kills the lambda mid-write
-// (which previously left jobs stuck in "running" until the cron's
-// resetStuckRunning call cleaned them up).
-const ESTIMATED_JOB_MS = 40_000;
+// Conservative estimate of one ingest's wall-clock cost, derived from the
+// live per-host throttle rather than restated here. The previous hard-coded
+// 40_000 was computed by hand when the floor was 1500ms; when the floor
+// dropped the constant stayed, so this route reserved 40s for a job that now
+// takes ~21s and refused to start jobs it had time to finish. Deriving it
+// keeps the two from drifting apart again.
+const ESTIMATED_JOB_MS = estimateIngestMs(FETCH_MIN_INTERVAL_MS);
 
 export async function POST() {
   try {
@@ -90,8 +87,14 @@ export async function POST() {
       }
     }
 
+    // Count 'running' as remaining, not just 'pending'. A job whose
+    // lambda was killed mid-ingest (Vercel 504) stays 'running' until
+    // resetStuckRunning reclaims it ~5 min later, so a pending-only
+    // count answered remaining: 0 while that tournament was still
+    // unprocessed — which let the client report a finished batch and
+    // left the URL silently missing until the nightly cron.
     const remaining = await prisma.ingestJob.count({
-      where: { userId, status: IngestJobStatus.pending },
+      where: { userId, status: { in: [IngestJobStatus.pending, IngestJobStatus.running] } },
     });
 
     return NextResponse.json({ processed: results.length, remaining, results });
