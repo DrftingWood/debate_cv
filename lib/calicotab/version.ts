@@ -28,4 +28,24 @@
 //     never read at all
 // A tournament scraped inside the 30-day freshness window would otherwise
 // keep all of that until it aged out.
-export const PARSER_VERSION = '20260914.0';
+//
+// 20260915.0: two more, found by querying the same corpus loaded into
+// Postgres. Neither 20260914.0 nor production has these right, so the bump
+// costs production nothing beyond the re-parse it is already due; it exists
+// so anything parsed at 20260914.0 (a preview deploy) is not kept.
+//   - a tied place ("5=") was read as no rank: 69% of speakers and 5% of
+//     teams in the corpus were stored unranked
+//   - every trainee on a results page was read as a chair (5310 marks)
+//   - "GF", "Octavos" and "Cuartos" results pages read as prelims, so their
+//     winners were never recorded
+//   - "Double Quarterfinals" / "Double Semifinals" were read one full stage
+//     too deep; a break slug like "hs" was stored as "Hs"
+//   - "Partial X" was read as X; it is the play-in before X
+//   - a hybrid event's "[o]"/"[i]" attendance tag was kept in names, and
+//     stand-ins like "Speaker 1" were made into people
+//   - a score written "78<small>.50</small>" was unreadable: every speech on
+//     twelve corpus tabs was stored empty, and no-Total tabs had no total
+//   - two-team results ("Won against X" in a popover) were never read
+//   - split / zero-based rounds put scores and motions on the wrong round
+//   - a "—" team was stored as a team; category casing varied
+export const PARSER_VERSION = '20260915.0';
