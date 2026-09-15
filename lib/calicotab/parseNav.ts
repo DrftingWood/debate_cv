@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import { extractVueData, type VueCell, type VueTable } from './parseTabs';
 import { extractFromCheerio } from './cheerioToVue';
 import { personNameMatches } from './personMatch';
+import { stripAttendanceTag } from './names';
 
 export type NavigationStructure = {
   home: string | null;
@@ -296,6 +297,12 @@ function extractRegistration(html: string): RegistrationSnapshot {
       if (m) snapshot.institution = cleanWhitespace(m[1]!);
     }
   });
+
+  // The tab pages drop a hybrid event's "[o]"/"[i]" tag from names; the
+  // registration block must too, or the owner never matches their own rows.
+  if (snapshot.personName) snapshot.personName = stripAttendanceTag(snapshot.personName);
+  if (snapshot.teamName) snapshot.teamName = stripAttendanceTag(snapshot.teamName);
+  snapshot.speakers = snapshot.speakers.map(stripAttendanceTag);
 
   return snapshot;
 }
