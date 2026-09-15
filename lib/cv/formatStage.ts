@@ -24,22 +24,19 @@ import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
 const STAGE_DISPLAY: Record<OutroundStage, string> = {
   grand_final: 'Final',
   final: 'Final',
-  // Shown as the round it is. Collapsing a play-in into the round it feeds
-  // would credit a team with reaching it.
-  pre_final: 'Pre-Final',
-  pre_semifinal: 'Pre-Semifinals',
-  pre_quarterfinal: 'Pre-Quarterfinals',
-  pre_octofinal: 'Pre-Octofinals',
-  // Named as the round is named — never "Pre-".
-  partial_double_semifinal: 'Partial Double Semifinals',
-  partial_double_quarterfinal: 'Partial Double Quarterfinals',
-  partial_double_octofinal: 'Partial Double Octofinals',
-  partial_triple_octofinal: 'Partial Triple Octofinals',
   semifinal: 'Semifinals',
   quarterfinal: 'Quarterfinals',
   octofinal: 'Octofinals',
   double_octofinal: 'Double Octofinals',
   triple_octofinal: 'Triple Octofinals',
+  // One name per partial round, whatever the organiser called it: a
+  // "Pre-Quarterfinals" and a "Partial Double Quarters" are both shown as the
+  // Partial Octofinals they are (see stageLexicon.ts).
+  partial_semifinal: 'Partial Semifinals',
+  partial_quarterfinal: 'Partial Quarterfinals',
+  partial_octofinal: 'Partial Octofinals',
+  partial_double_octofinal: 'Partial Double Octofinals',
+  partial_triple_octofinal: 'Partial Triple Octofinals',
 };
 
 /**

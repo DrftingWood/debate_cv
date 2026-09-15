@@ -70,13 +70,18 @@ export function classifyRoundLabel(stage: string | null | undefined): RoundKind 
   // "Round " prefix strip is anchored to a numeric body so labels like
   // "Round of 16" (an outround) aren't mis-stripped to "of 16".
   if (/^\d+$/.test(trimmed)) return 'inround';
-  if (/^round\s+\d+$/i.test(trimmed)) return 'inround';
-  if (/^r\d+$/i.test(trimmed)) return 'inround';
+  // Split and translated prelims too — "Round 1A", "Round 1-B", "Rodada 0",
+  // "Ronda 3" — or a chair at a split-round tournament chaired no prelims.
+  if (/^(?:round|ronda|rodada|runde)\s*\d+(?:\s*-?\s*[a-z])?$/i.test(trimmed)) return 'inround';
+  if (/^r\d+[a-z]?$/i.test(trimmed)) return 'inround';
 
-  // Outrounds: standard abbreviations or full-word forms.
+  // Outrounds: standard abbreviations or full-word forms, then anything the
+  // stage lexicon reads ("Partial Double Quarters", "Pre-Octofinals"), so
+  // the two classifiers never disagree about what an outround is.
   if (OUTROUND_ABBREVS.test(trimmed)) return 'outround';
   if (OUTROUND_WORDS.test(trimmed)) return 'outround';
   if (OUTROUND_BARE.test(trimmed)) return 'outround';
+  if (matchStage(trimmed)) return 'outround';
   return 'unknown';
 }
 
@@ -153,26 +158,20 @@ export function classifyOutroundStage(
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   grand_final: 100,
   final: 95,
-  // A play-in sits between the round it feeds and the round below it. Going
-  // out in a 6-break pre-final means placing 3rd-6th — further than a
-  // semifinalist of an 8-break, not as far as a finalist. The gaps in this
-  // scale were already wide enough to hold them.
-  pre_final: 92,
+  // Each rung, and just below it the same rung run partially — with byes
+  // (see "One nomenclature" in stageLexicon.ts). Partial sits under its full
+  // rung and over the rung beneath, and no two stages share a rank, so
+  // "deepest outround" never depends on the order rounds were listed in.
   semifinal: 90,
-  pre_semifinal: 85,
+  partial_semifinal: 85,
   quarterfinal: 80,
-  pre_quarterfinal: 75,
+  partial_quarterfinal: 75,
   octofinal: 70,
-  pre_octofinal: 65,
-  // Partial doubles rank as the play-in each one is: before the double
-  // round's own stage (a double quarterfinal is the octofinal, so a partial
-  // one ranks with the pre-octofinal).
-  partial_double_semifinal: 75,
-  partial_double_quarterfinal: 65,
-  partial_double_octofinal: 55,
+  partial_octofinal: 65,
   double_octofinal: 60,
-  partial_triple_octofinal: 45,
+  partial_double_octofinal: 55,
   triple_octofinal: 50,
+  partial_triple_octofinal: 45,
 };
 
 /**

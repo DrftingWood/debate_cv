@@ -36,47 +36,57 @@
  * calls its bracket. That generalises to categories nobody has seen yet.
  */
 
+/**
+ * ── One nomenclature ────────────────────────────────────────────────────
+ *
+ * The outround ladder, each rung named by the rooms a full round of it has:
+ *
+ *   rooms  rung                 BP teams   two-team teams
+ *     1    Final / Grand Final      4            2
+ *     2    Semifinals               8            4
+ *     4    Quarterfinals           16            8
+ *     8    Octofinals              32           16
+ *    16    Double Octofinals       64           32
+ *    32    Triple Octofinals      128           64
+ *
+ * A break that is not a power of two runs one rung PARTIALLY: the top seeds
+ * take a bye through it and the rest debate for the places left. That round
+ * is "Partial <rung>". BP, break 6: the Final holds 4, so teams 3-6 debate
+ * one room while 1-2 wait — a Partial Semifinal, six teams at a rung that
+ * would hold eight.
+ *
+ * Organisers also name that round from the other side, after the round it
+ * feeds: "Pre-Final". Pre and Partial point in opposite directions and name
+ * the same round —
+ *
+ *   Pre-Final          = Partial Semifinals
+ *   Pre-Semifinals     = Partial Quarterfinals
+ *   Pre-Quarterfinals  = Partial Octofinals
+ *   Pre-Octofinals     = Partial Double Octofinals
+ *
+ * — so every such label resolves to its Partial rung and the CV shows that
+ * one name. "Double" names a rung too: a double quarterfinal has twice the
+ * rooms of the quarters, which is the octofinal, so "Partial Double Quarters"
+ * is a Partial Octofinal. A partial round ranks just below its full rung and
+ * above the rung beneath (JUDGE_STATS_RANK in judgeStats.ts).
+ *
+ * The corpus agrees: Partial Double Octofinals is followed by Octofinals at
+ * all 13 tournaments that run one, Partial Double Quarters by Quarterfinals
+ * at all 7, Partial Octofinals by Quarterfinals at 10 of 12.
+ */
 export type OutroundStage =
   | 'grand_final'
   | 'final'
-  // Play-in rounds, for a break that is not a power of two. The top teams
-  // sit out protected while the rest play in for the remaining places, so
-  // a pre-round always runs at 1.5x the field of the round it feeds.
-  //
-  // BP — four to a room, two advance:
-  //   break 6   pre-final      6,5,4,3 debate;  1,2   protected to the Final
-  //   break 12  pre-semis      5-12 debate;     1-4   protected to Semis
-  //   break 24  pre-quarters   9-24 debate;     1-8   protected to Quarters
-  //   break 48  pre-octos      17-48 debate;    1-16  protected to Octos
-  //
-  // AP / Australs — two to a room, one advances, so the same rounds occur
-  // at half those break sizes:
-  //   break 6   pre-semis      3-6 debate;      1,2   protected to Semis
-  //   break 12  pre-quarters   5-12 debate;     1-4   protected to Quarters
-  //   break 24  pre-octos      9-24 debate;     1-8   protected to Octos
-  // AP has no pre-final in practice: it would need a three-team break, and
-  // a single room before the final is just called the semifinal.
-  //
-  // Each is a round in its own right: it is not the round it feeds (a team
-  // in the pre-final has not reached the final) and not the round below
-  // either — a 6-break BP pre-final has no semifinal to be. The ranks in
-  // judgeStats place each between the two, which holds for both formats.
-  | 'pre_final'
   | 'semifinal'
-  | 'pre_semifinal'
+  | 'partial_semifinal'
   | 'quarterfinal'
-  | 'pre_quarterfinal'
+  | 'partial_quarterfinal'
   | 'octofinal'
-  | 'pre_octofinal'
-  // The partial-double family keeps its own name. "Partial Double
-  // Quarterfinals" ranks where a pre-octofinal does, but it is not called
-  // one anywhere in debating, and the CV shows the round as it is known.
-  | 'partial_double_semifinal'
-  | 'partial_double_quarterfinal'
-  | 'partial_double_octofinal'
+  | 'partial_octofinal'
   | 'double_octofinal'
-  | 'partial_triple_octofinal'
-  | 'triple_octofinal';
+  | 'partial_double_octofinal'
+  | 'triple_octofinal'
+  | 'partial_triple_octofinal';
 
 type Rule = { stage: OutroundStage; re: RegExp };
 
@@ -89,53 +99,65 @@ type Rule = { stage: OutroundStage; re: RegExp };
  * so the leftover text is the category and not a fragment of the stage name.
  */
 const CONNECTED_FINAL = String.raw`(?:\s*(?:de|of|do|da|dos|das)?\s*finals?(?:es|is)?)?`;
+const FINALS = String.raw`fin(?:als?|ais|ales)`;
 
 const RULES: Rule[] = [
-  // ── play-in rounds ────────────────────────────────────────────────────
+  // ── pre-rounds: the Partial round of the rung below the one named ──────
   // First, because "Pre-Semifinals" contains "Semifinals" and would
   // otherwise be read as the round it merely feeds.
-  { stage: 'pre_octofinal', re: /\bpr[eé][-\s]*octo[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*octos?\b/i },
   {
-    stage: 'pre_quarterfinal',
-    re: /\bpr[eé][-\s]*qua(?:r)?ter[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*quarters?\b/i,
+    stage: 'partial_triple_octofinal',
+    re: new RegExp(String.raw`\bpr[eé][-\s]*double[-\s]*octo(?:s|[-\s]*${FINALS})?\b`, 'i'),
   },
   {
-    stage: 'pre_semifinal',
-    re: /\bpr[eé][-\s]*semi[-\s]*fin(?:als?|ais|ales)\b|\bpr[eé][-\s]*semis?\b/i,
+    stage: 'partial_double_octofinal',
+    re: new RegExp(String.raw`\bpr[eé][-\s]*octo(?:s|[-\s]*${FINALS})?\b`, 'i'),
   },
-  { stage: 'pre_final', re: /\bpr[eé][-\s]*grand[-\s]*fin(?:als?|ais|ales)\b/i },
-  { stage: 'pre_final', re: /\bpr[eé][-\s]*fin(?:als?|ais|ales)\b/i },
+  {
+    stage: 'partial_octofinal',
+    re: new RegExp(String.raw`\bpr[eé][-\s]*qua(?:r)?ter(?:s|[-\s]*${FINALS})?\b`, 'i'),
+  },
+  {
+    stage: 'partial_quarterfinal',
+    re: new RegExp(String.raw`\bpr[eé][-\s]*semi(?:s|[-\s]*${FINALS})?\b`, 'i'),
+  },
+  {
+    stage: 'partial_semifinal',
+    re: new RegExp(String.raw`\bpr[eé][-\s]*(?:grand[-\s]*)?${FINALS}\b`, 'i'),
+  },
   // ── triple octofinals ──
-  { stage: 'triple_octofinal', re: /\btriple[-\s]*octo(?:finals?)?\b|\btriples\b|\btriples[-\s]*octavos\b/i },
-  // ── double octofinals (incl. partials and round-of-32) ──
   {
-    stage: 'double_octofinal',
+    stage: 'triple_octofinal',
     re: new RegExp(
-      String.raw`\b(?:partial\s+)?double[-\s]*octo(?:finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdoble[-\s]*octavos${CONNECTED_FINAL}|\bdobles[-\s]*oitavas${CONNECTED_FINAL}|\bdouble[-\s]*octas\b|三十二强赛?|三十二強賽?`,
+      String.raw`\btriples?[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\btriples\b|\btriples[-\s]*octavos${CONNECTED_FINAL}`,
       'i',
     ),
   },
-  // ── octofinals ──
-  // "Double Quarterfinals" is the round with twice the rooms of the
-  // quarters, which is the octofinal. It has to be named here: "double" is
-  // a stage modifier below, so without this rule the quarterfinal rule took
-  // the label and credited the round one full stage deeper than it is.
-  // Eight corpus tournaments name a round this way ("Partial Double
-  // Quarters", followed in every one of them by "Quarterfinals").
+  // ── double octofinals (and round-of-32) ──
+  // "Octos" / "Octas" are common short forms; without them "Partial Double
+  // Octos" fell through to the plain octofinal rule and outranked the
+  // double-octofinal it feeds.
+  {
+    stage: 'double_octofinal',
+    re: new RegExp(
+      String.raw`\bdouble[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdobles?[-\s]*octavos${CONNECTED_FINAL}|\bdobles?[-\s]*oitavas${CONNECTED_FINAL}|三十二强赛?|三十二強賽?`,
+      'i',
+    ),
+  },
+  // ── octofinals ── "Double Quarterfinals" / "Double QF" is this rung.
   {
     stage: 'octofinal',
     re: new RegExp(
-      String.raw`\bdouble[-\s]*qua(?:r)?ter(?:[-\s]*finals?|s)\b|\bocto[-\s]*finals?\b|\boctos\b|\boctas\b|\bround\s*of\s*16\b|\boctavos${CONNECTED_FINAL}|\boitavas${CONNECTED_FINAL}|十六强赛?|十六強賽?`,
+      String.raw`\bdouble[-\s]*(?:qua(?:r)?ter(?:s|[-\s]*finals?)?|qf)\b|\bocto[-\s]*finals?\b|\boctos\b|\boctas\b|\bround\s*of\s*16\b|\boctavos${CONNECTED_FINAL}|\boitavas${CONNECTED_FINAL}|十六强赛?|十六強賽?`,
       'i',
     ),
   },
   // ── quarterfinals ("quater" is a misspelling seen in the wild) ──
-  // "Double Semifinals" is the quarterfinal, for the same reason a double
-  // quarterfinal is the octofinal above.
+  // "Double Semifinals" / "Double Semi's" / "Double SF" is this rung.
   {
     stage: 'quarterfinal',
     re: new RegExp(
-      String.raw`\bdouble[-\s]*semi(?:[-\s]*finals?|s)?\b|\bqua(?:r)?ter[-\s]*finals?\b|\bqf\b|\bquarters\b|\bcuartos${CONNECTED_FINAL}|\bquartas${CONNECTED_FINAL}|八强赛?|八強賽?|四分之一决赛|四分之一決賽|準々決勝|准准决胜`,
+      String.raw`\bdouble[-\s]*(?:semi(?:'?s|[-\s]*finals?)?|sf)\b|\bqua(?:r)?ter[-\s]*finals?\b|\bqf\b|\bquarters\b|\bcuartos${CONNECTED_FINAL}|\bquartas${CONNECTED_FINAL}|八强赛?|八強賽?|四分之一决赛|四分之一決賽|準々決勝|准准决胜`,
       'i',
     ),
   },
@@ -160,103 +182,97 @@ export type StageMatch = {
 };
 
 /**
- * Does this label name a play-in round? The accented, spaced and grand
- * spellings are easy to miss ("Pré-Semifinal", "Pre - Finals", "Pre-Grand
- * Finals"), so the pattern lives here once.
+ * "Partial", in the languages the corpus uses — including the plural a
+ * plural noun takes ("Octavos Parciales", "Oitavas Parciais").
  */
-const PRE_ROUND =
-  /\bpr[eé][-\s]*(?:grand[-\s]*)?(?:octo|qua(?:r)?ter|semi|final)/i;
+const PARTIAL = /\bpar[ct]ia(?:l|les|is)\b/i;
 
 /**
- * Is this label a play-in round? Exported so callers that reason about
- * "should this have classified?" use the same definition rather than
- * re-deriving one — the accented, spaced and grand spellings are easy to
- * miss ("Pré-Semifinal", "Pre - Finals", "Pre-Grand Finals").
+ * The Partial rung for a label that says "partial". A "Partial Final" is not
+ * a round that can exist — the final is already one room — so it is read as
+ * the partial round of the finals series, the Partial Semifinal.
  */
-export function isPreRound(label: string | null | undefined): boolean {
-  if (!label) return false;
-  const text = label.trim();
-  return PRE_ROUND.test(text) || (PARTIAL.test(text) && matchStage(text) != null);
-}
-
-/**
- * "Partial X" is the play-in that runs BEFORE X — the lower seeds debate
- * for the places left in X while the top seeds wait there — so it is the
- * pre-round of the stage it names: a partial quarterfinal is the
- * pre-quarterfinal. Reading it as X credited everyone who went out in it
- * with a round they never reached, and put two different rounds of one
- * tournament ("Partial Quarterfinals", then "Quarterfinals") on one rung.
- *
- * A partial DOUBLE (or triple) round keeps "partial" in its stage name
- * rather than becoming "pre-": that is what the round is called, and
- * "Partial Double Quarterfinals" shown as "Pre-Octofinals" would read as a
- * different round. It still ranks as the play-in it is.
- */
-const PARTIAL = /\bpar[ct]ial\b/i;
-const DOUBLE = /\bdoubles?\b|\bdobles?\b/i;
-
-const PLAY_IN_BEFORE: Record<OutroundStage, OutroundStage> = {
-  grand_final: 'pre_final',
-  final: 'pre_final',
-  pre_final: 'pre_final',
-  semifinal: 'pre_semifinal',
-  pre_semifinal: 'pre_semifinal',
-  partial_double_semifinal: 'partial_double_semifinal',
-  quarterfinal: 'pre_quarterfinal',
-  pre_quarterfinal: 'pre_quarterfinal',
-  partial_double_quarterfinal: 'partial_double_quarterfinal',
-  octofinal: 'pre_octofinal',
-  pre_octofinal: 'pre_octofinal',
-  partial_double_octofinal: 'partial_double_octofinal',
+const PARTIAL_OF: Record<OutroundStage, OutroundStage> = {
+  grand_final: 'partial_semifinal',
+  final: 'partial_semifinal',
+  semifinal: 'partial_semifinal',
+  partial_semifinal: 'partial_semifinal',
+  quarterfinal: 'partial_quarterfinal',
+  partial_quarterfinal: 'partial_quarterfinal',
+  octofinal: 'partial_octofinal',
+  partial_octofinal: 'partial_octofinal',
   double_octofinal: 'partial_double_octofinal',
-  partial_triple_octofinal: 'partial_triple_octofinal',
+  partial_double_octofinal: 'partial_double_octofinal',
   triple_octofinal: 'partial_triple_octofinal',
+  partial_triple_octofinal: 'partial_triple_octofinal',
 };
 
-function partialStage(stage: OutroundStage, matched: string): OutroundStage {
-  // The double-quarter and double-semi phrasings land on octofinal and
-  // quarterfinal (a double quarterfinal IS the octofinal); a partial one of
-  // those is named for the double round, not for the stage it resolves to.
-  if (stage === 'octofinal' && DOUBLE.test(matched)) return 'partial_double_quarterfinal';
-  if (stage === 'quarterfinal' && DOUBLE.test(matched)) return 'partial_double_semifinal';
-  return PLAY_IN_BEFORE[stage];
-}
+/**
+ * A label with a round number in it is a prelim, whatever else it says:
+ * "Round 5 (Final Prelim)", "Round 6 (Semi-Final Qualifier)". No corpus
+ * outround label carries one; "Round of 16" does not match.
+ */
+const NUMBERED_ROUND = /\b(?:round|ronda|rodada|runde|ronde)\s*\d/i;
 
 /** Identify the outround a label names, and which words named it. */
 export function matchStage(label: string | null | undefined): StageMatch | null {
   if (!label) return null;
   const text = label.trim();
-  if (!text) return null;
+  if (!text || NUMBERED_ROUND.test(text)) return null;
   for (const { stage, re } of RULES) {
     const m = text.match(re);
-    if (m) return { stage: PARTIAL.test(text) ? partialStage(stage, m[0]) : stage, matched: m[0] };
+    if (m) return { stage: PARTIAL.test(text) ? PARTIAL_OF[stage] : stage, matched: m[0] };
   }
   return null;
 }
 
 /**
- * Words that qualify a stage rather than name a bracket. "Partial
- * Octofinals" is the pre-octofinal (see PARTIAL above), so "Partial" must
- * not end up reported as a break category the way "Gold" or "ESL" would be.
+ * Is this label a partial round — one run with byes, whether the organiser
+ * called it "Partial X" or "Pre-Y"? Exported so callers reasoning about
+ * "should this have classified?" share the lexicon's definition.
  */
-const STAGE_MODIFIERS = /^(?:partial|parcial|double|triple|doble)$/i;
+export function isPreRound(label: string | null | undefined): boolean {
+  const stage = matchStage(label)?.stage;
+  return !!stage && stage.startsWith('partial_');
+}
+
+/**
+ * Words that qualify a stage rather than name a bracket, so "Partial" or
+ * "Double" is never reported as a break category the way "Gold" or "ESL"
+ * would be.
+ */
+const STAGE_MODIFIERS = /^(?:partial|parcial|parciales|parciais|double|doubles|doble|dobles|triple|triples)$/i;
 
 /** Words that join a category to a stage and belong to neither. */
 const CONNECTORS = /^(?:de|del|of|the|do|da|dos|das|por|para|da|e|y|and|-|–|—|:|,)$/i;
+
+/**
+ * Category tokens that are acronyms. Everything else short is a word — "pro"
+ * is "Pro", not "PRO" — which a length rule could not tell apart.
+ */
+const CATEGORY_ACRONYMS = new Set(['esl', 'efl', 'ell', 'eal', 'hs', 'ms', 'jhs', 'shs', 'ele']);
 
 /** Normalise a category token's casing without destroying acronyms. */
 export function normaliseCategory(raw: string): string {
   const t = raw.trim();
   if (!t) return t;
-  if (/^[a-z]+$/.test(t)) {
-    // All lowercase: short tokens are acronyms (esl, efl, ele, hs, pa),
-    // longer ones are words.
-    return t.length <= 3 ? t.toUpperCase() : t[0]!.toUpperCase() + t.slice(1);
+  if (/^[a-z0-9]+$/.test(t)) {
+    if (CATEGORY_ACRONYMS.has(t) || /^[a-z]\d+$/.test(t)) return t.toUpperCase();
+    return t[0]!.toUpperCase() + t.slice(1);
   }
   return t;
 }
 
 export type SplitStage = { category: string | null; stage: OutroundStage | null };
+
+/**
+ * A leftover word that is only stage vocabulary — a stage name, a modifier,
+ * or a hyphenated run of them ("Partial-Double") — is not a category.
+ */
+function isStageVocabulary(word: string): boolean {
+  const parts = word.split(/[-–]/).filter(Boolean);
+  return parts.length > 0 && parts.every((p) => matchStage(p) != null || STAGE_MODIFIERS.test(p));
+}
 
 /**
  * Read a round label into the stage it names and the break category it
@@ -280,17 +296,18 @@ export function splitStageLabel(label: string | null | undefined): SplitStage {
     .split(/\s+/)
     // 的 / 之 join a category to a stage in Chinese ("Novice的决赛") and are
     // not separated by spaces, so they are stripped here rather than being
-    // caught by the space-delimited connector list below.
-    .map((w) => w.replace(/^[-–—:,的之]+|[-–—:,的之]+$/g, '').trim())
+    // caught by the space-delimited connector list below. Brackets and
+    // quotes go too: "Octofinals (Partial)" must not leave "(Partial)".
+    .map((w) => w.replace(/^[-–—:,()[\]'"的之]+|[-–—:,()[\]'"的之]+$/g, '').trim())
     .filter((w) => w && !CONNECTORS.test(w));
 
-  // A leftover word that is itself a stage name is redundant, not a
+  // A leftover word that is itself stage vocabulary is redundant, not a
   // category: "Silver Final Finals" is the Silver final, and a break slug
   // literally called "quarterfinals" must not render as
   // "Quarterfinals Quarterfinals". Dropping them is also what makes this
   // function idempotent, which the CV relies on when it re-formats a label
   // it has already stored.
-  const categoryWords = words.filter((w) => !matchStage(w) && !STAGE_MODIFIERS.test(w));
+  const categoryWords = words.filter((w) => !isStageVocabulary(w));
   if (categoryWords.length === 0) return { category: null, stage: m.stage };
   // Keep multi-word categories intact ("English as a Second Language"), but
   // normalise the casing of a single token.

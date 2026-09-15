@@ -72,7 +72,7 @@ describe('"Octas"', () => {
   // for octofinals alongside the Spanish "octavos".
   test('is the octofinal round', () => {
     expect(stageOf('Octas')).toBe('octofinal');
-    expect(stageOf('Partial Octas')).toBe('pre_octofinal');
+    expect(stageOf('Partial Octas')).toBe('partial_octofinal');
   });
 
   test('and doubles still win over it', () => {
