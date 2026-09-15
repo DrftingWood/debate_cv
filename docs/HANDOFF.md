@@ -2,6 +2,116 @@
 
 ---
 
+## 2026-09-15 — Corpus-driven parser overhaul, one round nomenclature, red team
+
+**Merged:** PR #114 → `main` as `dcf1165`; production deploy green (migrations applied at build).
+**Tests:** 902 passing / 33 skipped (was 658); `tsc` + `eslint` clean.
+**`PARSER_VERSION`:** `20260915.0` — every cached tournament re-parses on its next touch.
+
+### How the work was done
+
+625 real Tabbycat tournaments (offline HTML corpus) were parsed with the repo's
+own parsers, loaded into a local Postgres (`corpus` database in the
+`debate-cv-pg` Docker container), and interrogated with SQL. Every defect below
+was found that way or proven by an executed repro. A five-agent red team then
+attacked the result (stage labels, stand-in names, round numbering, an
+old-vs-new differential parse of every corpus cell, migration/deploy safety);
+everything it confirmed is fixed.
+
+The tooling now lives in the repo — before, it was only in a session scratch
+directory:
+
+- `tests/__corpusdb.live.test.ts` — corpus → CSVs (`RUN_CORPUS_DB=1 CORPUS_DIR=… CSV_OUT=…`)
+- `tests/corpusdb/schema.sql`, `load.sql`, `checks.sql` — each check states its
+  expected answer; every "expect 0" check returns 0. The header lists five
+  first-generation checks that were wrong in ways that read like a clean parse.
+- `tests/__motionsweep.live.test.ts` — re-fetches `/motions/` pages (network).
+
+The corpus itself is NOT in the repo (gzipped pages + `index.json`, ~1,500
+files). It sat in a session scratchpad; if it is gone, it has to be re-crawled.
+
+### What changed
+
+| Area | Before → after | Key files |
+|---|---|---|
+| Tied places ("5=") | 9,896 of 14,371 speakers and 316 teams stored unranked → ranked | `parseTabs.ts` `parseRank` |
+| Scores `78<small>.50</small>` | 12 speaker tabs (all Australs) had no scores → 13,570 speeches recovered. Only the `<small>` decimal wrapper is unwrapped; any other markup still leaves a cell unread | `parseTabs.ts` `parseNumber` |
+| Two-team results | outcome lives only in the popover title ("Won against X"); 1,083/1,084 prelim rows had none → all read; a " vs X" cell is decided by the title alone | `outcomeFromPopoverTitle` |
+| Trainees | Ⓣ read as chair (5,310 marks) → role `trainee` | `parseAdjudicatorCell`, ingest round-results writer |
+| Outround detection | English word list → stage lexicon ("Novice GF", "Octavos", "Cuartos") | `parseRoundResults` |
+| Round numbering | speaker scores/motions keyed by the label's digit, team results by URL → both by URL sequence: match by round key ("R1A" = "Round 1A"), then by column position, digit only where nav labels prove it safe; repeated labels via motion heading order. Was dropping 404 scores (R1A/R1B collision) and shifting rounds at 15 tournaments | `lib/calicotab/roundNumbers.ts`, ingest, `MotionRow.roundIndex` |
+| Motions | fetched from `/motions/statistics/` → `/motions/`; 13 → 870 corpus motions; pasted markup stripped, literal "<" kept | `parseNav.ts`, `parseMotions.ts` |
+| Stand-in names | "Speaker 2" (53 tabs), "Swing B", "&lt;em&gt;Redacted&lt;/em&gt;" (36 tabs) each one shared claimable Person → no Person; claimed ones kept; registration/onboarding can't claim one; redacted-owner fallback ignores stand-ins | `lib/calicotab/names.ts`, ingest, `redactedSpeaker.ts`, onboarding confirm |
+| Stand-in cleanup | migration `20260915000000` deletes unclaimed, unsuppressed, ASCII-named stand-in Persons (cascades to participations) after indexing `JudgeAssignment.personId` + `DiscoveredUrl.registrationPersonId`; daily `prunePlaceholderPersons` in the 03:00 cron repeats it | migration, `provenance.ts`, cron route |
+| Attendance tags | anu's "[o] "/"[i] " stripped from every name cell and the registration block | `names.ts` `stripAttendanceTag` |
+| Dash team "—" | a team (158 speakers became mutual teammates) → no team | `parseTabs.ts` `nameText` |
+| New fields read | speaker break categories, team rosters, BP firsts/seconds, adj-core/independent flags, CJK round names | migrations `20260914152207`, `20260914172007` |
+| Derived speaker totals | tried and **reverted**: tabs without a Total column rank by average, so sum-of-speeches misplaced speakers (13th-ranked → 365th of 413) | `parseTabs.ts` |
+| Code review (start of branch) | break category kept in outround labels; stuck drain no longer reports "Done"; retries gated on status; Stop interrupts waits | `formatStage.ts`, `lib/ingest/` |
+
+### Round nomenclature (owner-directed)
+
+Rungs are named by the rooms a full round has: Final 1, Semifinals 2,
+Quarterfinals 4, Octofinals 8, Double Octofinals 16, Triple Octofinals 32.
+A round run with byes is **"Partial &lt;rung&gt;"**. Pre and Partial name the
+same round from opposite sides (BP: Final = 4 teams, Pre-Final = Partial
+Semis = 6, Semis = 8):
+
+    Pre-Final = Partial Semifinals        Pre-Quarters = Partial Octofinals
+    Pre-Semis = Partial Quarterfinals     Pre-Octos    = Partial Double Octofinals
+
+"Double X" is its own rung (Double Quarters = Octofinals), so "Partial Double
+Quarters" = Partial Octofinals. Partial ranks just below its full rung; no two
+stages share a rank (`JUDGE_STATS_RANK`). The CV shows one name per round.
+Documented at the top of `lib/calicotab/stageLexicon.ts`.
+
+## Operator checklist (2026-09-15)
+
+- [x] PR #114 merged, production deploy green.
+- [ ] Confirm the three migrations in `/api/admin/schema-probe` → `recentMigrations`
+      (`20260914152207_speaker_categories`, `20260914172007_team_firsts_seconds`,
+      `20260915000000_remove_placeholder_persons`).
+- [ ] `/admin` → **Re-ingest all**, so corrected ranks, recovered scores, two-team
+      results, trainee roles and the new stage names reach every tournament now
+      rather than on each one's next touch. Expect a heavier drain than usual.
+- [ ] Spot-check a CV at a split-round tournament (anu, cmdlp2021), a two-team
+      tournament (australs, 2ndaristotlecup) and a WUDC with Partial Double
+      Octofinals.
+- [ ] Carried forward, still unverified: GitHub repo secrets `CRON_SECRET` +
+      `APP_URL` for the 15-minute drain; `ANTHROPIC_API_KEY` for the Haiku
+      motion classifier (now worth running: motions were almost never read
+      before this release, and the corpus sweep yielded 870 from 70 tabs).
+
+## Next steps (priority order)
+
+1. **Store the round label on `SpeakerRoundScore`.** The stats page labels
+   rounds by sequence ("R6" for anu's "Round 5"). Needs a column + re-parse.
+2. **Outround `TeamResult` rows** are keyed by URL number and pollute the
+   by-position slice; they stay because the cache-staleness check counts them
+   against every nav round. Change both together.
+3. **Landing-page judge history** (`parseNav.stageInfoFromLabel`) still takes
+   the round number from the label; align it with `roundNumbers.ts`.
+4. Auto-drain after scan, admin tournament-merge tool, region auto-suggestion
+   — unchanged from the 2026-06-11 list below.
+
+## Landmines added this session
+
+- `PLACEHOLDER_NAME_PATTERN` (`names.ts`) is used verbatim by the migration and
+  by `prunePlaceholderPersons`; `tests/calicotab.names.test.ts` holds the
+  migration to it. Write it only in the regex subset JS and Postgres share
+  (JS and Postgres gave identical verdicts on all 14,648 corpus names), and
+  keep the ASCII-only guard — `normalizePersonName` drops non-Latin scripts.
+- Any change to the stage vocabulary needs `OutroundStage`, `JUDGE_STATS_RANK`,
+  `STAGE_DISPLAY` and the depth view in `tests/corpusdb/checks.sql` together.
+- Never derive `speakerScoreTotal`; field placement and the derived rank order
+  by it.
+- Round numbers for scores and motions must go through `roundNumbers.ts`, not
+  the digit in a label.
+- A check in `checks.sql` that passes is only as good as the check — read the
+  header before trusting a zero.
+
+---
+
 ## 2026-07-25 (later) — Seeded local data; migrations fixed; review items closed
 
 **Branch:** merged to `main`. **Tests:** 658 passing (was 636).
@@ -178,4 +288,4 @@ The "ingest once, extract thereafter" invariant **holds** across all three entry
 
 Paste this to start:
 
-> Resume from `docs/HANDOFF.md` — read the 2026-07-25 entry at the top first (front-end rebuild, motions, statistics engine), then the 2026-06-11 one for pipeline state. Confirm the operator checklist with me (GitHub drain secrets? re-ingest-all run? tags seeded?) before picking up new work.
+> Resume from `docs/HANDOFF.md` — read the 2026-09-15 entry at the top first (corpus-driven parser overhaul, round nomenclature, stand-in names), then 2026-07-25 (front-end, statistics engine) and 2026-06-11 (pipeline state). Confirm the 2026-09-15 operator checklist with me (migrations visible in schema-probe? re-ingest-all run? drain secrets set?) before picking up new work.
