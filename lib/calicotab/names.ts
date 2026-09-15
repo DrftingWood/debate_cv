@@ -23,27 +23,71 @@ export function stripAttendanceTag(name: string): string {
 }
 
 /**
- * A stand-in an organiser typed in place of a person, matched against the
- * NORMALISED name (lower case, punctuation stripped, "." -> space).
+ * Stand-ins, matched against the NORMALISED name (lower case, punctuation
+ * stripped, "." "-" "_" "/" read as spaces). Every shape below is from a
+ * real corpus tab or an older normalisation of one.
  *
- * "Speaker 1", "Speaker 2.2", "Speaker 1A", "Orador C2", "Swing B", "Iron 1",
- * "Debater 1", a bare "Speaker", "Placeholder (do not assign a speaker
- * score)", "Invalid", a bare number. Across 625 tournaments "Speaker 2"
- * alone appeared on 53 speaker tabs. Normalised to one Person each, every
- * one of those became a single "debater" with dozens of tournaments, and a
- * claimable one.
+ *   "Speaker 1", "Speaker 2.2", "Speaker 1A", "Speaker B", "Speaker II",
+ *   "Orador C2", "Swing B", "Swing Speaker 1", "Swinging partner 2",
+ *   "Iron 1", "Judge 1", "Speaker", "Swing 1b (Please don't give speaker
+ *   points)", "Swing mcswingface 2", "SwingB" (glued by an older
+ *   normaliser), "Placeholder (do not assign a speaker score)", "Invalid",
+ *   "TBA", "N/A", a bare number,
  *
- * Exported as a string because the migration that removed the existing rows
- * (20260915000000_remove_placeholder_persons) uses this exact pattern, and a
- * test holds the two together. It is written in the subset of regex syntax
- * JavaScript and Postgres read identically.
+ * and the opt-out renderings "<em>Redacted</em>", "Redacted 3" and
+ * "Anonymous". Those are real people who asked not to be named — but as a
+ * Person row every one of them at every tournament is the SAME row, so they
+ * are nobody's too. (lib/calicotab/redactedSpeaker.ts still attributes a
+ * redacted row to its owner when the team makes it unambiguous.)
+ *
+ * Normalised, "Speaker 2" alone sat on 53 speaker tabs as one claimable
+ * "debater".
+ *
+ * Exported as a string because migration 20260915000000 and the daily prune
+ * run this exact pattern in Postgres, and a test holds them together. It is
+ * written in the regex subset JavaScript and Postgres read identically.
  */
+const STAND_IN_WORD = 'speaker|orador|oradora|debater|member|participant|partner|judge|adjudicator|iron|swing';
+const STAND_IN_ID = '(?:[0-9]+[a-z]?|[a-z][0-9]*|[ivx]+|one|two|three|four|five)';
+const REDACTED = '(?:em ?)?redacted(?: em)?(?: [0-9]+)?|anonymous(?: [0-9]+)?';
+
 export const PLACEHOLDER_NAME_PATTERN =
-  '^(?:(?:speaker|orador|oradora|debater|swing|iron|member|participant)(?: ?[a-z]?[0-9]+(?: [0-9]+)?[a-z]?| [a-z])?|placeholder(?: .*)?|invalid|tba|tbd|[0-9]+)$';
+  '^(?:[io] )?(?:' +
+  [
+    `(?:swing(?:ing)? )?(?:${STAND_IN_WORD})(?: ${STAND_IN_ID}){0,3}(?: (?:please|do not|dont) .*)?`,
+    'swing[a-z]*(?: [a-z]+)? [0-9]+[a-z]?(?: .*)?',
+    '(?:swing|speaker|orador|iron)(?:[a-z]|[0-9]+[a-z]?)',
+    'placeholder.*',
+    REDACTED,
+    'invalid|tba|tbd|tbc|n a|dummy(?: [0-9]+)?',
+    '[0-9]+(?: [0-9]+)*',
+  ].join('|') +
+  ')$';
 
 const PLACEHOLDER = new RegExp(PLACEHOLDER_NAME_PATTERN);
+const REDACTED_ONLY = new RegExp(`^(?:[io] )?(?:${REDACTED})$`);
+
+/**
+ * normalizePersonName keeps only a-z and 0-9, so a name in any other script
+ * collapses — "Iron Ли" to "iron", "王欣月2" to "2" — into a stand-in shape.
+ * A stand-in is typed in ASCII; anything else is somebody's name.
+ */
+const ASCII_ONLY = /^[ -~]*$/;
+
+function normalisedIfAscii(name: string): string | null {
+  const raw = stripAttendanceTag(name.trim());
+  if (!ASCII_ONLY.test(raw)) return null;
+  const normalized = normalizePersonName(raw);
+  return normalized === '' ? null : normalized;
+}
 
 export function isPlaceholderPersonName(name: string): boolean {
-  const normalized = normalizePersonName(stripAttendanceTag(name.trim()));
-  return normalized !== '' && PLACEHOLDER.test(normalized);
+  const normalized = normalisedIfAscii(name);
+  return normalized != null && PLACEHOLDER.test(normalized);
+}
+
+/** An opted-out speaker's rendering ("<em>Redacted</em>", "Anonymous"). */
+export function isRedactedName(name: string): boolean {
+  const normalized = normalisedIfAscii(name);
+  return normalized != null && REDACTED_ONLY.test(normalized);
 }

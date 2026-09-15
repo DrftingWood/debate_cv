@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { isPlaceholderPersonName } from '@/lib/calicotab/names';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
   for (const raw of parse.data.names) {
     const display = raw.trim();
     if (!display) continue;
+    // A stand-in ("Speaker 1") is nobody. Claiming one would hand this user
+    // every tournament's swing speaker of that name.
+    if (isPlaceholderPersonName(display)) continue;
     const norm = normalizePersonName(display);
     if (!norm) continue;
     if (!unique.has(norm)) unique.set(norm, display);

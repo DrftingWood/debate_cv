@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import type { PrivateUrlSnapshot } from './parseNav';
 import { PARSER_VERSION } from './version';
+import { PLACEHOLDER_NAME_PATTERN } from './names';
 
 export type RecordParserRunInput = {
   sourceDocumentId: string;
@@ -66,6 +67,24 @@ export async function pruneIngestArtifacts(): Promise<{
       )
   `;
   return { sourceDocumentsDeleted, parserRunsDeleted };
+}
+
+/**
+ * Remove stand-in Persons ("Speaker 1") that belong to nobody. Ingest no
+ * longer makes them and migration 20260915000000 removed the old ones; this
+ * catches any made in between — the previous deployment keeps draining the
+ * queue while the new one builds — and anything a future path lets through.
+ * Same statement and guards as the migration: unclaimed, not suppressed,
+ * plain-ASCII display name.
+ */
+export async function prunePlaceholderPersons(): Promise<number> {
+  return prisma.$executeRaw`
+    DELETE FROM "Person"
+    WHERE "claimedByUserId" IS NULL
+      AND "suppressedAt" IS NULL
+      AND "displayName" !~ '[^ -~]'
+      AND "normalizedName" ~ ${PLACEHOLDER_NAME_PATTERN}
+  `;
 }
 
 /** Always runs — if the provenance write fails we swallow it so ingest isn't blocked. */

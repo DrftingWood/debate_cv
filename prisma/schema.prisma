@@ -172,6 +172,9 @@ model DiscoveredUrl {
   // a row scan on ingestedAt. Compound index turns those queries into an
   // index-only seek.
   @@index([userId, ingestedAt])
+  // Deleting a Person sets this null; without an index every such delete
+  // scans the table.
+  @@index([registrationPersonId])
 }
 
 enum IngestJobStatus {
@@ -520,6 +523,10 @@ model JudgeAssignment {
 
   @@unique([tournamentId, personId, stage, panelRole, roundNumber])
   @@index([tournamentId, source])
+  // The unique above leads with tournamentId, so deleting a Person (which
+  // cascades here) scanned the table: 11.9s per placeholder sweep on a
+  // production-sized synthetic dataset.
+  @@index([personId])
 }
 
 // -------------------- Beta feedback --------------------

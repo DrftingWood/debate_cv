@@ -2,8 +2,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 
-import { pruneIngestArtifacts } from '@/lib/calicotab/provenance';
+import { pruneIngestArtifacts, prunePlaceholderPersons } from '@/lib/calicotab/provenance';
+import { PLACEHOLDER_NAME_PATTERN } from '@/lib/calicotab/names';
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
+
+describe('prunePlaceholderPersons', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetPrismaMock();
+  });
+
+  it('deletes only unclaimed, unsuppressed, ASCII stand-ins, by the shared pattern', async () => {
+    prismaMock.$executeRaw.mockResolvedValueOnce(4);
+    expect(await prunePlaceholderPersons()).toBe(4);
+    const [call] = prismaMock.$executeRaw.mock.calls;
+    const sql = (call![0] as TemplateStringsArray).join('?');
+    expect(sql).toContain('DELETE FROM "Person"');
+    expect(sql).toContain('"claimedByUserId" IS NULL');
+    expect(sql).toContain('"suppressedAt" IS NULL');
+    expect(sql).toContain(`"displayName" !~ '[^ -~]'`);
+    expect(call![1]).toBe(PLACEHOLDER_NAME_PATTERN);
+  });
+});
 
 /**
  * The prune SQL itself can't run against the prisma mock — these tests

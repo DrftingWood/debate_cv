@@ -4,29 +4,50 @@ import { join } from 'node:path';
 import {
   PLACEHOLDER_NAME_PATTERN,
   isPlaceholderPersonName,
+  isRedactedName,
   stripAttendanceTag,
 } from '@/lib/calicotab/names';
 
 describe('placeholder names', () => {
-  // Every shape below is from a real speaker tab in the corpus.
+  // From real speaker tabs in the corpus, or older normalisations of them.
   test.each([
     'Speaker 1',
     'speaker 2',
     'Speaker 31',
     'Speaker 2.2',
     'Speaker 1A',
+    'Speaker 1 A',
     'Speaker 2b',
     'Speaker B',
+    'Speaker II',
+    'Speaker One',
     'Speaker',
     'Orador 1',
     'Orador C2',
+    'Orador C 2',
     'Swing 2',
     'Swing A',
+    'Swing Speaker 1',
+    'Swing y 1',
+    "Swing 1b (Please don't give speaker points)",
+    'Swinging partner 1',
+    'Swing mcswingface 2',
+    'SwingB',
     'Iron 1',
     'Debater 1',
+    'Judge 1',
+    'Adjudicator 1',
     'Placeholder (do not assign a speaker score)',
+    'Placeholder1',
+    '<em>Redacted</em>',
+    'Redacted 3',
+    'REDACTED 5',
+    'Anonymous',
     'Invalid',
+    'TBC',
+    'N/A',
     '4',
+    '[o] Speaker 1',
   ])('%s is not a person', (name) => {
     expect(isPlaceholderPersonName(name)).toBe(true);
   });
@@ -40,9 +61,19 @@ describe('placeholder names', () => {
     'Swingle Iron',
     'Ironside',
     'Shy',
-    '<em>Redacted</em>',
+    'Iron Ли',
+    'Swing 张伟',
+    '王欣月2',
+    'Иван Петров 1',
+    'Anonymous A',
   ])('%s is left alone', (name) => {
     expect(isPlaceholderPersonName(name)).toBe(false);
+  });
+
+  test('redacted renderings are recognised as such', () => {
+    expect(isRedactedName('<em>Redacted</em>')).toBe(true);
+    expect(isRedactedName('Anonymous')).toBe(true);
+    expect(isRedactedName('Speaker 1')).toBe(false);
   });
 
   test('the cleanup migration uses exactly this pattern', () => {
@@ -51,11 +82,13 @@ describe('placeholder names', () => {
       'utf-8',
     );
     expect(sql).toContain(`'${PLACEHOLDER_NAME_PATTERN}'`);
+    expect(sql).toContain('"suppressedAt" IS NULL');
+    expect(sql).toContain(`"displayName" !~ '[^ -~]'`);
   });
 });
 
 describe('attendance tags', () => {
-  test('a hybrid tournament\'s [o] / [i] tag is not part of the name', () => {
+  test("a hybrid tournament's [o] / [i] tag is not part of the name", () => {
     expect(stripAttendanceTag('[o] Vladimira Suflaj')).toBe('Vladimira Suflaj');
     expect(stripAttendanceTag('[i] ANU 1')).toBe('ANU 1');
   });

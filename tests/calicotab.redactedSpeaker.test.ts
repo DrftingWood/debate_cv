@@ -100,6 +100,26 @@ describe('findRedactedOwnerRow', () => {
     expect(findRedactedOwnerRow(speakerRows, 'Anya Yuk Lan', 'NUJS A', lookup)).toBeNull();
   });
 
+  test("a stand-in on the owner's team is never taken for the owner", () => {
+    // Owner not listed; the team fielded a named teammate and a swing
+    // "Speaker 1". Taking the stand-in credited the owner with its scores.
+    const speakerRows = [
+      row({ speakerName: 'John Smith', teamName: 'Alpha' }),
+      row({ speakerName: 'Speaker 1', teamName: 'Alpha' }),
+    ];
+    const lookup = makeLookup({ 'John Smith': 1n, 'Jane Doe': 2n });
+    expect(findRedactedOwnerRow(speakerRows, 'Jane Doe', 'Alpha', lookup)).toBeNull();
+  });
+
+  test("a stand-in does not make the owner's redacted row ambiguous", () => {
+    const speakerRows = [
+      row({ speakerName: '<em>Redacted</em>', teamName: 'Alpha' }),
+      row({ speakerName: 'Speaker 1', teamName: 'Alpha' }),
+    ];
+    const lookup = makeLookup({ 'Jane Doe': 2n });
+    expect(findRedactedOwnerRow(speakerRows, 'Jane Doe', 'Alpha', lookup)).toBe(speakerRows[0]);
+  });
+
   test('only the owner team is considered — unmatched rows on other teams are irrelevant', () => {
     const speakerRows = [
       row({ speakerName: 'Riya Bhar', teamName: 'NUJS A' }),

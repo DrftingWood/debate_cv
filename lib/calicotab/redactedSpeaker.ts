@@ -1,4 +1,5 @@
 import type { SpeakerTabRow } from '@/lib/calicotab/parseTabs';
+import { isPlaceholderPersonName, isRedactedName } from '@/lib/calicotab/names';
 
 /**
  * Identify the URL owner's row in a speaker tab when their name has been
@@ -43,6 +44,15 @@ export function findRedactedOwnerRow(
   );
   if (ownerAlreadyMatched) return null;
 
-  const unmatched = teamRows.filter((s) => lookupPersonId(s.speakerName) == null);
+  // An organiser's stand-in ("Speaker 1") is unmatched by design — it is
+  // nobody — so it is never the owner's hidden row. Counting it credited the
+  // owner with a swing speaker's scores, or made the owner's real redacted
+  // row look ambiguous. A redacted row is exactly what this is for, even
+  // though it too has no Person.
+  const unmatched = teamRows.filter(
+    (s) =>
+      lookupPersonId(s.speakerName) == null &&
+      (isRedactedName(s.speakerName) || !isPlaceholderPersonName(s.speakerName)),
+  );
   return unmatched.length === 1 ? unmatched[0]! : null;
 }
