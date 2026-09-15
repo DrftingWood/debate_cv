@@ -38,6 +38,8 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
+import { isPlaceholderPersonName } from './names';
+import { motionRoundNumber, prelimRoundsFromNav, speakerColumnRounds } from './roundNumbers';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
 const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -731,6 +733,12 @@ async function preCommitPeopleAndBuildIndex(
   for (const round of fetched.rounds) {
     for (const j of round.judgeAssignments) allPersonNames.add(j.personName);
   }
+  // "Speaker 1" and the like are stand-ins, not people. A Person row for one
+  // is shared by every tournament that used the same stand-in; their rows
+  // are simply not attributed to anyone.
+  for (const name of allPersonNames) {
+    if (isPlaceholderPersonName(name)) allPersonNames.delete(name);
+  }
   // Pre-commit the URL owner's registration name even when no other table
   // surfaces it. Tabbycat lets the URL owner redact their own name from the
   // public speaker tab — their row stays in the table with a coded /
@@ -745,8 +753,10 @@ async function preCommitPeopleAndBuildIndex(
   // round-results loops below can fall back from exact-name lookup to
   // substring + token-subset matching without per-row rebuilding.
   const personMatchIndex = buildPersonIndex(personIdByNormalized);
+  // The stand-in guard sits here too, not only above: the fuzzy fallback
+  // would otherwise resolve "Speaker 1" to any known name containing it.
   const lookupPersonId = (name: string): bigint | null =>
-    findPersonId(name, personIdByNormalized, personMatchIndex);
+    isPlaceholderPersonName(name) ? null : findPersonId(name, personIdByNormalized, personMatchIndex);
 
   return { personIdByNormalized, lookupPersonId };
 }
@@ -898,7 +908,14 @@ async function writeIngestTransaction(
     // rows absent from the new parse. Motion counts are small (≤ ~15 per
     // tournament) so per-row upserts inside the tx are cheap.
     if (motions.length > 0) {
-      for (const m of motions) {
+      // Key each motion by its round's URL sequence, as team results are,
+      // not by the number in its label — see lib/calicotab/roundNumbers.ts.
+      const motionPrelims = prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels);
+      for (const parsed of motions) {
+        const m = {
+          ...parsed,
+          roundNumber: motionRoundNumber(parsed.roundLabel, parsed.roundNumber, motionPrelims),
+        };
         await tx.motion.upsert({
           where: {
             tournamentId_roundLabel_seq: {
@@ -1004,6 +1021,15 @@ async function writeIngestTransaction(
     }
     const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
 
+    // Which round each score column is. By position against the nav's
+    // prelims, not by the digit in "R1A" — see lib/calicotab/roundNumbers.ts.
+    const roundByColumn = speakerColumnRounds(
+      speakerRows.flatMap((sp) =>
+        sp.roundScores.filter((rs) => rs.positionLabel !== 'average').map((rs) => rs.roundLabel),
+      ),
+      prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
+    );
+
     for (const sp of speakerRows) {
       // Fuzzy lookup: exact-match first, then substring + token-subset
       // fallbacks. Strict exact-match used to silently drop a user's
@@ -1055,10 +1081,9 @@ async function writeIngestTransaction(
       });
       speakerParticipantIds.push(participant.id);
       for (const rs of sp.roundScores) {
-        const m = rs.roundLabel.match(/\d+/);
         const isAverageScore = rs.positionLabel === 'average';
-        if (!m && !isAverageScore) continue;
-        const rn = isAverageScore ? 0 : Number(m![0]);
+        const rn = isAverageScore ? 0 : roundByColumn.get(rs.roundLabel);
+        if (rn == null) continue;
         speakerRoundScoreCreates.push({
           tournamentParticipantId: participant.id,
           roundNumber: rn,
@@ -1818,7 +1843,7 @@ async function recordJudgeRoundsFromRoundResults(
     return { written: 0, matched: 0, diagnostic: null };
   }
 
-  type Hit = { stage: string; role: 'chair' | 'panellist'; roundNumber: number | null };
+  type Hit = { stage: string; role: JudgeRound['role']; roundNumber: number | null };
   const hits: Hit[] = [];
   let totalJudgeEntries = 0;
   for (const round of rounds) {
@@ -1834,7 +1859,9 @@ async function recordJudgeRoundsFromRoundResults(
       );
       hits.push({
         stage,
-        role: j.panelRole === 'chair' ? 'chair' : 'panellist',
+        // Trainees keep their role, as they do on the landing path: filing
+        // one as a panellist would credit a non-voting seat as a panel.
+        role: j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
         roundNumber: round.isOutround ? null : round.roundNumber,
       });
     }
@@ -1889,9 +1916,8 @@ async function recordJudgeRoundsFromRoundResults(
 
   // Compute aggregates (same semantics as the landing-path writer; both
   // sites share lib/calicotab/judgeAggregates.ts). Round-results hits use
-  // role: 'chair' | 'panellist' — no trainee role here. The aggregate
-  // helper accepts 'trainee' as a possibility but the filter is a no-op
-  // for this input shape.
+  // role: 'chair' | 'panellist' | 'trainee', read off the adjudicator
+  // cell's symbol.
   const aggregates = computeJudgeAggregates(
     hits.map(
       (h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber }),
