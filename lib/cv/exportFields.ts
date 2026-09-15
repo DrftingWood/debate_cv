@@ -180,8 +180,8 @@ export const EXPORT_FIELDS: ExportField[] = [
   {
     id: 'team_firsts',
     label: 'Firsts',
-    // BP's tiebreaker: rooms this team topped. Two teams on the same points
-    // are not equally placed, and this is what separates them.
+    // Rooms this team topped — one of the BP tiebreaks, though which one a
+    // tab applies first is the tournament's choice (usually speaker score).
     speaker: (r) => r.teamFirsts ?? '',
   },
   {

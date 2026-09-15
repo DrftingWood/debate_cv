@@ -384,8 +384,10 @@ model TeamResult {
   wins          Int?
   points        Decimal?
   /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
-  /// BP scores 3/2/1/0 and breaks ties on firsts then seconds, so two teams
-  /// level on points are not level on the tab. Null for the two-team
+  /// BP scores 3/2/1/0; these are among the tiebreaks a tournament can rank
+  /// on, but the order is the tournament's own setting — most tabs in the
+  /// corpus separate teams level on points by speaker score first, so a
+  /// team can sit above another with more firsts. Null for the two-team
   /// formats, which publish a wins column instead.
   firsts        Int?
   seconds       Int?

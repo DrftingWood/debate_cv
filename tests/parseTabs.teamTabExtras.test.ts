@@ -5,8 +5,10 @@ import { parseTeamTab } from '@/lib/calicotab/parseTabs';
  * Column keys and cell shapes verbatim from
  * https://01-rean.calicotab.com/ko-23/tab/team/.
  *
- * `1sts` / `2nds` are BP's standard tiebreaker — how many rooms the team
- * topped — and appear on 82 of 100 team tabs in the corpus. The roster
+ * `1sts` / `2nds` — how many rooms the team topped or placed second in —
+ * appear on 82 of 100 team tabs in the corpus. They are tiebreaks a
+ * tournament may rank on, not the order it must: most rank point ties on
+ * speaker score first. The roster
  * lives in the team cell's popover, on 100 of 100. Neither was read.
  */
 function teamTabPage(head: unknown[], rows: unknown[][]): string {
