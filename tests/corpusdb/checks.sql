@@ -29,12 +29,10 @@ SELECT rl.tournament_id,
        (regexp_match(rl.url, '/results/round/(\d+)'))[1]::int AS round_no,
        rl.url, rl.label, rl.stage, rl.category,
        CASE rl.stage
-         WHEN 'grand_final' THEN 100 WHEN 'final' THEN 95 WHEN 'pre_final' THEN 92
-         WHEN 'semifinal' THEN 90 WHEN 'pre_semifinal' THEN 85
-         WHEN 'quarterfinal' THEN 80
-         WHEN 'pre_quarterfinal' THEN 75 WHEN 'partial_double_semifinal' THEN 75
-         WHEN 'octofinal' THEN 70
-         WHEN 'pre_octofinal' THEN 65 WHEN 'partial_double_quarterfinal' THEN 65
+         WHEN 'grand_final' THEN 100 WHEN 'final' THEN 95
+         WHEN 'semifinal' THEN 90 WHEN 'partial_semifinal' THEN 85
+         WHEN 'quarterfinal' THEN 80 WHEN 'partial_quarterfinal' THEN 75
+         WHEN 'octofinal' THEN 70 WHEN 'partial_octofinal' THEN 65
          WHEN 'double_octofinal' THEN 60 WHEN 'partial_double_octofinal' THEN 55
          WHEN 'triple_octofinal' THEN 50 WHEN 'partial_triple_octofinal' THEN 45 END AS depth
 FROM round_labels rl
@@ -222,10 +220,13 @@ SELECT count(*) AS duplicated FROM (
   GROUP BY 1, 2, 3 HAVING count(*) > 1
 ) x;
 
-\echo '== B3. break category casing agrees with the lexicon (expect 0) =='
--- A short slug is an acronym: "hs" is "HS", which is how "HS Grand Final"
--- reads.
-SELECT stage, count(*) FROM break_rows WHERE stage ~ '^[A-Z][a-z]{1,2}$' GROUP BY 1;
+\echo '== B3. break category acronyms are upper case (expect 0) =='
+-- An acronym slug is cased as the lexicon cases it: "hs" is "HS", which is
+-- how "HS Grand Final" reads. A short WORD is not an acronym — "nov" is
+-- "Nov", "pro" is "Pro" — so only the lexicon's acronym list is checked.
+SELECT stage, count(*) FROM break_rows
+WHERE lower(stage) IN ('esl', 'efl', 'ell', 'eal', 'hs', 'ms', 'jhs', 'shs', 'ele') AND stage <> upper(stage)
+GROUP BY 1;
 
 \echo '== B4. break stages (informational) =='
 SELECT coalesce(stage, '(null)') AS stage, count(*) AS rows, count(DISTINCT tournament_id) AS tournaments
@@ -243,9 +244,10 @@ SELECT label, count(*) FROM round_labels
 WHERE stage IS NULL AND label ~* 'final|semi|quarter|octo|elim|bracket'
 GROUP BY 1 ORDER BY 2 DESC LIMIT 20;
 
-\echo '== L3. a later outround never classifies shallower, per category (expect 1) =='
--- The one known offender is aoix: "Partial finals" run before its
--- "Semi- Finals". The label itself is wrong; nothing per-label can fix it.
+\echo '== L3. a later outround never classifies shallower, per category (expect 0) =='
+-- aoix runs "Partial finals" before its "Semi- Finals". A partial final
+-- is read as the Partial Semifinal, which ranks below the Semifinal, so the
+-- order holds even there.
 SELECT t.host, x.cat, x.round_no, x.prev_label, x.label
 FROM (
   SELECT tournament_id, coalesce(category, '(open)') AS cat, round_no, label, depth,
