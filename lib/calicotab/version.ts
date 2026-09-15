@@ -40,7 +40,9 @@
 //     winners were never recorded
 //   - "Double Quarterfinals" / "Double Semifinals" were read one full stage
 //     too deep; a break slug like "hs" was stored as "Hs"
-//   - "Partial X" was read as X; it is the play-in before X
+//   - rounds get one nomenclature: a round run with byes is "Partial
+//     <rung>", whatever it was called ("Pre-Quarterfinals" and "Partial
+//     Double Quarters" are both Partial Octofinals)
 //   - a hybrid event's "[o]"/"[i]" attendance tag was kept in names, and
 //     stand-ins like "Speaker 1" were made into people
 //   - a score written "78<small>.50</small>" was unreadable: every speech on

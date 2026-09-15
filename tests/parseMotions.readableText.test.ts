@@ -33,6 +33,16 @@ describe('motion text as the audience reads it', () => {
     expect(m!.infoSlide).toBe('Nuts & Taylor Swift');
   });
 
+  test('a literal "<" or ">" in the text is kept', () => {
+    const [m] = parseMotionsTab(cardsPage('THW prefer 1 &lt; 2 and 3 &gt; 2; A &lt;- B -&gt; C'));
+    expect(m!.infoSlide).toBe('THW prefer 1 < 2 and 3 > 2; A <- B -> C');
+  });
+
+  test('the heading a motion sits under is recorded', () => {
+    const [m] = parseMotionsTab(cardsPage('Plain slide'));
+    expect(m!.roundIndex).toBe(0);
+  });
+
   test('the motion itself is untouched', () => {
     const [m] = parseMotionsTab(cardsPage('Plain slide'));
     expect(m!.text).toBe('THW pay lawyers by merit');
