@@ -488,8 +488,14 @@ function parseNumber(s: string | undefined | null): number | null {
   // `78<small class="text-muted">.50</small>`. Left in, the tag made the
   // cell unreadable, so every speech score and average on such a tab was
   // stored as empty — twelve corpus speaker tabs, all four Australs among
-  // them, came back with no scores at all.
-  const t = s.replace(/<[^>]*>/g, '').replace(/[, ]+/g, '').trim();
+  // them, came back with no scores at all. Only that wrapper is unwrapped:
+  // stripping every tag would stitch unrelated digits together
+  // (`75<span class="d-none">3</span>` is not 753), so any other markup
+  // still leaves the cell unread.
+  const t = s
+    .replace(/<small\b[^>]*>\s*(\.\d+)\s*<\/small>/gi, '$1')
+    .replace(/[, ]+/g, '')
+    .trim();
   if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return null;
   return Number(t);
 }
@@ -797,23 +803,16 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
       speakerName,
       teamName: teamCol >= 0 ? nameText(row[teamCol]) || null : null,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
-      // No Total column is common — tabs publishing Avg / Stdev / Num
-      // instead. A published total is the sum of the scored speeches (it
-      // holds for every speaker in the corpus that has both), so derive it
-      // rather than leave the field summary nothing to place the speaker by.
-      totalScore: totalCol >= 0 ? parseNumber(cellText(row[totalCol])) : sumOfSpeeches(roundScores),
+      // No Total column means no total. Deriving one as the sum of speeches
+      // was tried and is wrong: tabs that omit Total rank by average, so a
+      // speaker who missed rounds sums low — australs2020's 13th-ranked
+      // speaker, with 7 speeches, summed to 365th of 413 — and the field
+      // summary and the derived rank both order by this column.
+      totalScore: totalCol >= 0 ? parseNumber(cellText(row[totalCol])) : null,
       roundScores,
     });
   }
   return rows.length > 0 ? rows : null;
-}
-
-function sumOfSpeeches(roundScores: SpeakerTabRow['roundScores']): number | null {
-  const scores = roundScores
-    .filter((s) => s.positionLabel !== 'average' && s.score != null)
-    .map((s) => s.score as number);
-  if (scores.length === 0) return null;
-  return Math.round(scores.reduce((a, b) => a + b, 0) * 100) / 100;
 }
 
 export function parseSpeakerTab(html: string): SpeakerTabRow[] {
@@ -888,8 +887,13 @@ function roundResultsFromVue(
         // A BP result cell states the placing ("1st".."4th"), which carries
         // both the win and the points; word-form signals cover the
         // two-team formats.
+        // A two-team cell reads " vs <opponent>": its text is the opponent's
+        // name, so only the popover title may decide. An unrecognised title
+        // ("Ganó contra Lost Boys") is unknown, not whatever the name says.
+        const isVersusCell = /^vs\b/.test(winText);
+        const titled = winCol >= 0 ? outcomeFromPopoverTitle(row[winCol]) : null;
         const outcome =
-          winCol >= 0 ? (outcomeFromPopoverTitle(row[winCol]) ?? readTeamOutcome(winText)) : null;
+          winCol >= 0 ? (titled ?? (isVersusCell ? null : readTeamOutcome(winText))) : null;
         teamResults.push({
           teamName,
           position: posCol >= 0 ? cellText(row[posCol]) || null : null,
@@ -1070,11 +1074,11 @@ function normalizeBreakStage(fragment: string | null): string | null {
   if (slug === 'open') return 'Open';
   if (slug === 'esl') return 'ESL';
   if (slug === 'efl') return 'EFL';
-  // A short all-letter slug is an acronym ("hs", "ele"), cased the way the
-  // stage lexicon cases a category token. Title-casing it stored "Hs" for
-  // seven tournaments whose round labels say "HS Grand Final", so one bracket
-  // carried two spellings.
-  if (/^[a-z]{2,3}$/.test(slug)) return slug.toUpperCase();
+  // A one-word slug is cased the way the stage lexicon cases a category
+  // token, so a break tab and a round label for one bracket agree: "hs" is
+  // "HS" beside "HS Grand Final" (title-casing stored "Hs" at ten
+  // tournaments), while "pro" is "Pro".
+  if (/^[a-z0-9]+$/.test(slug)) return normaliseCategory(slug);
   // Title-case anything else: "novice" → "Novice", "pro-am" → "Pro-Am".
   return slug
     .split(/([\s-])/)

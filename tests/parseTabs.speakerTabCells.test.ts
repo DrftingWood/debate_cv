@@ -45,8 +45,24 @@ describe('speaker tab cells', () => {
     expect(row!.roundScores.map((s) => s.score)).toEqual([77.5, 78, null]);
   });
 
-  test('with no Total column, the total is the sum of the scored speeches', () => {
-    expect(row!.totalScore).toBe(155.5);
+  test('with no Total column there is no total — not a sum of speeches', () => {
+    // Such tabs rank by average. Summing put australs2020's 13th-ranked
+    // speaker, with 7 speeches, 365th of 413 in the field summary.
+    expect(row!.totalScore).toBe(null);
+  });
+
+  test('only the <small> decimal wrapper is unwrapped', () => {
+    const head = [{ key: 'Rk' }, { key: 'name' }, { key: 'R1' }, { key: 'R2' }, { key: 'R3' }];
+    const [r] = parseSpeakerTab(
+      vuePage(head, [[
+        { text: '1' },
+        { text: 'A B' },
+        { text: '75<span class="d-none">3</span>' },
+        { text: '<em>1</em><em>2</em>' },
+        small('76', '25'),
+      ]]),
+    );
+    expect(r!.roundScores.map((s) => s.score)).toEqual([null, null, 76.25]);
   });
 
   test('categories are cased as the lexicon cases them', () => {
@@ -63,11 +79,6 @@ describe('speaker tab cells', () => {
     expect(r!.totalScore).toBe(150);
   });
 
-  test('a speaker with no scored speech has no total', () => {
-    const head = [{ key: 'Rk' }, { key: 'name' }, { key: 'R1' }];
-    const [r] = parseSpeakerTab(vuePage(head, [[{ text: '9' }, { text: 'A B' }, { text: '' }]]));
-    expect(r!.totalScore).toBe(null);
-  });
 });
 
 describe('two-team result cells', () => {
@@ -91,6 +102,17 @@ describe('two-team result cells', () => {
       'Round 1',
     );
     expect(round.teamResults.map((t) => t.won)).toEqual([true, false]);
+  });
+
+  test('an unrecognised title is no result, not the opponent name read as one', () => {
+    const round = parseRoundResults(
+      vuePage(HEAD_RR, [
+        [{ text: 'Alpha' }, cell('Lost Boys', 'Ganó contra Lost Boys', true), { text: 'Gobierno' }],
+      ]),
+      'https://x.calicotab.com/t/results/round/1/',
+      'Round 1',
+    );
+    expect(round.teamResults[0]!.won).toBe(null);
   });
 
   test("the opponent's name is never read as the outcome", () => {
