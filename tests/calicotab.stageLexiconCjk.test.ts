@@ -72,14 +72,14 @@ describe('"Octas"', () => {
   // for octofinals alongside the Spanish "octavos".
   test('is the octofinal round', () => {
     expect(stageOf('Octas')).toBe('octofinal');
-    expect(stageOf('Partial Octas')).toBe('octofinal');
+    expect(stageOf('Partial Octas')).toBe('pre_octofinal');
   });
 
   test('and doubles still win over it', () => {
-    expect(stageOf('Open Partial Double Octas')).toBe('double_octofinal');
+    expect(stageOf('Open Partial Double Octas')).toBe('partial_double_octofinal');
     expect(splitStageLabel('Open Partial Double Octas')).toEqual({
       category: 'Open',
-      stage: 'double_octofinal',
+      stage: 'partial_double_octofinal',
     });
   });
 });

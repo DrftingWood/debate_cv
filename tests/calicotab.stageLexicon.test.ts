@@ -12,7 +12,7 @@ describe('matchStage — stock English vocabulary', () => {
     expect(stageOf('Octofinals')).toBe('octofinal');
     expect(stageOf('Double Octofinals')).toBe('double_octofinal');
     expect(stageOf('Triple Octofinals')).toBe('triple_octofinal');
-    expect(stageOf('Partial Double Octofinals')).toBe('double_octofinal');
+    expect(stageOf('Partial Double Octofinals')).toBe('partial_double_octofinal');
     expect(stageOf('Round of 16')).toBe('octofinal');
     expect(stageOf('Round of 32')).toBe('double_octofinal');
   });

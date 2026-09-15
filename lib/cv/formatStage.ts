@@ -30,6 +30,11 @@ const STAGE_DISPLAY: Record<OutroundStage, string> = {
   pre_semifinal: 'Pre-Semifinals',
   pre_quarterfinal: 'Pre-Quarterfinals',
   pre_octofinal: 'Pre-Octofinals',
+  // Named as the round is named — never "Pre-".
+  partial_double_semifinal: 'Partial Double Semifinals',
+  partial_double_quarterfinal: 'Partial Double Quarterfinals',
+  partial_double_octofinal: 'Partial Double Octofinals',
+  partial_triple_octofinal: 'Partial Triple Octofinals',
   semifinal: 'Semifinals',
   quarterfinal: 'Quarterfinals',
   octofinal: 'Octofinals',

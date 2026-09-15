@@ -164,7 +164,14 @@ const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   pre_quarterfinal: 75,
   octofinal: 70,
   pre_octofinal: 65,
+  // Partial doubles rank as the play-in each one is: before the double
+  // round's own stage (a double quarterfinal is the octofinal, so a partial
+  // one ranks with the pre-octofinal).
+  partial_double_semifinal: 75,
+  partial_double_quarterfinal: 65,
+  partial_double_octofinal: 55,
   double_octofinal: 60,
+  partial_triple_octofinal: 45,
   triple_octofinal: 50,
 };
 
