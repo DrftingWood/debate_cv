@@ -11,6 +11,7 @@ import type { Split } from '@/lib/cv/speakerStats';
 import type { RoundFact, StatsFacts } from '@/lib/cv/statsFacts';
 import { MIN_SPLIT_ROUNDS, splitRounds, type RoundSplit } from '@/lib/cv/roundSplits';
 import { teammateStats } from '@/lib/cv/teammateStats';
+import { CARRY_LEVEL_BAND, carryIndex, roundCurve } from '@/lib/cv/roundViews';
 import { SectionHeader } from '@/components/ui/Card';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Badge } from '@/components/ui/Badge';
@@ -267,6 +268,81 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
           ) : null}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+// ── Round by round ────────────────────────────────────────────────────────
+
+export function RoundCurveSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+  const curve = roundCurve(facts.rounds, baseline);
+  if (curve.length < 2) return null;
+
+  return (
+    <section id="round-curve" aria-label="Round by round" className="scroll-mt-24 space-y-3">
+      <SectionHeader
+        label="Round by round"
+        title="Early rounds and late ones"
+        meta="Deltas compare with your whole record in the same format"
+      />
+      <StatsSplitTable
+        splits={curve.map((p) => asSplit(p, `Round ${p.roundNumber}`))}
+        dimensionLabel="Round"
+        thinBelow={MIN_SPLIT_ROUNDS}
+        baselineLabel="your whole record in each round's format"
+      />
+      <p className="text-caption text-ink-soft">
+        Prelim rounds grouped by their number, so this stays meaningful under a seat filter. Late round
+        numbers exist only at longer tournaments, and power-pairing puts you in stronger rooms as a
+        tournament goes on — a dip in round 8 can be the draw, not the debater.
+      </p>
+    </section>
+  );
+}
+
+// ── Carry index ───────────────────────────────────────────────────────────
+
+const CARRY_LABEL: Record<string, string> = {
+  'out-spoke': 'You out-spoke your partners',
+  level: 'Level',
+  'out-spoken': 'Your partners out-spoke you',
+};
+
+export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+  const c = carryIndex(facts.rounds, baseline);
+  if (c.rounds === 0) return null;
+  const pct = (n: number) => `${Math.round((n / c.rounds) * 100)}%`;
+
+  return (
+    <section id="carry" aria-label="Carry index" className="scroll-mt-24 space-y-3">
+      <SectionHeader
+        label="Carry index"
+        title="Your speech against your partners'"
+        meta={`${c.rounds} prelim round${c.rounds === 1 ? '' : 's'} where both were scored`}
+      />
+      <StatRow columns={4}>
+        <StatTile
+          label="Average carry"
+          value={signed(c.meanCarry) ?? '—'}
+          hint="Your speech minus your partners' mean, in speaker points"
+        />
+        <StatTile label="Out-spoke" value={pct(c.outSpoke)} hint={`${c.outSpoke} rounds by more than ${CARRY_LEVEL_BAND}`} />
+        <StatTile label="Level" value={pct(c.level)} hint={`${c.level} rounds within ±${CARRY_LEVEL_BAND}`} />
+        <StatTile label="Out-spoken" value={pct(c.outSpoken)} hint={`${c.outSpoken} rounds by more than ${CARRY_LEVEL_BAND}`} />
+      </StatRow>
+      {c.results.length > 1 ? (
+        <StatsSplitTable
+          splits={c.results.map((s) => asSplit(s, CARRY_LABEL[s.key] ?? s.key))}
+          dimensionLabel="Round"
+          thinBelow={MIN_SPLIT_ROUNDS}
+          baselineLabel="your whole record in each round's format"
+        />
+      ) : null}
+      <p className="text-caption text-ink-soft">
+        In three-a-side formats your partners' speeches are averaged. Reply speeches are not on the
+        speaker tab, so they never enter the comparison. A round where no partner was scored is left
+        out.
+      </p>
     </section>
   );
 }

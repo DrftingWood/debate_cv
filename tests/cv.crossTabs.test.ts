@@ -131,9 +131,27 @@ describe('crossTabFindings', () => {
       ...many(6, { proAm: 'pro', motionType: 'Policy', score: 82, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 20),
       ...many(6, { proAm: 'pro', motionType: 'Belief', score: 72 }, 40),
       ...many(6, { proAm: 'pro', motionType: 'Belief', score: 78, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 60),
+      // Peers rounds at each format's baseline, so "pro" is not the whole grid.
+      ...many(12, { proAm: 'peers', motionType: 'Stance', score: 75 }, 80),
+      ...many(12, { proAm: 'peers', motionType: 'Stance', score: 80, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 100),
     ];
     const [top] = crossTabFindings([crossTab(mixed, 'pairing', 'motionType')]);
     expect(top.text).toContain('As the pro');
     expect(top.text).toContain('each format');
+  });
+});
+
+describe('crossTabFindings — dominant keys', () => {
+  test('a key covering most of a grid adds nothing to the other dimension, so it is not a finding', () => {
+    // "With peers" is nearly every round: "with peers on Belief motions" is just
+    // "on Belief motions". The pro cell is a real cross.
+    const rounds = [
+      ...many(40, { proAm: 'peers', motionType: 'Belief', score: 77 }),
+      ...many(40, { proAm: 'peers', motionType: 'Policy', score: 73 }, 100),
+      ...many(8, { proAm: 'pro', motionType: 'Policy', score: 78 }, 200),
+    ];
+    const findings = crossTabFindings([crossTab(rounds, 'pairing', 'motionType')]);
+    expect(findings.some((f) => f.text.startsWith('With peers'))).toBe(false);
+    expect(findings.some((f) => f.text.startsWith('As the pro'))).toBe(true);
   });
 });

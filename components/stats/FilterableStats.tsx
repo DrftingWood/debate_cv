@@ -20,7 +20,13 @@ import { SectionHeader } from '@/components/ui/Card';
 import { PageJumpNav } from '@/components/PageJumpNav';
 import { StatsFilterBar } from '@/components/stats/StatsFilterBar';
 import { CrossTabsSection } from '@/components/stats/CrossTabsSection';
-import { MotionTypesSection, PositionsSection, TeammatesSection } from '@/components/stats/StatsViews';
+import {
+  CarrySection,
+  MotionTypesSection,
+  PositionsSection,
+  RoundCurveSection,
+  TeammatesSection,
+} from '@/components/stats/StatsViews';
 import {
   Coverage,
   FieldStanding,
@@ -143,12 +149,14 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             ) : (
               <RoundDynamicsSection stats={stats} />
             )}
+            <RoundCurveSection facts={filteredFacts} baseline={facts.rounds} />
             <ResultsSection stats={stats} perRoundOnly={bySeat} />
             <PositionsSection facts={filteredFacts} baseline={facts.rounds} />
             <MotionTypesSection facts={filteredFacts} baseline={facts.rounds} />
             <CrossTabsSection facts={filteredFacts} baseline={facts.rounds} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
+            <CarrySection facts={filteredFacts} baseline={facts.rounds} />
             {bySeat ? (
               <WithheldSection
                 id="seasons"

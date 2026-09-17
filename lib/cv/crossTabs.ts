@@ -12,7 +12,7 @@
  * Findings are the strongest and weakest visible cells by speaker-average
  * delta, stated with the number and the sample like deriveQuirks' claims.
  * They also need two tournaments, so one good weekend cannot become "you are
- * strong on Belief motions in OG".
+ * strong on Belief motions in OG", and neither key may be most of the grid.
  */
 
 import type { RoundFact } from '@/lib/cv/statsFacts';
@@ -25,6 +25,13 @@ export type CrossTabDimension = 'seat' | 'motionType' | 'pairing';
 export const MIN_FINDING_DELTA = 0.5;
 const MAX_FINDINGS_EACH_WAY = 3;
 const MIN_FINDING_TOURNAMENTS = 2;
+/**
+ * A row or column holding at least this share of a grid's rounds is nearly
+ * the whole record, so a cell in it restates the other dimension alone: on
+ * the reference record "with peers" is 95 % of rounds, and "with peers on
+ * Stance motions" said nothing "on Stance motions" doesn't.
+ */
+const DOMINANT_SHARE = 0.8;
 
 export const SEAT_ORDER = ['OG', 'OO', 'CG', 'CO', 'Gov', 'Aff', 'Prop', 'Opp', 'Neg'];
 export const MOTION_ORDER = ['Policy', 'Actor', 'Belief', 'Stance', 'Regret', 'Preference'];
@@ -162,8 +169,12 @@ const signed = (n: number) => {
 export function crossTabFindings(tabs: CrossTab[]): Quirk[] {
   const seen = new Map<string, { tab: CrossTab; cell: CrossTabCell }>();
   for (const tab of tabs) {
+    const total = tab.cells.reduce((n, c) => n + c.rounds, 0);
+    const share = (pick: (c: CrossTabCell) => string, key: string) =>
+      tab.cells.filter((c) => pick(c) === key).reduce((n, c) => n + c.rounds, 0) / total;
     for (const cell of tab.cells) {
       if (cell.hidden || cell.scoreDelta == null) continue;
+      if (share((c) => c.row, cell.row) >= DOMINANT_SHARE || share((c) => c.col, cell.col) >= DOMINANT_SHARE) continue;
       if (cell.tournaments < MIN_FINDING_TOURNAMENTS || Math.abs(cell.scoreDelta) < MIN_FINDING_DELTA) continue;
       const id = `crosstab:${[cell.row, cell.col].sort().join('×')}`;
       if (!seen.has(id)) seen.set(id, { tab, cell });
