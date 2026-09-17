@@ -6,7 +6,7 @@ import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
-import { pickPrelimRoundCount } from '@/lib/calicotab/prelimRoundCount';
+import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
 import {
   deepestOutroundsByCategory,
@@ -42,6 +42,18 @@ export type CvTeamRoundResult = {
   points: number | null;
 };
 
+export type CvTeammate = {
+  /**
+   * Opaque per-person key. Display names are masked (every withdrawn
+   * debater reads the same) and can collide between real people, so
+   * anything that groups or filters by teammate keys on this, not the name.
+   */
+  key: string;
+  name: string;
+  speakerScoreTotal: number | null;
+  roundScores: CvSpeakerRoundScore[];
+};
+
 export type CvSpeakerRow = {
   tournamentId: bigint;
   tournamentName: string;
@@ -53,6 +65,14 @@ export type CvSpeakerRow = {
   sourceUrl: string;
   myName: string;
   teammates: string[];
+  /**
+   * The same teammates with their own tab figures: total and per-round
+   * speeches. Their average against the user's decides whether a pairing was
+   * pro-am, and round-by-round scores feed the carry index. Names are masked
+   * exactly as `teammates` is; a withdrawn teammate's figures stay, because
+   * they are facts about the user's own team, but their name never does.
+   */
+  teammateDetails: CvTeammate[];
   teamName: string | null;
   teamRank: number | null;
   teamPoints: string | null;
@@ -67,6 +87,11 @@ export type CvSpeakerRow = {
   teamSeconds: number | null;
   speakerAvgScore: string | null;
   prelimsSpoken: number;
+  /**
+   * The tournament's prelim count. `teamRoundResults` carries every round the
+   * team debated, outrounds included, so this is what separates the two.
+   */
+  prelimRoundCount: number | null;
   speakerRankOpen: number | null;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
@@ -362,8 +387,8 @@ export async function buildCvData(
   //   1. Tournament.prelimRoundCount — set at ingest time from the
   //      authoritative landing-nav round list (counts only prelim,
   //      non-outround results URLs). Most reliable.
-  //   2. MAX(TeamResult.roundNumber) for prelim rounds — derived from how
-  //      many rounds we parsed per-team data for. Fallback for older
+  //   2. The last round most of the field has a TeamResult for
+  //      (prelimMaxFromRoundCounts — outrounds seat only the break). Fallback for older
   //      tournaments ingested before #1 was stored, or where the team tab
   //      had no per-round breakdown.
   //   3. MAX(SpeakerRoundScore.roundNumber) across every participant —
@@ -383,9 +408,9 @@ export async function buildCvData(
         select: { id: true, prelimRoundCount: true },
       }),
       prisma.teamResult.groupBy({
-        by: ['tournamentId'],
+        by: ['tournamentId', 'roundNumber'],
         where: { tournamentId: { in: tournamentIds }, roundNumber: { gt: 0 } },
-        _max: { roundNumber: true },
+        _count: { _all: true },
       }),
       prisma.$queryRaw<{ tournamentId: bigint; maxRound: number | null }[]>`
         SELECT tp."tournamentId" AS "tournamentId",
@@ -402,9 +427,16 @@ export async function buildCvData(
     for (const r of maxSpeakerRoundRows) {
       maxSpeakerRoundByTournament.set(r.tournamentId, r.maxRound);
     }
-    const maxByTournament = new Map<bigint, number | null>();
+    const roundCountsByTournament = new Map<bigint, Array<{ roundNumber: number; teams: number }>>();
     for (const r of maxRoundRows) {
-      maxByTournament.set(r.tournamentId, r._max.roundNumber);
+      if (r.roundNumber == null) continue;
+      const list = roundCountsByTournament.get(r.tournamentId) ?? [];
+      list.push({ roundNumber: r.roundNumber, teams: r._count._all });
+      roundCountsByTournament.set(r.tournamentId, list);
+    }
+    const maxByTournament = new Map<bigint, number | null>();
+    for (const [tid, counts] of roundCountsByTournament) {
+      maxByTournament.set(tid, prelimMaxFromRoundCounts(counts));
     }
     for (const t of tournamentRows) {
       const picked = pickPrelimRoundCount({
@@ -431,6 +463,8 @@ export async function buildCvData(
             teamName: true,
             personId: true,
             person: { select: { displayName: true, suppressedAt: true } },
+            speakerScoreTotal: true,
+            speakerRoundScores: { select: { roundNumber: true, positionLabel: true, score: true } },
           },
         })
       : Promise.resolve([] as Array<{
@@ -438,6 +472,12 @@ export async function buildCvData(
           teamName: string | null;
           personId: bigint;
           person: { displayName: string; suppressedAt: Date | null };
+          speakerScoreTotal: { toString(): string } | null;
+          speakerRoundScores: Array<{
+            roundNumber: number;
+            positionLabel: string | null;
+            score: { toString(): string } | null;
+          }>;
         }>),
     tournamentIds.length
       ? prisma.teamResult.findMany({
@@ -668,16 +708,35 @@ export async function buildCvData(
   }
 
   const teammatesByKey = new Map<string, string[]>();
+  const teammateDetailsByKey = new Map<string, CvTeammate[]>();
+  const toNumber = (v: { toString(): string } | null | undefined): number | null => {
+    if (v == null) return null;
+    const n = Number(v.toString());
+    return Number.isFinite(n) ? n : null;
+  };
   for (const tm of teammateRows) {
     if (!tm.teamName) continue;
     const key = `${tm.tournamentId}:${tm.teamName}`;
     if (!myTeamPairKeys.has(key)) continue;
     if (claimedPersonIds.has(tm.personId)) continue;
-    const list = teammatesByKey.get(key) ?? [];
     // Masked, not raw — a withdrawn debater must not reappear as a
     // teammate name on someone else's CV or public share link.
-    list.push(displayNameFor(tm.person));
+    const name = displayNameFor(tm.person);
+    const list = teammatesByKey.get(key) ?? [];
+    list.push(name);
     teammatesByKey.set(key, list);
+    const details = teammateDetailsByKey.get(key) ?? [];
+    details.push({
+      key: `p${tm.personId.toString()}`,
+      name,
+      speakerScoreTotal: toNumber(tm.speakerScoreTotal),
+      roundScores: (tm.speakerRoundScores ?? []).map((s) => ({
+        roundNumber: s.roundNumber,
+        positionLabel: s.positionLabel,
+        score: toNumber(s.score),
+      })),
+    });
+    teammateDetailsByKey.set(key, details);
   }
 
   const teamPointsByKey = new Map<
@@ -822,6 +881,7 @@ export async function buildCvData(
       sourceUrl: t.sourceUrlRaw,
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
+      teammateDetails: teamKey ? (teammateDetailsByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
       teamPoints: tr?.points ?? null,
@@ -830,6 +890,7 @@ export async function buildCvData(
       teamSeconds: tr?.seconds ?? null,
       speakerAvgScore,
       prelimsSpoken,
+      prelimRoundCount: prelimRoundCountByTournament.get(tid) ?? null,
       // Open rank: prefer the parser's value; fall back to the ingest-time
       // ROW_NUMBER(...) over speakerScoreTotal persisted at ingest as
       // speakerRankOpenDerived. Covers BP/AP tabs whose rank header doesn't

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { pickPrelimRoundCount } from '@/lib/calicotab/prelimRoundCount';
+import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 
 describe('pickPrelimRoundCount', () => {
   test('returns stored when positive', () => {
@@ -62,5 +62,22 @@ describe('pickPrelimRoundCount', () => {
     expect(
       pickPrelimRoundCount({ stored: 0, maxTeamRoundNumber: 0, maxSpeakerRoundNumber: 0 }),
     ).toBeNull();
+  });
+});
+
+describe('prelimMaxFromRoundCounts', () => {
+  test('stops at the last round most of the field debated — outrounds hold only the break', () => {
+    // 5 prelims of 40 teams (one with byes), then quarters, semis, final.
+    expect(
+      prelimMaxFromRoundCounts([
+        { roundNumber: 1, teams: 40 }, { roundNumber: 2, teams: 40 }, { roundNumber: 3, teams: 36 },
+        { roundNumber: 4, teams: 40 }, { roundNumber: 5, teams: 40 }, { roundNumber: 6, teams: 8 },
+        { roundNumber: 7, teams: 4 }, { roundNumber: 8, teams: 2 },
+      ]),
+    ).toBe(5);
+  });
+
+  test('no rounds, no count', () => {
+    expect(prelimMaxFromRoundCounts([])).toBeNull();
   });
 });
