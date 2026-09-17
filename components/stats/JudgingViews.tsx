@@ -15,7 +15,7 @@
  */
 
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { judgingLens, speakingVsJudging, type JudgeLensRow } from '@/lib/cv/judgingLens';
+import { MIN_LEADING_SIDE, judgingLens, speakingVsJudging, type JudgeLensRow } from '@/lib/cv/judgingLens';
 import { SectionHeader } from '@/components/ui/Card';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { BarList } from '@/components/ui/BarList';
@@ -66,9 +66,13 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
           <StatTile label="Chair rate" value="—" hint="no prelim counts recorded" />
         )}
         <StatTile
-          label="Judge breaks"
+          label="Broke as a judge"
           value={breaks.broke}
-          hint={`of ${plural(breaks.tournaments, 'tournament')}${breaks.rate != null ? ` · ${pct(breaks.rate)}` : ''}`}
+          hint={`open bracket, of ${plural(breaks.tournaments, 'tournament')}${breaks.rate != null ? ` · ${pct(breaks.rate)}` : ''}${
+            breaks.otherBracket > 0
+              ? ` · also ${breaks.otherBracket} judging only a novice, junior, ESL or consolation outround`
+              : ''
+          }`}
         />
         <StatTile
           label="Outround chair"
@@ -119,8 +123,10 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
             </Table>
           </TableScroll>
           <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-            Prelims chaired over prelims judged, where both are recorded. A missing chair count beside a
-            judged-round count is read as none chaired, because that is how a zero is stored.
+            Prelims chaired over prelims judged, where both are recorded. Chairs come from the tab's
+            chaired-rounds field, which some tabs leave blank or incomplete, so the rate may under-report
+            chairing. A missing chair count beside a judged-round count is read as none chaired, because that
+            is also how a zero is stored.
             {chairExclusions.length > 0 ? ` Left out: ${chairExclusions.join('; ')}.` : ''}
             {chair.undated > 0
               ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
@@ -163,7 +169,7 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
               <tr>
                 <Th className="pl-4">Appointed as</Th>
                 <Th numeric>Tournaments</Th>
-                <Th numeric>Broke</Th>
+                <Th numeric title="Broke to the open bracket">Broke</Th>
                 <Th numeric className="pr-4">
                   Break rate
                 </Th>
@@ -186,7 +192,8 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
           </Table>
         </TableScroll>
         <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-          As the tab's participant list records it
+          As the tab's participant list records it. Broke means the open break: a tournament whose deepest
+          round judged was a novice, junior, ESL or consolation outround is not counted
           {appointments.some((a) => a.key === 'unstated')
             ? '. "Not stated" covers tournaments whose list gave no appointment, including ones known only from the round pages.'
             : '.'}
@@ -211,18 +218,41 @@ export function SpeakingVsJudgingSection({
   const balance = speakingVsJudging(speakerRows, judgeRows);
   const { seasons } = balance;
   if (seasons.length === 0) return null;
-  const latest = seasons[seasons.length - 1]!.year;
+
+  const counted = seasons.filter((s) => !s.thin);
+  const years = (ys: number[]) =>
+    ys.length === 0
+      ? ''
+      : ys.length === 1
+        ? String(ys[0])
+        : `${ys.slice(0, -1).join(', ')} and ${ys[ys.length - 1]}`;
+  const undatedTotal = balance.undatedSpoken + balance.undatedJudged;
+  const judgedMore = years(balance.judgedMoreYears);
+
+  // Earlier judged-more seasons are part of the story whatever the headline
+  // says: "overtook in 2024" on a record that judged more in 2021 and 2022
+  // would imply 2024 was the first time.
+  const earlierJudgedMore =
+    balance.turnedIn != null ? balance.judgedMoreYears.filter((y) => y < balance.turnedIn!) : [];
 
   const headline =
-    balance.turnedIn != null
-      ? balance.turnedSeasons === 1
-        ? `Judging overtook speaking in ${balance.turnedIn}, the latest season on record — one season so far.`
-        : `Judging overtook speaking in ${balance.turnedIn} and has stayed ahead for ${balance.turnedSeasons} seasons, through ${latest}.`
-      : balance.alwaysJudgedMore
-        ? 'You judged at more tournaments than you spoke at in every season on record, so there was no turn.'
-        : balance.judgedMoreSeasons === 0
-          ? 'You spoke at least as often as you judged in every season on record.'
-          : `No lasting turn: you judged more in ${balance.judgedMoreSeasons} of ${plural(seasons.length, 'season')}, but not in ${latest}.`;
+    counted.length === 0
+      ? `No season has ${MIN_LEADING_SIDE} or more tournaments on the side that leads, so none is called either way.`
+      : balance.undecided
+        ? `No turn is called: ${plural(undatedTotal, 'undated tournament')} could change which side led in ${years(balance.unsettledYears)}.${
+            judgedMore ? ` On the dated record you judged more in ${judgedMore}.` : ''
+          }`
+        : balance.turnedIn != null
+          ? `${
+              balance.turnedSeasons === 1
+                ? `Judging overtook speaking in ${balance.turnedIn}, the latest counted season — one season so far.`
+                : `Judging overtook speaking in ${balance.turnedIn} and has stayed ahead for ${balance.turnedSeasons} seasons, through ${counted[counted.length - 1]!.year}.`
+            }${earlierJudgedMore.length > 0 ? ` You had also judged more in ${years(earlierJudgedMore)}, before speaking led again.` : ''}`
+          : balance.alwaysJudgedMore
+            ? 'You judged at more tournaments than you spoke at in every counted season, so there was no turn.'
+            : balance.judgedMoreSeasons === 0
+              ? 'You spoke at least as often as you judged in every counted season.'
+              : `No lasting turn: you judged more in ${judgedMore}, but not in ${counted[counted.length - 1]!.year}.`;
 
   const undated = [
     balance.undatedSpoken > 0 ? plural(balance.undatedSpoken, 'spoken tournament') : null,
@@ -253,6 +283,11 @@ export function SpeakingVsJudgingSection({
                   <Td numeric>{s.judged}</Td>
                   <Td className="pr-4">
                     {LEAN_LABEL[s.lean]}
+                    {s.thin ? (
+                      <span className="ml-1.5 text-ink-soft" title={`Fewer than ${MIN_LEADING_SIDE} tournaments on the leading side`}>
+                        · too few to call
+                      </span>
+                    ) : null}
                     {balance.turnedIn === s.year ? <span className="ml-1.5 text-ink-soft">· turn</span> : null}
                   </Td>
                 </Tr>
@@ -262,9 +297,11 @@ export function SpeakingVsJudgingSection({
         </TableScroll>
       </div>
       <p className="text-caption text-ink-soft">
-        Tournaments per season on each side; one you both spoke and judged at counts on both. The turn is
-        the first season of the unbroken run, to the latest season, in which judging outnumbered speaking.
-        Years with no tournaments neither break nor extend it.
+        Tournaments per season on each side; one you both spoke and judged at counts on both. A season is
+        called only when the side ahead has at least {MIN_LEADING_SIDE} tournaments. The turn is the first
+        season of the unbroken run, to the latest called season, in which judging outnumbered speaking;
+        years with no tournaments, or too few to call, neither break nor extend it. No turn is called when
+        undated tournaments, placed in the right seasons, could change the answer.
         {undated.length > 0 ? ` Undated and left out: ${undated.join(' and ')}.` : ''}
       </p>
     </section>

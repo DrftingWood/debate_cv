@@ -119,7 +119,25 @@ describe('judgingLens — appointments and breaks', () => {
 
   test('judge breaks over every judged tournament', () => {
     expect(lens.tournaments).toBe(8);
-    expect(lens.breaks).toEqual({ tournaments: 8, broke: 4, rate: 0.5 });
+    expect(lens.breaks).toEqual({ tournaments: 8, broke: 4, rate: 0.5, otherBracket: 0 });
+  });
+
+  test('broke as a judge is the open bracket; secondary and consolation outrounds sit apart', () => {
+    const split = judgingLens([
+      judge({ judgeTypeTag: 'invited', lastOutroundJudged: 'Open Quarter Finals', broke: true }),
+      judge({ judgeTypeTag: 'invited', lastOutroundJudged: 'Semifinals', broke: true }),
+      // On the adjudicator break with no round stored: the break page is the tournament's, not a bracket's.
+      judge({ judgeTypeTag: 'invited', lastOutroundJudged: null, broke: true }),
+      judge({ judgeTypeTag: 'normal', lastOutroundJudged: 'Novice Grand Final', broke: true }),
+      judge({ judgeTypeTag: 'normal', lastOutroundJudged: 'Junior SemiFinals', broke: true }),
+      judge({ judgeTypeTag: 'normal', lastOutroundJudged: 'Silver Final', broke: true }),
+      judge({ judgeTypeTag: 'normal', broke: false }),
+    ]);
+    expect(split.breaks).toEqual({ tournaments: 7, broke: 3, rate: 3 / 7, otherBracket: 3 });
+    expect(split.appointments.map((a) => [a.key, a.tournaments, a.broke])).toEqual([
+      ['normal', 4, 0],
+      ['invited', 3, 3],
+    ]);
   });
 
   test('empty input', () => {
@@ -131,30 +149,49 @@ describe('judgingLens — appointments and breaks', () => {
 });
 
 describe('speakingVsJudging', () => {
-  const s = (year: number | null) => ({ year });
+  const at = (year: number | null, n = 1) => Array.from({ length: n }, () => ({ year }));
 
   test('per season counts, undated excluded and counted', () => {
     const out = speakingVsJudging(
-      [s(2020), s(2020), s(2021), s(null), s(null)],
-      [s(2021), s(2021), s(2022), s(null)],
+      [...at(2020, 4), ...at(2021), ...at(null, 2)],
+      [...at(2021, 4), ...at(2022, 3), ...at(null)],
     );
     expect(out.seasons).toEqual([
-      { year: 2020, spoken: 2, judged: 0, lean: 'spoken' },
-      { year: 2021, spoken: 1, judged: 2, lean: 'judged' },
-      { year: 2022, spoken: 0, judged: 1, lean: 'judged' },
+      { year: 2020, spoken: 4, judged: 0, lean: 'spoken', thin: false },
+      { year: 2021, spoken: 1, judged: 4, lean: 'judged', thin: false },
+      { year: 2022, spoken: 0, judged: 3, lean: 'judged', thin: false },
     ]);
     expect(out.undatedSpoken).toBe(2);
     expect(out.undatedJudged).toBe(1);
+    // Two undated spoken can't close a gap of three in 2021 or 2022, nor one undated judged a gap of four in 2020.
+    expect(out.undecided).toBe(false);
     expect(out.turnedIn).toBe(2021);
     expect(out.turnedSeasons).toBe(2);
     expect(out.judgedMoreSeasons).toBe(2);
+    expect(out.judgedMoreYears).toEqual([2021, 2022]);
     expect(out.alwaysJudgedMore).toBe(false);
   });
 
-  test('the turn must hold to the latest season: a lapse resets it', () => {
+  test('a season needs three tournaments on the leading side to count either way', () => {
+    // 2025 is one spoken against two judged: thin, so it neither makes a turn nor breaks one.
+    const out = speakingVsJudging([...at(2024, 4), ...at(2025)], [...at(2024), ...at(2025, 2)]);
+    expect(out.seasons.map((x) => [x.year, x.thin])).toEqual([[2024, false], [2025, true]]);
+    expect(out.turnedIn).toBeNull();
+    expect(out.judgedMoreSeasons).toBe(0);
+
+    const kept = speakingVsJudging(
+      [...at(2022, 3), ...at(2024)],
+      [...at(2023, 3), ...at(2024, 2)],
+    );
+    // The thin 2024 is skipped like an absent year: the 2023 turn still reaches the latest counted season.
+    expect(kept.turnedIn).toBe(2023);
+    expect(kept.turnedSeasons).toBe(1);
+  });
+
+  test('the turn must hold to the latest counted season: a lapse resets it', () => {
     const out = speakingVsJudging(
-      [s(2020), s(2021), s(2021), s(2023)],
-      [s(2020), s(2020), s(2022), s(2023), s(2023), s(2024)],
+      [...at(2020), ...at(2021, 4), ...at(2023)],
+      [...at(2020, 3), ...at(2022, 3), ...at(2023, 3), ...at(2024, 3)],
     );
     // 2020 judged, 2021 spoke, 2022 judged, 2023 judged, 2024 judged → turned in 2022.
     expect(out.turnedIn).toBe(2022);
@@ -163,13 +200,35 @@ describe('speakingVsJudging', () => {
   });
 
   test('an even season breaks the run; a latest season spoken means no turn', () => {
-    expect(speakingVsJudging([s(2020), s(2021)], [s(2020), s(2020), s(2021)]).turnedIn).toBeNull();
-    expect(speakingVsJudging([s(2021)], [s(2020), s(2020)]).turnedIn).toBeNull();
+    expect(speakingVsJudging([...at(2020), ...at(2021, 3)], [...at(2020, 3), ...at(2021, 3)]).turnedIn).toBeNull();
+    expect(speakingVsJudging([...at(2021, 3)], [...at(2020, 3)]).turnedIn).toBeNull();
   });
 
-  test('judged more in every season is not a turn', () => {
-    const out = speakingVsJudging([], [s(2020), s(2021)]);
+  test('judged more in every counted season is not a turn', () => {
+    const out = speakingVsJudging([], [...at(2020, 3), ...at(2021, 3)]);
     expect(out.turnedIn).toBeNull();
     expect(out.alwaysJudgedMore).toBe(true);
+  });
+
+  test('no call when undated tournaments could change a season the headline rests on', () => {
+    // 2024: none spoken, four judged — but five undated spoken tournaments could all be 2024.
+    const out = speakingVsJudging([...at(2023, 3), ...at(null, 5)], [...at(2023), ...at(2024, 4)]);
+    expect(out.undecided).toBe(true);
+    expect(out.unsettledYears).toEqual([2024]);
+    expect(out.turnedIn).toBeNull();
+    expect(out.turnedSeasons).toBe(0);
+    expect(out.judgedMoreYears).toEqual([2024]);
+  });
+
+  test('the record the red team read: no 2025 turn, earlier judged-more seasons kept', () => {
+    const out = speakingVsJudging(
+      [...at(2020, 2), ...at(2021, 10), ...at(2022, 5), ...at(2023, 9), ...at(2024, 3), ...at(2025), ...at(null, 7)],
+      [...at(2020), ...at(2021, 11), ...at(2022, 10), ...at(2023, 7), ...at(2024, 2), ...at(2025, 2), ...at(null, 3)],
+    );
+    expect(out.turnedIn).toBeNull();
+    expect(out.undecided).toBe(true);
+    // 2024 (3 v 2) flips with the three undated judged; the thin 2025 could fill out either way.
+    expect(out.unsettledYears).toEqual([2024, 2025]);
+    expect(out.judgedMoreYears).toEqual([2021, 2022]);
   });
 });

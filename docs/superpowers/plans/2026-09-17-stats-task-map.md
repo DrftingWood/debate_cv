@@ -18,7 +18,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ❓ needs an owner de
 | 2 | Filter bar (partner · pairing · seat), URL sync, existing sections filter-aware | ✅ |
 | 3 | Positions per format, teammates + pro-am, motion types | ✅ (browser screenshots pending — 3.3) |
 | 4 | Cross-tabs + standout findings | ✅ (browser pass pending) |
-| 5 | Thirteen further views on data we already have | 🟡 5.1, 5.4, 5.6, 5.8, 5.9, 5.13 done |
+| 5 | Thirteen further views on data we already have | 🟡 5.1, 5.2, 5.4, 5.5, 5.6, 5.8, 5.9, 5.13 done; 5.12 dropped |
 | 6 | Institution eras, opponents & schedule strength (ingest + schema) | ⬜ ❓ |
 | 7 | Speaking order and chosen motions from per-debate pages | ⬜ ❓ |
 
@@ -70,6 +70,32 @@ section ids. Also: cross-tab findings skip a row/column holding ≥ 80 % of the 
 Notes for later: 4 of 10 finals and 1 of 3 titles on the reference record are ESL finals — the funnel
 counts category finals as finals (same as `reachedFinal`); consider a category split. All 3 titles are
 undated tournaments, so "first title" reads "3 undated".
+
+### Phase 5 — second batch and red team round 2 (2026-09-17)
+
+- **5.2 Momentum** (`momentumAfter`): next prelim after a decided one; reference record after a win
+  −7pp win rate (power-pairing) but +0.19 speaker average.
+- **5.5 Break margin** (`lib/cv/breakMargin.ts`, `CvSpeakerRow.openBreak`): line = lowest team on the
+  stored Open break tab; 25 of 37 measured (BP median +1, AP 0); 12 excluded (only category tabs stored).
+- **5.12 Repeat motions — dropped**: 119 single-motion rounds on the reference record yield one
+  near-repeat pair; not worth a section. Revisit if per-debate pages (Phase 7) type choice rounds.
+- **R1 partly closed**: `CvSpeakerRow.emailDate` (earliest private-link email) orders a season.
+  The corpus seed stamps June 1, so only real accounts show it.
+- **Red team round 2, fixed**: cross-tab findings rank by interaction (cell − row effect − column
+  effect over the whole record) — the old ranking restated single effects and a seat filter erased its
+  own findings; funnel counts partial stages, splits open / category / consolation brackets, and drops
+  fabricated stage-to-stage rates for "went out here"; milestones name a first only when no undated
+  tournament could precede it, best break rank open-only; judging turn needs ≥ 3 tournaments and
+  withholds the headline when undated rows could flip it; "Broke as a judge" is open-bracket only;
+  carry gated under 6 rounds and caveated under a pairing filter; judging shows under a non-matching
+  filter; a11y on cross-tab cells and funnel bars.
+- **Wiring test** `tests/stats.wiring.test.ts`: unique ids, seat withholding, whole-record baseline,
+  judging under an empty filter, person-key partners — each mutation-checked.
+
+**Still open from round 2:** chair rate reads a null chair count as 0 and draws chairs and rounds judged
+from different sources (fix in `buildCvData`: count chairs from the same JudgeAssignment rows);
+`speakerStats` finals / titles count any bracket (labelled "any bracket" on Results; the funnel splits
+them); round curve doesn't control for tournament length.
 
 ### Red team 2026-09-17 — three reviewers (computation, UI, ingest/format/classifier)
 

@@ -554,11 +554,12 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
           <StatLine
             label="Deepest outround"
             value={r.deepestOutround}
-            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won` : undefined}
+            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, any bracket` : undefined}
           />
           <StatLine
             label="Finals reached"
             value={r.finals > 0 ? String(r.finals) : null}
+            hint="Any bracket, ESL and novice included — Outrounds below splits open from the rest"
           />
         </div>
         )}

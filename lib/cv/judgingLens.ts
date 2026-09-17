@@ -17,6 +17,7 @@
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { outroundRank } from '@/lib/calicotab/judgeStats';
 import { splitStageLabel, type OutroundStage } from '@/lib/calicotab/stageLexicon';
+import { bracketOf } from '@/lib/cv/outroundFunnel';
 
 export type JudgeLensRow = Pick<
   CvJudgeRow,
@@ -77,7 +78,12 @@ export type JudgingLens = {
     chairedOutround: number;
   };
   appointments: AppointmentRow[];
-  breaks: { tournaments: number; broke: number; rate: number | null };
+  /**
+   * `broke` is the open bracket (or a break with no round stored);
+   * `otherBracket` counts tournaments whose deepest round judged was a
+   * secondary or consolation bracket instead.
+   */
+  breaks: { tournaments: number; broke: number; rate: number | null; otherBracket: number };
 };
 
 const STAGE_LABEL: Record<OutroundStage, string> = {
@@ -146,6 +152,21 @@ function isSecondaryBracket(category: string | null): boolean {
   return category != null && !/^open$/i.test(category);
 }
 
+/*
+ * "Broke as a judge" means the tournament's break. Judging a Novice grand
+ * final or a Silver final is an outround, but at most tournaments those
+ * panels are drawn from adjudicators who did NOT break to the open rounds,
+ * so counting them would call a secondary-bracket allocation a break. The
+ * bracket is read from the deepest round judged, the only round stored; a
+ * judge who took an open quarter AND a novice final is filed under the
+ * novice final, which undercounts rather than inflates. A break with no
+ * round stored came from the adjudicator break page, which is the
+ * tournament's list rather than a bracket's, so it stays a break.
+ */
+function brokeOpen(r: JudgeLensRow): boolean {
+  return r.broke && bracketOf(r.lastOutroundJudged) === 'open';
+}
+
 export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
   // ── Chair rate ──────────────────────────────────────────────────────
   const byYear = new Map<number, JudgeLensRow[]>();
@@ -210,7 +231,7 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
       tag === 'core' || tag === 'invited' || tag === 'subsidized' || tag === 'normal' ? tag : 'unstated';
     const a = appointments.get(key) ?? { key, label: APPOINTMENT_LABEL[key], tournaments: 0, broke: 0 };
     a.tournaments += 1;
-    if (r.broke) a.broke += 1;
+    if (brokeOpen(r)) a.broke += 1;
     appointments.set(key, a);
   }
   const appointmentRows = [...appointments.values()].sort(
@@ -220,7 +241,7 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
       a.label.localeCompare(b.label),
   );
 
-  const broke = rows.filter((r) => r.broke).length;
+  const broke = rows.filter(brokeOpen).length;
 
   return {
     tournaments: rows.length,
@@ -244,17 +265,34 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
       chairedOutround: rows.filter((r) => !!r.lastOutroundChaired).length,
     },
     appointments: appointmentRows,
-    breaks: { tournaments: rows.length, broke, rate: ratio(broke, rows.length) },
+    breaks: {
+      tournaments: rows.length,
+      broke,
+      rate: ratio(broke, rows.length),
+      otherBracket: rows.filter((r) => r.broke && !brokeOpen(r)).length,
+    },
   };
 }
 
 // ── Speaking vs judging ─────────────────────────────────────────────────
+
+/**
+ * A season leans one way only when the side ahead has at least this many
+ * tournaments. One spoken against two judged is not a career turning; it is
+ * a quiet year, and a headline built on it ("judging overtook speaking in
+ * 2025") reads a coin flip as a shift. Three is a floor chosen by judgement,
+ * not derived: it keeps a season of one or two events on the leading side
+ * from being called, and the undated check below catches the rest.
+ */
+export const MIN_LEADING_SIDE = 3;
 
 export type BalanceSeason = {
   year: number;
   spoken: number;
   judged: number;
   lean: 'spoken' | 'judged' | 'even';
+  /** Fewer than MIN_LEADING_SIDE on the leading side: shown, but neither makes nor breaks a run. */
+  thin: boolean;
 };
 
 export type SpeakingVsJudging = {
@@ -263,22 +301,65 @@ export type SpeakingVsJudging = {
   undatedSpoken: number;
   undatedJudged: number;
   /**
-   * The first season of the unbroken run, reaching the latest season, in
-   * which you judged at more tournaments than you spoke at. Null when the
-   * latest season was not one, or when every season was (nothing turned).
+   * The first season of the unbroken run of counted (non-thin) seasons,
+   * reaching the latest counted season, in which you judged at more
+   * tournaments than you spoke at. Null when the latest counted season was
+   * not one, when every counted season was (nothing turned), or when
+   * `undecided`.
    */
   turnedIn: number | null;
-  /** Length of that run in seasons; 0 when there is no turn. */
+  /** Length of that run in counted seasons; 0 when there is no turn. */
   turnedSeasons: number;
+  /** Counted seasons in which you judged more, oldest first. */
+  judgedMoreYears: number[];
   judgedMoreSeasons: number;
   alwaysJudgedMore: boolean;
+  /**
+   * Undated tournaments are enough to change a season the headline rests on
+   * (see `unsettledYears`), so no turn — or lack of one — is called.
+   */
+  undecided: boolean;
+  /** Seasons whose lean or thinness undated tournaments could change, among those the headline reads. */
+  unsettledYears: number[];
 };
+
+type Classification = { lean: BalanceSeason['lean']; thin: boolean };
+
+function classify(spoken: number, judged: number): Classification {
+  return {
+    lean: judged > spoken ? 'judged' : spoken > judged ? 'spoken' : 'even',
+    thin: Math.max(spoken, judged) < MIN_LEADING_SIDE,
+  };
+}
+
+/*
+ * Could undated tournaments, placed in this season, change how it reads?
+ * Each undated tournament could belong to any season, so the question is
+ * whether any split of them — none to all of each side — moves the season
+ * across a line. Lean and thinness only move one way as either count grows,
+ * so if the four corners of that range agree, every point inside does too.
+ */
+function settled(s: BalanceSeason, undatedSpoken: number, undatedJudged: number): boolean {
+  const corners = [
+    classify(s.spoken + undatedSpoken, s.judged),
+    classify(s.spoken, s.judged + undatedJudged),
+    classify(s.spoken + undatedSpoken, s.judged + undatedJudged),
+  ];
+  return corners.every((c) => c.lean === s.lean && c.thin === s.thin);
+}
 
 /*
  * Seasons are the years that appear on the record, not the calendar: a year
  * with no tournaments on either side neither breaks nor extends a run,
- * because an absent year says nothing about which you did more of. A
- * tournament you both spoke and judged at counts on both sides.
+ * because an absent year says nothing about which you did more of — and a
+ * thin year is treated the same way, for the reason MIN_LEADING_SIDE gives.
+ * A tournament you both spoke and judged at counts on both sides.
+ *
+ * Undated tournaments are placed nowhere, but they are not nothing: seven
+ * undated spoken tournaments could turn any recent judged-more season back.
+ * So the headline is withheld when they could change a season it rests on —
+ * for a turn, the run and the season before it (which fixes the turn's
+ * year); otherwise, the latest counted season and anything thin after it.
  */
 export function speakingVsJudging(
   speakerRows: Pick<CvSpeakerRow, 'year'>[],
@@ -292,28 +373,38 @@ export function speakingVsJudging(
   };
   for (const r of speakerRows) if (r.year != null) at(r.year).spoken += 1;
   for (const r of judgeRows) if (r.year != null) at(r.year).judged += 1;
+  const undatedSpoken = speakerRows.filter((r) => r.year == null).length;
+  const undatedJudged = judgeRows.filter((r) => r.year == null).length;
 
   const seasons: BalanceSeason[] = [...counts]
-    .map(([year, c]) => ({
-      year,
-      ...c,
-      lean: c.judged > c.spoken ? ('judged' as const) : c.spoken > c.judged ? ('spoken' as const) : ('even' as const),
-    }))
+    .map(([year, c]) => ({ year, ...c, ...classify(c.spoken, c.judged) }))
     .sort((a, b) => a.year - b.year);
+  const counted = seasons.filter((s) => !s.thin);
 
-  let runStart = seasons.length;
-  while (runStart > 0 && seasons[runStart - 1]!.lean === 'judged') runStart -= 1;
-  const runLength = seasons.length - runStart;
-  const alwaysJudgedMore = seasons.length > 0 && runStart === 0;
-  const turned = runLength > 0 && !alwaysJudgedMore;
+  let runStart = counted.length;
+  while (runStart > 0 && counted[runStart - 1]!.lean === 'judged') runStart -= 1;
+  const runLength = counted.length - runStart;
+  const always = counted.length > 0 && runStart === 0;
+  const turned = runLength > 0 && !always;
+
+  const readFrom =
+    turned ? counted[runStart - 1]!.year : !always && counted.length > 0 ? counted[counted.length - 1]!.year : -Infinity;
+  const unsettledYears = seasons
+    .filter((s) => s.year >= readFrom && !settled(s, undatedSpoken, undatedJudged))
+    .map((s) => s.year);
+  const undecided = unsettledYears.length > 0;
+  const judgedMoreYears = counted.filter((s) => s.lean === 'judged').map((s) => s.year);
 
   return {
     seasons,
-    undatedSpoken: speakerRows.filter((r) => r.year == null).length,
-    undatedJudged: judgeRows.filter((r) => r.year == null).length,
-    turnedIn: turned ? seasons[runStart]!.year : null,
-    turnedSeasons: turned ? runLength : 0,
-    judgedMoreSeasons: seasons.filter((s) => s.lean === 'judged').length,
-    alwaysJudgedMore,
+    undatedSpoken,
+    undatedJudged,
+    turnedIn: turned && !undecided ? counted[runStart]!.year : null,
+    turnedSeasons: turned && !undecided ? runLength : 0,
+    judgedMoreYears,
+    judgedMoreSeasons: judgedMoreYears.length,
+    alwaysJudgedMore: always && !undecided,
+    undecided,
+    unsettledYears,
   };
 }
