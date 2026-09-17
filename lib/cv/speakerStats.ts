@@ -356,14 +356,20 @@ function numericAvg(row: CvSpeakerRow): number | null {
  * Undated tournaments sort to the END, not the start. A row with no year is
  * usually a recent ingest whose landing page didn't expose one; sorting it
  * to -Infinity would splice an unknown event into the middle of the user's
- * earliest season and silently break or extend a run there. Ties fall back
- * to name so the ordering is deterministic across page loads.
+ * earliest season and silently break or extend a run there. Within a season,
+ * rows order by the date their private link was emailed; ties fall back to
+ * name so the ordering is deterministic across page loads.
  */
 function chronological(rows: CvSpeakerRow[]): CvSpeakerRow[] {
   return [...rows].sort((a, b) => {
     const ya = a.year ?? Infinity;
     const yb = b.year ?? Infinity;
     if (ya !== yb) return ya - yb;
+    // Within a season, by when the private link was emailed — the only
+    // within-season date on record. Rows without one go last in their season.
+    const da = a.emailDate ?? '9999';
+    const db = b.emailDate ?? '9999';
+    if (da !== db) return da < db ? -1 : 1;
     return a.tournamentName.localeCompare(b.tournamentName);
   });
 }

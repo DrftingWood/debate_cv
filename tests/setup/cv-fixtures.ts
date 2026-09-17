@@ -31,6 +31,7 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     speakerAvgScore: null,
     prelimsSpoken: 0,
     prelimRoundCount: null,
+    emailDate: null,
     speakerRankOpen: null,
     speakerRankEsl: null,
     speakerRankEfl: null,

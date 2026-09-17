@@ -58,6 +58,13 @@ export type CvSpeakerRow = {
   tournamentId: bigint;
   tournamentName: string;
   year: number | null;
+  /**
+   * Earliest date a private link for this tournament was emailed (YYYY-MM-DD),
+   * or null. The only within-season date on record: tabs publish a year, not
+   * dates, and the link usually arrives days before the tournament. Used to
+   * order a season; never shown as the tournament's date.
+   */
+  emailDate: string | null;
   format: string | null;
   /** Admin-approved region tag (lib/tags/vocabulary.ts); null until tagged. */
   region: string | null;
@@ -343,6 +350,14 @@ export async function buildCvData(
   // that was on this tournament's private URL rather than a single canonical
   // name plastered across every row. Sort by URL so the picked spelling is
   // deterministic across page loads.
+  const emailDateByTournament = new Map<bigint, string>();
+  for (const u of urls) {
+    if (!u.tournamentId || !u.messageDate) continue;
+    const day = u.messageDate.toISOString().slice(0, 10);
+    const prev = emailDateByTournament.get(u.tournamentId);
+    if (!prev || day < prev) emailDateByTournament.set(u.tournamentId, day);
+  }
+
   const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
   const myNameByTournament = new Map<bigint, string>();
   for (const u of [...urls].sort((a, b) => a.url.localeCompare(b.url))) {
@@ -874,6 +889,7 @@ export async function buildCvData(
     speakerRows.push({
       tournamentId: tid,
       tournamentName: t.name,
+      emailDate: emailDateByTournament.get(tid) ?? null,
       year: t.year,
       format: t.format,
       region: t.region,

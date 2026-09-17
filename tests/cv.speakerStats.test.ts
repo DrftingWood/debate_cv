@@ -772,3 +772,22 @@ describe('computeSpeakerStats — prelim scope', () => {
     expect(s.volume.roundsDebated).toBe(2);
   });
 });
+
+describe('computeSpeakerStats — order within a season', () => {
+  test('streaks order a season by the date the private link was emailed, not by name', () => {
+    // Alphabetically Beta (a loss) sits between Alpha and Gamma (two wins) and
+    // breaks the run; by email date the two wins are consecutive.
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, tournamentName: 'Beta', year: 2024, emailDate: '2024-09-01',
+          teamRoundResults: teamRounds([[1, 'OG', false, 0]]) }),
+        makeSpeakerRow({ tournamentId: 2n, tournamentName: 'Alpha', year: 2024, emailDate: '2024-02-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
+        makeSpeakerRow({ tournamentId: 3n, tournamentName: 'Gamma', year: 2024, emailDate: '2024-03-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.longestWinStreak).toBe(2);
+  });
+});

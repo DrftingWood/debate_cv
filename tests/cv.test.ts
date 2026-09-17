@@ -131,6 +131,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
         url: 'https://example.calicotab.com/abc/private/xyz/',
         tournamentId,
         ingestedAt: new Date('2026-01-01'),
+        messageDate: new Date('2026-03-09T10:00:00Z'),
         registrationName: 'Test User',
         tournament: {
           id: tournamentId,
@@ -180,6 +181,8 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
 
     expect(data.speakerRows).toHaveLength(1);
     expect(data.speakerRows[0]!.speakerRankOpen).toBe(7);
+    // When the private link was emailed — the only within-season date on record.
+    expect(data.speakerRows[0]!.emailDate).toBe('2026-03-09');
   });
 
   test('prefers parsed speakerRankOpen over speakerRankOpenDerived when both exist', async () => {
