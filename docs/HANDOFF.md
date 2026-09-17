@@ -2,6 +2,187 @@
 
 ---
 
+## 2026-09-17 — Formats fixed in ingest; filterable statistics (phases 0–2 of 7)
+
+**Working tree only, not committed.** Tests 1,013 passing / 38 skipped; `tsc` + `eslint` clean.
+**Spec:** `docs/superpowers/specs/2026-09-17-filterable-stats-design.md` — decisions, build order, status per phase.
+
+### Product changes (affect real users)
+
+- **Tournament format** (`lib/calicotab/format.ts` `inferTournamentFormat`, moved out of ingest): room shape
+  first (four seats → BP; two sides named Gov/Opp → Asian Parliamentary, Aff/Neg → Australs,
+  Prop/Opp → World Schools, confirmed by squad size ≥ 3; two a side → "Two-team Parliamentary"), then
+  name keywords, then the old team-size rule. The old rule mislabelled 8 of the reference record's 73
+  tournaments (all Australs as AP, NorAms as BP) and left 3 blank. Squad size can come from the
+  participants page. `formatAbbrev` gains `Aus` and `2v2`. **No `PARSER_VERSION` bump** — the pending
+  `/admin → Re-ingest all` (09-15 checklist) backfills.
+- **Coverage over-count** on /cv/stats: motion coverage counted judged-only tournaments ("66 of 37").
+- **Public CV** (`/u/<slug>`): doubled title suffix fixed; formats abbreviated; long tournament/team names
+  truncated like the owner ledger, which stopped every "Broke" badge clipping (measured, 3 widths).
+- **`buildCvData`**: rows carry `teammateDetails` (teammates' totals and round scores, names masked via
+  `displayNameFor` exactly like `teammates`) and `prelimRoundCount`.
+- **/cv/stats is filterable** by partner, pairing (pro-am / peers) and seat, URL-synced. Sections moved
+  unchanged to `components/stats/StatsSections.tsx`; `FilterableStats` narrows the data
+  (`lib/cv/statsFilter.ts`) and re-runs `computeSpeakerStats` in the browser. Under a seat filter, tab
+  placement, breaks, runs, round dynamics, seasons and their findings are withheld with a reason.
+
+### New pure modules (all test-first)
+
+`lib/motions/classify.ts` (Policy / Actor / Belief / Stance / Regret / Preference + context-led and
+info-slide flags; 99.8 % of 1,023 corpus motions), `lib/cv/statsFacts.ts` (round and tournament
+tables, `seatKey`, `proAmFor` — pro-am gap > 1.5 from scored speeches only), `lib/cv/statsFilter.ts`.
+
+### Landmines
+
+- **Pro-am never uses tab totals.** A total ÷ prelims put a partner who sat out rounds 25.8 points below
+  the user on the reference record. Unlabelled beats wrong.
+- **Choice rounds have no motion type**: the round tab doesn't say which motion a room chose
+  (~60 of 219 prelim rounds on the reference record). Fixable only from per-debate pages (phase 7).
+- **Soft 404 on `/u/<unknown>`**: root `app/loading.tsx` streams a 200 before `notFound()`. A real fix
+  removes that boundary from `/u`'s path and so changes navigation UX elsewhere — owner decision.
+- The seeded corpus user (`scripts/seed-from-corpus.mjs`) now needs a third argument, `derived.json`
+  from `tests/__derive.live.test.ts`, and **preserves `publicCvEnabled` across re-seeds** unless
+  `PUBLIC_CV=0/1` is passed.
+
+### Next (spec phases 3–7)
+
+3. Per-format seat tables with per-format baselines; teammates with pro-am badges; motion-type section.
+4. Cross-tabs and findings. 5. The fourteen "have data" views. 6. Institution eras and opponents
+(parser + schema). 7. Speaking order and chosen motions from per-debate pages (separate spec).
+
+---
+
+## 2026-09-16 — A real 73-tournament record, for reviewing the CV at depth
+
+**Not merged; working tree only.** Tests 902 passing / 36 skipped (unchanged),
+`tsc` + `eslint` clean. No product code touched — the changes are corpus
+tooling and a second seed script.
+
+### Why
+
+Every CV surface had only ever been reviewed against `seed-dev-data.mjs`: a
+14-tournament invented record built to hit awkward branches. Nothing had been
+rendered at the scale a long career reaches. This session put one real
+73-tournament record into a local database to find out what breaks.
+
+### The corpus is now a person index
+
+The 2026-09-15 corpus had depth pages for only the **first 100 targets
+alphabetically**, so its person counts were meaningless as a career measure —
+the most prolific person in it appeared to have 17 tournaments.
+
+- `__corpus.live.test.ts` now **caches**: a page already on disk is not
+  re-fetched (`CORPUS_REFETCH=1` overrides). The participants pass below
+  served 1,366 of its pages from disk and fetched 571.
+- `CORPUS_PARTICIPANTS=1` fetches `/participants/` for tournaments *outside*
+  the depth slice — one page each. That is what makes the corpus a person
+  index, and it is affordable where the nine-page depth tier is not.
+- `CORPUS_INDEX=<name>` lets a focused pass share the pages directory without
+  overwriting `index.json`. `__corpusdb.live.test.ts` honours it too, and its
+  ">100 tournaments" guard relaxes to ">0" for a focused index.
+
+Person-level coverage went from 99 tournaments to **582 of 625**. Against the
+full index, **32 real people have competed at more than 50 tournaments**; the
+top four entries are still the stand-ins (`Speaker 2` at 341), which is a
+standing confirmation that `PLACEHOLDER_NAME_PATTERN` earns its keep.
+
+### The record
+
+Ritabrata Mitra, 74 tournaments in the index and 73 with a reachable root —
+the most balanced dual career available (37 speaking, 36 judging), across
+WUDC Belgrade 2022, WUDC 2024, EUDC 2021, Australs, UADC, China BP and Japan,
+tracking GLC Mumbai → IGNOU → Edinburgh. Deep-crawling those 73 lifted the
+data from 7 speaker-tab rows to 37, 47 round scores to 219, 11 judge rounds
+to 66 and 1 break row to 16.
+
+Spot-checked against the tab's own independent fields at IITB 2023: published
+total 398 = sum of the five round scores; published rank 5 = rank by ordering.
+The CV's field denominator of 176 is exactly 185 scored speakers − 8 stand-ins
+− 1 collapsed duplicate name, which is what ingest would also produce.
+
+### `scripts/seed-from-corpus.mjs` (new)
+
+Projects a corpus export into the app's tables. It exists because **ingest
+cannot be used for this**: `ingestPrivateUrl` is gated on `isPrivateUrl`,
+which demands `/<slug>/privateurls/<token>/`. That gate is the product's
+consent model — a CV is built only from links emailed to its owner — and it is
+not something to loosen for a demo. Companion pieces: `scripts/corpus-export.sql`
+(psql → one JSON bundle; Prisma has no driver to query the corpus with) and
+`tests/__tagplaceholders.live.test.ts` (asks the real detector which names are
+stand-ins, so the rule is not re-implemented in a third dialect).
+
+Three things about the schema cost a debugging cycle each and are worth
+knowing before writing to these tables:
+
+1. **`DiscoveredUrl` is what the CV reads first.** Participations alone render
+   "No tournaments ingested yet" — `buildCvData` starts from the URLs the user
+   supplied, not from every tournament they appear at.
+2. **`JudgeAssignment.stage` holds a round LABEL, not a category.** Writing
+   `'prelim'` makes `classifyRoundLabel` return `unknown` and the CV's
+   "Judged" column renders empty for every row.
+3. **A speaker's `broke` flag comes from `TournamentParticipant.teamBreakRank`
+   / `eliminationReached`**, not from the `EliminationResult` rows. With those
+   null the stats page confidently reported a 0% break rate over 37 entries;
+   the real figure is 65%.
+
+Deliberately left null: `eliminationReached` and `lastOutroundChaired`. The
+crawler takes `resultsRounds.slice(0, 3)`, so no outround ballot is in the
+corpus and there is no real stage name to write — inventing one inflates
+"outrounds chaired" with a number nothing backs.
+
+### What the deep record exposed
+
+- **Page weight.** In dev, `/cv` renders 5.7 MB of HTML in ~8s, `/cv/motions`
+  8.1 MB in ~13s, `/cv/verify` 4.8 MB in ~7.5s. Production strips the dev
+  overhead, but most of that is data, not bundle: every tournament ships its
+  expanded round ledger. A 73-tournament record is not an outlier — 32 people
+  in the corpus alone are at that scale. Worth a virtualised or
+  collapsed-by-default ledger before someone with a long career signs up.
+- `Tournament.format` and `region` are never populated by this path, so those
+  columns read "—" on every row.
+
+### The public view at 73 rows — three defects
+
+`/u/<slug>` had only ever been seen at 14 tournaments. Turned on locally
+(`PUBLIC_CV=1`, opt-in; the default stays off) and rendered anonymously, it
+serves 873 KB in ~10s — a tenth of `/cv`, so the condensed public template is
+doing its job. Three things are wrong with it:
+
+1. **Doubled title suffix.** `generateMetadata` returned
+   `"<name> · debate cv"` while the root layout's template is `'%s · debate cv'`,
+   so the tab and every link preview read
+   "Ritabrata Mitra · debate cv · debate cv". **Fixed** in
+   `app/u/[slug]/page.tsx` — the title is now just the name. This is the only
+   product-code change in the session.
+2. **Result badges are clipped.** The speaking table's `scrollWidth` (997)
+   exceeds its container's `clientWidth` (982), and the "Broke" badge in the
+   RESULT column lands 3px past the visible right edge — measured, not eyeballed,
+   and identical at 1440 / 1280 / 1024 because the table carries a min-width.
+   All 24 badges on this record are cut until the table is scrolled sideways.
+   Not fixed: `DESIGN_INSTRUCTIONS.md` §6 governs the `.ledger` mechanics and
+   this wants a deliberate column-width decision, not a nudge.
+3. **Soft 404.** `/u/<unknown-slug>` returns **HTTP 200** with the "CV not
+   found" body. `notFound()` is called, but the Suspense shell has already
+   streamed, so the status is locked in. Low impact — that branch sets
+   `robots: index:false`, and all public CVs are `noindex, nofollow, nocache` —
+   but it is still a 200 for a page that does not exist.
+
+Also cosmetic on both views: TEAM RANK and FORMAT read "—" on every row,
+because this seed populates neither `TeamResult.rank` nor `Tournament.format`.
+
+### Next
+
+1. Decide whether `/sample` should show a deep record. It is still Maya Rao,
+   fictional, 5 rows. **Do not publish this record as-is** — Ritabrata Mitra
+   is a real person who has not asked for a public CV. The local database now
+   has `publicCvEnabled: true` for reviewing the template, which is safe while
+   it stays local and is not a decision to carry into a deploy. A fictional
+   record at 50+ tournaments, or this person's consent, are the honest routes.
+2. The badge clipping and the soft 404 above.
+3. The page-weight finding above.
+4. Unchanged from 2026-09-15: round label on `SpeakerRoundScore`, outround
+   `TeamResult` keying, landing-page judge history.
+
 ## 2026-09-15 — Corpus-driven parser overhaul, one round nomenclature, red team
 
 **Merged:** PR #114 → `main` as `dcf1165`; production deploy green (migrations applied at build).
