@@ -8,6 +8,7 @@ import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
+import { deriveOpenBreak, type CvOpenBreak, type StandingLike } from '@/lib/cv/breakMargin';
 import {
   deepestOutroundsByCategory,
   isEudcTournament,
@@ -122,6 +123,13 @@ export type CvSpeakerRow = {
    */
   eliminationReachedByCategory: CategoryOutround[] | null;
   broke: boolean;
+  /**
+   * The tournament's Open break line — the lowest breaking team's points and
+   * wins — and whether the user's team was on it. Null when no Open break tab
+   * is stored. Feeds the break-margin view; see lib/cv/breakMargin.ts for why
+   * the line is the lowest breaker and not the best non-breaker.
+   */
+  openBreak: CvOpenBreak | null;
   /**
    * True when the user's team won the deepest outround they reached AND
    * that outround was the tournament's final (Grand Final / Final). Lets
@@ -603,6 +611,7 @@ export async function buildCvData(
     openReportRows,
     motionRows,
     fieldRows,
+    openBreakRows,
   ] = await Promise.all([
     // Outround team win/loss results. Feed `wonTournament` per speaker row
     // — did the user's team win the deepest outround they reached, and was
@@ -689,7 +698,34 @@ export async function buildCvData(
           tournamentId: bigint;
           speakerScoreTotal: { toString(): string } | null;
         }>),
+
+    // The Open break tab's team names, for the break line. Ingest stores each
+    // break tab's rows under its category ('Open', 'ESL', …); one query for
+    // every tournament, joined in memory against the round-0 standings
+    // already fetched above.
+    tournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: { tournamentId: { in: tournamentIds }, entityType: 'team', stage: 'Open' },
+          select: { tournamentId: true, entityName: true, stage: true },
+        })
+      : Promise.resolve([] as Array<{ tournamentId: bigint; entityName: string; stage: string }>),
   ]);
+
+  const openBreakNamesByTournament = new Map<bigint, string[]>();
+  for (const r of openBreakRows) {
+    if (r.stage !== 'Open') continue;
+    const list = openBreakNamesByTournament.get(r.tournamentId) ?? [];
+    list.push(r.entityName);
+    openBreakNamesByTournament.set(r.tournamentId, list);
+  }
+  const standingsByTournament = new Map<bigint, StandingLike[]>();
+  for (const tr of teamResultRows) {
+    if (!tr.teamName || !openBreakNamesByTournament.has(tr.tournamentId)) continue;
+    const points = tr.points == null ? null : Number(tr.points.toString());
+    const list = standingsByTournament.get(tr.tournamentId) ?? [];
+    list.push({ teamName: tr.teamName, points: Number.isFinite(points) ? points : null, wins: tr.wins });
+    standingsByTournament.set(tr.tournamentId, list);
+  }
 
   const teamOutroundResultByKey = new Map<string, 'won' | 'lost'>();
   for (const r of teamOutroundRows) {
@@ -919,6 +955,13 @@ export async function buildCvData(
       eliminationReached: speakerSignals.eliminationReached,
       eliminationReachedByCategory,
       broke: speakerSignals.broke,
+      openBreak: openBreakNamesByTournament.has(tid)
+        ? deriveOpenBreak(
+            standingsByTournament.get(tid) ?? [],
+            openBreakNamesByTournament.get(tid)!,
+            p.teamName,
+          )
+        : null,
       wonTournament,
       hasOpenReport: reportedTournamentIds.has(tid.toString()),
       roundScores: (p.speakerRoundScores ?? [])

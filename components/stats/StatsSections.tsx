@@ -780,6 +780,7 @@ export const STATS_SECTIONS = [
   { id: 'momentum', label: 'Momentum' },
   { id: 'results', label: 'Results' },
   { id: 'funnel', label: 'Outrounds' },
+  { id: 'break-margin', label: 'Break margin' },
   { id: 'positions', label: 'Positions' },
   { id: 'motion-types', label: 'Motion types' },
   { id: 'cross-tabs', label: 'Cross-tabs' },

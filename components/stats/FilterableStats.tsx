@@ -20,6 +20,7 @@ import { SectionHeader } from '@/components/ui/Card';
 import { PageJumpNav } from '@/components/PageJumpNav';
 import { StatsFilterBar } from '@/components/stats/StatsFilterBar';
 import { CrossTabsSection } from '@/components/stats/CrossTabsSection';
+import { BreakMarginSection } from '@/components/stats/BreakViews';
 import { MilestonesSection, OutroundFunnelSection } from '@/components/stats/CareerViews';
 import { JudgingLensSection, SpeakingVsJudgingSection } from '@/components/stats/JudgingViews';
 import {
@@ -177,6 +178,16 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
               />
             ) : (
               <OutroundFunnelSection tournaments={filteredFacts.tournaments} />
+            )}
+            {bySeat ? (
+              <WithheldSection
+                id="break-margin"
+                label="Break margin"
+                title="How close to the break line"
+                reason="The break line is a fact about a whole tournament, so it isn't shown while filtering by seat."
+              />
+            ) : (
+              <BreakMarginSection speakerRows={filtered.speakerRows} />
             )}
             <PositionsSection facts={filteredFacts} baseline={facts.rounds} />
             <MotionTypesSection facts={filteredFacts} baseline={facts.rounds} />
