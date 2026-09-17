@@ -20,6 +20,8 @@ import { SectionHeader } from '@/components/ui/Card';
 import { PageJumpNav } from '@/components/PageJumpNav';
 import { StatsFilterBar } from '@/components/stats/StatsFilterBar';
 import { CrossTabsSection } from '@/components/stats/CrossTabsSection';
+import { MilestonesSection, OutroundFunnelSection } from '@/components/stats/CareerViews';
+import { JudgingLensSection, SpeakingVsJudgingSection } from '@/components/stats/JudgingViews';
 import {
   CarrySection,
   MotionTypesSection,
@@ -151,6 +153,16 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             )}
             <RoundCurveSection facts={filteredFacts} baseline={facts.rounds} />
             <ResultsSection stats={stats} perRoundOnly={bySeat} />
+            {bySeat ? (
+              <WithheldSection
+                id="funnel"
+                label="Outrounds"
+                title="From break to title"
+                reason="Breaks and outrounds are facts about whole tournaments, so they aren't shown while filtering by seat."
+              />
+            ) : (
+              <OutroundFunnelSection tournaments={filteredFacts.tournaments} />
+            )}
             <PositionsSection facts={filteredFacts} baseline={facts.rounds} />
             <MotionTypesSection facts={filteredFacts} baseline={facts.rounds} />
             <CrossTabsSection facts={filteredFacts} baseline={facts.rounds} />
@@ -174,6 +186,19 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
                 ) : null}
               </div>
             )}
+            {bySeat ? (
+              <WithheldSection
+                id="milestones"
+                label="Milestones"
+                title="Firsts and records"
+                reason="Firsts, tab ranks and break runs describe whole tournaments, so they aren't shown while filtering by seat."
+              />
+            ) : (
+              <MilestonesSection speakerRows={filtered.speakerRows} />
+            )}
+            {/* Judging has no partner, pairing or seat: always the whole record. */}
+            <SpeakingVsJudgingSection speakerRows={data.speakerRows} judgeRows={data.judgeRows} />
+            <JudgingLensSection judgeRows={data.judgeRows} />
             <Coverage coverage={stats.coverage} />
           </div>
           {/* Keyed by the filter: withheld sections replace real ones under the

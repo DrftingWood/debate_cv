@@ -18,7 +18,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ❓ needs an owner de
 | 2 | Filter bar (partner · pairing · seat), URL sync, existing sections filter-aware | ✅ |
 | 3 | Positions per format, teammates + pro-am, motion types | ✅ (browser screenshots pending — 3.3) |
 | 4 | Cross-tabs + standout findings | ✅ (browser pass pending) |
-| 5 | Thirteen further views on data we already have | ⬜ |
+| 5 | Thirteen further views on data we already have | 🟡 5.1, 5.4, 5.6, 5.8, 5.9, 5.13 done |
 | 6 | Institution eras, opponents & schedule strength (ingest + schema) | ⬜ ❓ |
 | 7 | Speaking order and chosen motions from per-debate pages | ⬜ ❓ |
 
@@ -51,6 +51,25 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ❓ needs an owner de
   `aria-pressed` buttons. Rail entry "Cross-tabs".
 - Reference record: seat × type 31 cells / 9 visible; findings include "In OG on Belief motions you
   average +1.3 against your usual British Parliamentary speech (7 rounds at 7 tournaments)".
+
+### Phase 5 — first batch done 2026-09-17
+
+| ID | View | Module / section | Reference record |
+|---|---|---|---|
+| 5.1 | Round-by-round curve | `lib/cv/roundViews.ts` `roundCurve` · `RoundCurveSection` (seat-filterable) | R1 Δ−0.34 +13pp … R7 Δ+0.43 −35pp (n 9) |
+| 5.9 | Carry index | `carryIndex` · `CarrySection`; level band ±0.5 (±1 called 190 of 213 level) | 213 rounds, mean +0.19 |
+| 5.6 | Outround funnel | `lib/cv/outroundFunnel.ts` · `OutroundFunnelSection` (withheld under seat) | broke 25/37 → QF+ 19 → SF+ 18 → F 10 → won 3 |
+| 5.8 | Milestones & records | `lib/cv/milestones.ts` · `MilestonesSection`; "first" names a tournament only when unique in its season; break run shown as a certain–possible range (R1) | first break 2020 BD UADC; best speech 84; break run 3–10 |
+| 5.13 | Judging lens | `lib/cv/judgingLens.ts` · `JudgingLensSection` | chair rate 90 % (121/135); judge breaks 26/36 |
+| 5.4 | Speaking vs judging | `speakingVsJudging` · `SpeakingVsJudgingSection` | turned to judging in 2025 (one season so far) |
+
+Whole page server-rendered against the reference record (next/navigation mocked) under no filter, a seat,
+a partner key, a pairing, seat + pairing and a non-matching partner: no NaN / undefined, no duplicate
+section ids. Also: cross-tab findings skip a row/column holding ≥ 80 % of the grid (X6 closed).
+
+Notes for later: 4 of 10 finals and 1 of 3 titles on the reference record are ESL finals — the funnel
+counts category finals as finals (same as `reachedFinal`); consider a category split. All 3 titles are
+undated tournaments, so "first title" reads "3 undated".
 
 ### Red team 2026-09-17 — three reviewers (computation, UI, ingest/format/classifier)
 
@@ -102,7 +121,7 @@ Public CV names now truncate with an ellipsis.
 | X3 | **Client payload**: `/cv/stats` ships ~389 KB CV data (290 KB motion text) + 88 KB round table | Trim motion text to what best/worst speech needs — do with D2 |
 | X4 | 3.3 / 4.3 **real-browser pass** with screenshots + console | Needs a session cookie for the seeded user |
 | X5 | Spec drift: `TournamentFact` lacks ESL/EFL ranks, field placement, break margin (Phase 5 views need them); "rows mixing formats show absolute values only" superseded by per-format residuals — update spec | Phase 5 |
-| X6 | "With peers" is ~95 % of rounds, so pairing × type findings largely restate the overall motion-type picture | Consider excluding the dominant pairing from findings |
+| X6 | ~~Dominant pairing findings~~ | Closed: ≥ 80 % share excluded |
 
 ## 2. How the work depends on itself
 

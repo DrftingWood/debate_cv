@@ -778,6 +778,7 @@ export const STATS_SECTIONS = [
   { id: 'dynamics', label: 'Across a draw' },
   { id: 'round-curve', label: 'Round by round' },
   { id: 'results', label: 'Results' },
+  { id: 'funnel', label: 'Outrounds' },
   { id: 'positions', label: 'Positions' },
   { id: 'motion-types', label: 'Motion types' },
   { id: 'cross-tabs', label: 'Cross-tabs' },
@@ -785,5 +786,8 @@ export const STATS_SECTIONS = [
   { id: 'partners', label: 'Teammates' },
   { id: 'carry', label: 'Carry index' },
   { id: 'seasons', label: 'Seasons' },
+  { id: 'milestones', label: 'Milestones' },
+  { id: 'speaking-judging', label: 'Speaking vs judging' },
+  { id: 'judging-lens', label: 'Judging' },
   { id: 'coverage', label: 'Coverage' },
 ];
