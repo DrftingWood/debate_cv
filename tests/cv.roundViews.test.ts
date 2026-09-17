@@ -56,6 +56,13 @@ describe('carryIndex', () => {
     expect([c.outSpoke, c.level, c.outSpoken]).toEqual([1, 1, 1]);
   });
 
+  test('a carry on the band after averaging three-a-side partners stays level', () => {
+    // 70.7 − mean(70.1, 70.3) is 0.5000000000000142 and 70.3 − mean(70.4, 71.2)
+    // is −0.5000000000000142 in floating point; both are exactly the band.
+    const c = carryIndex([round({ score: 70.7, partnerScores: [70.1, 70.3] }), round({ round: 2, score: 70.3, partnerScores: [70.4, 71.2] })]);
+    expect(c.level).toBe(2);
+  });
+
   test('results by bucket carry per-format deltas against the baseline', () => {
     const rounds = [
       ...Array.from({ length: 6 }, (_, i) => round({ round: i + 1, score: 78, partnerScores: [75], won: true })),

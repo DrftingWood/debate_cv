@@ -49,7 +49,7 @@ export type RoundSplit = {
 };
 
 /** 'BP' for a 'BP:OG' seat; the tab's format abbreviation otherwise. */
-const formatKey = (r: RoundFact) => r.seat?.split(':')[0] ?? formatAbbrev(r.format) ?? '';
+export const formatKey = (r: RoundFact) => r.seat?.split(':')[0] ?? formatAbbrev(r.format) ?? '';
 
 const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null);
 

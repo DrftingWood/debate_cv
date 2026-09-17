@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { crossTab, crossTabFindings, MIN_FINDING_DELTA } from '@/lib/cv/crossTabs';
+import { crossTab, crossTabFindings } from '@/lib/cv/crossTabs';
 import { MIN_SPLIT_ROUNDS } from '@/lib/cv/roundSplits';
 import type { RoundFact } from '@/lib/cv/statsFacts';
 
@@ -69,89 +69,121 @@ describe('crossTab', () => {
   });
 });
 
+/**
+ * A 2×2 grid, 6 rounds per cell over two tournaments. `extra` adds an
+ * interaction on top of additive seat and motion effects.
+ */
+function grid(
+  cells: Record<string, number>,
+  o: Partial<RoundFact> = {},
+  dims: { rows: [string, string]; cols: [string, string]; rowField: 'seat' | 'proAm' } = {
+    rows: ['BP:OG', 'BP:OO'],
+    cols: ['Belief', 'Policy'],
+    rowField: 'seat',
+  },
+): RoundFact[] {
+  let start = 1;
+  const out: RoundFact[] = [];
+  for (const row of dims.rows) {
+    for (const col of dims.cols) {
+      out.push(
+        ...many(6, { [dims.rowField]: row, motionType: col, score: cells[`${row}|${col}`], ...o } as Partial<RoundFact>, start),
+      );
+      start += 10;
+    }
+  }
+  return out;
+}
+
 describe('crossTabFindings', () => {
-  // BP baseline over these rounds: (78·8 + 72·8 + 75·16) / 32 = 75.
-  const rounds = [
-    ...many(8, { seat: 'BP:OG', motionType: 'Belief', score: 78 }),
-    ...many(8, { seat: 'BP:CO', motionType: 'Policy', score: 72 }, 20),
-    ...many(16, { seat: 'BP:CG', motionType: 'Stance', score: 75 }, 40),
-  ];
-
-  test('names the strongest and weakest cells with the number and the sample', () => {
-    const findings = crossTabFindings([crossTab(rounds, 'seat', 'motionType')]);
-    expect(findings.map((f) => f.tone)).toEqual(['pos', 'neg']);
-    expect(findings[0].text).toContain('OG');
-    expect(findings[0].text).toContain('Belief');
-    expect(findings[0].text).toContain('+3.0');
-    expect(findings[0].basis).toBe('8 rounds at 2 tournaments');
-    expect(findings[1].text).toContain('CO');
-    expect(findings[1].text).toContain('−3.0');
-    // A cell at the baseline is not a finding.
-    expect(findings.some((f) => f.text.includes('Stance'))).toBe(false);
+  test('purely additive effects are not findings — each is already its own row or column', () => {
+    // OG +1, OO −1, Belief +1, Policy −1, no interaction.
+    const rounds = grid({ 'BP:OG|Belief': 77, 'BP:OG|Policy': 75, 'BP:OO|Belief': 75, 'BP:OO|Policy': 73 });
+    expect(crossTabFindings([crossTab(rounds, 'seat', 'motionType')])).toEqual([]);
   });
 
-  test('small deltas, hidden cells and single-tournament cells are never findings', () => {
-    const quiet = [
-      ...many(8, { seat: 'BP:OG', score: 75 + MIN_FINDING_DELTA / 4 }),
-      ...many(8, { seat: 'BP:CO', score: 75 - MIN_FINDING_DELTA / 4 }, 20),
-      // Large deltas but one tournament each (symmetric, so the baseline stays 75).
-      ...Array.from({ length: 8 }, (_, i) => round({ seat: 'BP:CG', motionType: 'Actor', score: 85, round: 40 + i, tournamentId: '9' })),
-      ...Array.from({ length: 8 }, (_, i) => round({ seat: 'BP:CG', motionType: 'Belief', score: 65, round: 50 + i, tournamentId: '8' })),
-      // Large deltas but hidden.
-      ...many(3, { seat: 'BP:OO', motionType: 'Regret', score: 60 }, 60),
-      ...many(3, { seat: 'BP:OO', motionType: 'Preference', score: 90 }, 70),
-    ];
-    expect(crossTabFindings([crossTab(quiet, 'seat', 'motionType')])).toEqual([]);
+  // Additive grid plus +2 on OG×Belief and −2 on OO×Belief. Row effects OG +2,
+  // OO −2; column effects Belief +1, Policy −1. Interactions: OG×Belief +1,
+  // OO×Policy +1, OG×Policy −1, OO×Belief −1.
+  const interacting = { 'BP:OG|Belief': 79, 'BP:OG|Policy': 75, 'BP:OO|Belief': 73, 'BP:OO|Policy': 73 };
+
+  test('a cell is a finding by how far it sits from what its row and column predict', () => {
+    const tab = crossTab(grid(interacting), 'seat', 'motionType');
+    const cell = tab.cells.find((c) => c.row === 'BP:OG' && c.col === 'Belief')!;
+    expect(cell.scoreDelta).toBeCloseTo(4);
+    expect(cell.expected).toBeCloseTo(3);
+    expect(cell.interaction).toBeCloseTo(1);
+
+    const findings = crossTabFindings([tab]);
+    expect(findings.filter((f) => f.tone === 'pos')).toHaveLength(2);
+    expect(findings.filter((f) => f.tone === 'neg')).toHaveLength(2);
+    const og = findings.find((f) => f.text.includes('OG') && f.text.includes('Belief'))!;
+    expect(og.tone).toBe('pos');
+    expect(og.text).toContain('+4.0');
+    expect(og.text).toContain('1.0 above what OG and Belief motions predict');
+    expect(og.basis).toBe('6 rounds at 2 tournaments');
+    const oo = findings.find((f) => f.text.includes('OO') && f.text.includes('Belief'))!;
+    expect(oo.tone).toBe('neg');
+    expect(oo.text).toContain('1.0 below');
   });
 
-  test('at most three each way, strongest first, across several grids', () => {
+  test('under a seat filter the seat keeps its findings: effects come from the whole record', () => {
+    const all = grid(interacting);
+    const ogOnly = all.filter((r) => r.seat === 'BP:OG');
+    const findings = crossTabFindings([crossTab(ogOnly, 'seat', 'motionType', all)]);
+    expect(findings.map((f) => f.tone).sort()).toEqual(['neg', 'pos']);
+    expect(findings.every((f) => f.text.includes('OG'))).toBe(true);
+  });
+
+  test('hidden cells, single-tournament cells and small interactions are never findings', () => {
+    const small = grid({ 'BP:OG|Belief': 77.2, 'BP:OG|Policy': 74.8, 'BP:OO|Belief': 74.8, 'BP:OO|Policy': 73.2 });
+    expect(crossTabFindings([crossTab(small, 'seat', 'motionType')])).toEqual([]);
+
+    const oneTournament = grid(interacting, { tournamentId: '7' });
+    expect(crossTabFindings([crossTab(oneTournament, 'seat', 'motionType')])).toEqual([]);
+
+    const thin = grid(interacting).filter((r) => !(r.seat === 'BP:OG' && r.motionType === 'Belief' && r.round > 3));
+    const ids = crossTabFindings([crossTab(thin, 'seat', 'motionType')]).map((f) => f.text);
+    expect(ids.some((t) => t.includes('OG') && t.includes('Belief'))).toBe(false);
+  });
+
+  test('at most three each way, largest interaction first', () => {
     const seats = ['BP:OG', 'BP:OO', 'BP:CG', 'BP:CO'];
-    const types = ['Policy', 'Belief'] as const;
+    const v = [4, 3, 2, 1];
+    const rounds: RoundFact[] = [];
     let start = 1;
-    const spread: RoundFact[] = [];
-    seats.forEach((seat, i) =>
-      types.forEach((motionType, j) => {
-        spread.push(...many(6, { seat, motionType, score: 75 + (i * 2 + j - 3.5) }, start));
-        start += 10;
-      }),
-    );
-    const findings = crossTabFindings([crossTab(spread, 'seat', 'motionType'), crossTab(spread, 'motionType', 'seat')]);
-    const pos = findings.filter((f) => f.tone === 'pos');
-    const neg = findings.filter((f) => f.tone === 'neg');
-    expect(pos).toHaveLength(3);
-    expect(neg).toHaveLength(3);
-    // The same cell seen from two grids is one finding.
+    seats.forEach((seat, i) => {
+      rounds.push(...many(6, { seat, motionType: 'Policy', score: 75 + v[i] }, start));
+      rounds.push(...many(6, { seat, motionType: 'Belief', score: 75 - v[i] }, start + 10));
+      start += 20;
+    });
+    const findings = crossTabFindings([crossTab(rounds, 'seat', 'motionType')]);
+    expect(findings.filter((f) => f.tone === 'pos')).toHaveLength(3);
+    expect(findings.filter((f) => f.tone === 'neg')).toHaveLength(3);
+    expect(findings[0].text).toContain('1.5 above');
+  });
+
+  test('the same tab given twice yields each finding once', () => {
+    const tab = crossTab(grid(interacting), 'seat', 'motionType');
+    const findings = crossTabFindings([tab, tab]);
     expect(new Set(findings.map((f) => f.id)).size).toBe(findings.length);
-    expect(pos[0].text).toContain('+3.5');
+    expect(findings).toHaveLength(4);
   });
 
-  test('a cell spanning formats says the comparison is within each format', () => {
-    const mixed = [
-      ...many(6, { proAm: 'pro', motionType: 'Policy', score: 78 }),
-      ...many(6, { proAm: 'pro', motionType: 'Policy', score: 82, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 20),
-      ...many(6, { proAm: 'pro', motionType: 'Belief', score: 72 }, 40),
-      ...many(6, { proAm: 'pro', motionType: 'Belief', score: 78, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 60),
-      // Peers rounds at each format's baseline, so "pro" is not the whole grid.
-      ...many(12, { proAm: 'peers', motionType: 'Stance', score: 75 }, 80),
-      ...many(12, { proAm: 'peers', motionType: 'Stance', score: 80, format: 'Asian Parliamentary', seat: 'AP:Gov' }, 100),
-    ];
-    const [top] = crossTabFindings([crossTab(mixed, 'pairing', 'motionType')]);
-    expect(top.text).toContain('As the pro');
+  test('the format named is the one the seat names; a cell spanning formats says "each format"', () => {
+    const mislabelled = crossTabFindings([crossTab(grid(interacting, { format: 'Asian Parliamentary' }), 'seat', 'motionType')]);
+    expect(mislabelled[0].text).toContain('British Parliamentary');
+
+    const pairingDims = { rows: ['pro', 'peers'] as [string, string], cols: ['Belief', 'Policy'] as [string, string], rowField: 'proAm' as const };
+    const cells = { 'pro|Belief': 79, 'pro|Policy': 75, 'peers|Belief': 73, 'peers|Policy': 73 };
+    const bp = grid(cells, { format: 'British Parliamentary', seat: 'BP:OG' }, pairingDims);
+    const ap = grid(
+      Object.fromEntries(Object.entries(cells).map(([k, s]) => [k, s + 5])),
+      { format: 'Asian Parliamentary', seat: 'AP:Gov', tournamentId: '5' },
+      pairingDims,
+    ).map((r, i) => ({ ...r, round: r.round + 100, tournamentId: String(5 + (i % 2)) }));
+    const [top] = crossTabFindings([crossTab([...bp, ...ap], 'pairing', 'motionType')]);
+    expect(top.text).toMatch(/^As the pro/);
     expect(top.text).toContain('each format');
-  });
-});
-
-describe('crossTabFindings — dominant keys', () => {
-  test('a key covering most of a grid adds nothing to the other dimension, so it is not a finding', () => {
-    // "With peers" is nearly every round: "with peers on Belief motions" is just
-    // "on Belief motions". The pro cell is a real cross.
-    const rounds = [
-      ...many(40, { proAm: 'peers', motionType: 'Belief', score: 77 }),
-      ...many(40, { proAm: 'peers', motionType: 'Policy', score: 73 }, 100),
-      ...many(8, { proAm: 'pro', motionType: 'Policy', score: 78 }, 200),
-    ];
-    const findings = crossTabFindings([crossTab(rounds, 'pairing', 'motionType')]);
-    expect(findings.some((f) => f.text.startsWith('With peers'))).toBe(false);
-    expect(findings.some((f) => f.text.startsWith('As the pro'))).toBe(true);
   });
 });

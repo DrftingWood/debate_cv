@@ -121,11 +121,15 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
       {speaks ? <StatsFilterBar facts={facts} filter={filter} onChange={setFilter} summary={summary} /> : null}
 
       {active && filtered.speakerRows.length === 0 ? (
-        <EmptyState
-          icon={<SlidersHorizontal className="h-5 w-5" aria-hidden />}
-          title="No rounds match these filters"
-          description="Nothing on your record fits every filter at once. Remove one to widen the view."
-        />
+        <div className="space-y-10">
+          <EmptyState
+            icon={<SlidersHorizontal className="h-5 w-5" aria-hidden />}
+            title="No rounds match these filters"
+            description="Nothing on your record fits every filter at once. Remove one to widen the view. Judging has no partner or seat, so it still shows below."
+          />
+          <SpeakingVsJudgingSection speakerRows={data.speakerRows} judgeRows={data.judgeRows} />
+          <JudgingLensSection judgeRows={data.judgeRows} />
+        </div>
       ) : (
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_11rem] lg:gap-10">
           <div className="space-y-10 lg:order-1">
@@ -179,7 +183,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <CrossTabsSection facts={filteredFacts} baseline={facts.rounds} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
-            <CarrySection facts={filteredFacts} baseline={facts.rounds} />
+            <CarrySection facts={filteredFacts} baseline={facts.rounds} byPairing={filter.pairings.length > 0} />
             {bySeat ? (
               <WithheldSection
                 id="seasons"

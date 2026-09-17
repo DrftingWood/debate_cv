@@ -56,7 +56,13 @@ const signed = (n: number, digits: number) => {
 };
 
 function CellValue({ cell, metric }: { cell: CrossTabCell | undefined; metric: Metric }) {
-  if (!cell) return <span className="text-ink-soft/50" aria-label="No rounds">–</span>;
+  if (!cell)
+    return (
+      <span className="text-ink-soft/50">
+        <span aria-hidden>–</span>
+        <span className="sr-only">No rounds</span>
+      </span>
+    );
   if (cell.hidden) {
     return (
       <span className="text-ink-soft/60" title={`${cell.rounds} round${cell.rounds === 1 ? '' : 's'} — too few to show`}>
@@ -91,7 +97,11 @@ function CellValue({ cell, metric }: { cell: CrossTabCell | undefined; metric: M
       >
         {text ?? '—'}
       </span>
-      <span className="num text-caption text-ink-soft">{cell.rounds}r</span>
+      <span className="num text-caption text-ink-soft">
+        {cell.rounds}
+        <span aria-hidden>r</span>
+        <span className="sr-only"> rounds</span>
+      </span>
     </span>
   );
 }
@@ -217,11 +227,17 @@ export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; basel
         <Toggle label="Metric" options={metrics} value={metric} onChange={setMetric} />
       </div>
 
-      <Grid tab={current.tab} metric={metric} label={current.label} />
+      <Grid
+        tab={current.tab}
+        metric={metric}
+        label={`${current.label}, ${metrics.find((m) => m.id === metric)?.label.toLowerCase() ?? ''}`}
+      />
 
       <p className="text-caption text-ink-soft">
         Prelim rounds only. A cell with fewer than {MIN_SPLIT_ROUNDS} rounds, scored speeches or
-        decided rounds shows a dot instead of a figure. Findings need a gap of at least 0.5 speaker points across two or more tournaments.
+        decided rounds shows a dot instead of a figure. Findings are the cells furthest from what their row and column predict on their own
+        — at least 0.5 speaker points, across two or more tournaments — so a seat or a motion type
+        that is simply strong everywhere shows up in Positions and Motion types, not here.
         Team points are British Parliamentary only.
       </p>
     </section>

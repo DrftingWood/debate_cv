@@ -9,29 +9,35 @@
  * hidden and carries no figures at all — a grid of 2-round cells is mostly
  * noise, and a number that is on screen gets read however it is styled.
  *
- * Findings are the strongest and weakest visible cells by speaker-average
- * delta, stated with the number and the sample like deriveQuirks' claims.
+ * Findings are the cells furthest from what their row and column predict:
+ * interaction = cell delta − (row effect + column effect), both effects read
+ * over the WHOLE record. Ranking by the cell's own delta mostly repeated a
+ * single effect — "OO on Belief +1.1" when Belief alone was +0.9 — and
+ * measuring effects inside a filtered slice erased them (under a seat filter
+ * the seat is the whole grid). Stated with the number and the sample like
+ * deriveQuirks' claims.
  * They also need two tournaments, so one good weekend cannot become "you are
- * strong on Belief motions in OG", and neither key may be most of the grid.
+ * strong on Belief motions in OG".
  */
 
 import type { RoundFact } from '@/lib/cv/statsFacts';
 import type { Quirk } from '@/lib/cv/speakerStats';
-import { splitRounds } from '@/lib/cv/roundSplits';
+import { formatKey, splitRounds } from '@/lib/cv/roundSplits';
 
 export type CrossTabDimension = 'seat' | 'motionType' | 'pairing';
 
-/** Below this speaker-average delta a cell is not a finding. */
+/** Below this interaction, in speaker points, a cell is not a finding. */
 export const MIN_FINDING_DELTA = 0.5;
 const MAX_FINDINGS_EACH_WAY = 3;
 const MIN_FINDING_TOURNAMENTS = 2;
-/**
- * A row or column holding at least this share of a grid's rounds is nearly
- * the whole record, so a cell in it restates the other dimension alone: on
- * the reference record "with peers" is 95 % of rounds, and "with peers on
- * Stance motions" said nothing "on Stance motions" doesn't.
- */
-const DOMINANT_SHARE = 0.8;
+/** Full names for the format prefixes seat keys and baselines use. */
+export const FORMAT_NAME: Record<string, string> = {
+  BP: 'British Parliamentary',
+  AP: 'Asian Parliamentary',
+  Aus: 'Australs',
+  WSDC: 'World Schools',
+  '2v2': 'Two-team Parliamentary',
+};
 
 export const SEAT_ORDER = ['OG', 'OO', 'CG', 'CO', 'Gov', 'Aff', 'Prop', 'Opp', 'Neg'];
 export const MOTION_ORDER = ['Policy', 'Actor', 'Belief', 'Stance', 'Regret', 'Preference'];
@@ -43,7 +49,7 @@ export type CrossTabCell = {
   rounds: number;
   tournaments: number;
   hidden: boolean;
-  /** The formats the cell's rounds were debated in. */
+  /** The format keys ('BP', 'AP' …) the cell's rounds were baselined in — the seat's format, else the tab's. */
   formats: string[];
   avgScore: number | null;
   scoreDelta: number | null;
@@ -51,6 +57,10 @@ export type CrossTabCell = {
   winRate: number | null;
   winRateDelta: number | null;
   avgPoints: number | null;
+  /** Row effect + column effect, each the speaker-average delta over the whole record. */
+  expected: number | null;
+  /** scoreDelta − expected: what this pairing of row and column adds on its own. */
+  interaction: number | null;
 };
 
 export type CrossTab = {
@@ -107,14 +117,27 @@ export function crossTab(
     if (row == null || col == null) return null;
     const key = cellKey(row, col);
     const set = formats.get(key) ?? new Set<string>();
-    if (r.format) set.add(r.format);
+    const f = formatKey(r);
+    if (f) set.add(f);
     formats.set(key, set);
     return key;
   }, baselineRounds);
 
+  // Effects over the whole record, from rounds carrying both keys — the same
+  // population the grid is drawn from, so a purely additive record has no
+  // interactions at all.
+  const both = baselineRounds.filter((r) => keyOf(rowDimension, r) != null && keyOf(colDimension, r) != null);
+  const effects = (dimension: CrossTabDimension) =>
+    new Map(splitRounds(both, (r) => keyOf(dimension, r), baselineRounds).map((s) => [s.key, s.scoreDelta]));
+  const rowEffect = effects(rowDimension);
+  const colEffect = effects(colDimension);
+
   const cells: CrossTabCell[] = splits.map((s) => {
     const [row, col] = s.key.split(SEP);
     const hidden = s.thin;
+    const re = rowEffect.get(row);
+    const ce = colEffect.get(col);
+    const expected = re != null && ce != null ? re + ce : null;
     return {
       row,
       col,
@@ -128,6 +151,8 @@ export function crossTab(
       winRate: hidden ? null : s.winRate,
       winRateDelta: hidden ? null : s.winRateDelta,
       avgPoints: hidden ? null : s.avgPoints,
+      expected: hidden ? null : expected,
+      interaction: hidden || expected == null || s.scoreDelta == null ? null : s.scoreDelta - expected,
     };
   });
 
@@ -151,6 +176,7 @@ export function crossTab(
 // ── Findings ──────────────────────────────────────────────────────────────
 
 const PAIRING_PHRASE: Record<string, string> = { pro: 'as the pro', am: 'as the am', peers: 'with peers' };
+const PAIRING_NOUN: Record<string, string> = { pro: 'being the pro', am: 'being the am', peers: 'pairing with peers' };
 
 /** "OG" from "BP:OG" — the format is named in the comparison instead. */
 export const seatName = (key: string) => key.split(':').slice(1).join(':') || key;
@@ -169,40 +195,43 @@ const signed = (n: number) => {
 export function crossTabFindings(tabs: CrossTab[]): Quirk[] {
   const seen = new Map<string, { tab: CrossTab; cell: CrossTabCell }>();
   for (const tab of tabs) {
-    const total = tab.cells.reduce((n, c) => n + c.rounds, 0);
-    const share = (pick: (c: CrossTabCell) => string, key: string) =>
-      tab.cells.filter((c) => pick(c) === key).reduce((n, c) => n + c.rounds, 0) / total;
     for (const cell of tab.cells) {
-      if (cell.hidden || cell.scoreDelta == null) continue;
-      if (share((c) => c.row, cell.row) >= DOMINANT_SHARE || share((c) => c.col, cell.col) >= DOMINANT_SHARE) continue;
-      if (cell.tournaments < MIN_FINDING_TOURNAMENTS || Math.abs(cell.scoreDelta) < MIN_FINDING_DELTA) continue;
-      const id = `crosstab:${[cell.row, cell.col].sort().join('×')}`;
+      if (cell.hidden || cell.scoreDelta == null || cell.interaction == null) continue;
+      if (cell.tournaments < MIN_FINDING_TOURNAMENTS || Math.abs(cell.interaction) < MIN_FINDING_DELTA) continue;
+      const id = `crosstab:${tab.rowDimension}:${cell.row}×${tab.colDimension}:${cell.col}`;
       if (!seen.has(id)) seen.set(id, { tab, cell });
     }
   }
+
+  const name = (dimension: CrossTabDimension, key: string) =>
+    dimension === 'seat' ? seatName(key) : dimension === 'motionType' ? `${key} motions` : (PAIRING_NOUN[key] ?? key);
 
   const toQuirk = (id: string, { tab, cell }: { tab: CrossTab; cell: CrossTabCell }): Quirk => {
     const where = `${phrase(tab.rowDimension, cell.row)} ${phrase(tab.colDimension, cell.col)}`;
     const against =
       cell.formats.length === 1
-        ? `your usual ${cell.formats[0]} speech`
+        ? `your usual ${FORMAT_NAME[cell.formats[0]] ?? cell.formats[0]} speech`
         : 'your usual speech in each format';
+    const gap = Math.abs(cell.interaction!).toFixed(1);
+    const side = cell.interaction! > 0 ? 'above' : 'below';
     return {
       id,
-      text: `${where[0].toUpperCase()}${where.slice(1)} you average ${signed(cell.scoreDelta!)} against ${against}.`,
+      text:
+        `${where[0].toUpperCase()}${where.slice(1)} you average ${signed(cell.scoreDelta!)} against ${against} — ` +
+        `${gap} ${side} what ${name(tab.rowDimension, cell.row)} and ${name(tab.colDimension, cell.col)} predict on their own.`,
       basis: `${cell.rounds} rounds at ${cell.tournaments} tournaments`,
-      tone: cell.scoreDelta! > 0 ? 'pos' : 'neg',
+      tone: cell.interaction! > 0 ? 'pos' : 'neg',
     };
   };
 
   const all = [...seen];
   const pos = all
-    .filter(([, v]) => v.cell.scoreDelta! > 0)
-    .sort((a, b) => b[1].cell.scoreDelta! - a[1].cell.scoreDelta!)
+    .filter(([, v]) => v.cell.interaction! > 0)
+    .sort((a, b) => b[1].cell.interaction! - a[1].cell.interaction!)
     .slice(0, MAX_FINDINGS_EACH_WAY);
   const neg = all
-    .filter(([, v]) => v.cell.scoreDelta! < 0)
-    .sort((a, b) => a[1].cell.scoreDelta! - b[1].cell.scoreDelta!)
+    .filter(([, v]) => v.cell.interaction! < 0)
+    .sort((a, b) => a[1].cell.interaction! - b[1].cell.interaction!)
     .slice(0, MAX_FINDINGS_EACH_WAY);
   return [...pos, ...neg].map(([id, v]) => toQuirk(id, v));
 }

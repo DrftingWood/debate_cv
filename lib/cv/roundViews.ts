@@ -52,7 +52,7 @@ function carryOf(r: RoundFact): number | null {
 }
 
 export function bucketOf(carry: number): CarryBucket {
-  // A small epsilon so a carry of exactly the band, stored as 1.0000000001
+  // A small epsilon so a carry of exactly the band, stored as 0.5000000001
   // after averaging three-a-side partners, is still level.
   if (carry - CARRY_LEVEL_BAND > 1e-9) return 'out-spoke';
   if (-carry - CARRY_LEVEL_BAND > 1e-9) return 'out-spoken';

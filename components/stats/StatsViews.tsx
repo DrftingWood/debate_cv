@@ -18,14 +18,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
 
-import { MOTION_ORDER, SEAT_ORDER } from '@/lib/cv/crossTabs';
-const FORMAT_NAME: Record<string, string> = {
-  BP: 'British Parliamentary',
-  AP: 'Asian Parliamentary',
-  Aus: 'Australs',
-  WSDC: 'World Schools',
-  '2v2': 'Two-team Parliamentary',
-};
+import { FORMAT_NAME, MOTION_ORDER, SEAT_ORDER } from '@/lib/cv/crossTabs';
 
 /** StatsSplitTable reads the engine's Split shape; a RoundSplit carries the same figures. */
 function asSplit(r: RoundSplit, key = r.key): Split {
@@ -308,9 +301,23 @@ const CARRY_LABEL: Record<string, string> = {
   'out-spoken': 'Your partners out-spoke you',
 };
 
-export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+/**
+ * `byPairing`: a pro-am label is DEFINED by the speaker gap at a tournament,
+ * so under a pairing filter the carry figures are true by construction ("as
+ * the pro you out-spoke your partners"). They still show, with that said.
+ */
+export function CarrySection({
+  facts,
+  baseline,
+  byPairing = false,
+}: {
+  facts: StatsFacts;
+  baseline: RoundFact[];
+  byPairing?: boolean;
+}) {
   const c = carryIndex(facts.rounds, baseline);
   if (c.rounds === 0) return null;
+  const thin = c.rounds < MIN_SPLIT_ROUNDS;
   const pct = (n: number) => `${Math.round((n / c.rounds) * 100)}%`;
 
   return (
@@ -320,6 +327,12 @@ export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline:
         title="Your speech against your partners'"
         meta={`${c.rounds} prelim round${c.rounds === 1 ? '' : 's'} where both were scored`}
       />
+      {thin ? (
+        <div className="panel-inset p-4 text-table text-ink-soft">
+          Only {c.rounds} round{c.rounds === 1 ? '' : 's'} with both your speech and a partner's scored —
+          too few to read as a pattern (n = {c.rounds}).
+        </div>
+      ) : (
       <StatRow columns={4}>
         <StatTile
           label="Average carry"
@@ -330,13 +343,20 @@ export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline:
         <StatTile label="Level" value={pct(c.level)} hint={`${c.level} rounds within ±${CARRY_LEVEL_BAND}`} />
         <StatTile label="Out-spoken" value={pct(c.outSpoken)} hint={`${c.outSpoken} rounds by more than ${CARRY_LEVEL_BAND}`} />
       </StatRow>
-      {c.results.length > 1 ? (
+      )}
+      {!thin && c.results.length > 1 ? (
         <StatsSplitTable
           splits={c.results.map((s) => asSplit(s, CARRY_LABEL[s.key] ?? s.key))}
-          dimensionLabel="Round"
+          dimensionLabel="Carry"
           thinBelow={MIN_SPLIT_ROUNDS}
           baselineLabel="your whole record in each round's format"
         />
+      ) : null}
+      {byPairing ? (
+        <p className="text-caption text-ink-soft">
+          A pairing filter is on, and pro-am is defined by the gap between your speeches and your
+          partners&rsquo; — so these figures follow from the filter rather than reveal anything new.
+        </p>
       ) : null}
       <p className="text-caption text-ink-soft">
         In three-a-side formats your partners' speeches are averaged. Reply speeches are not on the
