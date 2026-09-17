@@ -777,6 +777,7 @@ export const STATS_SECTIONS = [
   { id: 'field', label: 'Field' },
   { id: 'dynamics', label: 'Across a draw' },
   { id: 'round-curve', label: 'Round by round' },
+  { id: 'momentum', label: 'Momentum' },
   { id: 'results', label: 'Results' },
   { id: 'funnel', label: 'Outrounds' },
   { id: 'positions', label: 'Positions' },

@@ -11,7 +11,7 @@ import type { Split } from '@/lib/cv/speakerStats';
 import type { RoundFact, StatsFacts } from '@/lib/cv/statsFacts';
 import { MIN_SPLIT_ROUNDS, splitRounds, type RoundSplit } from '@/lib/cv/roundSplits';
 import { teammateStats } from '@/lib/cv/teammateStats';
-import { CARRY_LEVEL_BAND, carryIndex, roundCurve } from '@/lib/cv/roundViews';
+import { CARRY_LEVEL_BAND, carryIndex, momentumAfter, roundCurve } from '@/lib/cv/roundViews';
 import { SectionHeader } from '@/components/ui/Card';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Badge } from '@/components/ui/Badge';
@@ -342,6 +342,37 @@ export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline:
         In three-a-side formats your partners' speeches are averaged. Reply speeches are not on the
         speaker tab, so they never enter the comparison. A round where no partner was scored is left
         out.
+      </p>
+    </section>
+  );
+}
+
+// ── Momentum ──────────────────────────────────────────────────────────────
+
+const MOMENTUM_LABEL: Record<string, string> = { 'after-win': 'After a win', 'after-loss': 'After a loss' };
+
+export function MomentumSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+  const rows = momentumAfter(facts.rounds, baseline);
+  if (rows.length < 2) return null;
+
+  return (
+    <section id="momentum" aria-label="After a win or a loss" className="scroll-mt-24 space-y-3">
+      <SectionHeader
+        label="Momentum"
+        title="The round after a win, and after a loss"
+        meta={`${rows.reduce((n, r) => n + r.rounds, 0)} paired prelim rounds`}
+      />
+      <StatsSplitTable
+        splits={rows.map((r) => asSplit(r, MOMENTUM_LABEL[r.key] ?? r.key))}
+        dimensionLabel="Next round"
+        thinBelow={MIN_SPLIT_ROUNDS}
+        baselineLabel="your whole record in each round's format"
+      />
+      <p className="text-caption text-ink-soft">
+        Each row is the next prelim at the same tournament, paired only when the round before it has a
+        recorded result. Tabs power-pair, so a win sends you into a stronger room and a loss into a
+        weaker one: win rate after a win falls for almost everyone. The speaker average is the fairer
+        read of whether a result carries into the next speech.
       </p>
     </section>
   );

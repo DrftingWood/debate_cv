@@ -24,6 +24,7 @@ import { MilestonesSection, OutroundFunnelSection } from '@/components/stats/Car
 import { JudgingLensSection, SpeakingVsJudgingSection } from '@/components/stats/JudgingViews';
 import {
   CarrySection,
+  MomentumSection,
   MotionTypesSection,
   PositionsSection,
   RoundCurveSection,
@@ -152,6 +153,16 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
               <RoundDynamicsSection stats={stats} />
             )}
             <RoundCurveSection facts={filteredFacts} baseline={facts.rounds} />
+            {bySeat ? (
+              <WithheldSection
+                id="momentum"
+                label="Momentum"
+                title="The round after a win, and after a loss"
+                reason="Momentum pairs each round with the next one, and a seat filter removes the rounds in between."
+              />
+            ) : (
+              <MomentumSection facts={filteredFacts} baseline={facts.rounds} />
+            )}
             <ResultsSection stats={stats} perRoundOnly={bySeat} />
             {bySeat ? (
               <WithheldSection

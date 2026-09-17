@@ -86,3 +86,41 @@ export function carryIndex(rounds: RoundFact[], baselineRounds: RoundFact[] = ro
     results,
   };
 }
+
+// ── Momentum after a win or a loss ────────────────────────────────────────
+
+export type MomentumKey = 'after-win' | 'after-loss';
+
+/**
+ * The round after a decided prelim, grouped by how that prelim went: do you
+ * bounce back from a loss, or carry a win forward?
+ *
+ * Pairs are consecutive round numbers inside one tournament, both prelims,
+ * the earlier one decided. A gap (a bye, a round with no recorded result)
+ * breaks the pair rather than bridging it — "the round after" has to be the
+ * next round. Results use per-format residuals like every other split.
+ *
+ * Read with care: tabs power-pair, so a win puts you in a stronger room next
+ * round and a loss in a weaker one. Win rate after a win is expected to fall
+ * for everyone; the section says so rather than calling it tilt.
+ */
+export function momentumAfter(rounds: RoundFact[], baselineRounds: RoundFact[] = rounds): RoundSplit[] {
+  const prelims = rounds.filter((r) => !r.isOutround);
+  const byTournament = new Map<string, Map<number, RoundFact>>();
+  for (const r of prelims) {
+    const m = byTournament.get(r.tournamentId) ?? new Map<number, RoundFact>();
+    m.set(r.round, r);
+    byTournament.set(r.tournamentId, m);
+  }
+  const previous = (r: RoundFact) => byTournament.get(r.tournamentId)?.get(r.round - 1);
+
+  return splitRounds(
+    prelims,
+    (r) => {
+      const prev = previous(r);
+      if (prev?.won == null) return null;
+      return prev.won ? 'after-win' : 'after-loss';
+    },
+    baselineRounds,
+  ).sort((a, b) => (a.key === 'after-win' ? -1 : 1) - (b.key === 'after-win' ? -1 : 1));
+}
