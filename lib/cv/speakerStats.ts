@@ -356,14 +356,20 @@ function numericAvg(row: CvSpeakerRow): number | null {
  * Undated tournaments sort to the END, not the start. A row with no year is
  * usually a recent ingest whose landing page didn't expose one; sorting it
  * to -Infinity would splice an unknown event into the middle of the user's
- * earliest season and silently break or extend a run there. Ties fall back
- * to name so the ordering is deterministic across page loads.
+ * earliest season and silently break or extend a run there. Within a season,
+ * rows order by the date their private link was emailed; ties fall back to
+ * name so the ordering is deterministic across page loads.
  */
 function chronological(rows: CvSpeakerRow[]): CvSpeakerRow[] {
   return [...rows].sort((a, b) => {
     const ya = a.year ?? Infinity;
     const yb = b.year ?? Infinity;
     if (ya !== yb) return ya - yb;
+    // Within a season, by when the private link was emailed — the only
+    // within-season date on record. Rows without one go last in their season.
+    const da = a.emailDate ?? '9999';
+    const db = b.emailDate ?? '9999';
+    if (da !== db) return da < db ? -1 : 1;
     return a.tournamentName.localeCompare(b.tournamentName);
   });
 }
@@ -488,9 +494,10 @@ export function computeSpeakerStats(input: {
   taggedMotions?: CvTaggedMotion[];
   fieldStats?: CvFieldStat[];
 }): SpeakerStats {
-  const speakerRows = input.speakerRows;
+  const speakerRows = input.speakerRows.map(prelimScope);
   const judgeRows = input.judgeRows;
   const motions = input.taggedMotions ?? [];
+  const spokenTournamentIds = new Set(speakerRows.map((r) => r.tournamentId.toString()));
   const fieldStats = input.fieldStats ?? [];
 
   // Motions indexed by (tournament, round) for every join below.
@@ -911,11 +918,19 @@ export function computeSpeakerStats(input: {
       withRoundResults: speakerRows.filter((r) => r.teamRoundResults.some((tr) => tr.won != null))
         .length,
       withFieldContext: placements.length,
+      // Shares of the SPEAKING record, like every other coverage count here.
+      // Motions also arrive for tournaments the user only judged at; counting
+      // those printed "66 of 37" on a 73-tournament career.
       withMotions: new Set(
-        motions.map((m) => m.tournamentId.toString()),
+        motions
+          .filter((m) => spokenTournamentIds.has(m.tournamentId.toString()))
+          .map((m) => m.tournamentId.toString()),
       ).size,
       withTaggedMotions: new Set(
-        motions.filter((m) => m.motionType || m.topic).map((m) => m.tournamentId.toString()),
+        motions
+          .filter((m) => spokenTournamentIds.has(m.tournamentId.toString()))
+          .filter((m) => m.motionType || m.topic)
+          .map((m) => m.tournamentId.toString()),
       ).size,
       withRegion: speakerRows.filter((r) => r.region != null).length,
     },
@@ -954,6 +969,27 @@ export function buildBins(sortedScores: number[]): ScoreBin[] {
     bins[index].count += 1;
   }
   return bins;
+}
+
+/**
+ * A row cut to its prelim rounds, once the prelim count is known — scores and
+ * results alike.
+ *
+ * Win rate, points, streaks and splits are all "first in the room" figures.
+ * Past the prelims a result means advancing, not winning the room, and the
+ * TeamResult rows there are keyed by URL number rather than by round. Scores
+ * are cut at the same line so the score profile, the splits and the round
+ * table (lib/cv/statsFacts.ts) all count the same speeches. With no prelim
+ * count every round is kept: there is nothing to cut at.
+ */
+function prelimScope(row: CvSpeakerRow): CvSpeakerRow {
+  const prelims = row.prelimRoundCount;
+  if (prelims == null) return row;
+  return {
+    ...row,
+    roundScores: row.roundScores.filter((s) => s.roundNumber <= prelims),
+    teamRoundResults: row.teamRoundResults.filter((tr) => tr.roundNumber <= prelims),
+  };
 }
 
 // ── Deepest outround ──────────────────────────────────────────────────────
@@ -1127,7 +1163,7 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     quirks.push({
       id: 'streak',
       text: `Your longest run of won rounds is ${results.longestWinStreak}.`,
-      basis: `${results.decidedRounds} decided rounds on record`,
+      basis: `${results.decidedRounds} decided prelim rounds on record`,
       tone: 'pos',
     });
   }

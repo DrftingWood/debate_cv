@@ -7,8 +7,9 @@ import { cn } from '@/lib/utils/cn';
  * motion type, topic, year, field size.
  *
  * Sharing the layout is the point: once a debater has read one of these,
- * they can read all of them, and the deltas are directly comparable because
- * they are all measured against the same career baseline. Sample size sits
+ * they can read all of them. What the deltas compare with depends on the
+ * caller — the engine's splits use the (filtered) overall figure, the round
+ * table's use the whole record per format — and `baselineLabel` says which. Sample size sits
  * in its own column rather than in a footnote, because on this page it is
  * the difference between a finding and a coincidence.
  */
@@ -18,11 +19,14 @@ export function StatsSplitTable({
   /** Rows below this many rounds render muted — visible, but not evidence. */
   thinBelow = 4,
   showPoints = false,
+  /** What the "vs you" columns compare with, for their header titles. */
+  baselineLabel = 'your overall figure',
 }: {
   splits: Split[];
   dimensionLabel: string;
   thinBelow?: number;
   showPoints?: boolean;
+  baselineLabel?: string;
 }) {
   if (splits.length === 0) return null;
 
@@ -47,13 +51,13 @@ export function StatsSplitTable({
             <tr>
               <Th className="pl-4">{dimensionLabel}</Th>
               <Th numeric>Rounds</Th>
-              <Th numeric title="Rounds where the tab recorded a win or loss">Decided</Th>
+              <Th numeric title="Prelim rounds where the tab recorded a win or loss">Decided</Th>
               <Th numeric>Win rate</Th>
-              <Th numeric title="Win rate minus your overall win rate, in percentage points">
+              <Th numeric title={`Win rate minus ${baselineLabel}, in percentage points`}>
                 vs you
               </Th>
               <Th numeric>Speaker avg</Th>
-              <Th numeric title="Speaker average minus your career average">vs you</Th>
+              <Th numeric title={`Speaker average minus ${baselineLabel}`}>vs you</Th>
               {showPoints ? <Th numeric className="pr-4">Avg pts</Th> : <Th className="pr-4" />}
             </tr>
           </thead>

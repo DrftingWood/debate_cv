@@ -27,7 +27,7 @@ import {
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
-import { detectFormatFromTeamSize } from './format';
+import { inferTournamentFormat } from './format';
 import { outroundRankStrict } from './judgeStats';
 import {
   computeJudgeAggregates,
@@ -609,7 +609,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     tournamentName,
     teamRows,
     speakerRows,
+    participantRows: mergedParticipantRows,
     registrationSpeakers: snapshot.registration.speakers,
+    rounds,
   });
   // Multi-category breaks (BP-style: Open + ESL + EFL): one team can appear
   // in more than one break tab. Pick by category priority (Open > ESL >
@@ -832,7 +834,11 @@ async function writeIngestTransaction(
       where: { fingerprint: tournamentFingerprint },
       update: {
         name: tournamentName,
-        format,
+        // A re-scrape that can't infer a format (rounds page hidden this
+        // time, tabs released and withdrawn) must not erase the one an
+        // earlier scrape found. Prisma leaves a field untouched when it is
+        // undefined, so a null inference keeps the stored value.
+        format: format ?? undefined,
         year,
         totalParticipants,
         totalTeams,
@@ -1330,83 +1336,6 @@ async function finalizePostTransaction(
     totalParticipants: fetched.totalParticipants ?? null,
     warnings: fetchWarnings,
   };
-}
-
-/**
- * Guess the tournament format. Signals considered, in priority order:
- *
- *   1. Explicit format names in the tournament title.
- *   2. Known BP-format event names (WUDC, EUDC, AUDC, NAUDC, …).
- *   3. The URL owner's own team size from the registration block — most
- *      reliable structural signal, available even when the team tab fails.
- *   4. Team-size from the team tab (median speaker count per team).
- *   5. Speaker-tab grouping fallback (group speakerRows by teamName, take
- *      the median count) — works on installs whose team tab is missing or
- *      didn't parse but whose speaker tab did.
- */
-function inferTournamentFormat({
-  tournamentName,
-  teamRows,
-  speakerRows,
-  registrationSpeakers,
-}: {
-  tournamentName: string;
-  teamRows: { speakers: string[] }[];
-  speakerRows: { teamName: string | null; roundScores: unknown[] }[];
-  registrationSpeakers: string[];
-}): string | null {
-  const name = tournamentName.toLowerCase();
-
-  // (1) Explicit format keywords — user-authored tournament names rarely lie.
-  if (/british parliamentary|\bbp\b/.test(name)) return 'British Parliamentary';
-  if (/asian parliamentary/.test(name)) return 'Asian Parliamentary';
-  if (/worlds schools|\bwsdc\b/.test(name)) return 'World Schools';
-  if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) return 'Policy';
-  if (/lincoln[-\s]?douglas|\bld\b/.test(name)) return 'Lincoln-Douglas';
-  if (/public forum|\bpf\b/.test(name)) return 'Public Forum';
-
-  // (2) Well-known BP-format events.
-  if (/\bwudc\b|\beudc\b|\baudc\b|\bnaudc\b|\babp\b|\bbpp\b/.test(name)) {
-    return 'British Parliamentary';
-  }
-
-  const median = (xs: number[]): number | null => {
-    if (xs.length === 0) return null;
-    const sorted = [...xs].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)]!;
-  };
-
-  // (3) Registration block speakers — the user's own team. Most reliable
-  // small-N signal because Tabbycat populates it from the registration
-  // record itself, no parser fragility involved.
-  if (registrationSpeakers.length > 0) {
-    const detected = detectFormatFromTeamSize(registrationSpeakers.length);
-    if (detected !== 'unknown') return detected;
-  }
-
-  // (4) Team-tab median speaker count.
-  const teamTabCounts = teamRows.map((r) => r.speakers.length).filter((n) => n > 0);
-  const teamTabMedian = median(teamTabCounts);
-  if (teamTabMedian != null && teamTabCounts.length >= 3) {
-    const detected = detectFormatFromTeamSize(teamTabMedian);
-    if (detected !== 'unknown') return detected;
-  }
-
-  // (5) Speaker-tab grouping fallback. Group speakers by teamName, take the
-  // median group size. Useful when the team tab fetched / parsed empty.
-  const groupSizes = new Map<string, number>();
-  for (const sp of speakerRows) {
-    if (!sp.teamName) continue;
-    groupSizes.set(sp.teamName, (groupSizes.get(sp.teamName) ?? 0) + 1);
-  }
-  const speakerTabCounts = [...groupSizes.values()].filter((n) => n > 0);
-  const speakerTabMedian = median(speakerTabCounts);
-  if (speakerTabMedian != null && speakerTabCounts.length >= 3) {
-    const detected = detectFormatFromTeamSize(speakerTabMedian);
-    if (detected !== 'unknown') return detected;
-  }
-
-  return null;
 }
 
 // ─── Deadlock resilience ──────────────────────────────────────────────────

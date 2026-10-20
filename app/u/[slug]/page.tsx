@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { formatAbbrev } from '@/lib/calicotab/format';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
@@ -40,7 +41,11 @@ export async function generateMetadata({
     return { title: 'CV not found', robots: { index: false, follow: false } };
   }
   return {
-    title: `${user.name ?? 'Debater'} · debate cv`,
+    // Just the name — the root layout's metadata template is '%s · debate cv'
+    // and appends the suffix itself. Spelling it out here too rendered
+    // "Ritabrata Mitra · debate cv · debate cv" in the tab and in the
+    // link preview.
+    title: user.name ?? 'Debater',
     description: `${user.name ?? 'A debater'}'s tournament history.`,
     robots: { index: false, follow: false, nocache: true },
   };
@@ -221,14 +226,19 @@ export default async function PublicCvPage({
                             href={r.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex min-h-[44px] items-center font-medium text-ink hover:text-primary"
+                            title={r.tournamentName}
+                            className="inline-flex min-h-[44px] max-w-[16rem] items-center truncate font-medium text-ink hover:text-primary"
                           >
-                            {r.tournamentName}
+                            <span className="truncate">{r.tournamentName}</span>
                           </a>
                         </Td>
                         <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                        <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
-                        <Td className="text-ink">{r.teamName ?? <Nil />}</Td>
+                        <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                          {formatAbbrev(r.format) ?? <Nil />}
+                        </Td>
+                        <Td className="max-w-[10rem] truncate text-ink" title={r.teamName ?? undefined}>
+                          {r.teamName ?? <Nil />}
+                        </Td>
                         <Td numeric>{r.teamRank != null ? `#${r.teamRank}` : <Nil />}</Td>
                         <Td numeric>
                           {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : <Nil />}
@@ -284,13 +294,16 @@ export default async function PublicCvPage({
                           href={r.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-h-[44px] items-center font-medium text-ink hover:text-primary"
+                          title={r.tournamentName}
+                          className="inline-flex min-h-[44px] max-w-[16rem] items-center truncate font-medium text-ink hover:text-primary"
                         >
-                          {r.tournamentName}
+                          <span className="truncate">{r.tournamentName}</span>
                         </a>
                       </Td>
                       <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                      <Td className="whitespace-nowrap text-ink-soft">{r.format ?? <Nil />}</Td>
+                      <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                        {formatAbbrev(r.format) ?? <Nil />}
+                      </Td>
                       <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                       <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
                       <Td className="whitespace-nowrap">{formatStageForDisplay(r.lastOutroundChaired) || <Nil />}</Td>

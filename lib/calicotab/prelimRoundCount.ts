@@ -39,3 +39,25 @@ export function pickPrelimRoundCount(args: {
   }
   return null;
 }
+
+/**
+ * The last prelim round, from how many teams have a result in each round.
+ *
+ * Replaces a plain MAX(TeamResult.roundNumber), which counted outrounds: a
+ * results page for the quarterfinals is a TeamResult row like any other, so a
+ * five-round tournament with a break of eight read as eight rounds. Prelims
+ * seat the whole field (less a bye or a swing), outrounds seat only the break
+ * — never more than half of it — so the prelims are the leading run of rounds
+ * holding more than half the largest round's teams.
+ */
+export function prelimMaxFromRoundCounts(rounds: Array<{ roundNumber: number; teams: number }>): number | null {
+  const sorted = rounds.filter((r) => r.roundNumber > 0).sort((a, b) => a.roundNumber - b.roundNumber);
+  if (sorted.length === 0) return null;
+  const largest = Math.max(...sorted.map((r) => r.teams));
+  let last: number | null = null;
+  for (const r of sorted) {
+    if (r.teams * 2 <= largest) break;
+    last = r.roundNumber;
+  }
+  return last;
+}

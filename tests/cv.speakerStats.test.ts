@@ -334,6 +334,42 @@ describe('computeSpeakerStats — results', () => {
     expect(s.results.longestWinStreak).toBe(2);
   });
 
+  test('round results count prelims only once the prelim count is known', () => {
+    // An outround result means advancing, not first in the room, and its
+    // TeamResult row is keyed by URL number — so past the prelims it is not
+    // a round win. Same scope as the round table's splits.
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({
+          tournamentId: 1n,
+          year: 2023,
+          prelimRoundCount: 2,
+          teamRoundResults: teamRounds([
+            [1, 'OG', true, 3],
+            [2, 'OO', false, 1],
+            [3, 'CG', true, 3],
+            [4, 'OG', true, 3],
+          ]),
+        }),
+        makeSpeakerRow({
+          tournamentId: 2n,
+          year: 2024,
+          prelimRoundCount: null,
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]),
+        }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.decidedRounds).toBe(3);
+    expect(s.results.wins).toBe(2);
+    expect(s.results.pointsDistribution).toEqual([
+      { points: 3, rounds: 2 },
+      { points: 1, rounds: 1 },
+    ]);
+    expect(s.results.longestWinStreak).toBe(1);
+    expect(s.splits.byPosition.find((p) => p.key === 'CG')).toBeUndefined();
+  });
+
   test('outround stages rank by stage, not by substring', () => {
     // Regression: "final" is a substring of "quarterfinal", "semifinal" and
     // "octofinal", so a naive includes() ladder scores every outround
@@ -687,5 +723,71 @@ describe('canonicalPosition', () => {
     expect(canonicalPosition('Affirmative')).toBe('Prop');
     expect(canonicalPosition('Neg')).toBe('Opp');
     expect(canonicalPosition('Bench 3')).toBe('Bench 3');
+  });
+});
+
+describe('computeSpeakerStats — coverage', () => {
+  // The stats page renders "Of your N speaking tournaments, … M have released
+  // motions", so M is a share of the speaking record. Motions from a tournament
+  // the user only judged at belong to the motion archive, not to this count —
+  // counting them printed "66 of 37" for a 73-tournament career.
+  test('motion coverage counts only tournaments the user spoke at', () => {
+    const stats = computeSpeakerStats({
+      speakerRows: [makeSpeakerRow({ tournamentId: 1n }), makeSpeakerRow({ tournamentId: 2n })],
+      judgeRows: [makeJudgeRow({ tournamentId: 3n })],
+      taggedMotions: [
+        makeMotion({ tournamentId: 1n }),
+        makeMotion({ tournamentId: 3n }), // judged only
+        makeMotion({ tournamentId: 3n, motionType: 'THW' }), // judged only, tagged
+      ],
+    });
+    expect(stats.coverage.tournaments).toBe(2);
+    expect(stats.coverage.withMotions).toBe(1);
+    expect(stats.coverage.withTaggedMotions).toBe(0);
+  });
+});
+
+describe('computeSpeakerStats — prelim scope', () => {
+  test('speeches and rounds debated past the prelim count are left out, like results', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({
+          prelimRoundCount: 2,
+          roundScores: scores([
+            [1, 76],
+            [2, 76],
+            [3, 70],
+          ]),
+          teamRoundResults: teamRounds([
+            [1, 'OG', true, 3],
+            [2, 'OO', false, 1],
+            [3, 'CG', true, 3],
+          ]),
+        }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.scoreProfile.speeches).toBe(2);
+    expect(s.scoreProfile.mean).toBeCloseTo(76);
+    expect(s.volume.roundsDebated).toBe(2);
+  });
+});
+
+describe('computeSpeakerStats — order within a season', () => {
+  test('streaks order a season by the date the private link was emailed, not by name', () => {
+    // Alphabetically Beta (a loss) sits between Alpha and Gamma (two wins) and
+    // breaks the run; by email date the two wins are consecutive.
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ tournamentId: 1n, tournamentName: 'Beta', year: 2024, emailDate: '2024-09-01',
+          teamRoundResults: teamRounds([[1, 'OG', false, 0]]) }),
+        makeSpeakerRow({ tournamentId: 2n, tournamentName: 'Alpha', year: 2024, emailDate: '2024-02-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
+        makeSpeakerRow({ tournamentId: 3n, tournamentName: 'Gamma', year: 2024, emailDate: '2024-03-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.longestWinStreak).toBe(2);
   });
 });
