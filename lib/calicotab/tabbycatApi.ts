@@ -269,13 +269,16 @@ const API_HEADERS: Record<string, string> = {
 };
 
 /**
- * Ingest reads the team and speaker tabs from the API only when
- * TABBYCAT_API_TABS=1. Off by default: switching changes what cached parses
- * would contain (institutions, swing-team scores), and whether that warrants
- * a PARSER_VERSION bump is an owner decision.
+ * Ingest reads the team and speaker tabs from the API by default (owner
+ * decision, 2026-10-20). TABBYCAT_API_TABS=0 is the kill switch back to
+ * HTML-only.
+ *
+ * Deliberately no PARSER_VERSION bump (same decision): cached tournaments
+ * keep their HTML-derived rows, and only new or re-ingested ones pick up what
+ * the API adds (institutions, swing-team scores).
  */
 export function tabbycatApiTabsEnabled(): boolean {
-  return process.env.TABBYCAT_API_TABS === '1';
+  return process.env.TABBYCAT_API_TABS !== '0';
 }
 
 export type ApiTabsResult =

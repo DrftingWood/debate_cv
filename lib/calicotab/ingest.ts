@@ -504,9 +504,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     return null;
   };
 
-  // Team and speaker tabs from Tabbycat's REST API when TABBYCAT_API_TABS=1
-  // (off by default — see lib/calicotab/tabbycatApi.ts and the 2026-10-20
-  // handoff for the parity evidence). The API shares this ingest's
+  // Team and speaker tabs from Tabbycat's REST API (on by default;
+  // TABBYCAT_API_TABS=0 turns it off — see lib/calicotab/tabbycatApi.ts and
+  // the 2026-10-20 handoff for the parity evidence). The API shares this ingest's
   // per-host slot so it is throttled like the HTML fetches. Anything short of
   // a full answer falls back to the HTML tabs below, silently: a tournament
   // with the API switched off is the normal case, not a warning, and a

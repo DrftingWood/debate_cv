@@ -150,16 +150,16 @@ describe('fetchTabsFromApi', () => {
 });
 
 describe('tabbycatApiTabsEnabled', () => {
-  it('is off unless TABBYCAT_API_TABS is exactly "1"', async () => {
+  it('is on unless TABBYCAT_API_TABS is exactly "0"', async () => {
     const { tabbycatApiTabsEnabled } = await import('@/lib/calicotab/tabbycatApi');
     const prev = process.env.TABBYCAT_API_TABS;
     try {
       delete process.env.TABBYCAT_API_TABS;
-      expect(tabbycatApiTabsEnabled()).toBe(false);
-      process.env.TABBYCAT_API_TABS = 'true';
-      expect(tabbycatApiTabsEnabled()).toBe(false);
+      expect(tabbycatApiTabsEnabled()).toBe(true);
       process.env.TABBYCAT_API_TABS = '1';
       expect(tabbycatApiTabsEnabled()).toBe(true);
+      process.env.TABBYCAT_API_TABS = '0';
+      expect(tabbycatApiTabsEnabled()).toBe(false);
     } finally {
       if (prev === undefined) delete process.env.TABBYCAT_API_TABS;
       else process.env.TABBYCAT_API_TABS = prev;
