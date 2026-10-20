@@ -4,7 +4,8 @@ import ExcelJS from 'exceljs';
 import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import { buildJsonResume } from '@/lib/cv/jsonResume';
+import { jsonResumeResponse } from '@/lib/cv/jsonResume';
+import { getSiteUrl } from '@/lib/utils/site';
 import {
   buildExportCsv,
   buildExportSheets,
@@ -56,15 +57,7 @@ export async function GET(req: Request) {
   // and the field summary is never needed. See lib/cv/jsonResume.ts.
   if (parsed.data.format === 'json-resume') {
     const data = await buildCvData(session.user.id, { includeFieldStats: false });
-    const stamp = new Date().toISOString().slice(0, 10);
-    return new NextResponse(JSON.stringify(buildJsonResume(data), null, 2), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Content-Disposition': `attachment; filename="debate-cv-${stamp}.resume.json"`,
-        'Cache-Control': 'no-store',
-      },
-    });
+    return jsonResumeResponse(data, { download: true, canonical: `${getSiteUrl()}/cv.json` });
   }
 
   const { fields, unknown } = resolveExportFields(parsed.data.fields ?? null);
