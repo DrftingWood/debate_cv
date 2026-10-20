@@ -2,6 +2,86 @@
 
 ---
 
+## 2026-10-20 — Tabbycat REST API as a source for the team and speaker tabs
+
+**Branch `feat/tabbycat-api`, cut from `feat/filterable-stats`.** Tests 1,203 passing / 40 skipped;
+`tsc` + `eslint` clean. No ingest behaviour changes.
+
+- **`lib/calicotab/tabbycatApi.ts`** fetches `/api/v1/tournaments/<slug>/{teams,speakers,rounds,
+  speaker-categories,teams/standings,speakers/standings,speakers/standings/rounds}` and maps them to
+  the same `TeamTabRow[]` / `SpeakerTabRow[]` that `parseTeamTab` / `parseSpeakerTab` return. Any
+  non-200 or non-JSON answer returns `unavailable` so a caller can fall back to HTML.
+- **Parity:** `RUN_TABBYCAT_API=1 npx vitest run tests/__tabbycatApi.live.test.ts` diffs the two
+  paths. Clean (0 diffs) on 11 tournaments — WUDC 2024/2025, Australs 2022, IIT Bombay ×2, SIDO 2026,
+  BSO 2021, NDO 2021, KO-23, ILNU RR 2026, MukMem 78: ~3,100 speakers, ~1,300 teams, BP / AP / Australs.
+- **Rules the mapping had to learn** (each was a live diff first):
+  - one column per prelim, empty where unspoken; outrounds dropped;
+  - iron-person rounds show the non-`ghost` speech;
+  - two-team formats put `speaks_sum` in `totalPoints` (the HTML ptsCol fallback);
+  - every score rounded to 2 dp, as displayed (panel-averaged thirds);
+  - opted-out speakers come back as `speaker: null` standings rows. Scores are recovered from the
+    per-round endpoint only when exactly one hidden speaker's prelims sum to the row total; the team is
+    never attached.
+- **Where the API knows more:** swing-team speakers' scores (blank on the HTML tab, up to 35 per
+  tournament), institution names from `long_name` (the HTML tab has none; `/institutions` needs a
+  token), and public speaker categories on tabs that don't render the column.
+- **Where it knows less:** two opted-out speakers on the same total can't be told apart (WUDC 2024: 2
+  rows; Australs 2022: 1), so their rounds stay empty. The HTML has them, but those rows have no team,
+  so `findRedactedOwnerRow` never uses them either.
+
+### Wired in, then made the default (owner decision 2026-10-20: use the API, don't reparse)
+
+`fetchAndParseTabs` asks the API first unless **`TABBYCAT_API_TABS=0`** (kill switch). There's no
+`PARSER_VERSION` bump: cached tournaments keep their HTML-derived rows. It uses this ingest's
+per-host `FetchSession` slot and skips the two HTML tab fetches when the API returns both tabs.
+Anything less falls back to HTML **without** a warning, because a non-empty `fetchWarnings` also
+suppresses `prepareTournamentWideRefresh`. The source is logged via `console.info('[ingest] tabbycat api', …)`.
+
+**Not verified end to end:** no local Postgres on the machine this was built on, so the
+flag-on path has unit and parity coverage but no real `ingestPrivateUrl` run. Before setting the
+first deploy, run one re-ingest locally and compare `/cv`. If anything looks off in prod, set
+`TABBYCAT_API_TABS=0` in Vercel.
+
+### Per-tab sources, release settings, validation (later 2026-10-20)
+
+Tests 1,224 passing / 40 skipped; `tsc` clean; `eslint` 0 errors (1 old warning in
+`scripts/test-scrape.mjs`). Live parity re-run: BSO 2021 and KO-23 0 diffs, SIDO 2026 0 diffs.
+
+- **Each tab now has its own source**: `api` (use the rows, skip the HTML page), `html` (fall
+  back as before), or `private` (read nothing). `htmlTabsToFetch` turns that into the HTML URLs
+  ingest may still fetch. So a team tab can come from the API while the speaker tab falls back.
+- **Release settings are checked first.** `/preferences` answers without a token on calicotab
+  2.12. `tab_release__{team,speaker}_tab_released: false` makes that tab `private`, and ingest
+  fetches neither the API standings nor the HTML page, even when nav built a tab URL itself. When
+  preferences are hidden (401/403), the standings call goes ahead. On calicotab an unreleased
+  standings call answers 401 (seen on 01-rean `nsdsc11-23`), and that falls back to HTML, which
+  Tabbycat gates the same way.
+- **Top-N tabs** (`*_tab_limit > 0`) are left to HTML. The standings endpoint ignores the limit:
+  mace `zodleliminations2021` has speaker limit 3 and returns 142 rows. On BSO 2021, which has a
+  team limit of 28, the HTML tab also shows all 57 teams. So what the limit actually hides is
+  unclear, and HTML stays the organisers' own rendering.
+- **Validation:** every list goes through a zod schema covering only the fields the mapping reads.
+  Wrong types, an object where a list should be (a paginated or error envelope), a missing
+  `anonymous` flag, or standings that point at unknown teams all count as `html`, with the
+  reason logged.
+- **Host push-back:** each API request has a 15 s timeout, the same as fetch.ts. If the first
+  call (`/preferences`) times out or answers 404 or non-JSON, the remaining API calls are
+  skipped. A 429, a 503 or a timeout on team standings skips the speaker calls. A 429 or 503 (or a
+  Cloudflare 403) also goes to `FetchSession.noteRateLimited`, so the HTML fallback uses the
+  slower interval it has learned. The API itself is not retried; the HTML path already retries.
+
+### Open decisions
+
+- Request budget: a full API ingest makes 8 API calls and skips 2 HTML tabs, so it makes about 6
+  more same-host requests than before. `FETCHES_PER_INGEST = 16` in fetch.ts (the drain's
+  time estimate) was not changed.
+- API mode stores no `SourceDocument` snapshot for the team and speaker tabs, so they drop out
+  of the re-derivation archive. Should the JSON be stored as a snapshot instead?
+- Round results, break and participants still come from HTML. The API has `rounds/<n>/pairings`
+  and break eligibility for a later pass.
+
+---
+
 ## 2026-09-17 — Formats fixed in ingest; filterable statistics (phases 0–2 of 7)
 
 **Working tree only, not committed.** Tests 1,013 passing / 38 skipped; `tsc` + `eslint` clean.
