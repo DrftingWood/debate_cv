@@ -13,56 +13,35 @@ import type { SpeakerTabRow, TeamTabRow } from './parseTabs';
  * their popovers do, including per-round speaker positions the speaker tab
  * never renders.
  *
- * This module is deliberately NOT wired into ingest yet. It produces the
- * same TeamTabRow / SpeakerTabRow shapes as parseTeamTab / parseSpeakerTab
- * so that tests/__tabbycatApi.live.test.ts can diff the two on live
- * tournaments; switching ingest over is a separate, measured change.
+ * It produces the same TeamTabRow / SpeakerTabRow shapes as parseTeamTab /
+ * parseSpeakerTab, so ingest can take either (tests/__tabbycatApi.live.test.ts
+ * diffs the two on live tournaments). Ingest asks here first and falls back
+ * to the HTML tabs — see chooseTabSources for the exact rules.
  *
- * Privacy: the API applies the tournament's own release settings — a
- * standings endpoint for an unreleased tab answers 403/404, and a speaker
- * who opted out comes back with `anonymous: true` and a null name. Both are
- * honoured here exactly as the HTML path honours them: an unavailable
- * endpoint is reported as such (the caller falls back to HTML, which will
- * be private too), and anonymous speakers keep Tabbycat's own redaction
- * label so findRedactedOwnerRow treats them identically.
+ * Privacy: the tournament's own release settings win over both sources.
+ * Tabbycat publishes its preferences at `/preferences` without a token, and
+ * when they say a tab is not released (`tab_release__*_tab_released: false`)
+ * the result is `private` and ingest does not fetch that tab's HTML either —
+ * nav.ts can construct a tab URL the landing page never linked, and the
+ * point is not to scrape around the organisers' decision. A tab released
+ * only to the top N (`*_tab_limit`) is left to the HTML page, which shows
+ * exactly that cut. Speakers who opted out come back with `anonymous: true`
+ * and keep Tabbycat's own redaction label, so findRedactedOwnerRow treats
+ * them identically on both paths.
  */
+import { z } from 'zod';
 
-// ── Raw API shapes (only the fields read here) ──────────────────────────────
+// ── Raw API shapes (only the fields read here; schemas under Validation) ────
 
-export type ApiSpeaker = {
-  url: string;
-  name: string | null;
-  team?: string;
-  categories: string[];
-  anonymous: boolean;
-};
-
-export type ApiTeam = {
-  url: string;
-  reference: string | null;
-  short_name: string;
-  long_name: string;
-  speakers: ApiSpeaker[];
-};
-
-export type ApiMetric = { metric: string; value: number | null };
-
-export type ApiTeamStanding = { rank: number | null; tied: boolean; metrics: ApiMetric[]; team: string };
-
+export type ApiSpeaker = z.infer<typeof apiSpeakerSchema>;
+export type ApiTeam = z.infer<typeof apiTeamSchema>;
+export type ApiMetric = z.infer<typeof metricSchema>;
+export type ApiTeamStanding = z.infer<typeof apiTeamStandingSchema>;
 /** `speaker` is null for an opted-out speaker: the API unlinks the row. */
-export type ApiSpeakerStanding = { rank: number | null; tied: boolean; metrics: ApiMetric[]; speaker: string | null };
-
-export type ApiSpeakerRoundStanding = {
-  speaker: string;
-  rounds: Array<{
-    round: string;
-    speeches: Array<{ score: number | null; position: number | null; ghost: boolean }>;
-  }>;
-};
-
-export type ApiRound = { url: string; seq: number; abbreviation: string; stage: string };
-
-export type ApiSpeakerCategory = { url: string; name: string; public: boolean };
+export type ApiSpeakerStanding = z.infer<typeof apiSpeakerStandingSchema>;
+export type ApiSpeakerRoundStanding = z.infer<typeof apiSpeakerRoundStandingSchema>;
+export type ApiRound = z.infer<typeof apiRoundSchema>;
+export type ApiSpeakerCategory = z.infer<typeof apiSpeakerCategorySchema>;
 
 // ── URL handling ────────────────────────────────────────────────────────────
 
@@ -256,6 +235,104 @@ export function mapSpeakerStandings(input: {
   return rows;
 }
 
+// ── Validation ──────────────────────────────────────────────────────────────
+//
+// Every list is checked against the fields mapping reads before any of it is
+// used. A Tabbycat release that renames a field, a proxy that answers with a
+// JSON error object, or a half-written response must cost one HTML fallback,
+// not a thrown TypeError halfway through an ingest — and never a row with a
+// silently missing `anonymous` flag, which is what keeps opted-out names off
+// the CV. Fields the mapping never reads are not required, so an unrelated
+// schema change does not knock a tournament off the API.
+
+const metricSchema = z.object({ metric: z.string(), value: z.number().nullable() });
+
+export const apiSpeakerSchema = z.object({
+  url: z.string(),
+  name: z.string().nullable(),
+  team: z.string().nullish(),
+  categories: z.array(z.string()),
+  anonymous: z.boolean(),
+});
+
+const apiTeamSchema = z.object({
+  url: z.string(),
+  reference: z.string().nullable(),
+  short_name: z.string(),
+  long_name: z.string(),
+  speakers: z.array(apiSpeakerSchema),
+});
+
+const apiTeamStandingSchema = z.object({
+  rank: z.number().nullable(),
+  tied: z.boolean().optional(),
+  metrics: z.array(metricSchema),
+  team: z.string(),
+});
+
+const apiSpeakerStandingSchema = z.object({
+  rank: z.number().nullable(),
+  tied: z.boolean().optional(),
+  metrics: z.array(metricSchema),
+  speaker: z.string().nullable(),
+});
+
+const apiSpeakerRoundStandingSchema = z.object({
+  speaker: z.string(),
+  rounds: z.array(
+    z.object({
+      round: z.string(),
+      speeches: z.array(z.object({ score: z.number().nullable(), position: z.number().nullable().optional(), ghost: z.boolean() })),
+    }),
+  ),
+});
+
+const apiRoundSchema = z.object({ url: z.string(), seq: z.number(), abbreviation: z.string(), stage: z.string() });
+
+const apiSpeakerCategorySchema = z.object({ url: z.string(), name: z.string(), public: z.boolean() });
+
+const apiPreferenceSchema = z.object({ identifier: z.string(), value: z.unknown() });
+
+const ENDPOINTS = {
+  preferences: apiPreferenceSchema,
+  teams: apiTeamSchema,
+  speakers: apiSpeakerSchema,
+  rounds: apiRoundSchema,
+  'speaker-categories': apiSpeakerCategorySchema,
+  'teams/standings': apiTeamStandingSchema,
+  'speakers/standings': apiSpeakerStandingSchema,
+  'speakers/standings/rounds': apiSpeakerRoundStandingSchema,
+} as const;
+type Endpoint = keyof typeof ENDPOINTS;
+type EndpointRow<E extends Endpoint> = z.infer<(typeof ENDPOINTS)[E]>;
+
+// ── Release settings ────────────────────────────────────────────────────────
+
+/**
+ * What the tournament's own preferences say about one tab:
+ * - `released`: public in full;
+ * - `private`: not released — neither source may be read;
+ * - `limited`: released to the top N only. The standings endpoints ignore
+ *   the limit (a top-3 speaker tab answered all 142 rows on mace.calicotab
+ *   in 2026-10), so only the HTML page shows the public cut;
+ * - `unknown`: preferences not readable on this install.
+ */
+export type TabRelease = 'released' | 'private' | 'limited' | 'unknown';
+
+export function tabReleaseFromPreferences(
+  prefs: ReadonlyArray<{ identifier: string; value?: unknown }>,
+): { teams: TabRelease; speakers: TabRelease } {
+  const value = (key: string) => prefs.find((p) => p.identifier === key)?.value;
+  const release = (tab: 'team' | 'speaker'): TabRelease => {
+    const released = value(`tab_release__${tab}_tab_released`);
+    if (released === false) return 'private';
+    if (released !== true) return 'unknown';
+    const limit = value(`tab_release__${tab}_tab_limit`);
+    return typeof limit === 'number' && limit > 0 ? 'limited' : 'released';
+  };
+  return { teams: release('team'), speakers: release('speaker') };
+}
+
 // ── Fetching ────────────────────────────────────────────────────────────────
 
 const API_HEADERS: Record<string, string> = {
@@ -267,6 +344,9 @@ const API_HEADERS: Record<string, string> = {
       '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   Accept: 'application/json',
 };
+
+/** Same per-request ceiling as fetch.ts: a hung host must not eat the 60s function budget. */
+export const API_TIMEOUT_MS = 15_000;
 
 /**
  * Ingest reads the team and speaker tabs from the API by default (owner
@@ -281,65 +361,160 @@ export function tabbycatApiTabsEnabled(): boolean {
   return process.env.TABBYCAT_API_TABS !== '0';
 }
 
-export type ApiTabsResult =
-  | { kind: 'ok'; teams: TeamTabRow[]; speakers: SpeakerTabRow[] }
-  | { kind: 'unavailable'; reason: string };
+/**
+ * Where one tab's rows come from:
+ * - `api`: use these rows, skip the HTML page;
+ * - `html`: the API could not answer (absent, disabled, refused, malformed,
+ *   or a limited tab) — scrape the HTML page as before;
+ * - `private`: the tournament has not released this tab. Read nothing.
+ */
+export type TabOutcome<Row> =
+  | { source: 'api'; rows: Row[] }
+  | { source: 'html'; reason: string }
+  | { source: 'private'; reason: string };
 
-type Fetcher = (url: string) => Promise<{ status: number; json: () => Promise<unknown> }>;
+export type ApiTabsResult = { teams: TabOutcome<TeamTabRow>; speakers: TabOutcome<SpeakerTabRow> };
 
-const defaultFetcher: Fetcher = (url) => fetch(url, { headers: API_HEADERS });
+export function htmlOnly(reason: string): ApiTabsResult {
+  return { teams: { source: 'html', reason }, speakers: { source: 'html', reason } };
+}
 
 /**
- * Fetch both tabs from the API. Requests run one after another — the same
- * politeness the HTML path keeps per host — and any non-200 (API disabled,
- * tab unreleased, older Tabbycat with no /api) returns `unavailable` so the
- * caller can fall back to HTML.
+ * Which HTML tab pages ingest should still fetch, given the API's answer.
+ * The nav URL is only ever used when the API sent us back to HTML — never
+ * when it answered, and never for a tab the tournament keeps private (nav
+ * can construct a tab URL the landing page did not link).
+ */
+export function htmlTabsToFetch(
+  result: ApiTabsResult,
+  nav: { teamTab: string | null; speakerTab: string | null },
+): { teamTab: string | null; speakerTab: string | null } {
+  return {
+    teamTab: result.teams.source === 'html' ? nav.teamTab : null,
+    speakerTab: result.speakers.source === 'html' ? nav.speakerTab : null,
+  };
+}
+
+export type Fetcher = (url: string) => Promise<{ status: number; json: () => Promise<unknown> }>;
+
+const defaultFetcher: Fetcher = (url) =>
+  fetch(url, { headers: API_HEADERS, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+
+/**
+ * 429/503, or no answer at all (timeout, connection error): the host wants
+ * fewer requests, not different ones. Retrying the API here would only
+ * compete with the HTML fallback for the same per-host slot.
+ */
+function isHostPushback(got: { status: number | null }): boolean {
+  return got.status === null || got.status === 429 || got.status === 503;
+}
+
+type Got<T> = { ok: true; rows: T[] } | { ok: false; status: number | null; reason: string };
+
+async function getList<E extends Endpoint>(fetcher: Fetcher, base: string, path: E): Promise<Got<EndpointRow<E>>> {
+  let res: Awaited<ReturnType<Fetcher>>;
+  try {
+    res = await fetcher(`${base}/${path}`);
+  } catch (err) {
+    return { ok: false, status: null, reason: `${path}: ${(err as Error).message}` };
+  }
+  if (res.status !== 200) return { ok: false, status: res.status, reason: `${path}: HTTP ${res.status}` };
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    // A 200 HTML page (Cloudflare challenge, or a pre-2.8 install routing
+    // /api to its 404 template) is not an API.
+    return { ok: false, status: 200, reason: `${path}: not JSON` };
+  }
+  if (!Array.isArray(body)) return { ok: false, status: 200, reason: `${path}: not a list` };
+  const parsed = z.array(ENDPOINTS[path]).safeParse(body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, status: 200, reason: `${path}: malformed at [${issue.path.join('.')}] — ${issue.message}` };
+  }
+  return { ok: true, rows: parsed.data as EndpointRow<E>[] };
+}
+
+/**
+ * Ask the API for both tabs. Requests run one after another — the same
+ * politeness the HTML path keeps per host.
+ *
+ * Order matters: `/preferences` comes first, so a tournament that keeps its
+ * tabs private costs one request and yields `private` before any standings
+ * are touched. Everything else that goes wrong — no slug, no /api (pre-2.8
+ * or not Tabbycat), 401/403/404, a timeout, non-JSON, a body that fails
+ * validation, an empty tab — is `html`: the caller scrapes exactly as it did
+ * before the API existed. On calicotab an unreleased standings endpoint also
+ * answers 401, so even where preferences are unreadable the fallback can only
+ * reach an HTML tab the nav links, which Tabbycat gates the same way.
  */
 export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher = defaultFetcher): Promise<ApiTabsResult> {
   const base = apiBaseFromTournamentUrl(tournamentUrl);
-  if (!base) return { kind: 'unavailable', reason: 'no tournament slug in URL' };
+  if (!base) return htmlOnly('no tournament slug in URL');
 
-  const paths = [
-    'teams',
-    'speakers',
-    'rounds',
-    'speaker-categories',
-    'teams/standings',
-    'speakers/standings',
-    'speakers/standings/rounds',
-  ] as const;
-  const out: Partial<Record<(typeof paths)[number], unknown>> = {};
-  for (const path of paths) {
-    let res: Awaited<ReturnType<Fetcher>>;
-    try {
-      res = await fetcher(`${base}/${path}`);
-    } catch (err) {
-      return { kind: 'unavailable', reason: `${path}: ${(err as Error).message}` };
-    }
-    if (res.status !== 200) return { kind: 'unavailable', reason: `${path}: HTTP ${res.status}` };
-    let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      // A 200 HTML page (Cloudflare challenge, or a pre-2.8 install routing
-      // /api to its 404 template) is not an API.
-      return { kind: 'unavailable', reason: `${path}: not JSON` };
-    }
-    if (!Array.isArray(body)) return { kind: 'unavailable', reason: `${path}: not a list` };
-    out[path] = body;
+  const prefs = await getList(fetcher, base, 'preferences');
+  // A 404, a non-JSON 200 or a network failure/timeout here means "no API
+  // on this host" or "host not answering", not "preferences hidden": nothing
+  // further will answer either, and each try can cost API_TIMEOUT_MS of the
+  // function budget, so stop. A 401/403 only hides the preferences — go on.
+  if (!prefs.ok && (prefs.status === null || prefs.status === 404 || prefs.reason.endsWith('not JSON'))) {
+    return htmlOnly(prefs.reason);
+  }
+  const release = prefs.ok ? tabReleaseFromPreferences(prefs.rows) : { teams: 'unknown' as const, speakers: 'unknown' as const };
+
+  const gate = (r: TabRelease, tab: string): TabOutcome<never> | null => {
+    if (r === 'private') return { source: 'private', reason: `${tab} tab not released` };
+    if (r === 'limited') return { source: 'html', reason: `${tab} tab released to top N only` };
+    return null;
+  };
+  let teams: TabOutcome<TeamTabRow> | null = gate(release.teams, 'team');
+  let speakers: TabOutcome<SpeakerTabRow> | null = gate(release.speakers, 'speaker');
+  if (teams && speakers) return { teams, speakers };
+
+  const teamList = await getList(fetcher, base, 'teams');
+  if (!teamList.ok) {
+    return { teams: teams ?? { source: 'html', reason: teamList.reason }, speakers: speakers ?? { source: 'html', reason: teamList.reason } };
   }
 
-  const teams = out.teams as ApiTeam[];
-  return {
-    kind: 'ok',
-    teams: mapTeamStandings(teams, out['teams/standings'] as ApiTeamStanding[]),
-    speakers: mapSpeakerStandings({
-      speakers: out.speakers as ApiSpeaker[],
-      teams,
-      standings: out['speakers/standings'] as ApiSpeakerStanding[],
-      roundStandings: out['speakers/standings/rounds'] as ApiSpeakerRoundStanding[],
-      rounds: out.rounds as ApiRound[],
-      categories: out['speaker-categories'] as ApiSpeakerCategory[],
-    }),
-  };
+  if (!teams) {
+    const standings = await getList(fetcher, base, 'teams/standings');
+    if (!standings.ok) {
+      teams = { source: 'html', reason: standings.reason };
+      // The host is pushing back or not answering: the speaker tab would be
+      // five more requests into the same wall. Leave both to the HTML path,
+      // whose retries and learned backoff are built for exactly this.
+      if (isHostPushback(standings)) return { teams, speakers: speakers ?? { source: 'html', reason: standings.reason } };
+    } else {
+      const rows = mapTeamStandings(teamList.rows, standings.rows);
+      teams = rows.length > 0 ? { source: 'api', rows } : { source: 'html', reason: 'teams/standings: no rows' };
+    }
+  }
+
+  if (!speakers) {
+    speakers = await fetchSpeakerTab(fetcher, base, teamList.rows);
+  }
+  return { teams, speakers };
+}
+
+async function fetchSpeakerTab(fetcher: Fetcher, base: string, teams: ApiTeam[]): Promise<TabOutcome<SpeakerTabRow>> {
+  const speakerList = await getList(fetcher, base, 'speakers');
+  if (!speakerList.ok) return { source: 'html', reason: speakerList.reason };
+  const rounds = await getList(fetcher, base, 'rounds');
+  if (!rounds.ok) return { source: 'html', reason: rounds.reason };
+  const categories = await getList(fetcher, base, 'speaker-categories');
+  if (!categories.ok) return { source: 'html', reason: categories.reason };
+  const standings = await getList(fetcher, base, 'speakers/standings');
+  if (!standings.ok) return { source: 'html', reason: standings.reason };
+  const roundStandings = await getList(fetcher, base, 'speakers/standings/rounds');
+  if (!roundStandings.ok) return { source: 'html', reason: roundStandings.reason };
+  const rows = mapSpeakerStandings({
+    speakers: speakerList.rows,
+    teams,
+    standings: standings.rows,
+    roundStandings: roundStandings.rows,
+    rounds: rounds.rows,
+    categories: categories.rows,
+  });
+  return rows.length > 0 ? { source: 'api', rows } : { source: 'html', reason: 'speakers/standings: no rows' };
 }

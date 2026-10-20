@@ -3,12 +3,16 @@ import {
   API_REDACTED_NAME,
   apiBaseFromTournamentUrl,
   fetchTabsFromApi,
+  htmlOnly,
+  htmlTabsToFetch,
+  tabReleaseFromPreferences,
   institutionFromTeam,
   mapSpeakerStandings,
   mapTeamStandings,
   type ApiRound,
   type ApiSpeaker,
   type ApiTeam,
+  type Fetcher,
 } from '@/lib/calicotab/tabbycatApi';
 
 const B = 'https://t.calicotab.com/api/v1/tournaments/open';
@@ -130,25 +134,6 @@ describe('mapSpeakerStandings — columns and opted-out speakers', () => {
   });
 });
 
-describe('fetchTabsFromApi', () => {
-  it('reports unavailable on the first non-200 so the caller can fall back to HTML', async () => {
-    const seen: string[] = [];
-    const res = await fetchTabsFromApi('https://t.calicotab.com/open/privateurls/x/', async (url) => {
-      seen.push(url);
-      return { status: url.endsWith('/teams') ? 200 : 403, json: async () => [] };
-    });
-    expect(res).toEqual({ kind: 'unavailable', reason: 'speakers: HTTP 403' });
-    expect(seen).toEqual([`${B}/teams`, `${B}/speakers`]);
-  });
-  it('treats a 200 that is not JSON as no API', async () => {
-    const res = await fetchTabsFromApi('https://t.calicotab.com/open/', async () => ({
-      status: 200,
-      json: async () => { throw new SyntaxError('Unexpected token <'); },
-    }));
-    expect(res).toEqual({ kind: 'unavailable', reason: 'teams: not JSON' });
-  });
-});
-
 describe('tabbycatApiTabsEnabled', () => {
   it('is on unless TABBYCAT_API_TABS is exactly "0"', async () => {
     const { tabbycatApiTabsEnabled } = await import('@/lib/calicotab/tabbycatApi');
@@ -164,5 +149,233 @@ describe('tabbycatApiTabsEnabled', () => {
       if (prev === undefined) delete process.env.TABBYCAT_API_TABS;
       else process.env.TABBYCAT_API_TABS = prev;
     }
+  });
+});
+
+// ── fetchTabsFromApi against a mocked host ──────────────────────────────────
+//
+// No network: every request goes through a Fetcher that answers from a
+// path → response table, and records what was asked for so the tests can
+// prove what was NOT fetched (standings for a private tab, anything after a
+// 404 on a host with no API).
+
+const PRIVATE_URL = 'https://t.calicotab.com/open/privateurls/abc123/';
+const NAV = { teamTab: 'https://t.calicotab.com/open/tab/team/', speakerTab: 'https://t.calicotab.com/open/tab/speaker/' };
+
+type Answer = { status: number; body?: unknown; notJson?: boolean };
+
+function released(team: boolean | undefined, speaker: boolean | undefined, limits: { team?: number; speaker?: number } = {}) {
+  const prefs: Array<{ identifier: string; value: unknown }> = [
+    { identifier: 'public_features__public_results', value: true },
+    { identifier: 'tab_release__team_tab_limit', value: limits.team ?? 0 },
+    { identifier: 'tab_release__speaker_tab_limit', value: limits.speaker ?? 0 },
+  ];
+  if (team !== undefined) prefs.push({ identifier: 'tab_release__team_tab_released', value: team });
+  if (speaker !== undefined) prefs.push({ identifier: 'tab_release__speaker_tab_released', value: speaker });
+  return prefs;
+}
+
+function fullHost(overrides: Record<string, Answer> = {}): Record<string, Answer> {
+  return {
+    preferences: { status: 200, body: released(true, true) },
+    teams: { status: 200, body: [team] },
+    'teams/standings': { status: 200, body: [{ rank: 1, tied: false, team: team.url, metrics: [{ metric: 'points', value: 6 }] }] },
+    speakers: { status: 200, body: [alice, anon] },
+    rounds: { status: 200, body: rounds },
+    'speaker-categories': { status: 200, body: [] },
+    'speakers/standings': { status: 200, body: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 152 }] }] },
+    'speakers/standings/rounds': {
+      status: 200,
+      body: [{ speaker: alice.url, rounds: [
+        { round: `${B}/rounds/1`, speeches: [{ score: 77, position: 1, ghost: false }] },
+        { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
+      ] }],
+    },
+    ...overrides,
+  };
+}
+
+function mockHost(answers: Record<string, Answer>) {
+  const seen: string[] = [];
+  const fetcher: Fetcher = async (url) => {
+    const path = url.startsWith(`${B}/`) ? url.slice(B.length + 1) : url;
+    seen.push(path);
+    const a = answers[path] ?? { status: 404, body: { detail: 'Not found.' } };
+    return {
+      status: a.status,
+      json: async () => {
+        if (a.notJson) throw new SyntaxError('Unexpected token <');
+        return a.body;
+      },
+    };
+  };
+  return { fetcher, seen };
+}
+
+describe('fetchTabsFromApi — API success', () => {
+  it('maps both tabs from the API and skips both HTML pages', async () => {
+    const { fetcher, seen } = mockHost(fullHost());
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams).toEqual({ source: 'api', rows: [expect.objectContaining({ teamName: 'Oxford A', totalPoints: 6 })] });
+    expect(res.speakers.source).toBe('api');
+    if (res.speakers.source !== 'api') return;
+    expect(res.speakers.rows[0]).toMatchObject({ speakerName: 'Alice Adams', totalScore: 152 });
+    expect(res.speakers.rows[0].roundScores.map((r) => r.score)).toEqual([77, 75]);
+    // Preferences first, so a private tournament never reaches standings.
+    expect(seen[0]).toBe('preferences');
+    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: null });
+  });
+
+  it('carries on when preferences are hidden (401) and the standings answer', async () => {
+    const { fetcher } = mockHost(fullHost({ preferences: { status: 401, body: { detail: 'Authentication credentials were not provided.' } } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('api');
+    expect(res.speakers.source).toBe('api');
+  });
+});
+
+describe('fetchTabsFromApi — API unavailable → HTML fallback', () => {
+  it('falls back on a 404 and stops asking (no API on this install)', async () => {
+    const { fetcher, seen } = mockHost({});
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res).toEqual(htmlOnly('preferences: HTTP 404'));
+    expect(seen).toEqual(['preferences']);
+    expect(htmlTabsToFetch(res, NAV)).toEqual(NAV);
+  });
+
+  it('falls back when a 200 is an HTML page, not JSON (pre-2.8, Cloudflare challenge)', async () => {
+    const { fetcher, seen } = mockHost({ preferences: { status: 200, notJson: true } });
+    expect(await fetchTabsFromApi(PRIVATE_URL, fetcher)).toEqual(htmlOnly('preferences: not JSON'));
+    expect(seen).toEqual(['preferences']);
+  });
+
+  it.each([401, 403, 404])('falls back per tab when standings answer %i with no release setting to go on', async (status) => {
+    const { fetcher } = mockHost(fullHost({
+      preferences: { status: 403, body: { detail: 'Forbidden' } },
+      'speakers/standings': { status, body: { detail: 'nope' } },
+    }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('api');
+    expect(res.speakers).toEqual({ source: 'html', reason: `speakers/standings: HTTP ${status}` });
+    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: NAV.speakerTab });
+  });
+
+  it('falls back on a network error or timeout', async () => {
+    const res = await fetchTabsFromApi(PRIVATE_URL, async () => {
+      throw new Error('The operation was aborted due to timeout');
+    });
+    expect(res.teams).toEqual({ source: 'html', reason: 'preferences: The operation was aborted due to timeout' });
+    expect(res.speakers.source).toBe('html');
+  });
+
+  it.each([429, 503])('stops asking the API after a %i and leaves both tabs to HTML', async (status) => {
+    const { fetcher, seen } = mockHost(fullHost({ 'teams/standings': { status, body: { detail: 'slow down' } } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res).toEqual(htmlOnly(`teams/standings: HTTP ${status}`));
+    expect(seen).toEqual(['preferences', 'teams', 'teams/standings']);
+  });
+
+  it('falls back without a request when the URL has no tournament slug', async () => {
+    const { fetcher, seen } = mockHost(fullHost());
+    expect(await fetchTabsFromApi('https://t.calicotab.com/', fetcher)).toEqual(htmlOnly('no tournament slug in URL'));
+    expect(seen).toEqual([]);
+  });
+
+  it('leaves a tab limited to the top N to the HTML page (the API returns every row)', async () => {
+    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(true, true, { speaker: 3 }) } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('api');
+    expect(res.speakers).toEqual({ source: 'html', reason: 'speaker tab released to top N only' });
+    expect(seen).not.toContain('speakers/standings');
+  });
+
+  it('the kill-switch result sends both tabs to HTML', () => {
+    expect(htmlTabsToFetch(htmlOnly('TABBYCAT_API_TABS=0'), NAV)).toEqual(NAV);
+  });
+});
+
+describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () => {
+  it('reads nothing past preferences when neither tab is released', async () => {
+    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(false, false) } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res).toEqual({
+      teams: { source: 'private', reason: 'team tab not released' },
+      speakers: { source: 'private', reason: 'speaker tab not released' },
+    });
+    expect(seen).toEqual(['preferences']);
+    // Even with nav URLs in hand (linked or constructed), no HTML tab fetch.
+    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: null });
+  });
+
+  it('keeps a released tab and withholds the unreleased one', async () => {
+    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(true, false) } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('api');
+    expect(res.speakers).toEqual({ source: 'private', reason: 'speaker tab not released' });
+    expect(seen).not.toContain('speakers');
+    expect(seen).not.toContain('speakers/standings');
+    expect(seen).not.toContain('speakers/standings/rounds');
+    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: null });
+  });
+
+  it('a private tab stays private even when the rest of the API fails', async () => {
+    const { fetcher } = mockHost(fullHost({
+      preferences: { status: 200, body: released(false, true) },
+      teams: { status: 500, body: {} },
+    }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('private');
+    expect(res.speakers).toEqual({ source: 'html', reason: 'teams: HTTP 500' });
+    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: NAV.speakerTab });
+  });
+});
+
+describe('fetchTabsFromApi — malformed API data', () => {
+  it('falls back when a list arrives as an object (error envelope, pagination)', async () => {
+    const { fetcher } = mockHost(fullHost({ teams: { status: 200, body: { count: 1, next: null, results: [team] } } }));
+    expect(await fetchTabsFromApi(PRIVATE_URL, fetcher)).toEqual(htmlOnly('teams: not a list'));
+  });
+
+  it('falls back when a row has the wrong shape for a field the mapping reads', async () => {
+    const { fetcher } = mockHost(fullHost({
+      'teams/standings': { status: 200, body: [{ rank: 1, team: team.url, metrics: 'points=6' }] },
+    }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.teams.source).toBe('html');
+    if (res.teams.source === 'html') expect(res.teams.reason).toMatch(/^teams\/standings: malformed at \[0\.metrics\]/);
+    expect(res.speakers.source).toBe('api');
+  });
+
+  it('refuses speakers without an anonymous flag rather than risk printing an opted-out name', async () => {
+    const { anonymous: _drop, ...noFlag } = alice;
+    const { fetcher } = mockHost(fullHost({ speakers: { status: 200, body: [noFlag] } }));
+    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+    expect(res.speakers.source).toBe('html');
+    if (res.speakers.source === 'html') expect(res.speakers.reason).toMatch(/^speakers: malformed at \[0\.anonymous\]/);
+  });
+
+  it('falls back when scores arrive as strings', async () => {
+    const { fetcher } = mockHost(fullHost({
+      'speakers/standings': { status: 200, body: [{ rank: 1, speaker: alice.url, metrics: [{ metric: 'total', value: '152' }] }] },
+    }));
+    expect((await fetchTabsFromApi(PRIVATE_URL, fetcher)).speakers.source).toBe('html');
+  });
+
+  it('falls back when standings point at teams the team list does not have', async () => {
+    const { fetcher } = mockHost(fullHost({
+      'teams/standings': { status: 200, body: [{ rank: 1, team: `${B}/teams/404`, metrics: [] }] },
+    }));
+    expect((await fetchTabsFromApi(PRIVATE_URL, fetcher)).teams).toEqual({ source: 'html', reason: 'teams/standings: no rows' });
+  });
+});
+
+describe('tabReleaseFromPreferences', () => {
+  it('reads released, private, limited and unknown', () => {
+    expect(tabReleaseFromPreferences(released(true, false))).toEqual({ teams: 'released', speakers: 'private' });
+    expect(tabReleaseFromPreferences(released(true, true, { team: 16 }))).toEqual({ teams: 'limited', speakers: 'released' });
+    expect(tabReleaseFromPreferences(released(undefined, undefined))).toEqual({ teams: 'unknown', speakers: 'unknown' });
+    // Only a literal false withholds; anything unexpected is "unknown", which
+    // still goes through the API's own gate (unreleased standings answer 401).
+    expect(tabReleaseFromPreferences([{ identifier: 'tab_release__team_tab_released', value: 'yes' }]).teams).toBe('unknown');
   });
 });

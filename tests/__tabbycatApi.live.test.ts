@@ -104,12 +104,21 @@ describe.skipIf(!process.env.RUN_TABBYCAT_API)('Tabbycat API vs HTML tabs', () =
   for (const base of TOURNAMENTS) {
     it(base, async () => {
       const api = await fetchTabsFromApi(base);
-      if (api.kind !== 'ok') throw new Error(`API unavailable: ${api.reason}`);
+      // A tab released to the top N is deliberately left to HTML (see
+      // tabReleaseFromPreferences), so there is nothing to diff for it.
+      const limited = (o: { source: string; reason?: string }) => o.source === 'html' && /top N/.test(o.reason ?? '');
+      for (const [tab, o] of [['team', api.teams], ['speaker', api.speakers]] as const) {
+        if (o.source !== 'api' && !limited(o)) throw new Error(`${tab} tab not from API: ${o.reason}`);
+        if (limited(o)) console.log(`${base}: ${tab} tab limited — left to HTML, not compared`);
+      }
       const htmlTeams = parseTeamTab(await html(`${base}tab/team/`));
       const htmlSpeakers = parseSpeakerTab(await html(`${base}tab/speaker/`));
       extraApiScores = 0;
       withheldRedacted = 0;
-      const diffs = [...diffTeams(htmlTeams, api.teams), ...diffSpeakers(htmlSpeakers, api.speakers)];
+      const diffs = [
+        ...(api.teams.source === 'api' ? diffTeams(htmlTeams, api.teams.rows) : []),
+        ...(api.speakers.source === 'api' ? diffSpeakers(htmlSpeakers, api.speakers.rows) : []),
+      ];
       console.log(
         `${base}: ${htmlSpeakers.length} speakers, ${htmlTeams.length} teams, ${diffs.length} diffs, ` +
           `${extraApiScores} scores only the API has, ${withheldRedacted} redacted rows withheld`,
