@@ -2,6 +2,43 @@
 
 ---
 
+## 2026-10-20 — Tabbycat REST API as a source for the team and speaker tabs (not wired in)
+
+**Branch `feat/tabbycat-api`, cut from `feat/filterable-stats`.** Tests 1,203 passing / 40 skipped;
+`tsc` + `eslint` clean. No ingest behaviour changes.
+
+- **`lib/calicotab/tabbycatApi.ts`** fetches `/api/v1/tournaments/<slug>/{teams,speakers,rounds,
+  speaker-categories,teams/standings,speakers/standings,speakers/standings/rounds}` and maps them to
+  the same `TeamTabRow[]` / `SpeakerTabRow[]` that `parseTeamTab` / `parseSpeakerTab` return. Any
+  non-200 or non-JSON answer returns `unavailable` so a caller can fall back to HTML.
+- **Parity:** `RUN_TABBYCAT_API=1 npx vitest run tests/__tabbycatApi.live.test.ts` diffs the two
+  paths. Clean (0 diffs) on 11 tournaments — WUDC 2024/2025, Australs 2022, IIT Bombay ×2, SIDO 2026,
+  BSO 2021, NDO 2021, KO-23, ILNU RR 2026, MukMem 78: ~3,100 speakers, ~1,300 teams, BP / AP / Australs.
+- **Rules the mapping had to learn** (each was a live diff first):
+  - one column per prelim, empty where unspoken; outrounds dropped;
+  - iron-person rounds show the non-`ghost` speech;
+  - two-team formats put `speaks_sum` in `totalPoints` (the HTML ptsCol fallback);
+  - every score rounded to 2 dp, as displayed (panel-averaged thirds);
+  - opted-out speakers come back as `speaker: null` standings rows. Scores are recovered from the
+    per-round endpoint only when exactly one hidden speaker's prelims sum to the row total; the team is
+    never attached.
+- **Where the API knows more:** swing-team speakers' scores (blank on the HTML tab, up to 35 per
+  tournament), institution names from `long_name` (the HTML tab has none; `/institutions` needs a
+  token), and public speaker categories on tabs that don't render the column.
+- **Where it knows less:** two opted-out speakers on the same total can't be told apart (WUDC 2024: 2
+  rows; Australs 2022: 1), so their rounds stay empty. The HTML has them, but those rows have no team,
+  so `findRedactedOwnerRow` never uses them either.
+
+### Next
+
+Wire into `fetchAndParseTabs`: try the API first and fall back to HTML per tournament. Record which
+source was used in `ParserRun`. Decide whether institution and swing scores are allowed to differ
+from cached parses; that decides whether `PARSER_VERSION` needs a bump. Round results, break and
+participants still come from HTML; the API has `rounds/<n>/pairings` and break eligibility for a
+later pass.
+
+---
+
 ## 2026-09-17 — Formats fixed in ingest; filterable statistics (phases 0–2 of 7)
 
 **Working tree only, not committed.** Tests 1,013 passing / 38 skipped; `tsc` + `eslint` clean.
