@@ -170,8 +170,12 @@ export function mapSpeakerStandings(input: {
       // An iron-person round has two speeches, one flagged `ghost` — the
       // extra speech that does not count towards the speaker's total. The
       // HTML cell shows the counted one (checked on WUDC 2024, where the
-      // two differ by a point), so prefer the non-ghost speech.
-      const speech = r.speeches.find((s) => !s.ghost) ?? r.speeches[0];
+      // two differ by a point), so prefer the non-ghost speech. A round whose
+      // speeches are ALL ghosts (a lone ghost, or both halves of an
+      // iron-person pair) counts for nothing: the HTML cell is empty and the
+      // published total excludes it, so it stays null rather than falling
+      // back to speeches[0] (WUDC 2024 had three such speakers).
+      const speech = r.speeches.find((s) => !s.ghost);
       byRound.set(r.round, round2(speech?.score));
     }
     return prelims.map((r) => ({ roundLabel: r.abbreviation, score: byRound.get(r.url) ?? null, positionLabel: null }));

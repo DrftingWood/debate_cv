@@ -104,6 +104,22 @@ describe('mapSpeakerStandings — columns and opted-out speakers', () => {
     expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([['R1', null], ['R2', 75]]);
   });
 
+  // WUDC 2024, local re-ingest 2026-10-21: three speakers had a round whose
+  // only speeches were ghosts (one ghost, or both of an iron-person pair).
+  // The HTML tab leaves that cell empty and the published total excludes it;
+  // taking speeches[0] put an uncounted score into the round ledger.
+  it('leaves a round empty when every speech in it is a ghost', () => {
+    const [row] = mapSpeakerStandings({
+      speakers: [alice], teams: [team], rounds, categories: [],
+      standings: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 75 }] }],
+      roundStandings: [{ speaker: alice.url, rounds: [
+        { round: `${B}/rounds/1`, speeches: [{ score: 69, position: 1, ghost: true }, { score: 68, position: 2, ghost: true }] },
+        { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
+      ] }],
+    });
+    expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([['R1', null], ['R2', 75]]);
+  });
+
   it('recovers an unlinked row by a unique score total, without its team', () => {
     const [row] = mapSpeakerStandings({
       speakers: [hidden], teams: [team], rounds,
