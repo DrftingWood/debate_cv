@@ -268,6 +268,16 @@ const API_HEADERS: Record<string, string> = {
   Accept: 'application/json',
 };
 
+/**
+ * Ingest reads the team and speaker tabs from the API only when
+ * TABBYCAT_API_TABS=1. Off by default: switching changes what cached parses
+ * would contain (institutions, swing-team scores), and whether that warrants
+ * a PARSER_VERSION bump is an owner decision.
+ */
+export function tabbycatApiTabsEnabled(): boolean {
+  return process.env.TABBYCAT_API_TABS === '1';
+}
+
 export type ApiTabsResult =
   | { kind: 'ok'; teams: TeamTabRow[]; speakers: SpeakerTabRow[] }
   | { kind: 'unavailable'; reason: string };

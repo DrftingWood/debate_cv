@@ -29,13 +29,25 @@
   rows; Australs 2022: 1), so their rounds stay empty. The HTML has them, but those rows have no team,
   so `findRedactedOwnerRow` never uses them either.
 
-### Next
+### Wired in behind a flag (second commit)
 
-Wire into `fetchAndParseTabs`: try the API first and fall back to HTML per tournament. Record which
-source was used in `ParserRun`. Decide whether institution and swing scores are allowed to differ
-from cached parses; that decides whether `PARSER_VERSION` needs a bump. Round results, break and
-participants still come from HTML; the API has `rounds/<n>/pairings` and break eligibility for a
-later pass.
+`fetchAndParseTabs` asks the API first only when **`TABBYCAT_API_TABS=1`**. It uses this ingest's
+per-host `FetchSession` slot and skips the two HTML tab fetches when the API returns both tabs.
+Anything less falls back to HTML **without** a warning, because a non-empty `fetchWarnings` also
+suppresses `prepareTournamentWideRefresh`. The source is logged via `console.info('[ingest] tabbycat api', …)`.
+
+**Not verified end to end:** no local Postgres on the machine this was built on, so the
+flag-on path has unit and parity coverage but no real `ingestPrivateUrl` run. Before setting the
+flag in Vercel, run one re-ingest locally with `TABBYCAT_API_TABS=1` and compare `/cv`.
+
+### Open decisions
+
+- Bump `PARSER_VERSION` when enabling, so cached tournaments pick up institutions and swing
+  scores, or let only new ingests differ?
+- API mode stores no `SourceDocument` snapshot for the team and speaker tabs, so they drop out
+  of the re-derivation archive. Should the JSON be stored as a snapshot instead?
+- Round results, break and participants still come from HTML. The API has `rounds/<n>/pairings`
+  and break eligibility for a later pass.
 
 ---
 

@@ -1,8 +1,9 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
-import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
+import { FETCH_MIN_INTERVAL_MS, fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
 import { FetchSession } from './fetchSession';
+import { fetchTabsFromApi, tabbycatApiTabsEnabled, type ApiTabsResult } from './tabbycatApi';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
@@ -449,6 +450,10 @@ async function checkCacheFreshness(
   };
 }
 
+const API_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
 async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const { normalized, fetchSession, snapshot, landingHtml, fetchWarnings } = loaded;
   // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
@@ -499,9 +504,25 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     return null;
   };
 
+  // Team and speaker tabs from Tabbycat's REST API when TABBYCAT_API_TABS=1
+  // (off by default — see lib/calicotab/tabbycatApi.ts and the 2026-10-20
+  // handoff for the parity evidence). The API shares this ingest's
+  // per-host slot so it is throttled like the HTML fetches. Anything short of
+  // a full answer falls back to the HTML tabs below, silently: a tournament
+  // with the API switched off is the normal case, not a warning, and a
+  // non-empty fetchWarnings would also suppress the tournament-wide refresh.
+  const apiTabs: ApiTabsResult | null = tabbycatApiTabsEnabled()
+    ? await fetchTabsFromApi(normalized, async (apiUrl) => {
+        await fetchSession.acquireSlot(new URL(apiUrl).host, FETCH_MIN_INTERVAL_MS);
+        return fetch(apiUrl, { headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' } });
+      })
+    : null;
+  if (apiTabs) console.info('[ingest] tabbycat api', { url: normalized, result: apiTabs.kind, reason: apiTabs.kind === 'unavailable' ? apiTabs.reason : undefined });
+  const useApiTabs = apiTabs?.kind === 'ok' && apiTabs.teams.length > 0 && apiTabs.speakers.length > 0;
+
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
-    nav.teamTab ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
-    nav.speakerTab ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
+    nav.teamTab && !useApiTabs ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
+    nav.speakerTab && !useApiTabs ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
     nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
     nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
   ]);
@@ -516,12 +537,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     }),
   );
 
-  const teamRows = teamHtml ? parseTeamTab(teamHtml) : [];
+  const teamRows = useApiTabs ? apiTabs.teams : teamHtml ? parseTeamTab(teamHtml) : [];
   if (teamRows.length === 0 && teamHtml) {
     fetchWarnings.push(`parse: teamTab → 0 rows — ${diagnoseVueData(teamHtml, ['team'])}`);
   }
 
-  const speakerRows = speakerHtml ? parseSpeakerTab(speakerHtml) : [];
+  const speakerRows = useApiTabs ? apiTabs.speakers : speakerHtml ? parseSpeakerTab(speakerHtml) : [];
   if (speakerRows.length === 0 && speakerHtml) {
     fetchWarnings.push(`parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`);
   }
