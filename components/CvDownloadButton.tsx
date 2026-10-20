@@ -178,6 +178,27 @@ export function CvDownloadButton() {
               </Button>
             </div>
 
+            <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+              <div>
+                <div className="text-caption font-medium text-ink">JSON Resume</div>
+                <p className="text-byline text-ink-soft">
+                  For resume themes and portfolio sites.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}
+                onClick={() => {
+                  window.location.assign('/api/cv/export?format=json-resume');
+                  setOpen(false);
+                }}
+              >
+                .json
+              </Button>
+            </div>
+
             <div className="flex items-center justify-between gap-2">
               <span className="text-caption font-medium text-ink">Data export — columns</span>
               <span className="flex gap-2 text-caption">
