@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { TAG_VALUES, type TagKind } from '@/lib/tags/vocabulary';
@@ -26,6 +27,11 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  // Tagging is an operator tool; the page is hidden from participants, so the
+  // endpoint behind it is closed to them as well.
+  if (!isAdminEmail(session.user.email)) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const limited = await enforceRateLimit('tags:propose', session.user.id);
   if (limited) return limited;

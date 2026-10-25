@@ -28,6 +28,7 @@ import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { CvSubNav } from '@/components/CvSubNav';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
+import { bpPlacement, cumulativePoints, isFourTeamRound, ledgerRoundNames } from '@/lib/cv/roundLedger';
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
@@ -339,6 +340,14 @@ function RoundLedger({
   const anyMotion = roundNumbers.some(
     (n) => (motionsByRound.get(`${r.tournamentId}:${n}`) ?? []).length > 0,
   );
+  // "Round 7" / "Quarterfinals", not "R7"; points as a running total; and a
+  // four-team (BP) room shows a placement, since nobody "wins" it outright.
+  const roundNames = ledgerRoundNames({
+    roundNumbers,
+    prelimRoundCount: r.prelimRoundCount,
+    eliminationReached: r.eliminationReached,
+  });
+  const totalPoints = cumulativePoints(r.teamRoundResults);
 
   return (
     <details className={cn('group', className)}>
@@ -358,7 +367,7 @@ function RoundLedger({
               <Th>Side</Th>
               {anyMotion ? <Th>Motion</Th> : null}
               <Th numeric>Score</Th>
-              <Th numeric>Pts</Th>
+              <Th numeric title="Team points after this round (running total)">Pts</Th>
               <Th>Result</Th>
             </tr>
           </thead>
@@ -367,9 +376,12 @@ function RoundLedger({
               const score = scoreByRound.get(n);
               const result = resultByRound.get(n);
               const motions = motionsByRound.get(`${r.tournamentId}:${n}`) ?? [];
+              const placement = isFourTeamRound({ position: result?.position ?? null, format: r.format })
+                ? bpPlacement(result?.points ?? null)
+                : null;
               return (
                 <tr key={n}>
-                  <Td className="num whitespace-nowrap">R{n}</Td>
+                  <Td className="whitespace-nowrap">{roundNames.get(n) ?? `Round ${n}`}</Td>
                   <Td className="whitespace-nowrap text-ink-soft">{result?.position ?? <Nil />}</Td>
                   {anyMotion ? (
                     <Td className="max-w-[32rem] text-ink-soft">
@@ -390,9 +402,24 @@ function RoundLedger({
                   <Td numeric>
                     {score?.score != null ? score.score.toFixed(1) : <Nil />}
                   </Td>
-                  <Td numeric>{result?.points != null ? result.points : <Nil />}</Td>
+                  <Td numeric>{totalPoints.has(n) ? totalPoints.get(n) : <Nil />}</Td>
                   <Td className="whitespace-nowrap">
-                    {result?.won == null ? (
+                    {isFourTeamRound({ position: result?.position ?? null, format: r.format }) ? (
+                      // A BP room has four teams and no winner: show where the
+                      // team placed. Colour only the ends, as elsewhere —
+                      // colour on a number means up or down.
+                      placement ? (
+                        <span
+                          className={
+                            placement === '1st' ? 'val-pos font-medium' : placement === '4th' ? 'val-neg' : undefined
+                          }
+                        >
+                          {placement}
+                        </span>
+                      ) : (
+                        <Nil />
+                      )
+                    ) : result?.won == null ? (
                       <Nil />
                     ) : result.won ? (
                       <span className="val-pos font-medium">Won</span>

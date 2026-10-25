@@ -199,6 +199,12 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
   if (!nav.teamTab) { nav.teamTab = `${base}tab/team/`; constructed.push('teamTab'); }
   if (!nav.speakerTab) { nav.speakerTab = `${base}tab/speaker/`; constructed.push('speakerTab'); }
   if (!nav.participants) { nav.participants = `${base}participants/list/`; constructed.push('participants'); }
+  // The motions list too. Some landing pages link only /motions/statistics/
+  // (WUDC 2022 does), which is skipped above because it holds no motions;
+  // without this the motions were never fetched and no warning said so. The
+  // fetch is optional and a missing page is silent for a guessed URL, so a
+  // tournament that publishes no motions costs one request, not a warning.
+  if (!nav.motionsTab) { nav.motionsTab = `${base}motions/`; constructed.push('motionsTab'); }
 
   nav.meta = {
     discovered: Array.from(discovered),
