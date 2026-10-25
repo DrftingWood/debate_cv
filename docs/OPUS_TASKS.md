@@ -24,6 +24,8 @@ Related: `docs/INTEGRATION-2026-10-21.md` (what PR #115 contains and the deploy 
 
 ## B6. Snapshots for API-sourced tabs
 
+**Status (2026-10-25): built, PR #119, awaiting merge.** The owner chose option 1 (store the JSON, newest per URL). Measured on WUDC 2024: ~100 KB gzipped per tournament, against ~151 KB for the HTML tabs it replaces (`docs/SIZING-2026-10-25.md`).
+
 **Decision needed (owner):** when team and speaker tabs come from the Tabbycat API, should the response JSON be stored as a `SourceDocument`?
 
 - Today API-sourced tabs store nothing, so they drop out of the re-derivation archive. HTML tabs keep the newest snapshot per URL and a 90-day prune keeps that one.
@@ -36,6 +38,8 @@ Done when: the choice is recorded in the handoff, the code stores or deliberatel
 
 ## B8. Rounds, break and participants through the API
 
+**Status (2026-10-25): built, PR #120 (stacked on #119), awaiting merge.** Opt-in with `TABBYCAT_API_ROUNDS=1`, off by default. 0 real differences on 13 tournaments, including WUDC 2023/2024/2025 and Australs 2022/2025, with about 25–30 % fewer requests than HTML. Turning it on in production is the owner's call.
+
 Goal: stop scraping HTML for the pages that are still scraped. Team and speaker tabs already read from the API (`lib/calicotab/tabbycatApi.ts`); the live parity check showed 0 differences on 11 tournaments.
 
 - Still HTML: round results, the break and participants. The API has pairings and break eligibility.
@@ -47,6 +51,8 @@ Done when: each page has a mapper with unit tests; a live diff shows 0 differenc
 Depends on: PR #115 merged, so the work builds on the live API source.
 
 ## B9. Pre-scrape 2020 to 2025 and match people by private URL
+
+**Status (2026-10-25): step 1 done, awaiting the owner's scope choice.** 2020–2025 is about 1.15–1.24 M rows and 310–335 MB (620–670 MB with a 2x allowance) against the 1 GB Neon Free limit. Recommended: the whole set, if production is under ~300 MB, else Neon Launch first. See `docs/SIZING-2026-10-25.md`.
 
 Idea (owner's): tournaments are finite and final, so scrape them once and match each person to a stored tournament from their private URL. An ingest becomes a database copy that takes under a second and can run inside the user's own request, with no queue wait and no cron for stored tournaments.
 
@@ -66,6 +72,19 @@ Step 1, before any build: count rows per table from the existing corpus export, 
 
 Done when: the size estimate is written up and the owner picks scope. Only then design the schema and the match flow.
 
+## C1. Outround motions on the /cv round ledger
+
+**Status (2026-10-25): built on `opus/outround-motions`.** Outround motions are stored with `roundNumber` null and only a label, while the ledger matched motions by round number, so outround rows never showed a motion (525 of 1,023 on the seeded record).
+
+`ledgerMotions` (`lib/cv/roundLedger.ts`) keeps the round-number match for prelims. For a row that `ledgerRoundNames` named as an outround, it matches unnumbered motions by stage through the stage lexicon ("Final" and "Grand Final" are one stage), in the team's own break category from `eliminationReached`.
+
+When unsure it shows no motion:
+- a "Round N" fallback row is never matched by stage;
+- two different labels for one stage and bracket show nothing;
+- a numbered motion is never moved onto another row.
+
+Done when: tests cover each rule (`tests/cv.roundLedger.test.ts`), and the owner has checked an outround-heavy record on /cv.
+
 ## Parked (backlog sections C and D)
 
 Not in scope until A and B are clear.
@@ -77,8 +96,9 @@ Not in scope until A and B are clear.
 
 ## Owner's decisions (no model decides these)
 
-- Merge PR #115 to `main` (deploys production).
-- B6: which snapshot option.
+- Merge PR #115 to `main` (deploys production). Done.
+- Merge #119 (B6), #120 (B8), and turn on `TABBYCAT_API_ROUNDS` in production.
+- B6: which snapshot option. Decided 2026-10-25: option 1.
 - B9: scope, after the size estimate.
 - JSON Resume award rules (the report recommended top 10).
 - Which licence to use on the public repos.
