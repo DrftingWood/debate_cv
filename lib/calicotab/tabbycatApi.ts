@@ -399,6 +399,25 @@ export function htmlTabsToFetch(
   };
 }
 
+/**
+ * Warnings for tabs the tournament itself says are not released.
+ *
+ * A `private` tab reads neither the API nor the HTML page, so a tournament
+ * whose participants page still loads would ingest with zero team and speaker
+ * rows and nothing to say why — the HTML path used to 403, abort and retry.
+ * Naming it in fetchWarnings puts it on the ParserRun (shown by /cv/verify)
+ * and, deliberately, stops a re-ingest of an already-populated tournament
+ * from running the tournament-wide refresh against empty rows. The prefix is
+ * not `fetch:`, so it never fails the job: an unreleased tab is a fact about
+ * the tournament, not a fault to retry three times.
+ */
+export function unreleasedTabWarnings(result: ApiTabsResult): string[] {
+  const warnings: string[] = [];
+  if (result.teams.source === 'private') warnings.push(`tabs: ${result.teams.reason}`);
+  if (result.speakers.source === 'private') warnings.push(`tabs: ${result.speakers.reason}`);
+  return warnings;
+}
+
 export type Fetcher = (url: string) => Promise<{ status: number; json: () => Promise<unknown> }>;
 
 const defaultFetcher: Fetcher = (url) =>

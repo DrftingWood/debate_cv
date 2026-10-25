@@ -6,6 +6,7 @@ import {
   htmlOnly,
   htmlTabsToFetch,
   tabReleaseFromPreferences,
+  unreleasedTabWarnings,
   institutionFromTeam,
   mapSpeakerStandings,
   mapTeamStandings,
@@ -321,6 +322,24 @@ describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () =
     expect(seen).toEqual(['preferences']);
     // Even with nav URLs in hand (linked or constructed), no HTML tab fetch.
     expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: null });
+  });
+
+  it('names each unreleased tab in a warning that cannot fail the job', async () => {
+    const { fetcher } = mockHost(fullHost({ preferences: { status: 200, body: released(true, false) } }));
+    const partial = await unreleasedTabWarnings(await fetchTabsFromApi(PRIVATE_URL, fetcher));
+    expect(partial).toEqual(['tabs: speaker tab not released']);
+
+    const { fetcher: none } = mockHost(fullHost({ preferences: { status: 200, body: released(false, false) } }));
+    const both = unreleasedTabWarnings(await fetchTabsFromApi(PRIVATE_URL, none));
+    expect(both).toEqual(['tabs: team tab not released', 'tabs: speaker tab not released']);
+    // `fetch:` is the only prefix ingest treats as a failed fetch.
+    expect([...partial, ...both].some((w) => w.startsWith('fetch:'))).toBe(false);
+  });
+
+  it('is silent when the API served the tabs or the host fell back to HTML', async () => {
+    const { fetcher } = mockHost(fullHost({}));
+    expect(unreleasedTabWarnings(await fetchTabsFromApi(PRIVATE_URL, fetcher))).toEqual([]);
+    expect(unreleasedTabWarnings(htmlOnly('TABBYCAT_API_TABS=0'))).toEqual([]);
   });
 
   it('keeps a released tab and withholds the unreleased one', async () => {

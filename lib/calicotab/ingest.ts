@@ -8,6 +8,7 @@ import {
   fetchTabsFromApi,
   htmlOnly,
   htmlTabsToFetch,
+  unreleasedTabWarnings,
   tabbycatApiTabsEnabled,
   type ApiTabsResult,
 } from './tabbycatApi';
@@ -543,6 +544,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     speakers: apiTabs.speakers.source === 'api' ? 'api' : `${apiTabs.speakers.source}: ${apiTabs.speakers.reason}`,
   });
   const htmlTabs = htmlTabsToFetch(apiTabs, nav);
+  fetchWarnings.push(...unreleasedTabWarnings(apiTabs));
 
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
