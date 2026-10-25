@@ -1,0 +1,143 @@
+import { isAllowedTabHost } from '@/lib/gmail/extract';
+import { normalizeStageLabel } from './judgeStats';
+import type { RoundDebate } from './parseTabs';
+
+/**
+ * Pure helpers behind the B9 pre-scrape (ingest.ts prescrapeTournament).
+ * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
+ */
+
+/**
+ * The public base of a tournament — `https://<host>/<slug>/` — from any URL
+ * on it, for the pre-scrape. Throws for anything that is not a public
+ * tournament page on an allowed tab host:
+ *   - a private URL: the pre-scrape reads public pages only, and a private
+ *     URL is someone's identity, which only their own ingest may use;
+ *   - no slug (a root-hosted tournament): its private URLs carry a slug its
+ *     public URL lacks, so the fingerprints would not meet and the stored
+ *     row could never be matched (design: "Identification").
+ */
+export function publicTournamentBase(url: string): { base: string; host: string; slug: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`not a URL: ${url.slice(0, 120)}`);
+  }
+  if (parsed.protocol !== 'https:' || !isAllowedTabHost(parsed.hostname) || parsed.port || parsed.username) {
+    throw new Error(`not an allowed tab host: ${parsed.host}`);
+  }
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.some((p) => p.toLowerCase() === 'privateurls')) {
+    throw new Error('refusing a private URL: the pre-scrape reads public pages only');
+  }
+  const slug = parts[0];
+  if (!slug) throw new Error(`no tournament slug in ${parsed.host}: root-hosted tournaments are not pre-scraped`);
+  return { base: `https://${parsed.host}/${slug}/`, host: parsed.host, slug };
+}
+
+/** How long any stored tournament counts as current. */
+export const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+/** How long a settled tournament (an earlier year's) counts as current. */
+export const SETTLED_FRESH_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Is a stored tournament recent enough to serve without re-scraping?
+ *
+ * Within 30 days of its scrape, any tournament is. A tournament from an
+ * earlier calendar year than now is settled — its tabs are final, bar the
+ * rare correction — and stays current for a year. Without that, every
+ * pre-scraped tournament would be a cache miss a month after loading, and a
+ * user's ingest would re-scrape what is already stored (design: "Match
+ * flow"). Parser-version and stale-round checks are separate and still
+ * force a refresh; so does a forced re-ingest.
+ */
+export function storedTournamentFresh(
+  existing: { scrapedAt: Date; year: number | null },
+  now: Date = new Date(),
+): boolean {
+  const age = now.getTime() - existing.scrapedAt.getTime();
+  if (age < FRESH_WINDOW_MS) return true;
+  const settled = existing.year != null && existing.year < now.getUTCFullYear();
+  return settled && age < SETTLED_FRESH_WINDOW_MS;
+}
+
+export type JudgeHit = {
+  stage: string;
+  role: 'chair' | 'panellist' | 'trainee';
+  roundNumber: number | null;
+};
+
+/**
+ * Every panel seat in `rounds` whose judge `matches`, as JudgeAssignment
+ * shapes: the stage label normalised as the landing path does, the role
+ * (a trainee stays a trainee — filing one as a panellist would credit a
+ * non-voting seat), and the round number for prelims only. Shared by the
+ * URL owner's round-results fallback and the pre-scrape's every-judge
+ * writer, so both read panels identically.
+ */
+export function judgeHitsFromRounds(rounds: RoundDebate[], matches: (judgeName: string) => boolean): JudgeHit[] {
+  const hits: JudgeHit[] = [];
+  for (const round of rounds) {
+    if (!round) continue;
+    for (const j of round.judgeAssignments) {
+      if (!matches(j.personName)) continue;
+      const stage = normalizeStageLabel(
+        round.roundLabel ||
+          (round.isOutround
+            ? round.roundNumber != null ? `Round ${round.roundNumber}` : 'Outround'
+            : `Round ${round.roundNumber ?? '?'}`),
+      );
+      hits.push({
+        stage,
+        role: j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
+        roundNumber: round.isOutround ? null : round.roundNumber,
+      });
+    }
+  }
+  return hits;
+}
+
+/** One row per (stage, role, round): the JudgeAssignment unique, with NULL rounds deduped too. */
+export function dedupeJudgeHits(hits: JudgeHit[]): JudgeHit[] {
+  const seen = new Set<string>();
+  return hits.filter((h) => {
+    const key = `${h.stage}|${h.role}|${h.roundNumber ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Path segments a Tabbycat site serves at its root that are not tournaments.
+ * A root page links these on every install, alongside the tournaments.
+ */
+const NON_TOURNAMENT_SEGMENTS = new Set([
+  'accounts', 'admin', 'api', 'database', 'static', 'jet', 'i18n', 'login', 'logout',
+  'notifications', 'style', 'archive', 'create', 'donate', 'blank', 'about',
+]);
+
+/**
+ * The tournament slugs a site's root page links to (`/<slug>/` on the same
+ * host), for resolving a root-hosted corpus entry. The caller pre-scrapes
+ * only when exactly one comes back: several tournaments on one root, or
+ * none, and there is no telling which the entry meant.
+ */
+export function tournamentSlugsFromRootPage(html: string, host: string): string[] {
+  const slugs = new Set<string>();
+  for (const m of html.matchAll(/href=["']([^"'#?]+)["']/gi)) {
+    let u: URL;
+    try {
+      u = new URL(m[1]!, `https://${host}/`);
+    } catch {
+      continue;
+    }
+    if (u.host !== host) continue;
+    const seg = u.pathname.split('/').filter(Boolean)[0];
+    if (!seg || NON_TOURNAMENT_SEGMENTS.has(seg.toLowerCase())) continue;
+    if (!/^[A-Za-z0-9_-]+$/.test(seg)) continue;
+    slugs.add(seg);
+  }
+  return [...slugs];
+}

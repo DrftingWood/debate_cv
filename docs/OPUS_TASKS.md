@@ -52,7 +52,11 @@ Depends on: PR #115 merged, so the work builds on the live API source.
 
 ## B9. Pre-scrape 2020 to 2025 and match people by private URL
 
-**Status (2026-10-25): step 1 done, awaiting the owner's scope choice.** 2020–2025 is about 1.15–1.24 M rows and 310–335 MB (620–670 MB with a 2x allowance) against the 1 GB Neon Free limit. Recommended: the whole set, if production is under ~300 MB, else Neon Launch first. See `docs/SIZING-2026-10-25.md`.
+**Status (2026-10-26): built, PR open (stage A tooling and the match path); production not loaded.**
+
+- **Design:** `docs/superpowers/specs/2026-10-25-b9-prescrape-design.md`, merged as #126.
+- **Proof on real pages (C2):** 4 tournaments, local throwaway database. Each was pre-scraped, then ingested through a real private URL. All four were served from storage, as one row per site, with the person linked. Other judges' rows survived a forced full re-ingest.
+- **Loading stage A (2023–2025, 260 entries)** into production is the owner's step. It needs production's database size first. Stage B (2020–2022) waits on that size, or a move to Neon Launch.
 
 Idea (owner's): tournaments are finite and final, so scrape them once and match each person to a stored tournament from their private URL. An ingest becomes a database copy that takes under a second and can run inside the user's own request, with no queue wait and no cron for stored tournaments.
 
