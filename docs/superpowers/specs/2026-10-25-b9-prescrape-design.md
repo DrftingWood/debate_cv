@@ -127,3 +127,47 @@ Person rows for the whole field (teammates, opponents, judges) are what every in
 - **The runner is sequential:** one tournament at a time, so one host at a time. Each tournament uses its own `FetchSession` with the existing per-host serial slot, the learned back-off and push-back handling, plus a configurable pause between tournaments (default 5 s).
 - **Load per host:** no host sees more than its tournaments' worth of requests at ingest's normal rate. A host that pushes back is slowed by the same rules as ingest.
 - **Wall time:** about 3–5 hours for stage A on one machine. The runner is resumable.
+
+## Conditions from the design review (approved with these, 2026-10-25)
+
+### C1. No duplicate tournaments: fall back to host + slug
+
+The match fails silently if the public and private pages give different fingerprints: a rename, a title handled differently, or a year in one name and not the other. The user's ingest would then create a second Tournament row and leave the pre-scrape unused.
+
+So both `loadLandingAndFingerprint` and the pre-scrape do the following before creating a Tournament:
+
+1. Try the fingerprint candidates, as today.
+2. If none matches, look up the tournament by host + slug: `sourceUrlRaw` starting with `https://<host>/<slug>/`.
+3. If exactly one row matches, adopt its fingerprint, as `candidateFingerprints` already adopts an existing row's.
+4. If several match, adopt none and log it. Never guess.
+
+Within one Tabbycat site, a slug names one tournament, so host + slug identifies it.
+
+Tests: a stored tournament whose name differs from the private page's is matched by host + slug and no second row is created; two candidates means no adoption.
+
+After every load, the runner prints a duplicates report: each host + slug that has more than one fingerprint. Duplicates fail the run's check. Stored tournaments that no private page has matched yet are expected and are not reported.
+
+### C2. Prove the match on real pages before any production load
+
+On a local throwaway database:
+
+1. Pre-scrape at least three corpus tournaments: one with a year in its name, one without, and one root-hosted (resolved to its slug).
+2. Ingest each through a real private URL (the repo's existing test URLs).
+3. Assert `cached: true`, exactly one Tournament row per host + slug, and the user's person linked.
+
+This is a live test in the build PR, and its output goes in the PR body. Production is not loaded until it passes.
+
+### C3. Maintenance cost of a PARSER_VERSION bump
+
+Every `PARSER_VERSION` bump invalidates every pre-scraped row (there were two bumps on 2026-10-25). After a bump there are two choices:
+
+- **Re-run the runner:** about 3–5 hours for stage A. It is version-aware: it re-scrapes only tournaments whose `parserVersion` is not the current one, so an interrupted run resumes where it stopped.
+- **Do nothing:** the next user to touch each tournament pays a normal full ingest, which is exactly today's cost. Nothing is lost, only the speed-up for that tournament.
+
+**Recommendation:** do nothing by default. Re-run the runner only after a bump that fixes data the CV shows for most tournaments; the bump's PR should say which kind it is. This keeps the routine cost of a bump at zero, and the pre-scrape remains a speed-up rather than a liability.
+
+### Notes for the owner
+
+- **Volume of stored names:** the pre-scrape stores the names of roughly every debater and judge at the stage-A tournaments, most of whom never signed up. It is the same kind of public data the app already stores for every ingested tournament (the whole field of each tab), at larger volume. Whether the privacy page should say so is the owner's call.
+- **Opted-out people:** they are handled exactly as in ingest. Speakers who opted out of the tab stay redacted (`<em>Redacted</em>`), and their real names never reach a row or a stored snapshot (B6's `scrubOptedOutNames`). Tournaments that keep a tab private are not read (B8's release-preference gates).
+- **Loading production is the owner's step.** Stage A needs the production database size first.
