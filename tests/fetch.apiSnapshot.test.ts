@@ -71,6 +71,65 @@ describe('withApiSnapshots', () => {
     warn.mockRestore();
   });
 
+  test('an opted-out speaker never has a real name in the stored body', async () => {
+    // Tabbycat nulls these itself (WUDC 2024); an install that doesn't must
+    // not leave more in storage than the public tab showed.
+    const body = JSON.stringify([
+      { url: 's/1', name: 'Visible Person', anonymous: false },
+      { url: 's/2', name: 'Hidden Person', last_name: 'Person', anonymous: true },
+      { url: 't/1', speakers: [{ url: 's/3', name: 'Also Hidden', anonymous: true }] },
+    ]);
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const res = await withApiSnapshots(respond(body))(URL_TEAMS);
+    const stored = gunzipSync(
+      (upsert.mock.calls[0][0] as unknown as { create: { bodyGzip: Buffer } }).create.bodyGzip,
+    ).toString('utf8');
+    expect(stored).toContain('Visible Person');
+    expect(stored).not.toContain('Hidden');
+    // What the mappers read is unchanged: speakerDisplayName ignores the name on anonymous rows.
+    expect(await res.json()).toEqual(JSON.parse(body));
+  });
+
+  test('a body that is already redacted is stored byte-for-byte', async () => {
+    const body = '[{"url":"s/2","name":null,"last_name":null,"anonymous":true}]';
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    await withApiSnapshots(respond(body))(URL_TEAMS);
+    const create = (upsert.mock.calls[0][0] as unknown as { create: { bodyGzip: Buffer } }).create;
+    expect(gunzipSync(create.bodyGzip).toString('utf8')).toBe(body);
+  });
+
+  test('a body read that fails surfaces through json(), as res.json() did before', async () => {
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const broken = {
+      status: 200,
+      text: () => Promise.reject(new Error('The operation was aborted due to timeout')),
+    } as unknown as Response;
+    const res = await withApiSnapshots(async () => broken)(URL_TEAMS);
+    expect(res.status).toBe(200);
+    await expect(res.json()).rejects.toThrow('timeout');
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  test('a hung snapshot write holds the API read for at most the write budget', async () => {
+    vi.useFakeTimers();
+    try {
+      upsert.mockImplementationOnce(() => new Promise(() => {}));
+      const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+      let done = false;
+      const pending = withApiSnapshots(respond('[]'))(URL_TEAMS).then((r) => {
+        done = true;
+        return r;
+      });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(done).toBe(true);
+      expect(await (await pending).json()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('through fetchTabsFromApi, every endpoint read is snapshotted', async () => {
     // A tournament whose preferences keep both tabs private: one request,
     // one snapshot — the release settings themselves are worth keeping.

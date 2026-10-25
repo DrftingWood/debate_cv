@@ -10,7 +10,13 @@
 - **`withApiSnapshots`** (`lib/calicotab/fetch.ts`) wraps ingest's API fetcher. Every 200 JSON body
   from `/api/v1/tournaments/<slug>/…` is stored as a `SourceDocument` keyed by its endpoint URL, as
   received. All eight endpoints are kept, since the mappers join across them. A non-200 or a non-JSON
-  200 is not stored. A failed write is logged and swallowed, so the API path never fails because of it.
+  200 is not stored. A failed write is logged and swallowed, and a slow one is given 2 s before ingest
+  moves on, so the API path never fails or stalls because of it. A body read that fails still reaches
+  `getList` the way it did before, so fallback classification is unchanged.
+- **Opted-out speakers:** `scrubOptedOutNames` blanks `name` / `last_name` on any `anonymous: true`
+  object before storing. Tabbycat already nulls them (WUDC 2024: 10 of 10), so on such installs the
+  body is stored byte-for-byte. The scrub covers installs that don't, so storage never holds more than
+  the public tab showed.
 - **`storeSourceDocument`** is the upsert lifted out of `fetchHtmlWithProvenance`, so both sources
   share gzip, the 5 MB cap and `(url, contentHash)` dedup. `pruneIngestArtifacts` needs no change:
   newest-per-URL retention already applies per endpoint URL.
