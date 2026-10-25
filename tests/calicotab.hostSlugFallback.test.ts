@@ -16,9 +16,22 @@ describe('findTournamentByHostSlug', () => {
     prismaMock.tournament.findMany.mockResolvedValue([row]);
     await expect(findTournamentByHostSlug('t.calicotab.com', 'open')).resolves.toBe(row);
     expect(prismaMock.tournament.findMany).toHaveBeenCalledWith({
-      where: { sourceUrlRaw: { startsWith: 'https://t.calicotab.com/open/', mode: 'insensitive' } },
+      where: {
+        OR: [
+          { sourceUrlRaw: { startsWith: 'https://t.calicotab.com/open/', mode: 'insensitive' } },
+          { sourceUrlRaw: { startsWith: 'http://t.calicotab.com/open/', mode: 'insensitive' } },
+        ],
+      },
       take: 2,
     });
+  });
+
+  it('finds a row first stored over http://, whose name differs', async () => {
+    const row = { id: 7n, name: '15th IITB Debate', fingerprint: 'f1', sourceUrlRaw: 'http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/privateurls/x/' };
+    // Emulate the database's prefix match over the OR.
+    prismaMock.tournament.findMany.mockImplementation((async (args: { where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> } }) =>
+      args.where.OR.some((c) => row.sourceUrlRaw.toLowerCase().startsWith(c.sourceUrlRaw.startsWith.toLowerCase())) ? [row] : []) as never);
+    await expect(findTournamentByHostSlug('15thiitbombaydebate.calicotab.com', '15thiitbombaydebate2023')).resolves.toBe(row);
   });
 
   it('adopts none when two rows claim the site: never guess', async () => {
@@ -37,8 +50,8 @@ describe('findTournamentByHostSlug', () => {
   it('the slug is a whole path segment: "open" never matches "open2"', async () => {
     prismaMock.tournament.findMany.mockResolvedValue([]);
     await findTournamentByHostSlug('t.calicotab.com', 'open');
-    const where = prismaMock.tournament.findMany.mock.calls[0]![0] as { where: { sourceUrlRaw: { startsWith: string } } };
-    expect(where.where.sourceUrlRaw.startsWith.endsWith('/open/')).toBe(true);
+    const where = prismaMock.tournament.findMany.mock.calls[0]![0] as { where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> } };
+    for (const c of where.where.OR) expect(c.sourceUrlRaw.startsWith.endsWith('/open/')).toBe(true);
   });
 });
 

@@ -189,7 +189,7 @@ export async function ingestPrivateUrl(
 }
 
 /**
- * C1 (B9): the one stored tournament at `https://<host>/<slug>/`, or null.
+ * C1 (B9): the one stored tournament at `http(s)://<host>/<slug>/`, or null.
  *
  * Within a Tabbycat site a slug names one tournament, so host + slug
  * identifies it whatever its title says. Every stored row's sourceUrlRaw is
@@ -202,8 +202,16 @@ export async function findTournamentByHostSlug(
   slug: string | null,
 ): Promise<Awaited<ReturnType<typeof prisma.tournament.findUnique>>> {
   if (!slug) return null;
+  // Either scheme: private URLs have been stored as http:// as well as
+  // https:// (15thiitbombaydebate, production 2026-10), and a fallback that
+  // only knew one would miss exactly the rows it exists to find.
   const rows = await prisma.tournament.findMany({
-    where: { sourceUrlRaw: { startsWith: `https://${host}/${slug}/`, mode: 'insensitive' } },
+    where: {
+      OR: [
+        { sourceUrlRaw: { startsWith: `https://${host}/${slug}/`, mode: 'insensitive' } },
+        { sourceUrlRaw: { startsWith: `http://${host}/${slug}/`, mode: 'insensitive' } },
+      ],
+    },
     take: 2,
   });
   if (rows.length === 1) return rows[0];

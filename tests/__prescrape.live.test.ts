@@ -71,7 +71,8 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
 
       // C1: one fingerprint per host + slug, or the load created duplicates.
       const dupes = await prisma.$queryRaw<Array<{ site: string; n: bigint }>>`
-        SELECT lower(substring("sourceUrlRaw" from '^https://[^/]+/[^/]+/')) AS site, count(DISTINCT fingerprint) AS n
+        SELECT lower(regexp_replace(substring("sourceUrlRaw" from '^https?://[^/]+/[^/]+/'), '^https?://', '')) AS site,
+               count(DISTINCT fingerprint) AS n
         FROM "Tournament"
         GROUP BY 1
         HAVING count(DISTINCT fingerprint) > 1`;
