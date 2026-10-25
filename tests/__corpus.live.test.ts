@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { extractNavigation } from '@/lib/calicotab/parseNav';
 
@@ -106,20 +106,39 @@ describe.skipIf(!process.env.RUN_CORPUS)('build real-data corpus', () => {
         return file;
       };
 
+      // The corpus is built in widening passes: tier 1 over every tournament
+      // first, then depth over a growing slice of them. Without this, raising
+      // CORPUS_DEPTH re-fetches every page an earlier pass already saved —
+      // thousands of requests to other people's servers for bytes sitting on
+      // our own disk. A cache hit is recorded in index.json exactly as a fresh
+      // 200 would be, which is what lets the passes compose.
+      // Set CORPUS_REFETCH=1 to ignore the cache and rebuild from the network.
+      let hits = 0;
+      const fetchOrCached = async (url: string): Promise<{ status: number; file: string | null; html: string }> => {
+        const file = `${keyFor(url)}.html.gz`;
+        if (!process.env.CORPUS_REFETCH && existsSync(join(pagesDir, file))) {
+          hits += 1;
+          return { status: 200, file, html: gunzipSync(readFileSync(join(pagesDir, file))).toString('utf-8') };
+        }
+        const res = await get(url);
+        return {
+          status: res.status,
+          file: res.status === 200 ? save(url, res.html) : null,
+          html: res.html,
+        };
+      };
+
       let done = 0;
       const entries = await pool(targets, CONC, async (root): Promise<Entry> => {
         const idx = targets.indexOf(root);
-        const home = await get(root);
+        const home = await fetchOrCached(root);
         done += 1;
-        if (done % 50 === 0) console.log(`[corpus] ${done}/${targets.length}`);
+        if (done % 50 === 0) console.log(`[corpus] ${done}/${targets.length} (cached ${hits})`);
         if (home.status !== 200) return { root, rootStatus: home.status, pages: [] };
 
         const pages: PageRef[] = [
-          { url: root, kind: 'home', status: 200, file: save(root, home.html) },
+          { url: root, kind: 'home', status: 200, file: home.file },
         ];
-
-        // Depth tier: a deterministic slice, so re-runs fetch the same set.
-        if (idx >= depthN) return { root, rootStatus: 200, pages };
 
         let nav;
         try {
@@ -127,31 +146,53 @@ describe.skipIf(!process.env.RUN_CORPUS)('build real-data corpus', () => {
         } catch {
           return { root, rootStatus: 200, pages };
         }
-        const wanted: Array<[string, string | null]> = [
-          ['teamTab', nav.teamTab],
-          ['speakerTab', nav.speakerTab],
-          ['participants', nav.participants],
-          ['motionsTab', nav.motionsTab],
-        ];
-        for (const b of nav.breakTabs.slice(0, 3)) wanted.push(['breakTab', b]);
-        for (const r of nav.resultsRounds.slice(0, 3)) wanted.push(['roundResults', r]);
+
+        // Depth tier: a deterministic slice, so re-runs fetch the same set.
+        const wanted: Array<[string, string | null]> = [];
+        if (idx >= depthN) {
+          // Outside the depth slice there is still one page worth having:
+          // /participants/ is what turns the corpus from a pile of tabs into a
+          // person index, and at one request per tournament it is affordable
+          // where the full depth tier (nine pages each) is not. Answering "who
+          // has competed at 50+ tournaments" needs breadth over every
+          // tournament, not depth over a hundred of them.
+          if (!process.env.CORPUS_PARTICIPANTS) return { root, rootStatus: 200, pages };
+          wanted.push(['participants', nav.participants]);
+        } else {
+          wanted.push(
+            ['teamTab', nav.teamTab],
+            ['speakerTab', nav.speakerTab],
+            ['participants', nav.participants],
+            ['motionsTab', nav.motionsTab],
+          );
+          for (const b of nav.breakTabs.slice(0, 3)) wanted.push(['breakTab', b]);
+          // Three results rounds were enough to learn the page shapes; they are
+          // not enough for statistics, where seat, win rate and momentum need
+          // every round. CORPUS_ROUNDS=all (or a number) widens it; the cache
+          // means rounds already on disk are not fetched again.
+          const roundCap =
+            process.env.CORPUS_ROUNDS === 'all'
+              ? Infinity
+              : Number(process.env.CORPUS_ROUNDS ?? 3);
+          for (const r of nav.resultsRounds.slice(0, roundCap)) wanted.push(['roundResults', r]);
+        }
 
         for (const [kind, u] of wanted) {
           if (!u) continue;
-          const res = await get(u);
-          pages.push({
-            url: u,
-            kind,
-            status: res.status,
-            file: res.status === 200 ? save(u, res.html) : null,
-          });
+          const res = await fetchOrCached(u);
+          pages.push({ url: u, kind, status: res.status, file: res.file });
         }
         return { root, rootStatus: 200, pages };
       });
 
-      writeFileSync(join(dir, 'index.json'), JSON.stringify(entries, null, 1), 'utf-8');
+      // A focused pass (one person's tournaments, say) shares the pages
+      // directory with the main corpus but must not overwrite its index —
+      // that file is the map from tournaments to the pages on disk, and a
+      // 73-entry pass would otherwise erase the record of the other 582.
+      const indexName = process.env.CORPUS_INDEX ?? 'index.json';
+      writeFileSync(join(dir, indexName), JSON.stringify(entries, null, 1), 'utf-8');
       const saved = entries.reduce((n, e) => n + e.pages.filter((p) => p.file).length, 0);
-      console.log(`[corpus] tournaments=${entries.length} savedPages=${saved}`);
+      console.log(`[corpus] tournaments=${entries.length} pages=${saved} servedFromCache=${hits}`);
       expect(saved).toBeGreaterThan(0);
     },
     Number(process.env.CORPUS_TIMEOUT_TOTAL_MS ?? 5_400_000),

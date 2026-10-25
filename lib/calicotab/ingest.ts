@@ -1,8 +1,17 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
-import { fetchHtmlWithProvenance, fetchRoundWithProvenance } from './fetch';
+import { FETCH_MIN_INTERVAL_MS, fetchHtmlWithProvenance, fetchRoundWithProvenance, isCdnRateLimit } from './fetch';
 import { FetchSession } from './fetchSession';
+import {
+  API_TIMEOUT_MS,
+  fetchTabsFromApi,
+  htmlOnly,
+  htmlTabsToFetch,
+  unreleasedTabWarnings,
+  tabbycatApiTabsEnabled,
+  type ApiTabsResult,
+} from './tabbycatApi';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
@@ -27,7 +36,7 @@ import {
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
-import { detectFormatFromTeamSize } from './format';
+import { inferTournamentFormat } from './format';
 import { outroundRankStrict } from './judgeStats';
 import {
   computeJudgeAggregates,
@@ -449,6 +458,10 @@ async function checkCacheFreshness(
   };
 }
 
+const API_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
 async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const { normalized, fetchSession, snapshot, landingHtml, fetchWarnings } = loaded;
   // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
@@ -499,9 +512,43 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     return null;
   };
 
+  // Team and speaker tabs from Tabbycat's REST API (on by default;
+  // TABBYCAT_API_TABS=0 turns it off — see lib/calicotab/tabbycatApi.ts and
+  // the 2026-10-20 handoff for the parity evidence). The API shares this ingest's
+  // per-host slot so it is throttled like the HTML fetches.
+  //
+  // Each tab ends up with one of three sources. `api` skips the HTML page.
+  // `html` falls back to it silently: a tournament without the API is the
+  // normal case, not a warning, and a non-empty fetchWarnings would also
+  // suppress the tournament-wide refresh. `private` (the tournament's own
+  // preferences say the tab is not released) reads neither — the same as a
+  // landing page with no tab link, which already yields zero rows and no
+  // warning.
+  const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
+    ? await fetchTabsFromApi(normalized, async (apiUrl) => {
+        const host = new URL(apiUrl).host;
+        await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
+        const res = await fetch(apiUrl, {
+          headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' },
+          signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        });
+        // Push-back on the API is push-back on the host: slow the HTML
+        // fallback that follows through the same learned interval fetch.ts uses.
+        if (isCdnRateLimit(res.status, res.headers)) fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
+        return res;
+      })
+    : htmlOnly('TABBYCAT_API_TABS=0');
+  console.info('[ingest] tabbycat api', {
+    url: normalized,
+    teams: apiTabs.teams.source === 'api' ? 'api' : `${apiTabs.teams.source}: ${apiTabs.teams.reason}`,
+    speakers: apiTabs.speakers.source === 'api' ? 'api' : `${apiTabs.speakers.source}: ${apiTabs.speakers.reason}`,
+  });
+  const htmlTabs = htmlTabsToFetch(apiTabs, nav);
+  fetchWarnings.push(...unreleasedTabWarnings(apiTabs));
+
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
-    nav.teamTab ? fetchTab(nav.teamTab, 'teamTab') : Promise.resolve(null),
-    nav.speakerTab ? fetchTab(nav.speakerTab, 'speakerTab') : Promise.resolve(null),
+    htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
+    htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
     nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
     nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
   ]);
@@ -516,12 +563,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     }),
   );
 
-  const teamRows = teamHtml ? parseTeamTab(teamHtml) : [];
+  const teamRows = apiTabs.teams.source === 'api' ? apiTabs.teams.rows : teamHtml ? parseTeamTab(teamHtml) : [];
   if (teamRows.length === 0 && teamHtml) {
     fetchWarnings.push(`parse: teamTab → 0 rows — ${diagnoseVueData(teamHtml, ['team'])}`);
   }
 
-  const speakerRows = speakerHtml ? parseSpeakerTab(speakerHtml) : [];
+  const speakerRows = apiTabs.speakers.source === 'api' ? apiTabs.speakers.rows : speakerHtml ? parseSpeakerTab(speakerHtml) : [];
   if (speakerRows.length === 0 && speakerHtml) {
     fetchWarnings.push(`parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`);
   }
@@ -609,7 +656,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     tournamentName,
     teamRows,
     speakerRows,
+    participantRows: mergedParticipantRows,
     registrationSpeakers: snapshot.registration.speakers,
+    rounds,
   });
   // Multi-category breaks (BP-style: Open + ESL + EFL): one team can appear
   // in more than one break tab. Pick by category priority (Open > ESL >
@@ -832,7 +881,11 @@ async function writeIngestTransaction(
       where: { fingerprint: tournamentFingerprint },
       update: {
         name: tournamentName,
-        format,
+        // A re-scrape that can't infer a format (rounds page hidden this
+        // time, tabs released and withdrawn) must not erase the one an
+        // earlier scrape found. Prisma leaves a field untouched when it is
+        // undefined, so a null inference keeps the stored value.
+        format: format ?? undefined,
         year,
         totalParticipants,
         totalTeams,
@@ -1330,83 +1383,6 @@ async function finalizePostTransaction(
     totalParticipants: fetched.totalParticipants ?? null,
     warnings: fetchWarnings,
   };
-}
-
-/**
- * Guess the tournament format. Signals considered, in priority order:
- *
- *   1. Explicit format names in the tournament title.
- *   2. Known BP-format event names (WUDC, EUDC, AUDC, NAUDC, …).
- *   3. The URL owner's own team size from the registration block — most
- *      reliable structural signal, available even when the team tab fails.
- *   4. Team-size from the team tab (median speaker count per team).
- *   5. Speaker-tab grouping fallback (group speakerRows by teamName, take
- *      the median count) — works on installs whose team tab is missing or
- *      didn't parse but whose speaker tab did.
- */
-function inferTournamentFormat({
-  tournamentName,
-  teamRows,
-  speakerRows,
-  registrationSpeakers,
-}: {
-  tournamentName: string;
-  teamRows: { speakers: string[] }[];
-  speakerRows: { teamName: string | null; roundScores: unknown[] }[];
-  registrationSpeakers: string[];
-}): string | null {
-  const name = tournamentName.toLowerCase();
-
-  // (1) Explicit format keywords — user-authored tournament names rarely lie.
-  if (/british parliamentary|\bbp\b/.test(name)) return 'British Parliamentary';
-  if (/asian parliamentary/.test(name)) return 'Asian Parliamentary';
-  if (/worlds schools|\bwsdc\b/.test(name)) return 'World Schools';
-  if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) return 'Policy';
-  if (/lincoln[-\s]?douglas|\bld\b/.test(name)) return 'Lincoln-Douglas';
-  if (/public forum|\bpf\b/.test(name)) return 'Public Forum';
-
-  // (2) Well-known BP-format events.
-  if (/\bwudc\b|\beudc\b|\baudc\b|\bnaudc\b|\babp\b|\bbpp\b/.test(name)) {
-    return 'British Parliamentary';
-  }
-
-  const median = (xs: number[]): number | null => {
-    if (xs.length === 0) return null;
-    const sorted = [...xs].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)]!;
-  };
-
-  // (3) Registration block speakers — the user's own team. Most reliable
-  // small-N signal because Tabbycat populates it from the registration
-  // record itself, no parser fragility involved.
-  if (registrationSpeakers.length > 0) {
-    const detected = detectFormatFromTeamSize(registrationSpeakers.length);
-    if (detected !== 'unknown') return detected;
-  }
-
-  // (4) Team-tab median speaker count.
-  const teamTabCounts = teamRows.map((r) => r.speakers.length).filter((n) => n > 0);
-  const teamTabMedian = median(teamTabCounts);
-  if (teamTabMedian != null && teamTabCounts.length >= 3) {
-    const detected = detectFormatFromTeamSize(teamTabMedian);
-    if (detected !== 'unknown') return detected;
-  }
-
-  // (5) Speaker-tab grouping fallback. Group speakers by teamName, take the
-  // median group size. Useful when the team tab fetched / parsed empty.
-  const groupSizes = new Map<string, number>();
-  for (const sp of speakerRows) {
-    if (!sp.teamName) continue;
-    groupSizes.set(sp.teamName, (groupSizes.get(sp.teamName) ?? 0) + 1);
-  }
-  const speakerTabCounts = [...groupSizes.values()].filter((n) => n > 0);
-  const speakerTabMedian = median(speakerTabCounts);
-  if (speakerTabMedian != null && speakerTabCounts.length >= 3) {
-    const detected = detectFormatFromTeamSize(speakerTabMedian);
-    if (detected !== 'unknown') return detected;
-  }
-
-  return null;
 }
 
 // ─── Deadlock resilience ──────────────────────────────────────────────────

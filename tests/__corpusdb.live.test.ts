@@ -49,7 +49,9 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
     expect(DIR && OUT, 'CORPUS_DIR and CSV_OUT required').toBeTruthy();
     if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 
-    const entries: Entry[] = JSON.parse(readFileSync(join(DIR, 'index.json'), 'utf-8'));
+    const entries: Entry[] = JSON.parse(
+      readFileSync(join(DIR, process.env.CORPUS_INDEX ?? 'index.json'), 'utf-8'),
+    );
     const html = (f: string) => gunzipSync(readFileSync(join(DIR, 'pages', f))).toString('utf-8');
 
     const tournaments: string[] = [];
@@ -174,6 +176,11 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
       writeFileSync(join(OUT, `${nm}.csv`), rows.join('\n') + (rows.length ? '\n' : ''), 'utf-8');
       console.log(`[csv] ${nm.padEnd(22)} ${rows.length}`);
     }
-    expect(tournaments.length).toBeGreaterThan(100);
+    // Guards against loading nothing at all. The floor is 100 for the full
+    // corpus; a focused pass (CORPUS_INDEX naming a subset — one person's
+    // tournaments, say) is legitimately smaller, so it only has to be
+    // non-empty. Both catch the failure this actually protects against: an
+    // index that points at pages no longer on disk.
+    expect(tournaments.length).toBeGreaterThan(process.env.CORPUS_INDEX ? 0 : 100);
   }, 600_000);
 });

@@ -4,6 +4,8 @@ import ExcelJS from 'exceljs';
 import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { jsonResumeResponse } from '@/lib/cv/jsonResume';
+import { getSiteUrl } from '@/lib/utils/site';
 import {
   buildExportCsv,
   buildExportSheets,
@@ -22,7 +24,7 @@ export const dynamic = 'force-dynamic';
 // A bare GET (no params) stays byte-identical to the pre-picker CSV
 // export; see lib/cv/exportFields.ts for the column registry.
 const querySchema = z.object({
-  format: z.enum(['csv', 'xlsx']).default('csv'),
+  format: z.enum(['csv', 'xlsx', 'json-resume']).default('csv'),
   fields: z
     .string()
     .transform((s) =>
@@ -49,6 +51,13 @@ export async function GET(req: Request) {
   });
   if (!parsed.success) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
+
+  // JSON Resume is a fixed document, not a column pick — `fields` is ignored
+  // and the field summary is never needed. See lib/cv/jsonResume.ts.
+  if (parsed.data.format === 'json-resume') {
+    const data = await buildCvData(session.user.id, { includeFieldStats: false });
+    return jsonResumeResponse(data, { download: true, canonical: `${getSiteUrl()}/cv.json` });
   }
 
   const { fields, unknown } = resolveExportFields(parsed.data.fields ?? null);

@@ -56,6 +56,21 @@ describe('GET /api/cv/export', () => {
     expect(body.unknownFields).toEqual(['nope']);
   });
 
+  it('serves a JSON Resume document without paying for field stats', async () => {
+    const res = await get('?format=json-resume&fields=nope');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(res.headers.get('content-disposition')).toMatch(/\.resume\.json"$/);
+    expect(buildCvDataMock).toHaveBeenCalledWith('user-1', { includeFieldStats: false });
+    const body = (await res.json()) as {
+      basics: { name: string };
+      meta: { canonical: string; 'x-debate-cv': { speaking: { tournament: string }[] } };
+    };
+    expect(body.basics.name).toBe('Test Person');
+    expect(body.meta.canonical).toMatch(/\/cv\.json$/);
+    expect(body.meta['x-debate-cv'].speaking.map((s) => s.tournament)).toEqual(['Mumbai Open']);
+  });
+
   it('bare GET keeps the legacy CSV shape', async () => {
     const res = await get();
     expect(res.status).toBe(200);
