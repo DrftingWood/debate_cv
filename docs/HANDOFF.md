@@ -4,12 +4,12 @@
 
 ## 2026-10-25 (night) — B8: should `TABBYCAT_API_ROUNDS` be turned on?
 
-**Recommendation: turn it on.** Set `TABBYCAT_API_ROUNDS=1` in Vercel (Production) and redeploy.
+**Recommendation: turn it on, after the current Re-ingest all has finished.** Set `TABBYCAT_API_ROUNDS=1` in Vercel (Production) and redeploy. Waiting keeps the re-ingest's evidence (write times, failures) from being mixed with a second change.
 
-- **Fewer requests:** a quarter to a third fewer, on every tournament whose API answers.
-- **Stored data identical**, page for page.
-- **No change in wall time,** so this is about fragility and request count, not speed.
-- **Falls back cleanly** wherever the API can't serve a page.
+- **The benefit is fewer requests and less fragility, not speed:** a quarter to a third fewer requests on every tournament whose API answers, so less exposure to Cloudflare push-back and to HTML markup changes.
+- **Wall time is unchanged.**
+- **Stored data is identical,** page for page.
+- **Falls back cleanly** wherever the API can't serve a page. Where it can't serve the rounds, it costs a few extra calls (Uhuru 2022: 4).
 
 **Rollback:** delete `TABBYCAT_API_ROUNDS` (or set it to anything but `1`) in Vercel → Settings → Environment Variables, then redeploy. Env changes only take effect on a new deployment. No data migration is involved in either direction. Rows written while it was on are the same rows the HTML path writes.
 
@@ -43,9 +43,9 @@
 
 **3. Parity** (PR #120): 0 real differences against the HTML parsers on 13 tournaments, including WUDC 2023/2024/2025 and Australs 2022/2025.
 
-### Write phase in production, and the write reserve (PR #128)
+### Production: WUDC-scale fits the 60 s function; local timings overstate
 
-#123's `[ingest] write phase` log, from the owner's Re-ingest all on cfbb302 (Vercel fra1 → Neon, 12 ingests, no errors):
+#123's `[ingest] write phase` log, from the owner's Re-ingest all on cfbb302 (Vercel fra1 → Neon):
 
 | Participants / teams | Write time |
 | --- | ---: |
@@ -61,25 +61,22 @@
 | 242 / 94 | 6.6 s |
 | 274 / 94 | 8.5 s |
 | 436 / 192 (SIDO 2026) | 11.0 s |
+| **1,062 / 379 (WUDC 2022)** | **18.1 s** |
 
-That is about 17 ms per participant + team, ±30 %. WUDC 2024 (about 812 / 300) projects to about 19 s.
+**WUDC 2022 is the proof:** it ingested successfully on the platform at 18:18:09Z, with a fetch phase of about 23 s, a write of 18.1 s, about 41 s in all, and a flat 15 s reserve. Its first attempt did not finish and its second did, which is #123's deferral working as designed.
 
-#123's flat 15 s reserve deferred small tournaments for no reason, yet sat below WUDC's write. That second case is a mid-transaction kill, the failure #123 exists to avoid.
+- **My local runs overstated the risk:** WUDC 2024 took 53–57 s locally (a 35–40 s fetch phase on this machine's network). Production's fetch for WUDC-scale is about 23 s, so WUDC-scale tournaments fit the platform today.
+- **The write rate is sublinear:** about 17 ms per participant + team for small tournaments, 12.6 ms at WUDC scale.
 
-**Decision (#128):** the reserve scales, at 3 s + 25 ms per participant + team.
-- **Per tournament:** 5.1 s for the smallest above, 18.7 s for SIDO, about 31 s for WUDC 2024.
-- **Override:** `INGEST_WRITE_RESERVE_MS` still sets a fixed value.
-- **Alternatives considered:** a flat 25 s would have covered WUDC but deferred every small tournament earlier. Relying on the env override alone leaves the default wrong.
+**Reserve decision (#128):** 4 s + 14 ms per participant + team, overridable with `INGEST_WRITE_RESERVE_MS`.
+- **Against the data:** 5.2 s for the smallest, 9.2 s for 274/94 (the slowest per row, 8.5 s), 12.8 s for SIDO, 24.2 s for WUDC 2022. That covers every measured write and admits WUDC 2022, which has about 32 s left after its fetch.
+- **The first fit was wrong:** 3 s + 25 ms per row would have reserved about 39 s for WUDC 2022 and deferred it on every attempt.
+- **Which way it errs:** a killed write rolls back, so under-reserving is the cheaper error, and the fit leans toward admitting.
+- **New in the log:** `fetchMs` and `remainingAtWriteMs`.
 
-### Not solved by turning it on: WUDC-scale ingests are at the 60 s limit
-
-WUDC 2024 took 53–57 s locally in both modes, past #123's 55 s deadline.
-
-- **What #123 changes:** such a job now stops cleanly instead of being killed. Started first, it spends an attempt, and after three attempts it ends `failed` ("does not fit… even when started first"). That is honest, but it is not an import.
-- **What to check:** the `[ingest] write phase` log on the next Re-ingest all, which is a real re-fetch since #124. Production's latency may differ from local.
-- **With #128, a WUDC-scale ingest won't fit on the platform:** about 35–40 s of fetching plus about 31 s of write reserve is more than 55 s. So it defers, writing nothing, and after three attempts ends `failed`. That's honest, but not an import. Big tournaments are B9's job: pre-scraped off-platform, they are served from storage in about a second.
-- **What B9's stage A covers** (2023–2025): WUDC 2023 and WUDC 2024, Australs 2023–2025, and the other 2023–2025 tournaments in the corpus. WUDC 2025 is in the corpus only as its site root (`wudc2025.calicotab.com/`), so it is included only if that root page links exactly one tournament; otherwise the runner skips it rather than guess.
-- **What stays on the normal path:** WUDC 2022 (3,755 team results), Korea WUDC 2021, all of 2020–2022 until stage B, and every 2026 tournament.
+**What B9 is for:** speed, not rescue. Big tournaments ingest on the normal path today. The pre-scrape turns their first ingest into a database copy of about a second.
+- **In B9's stage A (2023–2025):** WUDC 2023, WUDC 2024, Australs 2023–2025 and the other 2023–2025 tournaments in the corpus. WUDC 2025 is in the corpus only as its site root (`wudc2025.calicotab.com/`), so it is included only if that root page links exactly one tournament; otherwise the runner skips it rather than guess.
+- **On the normal path, working:** WUDC 2022 (proven above), Korea WUDC 2021, the rest of 2020–2022 until stage B, and every 2026 tournament.
 
 ---
 
