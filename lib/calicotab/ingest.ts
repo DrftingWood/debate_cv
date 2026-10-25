@@ -20,11 +20,11 @@ import {
   type ApiTabsResult,
 } from './tabbycatApi';
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
+import { dedupeJudgeHits, judgeHitsFromRounds, publicTournamentBase, storedTournamentFresh } from './prescrape';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
   extractSpeakerRounds,
-  normalizeStageLabel,
 } from './parseNav';
 import {
   parseTeamTab,
@@ -66,7 +66,6 @@ import {
 } from './roundNumbers';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 
-const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 type IngestResult = {
   tournamentId: bigint;
@@ -189,10 +188,214 @@ export async function ingestPrivateUrl(
   }
 }
 
+/**
+ * C1 (B9): the one stored tournament at `https://<host>/<slug>/`, or null.
+ *
+ * Within a Tabbycat site a slug names one tournament, so host + slug
+ * identifies it whatever its title says. Every stored row's sourceUrlRaw is
+ * a URL on the tournament (a private URL for an ingest, the public base for
+ * a pre-scrape), so a prefix match finds it. Exactly one match is adopted;
+ * several are logged and none is adopted — never guess between rows.
+ */
+export async function findTournamentByHostSlug(
+  host: string,
+  slug: string | null,
+): Promise<Awaited<ReturnType<typeof prisma.tournament.findUnique>>> {
+  if (!slug) return null;
+  const rows = await prisma.tournament.findMany({
+    where: { sourceUrlRaw: { startsWith: `https://${host}/${slug}/`, mode: 'insensitive' } },
+    take: 2,
+  });
+  if (rows.length === 1) return rows[0];
+  if (rows.length > 1) {
+    console.warn('[ingest] host+slug matches more than one tournament; adopting none', { host, slug });
+  }
+  return null;
+}
+
+export type PrescrapeResult = {
+  /** written: scraped and stored; current: already stored, fresh and at this parser version; blocked: the regression guard refused the overwrite. */
+  status: 'written' | 'current' | 'blocked';
+  base: string;
+  tournamentId: bigint | null;
+  fingerprint: string;
+  name: string | null;
+  totalTeams: number | null;
+  totalParticipants: number | null;
+  judgesWritten: number;
+  warnings: string[];
+};
+
+/**
+ * B9: store a tournament from its PUBLIC pages, with no owner, so that a
+ * user's later private-URL ingest is served from storage by the cache path.
+ * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
+ *
+ * The same tab and write phases as a cache-miss ingest (runFullScrape) with
+ * no user: nothing is claimed or linked, no DiscoveredUrl is written, and the
+ * registration snapshot is forced empty. Afterwards it records every judge's
+ * panels from the round results (recordEveryJudgeFromRoundResults) — the
+ * cache path has no rounds to read them from when a judge later ingests.
+ *
+ * Refuses private URLs and root-hosted URLs (publicTournamentBase). A stored
+ * tournament that is fresh and at the current PARSER_VERSION is left alone
+ * unless `force`; the runner relies on that to resume and to re-scrape only
+ * what a parser bump invalidated.
+ */
+export async function prescrapeTournament(
+  url: string,
+  options: { force?: boolean; deadline?: number } = {},
+): Promise<PrescrapeResult> {
+  const { base, host, slug } = publicTournamentBase(url);
+  const fetchSession = new FetchSession({ deadline: options.deadline });
+  const landingResult = await fetchHtmlWithProvenance(base, { session: fetchSession });
+  if (!landingResult.ok) throw new Error(`fetch public home ${base} → HTTP ${landingResult.status}`);
+  const parseStart = Date.now();
+  const parsed = parsePrivateUrlPage(landingResult.html, base);
+  // A public page has no registration card. Force it empty so nothing
+  // owner-shaped can reach the write phase.
+  const snapshot = {
+    ...parsed,
+    registration: { personName: null, teamName: null, speakers: [], institution: null },
+  };
+  const name = snapshot.tournamentName;
+  const explicitYear = extractYearFromName(name);
+  let existing: LoadedState['existing'] = null;
+  // inferredYear null: candidateFingerprints gives the explicit-year
+  // fingerprint, or the null-year one a private ingest also tries.
+  for (const candidate of candidateFingerprints({
+    host,
+    tournamentSlug: slug,
+    tournamentName: name,
+    explicitYear,
+    inferredYear: null,
+  })) {
+    existing = await prisma.tournament.findUnique({ where: { fingerprint: candidate } });
+    if (existing) break;
+  }
+  if (!existing) existing = await findTournamentByHostSlug(host, slug);
+  const fingerprint =
+    existing?.fingerprint ??
+    computeFingerprint({ host, tournamentSlug: slug, tournamentName: name, year: explicitYear });
+
+  const summary = (status: PrescrapeResult['status'], extra: Partial<PrescrapeResult> = {}): PrescrapeResult => ({
+    status,
+    base,
+    tournamentId: existing?.id ?? null,
+    fingerprint,
+    name,
+    totalTeams: existing?.totalTeams ?? null,
+    totalParticipants: existing?.totalParticipants ?? null,
+    judgesWritten: 0,
+    warnings: [],
+    ...extra,
+  });
+  if (existing && !options.force && existing.parserVersion === PARSER_VERSION && storedTournamentFresh(existing)) {
+    return summary('current');
+  }
+
+  const loaded: LoadedState = {
+    normalized: base,
+    urlVariants: [],
+    parsedUrl: new URL(base),
+    tournamentSlug: slug,
+    fetchSession,
+    landingDoc: landingResult,
+    landingHtml: landingResult.html,
+    snapshot,
+    fetchWarnings: [],
+    landingWarnings: [],
+    privateUrlSentAt: null,
+    tournamentFingerprint: fingerprint,
+    existing,
+    parseStart,
+    year: explicitYear,
+  };
+
+  const claim = await acquireScrapeClaim(existing?.id ?? null);
+  if (claim === 'busy') throw new Error(`another scrape of ${base} is in progress`);
+  let judgesWritten = 0;
+  try {
+    const result = await runFullScrape(loaded, null, { force: options.force }, async ({ fetched, persons, tournamentId }) => {
+      judgesWritten = await recordEveryJudgeFromRoundResults(fetched.rounds, tournamentId, persons.lookupPersonId);
+    });
+    const blocked = result.warnings.includes('regression-guard: overwrite blocked');
+    return summary(blocked ? 'blocked' : 'written', {
+      tournamentId: result.tournamentId,
+      totalTeams: result.totalTeams,
+      totalParticipants: result.totalParticipants,
+      judgesWritten,
+      warnings: result.warnings,
+    });
+  } finally {
+    if (existing) await releaseScrapeClaim(existing.id);
+  }
+}
+
+/**
+ * B9: every judge's panels from the round results, for a pre-scraped
+ * tournament. Replaces the tournament's `round_results` rows wholesale —
+ * the pre-scrape owns all of them (design, point 2) — and fills each
+ * judge's aggregates the way the URL owner's fallback does (fillNullsOnly,
+ * so a landing-derived value is never overwritten).
+ *
+ * Names are matched exactly (normalised), not fuzzily: the owner's writer
+ * may fuzzy-match because it knows whose rounds it wants; here a fuzzy match
+ * would credit one judge with a similarly named judge's panels.
+ */
+async function recordEveryJudgeFromRoundResults(
+  rounds: FetchedTabs['rounds'],
+  tournamentId: bigint,
+  lookupPersonId: PersonContext['lookupPersonId'],
+): Promise<number> {
+  const byPerson = new Map<bigint, ReturnType<typeof judgeHitsFromRounds>>();
+  const names = new Set<string>();
+  for (const round of rounds) for (const j of round.judgeAssignments) names.add(j.personName);
+  for (const name of names) {
+    const personId = lookupPersonId(name);
+    if (personId == null) continue;
+    const norm = normalizePersonName(name);
+    const hits = judgeHitsFromRounds(rounds, (n) => normalizePersonName(n) === norm);
+    byPerson.set(personId, dedupeJudgeHits([...(byPerson.get(personId) ?? []), ...hits]));
+  }
+  const data = [...byPerson.entries()].flatMap(([personId, hits]) =>
+    hits.map((h) => ({
+      tournamentId,
+      personId,
+      stage: h.stage,
+      panelRole: h.role,
+      roundNumber: h.roundNumber,
+      source: 'round_results',
+    })),
+  );
+  await prisma.$transaction([
+    prisma.judgeAssignment.deleteMany({ where: { tournamentId, source: 'round_results' } }),
+    prisma.judgeAssignment.createMany({ data, skipDuplicates: true }),
+  ]);
+  for (const [personId, hits] of byPerson) {
+    await writeJudgeParticipantRole(
+      prisma,
+      tournamentId,
+      personId,
+      computeJudgeAggregates(
+        hits.map((h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber })),
+      ),
+      'fillNullsOnly',
+    );
+  }
+  return data.length;
+}
+
+/**
+ * The tab and write phases. `userId` is the URL owner; null for the
+ * pre-scrape (prescrapeTournament), which writes the tournament with no
+ * owner — nothing is linked or claimed and no DiscoveredUrl is touched.
+ */
 async function runFullScrape(
   loaded: LoadedState,
-  userId: string,
+  userId: string | null,
   options: { force?: boolean },
+  afterWrite?: (ctx: { fetched: FetchedTabs; persons: PersonContext; tournamentId: bigint }) => Promise<void>,
 ): Promise<IngestResult> {
   const fetchStarted = Date.now();
   const fetched = await fetchAndParseTabs(loaded);
@@ -228,6 +431,7 @@ async function runFullScrape(
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
+  if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
   console.info('[ingest] write phase', {
     url: loaded.normalized,
     // Both halves of the budget: the tab phase, then the write. Together
@@ -424,6 +628,10 @@ async function loadLandingAndFingerprint(
     existing = await prisma.tournament.findUnique({ where: { fingerprint: candidate } });
     if (existing) break;
   }
+  // C1 (B9): no fingerprint matched — try the tournament's site address
+  // before concluding it is new. A rename, or a title read differently on the
+  // public page a pre-scrape stored it from, would otherwise make a second row.
+  if (!existing) existing = await findTournamentByHostSlug(parsedUrl.host, tournamentSlug);
   const tournamentFingerprint = existing?.fingerprint ?? inferredFingerprint;
 
   return {
@@ -453,8 +661,9 @@ async function checkCacheFreshness(
   const { landingDoc, landingHtml, snapshot, existing, urlVariants, tournamentFingerprint, parseStart, landingWarnings } = loaded;
   if (!existing || options.force) return { kind: 'miss' };
 
-  const ageMs = Date.now() - existing.scrapedAt.getTime();
-  const fresh = ageMs < FRESH_WINDOW_MS;
+  // 30 days for any tournament; a year for a settled one (an earlier year's),
+  // so a pre-scraped tournament is served from storage (lib/calicotab/prescrape.ts).
+  const fresh = storedTournamentFresh(existing);
   // Reparse invalidation: was the stored data produced by the current
   // PARSER_VERSION? Tournament-scoped via Tournament.parserVersion — the
   // old per-landing-document check (isLatestParserRun) meant a SECOND
@@ -843,7 +1052,7 @@ async function recordPipelineParserRun(
 async function checkRegressionGuard(
   loaded: LoadedState,
   fetched: FetchedTabs,
-  userId: string,
+  userId: string | null,
   options: { force?: boolean },
 ): Promise<RegressionGuardResult> {
   // Regression guard: if a re-ingest would drop the totals by >50% (and the
@@ -886,13 +1095,17 @@ async function checkRegressionGuard(
     `teams ${oldTeams}→${newTeams}, participants ${oldParticipants}→${newParticipants}, ` +
     `ranks ${oldRankCount}→${newRankCount}`;
   Sentry.captureMessage(msg, { level: 'warning', tags: { fingerprint: tournamentFingerprint } });
-  const linked = await withDeadlockRetry(() =>
-    linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
-  );
-  await prisma.discoveredUrl.updateMany({
-    where: { userId, url: { in: urlVariants } },
-    data: { tournamentId: existing.id, ingestedAt: new Date() },
-  });
+  const linked = userId
+    ? await withDeadlockRetry(() =>
+        linkRegistrationPerson(existing.id, snapshot.registration.personName, userId, urlVariants),
+      )
+    : null;
+  if (userId) {
+    await prisma.discoveredUrl.updateMany({
+      where: { userId, url: { in: urlVariants } },
+      data: { tournamentId: existing.id, ingestedAt: new Date() },
+    });
+  }
   return {
     kind: 'regression-blocked',
     result: {
@@ -1418,7 +1631,7 @@ async function finalizePostTransaction(
   loaded: LoadedState,
   fetched: FetchedTabs,
   txResult: TxResult,
-  userId: string,
+  userId: string | null,
 ): Promise<IngestResult> {
   const { snapshot, urlVariants, landingHtml, fetchWarnings, tournamentFingerprint } = loaded;
   const { rounds } = fetched;
@@ -1456,9 +1669,13 @@ async function finalizePostTransaction(
     await prisma.$transaction(ops);
   }
 
-  const linked = await withDeadlockRetry(() =>
-    linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),
-  );
+  // No owner (the pre-scrape): nothing to link. The registration person,
+  // their landing rounds and the DiscoveredUrl are a URL owner's alone.
+  const linked = userId
+    ? await withDeadlockRetry(() =>
+        linkRegistrationPerson(tournamentId, snapshot.registration.personName, userId, urlVariants),
+      )
+    : null;
   if (linked) {
     // Is the URL owner registered as a speaker on this tournament? The
     // landing page's registration card sets `teamName` for speakers and
@@ -1502,10 +1719,12 @@ async function finalizePostTransaction(
   }
 
   // Mark the DiscoveredUrl as ingested + link to tournament (registrationPersonId set inside linkRegistrationPerson).
-  await prisma.discoveredUrl.updateMany({
-    where: { userId, url: { in: urlVariants } },
-    data: { tournamentId, ingestedAt: new Date() },
-  });
+  if (userId) {
+    await prisma.discoveredUrl.updateMany({
+      where: { userId, url: { in: urlVariants } },
+      data: { tournamentId, ingestedAt: new Date() },
+    });
+  }
 
   return {
     tournamentId,
@@ -1687,15 +1906,16 @@ async function prepareTournamentWideRefresh(
   // catastrophic-drop case.
   await tx.eliminationResult.deleteMany({ where: { tournamentId } });
   await tx.teamResult.deleteMany({ where: { tournamentId } });
-  // Clear round-results-derived JudgeAssignment rows so a tournament that
-  // re-publishes its panels doesn't leave stale paneling on judges who
-  // weren't ingested via their own private URL. Landing-derived rows
-  // (source='landing') are preserved here — those get a scoped
-  // delete+create inside recordJudgeRoundsFromLanding for the URL owner,
-  // which atomically replaces them with fresh data from THIS parse.
-  await tx.judgeAssignment.deleteMany({
-    where: { tournamentId, source: 'round_results' },
-  });
+  // Round-results JudgeAssignment rows are NOT cleared tournament-wide here.
+  // Each writer replaces exactly the rows it owns: the URL owner's ingest
+  // replaces the owner's (recordJudgeRoundsFromRoundResults, scoped delete +
+  // create), and the pre-scrape replaces every judge's
+  // (recordEveryJudgeFromRoundResults). A tournament-wide delete here would
+  // let one user's re-ingest wipe the pre-scraped panels of every other judge
+  // — and a judge served from the cache path has no rounds to rebuild them
+  // from. Before the pre-scrape only URL owners ever had such rows, so the
+  // narrower delete changes nothing for existing data. Landing-derived rows
+  // (source='landing') were never cleared here either.
   if (participantIds.length > 0) {
     await tx.speakerRoundScore.deleteMany({
       where: { tournamentParticipantId: { in: participantIds } },
@@ -1990,29 +2210,8 @@ async function recordJudgeRoundsFromRoundResults(
     return { written: 0, matched: 0, diagnostic: null };
   }
 
-  type Hit = { stage: string; role: JudgeRound['role']; roundNumber: number | null };
-  const hits: Hit[] = [];
-  let totalJudgeEntries = 0;
-  for (const round of rounds) {
-    if (!round) continue;
-    totalJudgeEntries += round.judgeAssignments.length;
-    for (const j of round.judgeAssignments) {
-      if (!personNameMatches(j.personName, knownPersonName)) continue;
-      const stage = normalizeStageLabel(
-        round.roundLabel ||
-          (round.isOutround
-            ? round.roundNumber != null ? `Round ${round.roundNumber}` : 'Outround'
-            : `Round ${round.roundNumber ?? '?'}`),
-      );
-      hits.push({
-        stage,
-        // Trainees keep their role, as they do on the landing path: filing
-        // one as a panellist would credit a non-voting seat as a panel.
-        role: j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
-        roundNumber: round.isOutround ? null : round.roundNumber,
-      });
-    }
-  }
+  const totalJudgeEntries = rounds.reduce((n, r) => n + (r?.judgeAssignments.length ?? 0), 0);
+  const hits = judgeHitsFromRounds(rounds, (name) => personNameMatches(name, knownPersonName));
 
   if (hits.length === 0) {
     // Distinguish "round-results parser found no judges to match against"
@@ -2036,13 +2235,7 @@ async function recordJudgeRoundsFromRoundResults(
   // created (TOCTOU). Deduping in memory and replacing inside one
   // transaction closes both for the common case; the audit migration
   // cleaned up duplicates the old window let through.
-  const seen = new Set<string>();
-  const dedupedHits = hits.filter((h) => {
-    const key = `${h.stage}|${h.role}|${h.roundNumber ?? ''}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const dedupedHits = dedupeJudgeHits(hits);
   await prisma.$transaction([
     prisma.judgeAssignment.deleteMany({
       where: { tournamentId, personId, source: 'round_results' },
