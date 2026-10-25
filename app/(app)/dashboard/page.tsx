@@ -73,7 +73,8 @@ export default async function Dashboard({
       where: { userId },
       orderBy: { messageDate: 'desc' },
       take: 200,
-      include: { tournament: true },
+      // Never load sourceUrlRaw here: it is the first ingester's private URL.
+      include: { tournament: { omit: { sourceUrlRaw: true } } },
     }),
     prisma.ingestJob.findMany({
       where: { userId },

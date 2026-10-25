@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
@@ -938,7 +939,7 @@ export async function buildCvData(
       format: t.format,
       region: t.region,
       totalTeams: t.totalTeams,
-      sourceUrl: t.sourceUrlRaw,
+      sourceUrl: publicTournamentUrl(t.sourceUrlRaw),
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       teammates: teamKey ? (teammatesByKey.get(teamKey) ?? []) : [],
       teammateDetails: teamKey ? (teammateDetailsByKey.get(teamKey) ?? []) : [],
@@ -1050,7 +1051,7 @@ export async function buildCvData(
       format: t.format,
       region: t.region,
       totalTeams: t.totalTeams,
-      sourceUrl: t.sourceUrlRaw,
+      sourceUrl: publicTournamentUrl(t.sourceUrlRaw),
       myName: myNameByTournament.get(tid) ?? myDisplayName,
       judgeTypeTag: p.judgeTypeTag,
       inroundsJudged: stats ? stats.size : null,
@@ -1084,7 +1085,7 @@ export async function buildCvData(
       name: t.name,
       year: t.year,
       format: t.format,
-      sourceUrlRaw: t.sourceUrlRaw,
+      sourceUrlRaw: publicTournamentUrl(t.sourceUrlRaw),
     }))
     .sort((a, b) => {
       const ya = a.year ?? -Infinity;

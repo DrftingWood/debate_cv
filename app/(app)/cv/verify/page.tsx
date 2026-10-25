@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
+import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { displayNameFor } from '@/lib/privacy/suppression';
 
@@ -48,6 +49,16 @@ export default async function CvVerifyPage({
     if (!row.tournament || picked.has(row.tournament.id)) continue;
     picked.set(row.tournament.id, row.tournament);
     if (picked.size >= 5) break;
+  }
+
+  // The viewer's OWN private URL for each tournament. Tournament.sourceUrlRaw is
+  // whoever ingested it first, so re-ingesting from that would hand this user
+  // someone else's credential (and claim their registration person).
+  const ownUrlByTournament = new Map<bigint, string>();
+  for (const row of discovered) {
+    if (row.tournamentId != null && !ownUrlByTournament.has(row.tournamentId)) {
+      ownUrlByTournament.set(row.tournamentId, row.url);
+    }
   }
 
   const tournamentIds = Array.from(picked.keys());
@@ -181,14 +192,14 @@ export default async function CvVerifyPage({
                     </div>
                     <div className="flex items-center gap-2">
                       <a
-                        href={t.sourceUrlRaw}
+                        href={publicTournamentUrl(t.sourceUrlRaw)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex min-h-[44px] items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
                         Source <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
-                      <ReingestButton url={t.sourceUrlRaw} />
+                      {ownUrlByTournament.get(t.id) ? <ReingestButton url={ownUrlByTournament.get(t.id)!} /> : null}
                     </div>
                   </div>
 

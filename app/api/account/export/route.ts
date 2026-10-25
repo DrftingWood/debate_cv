@@ -55,7 +55,8 @@ export async function GET() {
       }),
       prisma.discoveredUrl.findMany({
         where: { userId },
-        include: { tournament: true, registrationPerson: true },
+        // sourceUrlRaw is the first ingester's private URL (see lib/cv/publicTournamentUrl.ts).
+        include: { tournament: { omit: { sourceUrlRaw: true } }, registrationPerson: true },
       }),
       prisma.ingestJob.findMany({ where: { userId } }),
       prisma.person.findMany({
@@ -63,7 +64,7 @@ export async function GET() {
         include: {
           participations: {
             include: {
-              tournament: true,
+              tournament: { omit: { sourceUrlRaw: true } },
               roles: true,
               speakerRoundScores: { orderBy: { roundNumber: 'asc' } },
             },
