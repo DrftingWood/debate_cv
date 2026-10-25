@@ -152,7 +152,7 @@ export async function ingestPrivateUrl(
     /**
      * Epoch ms by which this ingest must have stopped — the caller's function
      * budget. Past it, fetches refuse to start and the write phase will not
-     * begin without WRITE_RESERVE_MS left; either way the ingest throws
+     * begin without its write reserve left (writeReserveMs); either way the ingest throws
      * IngestDeadlineError having written nothing. Omitted: no limit.
      */
     deadline?: number;
@@ -217,10 +217,10 @@ async function runFullScrape(
   // been written yet. A write phase cut off by the platform would leave a
   // half-committed tournament and a job stuck `running`, so do not begin it
   // without enough time to finish.
-  loaded.fetchSession.assertTimeLeft(WRITE_RESERVE_MS, 'write its results');
+  const reserveMs = writeReserveMs(fetched.totalParticipants, fetched.totalTeams);
+  loaded.fetchSession.assertTimeLeft(reserveMs, 'write its results');
 
-  // Logged so WRITE_RESERVE_MS can be tuned from real runs: it is sized by
-  // judgement, not yet measured against Neon at WUDC scale.
+  // Logged so the reserve's per-row rate can be re-checked against real runs.
   const writeStarted = Date.now();
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
@@ -228,7 +228,7 @@ async function runFullScrape(
   console.info('[ingest] write phase', {
     url: loaded.normalized,
     writeMs: Date.now() - writeStarted,
-    reserveMs: WRITE_RESERVE_MS,
+    reserveMs,
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
@@ -246,13 +246,32 @@ async function runFullScrape(
 
 /**
  * Time the write phase (people pre-commit, the main transaction, the bulk
- * score writes) must have in hand before it starts. Sized for WUDC scale with
- * margin; INGEST_WRITE_RESERVE_MS overrides it.
+ * score writes) must have in hand before it starts, for a tournament of this
+ * size. INGEST_WRITE_RESERVE_MS, when set, overrides it with a fixed value.
+ *
+ * Measured in production (Vercel fra1 → Neon, the first 12 ingests of the
+ * 2026-10-25 Re-ingest all, via the `[ingest] write phase` log): the write
+ * takes about 17 ms per participant + team, ±30 % run to run — 1.8 s for
+ * 60/25, 5.6 s for 244/87, 11.0 s for 436/192 (SIDO 2026). A flat reserve
+ * cannot fit both ends: the first guess of 15 s deferred small tournaments
+ * for no reason yet sat below WUDC 2024's projected ~19 s, the very write it
+ * existed to protect. So it scales: 3 s fixed plus 25 ms per participant +
+ * team (17 ms with the variance and some headroom) — 5 s for the smallest
+ * above, 18.7 s for SIDO, ~31 s for WUDC 2024. A tournament whose fetch
+ * phase leaves less than that defers, writing nothing, rather than be
+ * killed mid-transaction.
  */
-const WRITE_RESERVE_MS = (() => {
-  const raw = Number(process.env.INGEST_WRITE_RESERVE_MS);
-  return Number.isFinite(raw) && raw >= 0 ? raw : 15_000;
-})();
+export function writeReserveMs(
+  participants: number | null | undefined,
+  teams: number | null | undefined,
+  override: string | undefined = process.env.INGEST_WRITE_RESERVE_MS,
+): number {
+  const fixed = Number(override);
+  if (override !== undefined && override !== '' && Number.isFinite(fixed) && fixed >= 0) return fixed;
+  return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
+}
+const WRITE_RESERVE_BASE_MS = 3_000;
+const WRITE_RESERVE_PER_ROW_MS = 25;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
