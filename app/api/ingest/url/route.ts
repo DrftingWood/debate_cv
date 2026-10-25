@@ -4,6 +4,8 @@ import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
+import { isIngestDeadlineError } from '@/lib/calicotab/fetchSession';
+import { enqueueUrl } from '@/lib/queue';
 import { isPrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 import { IngestJobStatus } from '@prisma/client';
 
@@ -18,7 +20,13 @@ const Body = z.object({
   force: z.boolean().optional(),
 });
 
+// Stop the ingest this long after the request arrives — a few seconds short
+// of maxDuration — so a tournament too slow for one request is handed to the
+// queue instead of being killed mid-write by the platform.
+const INGEST_DEADLINE_MS = 55_000;
+
 export async function POST(req: Request) {
+  const requestStarted = Date.now();
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -41,6 +49,7 @@ export async function POST(req: Request) {
   try {
     const result = await ingestPrivateUrl(parse.data.url, session.user.id, {
       force: parse.data.force,
+      deadline: requestStarted + INGEST_DEADLINE_MS,
     });
     // Reconcile any IngestJob row so the dashboard doesn't show stale pending/failed.
     // Store parse warnings in lastError even on success so the dashboard can surface
@@ -77,6 +86,18 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'ingest_failed';
+    // Out of time for this request, nothing written: let the queue finish it
+    // with a full budget rather than report a failure.
+    if (isIngestDeadlineError(err)) {
+      await enqueueUrl(session.user.id, parse.data.url);
+      return NextResponse.json(
+        {
+          error: 'deferred',
+          hint: 'This tournament is too large to import in one request. It has been queued and will finish shortly.',
+        },
+        { status: 503 },
+      );
+    }
     // Deadlock-class failures (PG 40P01, Prisma P2034, withDeadlockRetry
     // exhaustion) are transient by definition — postgres aborts whichever
     // tx loses the race and a retry would have succeeded. Reschedule the

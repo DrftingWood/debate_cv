@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
+import { isIngestDeadlineError } from '@/lib/calicotab/fetchSession';
 import { estimateIngestMs, FETCH_MIN_INTERVAL_MS } from '@/lib/calicotab/fetch';
 import { IngestJobStatus } from '@prisma/client';
 import {
@@ -11,6 +12,7 @@ import {
   markJobAbandoned,
   markJobDone,
   markJobFailed,
+  releaseJob,
   rescheduleJob,
   resetStuckRunning,
 } from '@/lib/queue';
@@ -23,6 +25,9 @@ export const maxDuration = 60;
 
 const MAX_ATTEMPTS = 3;
 const TIME_BUDGET_MS = 50_000;
+// Every ingest must stop by this point (a few seconds short of maxDuration);
+// see IngestDeadlineError.
+const DEADLINE_MS = 55_000;
 // Conservative estimate of one ingest's wall-clock cost, derived from the
 // live per-host throttle rather than restated here. The previous hard-coded
 // 40_000 was computed by hand when the floor was 1500ms; when the floor
@@ -56,11 +61,18 @@ export async function POST() {
       if (!job) break;
 
       try {
-        await ingestPrivateUrl(job.url, userId);
+        await ingestPrivateUrl(job.url, userId, { deadline: started + DEADLINE_MS });
         await markJobDone(job.id);
         results.push({ url: job.url, status: 'done' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (isIngestDeadlineError(err) && results.length > 0) {
+          // Started late in this call and ran out, writing nothing: give the
+          // attempt back and keep its place; the next drain call starts it first.
+          await releaseJob(job.id, msg);
+          results.push({ url: job.url, status: 'retry', error: msg });
+          break;
+        }
         // Deadlock-class failures are transient by definition (postgres
         // aborts the loser of a write race) — always reschedule, never
         // hard-fail, even past MAX_ATTEMPTS. The audit (#8) flagged that

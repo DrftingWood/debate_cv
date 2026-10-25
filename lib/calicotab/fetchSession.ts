@@ -27,6 +27,12 @@
  */
 const learnedIntervalByHost = new Map<string, number>();
 
+/**
+ * The least time worth starting a request with. Below this a request cannot
+ * plausibly finish and be parsed before the deadline.
+ */
+export const MIN_REQUEST_MS = 2_000;
+
 /** Ceiling for the learned backoff — past this a host is simply too slow to serve. */
 export const MAX_LEARNED_INTERVAL_MS = 3000;
 
@@ -42,7 +48,55 @@ export function resetLearnedIntervals(): void {
   learnedIntervalByHost.clear();
 }
 
+/**
+ * Thrown when an ingest would run past its deadline — the moment the
+ * serverless function hosting it is about to be killed.
+ *
+ * A function killed mid-ingest runs no catch block: its job stays `running`
+ * until resetStuckRunning recovers it on a later tick, and a killed write
+ * phase is the worst place to stop. So the ingest stops itself first, while
+ * it still can, and before writing anything: fetches refuse to start (or
+ * time out) past the deadline, and the write phase will not begin without
+ * WRITE_RESERVE_MS in hand. The drain treats this error as "run me again with
+ * a full budget", not as a failed attempt (lib/queueDrain.ts).
+ */
+export class IngestDeadlineError extends Error {
+  constructor(message = 'ingest stopped: not enough time left in this invocation') {
+    super(message);
+    this.name = 'IngestDeadlineError';
+  }
+}
+
+export function isIngestDeadlineError(err: unknown): err is IngestDeadlineError {
+  return err instanceof IngestDeadlineError || (err instanceof Error && err.name === 'IngestDeadlineError');
+}
+
 export class FetchSession {
+  /**
+   * Epoch ms after which nothing new may start, or null for no limit
+   * (preflight, admin probes, tests). Set by the caller that knows its own
+   * function budget — see ingestPrivateUrl's `deadline` option.
+   */
+  readonly deadline: number | null;
+
+  constructor(opts: { deadline?: number | null } = {}) {
+    this.deadline = opts.deadline ?? null;
+  }
+
+  /** Milliseconds until the deadline (Infinity without one). */
+  remainingMs(): number {
+    return this.deadline == null ? Infinity : this.deadline - Date.now();
+  }
+
+  /** Throw IngestDeadlineError unless at least `needMs` remain. */
+  assertTimeLeft(needMs = 0, what = 'continue'): void {
+    if (this.remainingMs() < needMs) {
+      throw new IngestDeadlineError(
+        `ingest stopped before it could ${what}: ${Math.max(0, Math.round(this.remainingMs()))} ms left of this invocation, ${needMs} ms needed`,
+      );
+    }
+  }
+
   private readonly cookieJars = new Map<string, Map<string, string>>();
   private readonly lastRequestAtByHost = new Map<string, number>();
   // Per-host async chain. Each call to acquireSlot enqueues onto the host's
@@ -137,6 +191,8 @@ export class FetchSession {
       if (gap < interval) {
         await new Promise<void>((resolve) => setTimeout(resolve, interval - gap));
       }
+      // A request whose turn comes after the deadline must not start.
+      this.assertTimeLeft(MIN_REQUEST_MS, 'start another request');
       this.lastRequestAtByHost.set(host, Date.now());
     })();
     // Catch the chain so a rejected slot doesn't poison subsequent waiters.

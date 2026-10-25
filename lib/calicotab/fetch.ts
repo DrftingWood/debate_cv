@@ -1,7 +1,7 @@
 import { gzipSync } from 'node:zlib';
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
-import { FetchSession } from './fetchSession';
+import { FetchSession, IngestDeadlineError, isIngestDeadlineError, MIN_REQUEST_MS } from './fetchSession';
 import { isAllowedTabHost } from '@/lib/gmail/extract';
 
 /**
@@ -192,7 +192,12 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  // The per-request ceiling, cut short by the ingest's deadline when that
+  // comes first: a request still in flight when the function is killed
+  // leaves its job stuck `running` (FetchSession.deadline).
+  const timeoutMs = Math.min(FETCH_TIMEOUT_MS, session.remainingMs());
+  const deadlineBound = timeoutMs < FETCH_TIMEOUT_MS;
+  const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs));
 
   // When SCRAPER_API_KEY is set every request goes through ScraperAPI, so
   // the proxy — not this process — resolves redirects, and it is the one
@@ -253,6 +258,7 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
     // with a clearer error so fetchWarnings show "fetch: tab timeout (15s)"
     // instead of a cryptic generic abort string.
     if (err instanceof Error && err.name === 'AbortError') {
+      if (deadlineBound) throw new IngestDeadlineError(`ingest stopped: deadline reached while fetching ${url}`);
       throw new Error(`fetch timeout after ${FETCH_TIMEOUT_MS}ms: ${url}`);
     }
     throw err;
@@ -271,6 +277,10 @@ async function fetchWithRetry(url: string, session: FetchSession, referer?: stri
   let lastErr: unknown = null;
   let networkRetries = 0;
   for (const delay of delays) {
+    // A retry is only worth starting if it can finish before the ingest's
+    // deadline. Without one, the transient failure is a reason to run the
+    // whole ingest again with a full budget, not a failed attempt.
+    if (delay > 0 || networkRetries > 0) session.assertTimeLeft(delay + MIN_REQUEST_MS, `retry ${url}`);
     if (delay > 0) await wait(delay);
     let res: Response;
     try {
@@ -349,6 +359,9 @@ export async function fetchHtmlWithProvenance(
   try {
     res = await fetchWithRetry(url, session, options.referer);
   } catch (err) {
+    // Out of time is not a page failure: it ends the ingest (see
+    // IngestDeadlineError) rather than becoming one "fetch:" warning.
+    if (isIngestDeadlineError(err)) throw err;
     // Network failure (timeout from throttledFetch's AbortController, DNS,
     // refused connection). Convert to a soft FetchResult so a single tab
     // fetch failure doesn't reject the Promise.all in ingest.ts and crash
