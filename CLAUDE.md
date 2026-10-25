@@ -10,6 +10,8 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 **Session status, pending operator steps, and next-agent priorities live in `docs/HANDOFF.md` — read it before starting work.**
 
+**Tasks that need design judgement (B6, B8, B9 and the parked set) are listed in `docs/OPUS_TASKS.md` with a "done when" line each — read it before picking one up.**
+
 ## Stack (from package.json)
 
 - **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)
