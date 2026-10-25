@@ -69,7 +69,7 @@ export const API_REDACTED_NAME = '<em>Redacted</em>';
 
 // The HTML tab collapses runs of whitespace (a tab character inside one
 // registered name was the only name mismatch on WUDC 2024); match it.
-function cleanName(name: string): string {
+export function cleanName(name: string): string {
   return name.replace(/\s+/g, ' ').trim();
 }
 
@@ -428,13 +428,27 @@ const defaultFetcher: Fetcher = (url) =>
  * fewer requests, not different ones. Retrying the API here would only
  * compete with the HTML fallback for the same per-host slot.
  */
-function isHostPushback(got: { status: number | null }): boolean {
+export function isHostPushback(got: { status: number | null }): boolean {
   return got.status === null || got.status === 429 || got.status === 503;
 }
 
-type Got<T> = { ok: true; rows: T[] } | { ok: false; status: number | null; reason: string };
+export type Got<T> = { ok: true; rows: T[] } | { ok: false; status: number | null; reason: string };
 
 async function getList<E extends Endpoint>(fetcher: Fetcher, base: string, path: E): Promise<Got<EndpointRow<E>>> {
+  return getApiList(fetcher, base, path, ENDPOINTS[path]) as Promise<Got<EndpointRow<E>>>;
+}
+
+/**
+ * One list endpoint, validated against `schema`. Shared with
+ * tabbycatApiRounds.ts so both modules fail the same way: every problem is a
+ * reason string for the HTML fallback, never a throw.
+ */
+export async function getApiList<S extends z.ZodTypeAny>(
+  fetcher: Fetcher,
+  base: string,
+  path: string,
+  schema: S,
+): Promise<Got<z.infer<S>>> {
   let res: Awaited<ReturnType<Fetcher>>;
   try {
     res = await fetcher(`${base}/${path}`);
@@ -451,12 +465,12 @@ async function getList<E extends Endpoint>(fetcher: Fetcher, base: string, path:
     return { ok: false, status: 200, reason: `${path}: not JSON` };
   }
   if (!Array.isArray(body)) return { ok: false, status: 200, reason: `${path}: not a list` };
-  const parsed = z.array(ENDPOINTS[path]).safeParse(body);
+  const parsed = z.array(schema).safeParse(body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     return { ok: false, status: 200, reason: `${path}: malformed at [${issue.path.join('.')}] — ${issue.message}` };
   }
-  return { ok: true, rows: parsed.data as EndpointRow<E>[] };
+  return { ok: true, rows: parsed.data as z.infer<S>[] };
 }
 
 /**

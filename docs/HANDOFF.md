@@ -2,6 +2,74 @@
 
 ---
 
+## 2026-10-25 — B8: rounds, break and participants through the Tabbycat API
+
+**Branch `opus/b8-api-rounds`, on top of `opus/b6-api-snapshots`.** Local, not pushed. Off by default:
+`TABBYCAT_API_ROUNDS=1` turns it on (`.env.example`). Turning it on in production is the owner's call.
+
+- **`lib/calicotab/tabbycatApiRounds.ts`** maps the API to the exact shapes `parseRoundResults`,
+  `parseBreakPage` and `parseParticipantsList` return. Each linked page comes back from the API or as
+  a reason to scrape it as before, so ingest falls back per page and silently.
+  - **Round results:** `teams/standings/rounds` (one call carries every team's side, points and win for
+    every round, outrounds included) plus one `rounds/<seq>/pairings` per linked round for the judges.
+    BP prelims take `won` from first place (the API's `win` is always false there); outrounds and
+    two-team formats take it from `win`. Side labels follow `debate_rules__side_names`. A drawn team with
+    no result (a bye) has no row, as on the page.
+  - **Break:** the API `rank` is the page's rank column, ties and "(different break)" teams included.
+    If the ranks skip numbers (IITB 2023's do; its page does not), that tab stays on HTML.
+  - **Participants:** speakers from `teams`, judges from `adjudicators` (core > invited > normal).
+- **Privacy gates:** a page is read from the API only when the tournament's `public_features__public_*`
+  preference is explicitly true, and only for URLs the landing-page nav links. Opted-out people appear
+  as `<em>Redacted</em>` on break and participants pages, exactly as the HTML lists them. They are left
+  out of round results, which never name them.
+- **Institutions stay on HTML.** Where a tournament shows institutions (`ui_options__show_*_institutions`
+  not false), the participants list and break tabs show codes the API can only link to `/institutions`,
+  which needs a token. Those pages are scraped, so no judge or team loses its institution (WUDC 2025:
+  172 judges). Round results are unaffected.
+- **Shared helpers:** `roundIdentity` and `breakPageKind` were lifted out of `parseTabs.ts` with no
+  behaviour change, so both sources label rounds and break stages identically. `getApiList` and
+  `cleanName` are now exported from `tabbycatApi.ts`.
+- **Snapshots:** the API fetcher in ingest goes through B6's `withApiSnapshots`, so every new endpoint
+  is archived the same way.
+- **Request budget** (live run): the API path used 21–29 requests where the HTML pages it replaces took
+  33–43 per tournament. That is about 25–30 % fewer requests, under the same per-host slot.
+- **Parity:** `RUN_TABBYCAT_API_ROUNDS=1 npx vitest run tests/__tabbycatApiRounds.live.test.ts`.
+  **0 real differences on 13 tournaments** (BP, Australs, WSDC/schools). Every page the API answered
+  matches the HTML parser row for row: team results, sides, points, outcomes, judges, break ranks and
+  scores, participants. Every other page is an intended fallback.
+
+  | Tournament | Rounds from API | Break tabs from API | Participants | Real differences | Requests API / HTML |
+  | --- | ---: | ---: | --- | ---: | ---: |
+  | WUDC 2024 | 19/19 | 4/4 | API | 0 | 29 / 43 |
+  | WUDC 2025 | 17/17 | 3/4 | HTML (institutions) | 0 | 27 / 39 |
+  | WUDC 2023 | 17/17 | 3/4 | HTML (institutions) | 0 | 27 / 39 |
+  | Australs 2022 | 15/15 | 3/4 | HTML (institutions) | 0 | 25 / 35 |
+  | Australs 2025 | 14/14 | 3/4 | HTML (institutions) | 0 | 24 / 33 |
+  | SIDO 2026 | 16/16 | 4/4 | HTML (institutions) | 0 | 27 / 37 |
+  | SIDO 2023 | 13/13 | 2/2 | HTML (institutions) | 0 | 22 / 29 |
+  | IITB 2023 | 10/10 | 2/3 (ranks skip numbers) | API | 0 | 19 / 24 |
+  | IITB 2022 | 0/10 (API 401) | 0/3 | HTML | 0 | 2 / 24 |
+  | NDO 2021 | 10/10 | 2/3 | HTML (institutions) | 0 | 19 / 24 |
+  | ILNU BP 2023 | 10/10 | 0/3 (team institutions) | HTML (institutions) | 0 | 15 / 24 |
+  | MukMem 2021 | 12/12 | 2/3 | HTML (institutions) | 0 | 21 / 28 |
+  | ANDO 2021 | 10/10 | 2/3 | HTML (institutions) | 0 | 19 / 24 |
+
+  The adjudicator break is the tab that falls back where institutions are shown. WUDC 2023/2024,
+  Australs 2022/2025 and SIDO 2026 ran on the final code. The other eight ran before the last review
+  fixes: the push-back stop, the drawn-team coverage check, wider BP detection and a safe break-category
+  URL. All four only add HTML fallbacks. Neither final-code Australs run fell back on coverage, including
+  Australs 2022 round 3, where a drawn team has no result. Network errors (DNS, connection resets) on this
+  machine interrupted some runs; each affected tournament was re-run.
+- **Tests:** `tests/calicotab.tabbycatApiRounds.test.ts`.
+- **Noticed, not changed:**
+  - On the HTML path, ingest looks up a round's nav label by the *fetched* URL, which is the
+    `by-debate/` variant when that exists. The lookup can miss, so the label falls back to the page
+    heading. The API path keys by the nav URL and does not have this.
+  - Australs 2025's `teams/standings` sends a metric value as a string. B8's break mapper accepts that.
+    The existing team-tab mapper rejects it, so that tournament's team tab falls back to HTML.
+
+---
+
 ## 2026-10-25 — B6: Tabbycat API responses kept as snapshots
 
 **Owner decision (2026-10-25): option 1, store the API JSON, newest per URL only.** Branch

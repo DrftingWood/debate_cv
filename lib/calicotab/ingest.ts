@@ -19,6 +19,7 @@ import {
   tabbycatApiTabsEnabled,
   type ApiTabsResult,
 } from './tabbycatApi';
+import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
@@ -32,6 +33,8 @@ import {
   parseBreakPage,
   parseParticipantsList,
   diagnoseVueData,
+  type BreakRow,
+  type RoundDebate,
 } from './parseTabs';
 import { parseMotionsTab } from './parseMotions';
 import {
@@ -465,6 +468,11 @@ async function checkCacheFreshness(
   };
 }
 
+/** One linked results round: already mapped from the API, or HTML still to parse. */
+type RoundPage = { kind: 'api'; debate: RoundDebate } | { kind: 'html'; url: string; html: string };
+/** One linked break tab, likewise. */
+type BreakPage = { kind: 'api'; rows: BreakRow[] } | { kind: 'html'; url: string; html: string };
+
 const API_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
@@ -556,19 +564,20 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // preferences say the tab is not released) reads neither — the same as a
   // landing page with no tab link, which already yields zero rows and no
   // warning.
+  const apiFetcher = withApiSnapshots(async (apiUrl) => {
+    const host = new URL(apiUrl).host;
+    await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
+    const res = await fetch(apiUrl, {
+      headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    });
+    // Push-back on the API is push-back on the host: slow the HTML
+    // fallback that follows through the same learned interval fetch.ts uses.
+    if (isCdnRateLimit(res.status, res.headers)) fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
+    return res;
+  });
   const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
-    ? await fetchTabsFromApi(normalized, withApiSnapshots(async (apiUrl) => {
-        const host = new URL(apiUrl).host;
-        await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
-        const res = await fetch(apiUrl, {
-          headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' },
-          signal: AbortSignal.timeout(API_TIMEOUT_MS),
-        });
-        // Push-back on the API is push-back on the host: slow the HTML
-        // fallback that follows through the same learned interval fetch.ts uses.
-        if (isCdnRateLimit(res.status, res.headers)) fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
-        return res;
-      }))
+    ? await fetchTabsFromApi(normalized, apiFetcher)
     : htmlOnly('TABBYCAT_API_TABS=0');
   console.info('[ingest] tabbycat api', {
     url: normalized,
@@ -578,22 +587,47 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const htmlTabs = htmlTabsToFetch(apiTabs, nav);
   fetchWarnings.push(...unreleasedTabWarnings(apiTabs));
 
+  // Round results, break tabs and the participants list from the API (B8),
+  // opt-in with TABBYCAT_API_ROUNDS=1 until the owner turns it on. Same
+  // contract as the tabs: a page the API answered skips its HTML fetch; any
+  // other page is scraped exactly as before. See lib/calicotab/tabbycatApiRounds.ts.
+  const apiRest = tabbycatApiRoundsEnabled() ? await fetchRestFromApi(normalized, nav, apiFetcher) : null;
+  if (apiRest) {
+    const count = (xs: Iterable<{ source: string }>) => [...xs].filter((x) => x.source === 'api').length;
+    console.info('[ingest] tabbycat api rounds', {
+      url: normalized,
+      rounds: `${count(apiRest.rounds.values())}/${nav.resultsRounds.length}`,
+      breaks: `${count(apiRest.breaks.values())}/${nav.breakTabs.length}`,
+      participants: apiRest.participants?.source ?? 'none',
+    });
+  }
+  const apiParticipants = apiRest?.participants?.source === 'api' ? apiRest.participants.value : null;
+
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
     htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
-    nav.participants ? fetchTab(nav.participants, 'participants', true) : Promise.resolve(null),
+    nav.participants && !apiParticipants ? fetchTab(nav.participants, 'participants', true) : Promise.resolve(null),
     nav.motionsTab
       ? fetchOptionalTab(nav.motionsTab, 'motionsTab', nav.meta?.constructed.includes('motionsTab'))
       : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and
   // adjudicators are scoped to their own debate (sidesteps double-counting
-  // that the by-team pivot can introduce).
-  const roundHtmls = await Promise.all(nav.resultsRounds.map((u) => fetchRound(u)));
-  const breakHtmls = await Promise.all(
-    nav.breakTabs.map(async (u) => {
+  // that the by-team pivot can introduce). Nav order is kept either way.
+  const roundPages = await Promise.all(
+    nav.resultsRounds.map(async (u): Promise<RoundPage | null> => {
+      const fromApi = apiRest?.rounds.get(u);
+      if (fromApi?.source === 'api') return { kind: 'api', debate: fromApi.value };
+      const page = await fetchRound(u);
+      return page ? { kind: 'html', ...page } : null;
+    }),
+  );
+  const breakPages = await Promise.all(
+    nav.breakTabs.map(async (u): Promise<BreakPage | null> => {
+      const fromApi = apiRest?.breaks.get(u);
+      if (fromApi?.source === 'api') return { kind: 'api', rows: fromApi.value };
       const html = await fetchTab(u, 'break');
-      return html ? { url: u, html } : null;
+      return html ? { kind: 'html', url: u, html } : null;
     }),
   );
 
@@ -607,7 +641,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     fetchWarnings.push(`parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`);
   }
 
-  const participantRows = participantsHtml ? parseParticipantsList(participantsHtml) : [];
+  const participantRows = apiParticipants ?? (participantsHtml ? parseParticipantsList(participantsHtml) : []);
   if (participantRows.length === 0 && participantsHtml) {
     fetchWarnings.push(`parse: participants → 0 rows — ${diagnoseVueData(participantsHtml, ['name'])}`);
   }
@@ -636,9 +670,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   }
   const mergedParticipantRows = [...participantByName.values()];
 
-  const rounds = roundHtmls
-    .filter((x): x is { url: string; html: string } => !!x)
-    .map(({ url: u, html }) => {
+  const rounds = roundPages
+    .filter((x): x is RoundPage => !!x)
+    .map((page) => {
+      if (page.kind === 'api') return page.debate;
+      const { url: u, html } = page;
       // Pass the landing-page nav's link text for this URL — it's the
       // authoritative round label ("Quarterfinals" not "SIDO 2026") and
       // protects classifyRoundLabel / outroundRankStrict from a generic
@@ -650,9 +686,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       }
       return r;
     });
-  const breakRows = breakHtmls
-    .filter((x): x is { url: string; html: string } => !!x)
-    .flatMap(({ url: u, html }) => parseBreakPage(html, u));
+  const breakRows = breakPages
+    .filter((x): x is BreakPage => !!x)
+    .flatMap((page) => (page.kind === 'api' ? page.rows : parseBreakPage(page.html, page.url)));
   // Zero motions from a fetched page is normal (tab released before
   // motions are public) — no diagnose warning, unlike the core tabs.
   const motions = motionsHtml ? parseMotionsTab(motionsHtml) : [];

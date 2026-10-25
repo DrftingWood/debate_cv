@@ -956,30 +956,34 @@ function roundResultsFromVue(
     : null;
 }
 
-export function parseRoundResults(
-  html: string,
+/**
+ * A results page's round number, label and outround flag — from its URL, the
+ * landing-page nav's link text, and the page heading. Shared with the API
+ * path (tabbycatApiRounds.ts), which passes the API's round name where this
+ * reads the heading, so both sources label a round the same way.
+ *
+ * Resolution chain for the round's authoritative label:
+ *   1. navLabel — link text from the landing-page nav
+ *      (e.g. "Quarterfinals" for /results/round/7/). Tabbycat surfaces this
+ *      itself and it cleanly maps each URL to its actual round name.
+ *   2. Page heading — only when it ACTUALLY mentions a round. SIDO's
+ *      results pages have a generic "SIDO 2026" heading that conveyed
+ *      no per-round info; trusting it wholesale (PR #47) made every round
+ *      land with stage="SIDO 2026" and classifyRoundLabel returned
+ *      'unknown' for all of them.
+ *   3. "Round N" numeric fallback from the URL.
+ */
+export function roundIdentity(
   sourceUrl: string,
-  navLabel?: string | null,
-): RoundDebate {
+  navLabel: string | null | undefined,
+  headingLabel: string,
+): { roundNumber: number | null; roundLabel: string; isOutround: boolean } {
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabelFallback = `Round ${roundNumber ?? '?'}`;
   const isOutroundFromUrl =
     /\/break\//i.test(sourceUrl) ||
     /\/elim/i.test(sourceUrl);
-
-  // Resolution chain for the round's authoritative label:
-  //   1. navLabel — link text from the landing-page nav
-  //      (e.g. "Quarterfinals" for /results/round/7/). Tabbycat surfaces this
-  //      itself and it cleanly maps each URL to its actual round name.
-  //   2. Page heading — only when it ACTUALLY mentions a round. SIDO's
-  //      results pages have a generic "SIDO 2026" heading that conveyed
-  //      no per-round info; trusting it wholesale (PR #47) made every round
-  //      land with stage="SIDO 2026" and classifyRoundLabel returned
-  //      'unknown' for all of them.
-  //   3. "Round N" numeric fallback from the URL.
-  const $head = cheerio.load(html);
-  const headingLabel = cleanText($head('h1, h2, h3, title').first().text());
   const headingLooksRoundRelated =
     /\bround\s+\d+\b|\bfinal|\bsemi|\bquarter|\bocto|\bgrand|\b(?:gf|sf|qf|of|dof|tof|r\d+)\b/i.test(
       headingLabel,
@@ -993,6 +997,17 @@ export function parseRoundResults(
   // "Octavos" and "Cuartos", so those rounds read as prelims and ingest
   // skipped recording who won them — which is what the champion check reads.
   const isOutround = isOutroundFromUrl || matchStage(roundLabel) != null;
+  return { roundNumber, roundLabel, isOutround };
+}
+
+export function parseRoundResults(
+  html: string,
+  sourceUrl: string,
+  navLabel?: string | null,
+): RoundDebate {
+  const $head = cheerio.load(html);
+  const headingLabel = cleanText($head('h1, h2, h3, title').first().text());
+  const { roundNumber, roundLabel, isOutround } = roundIdentity(sourceUrl, navLabel, headingLabel);
 
   const vue = extractVueData(html);
   if (vue) {
@@ -1088,10 +1103,20 @@ function normalizeBreakStage(fragment: string | null): string | null {
     .join('');
 }
 
-export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
+/**
+ * What a break-tab URL says about its rows: adjudicator or team, and the
+ * canonical stage label. Shared with the API path (tabbycatApiRounds.ts) so
+ * both label a break the same way.
+ */
+export function breakPageKind(sourceUrl: string): { isAdj: boolean; stage: string | null; slug: string | null } {
   const isAdj = /\/break\/adjudicators\//.test(sourceUrl);
   const stageMatch = sourceUrl.match(/\/break\/(teams\/[^/]+|adjudicators)/);
-  const stage = normalizeBreakStage(stageMatch ? stageMatch[1] : null);
+  const slug = stageMatch?.[1]?.startsWith('teams/') ? stageMatch[1].slice('teams/'.length) : null;
+  return { isAdj, stage: normalizeBreakStage(stageMatch ? stageMatch[1] : null), slug };
+}
+
+export function parseBreakPage(html: string, sourceUrl: string): BreakRow[] {
+  const { isAdj, stage } = breakPageKind(sourceUrl);
 
   const vue = extractVueData(html);
   if (vue) {
