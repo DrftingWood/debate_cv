@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-10-25 — B6: Tabbycat API responses kept as snapshots
+
+**Owner decision (2026-10-25): option 1, store the API JSON, newest per URL only.** Branch
+`opus/b6-api-snapshots`, cut from `main` at `fb6564a` (PR #115 merged). Local, not pushed.
+
+- **`withApiSnapshots`** (`lib/calicotab/fetch.ts`) wraps ingest's API fetcher. Every 200 JSON body
+  from `/api/v1/tournaments/<slug>/…` is stored as a `SourceDocument` keyed by its endpoint URL, as
+  received. All eight endpoints are kept, since the mappers join across them. A non-200 or a non-JSON
+  200 is not stored. A failed write is logged and swallowed, and a slow one is given 2 s before ingest
+  moves on, so the API path never fails or stalls because of it. A body read that fails still reaches
+  `getList` the way it did before, so fallback classification is unchanged.
+- **Opted-out speakers:** `scrubOptedOutNames` blanks `name` / `last_name` on any `anonymous: true`
+  object before storing. Tabbycat already nulls them (WUDC 2024: 10 of 10), so on such installs the
+  body is stored byte-for-byte. The scrub covers installs that don't, so storage never holds more than
+  the public tab showed.
+- **`storeSourceDocument`** is the upsert lifted out of `fetchHtmlWithProvenance`, so both sources
+  share gzip, the 5 MB cap and `(url, contentHash)` dedup. `pruneIngestArtifacts` needs no change:
+  newest-per-URL retention already applies per endpoint URL.
+- **No ParserRun** for these rows, the same as the HTML team and speaker tabs, which never had one.
+- **Size:** WUDC 2024's five large endpoints are ~100 KB gzipped, against ~151 KB for the two HTML
+  tabs they replace (`docs/SIZING-2026-10-25.md`, measured on the seeded local record).
+- **Tests:** `tests/fetch.apiSnapshot.test.ts`.
+- Re-derivation from these snapshots is not built. They are an archive for now, as the HTML bodies were
+  when they were first kept.
+
+---
+
 ## 2026-10-20 — Tabbycat REST API as a source for the team and speaker tabs
 
 **Branch `feat/tabbycat-api`, cut from `feat/filterable-stats`.** Tests 1,203 passing / 40 skipped;

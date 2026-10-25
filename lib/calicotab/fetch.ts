@@ -390,35 +390,149 @@ export async function fetchHtmlWithProvenance(
     };
   }
 
-  const contentHash = sha256Hex(html);
-  const contentLength = Buffer.byteLength(html, 'utf8');
-
-  // Retain the gzipped body alongside the hash. Historically we kept only
-  // the hash, which made every new parsed field (motions, team positions)
-  // require re-scraping every tournament — impossible once a Heroku tab
-  // dies. Oversized pages are skipped rather than truncated: a partial
-  // body would parse as a structurally-broken page and is worse than no
-  // body. The (url, contentHash) unique already dedups unchanged pages,
-  // and the update branch backfills bodies onto pre-column rows when the
-  // same content is re-fetched.
-  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(html) : null;
-
-  const doc = await prisma.sourceDocument.upsert({
-    where: { url_contentHash: { url, contentHash } },
-    update: { fetchedAt: new Date(), status: res.status, contentLength, bodyGzip },
-    create: { url, contentHash, contentLength, status: res.status, bodyGzip },
-  });
+  const doc = await storeSourceDocument(url, res.status, html);
 
   return {
     ok: true,
     url,
     html,
     status: res.status,
-    contentHash,
-    contentLength,
+    contentHash: doc.contentHash,
+    contentLength: doc.contentLength,
     sourceDocumentId: doc.id,
     elapsedMs,
   };
+}
+
+/**
+ * Record one fetched body as a SourceDocument — the HTML tab pages and,
+ * since 2026-10-25, the Tabbycat API responses that replace them.
+ *
+ * Retain the gzipped body alongside the hash. Historically we kept only
+ * the hash, which made every new parsed field (motions, team positions)
+ * require re-scraping every tournament — impossible once a Heroku tab
+ * dies. Oversized bodies are skipped rather than truncated: a partial
+ * body would parse as a structurally-broken page and is worse than no
+ * body. The (url, contentHash) unique already dedups unchanged pages,
+ * and the update branch backfills bodies onto pre-column rows when the
+ * same content is re-fetched.
+ */
+export async function storeSourceDocument(
+  url: string,
+  status: number,
+  body: string,
+): Promise<{ id: string; contentHash: string; contentLength: number }> {
+  const contentHash = sha256Hex(body);
+  const contentLength = Buffer.byteLength(body, 'utf8');
+  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(body) : null;
+
+  const doc = await prisma.sourceDocument.upsert({
+    where: { url_contentHash: { url, contentHash } },
+    update: { fetchedAt: new Date(), status, contentLength, bodyGzip },
+    create: { url, contentHash, contentLength, status, bodyGzip },
+  });
+  return { id: doc.id, contentHash, contentLength };
+}
+
+/**
+ * Wrap the Tabbycat API fetcher so every JSON list it reads is kept as a
+ * SourceDocument, keyed by the endpoint URL (owner decision B6, 2026-10-25,
+ * option 1: store the JSON, newest per URL only).
+ *
+ * Why: once the team and speaker tabs come from the API, their HTML pages
+ * are never fetched, so without this those tabs drop out of the
+ * re-derivation archive — a parser change could not be replayed without
+ * re-fetching, and a tournament that later withdraws its tabs would leave
+ * no copy. All eight endpoints are kept, not just the standings: the
+ * mappers join across them, so any one alone cannot be re-derived.
+ *
+ * Storage is the existing pipeline's, unchanged: gzipped body, (url, hash)
+ * dedup, and pruneIngestArtifacts keeps the newest row per URL. Measured on
+ * WUDC 2024, the five large endpoints (teams, speakers and the three
+ * standings) gzip to ~100 KB against ~151 KB for the two HTML tabs they
+ * stand in for (docs/SIZING-2026-10-25.md); the other three are small lists.
+ *
+ * Only a 200 whose body parses as JSON is stored: a Cloudflare challenge or
+ * an install routing /api to its 404 template is not a snapshot of anything.
+ * The body is stored as received, not re-serialised, so the hash is stable
+ * across identical responses — except where scrubOptedOutNames had to blank
+ * a name, below.
+ *
+ * Nothing here may change how fetchTabsFromApi classifies an answer, or cost
+ * the user their ingest: a body read that fails surfaces through json(),
+ * exactly where res.json() used to throw it; a failed write is logged and
+ * swallowed; and the write is given SNAPSHOT_WRITE_BUDGET_MS before the
+ * ingest moves on without waiting for it, so a saturated connection pool
+ * cannot stall the eight sequential API reads behind it.
+ */
+export function withApiSnapshots(
+  fetcher: (url: string) => Promise<Response>,
+): (url: string) => Promise<{ status: number; json: () => Promise<unknown> }> {
+  return async (url) => {
+    const res = await fetcher(url);
+    let text: string;
+    try {
+      text = await res.text();
+    } catch (err) {
+      return { status: res.status, json: () => Promise.reject(err) };
+    }
+    let parsed: { ok: true; value: unknown } | { ok: false; error: unknown };
+    try {
+      parsed = { ok: true, value: JSON.parse(text) };
+    } catch (error) {
+      parsed = { ok: false, error };
+    }
+    if (res.status === 200 && parsed.ok) {
+      const scrubbed = scrubOptedOutNames(parsed.value);
+      const body = scrubbed.changed ? JSON.stringify(scrubbed.value) : text;
+      const write = storeSourceDocument(url, res.status, body).catch((err: Error) => {
+        console.warn('[fetch] api snapshot not stored', { url, error: err.message });
+      });
+      await Promise.race([write, wait(SNAPSHOT_WRITE_BUDGET_MS)]);
+    }
+    return {
+      status: res.status,
+      json: async () => {
+        if (!parsed.ok) throw parsed.error;
+        return parsed.value;
+      },
+    };
+  };
+}
+
+const SNAPSHOT_WRITE_BUDGET_MS = 2_000;
+
+/**
+ * Blank `name` / `last_name` on any object marked `anonymous: true`, at any
+ * depth (the speaker list, and the speakers nested in each team).
+ *
+ * Tabbycat's public serialiser already nulls these for speakers who opted
+ * out of the tab (WUDC 2024, 2026-10: all 10 anonymous rows came back with
+ * name and last_name null). The scrub is for installs that don't: the HTML
+ * tab this snapshot replaces only ever said "Redacted", and a stored body is
+ * kept for good under newest-per-URL retention, so it must not hold more than
+ * the public page showed. The mappers never read these fields on anonymous
+ * rows (speakerDisplayName), so parsing is unaffected either way.
+ */
+export function scrubOptedOutNames(value: unknown): { value: unknown; changed: boolean } {
+  let changed = false;
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v === null || typeof v !== 'object') return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, child] of Object.entries(v)) out[k] = walk(child);
+    if (out.anonymous === true) {
+      for (const key of ['name', 'last_name']) {
+        if (out[key] != null && out[key] !== '') {
+          out[key] = null;
+          changed = true;
+        }
+      }
+    }
+    return out;
+  };
+  const result = walk(value);
+  return { value: changed ? result : value, changed };
 }
 
 /** True when the HTML contains an embedded tablesData block (any known pattern). */

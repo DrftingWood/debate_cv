@@ -7,6 +7,7 @@ import {
   fetchRoundWithProvenance,
   isCdnRateLimit,
   isWithheldByTournament,
+  withApiSnapshots,
 } from './fetch';
 import { FetchSession } from './fetchSession';
 import {
@@ -556,7 +557,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // landing page with no tab link, which already yields zero rows and no
   // warning.
   const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
-    ? await fetchTabsFromApi(normalized, async (apiUrl) => {
+    ? await fetchTabsFromApi(normalized, withApiSnapshots(async (apiUrl) => {
         const host = new URL(apiUrl).host;
         await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
         const res = await fetch(apiUrl, {
@@ -567,7 +568,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
         // fallback that follows through the same learned interval fetch.ts uses.
         if (isCdnRateLimit(res.status, res.headers)) fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
         return res;
-      })
+      }))
     : htmlOnly('TABBYCAT_API_TABS=0');
   console.info('[ingest] tabbycat api', {
     url: normalized,
