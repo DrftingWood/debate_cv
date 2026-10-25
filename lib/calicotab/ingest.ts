@@ -152,7 +152,7 @@ export async function ingestPrivateUrl(
     /**
      * Epoch ms by which this ingest must have stopped — the caller's function
      * budget. Past it, fetches refuse to start and the write phase will not
-     * begin without WRITE_RESERVE_MS left; either way the ingest throws
+     * begin without its write reserve left (writeReserveMs); either way the ingest throws
      * IngestDeadlineError having written nothing. Omitted: no limit.
      */
     deadline?: number;
@@ -194,7 +194,9 @@ async function runFullScrape(
   userId: string,
   options: { force?: boolean },
 ): Promise<IngestResult> {
+  const fetchStarted = Date.now();
   const fetched = await fetchAndParseTabs(loaded);
+  const fetchMs = Date.now() - fetchStarted;
   await recordPipelineParserRun(loaded, fetched);
 
   // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
@@ -217,18 +219,23 @@ async function runFullScrape(
   // been written yet. A write phase cut off by the platform would leave a
   // half-committed tournament and a job stuck `running`, so do not begin it
   // without enough time to finish.
-  loaded.fetchSession.assertTimeLeft(WRITE_RESERVE_MS, 'write its results');
+  const reserveMs = writeReserveMs(fetched.totalParticipants, fetched.totalTeams);
+  const remainingAtWrite = loaded.fetchSession.remainingMs();
+  loaded.fetchSession.assertTimeLeft(reserveMs, 'write its results');
 
-  // Logged so WRITE_RESERVE_MS can be tuned from real runs: it is sized by
-  // judgement, not yet measured against Neon at WUDC scale.
+  // Logged so the reserve's per-row rate can be re-checked against real runs.
   const writeStarted = Date.now();
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
   console.info('[ingest] write phase', {
     url: loaded.normalized,
+    // Both halves of the budget: the tab phase, then the write. Together
+    // with the deadline they show how close a tournament came to deferring.
+    fetchMs,
     writeMs: Date.now() - writeStarted,
-    reserveMs: WRITE_RESERVE_MS,
+    reserveMs,
+    remainingAtWriteMs: Number.isFinite(remainingAtWrite) ? Math.round(remainingAtWrite) : null,
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
@@ -246,13 +253,32 @@ async function runFullScrape(
 
 /**
  * Time the write phase (people pre-commit, the main transaction, the bulk
- * score writes) must have in hand before it starts. Sized for WUDC scale with
- * margin; INGEST_WRITE_RESERVE_MS overrides it.
+ * score writes) must have in hand before it starts, for a tournament of this
+ * size. INGEST_WRITE_RESERVE_MS, when set, overrides it with a fixed value.
+ *
+ * Fitted to production (Vercel fra1 → Neon, the 2026-10-25 Re-ingest all,
+ * `[ingest] write phase`): writes ran 1.8 s for 60/25 participants/teams,
+ * 8.5 s for 274/94 (the slowest per row), 11.0 s for 436/192 (SIDO 2026) and
+ * 18.1 s for 1,062/379 (WUDC 2022) — sublinear, about 17 ms per row small
+ * and 12.6 ms at WUDC scale. 4 s + 14 ms per participant + team covers every
+ * one of those (9.2 s, 12.8 s, 24.2 s) while still admitting WUDC 2022,
+ * whose ~23 s fetch phase leaves ~32 s: a reserve fitted to the small end
+ * (25 ms/row) would have deferred it on every attempt, breaking an ingest
+ * that works. Under-reserving is the cheaper error — a write the platform
+ * kills rolls back, and the job is recovered — so the fit errs toward
+ * admitting.
  */
-const WRITE_RESERVE_MS = (() => {
-  const raw = Number(process.env.INGEST_WRITE_RESERVE_MS);
-  return Number.isFinite(raw) && raw >= 0 ? raw : 15_000;
-})();
+export function writeReserveMs(
+  participants: number | null | undefined,
+  teams: number | null | undefined,
+  override: string | undefined = process.env.INGEST_WRITE_RESERVE_MS,
+): number {
+  const fixed = Number(override);
+  if (override !== undefined && override !== '' && Number.isFinite(fixed) && fixed >= 0) return fixed;
+  return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
+}
+const WRITE_RESERVE_BASE_MS = 4_000;
+const WRITE_RESERVE_PER_ROW_MS = 14;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
