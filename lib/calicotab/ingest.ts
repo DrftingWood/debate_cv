@@ -194,7 +194,9 @@ async function runFullScrape(
   userId: string,
   options: { force?: boolean },
 ): Promise<IngestResult> {
+  const fetchStarted = Date.now();
   const fetched = await fetchAndParseTabs(loaded);
+  const fetchMs = Date.now() - fetchStarted;
   await recordPipelineParserRun(loaded, fetched);
 
   // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
@@ -218,6 +220,7 @@ async function runFullScrape(
   // half-committed tournament and a job stuck `running`, so do not begin it
   // without enough time to finish.
   const reserveMs = writeReserveMs(fetched.totalParticipants, fetched.totalTeams);
+  const remainingAtWrite = loaded.fetchSession.remainingMs();
   loaded.fetchSession.assertTimeLeft(reserveMs, 'write its results');
 
   // Logged so the reserve's per-row rate can be re-checked against real runs.
@@ -227,8 +230,12 @@ async function runFullScrape(
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
   console.info('[ingest] write phase', {
     url: loaded.normalized,
+    // Both halves of the budget: the tab phase, then the write. Together
+    // with the deadline they show how close a tournament came to deferring.
+    fetchMs,
     writeMs: Date.now() - writeStarted,
     reserveMs,
+    remainingAtWriteMs: Number.isFinite(remainingAtWrite) ? Math.round(remainingAtWrite) : null,
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
@@ -249,17 +256,17 @@ async function runFullScrape(
  * score writes) must have in hand before it starts, for a tournament of this
  * size. INGEST_WRITE_RESERVE_MS, when set, overrides it with a fixed value.
  *
- * Measured in production (Vercel fra1 → Neon, the first 12 ingests of the
- * 2026-10-25 Re-ingest all, via the `[ingest] write phase` log): the write
- * takes about 17 ms per participant + team, ±30 % run to run — 1.8 s for
- * 60/25, 5.6 s for 244/87, 11.0 s for 436/192 (SIDO 2026). A flat reserve
- * cannot fit both ends: the first guess of 15 s deferred small tournaments
- * for no reason yet sat below WUDC 2024's projected ~19 s, the very write it
- * existed to protect. So it scales: 3 s fixed plus 25 ms per participant +
- * team (17 ms with the variance and some headroom) — 5 s for the smallest
- * above, 18.7 s for SIDO, ~31 s for WUDC 2024. A tournament whose fetch
- * phase leaves less than that defers, writing nothing, rather than be
- * killed mid-transaction.
+ * Fitted to production (Vercel fra1 → Neon, the 2026-10-25 Re-ingest all,
+ * `[ingest] write phase`): writes ran 1.8 s for 60/25 participants/teams,
+ * 8.5 s for 274/94 (the slowest per row), 11.0 s for 436/192 (SIDO 2026) and
+ * 18.1 s for 1,062/379 (WUDC 2022) — sublinear, about 17 ms per row small
+ * and 12.6 ms at WUDC scale. 4 s + 14 ms per participant + team covers every
+ * one of those (9.2 s, 12.8 s, 24.2 s) while still admitting WUDC 2022,
+ * whose ~23 s fetch phase leaves ~32 s: a reserve fitted to the small end
+ * (25 ms/row) would have deferred it on every attempt, breaking an ingest
+ * that works. Under-reserving is the cheaper error — a write the platform
+ * kills rolls back, and the job is recovered — so the fit errs toward
+ * admitting.
  */
 export function writeReserveMs(
   participants: number | null | undefined,
@@ -270,8 +277,8 @@ export function writeReserveMs(
   if (override !== undefined && override !== '' && Number.isFinite(fixed) && fixed >= 0) return fixed;
   return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
 }
-const WRITE_RESERVE_BASE_MS = 3_000;
-const WRITE_RESERVE_PER_ROW_MS = 25;
+const WRITE_RESERVE_BASE_MS = 4_000;
+const WRITE_RESERVE_PER_ROW_MS = 14;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
