@@ -55,6 +55,22 @@ describe('POST /api/ingest/url', () => {
     expect(data.error).toBe('not_a_private_url');
   });
 
+  it('passes a deadline short of the 60 s cap, and queues a tournament that runs out of time', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1'));
+    const { IngestDeadlineError } = await import('@/lib/calicotab/fetchSession');
+    vi.mocked(ingestPrivateUrl).mockRejectedValue(new IngestDeadlineError('out of time'));
+    prismaMock.discoveredUrl.findUnique.mockResolvedValue(null);
+    const before = Date.now();
+    const res = await POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK } }));
+    expect(res.status).toBe(503);
+    expect((await readJson<{ error: string }>(res)).error).toBe('deferred');
+    const opts = vi.mocked(ingestPrivateUrl).mock.calls[0]![2] as { deadline: number };
+    expect(opts.deadline).toBeGreaterThanOrEqual(before + 55_000);
+    expect(opts.deadline).toBeLessThan(before + 60_000);
+    // Handed to the queue, not marked failed.
+    expect(prismaMock.ingestJob.upsert).toHaveBeenCalled();
+  });
+
   it('reschedules deadlock-class failures instead of marking them failed (audit #8)', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
     vi.mocked(ingestPrivateUrl).mockRejectedValue(

@@ -5,6 +5,7 @@ import {
   markJobAbandoned,
   markJobDone,
   markJobFailed,
+  releaseJob,
   rescheduleJob,
 } from '@/lib/queue';
 
@@ -20,7 +21,8 @@ export const DRAIN_CONCURRENCY = (() => {
 })();
 
 export type DrainJob = { id: string; userId: string; url: string; attempts: number };
-export type DrainOutcome = 'done' | 'failed' | 'abandoned' | 'retry';
+/** `deferred`: stopped at its deadline having written nothing; requeued without spending an attempt. */
+export type DrainOutcome = 'done' | 'failed' | 'abandoned' | 'retry' | 'deferred';
 export type DrainResult = { id: string; status: DrainOutcome; error?: string };
 
 export type DrainReport = {
@@ -35,8 +37,11 @@ export type DrainReport = {
 };
 
 export type DrainDeps = {
-  ingest: (url: string, userId: string) => Promise<unknown>;
+  /** `deadline` is epoch ms: the ingest must stop by then (see IngestDeadlineError). */
+  ingest: (url: string, userId: string, opts: { deadline: number }) => Promise<unknown>;
   isDeadlockError: (err: unknown) => boolean;
+  /** Did the ingest stop itself at its deadline? Absent: never. */
+  isDeadlineError?: (err: unknown) => boolean;
   onTerminal?: (
     stage: 'ingest-abandoned' | 'ingest-failed-final' | 'ingest-budget-exhausted',
     err: unknown,
@@ -52,6 +57,14 @@ export type DrainOptions = {
   maxAttempts: number;
   /** Upper bound on simultaneous in-flight ingests. */
   concurrency: number;
+  /**
+   * A job that hits its deadline is given its attempt back only if it
+   * started more than this long into the tick — i.e. it was short-changed.
+   * One that had (nearly) the whole budget and still did not fit spends the
+   * attempt, so a tournament too big for any invocation still ends `failed`
+   * instead of cycling forever. Default 5 s.
+   */
+  lateStartMs?: number;
 };
 
 /**
@@ -117,13 +130,29 @@ export async function drainQueue(
       return;
     }
 
+    // Every job must stop by the end of the tick's budget, which is set below
+    // the platform's hard limit: a job the platform kills runs none of the
+    // bookkeeping below and stays `running` until resetStuckRunning.
+    const jobStartedAt = now();
+    const deadline = started + opts.budgetMs;
     try {
-      await deps.ingest(job.url, job.userId);
+      await deps.ingest(job.url, job.userId, { deadline });
       await markJobDone(job.id);
       results.push({ id: job.id, status: 'done' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (deps.isDeadlockError(err)) {
+      const startedLate = jobStartedAt - started > (opts.lateStartMs ?? 5_000);
+      if (deps.isDeadlineError?.(err) && startedLate) {
+        // Started late, ran out of this tick, wrote nothing: not a failure.
+        await releaseJob(job.id, msg);
+        results.push({ id: job.id, status: 'deferred', error: msg });
+      } else if (deps.isDeadlineError?.(err) && job.attempts >= opts.maxAttempts) {
+        // Had the whole budget, several times, and never fit.
+        const final = `Does not fit in the function time budget even when started first: ${msg}`;
+        deps.onTerminal?.('ingest-budget-exhausted', new Error(final), job);
+        await markJobFailed(job.id, final);
+        results.push({ id: job.id, status: 'failed', error: final });
+      } else if (deps.isDeadlockError(err)) {
         // Deadlock-class failures are transient by definition (postgres
         // aborts the loser of a write race) — always reschedule, never
         // hard-fail, even past maxAttempts. See audit issue #8.

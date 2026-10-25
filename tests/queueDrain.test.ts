@@ -164,3 +164,93 @@ describe('drainQueue — budget and failure handling', () => {
     expect(report.results.filter((r) => r.status === 'retry')).toHaveLength(1);
   });
 });
+
+describe('drainQueue — per-job deadline', () => {
+  // A controllable clock: jobs "take" time by advancing it.
+  function clock(start = 1_000_000) {
+    let t = start;
+    return { now: () => t, advance: (ms: number) => (t += ms) };
+  }
+  class DeadlineError extends Error {
+    name = 'IngestDeadlineError';
+  }
+  const isDeadline = (e: unknown) => e instanceof DeadlineError;
+
+  it("gives every job the end of the tick's budget as its deadline", async () => {
+    fakeQueue(jobsOnDistinctHosts(2));
+    const c = clock();
+    const seen: number[] = [];
+    await drainQueue(
+      {
+        ingest: async (_u, _id, { deadline }) => {
+          seen.push(deadline);
+        },
+        isDeadlockError: () => false,
+        now: c.now,
+      },
+      opts({ budgetMs: 55_000, headroomMs: 0, concurrency: 2 }),
+    );
+    expect(seen).toEqual([1_000_000 + 55_000, 1_000_000 + 55_000]);
+  });
+
+  it('a job started late that runs out is deferred: attempt refunded, place kept', async () => {
+    fakeQueue(jobsOnDistinctHosts(2));
+    const c = clock();
+    const report = await drainQueue(
+      {
+        ingest: async (url) => {
+          if (url.includes('t0.')) {
+            c.advance(20_000); // the first job takes 20 s
+            return;
+          }
+          throw new DeadlineError('out of time');
+        },
+        isDeadlockError: () => false,
+        isDeadlineError: isDeadline,
+        now: c.now,
+      },
+      opts({ budgetMs: 55_000, headroomMs: 30_000, concurrency: 1 }),
+    );
+    expect(report.results.map((r) => r.status)).toEqual(['done', 'deferred']);
+    const release = prismaMock.ingestJob.update.mock.calls.find(
+      (call) => (call[0] as { where: { id: string } }).where.id === 'job1',
+    )![0] as { data: Record<string, unknown> };
+    expect(release.data).toMatchObject({ status: 'pending', attempts: { decrement: 1 } });
+    // Not sent to the back of the queue: it should run first next tick.
+    expect(release.data).not.toHaveProperty('scheduledAt');
+  });
+
+  it('a job that had the whole budget and still ran out spends its attempt', async () => {
+    fakeQueue([{ id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 0 }]);
+    const report = await drainQueue(
+      {
+        ingest: async () => {
+          throw new DeadlineError('out of time');
+        },
+        isDeadlockError: () => false,
+        isDeadlineError: isDeadline,
+      },
+      opts({ budgetMs: 55_000, headroomMs: 0, concurrency: 1 }),
+    );
+    expect(report.results[0]!.status).toBe('retry');
+  });
+
+  it('…and on its last attempt is failed with a clear reason, not cycled forever', async () => {
+    fakeQueue([{ id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 2 }]);
+    const onTerminal = vi.fn();
+    const report = await drainQueue(
+      {
+        ingest: async () => {
+          throw new DeadlineError('out of time');
+        },
+        isDeadlockError: () => false,
+        isDeadlineError: isDeadline,
+        onTerminal,
+      },
+      opts({ budgetMs: 55_000, headroomMs: 0, concurrency: 1 }),
+    );
+    expect(report.results[0]!.status).toBe('failed');
+    expect(report.results[0]!.error).toMatch(/does not fit/i);
+    expect(onTerminal).toHaveBeenCalledWith('ingest-budget-exhausted', expect.anything(), expect.anything());
+  });
+});
