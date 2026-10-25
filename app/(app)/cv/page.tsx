@@ -28,7 +28,7 @@ import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { CvSubNav } from '@/components/CvSubNav';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
-import { bpPlacement, cumulativePoints, isFourTeamRound, ledgerRoundNames } from '@/lib/cv/roundLedger';
+import { bpPlacement, cumulativePoints, isFourTeamRound, ledgerMotions, ledgerRoundNames } from '@/lib/cv/roundLedger';
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
@@ -83,14 +83,14 @@ export default async function CvPage() {
   } = data;
   const { totalTournaments, breaks, totalRoundsChaired } = summary;
 
-  // Motions keyed by tournament + round for the per-round detail strips.
-  const motionsByRound = new Map<string, CvTaggedMotion[]>();
+  // Motions by tournament for the per-round ledger. Outround motions carry no
+  // round number, so the ledger matches those by stage (ledgerMotions).
+  const motionsByTournament = new Map<string, CvTaggedMotion[]>();
   for (const m of taggedMotions) {
-    if (m.roundNumber == null) continue;
-    const key = `${m.tournamentId}:${m.roundNumber}`;
-    const list = motionsByRound.get(key) ?? [];
+    const key = m.tournamentId.toString();
+    const list = motionsByTournament.get(key) ?? [];
     list.push(m);
-    motionsByRound.set(key, list);
+    motionsByTournament.set(key, list);
   }
   const fieldByTournament = new Map(fieldStats.map((f) => [f.tournamentId.toString(), f]));
 
@@ -213,7 +213,7 @@ export default async function CvPage() {
               />
               <SpeakingTable
                 rows={speakerRows}
-                motionsByRound={motionsByRound}
+                motionsByTournament={motionsByTournament}
                 fieldByTournament={fieldByTournament}
               />
               {/*
@@ -323,11 +323,11 @@ function ReportCell({
  */
 function RoundLedger({
   r,
-  motionsByRound,
+  motionsByTournament,
   className,
 }: {
   r: SpeakingTableRow;
-  motionsByRound: Map<string, CvTaggedMotion[]>;
+  motionsByTournament: Map<string, CvTaggedMotion[]>;
   className?: string;
 }) {
   const scoreByRound = new Map(r.roundScores.map((s) => [s.roundNumber, s]));
@@ -337,9 +337,6 @@ function RoundLedger({
   );
   if (roundNumbers.length === 0) return null;
 
-  const anyMotion = roundNumbers.some(
-    (n) => (motionsByRound.get(`${r.tournamentId}:${n}`) ?? []).length > 0,
-  );
   // "Round 7" / "Quarterfinals", not "R7"; points as a running total; and a
   // four-team (BP) room shows a placement, since nobody "wins" it outright.
   const roundNames = ledgerRoundNames({
@@ -347,6 +344,15 @@ function RoundLedger({
     prelimRoundCount: r.prelimRoundCount,
     eliminationReached: r.eliminationReached,
   });
+  const motionsByRound = ledgerMotions({
+    roundNumbers,
+    roundNames,
+    prelimRoundCount: r.prelimRoundCount,
+    eliminationReached: r.eliminationReached,
+    multiCategoryRun: (r.eliminationReachedByCategory?.length ?? 0) > 1,
+    motions: motionsByTournament.get(r.tournamentId.toString()) ?? [],
+  });
+  const anyMotion = roundNumbers.some((n) => (motionsByRound.get(n) ?? []).length > 0);
   const totalPoints = cumulativePoints(r.teamRoundResults);
 
   return (
@@ -375,7 +381,7 @@ function RoundLedger({
             {roundNumbers.map((n) => {
               const score = scoreByRound.get(n);
               const result = resultByRound.get(n);
-              const motions = motionsByRound.get(`${r.tournamentId}:${n}`) ?? [];
+              const motions = motionsByRound.get(n) ?? [];
               const placement = isFourTeamRound({ position: result?.position ?? null, format: r.format })
                 ? bpPlacement(result?.points ?? null)
                 : null;
@@ -439,11 +445,11 @@ function RoundLedger({
 
 function SpeakingTable({
   rows,
-  motionsByRound,
+  motionsByTournament,
   fieldByTournament,
 }: {
   rows: SpeakingTableRow[];
-  motionsByRound: Map<string, CvTaggedMotion[]>;
+  motionsByTournament: Map<string, CvTaggedMotion[]>;
   fieldByTournament: Map<string, CvFieldStat>;
 }) {
   return (
@@ -571,7 +577,7 @@ function SpeakingTable({
                   {hasRoundDetail ? (
                     <tr className="border-b border-border">
                       <td colSpan={13} className="px-4 py-0">
-                        <RoundLedger r={r} motionsByRound={motionsByRound} />
+                        <RoundLedger r={r} motionsByTournament={motionsByTournament} />
                       </td>
                     </tr>
                   ) : null}
@@ -626,7 +632,7 @@ function SpeakingTable({
                 {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
                 {r.teammates.length ? <Field label="Partner" value={r.teammates.join(', ')} /> : null}
               </dl>
-              <RoundLedger r={r} motionsByRound={motionsByRound} />
+              <RoundLedger r={r} motionsByTournament={motionsByTournament} />
               <ReportCell r={r} />
             </li>
           );

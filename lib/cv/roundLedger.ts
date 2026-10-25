@@ -1,5 +1,6 @@
 import { formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
+import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
 
 /**
  * Pure helpers behind the per-round ledger on /cv.
@@ -90,4 +91,80 @@ const PLACEMENTS = ['4th', '3rd', '2nd', '1st'] as const;
 export function bpPlacement(points: number | null): string | null {
   if (points == null || !Number.isInteger(points) || points < 0 || points > 3) return null;
   return PLACEMENTS[points];
+}
+
+/** Stage key for matching: a "Final" and a "Grand Final" are the same last round. */
+function stageKey(label: string | null | undefined): string | null {
+  const { stage } = splitStageLabel(label);
+  if (!stage) return null;
+  return stage === 'grand_final' ? 'final' : stage;
+}
+
+/** Category key: no category and "Open" are both the open bracket. */
+function categoryKey(label: string | null | undefined): string {
+  const { category } = splitStageLabel(label);
+  return !category || category.toLowerCase() === 'open' ? 'open' : category.toLowerCase();
+}
+
+/**
+ * The motions to show on each ledger row.
+ *
+ * Prelim motions are stored with their round number, so a row takes the
+ * motions whose roundNumber is its own. Outround motions are stored with
+ * roundNumber null and only a label ("Quarterfinals", "ESL Grand Final"), so
+ * a ledger row named for an outround by ledgerRoundNames takes the motions
+ * whose label names the same stage, read by the stage lexicon, in the same
+ * break category as the team's run (eliminationReached: "ESL Semifinals" →
+ * ESL; a bare stage → the open bracket).
+ *
+ * A bare stage in eliminationReached ("Semifinals") reads as the open
+ * bracket. That is the stored convention: a run in another bracket keeps its
+ * category in the string ("ESL Semifinals"; see formatStageForDisplay).
+ *
+ * When unsure, no motion:
+ *   - a run in more than one bracket (`multiCategoryRun`, i.e.
+ *     eliminationReachedByCategory is set): ledgerRoundNames counts every
+ *     outround back from one bracket's last stage, so an Open Octofinals row
+ *     can be named for the ESL ladder, and its stage match would pick the
+ *     wrong bracket's motion;
+ *   - a tournament with any partial-round motion ("Partial Octofinals",
+ *     "Pre-quarterfinals"): the ladder has no partial rung, so a partial round
+ *     the team debated would be named for the full stage after it;
+ *   - a row whose name fell back to "Round N" is not matched by stage;
+ *   - motions under more than one label for the same stage and category
+ *     ("Semifinals" and "Open Semifinals", or "Final" and "Grand Final" in
+ *     one bracket): none is shown rather than pick one.
+ * Several motions under one label stay together, as a prelim's do. A motion
+ * with its own round number is never moved onto another row.
+ */
+export function ledgerMotions<M extends { roundNumber: number | null; roundLabel: string; seq: number }>(input: {
+  roundNumbers: number[];
+  roundNames: Map<number, string>;
+  prelimRoundCount: number | null;
+  eliminationReached: string | null;
+  multiCategoryRun?: boolean;
+  motions: M[];
+}): Map<number, M[]> {
+  const out = new Map<number, M[]>();
+  const teamCategory = categoryKey(input.eliminationReached);
+  const unnumbered = input.motions.filter((m) => m.roundNumber == null);
+  const hasPartialRound = unnumbered.some((m) => splitStageLabel(m.roundLabel).stage?.startsWith('partial_'));
+  const matchByStage = !input.multiCategoryRun && !hasPartialRound;
+  for (const n of input.roundNumbers) {
+    const direct = input.motions.filter((m) => m.roundNumber === n);
+    if (direct.length > 0) {
+      out.set(n, direct.sort((a, b) => a.seq - b.seq));
+      continue;
+    }
+    const isOutround = input.prelimRoundCount != null && n > input.prelimRoundCount;
+    const name = input.roundNames.get(n);
+    const stage = isOutround && matchByStage ? stageKey(name) : null;
+    if (!stage) continue;
+    const matches = unnumbered.filter(
+      (m) => stageKey(m.roundLabel) === stage && categoryKey(m.roundLabel) === teamCategory,
+    );
+    if (new Set(matches.map((m) => m.roundLabel.trim().toLowerCase())).size !== 1) continue;
+    out.set(n, matches.sort((a, b) => a.seq - b.seq));
+  }
+  return out;
 }
