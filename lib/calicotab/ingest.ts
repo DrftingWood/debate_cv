@@ -1,7 +1,13 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
-import { FETCH_MIN_INTERVAL_MS, fetchHtmlWithProvenance, fetchRoundWithProvenance, isCdnRateLimit } from './fetch';
+import {
+  FETCH_MIN_INTERVAL_MS,
+  fetchHtmlWithProvenance,
+  fetchRoundWithProvenance,
+  isCdnRateLimit,
+  isWithheldByTournament,
+} from './fetch';
 import { FetchSession } from './fetchSession';
 import {
   API_TIMEOUT_MS,
@@ -470,11 +476,30 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // Build a shared fetch helper for this ingest that records failures into
   // the fetchWarnings buffer so the landing ParserRun tells the operator
   // exactly which tabs upstream refused to serve.
-  const fetchTab = async (targetUrl: string, label: string): Promise<string | null> => {
+  //
+  // `enrichment` marks a page the CV can do without (participants: it adds
+  // institutions and everyone's role, while the owner's own registration card
+  // comes from the landing page). When the tournament itself withholds such a
+  // page — Tabbycat's own "Permission Denied (403)" or a 404 — that is a fact
+  // about the tournament, not a fault, so it is noted as `optional:` and the
+  // ingest goes on. A CDN block, a timeout or a 5xx still fails the ingest and
+  // is retried like any other tab.
+  const fetchTab = async (targetUrl: string, label: string, enrichment = false): Promise<string | null> => {
     const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
     if (r.ok) return r.html;
+    // Never when we already hold participants for this tournament: a forced
+    // re-ingest skips the regression guard and would rewrite them from the
+    // landing page alone, losing the institutions and roles stored earlier.
+    // That case keeps failing, as it did before this was optional.
+    const hasStoredParticipants = (loaded.existing?.totalParticipants ?? 0) > 0;
+    if (enrichment && !hasStoredParticipants && isWithheldByTournament(r)) {
+      fetchWarnings.push(`optional: ${label} HTTP ${r.status} (not public for this tournament)`);
+      return null;
+    }
+    // Only a CDN block is helped by the scraper proxy; the tournament's own
+    // "Permission Denied" is not, and the old hint sent people after the wrong fix.
     const hint =
-      r.status === 403 && !process.env.SCRAPER_API_KEY
+      r.status === 403 && r.cdnBlocked !== false && !process.env.SCRAPER_API_KEY
         ? ' (set SCRAPER_API_KEY to bypass Cloudflare blocking)'
         : '';
     // Status + hint only — see the landing-fetch note above for why the
@@ -549,7 +574,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
     htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
-    nav.participants ? fetchTab(nav.participants, 'participants') : Promise.resolve(null),
+    nav.participants ? fetchTab(nav.participants, 'participants', true) : Promise.resolve(null),
     nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and

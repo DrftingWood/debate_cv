@@ -115,3 +115,104 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
   });
 });
+
+describe('fetchHtmlWithProvenance: network errors and who refused', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.clearAllTimers();
+    vi.restoreAllMocks();
+  });
+
+  test('a dropped connection then 200 → retried, returns ok', async () => {
+    // A timeout or reset used to skip the retry loop altogether (only HTTP
+    // statuses were retried), so one slow response failed the whole job: WUDC
+    // 2022 rounds 6-9 came back "HTTP 0" although the pages load fine.
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(new Response('<html>round rows</html>', { status: 200 }));
+    globalThis.fetch = mockFetch;
+    const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
+    const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/results/round/6/');
+    await advance(5000);
+    const result = await promise;
+    expect(mockFetch.mock.calls.length).toBe(2);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.html).toContain('round rows');
+  });
+
+  test('a host that never answers → status 0 after one retry', async () => {
+    const mockFetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    globalThis.fetch = mockFetch;
+    const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
+    const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/results/round/6/');
+    await advance(10_000);
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(0);
+    // One retry, not two: a timeout costs 15 s and the function has 60.
+    expect(mockFetch.mock.calls.length).toBe(2);
+  });
+
+  test('a redirect off the allowlist is a refusal, never retried', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/latest/' } }),
+      );
+    globalThis.fetch = mockFetch;
+    const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
+    const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/results/round/6/');
+    await advance(10_000);
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.bodyPreview).toMatch(/allowlist/);
+    expect(mockFetch.mock.calls.length).toBe(1);
+  });
+
+  test('a failure says whether a CDN or the tournament refused it', async () => {
+    // Tabbycat answers "Permission Denied (403)" itself for a page the
+    // tournament keeps private (the IITM PD and HKPDS participants lists).
+    // Only a CDN 403 is a fault worth failing an ingest over.
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('Permission Denied', { status: 403, headers: { server: 'nginx' } }));
+    let mod = await import('@/lib/calicotab/fetch');
+    let p = mod.fetchHtmlWithProvenance('https://example.calicotab.com/t/participants/list/');
+    await advance(10_000);
+    let r = await p;
+    expect(!r.ok && r.cdnBlocked).toBe(false);
+
+    vi.resetModules();
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('blocked', { status: 403, headers: { 'cf-ray': '8f2a1b3c-LHR' } }));
+    mod = await import('@/lib/calicotab/fetch');
+    p = mod.fetchHtmlWithProvenance('https://example.calicotab.com/t/participants/list/');
+    await advance(10_000);
+    r = await p;
+    expect(!r.ok && r.cdnBlocked).toBe(true);
+  });
+});
+
+describe('isWithheldByTournament', () => {
+  test('the tournament withholding a page is not a fault; a CDN, timeout or 5xx is', async () => {
+    const { isWithheldByTournament } = await import('@/lib/calicotab/fetch');
+    // Tabbycat's own "Permission Denied (403)" and a page that does not exist.
+    expect(isWithheldByTournament({ status: 403, cdnBlocked: false })).toBe(true);
+    expect(isWithheldByTournament({ status: 404, cdnBlocked: false })).toBe(true);
+    expect(isWithheldByTournament({ status: 410 })).toBe(true);
+    // Cloudflare push-back, an unknown origin, timeouts and server errors.
+    expect(isWithheldByTournament({ status: 403, cdnBlocked: true })).toBe(false);
+    expect(isWithheldByTournament({ status: 403 })).toBe(false);
+    expect(isWithheldByTournament({ status: 0, cdnBlocked: false })).toBe(false);
+    expect(isWithheldByTournament({ status: 503, cdnBlocked: true })).toBe(false);
+    expect(isWithheldByTournament({ status: 500, cdnBlocked: false })).toBe(false);
+  });
+});

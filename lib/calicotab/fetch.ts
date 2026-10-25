@@ -95,6 +95,19 @@ export function isCdnRateLimit(status: number, headers: Headers): boolean {
   );
 }
 
+/**
+ * Did the tournament itself say this page is not available? Tabbycat answers
+ * "Permission Denied (403)" from the origin for a page the organisers keep
+ * private (the IITM PD 2025 and HKPDS participants lists), and 404 for one
+ * that does not exist. Neither will change on a retry, so neither is a fault
+ * in our fetch — unlike a CDN block, a timeout or a 5xx. An absent
+ * `cdnBlocked` is unknown and counts as a fault.
+ */
+export function isWithheldByTournament(r: { status: number; cdnBlocked?: boolean }): boolean {
+  if (r.status === 404 || r.status === 410) return true;
+  return r.status === 403 && r.cdnBlocked === false;
+}
+
 /** Should this response be retried? 403 only when a CDN issued it. */
 export function isRetryableStatus(status: number, headers: Headers): boolean {
   if (status === 403) return isCdnRateLimit(403, headers);
@@ -255,13 +268,40 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
 async function fetchWithRetry(url: string, session: FetchSession, referer?: string): Promise<Response> {
   const delays = [0, 1_000, 3_000];
   let lastRes: Response | null = null;
+  let lastErr: unknown = null;
+  let networkRetries = 0;
   for (const delay of delays) {
     if (delay > 0) await wait(delay);
-    const res = await throttledFetch(url, session, referer);
+    let res: Response;
+    try {
+      res = await throttledFetch(url, session, referer);
+    } catch (err) {
+      // A timeout or a dropped connection used to skip this loop entirely —
+      // only HTTP statuses were retried — so one slow response failed the
+      // whole ingest (WUDC 2022 rounds 6-9 came back "HTTP 0" though the pages
+      // load fine). One retry only: a timeout costs FETCH_TIMEOUT_MS, and a
+      // dead host must not eat the function's budget three times over.
+      // Everything else (redirect off the allowlist, a bad URL) is a refusal
+      // and rethrows at once.
+      if (!isTransientNetworkError(err) || networkRetries >= 1) throw err;
+      networkRetries += 1;
+      lastErr = err;
+      lastRes = null;
+      continue;
+    }
+    lastErr = null;
     if (!isRetryableStatus(res.status, res.headers)) return res;
     lastRes = res;
   }
-  return lastRes!;
+  if (lastRes) return lastRes;
+  throw lastErr;
+}
+
+/** The two ways a request to a healthy host fails for no lasting reason. */
+function isTransientNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.message.startsWith('fetch timeout after')) return true;
+  return err instanceof TypeError && err.message === 'fetch failed';
 }
 
 export type FetchResult =
@@ -281,6 +321,14 @@ export type FetchResult =
       status: number;
       bodyPreview: string;
       elapsedMs: number;
+      /**
+       * True when a CDN (Cloudflare) refused the request, false when the
+       * tournament's own server did — Tabbycat answers "Permission Denied
+       * (403)" itself for a page the organisers keep private. Only the first
+       * is a fault to retry; the second will answer the same forever. Absent
+       * means unknown, which callers treat as a CDN.
+       */
+      cdnBlocked?: boolean;
     };
 
 /**
@@ -311,6 +359,7 @@ export async function fetchHtmlWithProvenance(
       status: 0,
       bodyPreview: err instanceof Error ? err.message.slice(0, 300) : 'fetch error',
       elapsedMs: Date.now() - start,
+      cdnBlocked: false,
     };
   }
   const html = await res.text();
@@ -323,6 +372,7 @@ export async function fetchHtmlWithProvenance(
       status: res.status,
       bodyPreview: html.slice(0, 300),
       elapsedMs,
+      cdnBlocked: isCdnRateLimit(res.status, res.headers),
     };
   }
 
@@ -336,6 +386,7 @@ export async function fetchHtmlWithProvenance(
       status: 503,
       bodyPreview: 'Cloudflare JS challenge page (requires browser execution)',
       elapsedMs,
+      cdnBlocked: true,
     };
   }
 
