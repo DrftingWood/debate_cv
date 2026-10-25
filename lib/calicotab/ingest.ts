@@ -219,9 +219,20 @@ async function runFullScrape(
   // without enough time to finish.
   loaded.fetchSession.assertTimeLeft(WRITE_RESERVE_MS, 'write its results');
 
+  // Logged so WRITE_RESERVE_MS can be tuned from real runs: it is sized by
+  // judgement, not yet measured against Neon at WUDC scale.
+  const writeStarted = Date.now();
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
-  return finalizePostTransaction(loaded, fetched, txResult, userId);
+  const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
+  console.info('[ingest] write phase', {
+    url: loaded.normalized,
+    writeMs: Date.now() - writeStarted,
+    reserveMs: WRITE_RESERVE_MS,
+    participants: fetched.totalParticipants ?? null,
+    teams: fetched.totalTeams ?? null,
+  });
+  return result;
 }
 
 // ─── Concurrent-scrape claim ──────────────────────────────────────────────

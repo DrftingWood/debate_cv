@@ -49,6 +49,14 @@ describe('POST /api/cron/process-queue', () => {
     expect(drainQueue).toHaveBeenCalledTimes(1);
   });
 
+  it('a failure after the 202 still reaches Sentry', async () => {
+    const Sentry = await import('@sentry/nextjs');
+    drainQueue.mockRejectedValueOnce(new Error('db down'));
+    await POST(req('?respond=early'));
+    await afterCallbacks[0]!();
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalled();
+  });
+
   it('still refuses an unauthorised caller, early or not', async () => {
     const res = await POST(new Request('https://app.test/api/cron/process-queue?respond=early', { method: 'POST' }));
     expect(res.status).toBe(401);

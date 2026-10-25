@@ -81,7 +81,14 @@ async function handle(req: Request) {
   }
   if (respondEarly(req)) {
     after(async () => {
-      await runOnce();
+      // Once the 202 is sent nobody reads this response, so a failure here
+      // must reach Sentry or it is invisible. runOnce reports its own errors;
+      // this catches anything thrown around it.
+      try {
+        await runOnce();
+      } catch (err) {
+        Sentry.captureException(err, { tags: { route: 'api/cron/process-queue', stage: 'after' } });
+      }
     });
     return NextResponse.json({ accepted: true }, { status: 202 });
   }
