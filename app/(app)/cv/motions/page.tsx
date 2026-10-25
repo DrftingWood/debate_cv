@@ -5,7 +5,7 @@ import { ScrollText, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import { buildMotionEntries, type MotionEntry } from '@/lib/cv/motionEntries';
+import { buildMotionEntries, judgedWithoutKnownRounds, type MotionEntry } from '@/lib/cv/motionEntries';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -53,6 +53,9 @@ export default async function CvMotionsPage() {
   // Motions don't need the field summary — no placement figures here.
   const data = await buildCvData(session.user.id, { includeFieldStats: false });
   const entries = buildMotionEntries(data.speakerRows, data.judgeRows, data.taggedMotions);
+  // Tournaments the user judged whose panels are not recorded: left out
+  // rather than listed in full, and counted so the page can say so.
+  const leftOut = judgedWithoutKnownRounds(data.speakerRows, data.judgeRows, data.taggedMotions);
 
   const debated = entries.filter((e) => e.debated);
   const tagged = debated.filter((e) => e.motion.motionType || e.motion.topic).length;
@@ -81,8 +84,16 @@ export default async function CvMotionsPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
           Scraped from each tournament&rsquo;s motions tab and joined to the round you debated it
-          in. Tournaments that never released their motions publicly do not appear.
+          in. For tournaments you judged, only the rounds you sat on a panel for are listed.
+          Tournaments that never released their motions publicly do not appear.
         </p>
+        {leftOut > 0 ? (
+          <p className="mt-2 max-w-2xl text-caption text-ink-soft">
+            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'} not
+            listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded, so there is
+            no telling which rounds you sat on.
+          </p>
+        ) : null}
       </header>
 
       <CvSubNav active="motions" />

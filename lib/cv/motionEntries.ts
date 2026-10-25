@@ -1,4 +1,5 @@
 import type { CvSpeakerRow, CvJudgeRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
+import { categoryKey, stageKey } from '@/lib/cv/roundLedger';
 
 /**
  * One released motion, joined to whatever the user's record says about the
@@ -29,11 +30,17 @@ export type MotionEntry = {
  * join has four rules that are each easy to get wrong, and one of them
  * (judging) was wrong in the first cut.
  *
- *  1. **Judging tournaments count.** A chair sat in the room for those
- *     motions and they belong on the record. The first version joined
- *     through speaker rows only, which silently dropped every motion from
- *     a tournament the user judged. They carry no score or result and are
- *     marked `judgedOnly` so summary figures don't count them as debated.
+ *  1. **Judged rounds count, and only those.** A judge sat in the room for
+ *     the rounds they were on a panel for, not the whole tournament. The
+ *     first version joined through speaker rows only, which dropped every
+ *     motion from a tournament the user judged; the second over-corrected
+ *     and listed every round of it. Now a judged-only tournament lists the
+ *     prelim rounds in `judgedRoundNumbers` and the outround stages in
+ *     `judgedOutroundStages` (same bracket, "Final" = "Grand Final"), and
+ *     nothing else. When the rounds are not recorded it lists none rather
+ *     than guess (see judgedWithoutKnownRounds). Entries carry no score or
+ *     result and are marked `judgedOnly` so summary figures don't count
+ *     them as debated.
  *  2. **Outround motions have no round number** and therefore never join
  *     to round data — they still appear, with nothing attached.
  *  3. **A round can release several motions.** Every one of them gets the
@@ -67,6 +74,7 @@ export function buildMotionEntries(
     const row = speakerByTournament.get(tid);
     const judgeRow = judgeByTournament.get(tid);
     if (!row && !judgeRow) continue;
+    if (!row && judgeRow && !sat(judgeRow, motion)) continue;
 
     const score =
       row && motion.roundNumber != null
@@ -103,4 +111,38 @@ export function buildMotionEntries(
     return a.motion.seq - b.motion.seq;
   });
   return entries;
+}
+
+/** Did this judge sit on a panel for the round this motion was released for? */
+function sat(judge: CvJudgeRow, motion: CvTaggedMotion): boolean {
+  if (motion.roundNumber != null) return judge.judgedRoundNumbers.includes(motion.roundNumber);
+  // Outround motions carry only a label: match the stage, within the same bracket.
+  const stage = stageKey(motion.roundLabel);
+  if (!stage) return false;
+  const bracket = categoryKey(motion.roundLabel);
+  return judge.judgedOutroundStages.some((s) => stageKey(s) === stage && categoryKey(s) === bracket);
+}
+
+/**
+ * How many tournaments the user judged, did not speak at, and has released
+ * motions for, but whose judged rounds are not recorded. Their motions are not
+ * listed (we will not claim rounds we cannot show the user sat on), so the
+ * page says how many were left out instead of hiding them silently.
+ */
+export function judgedWithoutKnownRounds(
+  speakerRows: CvSpeakerRow[],
+  judgeRows: CvJudgeRow[],
+  motions: CvTaggedMotion[],
+): number {
+  const spoke = new Set(speakerRows.map((r) => r.tournamentId.toString()));
+  const hasMotions = new Set(motions.map((m) => m.tournamentId.toString()));
+  return judgeRows.filter((r) => {
+    const tid = r.tournamentId.toString();
+    return (
+      !spoke.has(tid) &&
+      hasMotions.has(tid) &&
+      r.judgedRoundNumbers.length === 0 &&
+      r.judgedOutroundStages.length === 0
+    );
+  }).length;
 }
