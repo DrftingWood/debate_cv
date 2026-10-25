@@ -45,18 +45,24 @@ Owner-run. Nothing here has been run against production. Design: `docs/superpowe
 
 ## Steps
 
-### 1. Credentials without pasting them anywhere
+### 1. Credentials: the database URL only
 
-```bash
-npx vercel@latest link           # once, if this checkout isn't linked
-npx vercel@latest env pull .env.production --environment=production
-```
+The runner needs exactly one setting, `POSTGRES_PRISMA_URL`. **Do not use `vercel env pull`:** it writes *every* production secret to disk, including the Google OAuth secret, `TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`, `CRON_SECRET` and the Anthropic key.
 
-`.env.production` is in `.gitignore`. It holds `POSTGRES_PRISMA_URL` (pooled) and `POSTGRES_URL_NON_POOLING` (direct).
+1. Copy the **pooled** connection string from the Neon console (Connection details, *Pooled connection*) or from Vercel → Storage → the database → `POSTGRES_PRISMA_URL`.
+2. Create `.env.production` (already in `.gitignore`) in the checkout, with one line and nothing else:
 
-**Use the pooled URL,** `POSTGRES_PRISMA_URL`. It is what production's ingests use, so the pre-scrape runs the same code path, and its advisory locks are transaction-scoped and safe under the pooler. The direct URL is only for migrations; nothing here migrates.
+   ```
+   POSTGRES_PRISMA_URL=postgresql://…pooled string…
+   ```
 
-**Delete `.env.production` when the load is finished.**
+3. **Delete the file when the load is finished.**
+
+Why pooled: it is what production's ingests use, so the pre-scrape runs the same code path, and its advisory locks are transaction-scoped and safe under the pooler. The direct (non-pooling) URL is only for migrations, and nothing here migrates.
+
+**Verified with nothing else set (2026-10-26).** The runner was run against a local throwaway Postgres with an environment holding only `POSTGRES_PRISMA_URL` and the operating system's own variables: no `TOKEN_ENCRYPTION_KEY`, no `AUTH_*`, no `SENTRY_*`, no Google or Anthropic keys. It wrote ILNU RR 2026 in full (41 participants, 50 judge rows) and the duplicates check came back `[]`. No import reads another variable at load time.
+
+**No Sentry:** with no Sentry DSN set, the runner reports nothing to production Sentry. Its record is the report file and the console.
 
 ### 2. Safety net: a branch before writing
 
@@ -103,7 +109,12 @@ On Windows PowerShell, run it from Git Bash, or set the variables with `$env:NAM
    - `skipped` entries are roots that link several tournaments, which is by design.
 2. **The step 3 queries again:** the total should have grown by about 0.27–0.40 GB, and the tournament count by the number of `written` entries.
 3. **The cache path works for real:** have one user re-scan, or ingest one private URL for a stage-A tournament. Its log should show a cache hit (`cached: true`) in about a second, with no `[ingest] tabbycat api` line for that URL.
-4. **If all is well, delete the `pre-b9-load` branch** in the console.
+4. **Tag the new motions.** The load adds the motions of every stage-A tournament that released them, roughly 2,000–3,000, all untagged. So the Motions pages would otherwise be full of untagged items. On `/admin/tags`:
+   1. **Download untagged**;
+   2. hand the file to Claude for answers;
+   3. **Load answers** (they file as pending);
+   4. review, then **Approve all**.
+5. **Delete `.env.production`.** If all is well, also delete the `pre-b9-load` branch in the console.
 
 ### 6. Stage B, only if production is ≤ 0.55 GB after stage A
 
@@ -124,13 +135,25 @@ Build the stage-B list the same way as stage A, from the corpus index, for 2020�
 
   **Either way, ingests done by real users after that point are lost too,** and those users would need to re-scan. Prefer the partial rollback once users have ingested since the load.
 
-- **Partial: just the pre-scraped tournaments.** The report lists each written tournament's `tournamentId`. Delete those that no user has ingested since:
+- **Partial: just the pre-scraped tournaments.** The report lists each written tournament's `tournamentId`. Remove those that no user has ingested since.
+
+  **The delete cascades:** participants, results, scores, judge rows, motions, and **any tags approved on those motions**. So count first, then do a dry run inside a transaction:
 
   ```sql
   -- ids: every "written" tournamentId from prescrape-stage-a.json
+  -- 1. How many would go?
+  SELECT count(*) FROM "Tournament" t
+  WHERE t.id = ANY('{<ids>}'::bigint[])
+    AND NOT EXISTS (SELECT 1 FROM "DiscoveredUrl" d WHERE d."tournamentId" = t.id);
+
+  -- 2. Dry run: same statement, then ROLLBACK. The count it reports must match step 1.
+  BEGIN;
   DELETE FROM "Tournament" t
   WHERE t.id = ANY('{<ids>}'::bigint[])
     AND NOT EXISTS (SELECT 1 FROM "DiscoveredUrl" d WHERE d."tournamentId" = t.id);
+  ROLLBACK;
+
+  -- 3. Only when 1 and 2 agree: run the DELETE again with COMMIT instead of ROLLBACK.
   ```
 
-  This cascades to participants, results, scores, judge rows and motions. The Person rows it leaves unattached are harmless. Tournaments a user has ingested since are kept: the user's data is theirs.
+  The Person rows it leaves unattached are harmless. Tournaments a user has ingested since are kept: the user's data is theirs.
