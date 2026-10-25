@@ -3,6 +3,7 @@ import {
   bpPlacement,
   cumulativePoints,
   isFourTeamRound,
+  ledgerMotions,
   ledgerRoundNames,
 } from '@/lib/cv/roundLedger';
 
@@ -105,5 +106,75 @@ describe('four-team (BP) rounds', () => {
     expect(bpPlacement(0)).toBe('4th');
     expect(bpPlacement(null)).toBeNull();
     expect(bpPlacement(7)).toBeNull();
+  });
+});
+
+describe('ledgerMotions', () => {
+  const m = (roundNumber: number | null, roundLabel: string, text: string, seq = 1) => ({
+    roundNumber,
+    roundLabel,
+    seq,
+    text,
+  });
+  const ledger = (eliminationReached: string | null, motions: ReturnType<typeof m>[], roundNumbers = [1, 2, 6, 7, 8]) => {
+    const roundNames = ledgerRoundNames({ roundNumbers, prelimRoundCount: 5, eliminationReached });
+    const got = ledgerMotions({ roundNumbers, roundNames, prelimRoundCount: 5, eliminationReached, motions });
+    return (n: number) => (got.get(n) ?? []).map((x) => x.text);
+  };
+
+  it('prelims take the motions stored under their round number', () => {
+    const at = ledger(null, [m(1, 'Round 1', 'THW ban zoos'), m(2, 'Round 2', 'THBT art', 2), m(2, 'Round 2', 'THR X', 1)]);
+    expect(at(1)).toEqual(['THW ban zoos']);
+    expect(at(2)).toEqual(['THR X', 'THBT art']);
+  });
+
+  it('outrounds take the motion whose label names the same stage', () => {
+    const at = ledger('Final', [
+      m(null, 'Quarterfinals', 'QF motion'),
+      m(null, 'Semifinals', 'SF motion'),
+      m(null, 'Grand Final', 'GF motion'),
+    ]);
+    expect(at(6)).toEqual(['QF motion']);
+    expect(at(7)).toEqual(['SF motion']);
+    // "Grand Final" and the ledger's "Final" are the same last round.
+    expect(at(8)).toEqual(['GF motion']);
+  });
+
+  it("takes the team's own bracket: an open run never shows the ESL motion, nor the reverse", () => {
+    const motions = [m(null, 'Semifinals', 'Open SF'), m(null, 'ESL Semifinals', 'ESL SF')];
+    expect(ledger('Semifinals', motions, [1, 6, 7])(7)).toEqual(['Open SF']);
+    expect(ledger('ESL Semifinals', motions, [1, 6, 7])(7)).toEqual(['ESL SF']);
+  });
+
+  it('"Open Semifinals" counts as the open bracket', () => {
+    expect(ledger('Semifinals', [m(null, 'Open Semifinals', 'Open SF')], [1, 6, 7])(7)).toEqual(['Open SF']);
+  });
+
+  it('two different labels for one stage and bracket: unsure, so no motion', () => {
+    const at = ledger('Final', [m(null, 'Final', 'one'), m(null, 'Grand Final', 'two')]);
+    expect(at(8)).toEqual([]);
+  });
+
+  it('a row named "Round N" (unknown stage) is never matched by stage', () => {
+    const at = ledger(null, [m(null, 'Quarterfinals', 'QF motion')]);
+    expect(at(6)).toEqual([]);
+  });
+
+  it('a numbered motion is not moved onto another row, and wins over a stage match', () => {
+    const at = ledger('Final', [m(8, 'Grand Final', 'numbered GF'), m(null, 'Grand Final', 'stage GF', 2)]);
+    expect(at(8)).toEqual(['numbered GF']);
+    expect(at(7)).toEqual([]);
+  });
+
+  it('no prelim count: nothing is treated as an outround', () => {
+    const names = ledgerRoundNames({ roundNumbers: [6], prelimRoundCount: null, eliminationReached: 'Final' });
+    const got = ledgerMotions({
+      roundNumbers: [6],
+      roundNames: names,
+      prelimRoundCount: null,
+      eliminationReached: 'Final',
+      motions: [m(null, 'Grand Final', 'GF')],
+    });
+    expect(got.get(6)).toBeUndefined();
   });
 });

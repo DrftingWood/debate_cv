@@ -1,5 +1,6 @@
 import { formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
+import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
 
 /**
  * Pure helpers behind the per-round ledger on /cv.
@@ -90,4 +91,64 @@ const PLACEMENTS = ['4th', '3rd', '2nd', '1st'] as const;
 export function bpPlacement(points: number | null): string | null {
   if (points == null || !Number.isInteger(points) || points < 0 || points > 3) return null;
   return PLACEMENTS[points];
+}
+
+/** Stage key for matching: a "Final" and a "Grand Final" are the same last round. */
+function stageKey(label: string | null | undefined): string | null {
+  const { stage } = splitStageLabel(label);
+  if (!stage) return null;
+  return stage === 'grand_final' ? 'final' : stage;
+}
+
+/** Category key: no category and "Open" are both the open bracket. */
+function categoryKey(label: string | null | undefined): string {
+  const { category } = splitStageLabel(label);
+  return !category || category.toLowerCase() === 'open' ? 'open' : category.toLowerCase();
+}
+
+/**
+ * The motions to show on each ledger row.
+ *
+ * Prelim motions are stored with their round number, so a row takes the
+ * motions whose roundNumber is its own. Outround motions are stored with
+ * roundNumber null and only a label ("Quarterfinals", "ESL Grand Final"), so
+ * a ledger row named for an outround by ledgerRoundNames takes the motions
+ * whose label names the same stage, read by the stage lexicon, in the same
+ * break category as the team's run (eliminationReached: "ESL Semifinals" →
+ * ESL; a bare stage → the open bracket).
+ *
+ * When unsure, no motion: a row whose name fell back to "Round N" is not
+ * matched by stage, and if motions under more than one label claim the same
+ * stage and category ("Semifinals" and "Open Semifinals", or "Final" and
+ * "Grand Final" in one bracket), none is shown rather than pick one. Several
+ * motions under one label stay together, as a prelim's do. A motion with its
+ * own round number is never moved onto another row.
+ */
+export function ledgerMotions<M extends { roundNumber: number | null; roundLabel: string; seq: number }>(input: {
+  roundNumbers: number[];
+  roundNames: Map<number, string>;
+  prelimRoundCount: number | null;
+  eliminationReached: string | null;
+  motions: M[];
+}): Map<number, M[]> {
+  const out = new Map<number, M[]>();
+  const teamCategory = categoryKey(input.eliminationReached);
+  const unnumbered = input.motions.filter((m) => m.roundNumber == null);
+  for (const n of input.roundNumbers) {
+    const direct = input.motions.filter((m) => m.roundNumber === n);
+    if (direct.length > 0) {
+      out.set(n, direct.sort((a, b) => a.seq - b.seq));
+      continue;
+    }
+    const isOutround = input.prelimRoundCount != null && n > input.prelimRoundCount;
+    const name = input.roundNames.get(n);
+    const stage = isOutround ? stageKey(name) : null;
+    if (!stage) continue;
+    const matches = unnumbered.filter(
+      (m) => stageKey(m.roundLabel) === stage && categoryKey(m.roundLabel) === teamCategory,
+    );
+    if (new Set(matches.map((m) => m.roundLabel.trim().toLowerCase())).size !== 1) continue;
+    out.set(n, matches.sort((a, b) => a.seq - b.seq));
+  }
+  return out;
 }
