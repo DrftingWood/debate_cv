@@ -163,6 +163,14 @@ export type CvJudgeRow = {
   judgeTypeTag: string | null;
   inroundsJudged: number | null;
   inroundsChaired: number | null;
+  /**
+   * The prelim round numbers the user sat on a panel for, from their own
+   * assignments. The Motions page lists only these rounds for a tournament
+   * the user judged but did not speak at; `inroundsJudged` is just a count.
+   */
+  judgedRoundNumbers: number[];
+  /** Outround stage labels the user judged ("Quarterfinals", "ESL Semifinals"). */
+  judgedOutroundStages: string[];
   lastOutroundChaired: string | null;
   lastOutroundJudged: string | null;
   broke: boolean;
@@ -1006,6 +1014,26 @@ export async function buildCvData(
     judgeInroundsByTournament.set(a.tournamentId, set);
   }
 
+  // Which rounds the user actually sat on, per tournament. Their own
+  // assignments only (claimed persons), never the whole panel list.
+  const judgedRoundsByTournament = new Map<bigint, Set<number>>();
+  const judgedStagesByTournament = new Map<bigint, Set<string>>();
+  for (const a of judgeAssignmentRows) {
+    if (!claimedPersonIds.has(a.personId)) continue;
+    const kind = classifyRoundLabel(a.stage);
+    if (kind === 'inround') {
+      const n = a.roundNumber ?? Number((a.stage ?? '').match(/\d+/)?.[0]);
+      if (!Number.isFinite(n)) continue;
+      const set = judgedRoundsByTournament.get(a.tournamentId) ?? new Set<number>();
+      set.add(n);
+      judgedRoundsByTournament.set(a.tournamentId, set);
+    } else if (kind === 'outround' && a.stage) {
+      const set = judgedStagesByTournament.get(a.tournamentId) ?? new Set<string>();
+      set.add(a.stage);
+      judgedStagesByTournament.set(a.tournamentId, set);
+    }
+  }
+
   const judgeRows: CvJudgeRow[] = [];
   for (const [tid, p] of judgeByTournament.entries()) {
     const t = tournamentById.get(tid);
@@ -1027,6 +1055,8 @@ export async function buildCvData(
       judgeTypeTag: p.judgeTypeTag,
       inroundsJudged: stats ? stats.size : null,
       inroundsChaired: p.chairedPrelimRounds,
+      judgedRoundNumbers: [...(judgedRoundsByTournament.get(tid) ?? [])].sort((x, y) => x - y),
+      judgedOutroundStages: [...(judgedStagesByTournament.get(tid) ?? [])],
       lastOutroundChaired: p.lastOutroundChaired ?? null,
       lastOutroundJudged,
       broke: !!lastOutroundJudged || judgeBrokeTournaments.has(tid),

@@ -64,6 +64,8 @@ export function makeJudgeRow(overrides: Partial<CvJudgeRow> = {}): CvJudgeRow {
     judgeTypeTag: null,
     inroundsJudged: null,
     inroundsChaired: null,
+    judgedRoundNumbers: [],
+    judgedOutroundStages: [],
     lastOutroundChaired: null,
     lastOutroundJudged: null,
     broke: false,

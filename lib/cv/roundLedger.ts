@@ -94,14 +94,14 @@ export function bpPlacement(points: number | null): string | null {
 }
 
 /** Stage key for matching: a "Final" and a "Grand Final" are the same last round. */
-function stageKey(label: string | null | undefined): string | null {
+export function stageKey(label: string | null | undefined): string | null {
   const { stage } = splitStageLabel(label);
   if (!stage) return null;
   return stage === 'grand_final' ? 'final' : stage;
 }
 
 /** Category key: no category and "Open" are both the open bracket. */
-function categoryKey(label: string | null | undefined): string {
+export function categoryKey(label: string | null | undefined): string {
   const { category } = splitStageLabel(label);
   return !category || category.toLowerCase() === 'open' ? 'open' : category.toLowerCase();
 }
