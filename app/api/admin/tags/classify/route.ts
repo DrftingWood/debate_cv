@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { classifyMotions, isClassifierConfigured } from '@/lib/tags/classifyMotions';
 import { classifyTournamentRegions } from '@/lib/tags/classifyTournaments';
+import { MOTIONS_TODO, TOURNAMENTS_TODO, hostOf } from '@/lib/tags/todo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,20 +17,6 @@ const MAX_MOTIONS_PER_RUN = 40;
 // Tournaments are one short line each, so a run can take more of them.
 const MAX_TOURNAMENTS_PER_RUN = 40;
 
-// What still needs an answer. Filing a suggestion does NOT change
-// Motion.motionType / topic or Tournament.region — only approval does — so
-// "untagged" alone would select the same first batch on every call and a
-// loop over the backlog would never finish. A dimension that already has any
-// proposal (pending, or rejected by the admin) is left alone: pending is
-// already an answer, and a rejected one must not be revived by a re-run.
-const MOTIONS_TODO = {
-  OR: [
-    { motionType: null, tagProposals: { none: { kind: 'motion_type' } } },
-    { topic: null, tagProposals: { none: { kind: 'motion_topic' } } },
-  ],
-};
-const TOURNAMENTS_TODO = { region: null, tagProposals: { none: { kind: 'region' } } };
-
 // Cursors: the last id of the previous pass. An item the model cannot answer
 // (an "unsure" tournament, a motion missing from a failed batch) files no
 // proposal and so stays "to do"; without a cursor it would be picked first
@@ -38,14 +25,6 @@ const Body = z.object({
   motionAfter: z.string().regex(/^[0-9]+$/).optional(),
   tournamentAfter: z.string().regex(/^[0-9]+$/).optional(),
 });
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return '';
-  }
-}
 
 // POST /api/admin/tags/classify — run the Haiku classifier over motions that
 // are missing a type or topic and tournaments missing a region, and file the

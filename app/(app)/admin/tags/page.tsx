@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { requireAdmin } from '@/lib/admin';
 import { AdminTagProposals } from '@/components/AdminTagProposals';
 import { AdminClassifyMotionsButton } from '@/components/AdminClassifyMotionsButton';
+import { AdminTagPreprocess } from '@/components/AdminTagPreprocess';
 import { Button } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default async function AdminTagsPage() {
             Motion.topic columns and become visible on all CVs.
           </span>
           <span className="flex items-center gap-2">
+            <AdminTagPreprocess />
             <AdminClassifyMotionsButton />
             <Link href="/admin">
               <Button variant="outline" size="sm">
