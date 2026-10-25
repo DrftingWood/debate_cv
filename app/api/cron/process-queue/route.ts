@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
+import { isIngestDeadlineError } from '@/lib/calicotab/fetchSession';
 import { pruneIngestArtifacts, prunePlaceholderPersons } from '@/lib/calicotab/provenance';
 import { pruneRateLimits } from '@/lib/rateLimit';
 import { resetStuckRunning } from '@/lib/queue';
@@ -27,10 +28,16 @@ const TIME_BUDGET_MS = 55_000;
  * for another doomed attempt. Nothing ever marked it failed, because the
  * attempt-limit check lives in the catch a killed function never reaches.
  *
- * 30s is the observed worst case for a large tournament plus its writes.
- * Starting a job with less than that left is knowingly starting one we
- * cannot finish — better to end the tick and let the next one have a full
- * budget.
+ * Headroom alone was not enough: a job may START with 30s left, but a
+ * WUDC-scale ingest runs 45-51s (measured locally, 2026-10), so a big job
+ * claimed at t=25s was still killed at 60s. Every job now also carries a
+ * deadline at the end of TIME_BUDGET_MS (lib/queueDrain.ts): it stops itself
+ * before writing anything when time runs short, and a job that was merely
+ * started late goes back to the head of the queue without spending an
+ * attempt, to run first — with the whole budget — on the next tick.
+ *
+ * Starting a job with less than this left is knowingly starting one that
+ * will probably be deferred — better to end the tick.
  */
 const JOB_HEADROOM_MS = 30_000;
 
@@ -51,18 +58,42 @@ function isAuthorized(req: Request): boolean {
   return safeEqual(header, `Bearer ${secret}`) || safeEqual(header, secret);
 }
 
-export async function GET(req: Request) {
+/*
+ * `?respond=early`: answer 202 at once and drain after the response.
+ *
+ * External schedulers give up on a slow response — cron-job.org at 30s, so a
+ * tick that drains for up to 55s showed as a failed run (10 of 30 while a
+ * backlog cleared), and cron-job.org disables a job after enough failures in
+ * a row. The drain itself was never interrupted: the response, not the
+ * work, was late. With this flag the drain runs in after(), which Vercel
+ * keeps alive up to maxDuration, so the budget and deadlines are unchanged;
+ * the caller just stops waiting for the JSON report. The Vercel cron and the
+ * GitHub Actions drain, which wait up to 90s and print the report, keep the
+ * default synchronous behaviour.
+ */
+function respondEarly(req: Request): boolean {
+  return new URL(req.url).searchParams.get('respond') === 'early';
+}
+
+async function handle(req: Request) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  if (respondEarly(req)) {
+    after(async () => {
+      await runOnce();
+    });
+    return NextResponse.json({ accepted: true }, { status: 202 });
   }
   return runOnce();
 }
 
+export async function GET(req: Request) {
+  return handle(req);
+}
+
 export async function POST(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-  return runOnce();
+  return handle(req);
 }
 
 async function runOnce() {
@@ -71,8 +102,9 @@ async function runOnce() {
 
     const report = await drainQueue(
       {
-        ingest: (url, userId) => ingestPrivateUrl(url, userId),
+        ingest: (url, userId, { deadline }) => ingestPrivateUrl(url, userId, { deadline }),
         isDeadlockError,
+        isDeadlineError: isIngestDeadlineError,
         onTerminal: (stage, err, job) => {
           Sentry.captureException(err, {
             tags: { route: 'api/cron/process-queue', stage },

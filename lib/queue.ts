@@ -208,6 +208,28 @@ export async function markJobAbandoned(id: string, error: string): Promise<void>
   });
 }
 
+/**
+ * Put a job back WITHOUT spending an attempt, at its old place in the queue.
+ *
+ * For an ingest that stopped itself at its deadline having written nothing
+ * (IngestDeadlineError): it did not fail, it ran out of the invocation it was
+ * started late in. Unlike rescheduleJob, scheduledAt is left alone so the job
+ * stays near the head and the next tick starts it first, with a full budget;
+ * and the attempt its claim took is given back, so the attempt ceiling still
+ * means "failed N times", not "was started late N times".
+ */
+export async function releaseJob(id: string, note: string): Promise<void> {
+  await prisma.ingestJob.update({
+    where: { id },
+    data: {
+      status: IngestJobStatus.pending,
+      startedAt: null,
+      attempts: { decrement: 1 },
+      lastError: note.slice(0, 2000),
+    },
+  });
+}
+
 export async function rescheduleJob(id: string, error: string): Promise<void> {
   // Bump scheduledAt to NOW so the retry competes fairly against fresh user
   // submissions in claimOnePending's `ORDER BY scheduledAt ASC` queue.

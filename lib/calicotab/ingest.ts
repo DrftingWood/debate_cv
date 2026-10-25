@@ -147,9 +147,18 @@ type TxResult = {
 export async function ingestPrivateUrl(
   url: string,
   userId: string,
-  options: { force?: boolean } = {},
+  options: {
+    force?: boolean;
+    /**
+     * Epoch ms by which this ingest must have stopped — the caller's function
+     * budget. Past it, fetches refuse to start and the write phase will not
+     * begin without WRITE_RESERVE_MS left; either way the ingest throws
+     * IngestDeadlineError having written nothing. Omitted: no limit.
+     */
+    deadline?: number;
+  } = {},
 ): Promise<IngestResult> {
-  const loaded = await loadLandingAndFingerprint(url, userId);
+  const loaded = await loadLandingAndFingerprint(url, userId, options.deadline);
   const cacheCheck = await checkCacheFreshness(loaded, userId, options);
   if (cacheCheck.kind === 'cache-hit') return cacheCheck.result;
 
@@ -204,6 +213,12 @@ async function runFullScrape(
   const guarded = await checkRegressionGuard(loaded, fetched, userId, options);
   if (guarded.kind === 'regression-blocked') return guarded.result;
 
+  // Last point at which stopping is free: nothing for this tournament has
+  // been written yet. A write phase cut off by the platform would leave a
+  // half-committed tournament and a job stuck `running`, so do not begin it
+  // without enough time to finish.
+  loaded.fetchSession.assertTimeLeft(WRITE_RESERVE_MS, 'write its results');
+
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
   const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
   return finalizePostTransaction(loaded, fetched, txResult, userId);
@@ -217,6 +232,16 @@ async function runFullScrape(
 // connection; the WRITE-phase lock is fine because pg_advisory_xact_lock
 // is transaction-scoped). TTL covers crashed holders: a claim older than
 // the TTL is treated as abandoned and stealable.
+
+/**
+ * Time the write phase (people pre-commit, the main transaction, the bulk
+ * score writes) must have in hand before it starts. Sized for WUDC scale with
+ * margin; INGEST_WRITE_RESERVE_MS overrides it.
+ */
+const WRITE_RESERVE_MS = (() => {
+  const raw = Number(process.env.INGEST_WRITE_RESERVE_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 15_000;
+})();
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
@@ -263,7 +288,8 @@ async function awaitConcurrentScrape(
 ): Promise<IngestResult | null> {
   const previous = loaded.existing;
   if (!previous) return null;
-  const deadline = Date.now() + SCRAPE_AWAIT_MAX_MS;
+  // Never wait past this ingest's own deadline (FetchSession.deadline).
+  const deadline = Date.now() + Math.min(SCRAPE_AWAIT_MAX_MS, loaded.fetchSession.remainingMs());
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, SCRAPE_AWAIT_POLL_MS));
     const current = await prisma.tournament.findUnique({ where: { id: previous.id } });
@@ -287,6 +313,7 @@ async function awaitConcurrentScrape(
 async function loadLandingAndFingerprint(
   url: string,
   userId: string,
+  deadline?: number,
 ): Promise<LoadedState> {
   const normalized = normalizePrivateUrl(url);
   // Re-validate here, not just at the API boundary. Jobs reach this
@@ -309,7 +336,7 @@ async function loadLandingAndFingerprint(
   // Per-ingest fetch session — bundles cookie jar + per-host throttle so
   // Cloudflare clearance cookies set on the landing page replay on the
   // subsequent tab fetches, without leaking state to other concurrent users.
-  const fetchSession = new FetchSession();
+  const fetchSession = new FetchSession({ deadline });
 
   // Landing page fetch — with provenance so every parse has a stable source.
   const landingResult = await fetchHtmlWithProvenance(normalized, { session: fetchSession });
@@ -569,7 +596,8 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
     const res = await fetch(apiUrl, {
       headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' },
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      // Never past the ingest's deadline (FetchSession.deadline).
+      signal: AbortSignal.timeout(Math.max(0, Math.min(API_TIMEOUT_MS, fetchSession.remainingMs()))),
     });
     // Push-back on the API is push-back on the host: slow the HTML
     // fallback that follows through the same learned interval fetch.ts uses.
