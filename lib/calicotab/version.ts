@@ -50,4 +50,10 @@
 //   - two-team results ("Won against X" in a popover) were never read
 //   - split / zero-based rounds put scores and motions on the wrong round
 //   - a "—" team was stored as a team; category casing varied
-export const PARSER_VERSION = '20260915.0';
+//   - the motions list is fetched when the landing page links only
+//     /motions/statistics/ (it was never fetched, so those tournaments had no
+//     motions), and the statistics-page text old ingests stored as motions
+//     is pruned on re-parse
+//   - a participants list the tournament keeps private no longer fails the
+//     ingest
+export const PARSER_VERSION = '20261025.0';
