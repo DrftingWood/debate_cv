@@ -20,6 +20,14 @@ import { classifyMotions, isClassifierConfigured } from '@/lib/tags/classifyMoti
 import { classifyTournamentRegions } from '@/lib/tags/classifyTournaments';
 import { prismaMock, resetPrismaMock } from '../setup/api-test-utils';
 
+// Next.js route handlers must take a required `req`, so every call passes one.
+const emptyRequest = () =>
+  new Request('http://localhost/api/admin/tags/classify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  });
+
 const requireAdminMock = vi.mocked(requireAdmin);
 const classifyMock = vi.mocked(classifyMotions);
 const configuredMock = vi.mocked(isClassifierConfigured);
@@ -39,13 +47,13 @@ beforeEach(() => {
 describe('POST /api/admin/tags/classify', () => {
   it('rejects non-admins with the thrown status', async () => {
     requireAdminMock.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(403);
   });
 
   it('returns 503 when no API key is configured', async () => {
     configuredMock.mockReturnValue(false);
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(503);
     expect(((await res.json()) as { error: string }).error).toBe('classifier_not_configured');
   });
@@ -53,7 +61,7 @@ describe('POST /api/admin/tags/classify', () => {
   it('no-ops cleanly when every motion is already tagged', async () => {
     prismaMock.motion.findMany.mockResolvedValue([]);
     prismaMock.motion.count.mockResolvedValue(0);
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       classified: 0,
@@ -96,7 +104,7 @@ describe('POST /api/admin/tags/classify', () => {
     prismaMock.tagProposal.findFirst.mockResolvedValue(null);
     prismaMock.tagProposal.create.mockResolvedValue({ id: 'p' });
 
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(200);
     const body = (await res.json()) as { classified: number; proposalsFiled: number; remaining: number };
     expect(body.classified).toBe(2);
@@ -128,7 +136,7 @@ describe('POST /api/admin/tags/classify', () => {
     prismaMock.tagProposal.findFirst.mockResolvedValue({ id: 'existing-prop' });
     prismaMock.tagProposal.update.mockResolvedValue({ id: 'existing-prop' });
 
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(200);
     expect(prismaMock.tagProposal.create).not.toHaveBeenCalled();
     expect(prismaMock.tagProposal.update).toHaveBeenCalledWith({
@@ -145,7 +153,7 @@ describe('POST /api/admin/tags/classify', () => {
     // count query that answers it.
     prismaMock.motion.count.mockResolvedValue(74);
     classifyMock.mockResolvedValue([]);
-    const res = await POST();
+    const res = await POST(emptyRequest());
     const body = (await res.json()) as { remaining: number; motionCursor: string };
     expect(body.remaining).toBe(74);
     expect(body.motionCursor).toBe('11');
@@ -160,7 +168,7 @@ describe('POST /api/admin/tags/classify', () => {
     // on every call and a "run until done" loop would never finish.
     prismaMock.motion.findMany.mockResolvedValue([]);
     prismaMock.motion.count.mockResolvedValue(0);
-    await POST();
+    await POST(emptyRequest());
     const where = (prismaMock.motion.findMany.mock.calls[0][0] as { where: unknown }).where;
     expect(where).toEqual({
       OR: [
@@ -181,7 +189,7 @@ describe('POST /api/admin/tags/classify', () => {
     prismaMock.tagProposal.findFirst.mockResolvedValue(null);
     prismaMock.tagProposal.create.mockResolvedValue({ id: 'p' });
 
-    const res = await POST();
+    const res = await POST(emptyRequest());
     expect(res.status).toBe(200);
     const body = (await res.json()) as { regionsFiled: number; regionsRemaining: number };
     expect(body.regionsFiled).toBe(1);

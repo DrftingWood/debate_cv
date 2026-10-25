@@ -54,7 +54,7 @@ function hostOf(url: string): string {
 // canonical columns: the admin reviews the classifier's output on
 // /admin/tags (approving the lot in one click, or rejecting the odd wrong
 // one), so a misclassification can't silently reach the analytics.
-export async function POST(req?: Request) {
+export async function POST(req: Request) {
   let adminEmail: string;
   try {
     adminEmail = await requireAdmin();
@@ -78,7 +78,7 @@ export async function POST(req?: Request) {
     return NextResponse.json({ error: 'admin_user_not_found' }, { status: 400 });
   }
 
-  const cursors = Body.safeParse(req ? await req.json().catch(() => ({})) : {});
+  const cursors = Body.safeParse(await req.json().catch(() => ({})));
   if (!cursors.success) {
     return NextResponse.json({ error: 'bad_request', details: cursors.error.flatten() }, { status: 400 });
   }
