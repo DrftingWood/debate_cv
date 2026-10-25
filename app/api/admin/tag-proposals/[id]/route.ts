@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
+import { approveProposalTx } from '@/lib/tags/approve';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,53 +70,10 @@ export async function POST(
     return NextResponse.json({ id, status: 'rejected' });
   }
 
-  // approve — write the canonical value and clean up duplicate proposals in
-  // one transaction. The three update calls are independent of each other
-  // because only one kind branch fires per proposal, so no lock-ordering
-  // concern here. The updateMany for duplicates runs last to avoid reading
-  // stale data after the main proposal row is already approved.
+  // approve — the write-through and duplicate clean-up live in
+  // lib/tags/approve.ts, shared with the approve-all route.
   await prisma.$transaction(async (tx) => {
-    // (a) Mark THIS proposal approved.
-    await tx.tagProposal.update({
-      where: { id },
-      data: { status: 'approved', adminNote: adminNote ?? null, reviewedAt: now },
-    });
-
-    // (b) Write the canonical value for whichever dimension was approved.
-    if (proposal.kind === 'region') {
-      await tx.tournament.update({
-        where: { id: proposal.tournamentId },
-        data: { region: proposal.value },
-      });
-    } else if (proposal.kind === 'motion_type') {
-      await tx.motion.update({
-        where: { id: proposal.motionId! },
-        data: { motionType: proposal.value },
-      });
-    } else if (proposal.kind === 'motion_topic') {
-      await tx.motion.update({
-        where: { id: proposal.motionId! },
-        data: { topic: proposal.value },
-      });
-    }
-
-    // (c) Auto-approve other pending proposals for the same target that
-    //     proposed the same value. Proposals with a DIFFERENT value remain
-    //     pending so the admin can individually reject them — we don't want
-    //     to silently reject a proposal that might have been correct under a
-    //     different taxonomy (e.g. two valid regions for a borderline
-    //     tournament).
-    await tx.tagProposal.updateMany({
-      where: {
-        id: { not: id },
-        kind: proposal.kind,
-        tournamentId: proposal.tournamentId,
-        motionId: proposal.motionId ?? null,
-        value: proposal.value,
-        status: 'pending',
-      },
-      data: { status: 'approved', reviewedAt: now },
-    });
+    await approveProposalTx(tx, proposal, now, adminNote ?? null);
   });
 
   return NextResponse.json({ id, status: 'approved' });

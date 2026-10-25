@@ -72,6 +72,35 @@ export function AdminTagProposals() {
 
   const [, startTransition] = useTransition();
 
+  // Approve-all is two clicks on purpose: the first arms it, the second
+  // does it. The list above is what the admin skims first, rejecting the odd
+  // wrong row, so the button is the "everything else is fine" step.
+  const [confirmingAll, setConfirmingAll] = useState(false);
+  const [approvingAll, setApprovingAll] = useState(false);
+
+  const approveAll = async () => {
+    setApprovingAll(true);
+    try {
+      let total = 0;
+      // The endpoint approves a bounded chunk per call; keep asking until it
+      // reports nothing left (bounded, so a stuck queue cannot loop forever).
+      for (let pass = 0; pass < 40; pass += 1) {
+        const res = await postJson<{ approved: number }>('/api/admin/tag-proposals/approve-all', {});
+        if (!res.ok) {
+          toast.show({ kind: 'error', title: 'Approve all failed', description: res.error });
+          break;
+        }
+        total += res.data.approved;
+        if (res.data.approved === 0) break;
+      }
+      if (total > 0) toast.show({ kind: 'success', title: `Approved ${total} tag${total === 1 ? '' : 's'}` });
+      setProposals([]);
+    } finally {
+      setApprovingAll(false);
+      setConfirmingAll(false);
+    }
+  };
+
   const handleAction = (id: string, action: 'approve' | 'reject') => {
     const adminNote = action === 'reject' ? (rejectNotes[id] ?? '') : undefined;
 
@@ -136,6 +165,35 @@ export function AdminTagProposals() {
           </button>
         ))}
       </div>
+
+      {filter === 'pending' && proposals && proposals.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant={confirmingAll ? 'primary' : 'outline'}
+            loading={approvingAll}
+            onClick={() => (confirmingAll ? void approveAll() : setConfirmingAll(true))}
+          >
+            {confirmingAll
+              ? `Yes, approve all ${proposals.length} as shown`
+              : `Approve all ${proposals.length} pending`}
+          </Button>
+          {confirmingAll && !approvingAll ? (
+            <button
+              type="button"
+              className="text-caption text-ink-soft underline underline-offset-2 hover:text-ink"
+              onClick={() => setConfirmingAll(false)}
+            >
+              Cancel
+            </button>
+          ) : (
+            <span className="text-caption text-ink-soft">
+              Reject any that look wrong first; this approves the rest.
+            </span>
+          )}
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-body text-ink-soft italic">Loading…</p>
