@@ -2,6 +2,8 @@
 
 Owner-run. Nothing here has been run against production. Design: `docs/superpowers/specs/2026-10-25-b9-prescrape-design.md`. Sizing: `docs/SIZING-2026-10-25.md`.
 
+> **Do not run the load from a laptop.** The first production attempt (2026-10-26) failed on its first tournament with "Transaction not found". Measured from the owner's laptop, one query to Neon takes about 300 ms; ingest's write phase makes hundreds of sequential queries inside a 45 s transaction, so it can only finish when the database is a few milliseconds away. Nothing was lost (0 tournaments written, about 1 MB of provenance rows). The runner now refuses to write when the median round trip is over 120 ms, and the load runs on a GitHub Actions runner, which sits in a US datacenter near Neon. Steps 1 and 4 below are the Actions path.
+
 ## Decision
 
 **Stage A (2023–2025, 260 list entries) is safe to load on the free plan. Stage B (2020–2022) is conditional:** load it only if production is at or under 0.55 GB after stage A. Otherwise move to Neon Launch first.
@@ -45,24 +47,20 @@ Owner-run. Nothing here has been run against production. Design: `docs/superpowe
 
 ## Steps
 
-### 1. Credentials: the database URL only
+### 1. Credentials: a GitHub secret holding the database URL only
 
-The runner needs exactly one setting, `POSTGRES_PRISMA_URL`. **Do not use `vercel env pull`:** it writes *every* production secret to disk, including the Google OAuth secret, `TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`, `CRON_SECRET` and the Anthropic key.
+The load needs exactly one setting, `POSTGRES_PRISMA_URL`. **Do not use `vercel env pull`:** it writes *every* production secret to disk, including the Google OAuth secret, `TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`, `CRON_SECRET` and the Anthropic key.
 
-1. Copy the **pooled** connection string from the Neon console (Connection details, *Pooled connection*) or from Vercel → Storage → the database → `POSTGRES_PRISMA_URL`.
-2. Create `.env.production` (already in `.gitignore`) in the checkout, with one line and nothing else:
+1. Copy the **pooled** connection string of your **default** branch (not `pre-b9-load`) from the Neon console (Connect, *Pooled connection*) or from Vercel → Storage → the database → `POSTGRES_PRISMA_URL`.
+2. GitHub → this repository → **Settings → Secrets and variables → Actions → New repository secret**. Name: `PRESCRAPE_DATABASE_URL`. Value: the string. Nothing else goes in it.
+3. If a local `.env.production` exists from the earlier laptop attempt, **delete it**.
+4. **Delete the secret when the load is finished** (same page).
 
-   ```
-   POSTGRES_PRISMA_URL=postgresql://…pooled string…
-   ```
-
-3. **Delete the file when the load is finished.**
+The repository is public. Secrets are not exposed to pull requests from forks, and only people with write access can run a workflow by hand, so the string is not reachable by others. It is encrypted at rest and masked in logs.
 
 Why pooled: it is what production's ingests use, so the pre-scrape runs the same code path, and its advisory locks are transaction-scoped and safe under the pooler. The direct (non-pooling) URL is only for migrations, and nothing here migrates.
 
-**Verified with nothing else set (2026-10-26).** The runner was run against a local throwaway Postgres with an environment holding only `POSTGRES_PRISMA_URL` and the operating system's own variables: no `TOKEN_ENCRYPTION_KEY`, no `AUTH_*`, no `SENTRY_*`, no Google or Anthropic keys. It wrote ILNU RR 2026 in full (41 participants, 50 judge rows) and the duplicates check came back `[]`. No import reads another variable at load time.
-
-**No Sentry:** with no Sentry DSN set, the runner reports nothing to production Sentry. Its record is the report file and the console.
+**Verified with nothing else set (2026-10-26).** The runner was run against a local throwaway Postgres with an environment holding only `POSTGRES_PRISMA_URL` and the operating system's own variables: no `TOKEN_ENCRYPTION_KEY`, no `AUTH_*`, no `SENTRY_*`, no Google or Anthropic keys. It wrote ILNU RR 2026 in full and the duplicates check came back `[]`. With no Sentry DSN set, the runner reports nothing to production Sentry; its record is the report file and the console.
 
 ### 2. Safety net: a branch before writing
 
@@ -79,31 +77,32 @@ FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 12;
 SELECT count(*) AS tournaments FROM "Tournament";
 ```
 
-### 4. Load stage A
+### 4. Load stage A: from GitHub Actions
 
-```bash
-npx -p dotenv-cli@11.0.0 dotenv -e .env.production -- \
-  env RUN_PRESCRAPE=1 PRESCRAPE_ALLOW_REMOTE=1 \
-      PRESCRAPE_LIST=scripts/prescrape/stage-a-2023-2025.txt \
-      PRESCRAPE_REPORT=prescrape-stage-a.json \
-      PRESCRAPE_PAUSE_MS=5000 \
-      PRESCRAPE_MAX_DB_BYTES=912680550 \
-  npx vitest run tests/__prescrape.live.test.ts
-```
+Actions → **Pre-scrape (B9)** → **Run workflow**.
 
-On Windows PowerShell, run it from Git Bash, or set the variables with `$env:NAME = 'value'` before `npx vitest run …`.
+**First, the smoke run** (mode `smoke`; no database, no secret, nothing written). It reads a sample of 12 tournament sites from the runner's network and fails if half or more refuse it. Datacenter addresses are sometimes blocked by sites behind Cloudflare; Vercel's are not, but a GitHub runner is a different network, so find out before committing hours. Expect `smoke ok`. If it fails, stop: the load would only produce errors, and the next option is a different host for the runner.
 
-- **`PRESCRAPE_ALLOW_REMOTE=1`:** without it, the runner refuses any non-localhost database.
-- **`PRESCRAPE_MAX_DB_BYTES=912680550`:** 0.85 GiB. Before each tournament the runner stops cleanly (`stopped-storage`) at that size.
-- **`PRESCRAPE_PAUSE_MS=5000`:** the pause between tournaments, on top of ingest's own per-host throttle. A larger pause (say 30000) does not lower compute much, because the database stays awake either way. It only lengthens the load.
-- **Duration:** 3–5 hours. Keep the machine awake.
+**Then the load** (mode `load`):
 
-**Resumable.** Stop it at any time with Ctrl+C. Re-running the same command skips every tournament already stored and current (`status: "current"`) and continues. After a `PARSER_VERSION` bump it re-scrapes only the stale ones.
+| Input | Value |
+| --- | --- |
+| mode | `load` |
+| list | leave the default (`scripts/prescrape/stage-a-2023-2025.txt`) |
+| shards | `4` |
+| confirm | `LOAD` (the run refuses without it) |
+
+- **Shards:** the list is split by *host*, so one site is only ever fetched by one job at a time and ingest's per-host politeness still holds. Four jobs run in parallel, so the load takes roughly a quarter of the 3–5 hours of a single run.
+- **Each job** checks the database size before every tournament and stops cleanly at 0.85 GiB (`PRESCRAPE_MAX_DB_BYTES`). Four jobs check independently, so a few tournaments of overshoot are possible; the margin to 1 GiB covers it.
+- **The runner checks the link first:** it measures the median database round trip and refuses to write if it is over 120 ms. From a runner it should read a few milliseconds.
+- **Limits:** a job is capped at 6 hours by GitHub. The load is resumable: if a job hits the cap, run the workflow again; tournaments already stored and current are skipped.
+- **Watching it:** each job's log shows its tournaments. When a job ends, its report (`prescrape-shard-N.json`) is attached to the run as an artifact.
+- **Cost:** none on a public repository. Compute on Neon is the same total as a single run, over a shorter time.
 
 ### 5. Check after
 
-1. **The report** (`prescrape-stage-a.json`):
-   - its last entry must be `{"duplicates": []}`; the runner also fails the run if not;
+1. **The reports** (download each shard's `prescrape-shard-N.json` artifact from the run):
+   - each report's last entry must be `{"duplicates": []}`; the runner also fails the job if not;
    - count the statuses;
    - `error` entries are tournaments whose pages failed and can simply be re-run;
    - `skipped` entries are roots that link several tournaments, which is by design.
@@ -114,7 +113,7 @@ On Windows PowerShell, run it from Git Bash, or set the variables with `$env:NAM
    2. hand the file to Claude for answers;
    3. **Load answers** (they file as pending);
    4. review, then **Approve all**.
-5. **Delete `.env.production`.** If all is well, also delete the `pre-b9-load` branch in the console.
+5. **Delete the `PRESCRAPE_DATABASE_URL` secret** (Settings → Secrets and variables → Actions). If all is well, also delete the `pre-b9-load` branch in the console.
 
 ### 6. Stage B, only if production is ≤ 0.55 GB after stage A
 

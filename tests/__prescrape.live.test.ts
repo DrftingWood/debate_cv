@@ -43,9 +43,13 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
     async () => {
       const { prisma } = await import('@/lib/db');
       const { prescrapeTournament } = await import('@/lib/calicotab/ingest');
-      const { tournamentSlugsFromRootPage } = await import('@/lib/calicotab/prescrape');
+      const { tournamentSlugsFromRootPage, parseShard, shardOf } = await import('@/lib/calicotab/prescrape');
       const pause = Number(process.env.PRESCRAPE_PAUSE_MS ?? 5_000);
-      const urls = readFileSync(process.env.PRESCRAPE_LIST!, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const all = readFileSync(process.env.PRESCRAPE_LIST!, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      // PRESCRAPE_SHARD="2/4": only this shard's tournaments, split by host.
+      const shard = parseShard(process.env.PRESCRAPE_SHARD);
+      const urls = shard ? all.filter((u) => shardOf(u, shard.total) === shard.index) : all;
+      console.log(`[prescrape] ${shard ? `shard ${shard.index}/${shard.total}: ` : ''}${urls.length} of ${all.length} tournaments`);
       const report: Array<Record<string, unknown>> = [];
       const save = () => writeFileSync(process.env.PRESCRAPE_REPORT!, JSON.stringify(report, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 1));
 
@@ -53,6 +57,29 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
       const dbBytes = async () =>
         Number((await prisma.$queryRaw<Array<{ b: bigint }>>`SELECT pg_database_size(current_database()) AS b`)[0]!.b);
       report.push({ dbBytesBefore: await dbBytes(), maxDbBytes });
+
+      // Refuse to write over a slow link. Ingest's write phase makes hundreds of
+      // sequential queries inside one 45 s transaction, so it only finishes when
+      // the database is close: the first production attempt, from a laptop 300 ms
+      // from Neon, failed every tournament with "Transaction not found". Say so in
+      // the first second instead of after a stream of errors.
+      const rtts: number[] = [];
+      for (let i = 0; i < 8; i++) {
+        const t = Date.now();
+        await prisma.$queryRaw`SELECT 1`;
+        rtts.push(Date.now() - t);
+      }
+      rtts.sort((a, b) => a - b);
+      const medianRoundTripMs = rtts[Math.floor(rtts.length / 2)]!;
+      const maxLatencyMs = Number(process.env.PRESCRAPE_MAX_LATENCY_MS ?? 120);
+      report.push({ medianRoundTripMs, maxLatencyMs });
+      if (medianRoundTripMs > maxLatencyMs && process.env.PRESCRAPE_ALLOW_SLOW !== '1') {
+        save();
+        throw new Error(
+          `database round trip is ${medianRoundTripMs} ms (limit ${maxLatencyMs} ms): the write transaction cannot finish over this link. ` +
+            'Run it from a GitHub Actions runner (docs/runbooks/B9-prescrape-load.md), or set PRESCRAPE_ALLOW_SLOW=1 at your own risk.',
+        );
+      }
       for (const raw of urls) {
         const size = await dbBytes();
         if (size >= maxDbBytes) {

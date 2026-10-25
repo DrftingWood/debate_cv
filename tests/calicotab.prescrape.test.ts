@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   dedupeJudgeHits,
@@ -5,6 +6,8 @@ import {
   publicTournamentBase,
   storedTournamentFresh,
   tournamentSlugsFromRootPage,
+  parseShard,
+  shardOf,
 } from '@/lib/calicotab/prescrape';
 import type { RoundDebate } from '@/lib/calicotab/parseTabs';
 
@@ -102,5 +105,58 @@ describe('tournamentSlugsFromRootPage', () => {
   it('reports every tournament on a multi-tournament root, so the caller can refuse to guess', () => {
     const html = `<a href="/open/">Open</a><a href="/novice/">Novice</a>`;
     expect(tournamentSlugsFromRootPage(html, 'x.calicotab.com').sort()).toEqual(['novice', 'open']);
+  });
+});
+
+describe('shardOf: splitting the load so no site is hit from two shards at once', () => {
+  const list = readFileSync('scripts/prescrape/stage-a-2023-2025.txt', 'utf8')
+    .split(/\r?\n/)
+    .map((l: string) => l.trim())
+    .filter(Boolean) as string[];
+
+  it('puts every tournament of one host in the same shard', () => {
+    expect(shardOf('https://edudrift.calicotab.com/apdc2024/', 4)).toBe(shardOf('https://EDUDRIFT.calicotab.com/uadc2026/', 4));
+  });
+
+  it('is stable, and always inside 0..total-1', () => {
+    for (const url of list) {
+      const k = shardOf(url, 4);
+      expect(k).toBeGreaterThanOrEqual(0);
+      expect(k).toBeLessThan(4);
+      expect(shardOf(url, 4)).toBe(k);
+    }
+  });
+
+  it('covers the real stage-A list exactly once, with no shard starved or swamped', () => {
+    const counts = [0, 0, 0, 0];
+    for (const url of list) counts[shardOf(url, 4)] += 1;
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(list.length);
+    for (const c of counts) {
+      expect(c).toBeGreaterThan(list.length * 0.1);
+      expect(c).toBeLessThan(list.length * 0.45);
+    }
+  });
+
+  it('one shard is the whole list', () => {
+    for (const url of list) expect(shardOf(url, 1)).toBe(0);
+  });
+
+  it('rejects a bad shard count', () => {
+    expect(() => shardOf('https://a.calicotab.com/t/', 0)).toThrow();
+    expect(() => shardOf('https://a.calicotab.com/t/', 2.5)).toThrow();
+  });
+});
+
+describe('parseShard', () => {
+  it('reads "index/total"', () => {
+    expect(parseShard('2/4')).toEqual({ index: 2, total: 4 });
+    expect(parseShard(' 0/1 ')).toEqual({ index: 0, total: 1 });
+  });
+  it('is null when unset, and throws on nonsense rather than loading the wrong slice', () => {
+    expect(parseShard(undefined)).toBeNull();
+    expect(parseShard('')).toBeNull();
+    expect(() => parseShard('4/4')).toThrow();
+    expect(() => parseShard('x/4')).toThrow();
+    expect(() => parseShard('1')).toThrow();
   });
 });
