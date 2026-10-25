@@ -2,6 +2,84 @@
 
 ---
 
+## 2026-10-25 (night) — B8: should `TABBYCAT_API_ROUNDS` be turned on?
+
+**Recommendation: turn it on, after the current Re-ingest all has finished.** Set `TABBYCAT_API_ROUNDS=1` in Vercel (Production) and redeploy. Waiting keeps the re-ingest's evidence (write times, failures) from being mixed with a second change.
+
+- **The benefit is fewer requests and less fragility, not speed:** a quarter to a third fewer requests on every tournament whose API answers, so less exposure to Cloudflare push-back and to HTML markup changes.
+- **Wall time is unchanged.**
+- **Stored data is identical,** page for page.
+- **Falls back cleanly** wherever the API can't serve a page. Where it can't serve the rounds, it costs a few extra calls (Uhuru 2022: 4).
+
+**Rollback:** delete `TABBYCAT_API_ROUNDS` (or set it to anything but `1`) in Vercel → Settings → Environment Variables, then redeploy. Env changes only take effect on a new deployment. No data migration is involved in either direction. Rows written while it was on are the same rows the HTML path writes.
+
+### Evidence
+
+**1. Real ingests, flag off vs on** (`tests/__ingestTiming.live.test.ts`). These are real private URLs, force-ingested into a local throwaway Postgres, alternating which mode ran first.
+
+| Tournament | Off: time / requests | On: time / requests | Stored rows (teams, participants, eliminations, scores, judges) |
+| --- | ---: | ---: | --- |
+| WUDC 2024 | 52.9 s / 53 | 56.7 s / 39 | identical |
+| ASO Winter 2024 | 24.1 s / 46 | 22.5 s / 31 | identical |
+| ILNU RR 2026 | 15.0 s / 25 | 17.5 s / 26 | identical |
+| Uhuru Worlds 2022 (outrounds) | 14.5 s / 22 | 16.0 s / 26 | identical (API had no rounds; HTML fallback cost 4 extra calls) |
+
+- **Requests:** down 26 % (WUDC 2024, 53→39) and 33 % (ASO, 46→31) where the API serves the rounds.
+- **Wall time:** within ±3 s either way. The per-host throttle, not the request count, sets the pace, and the API's per-round list is large.
+- **Not usable:** 17 of the 21 private URLs available couldn't be measured. Their landing page no longer loads (dead herokuapp installs, rotated URLs), which is independent of the flag.
+- **A flake, not caused by the flag:** HKPDS 2022, IITM PD 2025 and Oxford WSDC 2021 each failed one run of the pair, at random, on a `fetch: participants` error.
+
+**2. What the API serves across tournaments** (`tests/__apiCoverage.live.test.ts`): 32 public corpus tournaments, 2020–2023, API side only. The survey stopped at 32 of 63 when the machine ran low on memory; the remaining 31 (2023–2026) weren't reached.
+
+| Page | Served by the API | Sent back to HTML, and why |
+| --- | ---: | --- |
+| Round results | 300 of 311 (96 %); every round at 29 of 32 tournaments | 7 rounds not in the API, 4 rounds with no results yet |
+| Break tabs | 43 of 78 (55 %) | 34 show institutions, 1 has ranks that skip numbers |
+| Participants list | 4 of 32 (12 %) | 28 show institutions |
+
+- **Where the saving comes from:** almost all of it is round results.
+- **Institutions keep most participants lists and many break tabs on HTML,** by design. The API only links institutions to a token-gated endpoint, so reading those pages from it would drop every judge's and team's institution.
+- **Rounds outside the API** cost nothing beyond one pairings call, then fall back.
+
+**3. Parity** (PR #120): 0 real differences against the HTML parsers on 13 tournaments, including WUDC 2023/2024/2025 and Australs 2022/2025.
+
+### Production: WUDC-scale fits the 60 s function; local timings overstate
+
+#123's `[ingest] write phase` log, from the owner's Re-ingest all on cfbb302 (Vercel fra1 → Neon):
+
+| Participants / teams | Write time |
+| --- | ---: |
+| 60 / 25 | 1.8 s |
+| 91 / 29 | 2.1 s |
+| 125 / 26 | 3.4 s |
+| 137 / 31 | 4.4 s |
+| 146 / 53 | 5.0 s |
+| 194 / 43 | 3.2 s |
+| 211 / 58 | 5.3 s |
+| 244 / 87 | 5.6 s |
+| 273 / 94 | 5.8 s |
+| 242 / 94 | 6.6 s |
+| 274 / 94 | 8.5 s |
+| 436 / 192 (SIDO 2026) | 11.0 s |
+| **1,062 / 379 (WUDC 2022)** | **18.1 s** |
+
+**WUDC 2022 is the proof:** it ingested successfully on the platform at 18:18:09Z, with a fetch phase of about 23 s, a write of 18.1 s, about 41 s in all, and a flat 15 s reserve. Its first attempt did not finish and its second did, which is #123's deferral working as designed.
+
+- **My local runs overstated the risk:** WUDC 2024 took 53–57 s locally (a 35–40 s fetch phase on this machine's network). Production's fetch for WUDC-scale is about 23 s, so WUDC-scale tournaments fit the platform today.
+- **The write rate is sublinear:** about 17 ms per participant + team for small tournaments, 12.6 ms at WUDC scale.
+
+**Reserve decision (#128):** 4 s + 14 ms per participant + team, overridable with `INGEST_WRITE_RESERVE_MS`.
+- **Against the data:** 5.2 s for the smallest, 9.2 s for 274/94 (the slowest per row, 8.5 s), 12.8 s for SIDO, 24.2 s for WUDC 2022. That covers every measured write and admits WUDC 2022, which has about 32 s left after its fetch.
+- **The first fit was wrong:** 3 s + 25 ms per row would have reserved about 39 s for WUDC 2022 and deferred it on every attempt.
+- **Which way it errs:** a killed write rolls back, so under-reserving is the cheaper error, and the fit leans toward admitting.
+- **New in the log:** `fetchMs` and `remainingAtWriteMs`.
+
+**What B9 is for:** speed, not rescue. Big tournaments ingest on the normal path today. The pre-scrape turns their first ingest into a database copy of about a second.
+- **In B9's stage A (2023–2025):** WUDC 2023, WUDC 2024, Australs 2023–2025 and the other 2023–2025 tournaments in the corpus. WUDC 2025 is in the corpus only as its site root (`wudc2025.calicotab.com/`), so it is included only if that root page links exactly one tournament; otherwise the runner skips it rather than guess.
+- **On the normal path, working:** WUDC 2022 (proven above), Korea WUDC 2021, the rest of 2020–2022 until stage B, and every 2026 tournament.
+
+---
+
 ## 2026-10-25 (late) — Operator state after PRs #115–#122, and what is still open
 
 **On `main`:** #115 filterable stats + Tabbycat API tabs + JSON Resume; #116 a private participants list no
