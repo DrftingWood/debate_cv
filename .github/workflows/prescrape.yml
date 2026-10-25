@@ -1,0 +1,114 @@
+# B9 pre-scrape, run next to the database.
+#
+# Why this exists: the load writes ~0.3 GB through ingest's write phase, which
+# makes hundreds of sequential queries per tournament inside a 45 s
+# transaction. From a laptop 300 ms away from Neon that cannot finish (the
+# first real attempt failed on exactly that). A GitHub runner is in a US
+# datacenter, a few ms from Neon.
+#
+# Two modes, both started by hand from Actions > "Pre-scrape (B9)" > Run workflow:
+#   smoke  No database, no secret. Reads a sample of tournament sites from this
+#          runner and fails if they refuse its network. Do this first.
+#   load   Writes to production. Needs the repo secret PRESCRAPE_DATABASE_URL
+#          (the pooled Neon string, nothing else) and confirm = LOAD.
+#
+# Runbook: docs/runbooks/B9-prescrape-load.md
+name: Pre-scrape (B9)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'smoke = read-only check of the runner network; load = write to production'
+        type: choice
+        options: [smoke, load]
+        default: smoke
+      list:
+        description: 'Tournament list (one URL per line)'
+        default: scripts/prescrape/stage-a-2023-2025.txt
+      shards:
+        description: 'Parallel jobs (split by host). 4 finishes in roughly a quarter of the time.'
+        default: '4'
+      confirm:
+        description: 'load only: type LOAD to confirm you want to write to production'
+        default: ''
+
+permissions:
+  contents: read
+
+# One load at a time, and never alongside another run of this workflow.
+concurrency:
+  group: prescrape
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: ${{ inputs.mode == 'smoke' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Can this network read the tournament sites?
+        run: node scripts/prescrape/smoke.mjs "${{ inputs.list }}"
+
+  plan:
+    if: ${{ inputs.mode == 'load' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      total: ${{ steps.m.outputs.total }}
+    steps:
+      - name: Refuse unless confirmed, and build the shard list
+        id: m
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          SHARDS: ${{ inputs.shards }}
+          HAVE_SECRET: ${{ secrets.PRESCRAPE_DATABASE_URL != '' }}
+        run: |
+          if [ "$CONFIRM" != "LOAD" ]; then echo "Refusing: set confirm to LOAD to write to production."; exit 1; fi
+          if [ "$HAVE_SECRET" != "true" ]; then echo "Refusing: repository secret PRESCRAPE_DATABASE_URL is not set."; exit 1; fi
+          case "$SHARDS" in ''|*[!0-9]*) echo "shards must be a number"; exit 1;; esac
+          if [ "$SHARDS" -lt 1 ] || [ "$SHARDS" -gt 8 ]; then echo "shards must be 1 to 8"; exit 1; fi
+          echo "total=$SHARDS" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(seq 0 $((SHARDS - 1)) | paste -sd, - | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+
+  load:
+    needs: plan
+    runs-on: ubuntu-latest
+    # A job is capped at 6 h. The load is resumable: re-run to continue.
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Load this shard
+        env:
+          POSTGRES_PRISMA_URL: ${{ secrets.PRESCRAPE_DATABASE_URL }}
+          RUN_PRESCRAPE: '1'
+          PRESCRAPE_ALLOW_REMOTE: '1'
+          PRESCRAPE_LIST: ${{ inputs.list }}
+          PRESCRAPE_SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
+          PRESCRAPE_REPORT: prescrape-shard-${{ matrix.shard }}.json
+          PRESCRAPE_PAUSE_MS: '3000'
+          # Neon Free fails writes past 1 GB; stop at 0.85 GiB. Shards check
+          # independently, so a few tournaments of overshoot are possible.
+          PRESCRAPE_MAX_DB_BYTES: '912680550'
+        run: npx vitest run tests/__prescrape.live.test.ts
+      - name: Keep the report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prescrape-report-shard-${{ matrix.shard }}
+          path: prescrape-shard-${{ matrix.shard }}.json
+          if-no-files-found: ignore

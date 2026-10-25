@@ -141,3 +141,32 @@ export function tournamentSlugsFromRootPage(html: string, host: string): string[
   }
   return [...slugs];
 }
+
+/**
+ * Which of `total` shards a tournament belongs to, decided by its HOST.
+ *
+ * The load is split across parallel jobs to finish sooner. Sharding by host
+ * (not by position in the list) keeps every tournament of one site in one
+ * shard, so a host such as edudrift.calicotab.com (several tournaments) is
+ * only ever fetched by one job at a time and the per-host politeness of the
+ * ingest still holds. Deterministic and independent of list order, so a
+ * shard re-run after a failure picks up exactly the same tournaments.
+ */
+export function shardOf(url: string, total: number): number {
+  if (!Number.isInteger(total) || total < 1) throw new Error(`shard count must be a positive integer, got ${total}`);
+  const host = new URL(url).hostname.toLowerCase();
+  let h = 0;
+  for (const ch of host) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  return h % total;
+}
+
+/** "2/4" -> shard index 2 of 4; unset -> null (the whole list). Nonsense throws, never loads a wrong slice. */
+export function parseShard(spec: string | undefined): { index: number; total: number } | null {
+  if (spec === undefined || spec.trim() === '') return null;
+  const m = spec.trim().match(/^(\d+)\/(\d+)$/);
+  if (!m) throw new Error(`PRESCRAPE_SHARD must look like "2/4", got "${spec}"`);
+  const index = Number(m[1]);
+  const total = Number(m[2]);
+  if (total < 1 || index >= total) throw new Error(`PRESCRAPE_SHARD index must be below the total, got "${spec}"`);
+  return { index, total };
+}
