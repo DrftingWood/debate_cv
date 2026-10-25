@@ -530,9 +530,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // must NOT go through fetchTab — its `fetch:` warning prefix feeds
   // fetchLevelFailures, which aborts the entire ingest, and losing a whole
   // tournament because motions were withheld is the wrong trade.
-  const fetchOptionalTab = async (targetUrl: string, label: string): Promise<string | null> => {
+  //
+  // `guessed` marks a URL the nav parser built rather than found on the
+  // landing page. If the tournament says that page is not there or not public,
+  // that is the expected answer for a guess, and it stays silent: a warning
+  // would also stop a re-ingest of an existing tournament from refreshing.
+  const fetchOptionalTab = async (targetUrl: string, label: string, guessed = false): Promise<string | null> => {
     const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
     if (r.ok) return r.html;
+    if (guessed && isWithheldByTournament(r)) return null;
     fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
     return null;
   };
@@ -575,7 +581,9 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
     htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
     nav.participants ? fetchTab(nav.participants, 'participants', true) : Promise.resolve(null),
-    nav.motionsTab ? fetchOptionalTab(nav.motionsTab, 'motionsTab') : Promise.resolve(null),
+    nav.motionsTab
+      ? fetchOptionalTab(nav.motionsTab, 'motionsTab', nav.meta?.constructed.includes('motionsTab'))
+      : Promise.resolve(null),
   ]);
   // Round results: prefer the by-debate view so each row is one debate and
   // adjudicators are scoped to their own debate (sidesteps double-counting

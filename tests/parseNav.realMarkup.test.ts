@@ -86,15 +86,16 @@ describe('extractNavigation — real-world labels', () => {
 describe('extractNavigation — blank nav falls back to constructed URLs', () => {
   const nav = extractNavigation(BLANK_NAV_HTML, BASE);
 
-  test('synthesises canonical paths for the three core tabs', () => {
+  test('synthesises canonical paths for the core tabs and the motions list', () => {
     expect(nav.teamTab).toBe(`${HOST_BASE}tab/team/`);
     expect(nav.speakerTab).toBe(`${HOST_BASE}tab/speaker/`);
     expect(nav.participants).toBe(`${HOST_BASE}participants/list/`);
+    expect(nav.motionsTab).toBe(`${HOST_BASE}motions/`);
   });
 
   test('marks the fallback tabs as constructed so ParserRun can record it', () => {
     expect(nav.meta.constructed.sort()).toEqual(
-      ['participants', 'speakerTab', 'teamTab'].sort(),
+      ['motionsTab', 'participants', 'speakerTab', 'teamTab'].sort(),
     );
     expect(nav.meta.discovered).toEqual([]);
   });
@@ -102,6 +103,34 @@ describe('extractNavigation — blank nav falls back to constructed URLs', () =>
   test('leaves round/break URLs empty since we cannot construct them without N', () => {
     expect(nav.resultsRounds).toEqual([]);
     expect(nav.breakTabs).toEqual([]);
+  });
+});
+
+// WUDC 2022 and others link only /motions/statistics/ from the landing page.
+// That page is skipped on purpose (it holds statistics, not motions), which
+// used to leave motionsTab null and the motions silently unscraped, although
+// the plain /motions/ list is published at the same place.
+describe('extractNavigation — a landing page that links only the motions statistics', () => {
+  const html = `<html><body><nav>
+    <a href="/demo2026/tab/team/">Team Tab</a>
+    <a href="/demo2026/tab/speaker/">Speaker Tab</a>
+    <a href="/demo2026/motions/statistics/">Motions Tab</a>
+    <a href="/demo2026/participants/list/">Participants</a>
+  </nav></body></html>`;
+  const nav = extractNavigation(html, BASE);
+
+  test('builds the motions list URL rather than leaving it null', () => {
+    expect(nav.motionsTab).toBe(`${HOST_BASE}motions/`);
+    expect(nav.meta.constructed).toEqual(['motionsTab']);
+  });
+
+  test('prefers a motions link the page really has', () => {
+    const linked = extractNavigation(
+      html.replace('</nav>', '<a href="/demo2026/motions/">Motions</a></nav>'),
+      BASE,
+    );
+    expect(linked.motionsTab).toBe(`${HOST_BASE}motions/`);
+    expect(linked.meta.constructed).toEqual([]);
   });
 });
 
