@@ -43,13 +43,41 @@
 
 **3. Parity** (PR #120): 0 real differences against the HTML parsers on 13 tournaments, including WUDC 2023/2024/2025 and Australs 2022/2025.
 
+### Write phase in production, and the write reserve (PR #128)
+
+#123's `[ingest] write phase` log, from the owner's Re-ingest all on cfbb302 (Vercel fra1 → Neon, 12 ingests, no errors):
+
+| Participants / teams | Write time |
+| --- | ---: |
+| 60 / 25 | 1.8 s |
+| 91 / 29 | 2.1 s |
+| 125 / 26 | 3.4 s |
+| 137 / 31 | 4.4 s |
+| 146 / 53 | 5.0 s |
+| 194 / 43 | 3.2 s |
+| 211 / 58 | 5.3 s |
+| 244 / 87 | 5.6 s |
+| 273 / 94 | 5.8 s |
+| 242 / 94 | 6.6 s |
+| 274 / 94 | 8.5 s |
+| 436 / 192 (SIDO 2026) | 11.0 s |
+
+That is about 17 ms per participant + team, ±30 %. WUDC 2024 (about 812 / 300) projects to about 19 s.
+
+#123's flat 15 s reserve deferred small tournaments for no reason, yet sat below WUDC's write. That second case is a mid-transaction kill, the failure #123 exists to avoid.
+
+**Decision (#128):** the reserve scales, at 3 s + 25 ms per participant + team.
+- **Per tournament:** 5.1 s for the smallest above, 18.7 s for SIDO, about 31 s for WUDC 2024.
+- **Override:** `INGEST_WRITE_RESERVE_MS` still sets a fixed value.
+- **Alternatives considered:** a flat 25 s would have covered WUDC but deferred every small tournament earlier. Relying on the env override alone leaves the default wrong.
+
 ### Not solved by turning it on: WUDC-scale ingests are at the 60 s limit
 
 WUDC 2024 took 53–57 s locally in both modes, past #123's 55 s deadline.
 
 - **What #123 changes:** such a job now stops cleanly instead of being killed. Started first, it spends an attempt, and after three attempts it ends `failed` ("does not fit… even when started first"). That is honest, but it is not an import.
 - **What to check:** the `[ingest] write phase` log on the next Re-ingest all, which is a real re-fetch since #124. Production's latency may differ from local.
-- **If production matches local,** big tournaments are B9's job: pre-scraped off-platform, they are served from storage in about a second.
+- **With #128, a WUDC-scale ingest won't fit on the platform:** about 35–40 s of fetching plus about 31 s of write reserve is more than 55 s. So it defers, writing nothing, and after three attempts ends `failed`. That's honest, but not an import. Big tournaments are B9's job: pre-scraped off-platform, they are served from storage in about a second.
 - **What B9's stage A covers** (2023–2025): WUDC 2023 and WUDC 2024, Australs 2023–2025, and the other 2023–2025 tournaments in the corpus. WUDC 2025 is in the corpus only as its site root (`wudc2025.calicotab.com/`), so it is included only if that root page links exactly one tournament; otherwise the runner skips it rather than guess.
 - **What stays on the normal path:** WUDC 2022 (3,755 team results), Korea WUDC 2021, all of 2020–2022 until stage B, and every 2026 tournament.
 
