@@ -2,6 +2,56 @@
 
 ---
 
+## 2026-10-25 (late) — Operator state after PRs #115–#122, and what is still open
+
+**On `main`:** #115 filterable stats + Tabbycat API tabs + JSON Resume; #116 a private participants list no
+longer fails an ingest (+ one retry for a dropped connection); #117 round-ledger names/points/BP placements,
+motions list fetched, Tags/Verify admin-only; #118 tag suggestions (Suggest all tags, Approve all); #119 B6 API
+snapshots + `docs/SIZING-2026-10-25.md`; #120 B8 rounds/break/participants via the API (**off**,
+`TABBYCAT_API_ROUNDS=1`); #121 outround motions on the ledger; #122 pre-processed tags without an API key.
+
+**Open at the time of writing:** #124 (Re-ingest all really re-fetches + `PARSER_VERSION` 20261025.0) and #123
+(per-ingest deadline so a late-started job stops cleanly instead of being killed at 60 s). Merge #124 first,
+then run Re-ingest all; it will now be a real, slow re-fetch of every tournament.
+
+### Operator checklist (owner)
+
+- [ ] Merge #124, then `/admin → Re-ingest all` (the previous runs were cache hits and re-fetched nothing).
+- [ ] Merge #123 once its follow-ups land; then add `?respond=early` to the cron-job.org URL (job
+  8720055) so its 30 s limit stops showing false timeouts.
+- [ ] Tags: `/admin/tags` → Download untagged → give the file to Claude → Load answers → reject the odd row →
+  Approve all. Repeat after each re-ingest, which adds new motions. No API key needed.
+  (`Suggest all tags` is the API-key route and needs `ANTHROPIC_API_KEY`.)
+- [ ] Rotate the cron-job.org API key and `CRON_SECRET` (Vercel env, the GitHub Actions secret, and the
+  cron-job.org job's Authorization header); delete the plain-text key file.
+- [ ] Give the B9 pre-scrape the production database size (Vercel → Storage); its plan is gated on it.
+- [ ] Click through the signed-in `/cv` ledger (round names, running points, BP placements, outround motions).
+
+### Landmines learned today
+
+- **Re-ingest all was a no-op for cached tournaments.** It queues plain ingests; an ingest is a cache hit while
+  the tournament is fresh (30 days) and at the current `PARSER_VERSION`. A parsing change needs a version bump
+  (or #124's stale-marking). Symptom: cron ticks of ~1.5 s after a "re-ingest".
+- **`next build` rejects an optional `req?: Request` on a route handler; `tsc` does not.** Run a real
+  `next build` before pushing route changes.
+- **A participants-list 403 is usually Tabbycat's own "Permission Denied (403)"** (the organisers keep it
+  private), not Cloudflare; `SCRAPER_API_KEY` does not help. It is now optional unless participants are already
+  stored for that tournament (a forced re-ingest would otherwise overwrite them from the landing page alone).
+- **Hobby keeps one hour of runtime logs.** Investigate a production error within the hour or not at all.
+- **Some landing pages link only `/motions/statistics/`.** The real list is `/motions/`; the parser now builds
+  it. The statistics page's text must never be stored as motions (old rows were pruned by re-ingest).
+- **cron-job.org gives up after 30 s**; a drain tick can run to 55 s. That showed as failed runs while a backlog
+  cleared. The drain itself was not interrupted.
+
+### Tag workflow, in one place
+
+`lib/tags/todo.ts` defines what still needs an answer (shared by the classifier and the export).
+`GET /api/admin/tags/export` → answers file → `POST /api/admin/tags/import` files **pending** proposals only
+(vocabulary-validated, idempotent, never overwrites a tag or a decided proposal) → `POST
+/api/admin/tag-proposals/approve-all` writes them through. Nothing reaches a CV without that last click.
+
+---
+
 ## 2026-10-25 — B8: rounds, break and participants through the Tabbycat API
 
 **Branch `opus/b8-api-rounds`, on top of `opus/b6-api-snapshots`.** Local, not pushed. Off by default:
