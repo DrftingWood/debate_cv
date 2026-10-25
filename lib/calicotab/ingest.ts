@@ -487,7 +487,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const fetchTab = async (targetUrl: string, label: string, enrichment = false): Promise<string | null> => {
     const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
     if (r.ok) return r.html;
-    if (enrichment && isWithheldByTournament(r)) {
+    // Never when we already hold participants for this tournament: a forced
+    // re-ingest skips the regression guard and would rewrite them from the
+    // landing page alone, losing the institutions and roles stored earlier.
+    // That case keeps failing, as it did before this was optional.
+    const hasStoredParticipants = (loaded.existing?.totalParticipants ?? 0) > 0;
+    if (enrichment && !hasStoredParticipants && isWithheldByTournament(r)) {
       fetchWarnings.push(`optional: ${label} HTTP ${r.status} (not public for this tournament)`);
       return null;
     }
