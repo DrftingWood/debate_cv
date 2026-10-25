@@ -2,6 +2,59 @@
 
 ---
 
+## 2026-10-25 (night) — B8: should `TABBYCAT_API_ROUNDS` be turned on?
+
+**Recommendation: turn it on.** Set `TABBYCAT_API_ROUNDS=1` in Vercel (Production) and redeploy.
+
+- **Fewer requests:** a quarter to a third fewer, on every tournament whose API answers.
+- **Stored data identical**, page for page.
+- **No change in wall time,** so this is about fragility and request count, not speed.
+- **Falls back cleanly** wherever the API can't serve a page.
+
+**Rollback:** delete `TABBYCAT_API_ROUNDS` (or set it to anything but `1`) in Vercel → Settings → Environment Variables, then redeploy. Env changes only take effect on a new deployment. No data migration is involved in either direction. Rows written while it was on are the same rows the HTML path writes.
+
+### Evidence
+
+**1. Real ingests, flag off vs on** (`tests/__ingestTiming.live.test.ts`). These are real private URLs, force-ingested into a local throwaway Postgres, alternating which mode ran first.
+
+| Tournament | Off: time / requests | On: time / requests | Stored rows (teams, participants, eliminations, scores, judges) |
+| --- | ---: | ---: | --- |
+| WUDC 2024 | 52.9 s / 53 | 56.7 s / 39 | identical |
+| ASO Winter 2024 | 24.1 s / 46 | 22.5 s / 31 | identical |
+| ILNU RR 2026 | 15.0 s / 25 | 17.5 s / 26 | identical |
+| Uhuru Worlds 2022 (outrounds) | 14.5 s / 22 | 16.0 s / 26 | identical (API had no rounds; HTML fallback cost 4 extra calls) |
+
+- **Requests:** down 26 % (WUDC 2024, 53→39) and 33 % (ASO, 46→31) where the API serves the rounds.
+- **Wall time:** within ±3 s either way. The per-host throttle, not the request count, sets the pace, and the API's per-round list is large.
+- **Not usable:** 17 of the 21 private URLs available couldn't be measured. Their landing page no longer loads (dead herokuapp installs, rotated URLs), which is independent of the flag.
+- **A flake, not caused by the flag:** HKPDS 2022, IITM PD 2025 and Oxford WSDC 2021 each failed one run of the pair, at random, on a `fetch: participants` error.
+
+**2. What the API serves across tournaments** (`tests/__apiCoverage.live.test.ts`): 32 public corpus tournaments, 2020–2023, API side only. The survey stopped at 32 of 63 when the machine ran low on memory; the remaining 31 (2023–2026) weren't reached.
+
+| Page | Served by the API | Sent back to HTML, and why |
+| --- | ---: | --- |
+| Round results | 300 of 311 (96 %); every round at 29 of 32 tournaments | 7 rounds not in the API, 4 rounds with no results yet |
+| Break tabs | 43 of 78 (55 %) | 34 show institutions, 1 has ranks that skip numbers |
+| Participants list | 4 of 32 (12 %) | 28 show institutions |
+
+- **Where the saving comes from:** almost all of it is round results.
+- **Institutions keep most participants lists and many break tabs on HTML,** by design. The API only links institutions to a token-gated endpoint, so reading those pages from it would drop every judge's and team's institution.
+- **Rounds outside the API** cost nothing beyond one pairings call, then fall back.
+
+**3. Parity** (PR #120): 0 real differences against the HTML parsers on 13 tournaments, including WUDC 2023/2024/2025 and Australs 2022/2025.
+
+### Not solved by turning it on: WUDC-scale ingests are at the 60 s limit
+
+WUDC 2024 took 53–57 s locally in both modes, past #123's 55 s deadline.
+
+- **What #123 changes:** such a job now stops cleanly instead of being killed. Started first, it spends an attempt, and after three attempts it ends `failed` ("does not fit… even when started first"). That is honest, but it is not an import.
+- **What to check:** the `[ingest] write phase` log on the next Re-ingest all, which is a real re-fetch since #124. Production's latency may differ from local.
+- **If production matches local,** big tournaments are B9's job: pre-scraped off-platform, they are served from storage in about a second.
+- **What B9's stage A covers** (2023–2025): WUDC 2023 and WUDC 2024, Australs 2023–2025, and the other 2023–2025 tournaments in the corpus. WUDC 2025 is in the corpus only as its site root (`wudc2025.calicotab.com/`), so it is included only if that root page links exactly one tournament; otherwise the runner skips it rather than guess.
+- **What stays on the normal path:** WUDC 2022 (3,755 team results), Korea WUDC 2021, all of 2020–2022 until stage B, and every 2026 tournament.
+
+---
+
 ## 2026-10-25 (late) — Operator state after PRs #115–#122, and what is still open
 
 **On `main`:** #115 filterable stats + Tabbycat API tabs + JSON Resume; #116 a private participants list no
