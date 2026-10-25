@@ -18,6 +18,10 @@
  *   page links exactly one tournament, and skipped otherwise.
  * - Ends with the duplicates check (design C1): any host + slug stored
  *   under more than one fingerprint fails the run.
+ * - Storage guard: before each tournament, stops cleanly (status
+ *   "stopped-storage") once pg_database_size reaches PRESCRAPE_MAX_DB_BYTES
+ *   (default 0.85 GB). Neon's free plan FAILS writes past 1 GB — users'
+ *   ingests included — so the load must stop well short of it. Resumable.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -45,7 +49,17 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
       const report: Array<Record<string, unknown>> = [];
       const save = () => writeFileSync(process.env.PRESCRAPE_REPORT!, JSON.stringify(report, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 1));
 
+      const maxDbBytes = Number(process.env.PRESCRAPE_MAX_DB_BYTES ?? 0.85 * 1024 ** 3);
+      const dbBytes = async () =>
+        Number((await prisma.$queryRaw<Array<{ b: bigint }>>`SELECT pg_database_size(current_database()) AS b`)[0]!.b);
+      report.push({ dbBytesBefore: await dbBytes(), maxDbBytes });
       for (const raw of urls) {
+        const size = await dbBytes();
+        if (size >= maxDbBytes) {
+          report.push({ url: raw, status: 'stopped-storage', dbBytes: size, maxDbBytes });
+          save();
+          break;
+        }
         const t0 = Date.now();
         let url = raw;
         try {
@@ -74,9 +88,12 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
         SELECT lower(regexp_replace(substring("sourceUrlRaw" from '^https?://[^/]+/[^/]+/'), '^https?://', '')) AS site,
                count(DISTINCT fingerprint) AS n
         FROM "Tournament"
+        -- A row with no slug (a site root) has no host + slug to share; it
+        -- would otherwise group with every other such row as one "site".
+        WHERE "sourceUrlRaw" ~* '^https?://[^/]+/[^/]+/'
         GROUP BY 1
         HAVING count(DISTINCT fingerprint) > 1`;
-      report.push({ duplicates: dupes.map((d) => ({ site: d.site, fingerprints: Number(d.n) })) });
+      report.push({ duplicates: dupes.map((d) => ({ site: d.site, fingerprints: Number(d.n) })), dbBytesAfter: await dbBytes() });
       save();
       await prisma.$disconnect();
       expect(dupes).toEqual([]);
