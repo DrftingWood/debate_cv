@@ -17,6 +17,9 @@ const { POST } = await import('@/app/api/tags/propose/route');
 beforeEach(() => {
   authMock.mockReset();
   resetPrismaMock();
+  // Tag proposals are an admin tool: the suite runs as the allowlisted admin
+  // unless a case says otherwise.
+  process.env.ADMIN_EMAIL = 'test@example.com';
 });
 
 // ── authentication ───────────────────────────────────────────────────────────
@@ -30,6 +33,19 @@ describe('POST /api/tags/propose — auth', () => {
         }),
       ),
     ));
+});
+
+describe('POST /api/tags/propose — admin only', () => {
+  it('returns 403 for a signed-in participant who is not on the admin allowlist', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1', 'someone-else@example.com'));
+    const res = await POST(
+      jsonRequest('/api/tags/propose', {
+        body: { kind: 'region', tournamentId: '1', value: 'Europe' },
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await readJson(res)).toMatchObject({ error: 'forbidden' });
+  });
 });
 
 // ── rejected requests ───────────────────────────────────────────────────────

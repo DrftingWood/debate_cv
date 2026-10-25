@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
 import { CvSubNav } from '@/components/CvSubNav';
+import { isAdminEmail } from '@/lib/admin';
 
 export const metadata: Metadata = {
   title: 'Motions',
@@ -39,6 +40,7 @@ export const dynamic = 'force-dynamic';
 export default async function CvMotionsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
+  const isAdmin = isAdminEmail(session.user.email);
 
   // Same gate as /cv: without a claimed identity there is no record to join
   // motions to, and the user belongs in the onboarding wizard rather than
@@ -131,6 +133,7 @@ export default async function CvMotionsPage() {
                   : 'No results published'
               }
             />
+            {isAdmin ? (
             <StatTile
               label="Tagged"
               value={debated.length > 0 ? `${Math.round((tagged / debated.length) * 100)}%` : '—'}
@@ -143,6 +146,7 @@ export default async function CvMotionsPage() {
                 </>
               }
             />
+            ) : null}
           </StatRow>
 
           {/*

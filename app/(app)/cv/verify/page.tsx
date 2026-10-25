@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ExternalLink, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -27,6 +28,8 @@ export default async function CvVerifyPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
+  // An operator tool, not a participant feature: send everyone else back to the record.
+  if (!isAdminEmail(session.user.email)) redirect('/cv');
   const userId = session.user.id;
 
   const { mine: mineParam, t: selectedParam } = await searchParams;

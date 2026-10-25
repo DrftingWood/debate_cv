@@ -1,12 +1,16 @@
 import Link from 'next/link';
+import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { cn } from '@/lib/utils/cn';
 
 const TABS = [
-  { key: 'record', label: 'Record', href: '/cv' },
-  { key: 'stats', label: 'Statistics', href: '/cv/stats' },
-  { key: 'motions', label: 'Motions', href: '/cv/motions' },
-  { key: 'tags', label: 'Tags', href: '/cv/tags' },
-  { key: 'verify', label: 'Verify', href: '/cv/verify' },
+  { key: 'record', label: 'Record', href: '/cv', adminOnly: false },
+  { key: 'stats', label: 'Statistics', href: '/cv/stats', adminOnly: false },
+  { key: 'motions', label: 'Motions', href: '/cv/motions', adminOnly: false },
+  // Operator tools, not participant features: the pages redirect a
+  // non-admin away, and the bar does not offer them.
+  { key: 'tags', label: 'Tags', href: '/cv/tags', adminOnly: true },
+  { key: 'verify', label: 'Verify', href: '/cv/verify', adminOnly: true },
 ] as const;
 
 export type CvTab = (typeof TABS)[number]['key'];
@@ -19,8 +23,11 @@ export type CvTab = (typeof TABS)[number]['key'];
  *
  * Server component — the active tab is passed by each page rather than
  * derived from the URL, so the bar costs zero client JS and prints nothing.
+ * It reads the session itself so no page can forget to hide the admin tabs.
  */
-export function CvSubNav({ active }: { active: CvTab }) {
+export async function CvSubNav({ active }: { active: CvTab }) {
+  const session = await auth();
+  const tabs = isAdminEmail(session?.user?.email) ? TABS : TABS.filter((tab) => !tab.adminOnly);
   return (
     <nav
       aria-label="CV sections"
@@ -28,7 +35,7 @@ export function CvSubNav({ active }: { active: CvTab }) {
       className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] sm:mx-0 sm:px-0 sm:[mask-image:none]"
     >
       <div className="inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.key}
             href={tab.href}

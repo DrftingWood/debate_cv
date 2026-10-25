@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { REGIONS, MOTION_TYPES, MOTION_TYPE_LABELS, MOTION_TOPICS, inferMotionType } from '@/lib/tags/vocabulary';
 import { TagProposalControls } from '@/components/TagProposalControls';
@@ -17,6 +18,8 @@ export const dynamic = 'force-dynamic';
 export default async function CvTagsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
+  // An operator tool, not a participant feature: send everyone else back to the record.
+  if (!isAdminEmail(session.user.email)) redirect('/cv');
   const userId = session.user.id;
 
   // Load every ingested tournament for this user — same pattern as /cv/stats
