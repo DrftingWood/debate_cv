@@ -45,6 +45,7 @@ import {
   normalizePersonName,
 } from './fingerprint';
 import { PARSER_VERSION } from './version';
+import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { inferTournamentFormat } from './format';
 import { outroundRankStrict } from './judgeStats';
@@ -1233,6 +1234,12 @@ async function writeIngestTransaction(
     // never leaves a stale lock. Audit issue #4.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(tournamentFingerprint)})`;
 
+    // Only the tournament's public address is stored, never the private URL
+    // this ingest came from: the row is shared by everyone who has the
+    // tournament on their record, and a private URL is one participant's
+    // credential (lib/cv/publicTournamentUrl.ts). The user's own private URL
+    // lives on their DiscoveredUrl, which is all a re-ingest needs.
+    const storedSourceUrl = publicTournamentUrl(normalized);
     const t = await tx.tournament.upsert({
       where: { fingerprint: tournamentFingerprint },
       update: {
@@ -1246,7 +1253,7 @@ async function writeIngestTransaction(
         totalParticipants,
         totalTeams,
         prelimRoundCount,
-        sourceUrlRaw: normalized,
+        sourceUrlRaw: storedSourceUrl,
         scrapedAt: new Date(),
         // Stamp the version that produced this data (tournament-scoped
         // cache invalidation) and release the scrape claim — committing
@@ -1261,7 +1268,7 @@ async function writeIngestTransaction(
         totalParticipants,
         totalTeams,
         prelimRoundCount,
-        sourceUrlRaw: normalized,
+        sourceUrlRaw: storedSourceUrl,
         fingerprint: tournamentFingerprint,
         parserVersion: PARSER_VERSION,
       },
