@@ -79,6 +79,8 @@ Done when: the size estimate is written up and the owner picks scope. Only then 
 `ledgerMotions` (`lib/cv/roundLedger.ts`) keeps the round-number match for prelims. For a row that `ledgerRoundNames` named as an outround, it matches unnumbered motions by stage through the stage lexicon ("Final" and "Grand Final" are one stage), in the team's own break category from `eliminationReached`.
 
 When unsure it shows no motion:
+- a run in more than one bracket gets no stage match, because the ledger names its outrounds from one bracket's ladder;
+- a tournament with a partial-round motion gets no stage match, because the ladder has no partial rung;
 - a "Round N" fallback row is never matched by stage;
 - two different labels for one stage and bracket show nothing;
 - a numbered motion is never moved onto another row.

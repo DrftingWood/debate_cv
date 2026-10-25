@@ -166,6 +166,28 @@ describe('ledgerMotions', () => {
     expect(at(7)).toEqual([]);
   });
 
+  it('a run in two brackets: outrounds get no stage-matched motion', () => {
+    const roundNumbers = [1, 6, 7];
+    const roundNames = ledgerRoundNames({ roundNumbers, prelimRoundCount: 5, eliminationReached: 'ESL Semifinals' });
+    const got = ledgerMotions({
+      roundNumbers,
+      roundNames,
+      prelimRoundCount: 5,
+      eliminationReached: 'ESL Semifinals',
+      multiCategoryRun: true,
+      motions: [m(null, 'ESL Quarterfinals', 'ESL QF'), m(null, 'ESL Semifinals', 'ESL SF'), m(1, 'Round 1', 'R1')],
+    });
+    expect(got.get(6)).toBeUndefined();
+    expect(got.get(7)).toBeUndefined();
+    expect(got.get(1)?.map((x) => x.text)).toEqual(['R1']);
+  });
+
+  it('a tournament with a partial round: outrounds get no stage-matched motion', () => {
+    const at = ledger('Quarterfinals', [m(null, 'Partial Octofinals', 'POF'), m(null, 'Octofinals', 'OF'), m(null, 'Quarterfinals', 'QF')], [1, 6, 7]);
+    expect(at(6)).toEqual([]);
+    expect(at(7)).toEqual([]);
+  });
+
   it('no prelim count: nothing is treated as an outround', () => {
     const names = ledgerRoundNames({ roundNumbers: [6], prelimRoundCount: null, eliminationReached: 'Final' });
     const got = ledgerMotions({

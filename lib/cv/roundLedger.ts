@@ -117,23 +117,39 @@ function categoryKey(label: string | null | undefined): string {
  * break category as the team's run (eliminationReached: "ESL Semifinals" →
  * ESL; a bare stage → the open bracket).
  *
- * When unsure, no motion: a row whose name fell back to "Round N" is not
- * matched by stage, and if motions under more than one label claim the same
- * stage and category ("Semifinals" and "Open Semifinals", or "Final" and
- * "Grand Final" in one bracket), none is shown rather than pick one. Several
- * motions under one label stay together, as a prelim's do. A motion with its
- * own round number is never moved onto another row.
+ * A bare stage in eliminationReached ("Semifinals") reads as the open
+ * bracket. That is the stored convention: a run in another bracket keeps its
+ * category in the string ("ESL Semifinals"; see formatStageForDisplay).
+ *
+ * When unsure, no motion:
+ *   - a run in more than one bracket (`multiCategoryRun`, i.e.
+ *     eliminationReachedByCategory is set): ledgerRoundNames counts every
+ *     outround back from one bracket's last stage, so an Open Octofinals row
+ *     can be named for the ESL ladder, and its stage match would pick the
+ *     wrong bracket's motion;
+ *   - a tournament with any partial-round motion ("Partial Octofinals",
+ *     "Pre-quarterfinals"): the ladder has no partial rung, so a partial round
+ *     the team debated would be named for the full stage after it;
+ *   - a row whose name fell back to "Round N" is not matched by stage;
+ *   - motions under more than one label for the same stage and category
+ *     ("Semifinals" and "Open Semifinals", or "Final" and "Grand Final" in
+ *     one bracket): none is shown rather than pick one.
+ * Several motions under one label stay together, as a prelim's do. A motion
+ * with its own round number is never moved onto another row.
  */
 export function ledgerMotions<M extends { roundNumber: number | null; roundLabel: string; seq: number }>(input: {
   roundNumbers: number[];
   roundNames: Map<number, string>;
   prelimRoundCount: number | null;
   eliminationReached: string | null;
+  multiCategoryRun?: boolean;
   motions: M[];
 }): Map<number, M[]> {
   const out = new Map<number, M[]>();
   const teamCategory = categoryKey(input.eliminationReached);
   const unnumbered = input.motions.filter((m) => m.roundNumber == null);
+  const hasPartialRound = unnumbered.some((m) => splitStageLabel(m.roundLabel).stage?.startsWith('partial_'));
+  const matchByStage = !input.multiCategoryRun && !hasPartialRound;
   for (const n of input.roundNumbers) {
     const direct = input.motions.filter((m) => m.roundNumber === n);
     if (direct.length > 0) {
@@ -142,7 +158,7 @@ export function ledgerMotions<M extends { roundNumber: number | null; roundLabel
     }
     const isOutround = input.prelimRoundCount != null && n > input.prelimRoundCount;
     const name = input.roundNames.get(n);
-    const stage = isOutround ? stageKey(name) : null;
+    const stage = isOutround && matchByStage ? stageKey(name) : null;
     if (!stage) continue;
     const matches = unnumbered.filter(
       (m) => stageKey(m.roundLabel) === stage && categoryKey(m.roundLabel) === teamCategory,

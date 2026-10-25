@@ -349,6 +349,7 @@ function RoundLedger({
     roundNames,
     prelimRoundCount: r.prelimRoundCount,
     eliminationReached: r.eliminationReached,
+    multiCategoryRun: (r.eliminationReachedByCategory?.length ?? 0) > 1,
     motions: motionsByTournament.get(r.tournamentId.toString()) ?? [],
   });
   const anyMotion = roundNumbers.some((n) => (motionsByRound.get(n) ?? []).length > 0);
