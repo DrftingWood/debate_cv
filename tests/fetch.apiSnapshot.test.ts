@@ -1,0 +1,93 @@
+import { gunzipSync } from 'node:zlib';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+// B6: Tabbycat API responses are kept as SourceDocuments so API-sourced tabs
+// stay in the re-derivation archive. The prisma upsert is the observable
+// effect; the DB itself is not under test.
+const upsert = vi.fn(async ({ create }) => ({ id: 'doc-1', ...create }));
+vi.mock('@/lib/db', () => ({ prisma: { sourceDocument: { upsert: (a: unknown) => upsert(a as never) } } }));
+
+const URL_TEAMS = 'https://wudc2024.calicotab.com/api/v1/tournaments/wudc/teams';
+
+function respond(body: string, status = 200) {
+  return vi.fn(async () => new Response(body, { status }));
+}
+
+describe('withApiSnapshots', () => {
+  beforeEach(() => {
+    upsert.mockClear();
+  });
+
+  test('a 200 JSON list is stored under its endpoint URL, body as received', async () => {
+    const body = '[{"id":1,"url":"https://x/teams/1"}]';
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const res = await withApiSnapshots(respond(body))(URL_TEAMS);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([{ id: 1, url: 'https://x/teams/1' }]);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const arg = upsert.mock.calls[0][0] as unknown as {
+      where: { url_contentHash: { url: string; contentHash: string } };
+      create: { status: number; contentLength: number; bodyGzip: Buffer };
+    };
+    expect(arg.where.url_contentHash.url).toBe(URL_TEAMS);
+    expect(arg.create.status).toBe(200);
+    expect(arg.create.contentLength).toBe(Buffer.byteLength(body));
+    expect(gunzipSync(arg.create.bodyGzip).toString('utf8')).toBe(body);
+  });
+
+  test('identical bodies hash identically, so a re-fetch dedups onto one row', async () => {
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    await withApiSnapshots(respond('[1,2]'))(URL_TEAMS);
+    await withApiSnapshots(respond('[1,2]'))(URL_TEAMS);
+    const keys = upsert.mock.calls.map(
+      (c) => (c[0] as unknown as { where: { url_contentHash: unknown } }).where.url_contentHash,
+    );
+    expect(keys[0]).toEqual(keys[1]);
+  });
+
+  test('non-200 responses are not stored and pass their status through', async () => {
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const res = await withApiSnapshots(respond('{"detail":"no"}', 401))(URL_TEAMS);
+    expect(res.status).toBe(401);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  test('a 200 that is not JSON (Cloudflare challenge, 404 template) is not stored', async () => {
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const res = await withApiSnapshots(respond('<html>Just a moment…</html>'))(URL_TEAMS);
+    expect(upsert).not.toHaveBeenCalled();
+    // getList in tabbycatApi.ts relies on json() rejecting to fall back to HTML.
+    await expect(res.json()).rejects.toThrow();
+  });
+
+  test('a failed snapshot write does not fail the API read', async () => {
+    upsert.mockRejectedValueOnce(new Error('connection reset'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const res = await withApiSnapshots(respond('[]'))(URL_TEAMS);
+    expect(await res.json()).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  test('through fetchTabsFromApi, every endpoint read is snapshotted', async () => {
+    // A tournament whose preferences keep both tabs private: one request,
+    // one snapshot — the release settings themselves are worth keeping.
+    const prefs = JSON.stringify([
+      { identifier: 'tab_release__team_tab_released', value: false },
+      { identifier: 'tab_release__speaker_tab_released', value: false },
+    ]);
+    const { withApiSnapshots } = await import('@/lib/calicotab/fetch');
+    const { fetchTabsFromApi } = await import('@/lib/calicotab/tabbycatApi');
+    const result = await fetchTabsFromApi(
+      'https://wudc2024.calicotab.com/wudc/privateurls/abc/',
+      withApiSnapshots(respond(prefs)),
+    );
+    expect(result.teams.source).toBe('private');
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const url = (upsert.mock.calls[0][0] as unknown as { where: { url_contentHash: { url: string } } }).where
+      .url_contentHash.url;
+    expect(url).toBe('https://wudc2024.calicotab.com/api/v1/tournaments/wudc/preferences');
+  });
+});

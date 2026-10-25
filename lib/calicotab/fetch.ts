@@ -390,34 +390,97 @@ export async function fetchHtmlWithProvenance(
     };
   }
 
-  const contentHash = sha256Hex(html);
-  const contentLength = Buffer.byteLength(html, 'utf8');
-
-  // Retain the gzipped body alongside the hash. Historically we kept only
-  // the hash, which made every new parsed field (motions, team positions)
-  // require re-scraping every tournament — impossible once a Heroku tab
-  // dies. Oversized pages are skipped rather than truncated: a partial
-  // body would parse as a structurally-broken page and is worse than no
-  // body. The (url, contentHash) unique already dedups unchanged pages,
-  // and the update branch backfills bodies onto pre-column rows when the
-  // same content is re-fetched.
-  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(html) : null;
-
-  const doc = await prisma.sourceDocument.upsert({
-    where: { url_contentHash: { url, contentHash } },
-    update: { fetchedAt: new Date(), status: res.status, contentLength, bodyGzip },
-    create: { url, contentHash, contentLength, status: res.status, bodyGzip },
-  });
+  const doc = await storeSourceDocument(url, res.status, html);
 
   return {
     ok: true,
     url,
     html,
     status: res.status,
-    contentHash,
-    contentLength,
+    contentHash: doc.contentHash,
+    contentLength: doc.contentLength,
     sourceDocumentId: doc.id,
     elapsedMs,
+  };
+}
+
+/**
+ * Record one fetched body as a SourceDocument — the HTML tab pages and,
+ * since 2026-10-25, the Tabbycat API responses that replace them.
+ *
+ * Retain the gzipped body alongside the hash. Historically we kept only
+ * the hash, which made every new parsed field (motions, team positions)
+ * require re-scraping every tournament — impossible once a Heroku tab
+ * dies. Oversized bodies are skipped rather than truncated: a partial
+ * body would parse as a structurally-broken page and is worse than no
+ * body. The (url, contentHash) unique already dedups unchanged pages,
+ * and the update branch backfills bodies onto pre-column rows when the
+ * same content is re-fetched.
+ */
+export async function storeSourceDocument(
+  url: string,
+  status: number,
+  body: string,
+): Promise<{ id: string; contentHash: string; contentLength: number }> {
+  const contentHash = sha256Hex(body);
+  const contentLength = Buffer.byteLength(body, 'utf8');
+  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(body) : null;
+
+  const doc = await prisma.sourceDocument.upsert({
+    where: { url_contentHash: { url, contentHash } },
+    update: { fetchedAt: new Date(), status, contentLength, bodyGzip },
+    create: { url, contentHash, contentLength, status, bodyGzip },
+  });
+  return { id: doc.id, contentHash, contentLength };
+}
+
+/**
+ * Wrap the Tabbycat API fetcher so every JSON list it reads is kept as a
+ * SourceDocument, keyed by the endpoint URL (owner decision B6, 2026-10-25,
+ * option 1: store the JSON, newest per URL only).
+ *
+ * Why: once the team and speaker tabs come from the API, their HTML pages
+ * are never fetched, so without this those tabs drop out of the
+ * re-derivation archive — a parser change could not be replayed without
+ * re-fetching, and a tournament that later withdraws its tabs would leave
+ * no copy. All eight endpoints are kept, not just the standings: the
+ * mappers join across them, so any one alone cannot be re-derived.
+ *
+ * Storage is the existing pipeline's, unchanged: gzipped body, (url, hash)
+ * dedup, and pruneIngestArtifacts keeps the newest row per URL. Measured on
+ * WUDC 2024, the five large endpoints (teams, speakers and the three
+ * standings) gzip to ~100 KB against ~151 KB for the two HTML tabs they
+ * stand in for (docs/SIZING-2026-10-25.md); the other three are small lists.
+ *
+ * Only a 200 whose body parses as JSON is stored: a Cloudflare challenge or
+ * an install routing /api to its 404 template is not a snapshot of anything.
+ * The body is stored as received, not re-serialised, so the hash is stable
+ * across identical responses. A failed write is logged and swallowed — the
+ * API path's contract is that anything going wrong falls back quietly, and
+ * a lost snapshot must never cost the user their ingest.
+ */
+export function withApiSnapshots(
+  fetcher: (url: string) => Promise<Response>,
+): (url: string) => Promise<{ status: number; json: () => Promise<unknown> }> {
+  return async (url) => {
+    const res = await fetcher(url);
+    const text = await res.text();
+    if (res.status === 200) {
+      let isJson = true;
+      try {
+        JSON.parse(text);
+      } catch {
+        isJson = false;
+      }
+      if (isJson) {
+        try {
+          await storeSourceDocument(url, res.status, text);
+        } catch (err) {
+          console.warn('[fetch] api snapshot not stored', { url, error: (err as Error).message });
+        }
+      }
+    }
+    return { status: res.status, json: async () => JSON.parse(text) };
   };
 }
 
