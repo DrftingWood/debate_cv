@@ -277,6 +277,9 @@ describe('buildCvData characterization: top-level shape', () => {
     expect(cv.user).toEqual({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
     // First claimed person's display name, ahead of the Google account name.
     expect(cv.myDisplayName).toBe('Ada Lovelace');
+    // breaks counts tournaments broken at (T1 as a speaker, T2 as a judge);
+    // unchanged at 2 here because no tournament has both. See the
+    // regression block at the end for the case that changed.
     expect(cv.summary).toEqual({ totalTournaments: 4, breaks: 2, totalRoundsChaired: 3 });
   });
 
@@ -306,8 +309,11 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
     expect(row).toEqual({
       tournamentId: 1n,
       tournamentName: 'Oxford IV 2025',
-      // Earliest email for the tournament, even from a URL whose name is not the user's.
-      emailDate: '2025-02-01',
+      // Changed from '2025-02-01': that earlier email is the URL registered to
+      // "Someone Else", which no longer counts. emailDate is the earliest email
+      // among the user's own URLs (and URLs that name nobody), so the claimed
+      // 'Ada Lovelace' URL's date wins.
+      emailDate: '2025-02-10',
       year: 2025,
       format: 'British Parliamentary',
       region: 'Europe',
@@ -442,7 +448,9 @@ describe('buildCvData characterization: the judge row (T2)', () => {
       // The URL's registration name, trimmed, because it is a claimed alias.
       myName: 'Ada K. Lovelace',
       judgeTypeTag: 'core',
-      // Distinct inround (stage, round) pairs: Round 1, Round 2, Round 4.
+      // Distinct inrounds by round number (read from the label when the row
+      // has none): Round 1, Round 2, Round 4. Used to key on the raw
+      // (stage, roundNumber) pair; same value for this fixture.
       inroundsJudged: 3,
       inroundsChaired: 3,
       // Round 4 has no roundNumber; its number is read from the stage label.
@@ -473,11 +481,19 @@ describe('buildCvData characterization: the judge row (T2)', () => {
   });
 });
 
-describe('buildCvData characterization: highlights (except topBreaks / bestSpeakerRank)', () => {
+describe('buildCvData characterization: highlights (except the placement highlights / bestSpeakerRank)', () => {
   it('pins championships, best average, chairs, adj core, majors and active years', async () => {
     const cv = await buildCvData(USER);
-    // TODO: pin topBreaks and bestSpeakerRank after the placement rework.
-    const { topBreaks: _topBreaks, bestSpeakerRank: _bestSpeakerRank, ...rest } = cv.highlights;
+    // The placement rework (#167) replaced topBreaks with deepestBreaks,
+    // topTeamFinishes and bestTeamFinish; still not pinned here.
+    // TODO: pin those and bestSpeakerRank.
+    const {
+      deepestBreaks: _deepestBreaks,
+      topTeamFinishes: _topTeamFinishes,
+      bestTeamFinish: _bestTeamFinish,
+      bestSpeakerRank: _bestSpeakerRank,
+      ...rest
+    } = cv.highlights;
     expect(rest).toEqual({
       championships: [{ tournamentName: 'Oxford IV 2025', year: 2025 }],
       bestSpeakerAverage: { tournamentName: 'Oxford IV 2025', year: 2025, score: 78 },
@@ -557,7 +573,9 @@ describe('buildCvData characterization: queries', () => {
       summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
       highlights: {
         championships: [],
-        topBreaks: [],
+        deepestBreaks: [],
+        topTeamFinishes: [],
+        bestTeamFinish: null,
         bestSpeakerRank: null,
         bestSpeakerAverage: null,
         outroundsChaired: 0,
@@ -570,5 +588,75 @@ describe('buildCvData characterization: queries', () => {
     expect(prismaMock.teamResult.findMany).not.toHaveBeenCalled();
     expect(prismaMock.eliminationResult.findMany).not.toHaveBeenCalled();
     expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+// Regressions for three behaviours the characterization above first pinned
+// as odd, then fixed: each one changes a number a reader sees on the CV.
+describe('buildCvData regressions: fixed behaviours', () => {
+  it('emailDate ignores a URL registered to someone else, by person id as well as by name', async () => {
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([
+      // The user's own link, claimed by person id (the name is a spelling
+      // the alias set does not hold).
+      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/', tournamentId: 1n, messageDate: new Date('2025-02-10T09:00:00Z'), registrationPersonId: ADA.id, registrationName: 'A. Lovelace', tournament: T1 },
+      // A teammate's forwarded link: earlier, but registered to another person.
+      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/', tournamentId: 1n, messageDate: new Date('2025-01-05T09:00:00Z'), registrationPersonId: 20n, registrationName: 'Grace Hopper', tournament: T1 },
+      // Novice Cup: a link whose landing named nobody still dates the row...
+      { url: 'https://novice.calicotab.com/nc/privateurls/zzz/', tournamentId: 3n, messageDate: new Date('2024-03-03T09:00:00Z'), registrationPersonId: null, registrationName: '', tournament: T3 },
+      // ...but a foreign link, even an earlier one, does not.
+      { url: 'https://novice.calicotab.com/nc/privateurls/yyy/', tournamentId: 3n, messageDate: new Date('2024-01-01T09:00:00Z'), registrationPersonId: null, registrationName: 'Grace Hopper', tournament: T3 },
+      { url: 'https://eudc2024.calicotab.com/eudc/privateurls/ccc/', tournamentId: 2n, messageDate: null, registrationName: 'Ada K. Lovelace', tournament: T2 },
+    ]);
+    const cv = await buildCvData(USER);
+    const byName = new Map(cv.speakerRows.map((r) => [r.tournamentName, r.emailDate]));
+    expect(byName.get('Oxford IV 2025')).toBe('2025-02-10');
+    expect(byName.get('Novice Cup')).toBe('2024-03-03');
+  });
+
+  it('emailDate is null when the only dated URL for a tournament is someone else’s', async () => {
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([
+      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/', tournamentId: 1n, messageDate: new Date('2025-01-05T09:00:00Z'), registrationPersonId: 20n, registrationName: 'Grace Hopper', tournament: T1 },
+      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/', tournamentId: 1n, messageDate: null, registrationPersonId: ADA.id, registrationName: 'Ada Lovelace', tournament: T1 },
+    ]);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.emailDate).toBeNull();
+  });
+
+  it('inroundsJudged counts a round once when it is stored with and without a round number', async () => {
+    prismaMock.judgeAssignment.findMany.mockResolvedValue([
+      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 1', panelRole: 'chair', roundNumber: 1 },
+      // Round 2 three ways: numbered, label-only, and under the other claimed alias.
+      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: 2 },
+      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: null },
+      { tournamentId: 2n, personId: ADA.id, stage: 'Round 2', panelRole: 'chair', roundNumber: 2 },
+      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Semifinals', panelRole: 'panellist', roundNumber: null },
+    ]);
+    const cv = await buildCvData(USER);
+    const row = cv.judgeRows[0]!;
+    // Was 3 ("Round 1:1", "Round 2:2", "Round 2:").
+    expect(row.inroundsJudged).toBe(2);
+    // The count and the list of rounds now agree.
+    expect(row.judgedRoundNumbers).toEqual([1, 2]);
+  });
+
+  it('summary.breaks counts a tournament once when both the speaker row and the judge row broke', async () => {
+    // A judge participation at Oxford IV as well, on the outround panels.
+    const judgeAtT1 = participation({
+      tournamentId: 1n,
+      personId: ADA_ALIAS.id,
+      lastOutroundPaneled: 'Quarterfinals',
+      roles: [{ role: 'judge' }],
+    });
+    prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
+      const w = argsWhere(args);
+      if (w.person) return [...MY_PARTICIPATIONS, judgeAtT1];
+      return [];
+    });
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
+    expect(cv.judgeRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
+    // T1 (speaker and judge) + T2 (judge). Was 3.
+    expect(cv.summary.breaks).toBe(2);
+    expect(cv.summary.breaks).toBeLessThanOrEqual(cv.summary.totalTournaments);
   });
 });
