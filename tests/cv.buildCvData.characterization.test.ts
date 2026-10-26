@@ -473,11 +473,18 @@ describe('buildCvData characterization: the judge row (T2)', () => {
   });
 });
 
-describe('buildCvData characterization: highlights (except topBreaks / bestSpeakerRank)', () => {
+describe('buildCvData characterization: highlights (except the placement fields)', () => {
   it('pins championships, best average, chairs, adj core, majors and active years', async () => {
     const cv = await buildCvData(USER);
-    // TODO: pin topBreaks and bestSpeakerRank after the placement rework.
-    const { topBreaks: _topBreaks, bestSpeakerRank: _bestSpeakerRank, ...rest } = cv.highlights;
+    // The placement fields (deepestBreaks, topTeamFinishes, bestTeamFinish, bestSpeakerRank)
+    // are pinned in tests/cv.teamPlacement.test.ts since PR #167 reworked them.
+    const {
+      deepestBreaks: _deepestBreaks,
+      topTeamFinishes: _topTeamFinishes,
+      bestTeamFinish: _bestTeamFinish,
+      bestSpeakerRank: _bestSpeakerRank,
+      ...rest
+    } = cv.highlights;
     expect(rest).toEqual({
       championships: [{ tournamentName: 'Oxford IV 2025', year: 2025 }],
       bestSpeakerAverage: { tournamentName: 'Oxford IV 2025', year: 2025, score: 78 },
@@ -557,7 +564,9 @@ describe('buildCvData characterization: queries', () => {
       summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
       highlights: {
         championships: [],
-        topBreaks: [],
+        deepestBreaks: [],
+        topTeamFinishes: [],
+        bestTeamFinish: null,
         bestSpeakerRank: null,
         bestSpeakerAverage: null,
         outroundsChaired: 0,
