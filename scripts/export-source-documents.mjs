@@ -1,7 +1,14 @@
 // Copy the stored page bodies (SourceDocument.bodyGzip) from the database to
 // local files, read-only, so they can then be dropped from the server.
 //
-//   POSTGRES_URL_NON_POOLING=... node scripts/export-source-documents.mjs --out ./source-docs
+//   node scripts/export-source-documents.mjs --out ./source-docs
+//
+// It asks for the Neon connection string when it starts. Paste it at that
+// prompt (nothing is shown as you paste; each character appears as a star) and
+// press Enter. There is nothing to edit in the command. If the string is
+// already in POSTGRES_URL_NON_POOLING it is used without asking. A pooled
+// string (host containing -pooler) is switched to the direct host for you, and
+// the channel_binding option is dropped.
 //
 // Writes one gzip file per document, <id>.html.gz, and an index.jsonl with
 // {id,url,status,contentHash,contentLength,fetchedAt,file}. Pages from private
@@ -9,11 +16,14 @@
 // credential and a registration name, and there is nothing public to keep.
 // Pass --include-private to copy them too.
 //
-// Nothing is written to the database. The connection string is read from the
-// environment and never printed. Resumable: files already on disk are skipped.
+// Nothing is written to the database. The connection string is never printed. Resumable: files already on disk are skipped.
 import { existsSync, mkdirSync, appendFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+
+// Read the shell before the database library loads: importing @prisma/client also
+// reads any .env file in the repo into process.env, which must not be used by accident.
+const shellUrl = process.env.POSTGRES_URL_NON_POOLING;
+const { PrismaClient } = await import('@prisma/client');
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -25,9 +35,76 @@ const value = (name, fallback) => {
 const out = resolve(value('--out', './source-docs'));
 const includePrivate = flag('--include-private');
 const batch = Number(value('--batch', '100'));
-const url = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_PRISMA_URL;
+
+/** Read one line from the terminal without showing it (a star per character). */
+function askHidden(prompt) {
+  return new Promise((resolvePrompt, reject) => {
+    const stdin = process.stdin;
+    if (!stdin.isTTY) {
+      reject(new Error('Run this in an interactive terminal, or set POSTGRES_URL_NON_POOLING first.'));
+      return;
+    }
+    process.stdout.write(prompt);
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+    let buf = '';
+    const finish = () => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeListener('data', onData);
+      process.stdout.write('\n');
+    };
+    const onData = (chunk) => {
+      for (const ch of chunk) {
+        if (ch === '\r' || ch === '\n') {
+          finish();
+          resolvePrompt(buf);
+          return;
+        }
+        if (ch === '\u0003') {
+          finish();
+          process.exit(130);
+        }
+        if (ch === '\u007f' || ch === '\b') {
+          if (buf.length > 0) {
+            buf = buf.slice(0, -1);
+            process.stdout.write('\b \b');
+          }
+          continue;
+        }
+        buf += ch;
+        process.stdout.write('*');
+      }
+    };
+    stdin.on('data', onData);
+  });
+}
+
+/** The direct (non-pooled) form of a Neon string, without options Prisma may reject. */
+function directConnectionString(raw) {
+  const u = new URL(raw.trim());
+  if (u.protocol !== 'postgresql:' && u.protocol !== 'postgres:') {
+    throw new Error('That is not a postgresql:// connection string.');
+  }
+  u.hostname = u.hostname.replace('-pooler', '');
+  u.searchParams.delete('channel_binding');
+  return u.toString();
+}
+
+let url = shellUrl; // only what was set in the shell; .env files and other variables are ignored
 if (!url) {
-  console.error('Set POSTGRES_URL_NON_POOLING (or POSTGRES_PRISMA_URL) in the environment first.');
+  const typed = await askHidden('Paste the Neon connection string and press Enter (it will not be shown): ');
+  if (!typed.trim()) {
+    console.error('Nothing entered.');
+    process.exit(1);
+  }
+  url = typed;
+}
+try {
+  url = directConnectionString(url);
+} catch (e) {
+  console.error(e instanceof Error ? e.message : String(e));
   process.exit(1);
 }
 
