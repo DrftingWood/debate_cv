@@ -43,7 +43,7 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
     async () => {
       const { prisma } = await import('@/lib/db');
       const { prescrapeTournament } = await import('@/lib/calicotab/ingest');
-      const { tournamentSlugsFromRootPage, parseShard, shardOf } = await import('@/lib/calicotab/prescrape');
+      const { tournamentSlugsFromRootPage, expandRootSlugs, parseShard, shardOf } = await import('@/lib/calicotab/prescrape');
       const pause = Number(process.env.PRESCRAPE_PAUSE_MS ?? 5_000);
       const all = readFileSync(process.env.PRESCRAPE_LIST!, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
       // PRESCRAPE_SHARD="2/4": only this shard's tournaments, split by host.
@@ -88,26 +88,39 @@ describe.runIf(enabled)('B9 pre-scrape runner', () => {
           break;
         }
         const t0 = Date.now();
-        let url = raw;
+        // A root-hosted entry expands to every tournament its root page
+        // links (up to PRESCRAPE_MAX_YEAR, default 2025); anything else is one.
+        let targets = [raw];
         try {
           const u = new URL(raw);
           if (u.pathname.split('/').filter(Boolean).length === 0) {
             const res = await fetch(raw, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) });
-            const slugs = res.ok ? tournamentSlugsFromRootPage(await res.text(), u.host) : [];
-            if (slugs.length !== 1) {
-              report.push({ url: raw, status: 'skipped', reason: `root page links ${slugs.length} tournaments` });
+            const slugs = res.ok
+              ? expandRootSlugs(tournamentSlugsFromRootPage(await res.text(), u.host), Number(process.env.PRESCRAPE_MAX_YEAR ?? 2025))
+              : [];
+            if (slugs.length === 0) {
+              report.push({ url: raw, status: 'skipped', reason: 'root page links no tournaments' });
               save();
               continue;
             }
-            url = `https://${u.host}/${slugs[0]}/`;
+            targets = slugs.map((s) => `https://${u.host}/${s}/`);
           }
-          const r = await prescrapeTournament(url, { force: process.env.PRESCRAPE_FORCE === '1' });
-          report.push({ url: raw, resolved: url !== raw ? url : undefined, ...r, ms: Date.now() - t0, warnings: r.warnings.length });
         } catch (err) {
           report.push({ url: raw, status: 'error', error: (err as Error).message.slice(0, 300), ms: Date.now() - t0 });
+          save();
+          continue;
         }
-        save();
-        if (report.at(-1)?.status !== 'current') await sleep(pause);
+        for (const url of targets) {
+          const t1 = Date.now();
+          try {
+            const r = await prescrapeTournament(url, { force: process.env.PRESCRAPE_FORCE === '1' });
+            report.push({ url: raw, resolved: url !== raw ? url : undefined, ...r, ms: Date.now() - t1, warnings: r.warnings.length });
+          } catch (err) {
+            report.push({ url: raw, resolved: url !== raw ? url : undefined, status: 'error', error: (err as Error).message.slice(0, 300), ms: Date.now() - t1 });
+          }
+          save();
+          if (report.at(-1)?.status !== 'current') await sleep(pause);
+        }
       }
 
       // C1: one fingerprint per host + slug, or the load created duplicates.
