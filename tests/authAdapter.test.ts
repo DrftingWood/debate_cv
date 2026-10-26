@@ -84,4 +84,34 @@ describe('withoutStoredTokens', () => {
     expect(persist).not.toHaveBeenCalled();
     expect(linkAccount).toHaveBeenCalledOnce();
   });
+
+  it('saves no Gmail token for another provider, but still strips its tokens before linking', async () => {
+    const { adapter, linkAccount, persist } = setup();
+    await adapter.linkAccount!(account({ provider: 'github' }));
+    expect(persist).not.toHaveBeenCalled();
+    const written = linkAccount.mock.calls[0][0] as AdapterAccount;
+    expect(written.provider).toBe('github');
+    expect(written.access_token).toBeUndefined();
+    expect(written.refresh_token).toBeUndefined();
+  });
+
+  it("returns whatever the base adapter's linkAccount returns", async () => {
+    const linked = { ...account(), access_token: undefined };
+    const base = { linkAccount: vi.fn(async () => linked) };
+    const adapter = withoutStoredTokens(base as unknown as Adapter, vi.fn(async () => {}));
+    await expect(adapter.linkAccount!(account())).resolves.toBe(linked);
+  });
+
+  it('keeps every other adapter method unchanged', () => {
+    const getUser = vi.fn();
+    const adapter = withoutStoredTokens({ getUser, linkAccount: vi.fn() } as unknown as Adapter, vi.fn());
+    expect(adapter.getUser).toBe(getUser);
+  });
+
+  it('tolerates a base adapter with no linkAccount (resolves undefined after persisting)', async () => {
+    const persist = vi.fn(async () => {});
+    const adapter = withoutStoredTokens({} as Adapter, persist);
+    await expect(adapter.linkAccount!(account())).resolves.toBeUndefined();
+    expect(persist).toHaveBeenCalledOnce();
+  });
 });
