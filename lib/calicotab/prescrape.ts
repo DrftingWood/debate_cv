@@ -56,6 +56,25 @@ export function storedTournamentFresh(existing: { scrapedAt: Date; year: number 
   return existing.scrapedAt.getTime() >= NEVER_SCRAPED_BEFORE.getTime();
 }
 
+/**
+ * Has the tournament published a team or speaker tab that we have not stored?
+ *
+ * Once the last round and both tabs are out, nothing more is released, so a
+ * stored tournament is complete. `discovered` is the landing page's
+ * navigation meta: a tab only appears there once Tabbycat links it (a tab we
+ * merely constructed a URL for does not count). The team tab is stored as the
+ * roundNumber=0 TeamResult rows, the speaker tab as speaker score totals on
+ * the participants.
+ */
+export function releasedTabMissing(
+  discovered: readonly string[],
+  stored: { hasTeamTab: boolean; hasSpeakerTab: boolean },
+): boolean {
+  if (discovered.includes('teamTab') && !stored.hasTeamTab) return true;
+  if (discovered.includes('speakerTab') && !stored.hasSpeakerTab) return true;
+  return false;
+}
+
 export type JudgeHit = {
   stage: string;
   role: 'chair' | 'panellist' | 'trainee';

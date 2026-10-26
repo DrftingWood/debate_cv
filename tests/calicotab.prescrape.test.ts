@@ -4,6 +4,7 @@ import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
   publicTournamentBase,
+  releasedTabMissing,
   storedTournamentFresh,
   tournamentSlugsFromRootPage,
   expandRootSlugs,
@@ -48,6 +49,21 @@ describe('storedTournamentFresh', () => {
   it("Re-ingest all's epoch scrapedAt is never fresh, settled or not (#124)", () => {
     expect(storedTournamentFresh({ scrapedAt: new Date(0), year: 2023 })).toBe(false);
     expect(storedTournamentFresh({ scrapedAt: new Date(0), year: null })).toBe(false);
+  });
+});
+
+describe('releasedTabMissing', () => {
+  it('is false when every linked tab is stored', () => {
+    expect(releasedTabMissing(['teamTab', 'speakerTab', 'resultsRounds'], { hasTeamTab: true, hasSpeakerTab: true })).toBe(false);
+  });
+
+  it('is true when a linked tab is not stored', () => {
+    expect(releasedTabMissing(['teamTab', 'speakerTab'], { hasTeamTab: true, hasSpeakerTab: false })).toBe(true);
+    expect(releasedTabMissing(['teamTab'], { hasTeamTab: false, hasSpeakerTab: true })).toBe(true);
+  });
+
+  it('ignores a tab the landing page does not link (a constructed URL is not a release)', () => {
+    expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(false);
   });
 });
 
