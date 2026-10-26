@@ -36,25 +36,18 @@ describe('publicTournamentBase', () => {
 });
 
 describe('storedTournamentFresh', () => {
-  const now = new Date('2026-10-25T12:00:00Z');
-  const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
 
-  it('any tournament is fresh for 30 days', () => {
-    expect(storedTournamentFresh({ scrapedAt: daysAgo(10), year: 2026 }, now)).toBe(true);
-    expect(storedTournamentFresh({ scrapedAt: daysAgo(40), year: 2026 }, now)).toBe(false);
-  });
-
-  it("a settled (earlier year's) tournament stays fresh for a year", () => {
-    expect(storedTournamentFresh({ scrapedAt: daysAgo(200), year: 2024 }, now)).toBe(true);
-    expect(storedTournamentFresh({ scrapedAt: daysAgo(400), year: 2024 }, now)).toBe(false);
-  });
-
-  it('a tournament with no year is not treated as settled', () => {
-    expect(storedTournamentFresh({ scrapedAt: daysAgo(40), year: null }, now)).toBe(false);
+  it('a stored tournament is fresh whatever its age (only missing rounds force a re-scrape)', () => {
+    expect(storedTournamentFresh({ scrapedAt: daysAgo(10), year: 2026 })).toBe(true);
+    expect(storedTournamentFresh({ scrapedAt: daysAgo(40), year: 2026 })).toBe(true);
+    expect(storedTournamentFresh({ scrapedAt: daysAgo(400), year: 2024 })).toBe(true);
+    expect(storedTournamentFresh({ scrapedAt: daysAgo(1500), year: null })).toBe(true);
   });
 
   it("Re-ingest all's epoch scrapedAt is never fresh, settled or not (#124)", () => {
-    expect(storedTournamentFresh({ scrapedAt: new Date(0), year: 2023 }, now)).toBe(false);
+    expect(storedTournamentFresh({ scrapedAt: new Date(0), year: 2023 })).toBe(false);
+    expect(storedTournamentFresh({ scrapedAt: new Date(0), year: null })).toBe(false);
   });
 });
 

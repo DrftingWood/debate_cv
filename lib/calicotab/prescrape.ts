@@ -36,30 +36,24 @@ export function publicTournamentBase(url: string): { base: string; host: string;
   return { base: `https://${parsed.host}/${slug}/`, host: parsed.host, slug };
 }
 
-/** How long any stored tournament counts as current. */
-export const FRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-/** How long a settled tournament (an earlier year's) counts as current. */
-export const SETTLED_FRESH_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
+/** A scrapedAt before this is the "never scraped" marker Re-ingest all writes (epoch). */
+const NEVER_SCRAPED_BEFORE = new Date('2000-01-01T00:00:00Z');
 
 /**
- * Is a stored tournament recent enough to serve without re-scraping?
+ * Is a stored tournament complete enough to serve without re-scraping?
  *
- * Within 30 days of its scrape, any tournament is. A tournament from an
- * earlier calendar year than now is settled — its tabs are final, bar the
- * rare correction — and stays current for a year. Without that, every
- * pre-scraped tournament would be a cache miss a month after loading, and a
- * user's ingest would re-scrape what is already stored (design: "Match
- * flow"). Parser-version and stale-round checks are separate and still
- * force a refresh; so does a forced re-ingest.
+ * Age no longer matters. A stored tournament is served from the database
+ * however long ago it was scraped: its tabs do not change once the rounds
+ * are out, and a calendar window (the earlier 30 days / one year) only
+ * re-scraped finished tournaments for nothing (design: "Match flow"). What
+ * still forces a refresh is that the data may be incomplete, and the callers
+ * check that separately: the landing page advertising more result rounds
+ * than are stored (checkCacheFreshness), a parser-version bump, or a forced
+ * re-ingest. Re-ingest all marks rows by writing an epoch scrapedAt, which is
+ * never fresh (#124).
  */
-export function storedTournamentFresh(
-  existing: { scrapedAt: Date; year: number | null },
-  now: Date = new Date(),
-): boolean {
-  const age = now.getTime() - existing.scrapedAt.getTime();
-  if (age < FRESH_WINDOW_MS) return true;
-  const settled = existing.year != null && existing.year < now.getUTCFullYear();
-  return settled && age < SETTLED_FRESH_WINDOW_MS;
+export function storedTournamentFresh(existing: { scrapedAt: Date; year: number | null }): boolean {
+  return existing.scrapedAt.getTime() >= NEVER_SCRAPED_BEFORE.getTime();
 }
 
 export type JudgeHit = {
