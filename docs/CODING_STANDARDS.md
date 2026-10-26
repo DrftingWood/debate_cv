@@ -109,7 +109,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 **NC-1. Comments say why, in the existing narrative voice; none restate the code.** *Why:* the code says what; only a comment can carry the constraint, the incident or the trade-off (C1, AI3). *Good:* the doc comment on `poolSizedUrl` in `lib/db.ts` (why the pool is derived here, why it only ever raises the limit). *Bad:* `// increment attempts` above `"attempts" = "attempts" + 1`, or "Step 1: now we..." narration. *Q:* "Would each new comment survive a rename? Does any only repeat the line below it?"
 
-**NC-2. New and changed files follow `.prettierrc`.** *Why:* formatting should never be argued in review (R5). The config was measured against the code (single quotes, semicolons, trailing commas, width 100: the width that changes fewest lines). The repo has not been reformatted and will not be wholesale. *Good:* run `npx prettier --write <the files you touched>`. *Bad:* `prettier --write .` in a feature PR. *Enforced by:* `prettier --check`, CI report (293 files differ today).
+**NC-2. New and changed files follow `.prettierrc`.** *Why:* formatting should never be argued in review (R5). The config was measured against the code (single quotes, semicolons, trailing commas, width 100: the width that changes fewest lines). The repo has not been reformatted and will not be wholesale. *Good:* run `npx prettier --write <the files you touched>`. *Bad:* `prettier --write .` in a feature PR. *Enforced by:* `prettier --check`, CI report (294 files differ today).
 
 ## 7. Performance
 
@@ -143,7 +143,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 ## 11. How AI agents must work here
 
-**AI-1. Search for an existing helper before adding one.** *Why:* duplication is the measured failure of AI-written code (AI2). `CODE_METRICS-2026-10-26.md` §9 already lists `signed` defined 6 times, `pct` 6, `mean` 5, `plural` 4, `cleanText` and `cellText` 4. *Good:* `rg "function pct|const pct"` before writing one, and reuse `lib/utils/cn.ts`, `lib/admin.ts#requireAdmin`, `lib/rateLimit.ts#enforceRateLimit`. *Enforced by:* jscpd (CI report, 2.74% duplicated lines today); *Q:* "Did you search for an existing helper?"
+**AI-1. Search for an existing helper before adding one.** *Why:* duplication is the measured failure of AI-written code (AI2). `CODE_METRICS-2026-10-26.md` §9 already lists `signed` defined 6 times, `pct` 6, `mean` 5, `plural` 4, `cleanText` and `cellText` 4. *Good:* `rg "function pct|const pct"` before writing one, and reuse `lib/utils/cn.ts`, `lib/admin.ts#requireAdmin`, `lib/rateLimit.ts#enforceRateLimit`. *Enforced by:* jscpd (CI report, 2.73% duplicated lines today); *Q:* "Did you search for an existing helper?"
 
 **AI-2. Never bump `PARSER_VERSION` casually.** *Why:* it invalidates every cached parse for every user and forces a full re-scrape. *Good:* `lib/calicotab/version.ts` records each bump with a dated comment listing what cached parses got wrong. *Bad:* bumping it for a refactor that changes no parsed output. *Q:* "Does this change parsed output? If not, why is the version bumped?"
 
