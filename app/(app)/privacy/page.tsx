@@ -31,6 +31,12 @@ export default function Privacy() {
         your Gmail for Tabbycat private URLs matching <code>calicotab.com</code>,{' '}
         <code>yellowtabs.com</code> or <code>herokuapp.com</code> with a <code>/privateurls/</code> path.
       </p>
+      <p>
+        The search runs when you press Scan Gmail, when you open your CV, and automatically in the
+        background about every 30 minutes while your Gmail is connected. It only looks for those
+        links; it does not read or keep anything else from your mail. Disconnect Gmail in Settings to
+        stop it.
+      </p>
 
       <h2>What we store</h2>
       <ul>

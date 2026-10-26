@@ -7,6 +7,11 @@ import { pruneIngestArtifacts, prunePlaceholderPersons } from '@/lib/calicotab/p
 import { pruneRateLimits } from '@/lib/rateLimit';
 import { resetStuckRunning } from '@/lib/queue';
 import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
+import { prisma } from '@/lib/db';
+import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
+import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
+import { scanMailbox } from '@/lib/gmail/scanUser';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -103,9 +108,59 @@ export async function POST(req: Request) {
   return handle(req);
 }
 
+/*
+ * Background Gmail scan, before the drain so what it finds is ingested in the
+ * same tick. Each user is scanned about every BACKGROUND_SCAN_INTERVAL_MIN
+ * (default 30) minutes, two users a tick at most, and the whole step is held to
+ * SCAN_BUDGET_MS so the drain keeps nearly all of the tick. Switch it off with
+ * BACKGROUND_GMAIL_SCAN=0. The privacy page tells users it happens.
+ */
+const SCAN_BUDGET_MS = 12_000;
+const SCAN_MAX_USERS = 2;
+
+async function runBackgroundScan() {
+  if (process.env.BACKGROUND_GMAIL_SCAN === '0') return null;
+  const minutes = Number(process.env.BACKGROUND_SCAN_INTERVAL_MIN);
+  const intervalMs = (Number.isFinite(minutes) && minutes >= 5 ? minutes : 30) * 60_000;
+  return scanDueMailboxes(
+    {
+      findDue: async (olderThan, limit) => {
+        const rows = await prisma.gmailToken.findMany({
+          where: { OR: [{ lastScannedAt: null }, { lastScannedAt: { lt: olderThan } }] },
+          orderBy: { lastScannedAt: { sort: 'asc', nulls: 'first' } },
+          take: limit,
+          select: { userId: true },
+        });
+        return rows.map((r) => r.userId);
+      },
+      scan: scanMailbox,
+      isGrantGone: isRefreshTokenInvalid,
+      forgetGrant: revokeAndForgetGmailToken,
+      markAttempted: async (userId) => {
+        await prisma.gmailToken.update({ where: { userId }, data: { lastScannedAt: new Date() } });
+      },
+      onError: (err, userId) => {
+        Sentry.captureException(err, {
+          tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
+          user: { id: userId },
+        });
+      },
+    },
+    { intervalMs, maxUsers: SCAN_MAX_USERS, budgetMs: SCAN_BUDGET_MS },
+  );
+}
+
 async function runOnce() {
   try {
     await resetStuckRunning({});
+
+    // A scan failure must never stop the drain.
+    let scan: Awaited<ReturnType<typeof runBackgroundScan>> = null;
+    try {
+      scan = await runBackgroundScan();
+    } catch (err) {
+      Sentry.captureException(err, { tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' } });
+    }
 
     const report = await drainQueue(
       {
@@ -163,6 +218,7 @@ async function runOnce() {
     return NextResponse.json({
       processed: report.processed,
       results,
+      scan,
       pruned,
       stoppedForBudget,
       peakInFlight: report.peakInFlight,
