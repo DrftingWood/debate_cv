@@ -10,6 +10,12 @@ vi.mock('@/lib/calicotab/provenance', () => ({ pruneIngestArtifacts: vi.fn(), pr
 vi.mock('@/lib/rateLimit', () => ({ pruneRateLimits: vi.fn() }));
 vi.mock('@/lib/calicotab/ingest', () => ({ ingestPrivateUrl: vi.fn(async () => ({})), isDeadlockError: () => false }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
+// The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
+const scanDueMailboxes = vi.fn();
+vi.mock('@/lib/gmail/backgroundScan', () => ({ scanDueMailboxes }));
+vi.mock('@/lib/gmail/scanUser', () => ({ scanMailbox: vi.fn() }));
+vi.mock('@/lib/gmail/client', () => ({ revokeAndForgetGmailToken: vi.fn() }));
+vi.mock('@/lib/db', () => ({ prisma: { gmailToken: { findMany: vi.fn(), update: vi.fn() } } }));
 const afterCallbacks: Array<() => Promise<void>> = [];
 vi.mock('next/server', async () => {
   const actual: typeof import('next/server') = await vi.importActual('next/server');
@@ -29,6 +35,10 @@ beforeEach(() => {
   process.env.CRON_SECRET = 's3cret';
   drainQueue.mockReset();
   drainQueue.mockResolvedValue({ processed: 0, results: [], stoppedForBudget: false, peakInFlight: 0, elapsedMs: 1 });
+  scanDueMailboxes.mockReset();
+  scanDueMailboxes.mockResolvedValue({ scanned: 1, urlsFound: 2, grantsCleared: 0, failed: 0, stoppedForBudget: false });
+  delete process.env.BACKGROUND_GMAIL_SCAN;
+  delete process.env.BACKGROUND_SCAN_INTERVAL_MIN;
   afterCallbacks.length = 0;
 });
 
@@ -74,5 +84,51 @@ describe('POST /api/cron/process-queue', () => {
     const { IngestDeadlineError } = await import('@/lib/calicotab/fetchSession');
     expect(deps.isDeadlineError(new IngestDeadlineError())).toBe(true);
     expect(deps.isDeadlineError(new Error('x'))).toBe(false);
+  });
+});
+
+describe('background Gmail scan in the tick', () => {
+  it('scans before the drain and reports it', async () => {
+    const order: string[] = [];
+    scanDueMailboxes.mockImplementation(async () => {
+      order.push('scan');
+      return { scanned: 1, urlsFound: 2, grantsCleared: 0, failed: 0, stoppedForBudget: false };
+    });
+    drainQueue.mockImplementation(async () => {
+      order.push('drain');
+      return { processed: 0, results: [], stoppedForBudget: false, peakInFlight: 0, elapsedMs: 1 };
+    });
+    const res = await POST(req());
+    expect(order).toEqual(['scan', 'drain']);
+    expect((await res.json()).scan).toMatchObject({ scanned: 1, urlsFound: 2 });
+  });
+
+  it('uses a 30 minute interval by default, two users a tick, and a short budget', async () => {
+    await POST(req());
+    expect(scanDueMailboxes.mock.calls[0][1]).toEqual({ intervalMs: 30 * 60_000, maxUsers: 2, budgetMs: 12_000 });
+  });
+
+  it('takes the interval from the environment but never below five minutes', async () => {
+    process.env.BACKGROUND_SCAN_INTERVAL_MIN = '10';
+    await POST(req());
+    expect(scanDueMailboxes.mock.calls[0][1].intervalMs).toBe(10 * 60_000);
+    scanDueMailboxes.mockClear();
+    process.env.BACKGROUND_SCAN_INTERVAL_MIN = '1';
+    await POST(req());
+    expect(scanDueMailboxes.mock.calls[0][1].intervalMs).toBe(30 * 60_000);
+  });
+
+  it('is off when BACKGROUND_GMAIL_SCAN=0', async () => {
+    process.env.BACKGROUND_GMAIL_SCAN = '0';
+    const res = await POST(req());
+    expect(scanDueMailboxes).not.toHaveBeenCalled();
+    expect((await res.json()).scan).toBeNull();
+  });
+
+  it('still drains the queue when the scan itself throws', async () => {
+    scanDueMailboxes.mockRejectedValue(new Error('gmail down'));
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    expect(drainQueue).toHaveBeenCalledTimes(1);
   });
 });
