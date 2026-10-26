@@ -46,6 +46,35 @@ import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/
  *   same person appears in every list, so matching across them would count
  *   everyone. Rows identical in every field are counted once, so a parser
  *   that reads one row twice does not invent a namesake.
+ *
+ * Not every shared key is a merge that loses a person, so each one is put in
+ * exactly one class, judged against what ingest actually writes:
+ *
+ *   sameRole  — two speaker rows, or two adjudicator rows, with one key and a
+ *               different team or institution. The real collision: the
+ *               speaker loop upserts both onto one (tournamentId, personId)
+ *               TournamentParticipant, the second overwriting the first's
+ *               team, rank and total; and participantByName keeps only the
+ *               last adjudicator row, so the other judge gets no row at all.
+ *   crossRole — a speaker row and an adjudicator (or other) row with one
+ *               key, and no same-role pair. NOT a namesake collision as
+ *               ingest models people: one Person, one TournamentParticipant,
+ *               and ParticipantRole is keyed (tournamentParticipantId, role),
+ *               so a speaker who also judges legitimately holds both roles.
+ *               Whether the two rows are one human or two cannot be told
+ *               from the key, and phase 7 does not change that.
+ *   duplicate — the same role with the same team and institution: one
+ *               person listed twice (a second table on the page, a split
+ *               category tab), not a namesake.
+ *
+ * Separately, `judgeRoleDropped` flags a participants-list group where
+ * participantByName (Map.set, last row wins) ends on a non-adjudicator row
+ * while an adjudicator row shares the key. ingest then writes no judge role
+ * for that key, because the adjudicator loop only reads rows still marked
+ * adjudicator. Tabbycat lists the Adjudicators table before the Speakers
+ * table, so a person on both loses the judge role today. That is a v1 bug
+ * in its own right, not a namesake merge, so it is reported but does not
+ * make a tournament "affected".
  */
 
 export type DocumentKind = 'teamTab' | 'speakerTab' | 'participants' | 'apiTeams' | 'apiAdjudicators';
@@ -201,6 +230,8 @@ function isApiAdjudicator(v: unknown): v is ApiAdjudicator {
 
 // ── The check ───────────────────────────────────────────────────────────────
 
+export type SharedKeyClass = 'sameRole' | 'crossRole' | 'duplicate';
+
 export type SharedKey = {
   key: string;
   /** Raw spellings seen for this key, in first-seen order. */
@@ -209,6 +240,10 @@ export type SharedKey = {
   entries: number;
   /** Which lists showed the collision. */
   sources: string[];
+  /** The strongest class any one list showed (sameRole > crossRole > duplicate). */
+  class: SharedKeyClass;
+  /** The participants merge leaves this key with no adjudicator row. */
+  judgeRoleDropped: boolean;
 };
 
 export type TournamentFindings = {
@@ -218,7 +253,30 @@ export type TournamentFindings = {
   sharedKeys: SharedKey[];
 };
 
-type Entry = { name: string; identity: string };
+type Role = ParticipantsRow['role'];
+type Entry = { name: string; identity: string; role: Role; affiliation: string };
+
+const CLASS_RANK: Record<SharedKeyClass, number> = { duplicate: 0, crossRole: 1, sameRole: 2 };
+
+/** Team and institution, spelled loosely enough that one team reads as one. */
+function affiliation(team: string | null | undefined, institution: string | null | undefined): string {
+  const norm = (s: string | null | undefined) => cleanName(s ?? '').toLowerCase();
+  return JSON.stringify([norm(team), norm(institution)]);
+}
+
+/**
+ * The class of one key within one list. `rows` are the distinct entries (at
+ * least two). 'other' rows (neither speaker nor adjudicator) are never
+ * written as people, so they only ever make a group cross-role.
+ */
+function classify(rows: Entry[]): SharedKeyClass {
+  for (const role of ['speaker', 'adjudicator'] as const) {
+    const affs = new Set(rows.filter((r) => r.role === role).map((r) => r.affiliation));
+    if (affs.size >= 2) return 'sameRole';
+  }
+  if (new Set(rows.map((r) => r.role)).size >= 2) return 'crossRole';
+  return 'duplicate';
+}
 
 /** Does v1 throw away a whole name a person would recognise as theirs? */
 export function isLostName(name: string): boolean {
@@ -229,60 +287,100 @@ function ignoredForSharing(name: string): boolean {
   return isRedactedName(name) || isPlaceholderPersonName(name);
 }
 
-export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
-  const sources: Array<[string, Entry[]]> = [];
+/** One list to judge on its own, and whether ingest's participantByName merge reads it. */
+type Source = { source: string; entries: Entry[]; mergedByName: boolean };
+
+function sourcesOf(lists: ParsedLists): Source[] {
+  const sources: Source[] = [];
   if (lists.teamRows) {
-    sources.push([
-      'team tab',
-      lists.teamRows.flatMap((t, i) =>
+    sources.push({
+      source: 'team tab',
+      entries: lists.teamRows.flatMap((t, i) =>
         // A roster lists each member once; the row index keeps two
         // same-named teams' rosters apart.
-        t.speakers.map((s, j) => ({ name: cleanName(s), identity: JSON.stringify([i, j]) })),
+        t.speakers.map((s, j) => ({
+          name: cleanName(s),
+          identity: JSON.stringify([i, j]),
+          role: 'speaker' as const,
+          affiliation: affiliation(t.teamName, t.institution),
+        })),
       ),
-    ]);
+      mergedByName: false,
+    });
   }
   if (lists.speakerRows) {
-    sources.push([
-      'speaker tab',
-      lists.speakerRows.map((r) => ({
+    sources.push({
+      source: 'speaker tab',
+      entries: lists.speakerRows.map((r) => ({
         name: r.speakerName,
         identity: JSON.stringify([r.speakerName, r.teamName, r.institution, r.rank, r.totalScore, r.roundScores.map((s) => s.score)]),
+        role: 'speaker' as const,
+        affiliation: affiliation(r.teamName, r.institution),
       })),
-    ]);
+      mergedByName: false,
+    });
   }
+  // ingest reads the API list in place of the HTML one (apiParticipants ??
+  // parseParticipantsList), and both go through participantByName.
   const fromParticipants = (rows: ParticipantsRow[]): Entry[] =>
-    rows.map((r) => ({ name: r.name, identity: JSON.stringify([r.name, r.role, r.judgeTag, r.teamName, r.institution]) }));
-  if (lists.participantRows) sources.push(['participants', fromParticipants(lists.participantRows)]);
-  if (lists.apiParticipantRows) sources.push(['api participants', fromParticipants(lists.apiParticipantRows)]);
+    rows.map((r) => ({
+      name: r.name,
+      identity: JSON.stringify([r.name, r.role, r.judgeTag, r.teamName, r.institution]),
+      role: r.role,
+      affiliation: affiliation(r.teamName, r.institution),
+    }));
+  if (lists.participantRows) {
+    sources.push({ source: 'participants', entries: fromParticipants(lists.participantRows), mergedByName: true });
+  }
+  if (lists.apiParticipantRows) {
+    sources.push({ source: 'api participants', entries: fromParticipants(lists.apiParticipantRows), mergedByName: true });
+  }
+  return sources;
+}
 
+/**
+ * One list's entries by v1 key. `rows` keeps one entry per distinct
+ * identity; `lastRole` is the role of the last row in list order, the one
+ * participantByName keeps. Lost names go into `lost` instead.
+ */
+type KeyGroup = { names: string[]; rows: Map<string, Entry>; lastRole: Role };
+
+function groupByKey(entries: Entry[], lost: Set<string>): Map<string, KeyGroup> {
+  const byKey = new Map<string, KeyGroup>();
+  for (const e of entries) {
+    const name = e.name.trim();
+    if (!name) continue;
+    if (isLostName(name)) {
+      lost.add(name);
+      continue;
+    }
+    if (ignoredForSharing(name)) continue;
+    const key = normalizePersonName(name);
+    if (!key) continue;
+    const g = byKey.get(key) ?? { names: [], rows: new Map<string, Entry>(), lastRole: e.role };
+    byKey.set(key, g);
+    if (!g.rows.has(e.identity)) g.rows.set(e.identity, e);
+    g.lastRole = e.role;
+    if (!g.names.includes(name)) g.names.push(name);
+  }
+  return byKey;
+}
+
+export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
   const lost = new Set<string>();
   const shared = new Map<string, SharedKey>();
-  for (const [source, entries] of sources) {
-    const byKey = new Map<string, { names: string[]; identities: Set<string> }>();
-    for (const e of entries) {
-      const name = e.name.trim();
-      if (!name) continue;
-      if (isLostName(name)) {
-        lost.add(name);
-        continue;
-      }
-      if (ignoredForSharing(name)) continue;
-      const key = normalizePersonName(name);
-      if (!key) continue;
-      let g = byKey.get(key);
-      if (!g) {
-        g = { names: [], identities: new Set() };
-        byKey.set(key, g);
-      }
-      g.identities.add(e.identity);
-      if (!g.names.includes(name)) g.names.push(name);
-    }
-    for (const [key, g] of byKey) {
-      if (g.identities.size < 2) continue;
-      const s = shared.get(key) ?? { key, names: [], entries: 0, sources: [] };
-      for (const n of g.names) if (!s.names.includes(n)) s.names.push(n);
-      s.entries = Math.max(s.entries, g.identities.size);
+  for (const { source, entries, mergedByName } of sourcesOf(lists)) {
+    for (const [key, g] of groupByKey(entries, lost)) {
+      if (g.rows.size < 2) continue;
+      const rows = [...g.rows.values()];
+      const cls = classify(rows);
+      const dropped = mergedByName && g.lastRole !== 'adjudicator' && rows.some((r) => r.role === 'adjudicator');
+      const s = shared.get(key) ?? { key, names: [], entries: 0, sources: [], class: cls, judgeRoleDropped: false };
+      s.names.push(...g.names.filter((n) => !s.names.includes(n)));
+      s.entries = Math.max(s.entries, g.rows.size);
       s.sources.push(source);
+      if (CLASS_RANK[cls] > CLASS_RANK[s.class]) s.class = cls;
+      s.judgeRoleDropped ||= dropped;
       shared.set(key, s);
     }
   }
@@ -303,8 +401,17 @@ export type TournamentReport = {
   error?: string;
 };
 
+function ofClass(r: TournamentReport, cls: SharedKeyClass): SharedKey[] {
+  return r.findings.sharedKeys.filter((s) => s.class === cls);
+}
+
+/**
+ * Would a phase-7 re-ingest change this tournament? Only (a) and the real
+ * namesake collisions count: a cross-role key is one participant with two
+ * roles both before and after phase 7, and a duplicate row is one person.
+ */
 export function isAffected(r: TournamentReport): boolean {
-  return r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.length > 0;
+  return r.findings.emptyKeyNames.length > 0 || ofClass(r, 'sameRole').length > 0;
 }
 
 export const CSV_HEADER = [
@@ -315,11 +422,17 @@ export const CSV_HEADER = [
   'empty_key_names',
   'shared_key_groups',
   'shared_key_entries',
+  'same_role_groups',
+  'cross_role_groups',
+  'duplicate_groups',
+  'judge_role_dropped',
   'empty_key_examples',
   'shared_key_examples',
   'pages_read',
   'error',
 ] as const;
+
+const CLASS_LABEL: Record<SharedKeyClass, string> = { sameRole: 'same-role', crossRole: 'cross-role', duplicate: 'duplicate' };
 
 const MAX_EXAMPLES = 5;
 
@@ -349,10 +462,16 @@ export function toCsv(reports: TournamentReport[]): string {
         f.emptyKeyNames.length,
         f.sharedKeys.length,
         f.sharedKeys.reduce((n, s) => n + s.entries, 0),
+        ofClass(r, 'sameRole').length,
+        ofClass(r, 'crossRole').length,
+        ofClass(r, 'duplicate').length,
+        f.sharedKeys.filter((s) => s.judgeRoleDropped).length,
         f.emptyKeyNames.slice(0, MAX_EXAMPLES).join(' | '),
-        f.sharedKeys
+        // Real collisions first, so the five examples show what matters.
+        [...f.sharedKeys]
+          .sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class])
           .slice(0, MAX_EXAMPLES)
-          .map((s) => `${s.names.join(' / ')} (x${s.entries}, ${s.sources.join('+')})`)
+          .map((s) => `${s.names.join(' / ')} (x${s.entries}, ${CLASS_LABEL[s.class]}, ${s.sources.join('+')})`)
           .join(' | '),
         r.pagesRead.join(' '),
         r.error ?? null,
@@ -364,6 +483,9 @@ export function toCsv(reports: TournamentReport[]): string {
   return lines.join('\r\n') + '\r\n';
 }
 
+/** Tournaments with at least one group, and the number of groups. */
+export type Tally = { tournaments: number; groups: number };
+
 export type Summary = {
   tournaments: number;
   affected: number;
@@ -371,8 +493,17 @@ export type Summary = {
   withSharedKey: number;
   emptyKeyNames: number;
   sharedKeyGroups: number;
+  sameRole: Tally;
+  crossRole: Tally;
+  duplicate: Tally;
+  judgeRoleDropped: Tally;
   errors: number;
 };
+
+function tally(reports: TournamentReport[], pick: (s: SharedKey) => boolean): Tally {
+  const counts = reports.map((r) => r.findings.sharedKeys.filter(pick).length);
+  return { tournaments: counts.filter((n) => n > 0).length, groups: counts.reduce((a, b) => a + b, 0) };
+}
 
 export function summarise(reports: TournamentReport[]): Summary {
   return {
@@ -382,7 +513,62 @@ export function summarise(reports: TournamentReport[]): Summary {
     withSharedKey: reports.filter((r) => r.findings.sharedKeys.length > 0).length,
     emptyKeyNames: reports.reduce((n, r) => n + r.findings.emptyKeyNames.length, 0),
     sharedKeyGroups: reports.reduce((n, r) => n + r.findings.sharedKeys.length, 0),
+    sameRole: tally(reports, (s) => s.class === 'sameRole'),
+    crossRole: tally(reports, (s) => s.class === 'crossRole'),
+    duplicate: tally(reports, (s) => s.class === 'duplicate'),
+    judgeRoleDropped: tally(reports, (s) => s.judgeRoleDropped),
     errors: reports.filter((r) => r.error).length,
+  };
+}
+
+// ── Export coverage ─────────────────────────────────────────────────────────
+
+export type ExportUrlStats = {
+  /** Lines in index.jsonl. */
+  documents: number;
+  /** Distinct document URLs (several snapshots of one URL count once). */
+  distinctUrls: number;
+  /** Tournament addresses with a tab page: the "Tournaments with a tab page" total. */
+  tournamentUrls: number;
+  /** The same, with the slug's case and http/https folded, as ingest's lookups fold them. */
+  foldedUrls: number;
+  /**
+   * Addresses that hold only API JSON on a host that also has a root-hosted
+   * (slug-less) tab: very likely the root tournament's second row.
+   */
+  rootApiSplits: number;
+  /** Distinct hosts. */
+  hosts: number;
+};
+
+/**
+ * How the export's tournament count is built, so it can be held against
+ * `SELECT count(*) FROM "Tournament"`. Rows in Tournament are keyed by a
+ * fingerprint of host, lower-cased slug, name and year
+ * (lib/calicotab/fingerprint.ts) and found again by host + slug
+ * case-insensitively and on either scheme (findTournamentByHostSlug); the
+ * export is keyed by URL. The folded count applies the same folding.
+ */
+export function exportUrlStats(entries: IndexEntry[], tournaments: TournamentDocuments[]): ExportUrlStats {
+  const folded = new Set(tournaments.map((t) => `${t.host.toLowerCase()}/${(t.slug ?? '').toLowerCase()}`));
+  const rootHosts = new Set(tournaments.filter((t) => t.slug === null).map((t) => t.host));
+  const apiOnly = new Set(
+    tournaments
+      .filter(
+        (t) =>
+          t.slug !== null &&
+          rootHosts.has(t.host) &&
+          Object.keys(t.docs).every((k) => k === 'apiTeams' || k === 'apiAdjudicators'),
+      )
+      .map((t) => `${t.host}/${t.slug!.toLowerCase()}`),
+  );
+  return {
+    documents: entries.length,
+    distinctUrls: new Set(entries.map((e) => e.url)).size,
+    tournamentUrls: tournaments.length,
+    foldedUrls: folded.size,
+    rootApiSplits: apiOnly.size,
+    hosts: new Set(tournaments.map((t) => t.host)).size,
   };
 }
 
