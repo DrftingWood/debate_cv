@@ -32,6 +32,10 @@ on:
       confirm:
         description: 'load only: type LOAD to confirm you want to write to production'
         default: ''
+      force:
+        description: 'load only: re-scrape every listed tournament even when stored and current (PRESCRAPE_FORCE=1). Skips the regression guard; see docs/runbooks/identity-affected-tournaments.md'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -99,6 +103,7 @@ jobs:
           PRESCRAPE_ALLOW_REMOTE: '1'
           PRESCRAPE_LIST: ${{ inputs.list }}
           PRESCRAPE_SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
+          PRESCRAPE_FORCE: ${{ inputs.force && '1' || '0' }}
           PRESCRAPE_REPORT: prescrape-shard-${{ matrix.shard }}.json
           PRESCRAPE_PAUSE_MS: '3000'
           # root pages expand to every tournament they link, up to this year

@@ -1,0 +1,231 @@
+import { describe, expect, test } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  affectedList,
+  classifyDocumentUrl,
+  findIdentityIssues,
+  groupByTournament,
+  isLostName,
+  parseTournamentDocuments,
+  summarise,
+  toCsv,
+  type IndexEntry,
+  type TournamentReport,
+} from '@/lib/identity/affectedTournaments';
+
+// Synthetic pages in the shape the ingest parsers read (window.vueData-style
+// tablesData). Names are invented.
+function vuePage(tables: Array<{ title?: string; head: unknown[]; data: unknown[][] }>): string {
+  return `<html><body><div id="vue"></div><script>var x = ${JSON.stringify({ tablesData: tables })};</script></body></html>`;
+}
+
+const speakerTab = vuePage([
+  {
+    head: [{ key: 'Rk' }, { key: 'name' }, { key: 'team' }, { key: 'Total', title: 'Total' }],
+    data: [
+      [{ text: '1', sort: 1 }, { text: 'Rahul Sharma' }, { text: 'Alpha A' }, { text: '160' }],
+      [{ text: '2', sort: 2 }, { text: 'Rahul  Sharma' }, { text: 'Beta B' }, { text: '158' }],
+      [{ text: '3', sort: 3 }, { text: '李明' }, { text: 'Gamma C' }, { text: '150' }],
+      [{ text: '4', sort: 4 }, { text: 'José Silva' }, { text: 'Gamma C' }, { text: '149' }],
+      [{ text: '5', sort: 5 }, { text: 'Speaker 1' }, { text: 'Swing' }, { text: '140' }],
+      [{ text: '6', sort: 6 }, { text: 'Speaker 1' }, { text: 'Swing 2' }, { text: '139' }],
+      [{ text: '7', sort: 7 }, { text: 'Ann Lee' }, { text: 'Delta D' }, { text: '138' }],
+    ],
+  },
+]);
+
+const participants = vuePage([
+  {
+    title: 'Adjudicators',
+    head: [{ key: 'name' }, { key: 'institution' }],
+    data: [
+      [{ text: 'Jos Silva' }, { text: 'Uni X' }],
+      [{ text: '—' }, { text: 'Uni Y' }],
+    ],
+  },
+  {
+    title: 'Speakers',
+    head: [{ key: 'name' }, { key: 'team' }],
+    data: [
+      [{ text: 'José Silva' }, { text: 'Gamma C' }],
+      [{ text: 'Ann Lee' }, { text: 'Delta D' }],
+    ],
+  },
+]);
+
+const teamTab = vuePage([
+  {
+    head: [{ key: 'Rk' }, { key: 'team' }, { key: 'pts' }],
+    data: [
+      [{ text: '1' }, { text: 'Alpha A', popover: { content: [{ text: 'Rahul Sharma, Priya Das' }] } }, { text: '9' }],
+      [{ text: '2' }, { text: 'Delta D', popover: { content: [{ text: 'Ann Lee, Bo Chan' }] } }, { text: '6' }],
+    ],
+  },
+]);
+
+const cleanSpeakerTab = vuePage([
+  {
+    head: [{ key: 'Rk' }, { key: 'name' }, { key: 'team' }],
+    data: [
+      [{ text: '1' }, { text: 'Kim Park' }, { text: 'One' }],
+      [{ text: '2' }, { text: 'Lee Park' }, { text: 'Two' }],
+    ],
+  },
+]);
+
+describe('classifyDocumentUrl', () => {
+  test('tab pages, participants list and the two API lists', () => {
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/team/')).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'teamTab', slug: 'open26' });
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/speaker-standings/')?.kind).toBe('speakerTab');
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/participants/list/')?.kind).toBe('participants');
+    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/teams')).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'apiTeams' });
+    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/adjudicators')?.kind).toBe('apiAdjudicators');
+  });
+
+  test('a root-hosted tournament keys on the site root', () => {
+    expect(classifyDocumentUrl('https://wudc.calicotab.com/tab/team/')).toMatchObject({ base: 'https://wudc.calicotab.com/', slug: null });
+  });
+
+  test('other pages and private URLs are not read', () => {
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/')).toBeNull();
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/results/round/1/')).toBeNull();
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/privateurls/abc/')).toBeNull();
+    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/speakers/standings')).toBeNull();
+    expect(classifyDocumentUrl('not a url')).toBeNull();
+  });
+});
+
+describe('groupByTournament', () => {
+  test('keeps the newest 200 document of each kind', () => {
+    const e = (id: string, url: string, fetchedAt: string, status = 200): IndexEntry => ({ id, url, status, fetchedAt, file: `${id}.html.gz` });
+    const [t, ...rest] = groupByTournament([
+      e('old', 'https://a.calicotab.com/x/tab/team/', '2026-01-01T00:00:00Z'),
+      e('new', 'https://a.calicotab.com/x/tab/team-standings/', '2026-02-01T00:00:00Z'),
+      e('err', 'https://a.calicotab.com/x/tab/speaker/', '2026-03-01T00:00:00Z', 404),
+      e('land', 'https://a.calicotab.com/x/', '2026-03-01T00:00:00Z'),
+    ]);
+    expect(rest).toEqual([]);
+    expect(t!.docs.teamTab?.id).toBe('new');
+    expect(t!.docs.speakerTab).toBeUndefined();
+  });
+});
+
+describe('isLostName', () => {
+  test('letters that v1 deletes entirely', () => {
+    expect(isLostName('李明')).toBe(true);
+    expect(isLostName('Иван')).toBe(true);
+    expect(isLostName('—')).toBe(false); // punctuation is not a person
+    expect(isLostName('Иван Petrov')).toBe(false); // keeps "petrov"
+  });
+});
+
+describe('findIdentityIssues', () => {
+  const lists = parseTournamentDocuments(
+    {
+      speakerTab: { id: 's', url: '', status: 200, fetchedAt: null, file: 's' },
+      participants: { id: 'p', url: '', status: 200, fetchedAt: null, file: 'p' },
+      teamTab: { id: 't', url: '', status: 200, fetchedAt: null, file: 't' },
+    },
+    (entry) => ({ s: speakerTab, p: participants, t: teamTab })[entry.id]!,
+  );
+  const f = findIdentityIssues(lists);
+
+  test('(a) a non-Latin name with an empty key, and not punctuation', () => {
+    expect(f.emptyKeyNames).toEqual(['李明']);
+  });
+
+  test('(b) namesakes on the speaker tab, and an accent collision on the participants list', () => {
+    const keys = Object.fromEntries(f.sharedKeys.map((s) => [s.key, s]));
+    expect(Object.keys(keys).sort()).toEqual(['jos silva', 'rahul sharma']);
+    expect(keys['rahul sharma']).toMatchObject({ entries: 2, sources: ['speaker tab'] });
+    expect(keys['jos silva']!.names).toEqual(['Jos Silva', 'José Silva']);
+    expect(keys['jos silva']!.sources).toEqual(['participants']);
+  });
+
+  test('stand-ins, and one person seen in several lists, are not namesakes', () => {
+    // "Speaker 1" twice, and "Ann Lee" on the speaker tab, the participants
+    // list and a team roster: neither is reported.
+    expect(f.sharedKeys.map((s) => s.key)).not.toContain('speaker 1');
+    expect(f.sharedKeys.map((s) => s.key)).not.toContain('ann lee');
+  });
+});
+
+describe('API participants', () => {
+  test('teams and adjudicators lists go through mapParticipants', () => {
+    const teams = JSON.stringify([
+      { url: 'u1', short_name: 'A', speakers: [{ url: 's1', name: 'Mo Ali', anonymous: false }, { url: 's2', name: 'Ана', anonymous: false }] },
+      { url: 'u2', short_name: 'B', speakers: [{ url: 's3', name: 'Mo Ali', anonymous: false }] },
+    ]);
+    const adjs = JSON.stringify([{ url: 'a1', name: 'Zed Kay', anonymous: false }]);
+    const lists = parseTournamentDocuments(
+      {
+        apiTeams: { id: 't', url: '', status: 200, fetchedAt: null, file: 't' },
+        apiAdjudicators: { id: 'a', url: '', status: 200, fetchedAt: null, file: 'a' },
+      },
+      (e) => (e.id === 't' ? teams : adjs),
+    );
+    expect(lists.apiParticipantRows).toHaveLength(4);
+    const f = findIdentityIssues(lists);
+    expect(f.emptyKeyNames).toEqual(['Ана']);
+    expect(f.sharedKeys).toMatchObject([{ key: 'mo ali', entries: 2, sources: ['api participants'] }]);
+  });
+});
+
+describe('output', () => {
+  const report = (base: string, empty: string[], shared: number): TournamentReport => ({
+    base,
+    host: 'h',
+    slug: 's',
+    pagesRead: ['speakerTab'],
+    findings: {
+      emptyKeyNames: empty,
+      sharedKeys: Array.from({ length: shared }, (_, i) => ({ key: `k${i}`, names: [`K, ${i}`], entries: 2, sources: ['speaker tab'] })),
+    },
+  });
+  const reports = [report('https://h/b/', [], 0), report('https://h/a/', ['李明'], 1)];
+
+  test('CSV: affected first, quoted cells', () => {
+    const lines = toCsv(reports).trim().split('\r\n');
+    expect(lines[0]).toBe('tournament_url,host,slug,affected,empty_key_names,shared_key_groups,shared_key_entries,empty_key_examples,shared_key_examples,pages_read,error');
+    expect(lines[1]).toBe('https://h/a/,h,s,true,1,1,2,李明,"K, 0 (x2, speaker tab)",speakerTab,');
+    expect(lines[2]).toBe('https://h/b/,h,s,false,0,0,0,,,speakerTab,');
+  });
+
+  test('summary and re-ingest list', () => {
+    expect(summarise(reports)).toMatchObject({ tournaments: 2, affected: 1, withEmptyKey: 1, withSharedKey: 1, emptyKeyNames: 1, sharedKeyGroups: 1 });
+    expect(affectedList(reports)).toBe('https://h/a/');
+  });
+});
+
+describe('the script, end to end on a synthetic export', () => {
+  test('reads index.jsonl + .html.gz offline and writes the CSV and list', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'identity-affected-'));
+    try {
+      const docs: Array<[string, string, string]> = [
+        ['1', 'https://a.calicotab.com/open26/tab/speaker/', speakerTab],
+        ['2', 'https://a.calicotab.com/open26/participants/list/', participants],
+        ['3', 'https://b.calicotab.com/calm25/tab/speaker/', cleanSpeakerTab],
+        ['4', 'https://b.calicotab.com/calm25/', '<html></html>'],
+      ];
+      const index = docs.map(([id, url, body]) => {
+        writeFileSync(join(dir, `${id}.html.gz`), gzipSync(body));
+        return JSON.stringify({ id, url, status: 200, contentHash: id, contentLength: body.length, fetchedAt: '2026-10-01T00:00:00.000Z', file: `${id}.html.gz` });
+      });
+      writeFileSync(join(dir, 'index.jsonl'), index.join('\n') + '\n');
+
+      const stdout = execFileSync(process.execPath, ['scripts/find-identity-affected-tournaments.mjs', '--in', dir], { encoding: 'utf8' });
+      expect(stdout).toMatch(/Affected \(a or b\):\s+1 of 2/);
+
+      const csv = readFileSync(join(dir, 'identity-affected-tournaments.csv'), 'utf8').split('\r\n');
+      expect(csv[1]).toMatch(/^https:\/\/a\.calicotab\.com\/open26\/,a\.calicotab\.com,open26,true,1,2,/);
+      expect(csv[2]).toMatch(/^https:\/\/b\.calicotab\.com\/calm25\/,b\.calicotab\.com,calm25,false,0,0,0,/);
+      expect(readFileSync(join(dir, 'identity-affected-tournaments.txt'), 'utf8')).toBe('https://a.calicotab.com/open26/\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
