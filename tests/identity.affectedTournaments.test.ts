@@ -68,9 +68,10 @@ const teamTab = vuePage([
   },
 ]);
 
-// One tournament with no namesake collision: a person listed twice on the
-// speaker tab with the same team (the rows differ only in rank), and a
-// speaker who is also on the adjudicator list, speaker row first.
+// A person listed twice on the speaker tab with the same team (the rows
+// differ only in rank: a duplicate, not a collision), and a speaker whose
+// name is also on the adjudicator list, speaker row first. Nobody both
+// speaks and judges at one tournament, so the second is two people.
 const harmlessSpeakerTab = vuePage([
   {
     head: [{ key: 'Rk' }, { key: 'name' }, { key: 'team' }, { key: 'Total', title: 'Total' }],
@@ -187,13 +188,14 @@ describe('findIdentityIssues', () => {
     expect(keys['jos silva']!.sources).toEqual(['participants']);
   });
 
-  test('(b) classes: two teams is a real collision; a speaker and an adjudicator is cross-role', () => {
+  test('(b) classes: two teams is a same-role collision; a speaker and an adjudicator is a cross-role collision', () => {
     const keys = Object.fromEntries(f.sharedKeys.map((s) => [s.key, s]));
-    expect(keys['rahul sharma']).toMatchObject({ class: 'sameRole', judgeRoleDropped: false });
-    // ingest gives one participant two roles here. The Adjudicators table
-    // comes first, so participantByName keeps the speaker row and the judge
-    // role is never written.
-    expect(keys['jos silva']).toMatchObject({ class: 'crossRole', judgeRoleDropped: true });
+    expect(keys['rahul sharma']).toMatchObject({ class: 'sameRole', judgeRoleDropped: false, crossRoleInstitution: null });
+    // A speaker and a judge at one tournament are two people. ingest merges
+    // them into one participant; the Adjudicators table comes first, so
+    // participantByName keeps the speaker row and the judge loses theirs.
+    // The speaker row names no institution, so the match is unknown.
+    expect(keys['jos silva']).toMatchObject({ class: 'crossRole', judgeRoleDropped: true, crossRoleInstitution: 'unknown' });
   });
 
   test('stand-ins, and one person seen in several lists, are not namesakes', () => {
@@ -218,8 +220,24 @@ describe('shared-key classes', () => {
     expect(keys['kim lee']).toMatchObject({ class: 'duplicate', entries: 2, sources: ['speaker tab'] });
   });
 
-  test('speaker listed before adjudicator: cross-role, and the judge role survives the merge', () => {
+  test('speaker listed before adjudicator: still a cross-role collision, though the judge row survives the merge', () => {
     expect(keys['mia fox']).toMatchObject({ class: 'crossRole', judgeRoleDropped: false, sources: ['participants'] });
+  });
+
+  test('cross-role groups say whether speaker and judge share an institution', () => {
+    const k = keysOf({
+      participantRows: [
+        { name: 'Ada Wu', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: 'Uni X' },
+        { name: 'Ada Wu', role: 'speaker', judgeTag: null, teamName: 'Uni X A', institution: 'uni  x' },
+        { name: 'Ben Ho', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: 'Uni X' },
+        { name: 'Ben Ho', role: 'speaker', judgeTag: null, teamName: 'Uni Y A', institution: 'Uni Y' },
+        { name: 'Cy Om', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: null },
+        { name: 'Cy Om', role: 'speaker', judgeTag: null, teamName: 'Uni Y B', institution: 'Uni Y' },
+      ],
+    });
+    expect(k['ada wu']).toMatchObject({ class: 'crossRole', crossRoleInstitution: 'same' });
+    expect(k['ben ho']).toMatchObject({ class: 'crossRole', crossRoleInstitution: 'different' });
+    expect(k['cy om']).toMatchObject({ class: 'crossRole', crossRoleInstitution: 'unknown' });
   });
 
   test('two adjudicators from different institutions are a real collision', () => {
@@ -266,60 +284,77 @@ describe('API participants', () => {
 
 describe('output', () => {
   type Cls = 'sameRole' | 'crossRole' | 'duplicate';
-  const report = (base: string, empty: string[], shared: Cls[]): TournamentReport => ({
+  type Inst = 'same' | 'different' | 'unknown';
+  const report = (base: string, empty: string[], shared: Array<[Cls, Inst?, boolean?]>): TournamentReport => ({
     base,
     host: 'h',
     slug: 's',
     pagesRead: ['speakerTab'],
     findings: {
       emptyKeyNames: empty,
-      sharedKeys: shared.map((cls, i) => ({
+      sharedKeys: shared.map(([cls, inst, dropped], i) => ({
         key: `k${i}`,
         names: [`K, ${i}`],
         entries: 2,
         sources: ['speaker tab'],
         class: cls,
-        // Only the cross-role group can drop a judge role.
-        judgeRoleDropped: cls === 'crossRole',
+        judgeRoleDropped: dropped ?? false,
+        crossRoleInstitution: inst ?? null,
       })),
     },
   });
   const reports = [
     report('https://h/b/', [], []),
-    report('https://h/a/', ['李明'], ['sameRole']),
-    report('https://h/c/', [], ['crossRole', 'duplicate']),
-    report('https://h/d/', [], ['duplicate', 'sameRole']),
+    report('https://h/a/', ['李明'], [['sameRole']]),
+    report('https://h/c/', [], [['crossRole', 'same'], ['duplicate']]),
+    report('https://h/d/', [], [['duplicate'], ['sameRole']]),
+    report('https://h/e/', [], [['duplicate']]),
+    // The judge namesake lost their row to the speaker: the same collision.
+    report('https://h/f/', [], [['crossRole', 'different', true]]),
   ];
 
-  test('CSV: affected first, class counts, quoted cells', () => {
+  test('CSV: affected first, class counts, institution split, quoted cells', () => {
     const lines = toCsv(reports).trim().split('\r\n');
     expect(lines[0]).toBe(
-      'tournament_url,host,slug,affected,empty_key_names,shared_key_groups,shared_key_entries,same_role_groups,cross_role_groups,duplicate_groups,judge_role_dropped,empty_key_examples,shared_key_examples,pages_read,error',
+      'tournament_url,host,slug,affected,empty_key_names,shared_key_groups,shared_key_entries,same_role_groups,cross_role_groups,cross_role_same_institution,cross_role_different_institution,cross_role_unknown_institution,duplicate_groups,judge_role_dropped,empty_key_examples,shared_key_examples,pages_read,error',
     );
-    expect(lines[1]).toBe('https://h/a/,h,s,true,1,1,2,1,0,0,0,李明,"K, 0 (x2, same-role, speaker tab)",speakerTab,');
-    // Real collisions lead the examples.
+    expect(lines[1]).toBe('https://h/a/,h,s,true,1,1,2,1,0,0,0,0,0,0,李明,"K, 0 (x2, same-role, speaker tab)",speakerTab,');
+    // A cross-role group alone makes a tournament affected; its example names the institution match.
     expect(lines[2]).toBe(
-      'https://h/d/,h,s,true,0,2,4,1,0,1,0,,"K, 1 (x2, same-role, speaker tab) | K, 0 (x2, duplicate, speaker tab)",speakerTab,',
+      'https://h/c/,h,s,true,0,2,4,0,1,1,0,0,1,0,,"K, 0 (x2, cross-role, same institution, speaker tab) | K, 1 (x2, duplicate, speaker tab)",speakerTab,',
     );
-    expect(lines[3]).toBe('https://h/b/,h,s,false,0,0,0,0,0,0,0,,,speakerTab,');
-    // Cross-role and duplicate groups alone do not make a tournament affected.
-    expect(lines[4]).toMatch(/^https:\/\/h\/c\/,h,s,false,0,2,4,0,1,1,1,/);
+    // Real collisions lead the examples.
+    expect(lines[3]).toBe(
+      'https://h/d/,h,s,true,0,2,4,1,0,0,0,0,1,0,,"K, 1 (x2, same-role, speaker tab) | K, 0 (x2, duplicate, speaker tab)",speakerTab,',
+    );
+    expect(lines[4]).toBe(
+      'https://h/f/,h,s,true,0,1,2,0,1,0,1,0,0,1,,"K, 0 (x2, cross-role, different institution, speaker tab)",speakerTab,',
+    );
+    expect(lines[5]).toBe('https://h/b/,h,s,false,0,0,0,0,0,0,0,0,0,0,,,speakerTab,');
+    // Duplicate rows alone do not make a tournament affected.
+    expect(lines[6]).toBe('https://h/e/,h,s,false,0,1,2,0,0,0,0,0,1,0,,"K, 0 (x2, duplicate, speaker tab)",speakerTab,');
   });
 
-  test('summary and re-ingest list', () => {
+  test('summary: per-class counts overlap, the affected union counts each tournament once', () => {
     expect(summarise(reports)).toMatchObject({
-      tournaments: 4,
-      affected: 2,
+      tournaments: 6,
+      // (a) 1 + same-role 2 + cross-role 2 = 5 class hits, but h/a has both
+      // (a) and same-role: 4 tournaments.
+      affected: 4,
+      withCollision: 4,
       withEmptyKey: 1,
-      withSharedKey: 3,
+      withSharedKey: 5,
       emptyKeyNames: 1,
-      sharedKeyGroups: 5,
+      sharedKeyGroups: 7,
       sameRole: { tournaments: 2, groups: 2 },
-      crossRole: { tournaments: 1, groups: 1 },
-      duplicate: { tournaments: 2, groups: 2 },
+      crossRole: { tournaments: 2, groups: 2 },
+      crossRoleSameInstitution: { tournaments: 1, groups: 1 },
+      crossRoleDifferentInstitution: { tournaments: 1, groups: 1 },
+      crossRoleUnknownInstitution: { tournaments: 0, groups: 0 },
+      duplicate: { tournaments: 3, groups: 3 },
       judgeRoleDropped: { tournaments: 1, groups: 1 },
     });
-    expect(affectedList(reports)).toBe('https://h/a/\nhttps://h/d/');
+    expect(affectedList(reports)).toBe('https://h/a/\nhttps://h/c/\nhttps://h/d/\nhttps://h/f/');
   });
 });
 
@@ -366,21 +401,27 @@ describe('the script, end to end on a synthetic export', () => {
 
       const stdout = execFileSync(process.execPath, ['scripts/find-identity-affected-tournaments.mjs', '--in', dir], { encoding: 'utf8' });
       expect(stdout).toMatch(/Tournament URLs with a tab page: 3 \(on 3 hosts\)/);
-      expect(stdout).toMatch(/Affected \(a or real collision\):\s+1 of 3/);
+      expect(stdout).toMatch(/Affected \(a or real collision\):\s+2 of 3/);
       expect(stdout).toMatch(/\(b\) shared key in one list:\s+2 tournaments, 4 groups/);
-      expect(stdout).toMatch(/real namesake collisions:\s+1 tournaments, 1 groups/);
+      expect(stdout).toMatch(/real collisions \(same-role or cross-role\): 2 tournaments/);
+      expect(stdout).toMatch(/same-role:\s+1 tournaments, 1 groups/);
       expect(stdout).toMatch(/cross-role:\s+2 tournaments, 2 groups/);
+      expect(stdout).toMatch(/same institution:\s+0 tournaments, 0 groups/);
+      expect(stdout).toMatch(/institution unknown:\s+2 tournaments, 2 groups/);
       expect(stdout).toMatch(/duplicate rows:\s+1 tournaments, 1 groups/);
-      expect(stdout).toMatch(/judge role dropped by the participants merge: 1 tournaments, 1 groups/);
+      expect(stdout).toMatch(/judge role dropped by the participants merge: 1 tournaments, 1 groups \(how a cross-role collision shows today/);
 
       const csv = readFileSync(join(dir, 'identity-affected-tournaments.csv'), 'utf8').split('\r\n');
       // open26: Rahul Sharma on two teams (same-role); José / Jos Silva as a
-      // judge listed before a speaker (cross-role, judge role dropped).
-      expect(csv[1]).toMatch(/^https:\/\/a\.calicotab\.com\/open26\/,a\.calicotab\.com,open26,true,1,2,4,1,1,0,1,/);
-      expect(csv[2]).toMatch(/^https:\/\/b\.calicotab\.com\/calm25\/,b\.calicotab\.com,calm25,false,0,0,0,0,0,0,0,/);
-      // quiet24: a duplicate row and a speaker who also judges; not affected.
-      expect(csv[3]).toMatch(/^https:\/\/c\.calicotab\.com\/quiet24\/,c\.calicotab\.com,quiet24,false,0,2,4,0,1,1,0,/);
-      expect(readFileSync(join(dir, 'identity-affected-tournaments.txt'), 'utf8')).toBe('https://a.calicotab.com/open26/\n');
+      // judge listed before a speaker (cross-role, judge row lost).
+      expect(csv[1]).toMatch(/^https:\/\/a\.calicotab\.com\/open26\/,a\.calicotab\.com,open26,true,1,2,4,1,1,0,0,1,0,1,/);
+      // quiet24: a duplicate row (not counted) and a speaker and a judge
+      // named Mia Fox (two people: counted).
+      expect(csv[2]).toMatch(/^https:\/\/c\.calicotab\.com\/quiet24\/,c\.calicotab\.com,quiet24,true,0,2,4,0,1,0,0,1,1,0,/);
+      expect(csv[3]).toMatch(/^https:\/\/b\.calicotab\.com\/calm25\/,b\.calicotab\.com,calm25,false,0,0,0,0,0,0,0,0,0,0,/);
+      expect(readFileSync(join(dir, 'identity-affected-tournaments.txt'), 'utf8')).toBe(
+        'https://a.calicotab.com/open26/\nhttps://c.calicotab.com/quiet24/\n',
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
