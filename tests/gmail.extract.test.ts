@@ -163,6 +163,9 @@ describe('isPrivateUrl — the gate that decides whether the server will fetch',
   test('accepts a genuine private URL on either allowed host', () => {
     expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123')).toBe(true);
     expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123/')).toBe(true);
+    expect(isPrivateUrl('https://cnlupd.yellowtabs.com/cnlupd26/privateurls/abc123/')).toBe(true);
+    expect(isPrivateUrl('http://169.254.169.254/?x=https://a.yellowtabs.com/t/privateurls/abc')).toBe(false);
+    expect(isPrivateUrl('https://yellowtabs.com.evil.example/t/privateurls/abc')).toBe(false);
     expect(isPrivateUrl('http://tab.herokuapp.com/slug/privateurls/tok')).toBe(true);
   });
 
@@ -203,7 +206,11 @@ describe('isAllowedTabHost — per-redirect-hop check', () => {
   test('suffix match cannot be spoofed by a prefix', () => {
     expect(isAllowedTabHost('foo.calicotab.com')).toBe(true);
     expect(isAllowedTabHost('FOO.HEROKUAPP.COM')).toBe(true);
+    expect(isAllowedTabHost('cnlupd.yellowtabs.com')).toBe(true);
     expect(isAllowedTabHost('calicotab.com.evil.example')).toBe(false);
+    expect(isAllowedTabHost('yellowtabs.com.evil.example')).toBe(false);
+    expect(isAllowedTabHost('evilyellowtabs.com')).toBe(false);
+    expect(isAllowedTabHost('yellowtabs.com')).toBe(false);
     expect(isAllowedTabHost('169.254.169.254')).toBe(false);
     expect(isAllowedTabHost('localhost')).toBe(false);
   });

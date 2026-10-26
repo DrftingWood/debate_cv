@@ -11,14 +11,15 @@
  * passes. Use {@link isPrivateUrl} for that. Never gate a fetch on this.
  */
 export const PRIVATE_URL_RE =
-  /https?:\/\/[\w\-]+\.(?:calicotab\.com|herokuapp\.com)\/[\w\-]+\/privateurls\/[\w]+\/?/gi;
+  /https?:\/\/[\w\-]+\.(?:calicotab\.com|herokuapp\.com|yellowtabs\.com)\/[\w\-]+\/privateurls\/[\w]+\/?/gi;
 
 /**
  * Hosts the server is willing to make outbound requests to. Tabbycat is
- * either self-hosted on Heroku or on Calico's managed platform; nothing
- * else is ever a legitimate scrape target.
+ * either self-hosted on Heroku or on Calico's managed platforms (Calicotab
+ * and Yellow Tab, which run the same software); nothing else is ever a
+ * legitimate scrape target.
  */
-export const ALLOWED_TAB_HOST_SUFFIXES = ['.calicotab.com', '.herokuapp.com'] as const;
+export const ALLOWED_TAB_HOST_SUFFIXES = ['.calicotab.com', '.herokuapp.com', '.yellowtabs.com'] as const;
 
 /**
  * Is this hostname one we will fetch from?

@@ -30,6 +30,14 @@ describe('publicTournamentBase', () => {
     expect(() => publicTournamentBase('https://presido2026.calicotab.com/')).toThrow(/root-hosted/);
   });
 
+  it('accepts a Yellow Tab tournament like a Calicotab one', () => {
+    expect(publicTournamentBase('https://cnlupd.yellowtabs.com/cnlupd26/')).toEqual({
+      base: 'https://cnlupd.yellowtabs.com/cnlupd26/',
+      host: 'cnlupd.yellowtabs.com',
+      slug: 'cnlupd26',
+    });
+  });
+
   it('refuses hosts outside the tab allowlist, and non-https', () => {
     expect(() => publicTournamentBase('https://example.com/t/')).toThrow(/allowed tab host/);
     expect(() => publicTournamentBase('http://wudc2024.calicotab.com/wudc/')).toThrow(/allowed tab host/);
