@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
   fetchRound: vi.fn(),
   recordParserRun: vi.fn(),
   captureMessage: vi.fn(),
+  // Per-test replacement for the speaker tab parse (null: the default rows).
+  speakerTab: null as unknown[] | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -120,7 +122,7 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
     { rank: 1, teamName: 'Oxford A', institution: 'Oxford', speakers: ['Ada Lovelace', 'Grace Hopper'], wins: null, totalPoints: 5, firsts: 1, seconds: 1 },
     { rank: 2, teamName: 'Cambridge A', institution: 'Cambridge', speakers: ['Alan Turing', 'Speaker 1'], wins: null, totalPoints: 1, firsts: 0, seconds: 0 },
   ],
-  parseSpeakerTab: () => [
+  parseSpeakerTab: () => h.speakerTab ? structuredClone(h.speakerTab) : [
     {
       rank: 1, rankEsl: null, rankEfl: null, categories: ['ESL'],
       speakerName: 'Grace Hopper', teamName: 'Oxford A', institution: 'Oxford', totalScore: 160,
@@ -308,6 +310,7 @@ beforeEach(() => {
   h.fetchRound.mockReset();
   h.recordParserRun.mockReset();
   h.captureMessage.mockReset();
+  h.speakerTab = null;
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -487,6 +490,8 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
         { tournamentParticipantId: 501n, roundNumber: 0, positionLabel: 'average', score: 77.5 },
         { tournamentParticipantId: 502n, roundNumber: 1, positionLabel: 'LO', score: 75 },
         // A blank cell is still written, with an empty position label.
+        // Intended: every score consumer filters score != null (see the
+        // comment at the write in ingest.ts), so it never counts as a speech.
         { tournamentParticipantId: 502n, roundNumber: 2, positionLabel: '', score: null },
       ],
       skipDuplicates: true,
@@ -635,8 +640,10 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     });
     expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
     expect(h.captureMessage).toHaveBeenCalledWith(
-      // The stand-in's rank counts here, though it is never written.
-      'Regression guard: re-ingest would drop data — teams 40→2, participants 4→2, ranks 0→4',
+      // Ranks count people a rank would be written for: the three real
+      // speakers, not the "Speaker 1" stand-in, whose row is never written
+      // (it used to read 0→4).
+      'Regression guard: re-ingest would drop data — teams 40→2, participants 4→2, ranks 0→3',
       expect.objectContaining({ level: 'warning' }),
     );
     // The URL is still linked and marked ingested.
@@ -689,5 +696,97 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     install();
     await expect(ingestPrivateUrl(`${BASE}tab/team/`, USER)).rejects.toThrow('refusing to fetch non-private URL');
     expect(h.fetchHtml).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Regression tests for the oddities phase 2 pinned (fixed afterwards) ───
+
+describe('ingestPrivateUrl: regression guard compares like with like', () => {
+  const guardMsg = (s: string) => expect.stringContaining(s);
+
+  it('a stand-in rank does not prop up the new rank count', async () => {
+    // Seven ranked participants stored; the parse has three real ranked
+    // speakers plus "Speaker 1". Counting the stand-in (4 >= 3.5) let the
+    // overwrite through; three people is a real drop.
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    prismaMock.tournamentParticipant.count.mockResolvedValue(7);
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(true);
+    expect(result.warnings).toContain('regression-guard: overwrite blocked');
+    expect(h.captureMessage).toHaveBeenCalledWith(guardMsg('ranks 7→3'), expect.anything());
+  });
+
+  it('a stand-in somebody has claimed is written, so its rank does count', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    prismaMock.tournamentParticipant.count.mockResolvedValue(7);
+    prismaMock.person.findMany.mockResolvedValue([{ normalizedName: normalizePersonName('Speaker 1') }]);
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(h.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it('an iron-man’s two rows count as one ranked person', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    prismaMock.tournamentParticipant.count.mockResolvedValue(6);
+    const row = (name: string, team: string, rank: number) => ({
+      rank, rankEsl: null, rankEfl: null, categories: [], speakerName: name, teamName: team,
+      institution: null, totalScore: 150, roundScores: [{ roundLabel: 'R1', score: 75, positionLabel: 'PM' }],
+    });
+    // Two people over three rows: 2 < 3, blocked. Counted per row it was 3 >= 3.
+    h.speakerTab = [row('Ada Lovelace', 'Oxford A', 1), row('Ada Lovelace', 'Cambridge A', 2), row('Grace Hopper', 'Oxford A', 3)];
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(true);
+    expect(h.captureMessage).toHaveBeenCalledWith(guardMsg('ranks 6→2'), expect.anything());
+  });
+
+  it('an empty participants list does not compare speaker rows with a stored list count', async () => {
+    // Stored 40 came from the participants list (speakers and judges). This
+    // time the page loads but yields no rows, so the new figure is the 4
+    // speaker rows: a different source, not a drop. Teams and ranks are
+    // intact; proceed. (A withheld page on a stored tournament aborts before
+    // the guard — see fetchTab — so an empty parse is how this arises.)
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalParticipants: 40 }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PARTICIPANTS ? { ...okPage(url), html: '<html>no rows</html>' } : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(result.totalParticipants).toBe(4);
+    expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('a participants list that loads but collapses is still blocked', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalParticipants: 40 }) });
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(true);
+    expect(h.captureMessage).toHaveBeenCalledWith(guardMsg('participants 40→2'), expect.anything());
+  });
+});
+
+describe('ingestPrivateUrl: an iron-man’s teamBreakRank', () => {
+  it('create and update both carry the primary team’s break rank', async () => {
+    install();
+    // Grace's first row is a one-round substitution for Cambridge A (break
+    // rank 2); her primary team is Oxford A (two scored rounds, rank 1). The
+    // create used to take the row's own team (2) while teamName said Oxford A.
+    h.speakerTab = [
+      {
+        rank: 1, rankEsl: null, rankEfl: null, categories: [], speakerName: 'Grace Hopper', teamName: 'Cambridge A',
+        institution: null, totalScore: 80,
+        roundScores: [{ roundLabel: 'R1', score: 80, positionLabel: 'PM' }, { roundLabel: 'R2', score: null, positionLabel: null }],
+      },
+      {
+        rank: 1, rankEsl: null, rankEfl: null, categories: [], speakerName: 'Grace Hopper', teamName: 'Oxford A',
+        institution: null, totalScore: 160,
+        roundScores: [{ roundLabel: 'R1', score: 80, positionLabel: 'PM' }, { roundLabel: 'R2', score: 80, positionLabel: 'MO' }],
+      },
+    ];
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const grace = callsOf(prismaMock.tournamentParticipant.upsert).filter((a) => a.create.personId === 103n);
+    expect(grace).toHaveLength(2);
+    for (const call of grace) {
+      expect(call.create).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
+      expect(call.update).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
+    }
   });
 });
