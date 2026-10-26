@@ -83,22 +83,11 @@ export function classifyPending(rows) {
   const targets = new Map();
   let ignored = 0;
   for (const r of rows) {
-    const spec = TAG_KINDS[r.kind];
-    if (!spec) {
+    if (!TAG_KINDS[r.kind]) {
       ignored += r.n;
       continue;
     }
-    let key;
-    let reason = null;
-    if (r.kind === 'region') {
-      key = `region|t:${r.tournamentId}${r.motionId == null ? '' : `|m:${r.motionId}`}`;
-      if (r.motionId != null) reason = 'region proposal carries a motion id';
-    } else if (r.motionId == null) {
-      key = `${r.kind}|t:${r.tournamentId}|no-motion`;
-      reason = 'motion proposal has no motion id';
-    } else {
-      key = `${r.kind}|m:${r.motionId}`;
-    }
+    const { key, reason } = targetKey(r);
     let t = targets.get(key);
     if (!t) {
       t = {
@@ -116,37 +105,54 @@ export function classifyPending(rows) {
     t.values.set(r.value, (t.values.get(r.value) ?? 0) + r.n);
   }
 
-  const agreed = [];
-  const conflicts = [];
-  const malformed = [];
-  for (const t of targets.values()) {
-    const values = [...t.values.entries()]
-      .map(([value, n]) => ({ value, n }))
-      .sort((x, y) => y.n - x.n || x.value.localeCompare(y.value));
-    const proposals = values.reduce((s, v) => s + v.n, 0);
-    const tournamentIds = [...t.tournamentIds].sort();
-    let reason = t.reason;
-    if (!reason && tournamentIds.length > 1) reason = 'proposals for this motion name different tournaments';
-    const base = {
-      kind: t.kind,
-      tournamentId: tournamentIds[0],
-      tournamentName: t.tournamentName,
-      motionId: t.motionId,
-      current: t.current,
-      proposals,
-    };
-    if (reason) malformed.push({ ...base, tournamentIds, values, reason });
-    else if (values.length === 1) agreed.push({ ...base, value: values[0].value });
-    else conflicts.push({ ...base, values });
-  }
+  const plan = { agreed: [], conflicts: [], malformed: [], ignored };
+  for (const t of targets.values()) placeTarget(t, plan);
   const order = (x, y) =>
     x.kind.localeCompare(y.kind) ||
     compareIds(x.tournamentId, y.tournamentId) ||
     compareIds(x.motionId ?? '', y.motionId ?? '');
-  agreed.sort(order);
-  conflicts.sort(order);
-  malformed.sort(order);
-  return { agreed, conflicts, malformed, ignored };
+  plan.agreed.sort(order);
+  plan.conflicts.sort(order);
+  plan.malformed.sort(order);
+  return plan;
+}
+
+/**
+ * The canonical target a grouped row is about: a region is about a
+ * tournament, a motion tag about one motion. Rows that do not fit their
+ * kind's shape get a key of their own and a reason, so they never merge
+ * into a well-formed target.
+ */
+function targetKey(r) {
+  if (r.kind === 'region') {
+    return r.motionId == null
+      ? { key: `region|t:${r.tournamentId}`, reason: null }
+      : { key: `region|t:${r.tournamentId}|m:${r.motionId}`, reason: 'region proposal carries a motion id' };
+  }
+  return r.motionId == null
+    ? { key: `${r.kind}|t:${r.tournamentId}|no-motion`, reason: 'motion proposal has no motion id' }
+    : { key: `${r.kind}|m:${r.motionId}`, reason: null };
+}
+
+/** Put one accumulated target into agreed, conflicts or malformed. */
+function placeTarget(t, plan) {
+  const values = [...t.values.entries()]
+    .map(([value, n]) => ({ value, n }))
+    .sort((x, y) => y.n - x.n || x.value.localeCompare(y.value));
+  const tournamentIds = [...t.tournamentIds].sort(compareIds);
+  const reason =
+    t.reason ?? (tournamentIds.length > 1 ? 'proposals for this motion name different tournaments' : null);
+  const base = {
+    kind: t.kind,
+    tournamentId: tournamentIds[0],
+    tournamentName: t.tournamentName,
+    motionId: t.motionId,
+    current: t.current,
+    proposals: values.reduce((s, v) => s + v.n, 0),
+  };
+  if (reason) plan.malformed.push({ ...base, tournamentIds, values, reason });
+  else if (values.length === 1) plan.agreed.push({ ...base, value: values[0].value });
+  else plan.conflicts.push({ ...base, values });
 }
 
 function compareIds(a, b) {

@@ -115,6 +115,28 @@ function printPlan(plan) {
   if (plan.ignored) console.log(`  (${plan.ignored} pending proposals of other kinds are not touched)`);
 }
 
+/** Approve one kind's agreed targets in batches, adding to `totals` and printing progress. */
+async function applyKind(kind, targets, totals) {
+  const sql = buildApplySql(kind);
+  let done = 0;
+  for (const part of chunk(targets, opts.batch)) {
+    const [r] = await prisma.$transaction(
+      (tx) => tx.$queryRawUnsafe(sql, ...batchParams(part), kind, runStamp),
+      { timeout: 120_000, maxWait: 10_000 },
+    );
+    done += part.length;
+    const skipped = part.length - r.targets;
+    totals.targets += r.targets;
+    totals.canonical += r.canonical;
+    totals.proposals += r.proposals;
+    totals.skipped += skipped;
+    console.log(
+      `  ${kind.padEnd(14)} ${done}/${targets.length} targets checked | approved ${r.proposals} proposals on ${r.targets} targets` +
+        (skipped ? ` | ${skipped} skipped (no longer one value, or already done)` : ''),
+    );
+  }
+}
+
 try {
   printStatusCounts('Proposals by kind and status', await statusCounts());
   const plan = await loadPlan();
@@ -137,25 +159,7 @@ try {
 
     const totals = { targets: 0, canonical: 0, proposals: 0, skipped: 0 };
     for (const kind of kinds) {
-      const targets = plan.agreed.filter((a) => a.kind === kind);
-      if (targets.length === 0) continue;
-      const sql = buildApplySql(kind);
-      let done = 0;
-      for (const part of chunk(targets, opts.batch)) {
-        const [r] = await prisma.$transaction(
-          (tx) => tx.$queryRawUnsafe(sql, ...batchParams(part), kind, runStamp),
-          { timeout: 120_000, maxWait: 10_000 },
-        );
-        done += part.length;
-        totals.targets += r.targets;
-        totals.canonical += r.canonical;
-        totals.proposals += r.proposals;
-        totals.skipped += part.length - r.targets;
-        console.log(
-          `  ${kind.padEnd(14)} ${done}/${targets.length} targets checked | approved ${r.proposals} proposals on ${r.targets} targets` +
-            (part.length - r.targets ? ` | ${part.length - r.targets} skipped (no longer one value, or already done)` : ''),
-        );
-      }
+      await applyKind(kind, plan.agreed.filter((a) => a.kind === kind), totals);
     }
     console.log(
       `\nApplied. targets ${totals.targets} | canonical rows written ${totals.canonical} | proposals approved ${totals.proposals} | skipped ${totals.skipped}`,
