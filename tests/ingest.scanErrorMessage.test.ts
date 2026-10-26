@@ -4,7 +4,7 @@ import { scanErrorMessage } from '@/lib/ingest/scanErrorMessage';
 describe('scanErrorMessage', () => {
   it('explains the cooldown instead of showing the bare code', () => {
     for (const msg of [scanErrorMessage(429, 'rate_limited'), scanErrorMessage(200, 'rate_limited'), scanErrorMessage(429, 'anything')]) {
-      expect(msg).toMatch(/5 minutes/);
+      expect(msg).toMatch(/2 minutes/);
       expect(msg).not.toBe('rate_limited');
     }
   });
