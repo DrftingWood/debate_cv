@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 import { drainUntilEmpty, summariseDrain } from '@/lib/ingest/drainUntilEmpty';
+import { scanErrorMessage } from '@/lib/ingest/scanErrorMessage';
 
 type ScanResponse = { scanned: number; found: number };
 type IngestUrlResponse = {
@@ -55,7 +56,7 @@ export function ScanButton({ disconnected = false }: { disconnected?: boolean })
           try {
             setPhase('scanning');
             const scan = await postJson<ScanResponse>('/api/ingest/gmail');
-            if (!scan.ok) throw new Error(scan.error);
+            if (!scan.ok) throw new Error(scanErrorMessage(scan.status, scan.error));
             toast.show({
               kind: 'success',
               title: 'Gmail scan complete',
