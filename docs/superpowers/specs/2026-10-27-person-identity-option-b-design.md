@@ -412,13 +412,13 @@ What this means for the model:
 - **122** had a cross-role group: a speaker and a judge on one key.
 - **23** had a name whose v1 key is empty.
 
-The class counts overlap. Under the owner's rule, cross-role groups are real collisions as well, so the checker now counts them (PR #176). `Affected` is now the union of empty-key, same-role and cross-role, with each tournament counted once. The new total will come from re-running the updated script. It must fall between **146** (if no tournament is cross-role only) and **238** (the earlier count of every tournament with any shared or empty key). The script also splits cross-role groups by whether the speaker row and the judge row name the same institution. That is the only case where a listing error is plausible rather than a namesake, and those rows are for the owner to check by eye.
+The class counts overlap. Under the owner's rule, cross-role groups are real collisions as well, so the checker now counts them (PR #176). `Affected` is now the union of empty-key, same-role and cross-role, with each tournament counted once. The owner re-ran the updated script on 2026-10-27: **232 of 855** tournaments are affected (union, each counted once). Of those, 23 have empty-key names (44 names), 126 have same-role collisions (202 groups) and 122 have cross-role collisions (211 groups). Of the cross-role groups, only 7 tournaments name the same institution on both sides (the only case where one person is plausible), 5 name different institutions, and 113 have an unknown institution on one side. 14 tournaments with exact duplicate rows are not counted. The script also splits cross-role groups by whether the speaker row and the judge row name the same institution. That is the only case where a listing error is plausible rather than a namesake, and those rows are for the owner to check by eye.
 
 **Revised re-ingest estimate.** The runbook (step 4) gives about 25 s per tournament on one shard:
 
 | Route | Tournaments | Actions time |
 | --- | --- | --- |
-| Short list from the checker | 146-238 | about 60-100 minutes |
+| Short list from the checker | 232 | about 100 minutes |
 | Global `PARSER_VERSION` bump | all 855 in the export | about 6 hours, and every user's cached parses are invalidated |
 
 The short list is 17-28 % of the export, not "a handful". So the recommended default for open question 1 changes to **do phase 7**, with a short-list re-ingest of the checker's list instead of a global bump. Runbook step 2's caveat still applies: the v1-to-v2 re-key of `Person` is a data migration and must run first. The exact figure will follow the re-run.
