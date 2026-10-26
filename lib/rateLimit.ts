@@ -39,6 +39,8 @@ export const RATE_LIMITS = {
   // day rather than the minute.
   'ingest:gmail': { limit: 12, windowSec: 3600 },
   'ingest:drain': { limit: 30, windowSec: 3600 },
+  // CSV upload: up to 20 URLs each, so 5 a day caps a user at 100 URLs a day.
+  'ingest:csv': { limit: 5, windowSec: 86400 },
   // Fetches every pending URL's landing page.
   'onboarding:preflight': { limit: 10, windowSec: 3600 },
   // Builds a workbook in memory.
