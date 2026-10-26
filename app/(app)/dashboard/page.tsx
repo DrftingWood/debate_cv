@@ -14,6 +14,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import {
   ScanButton,
+  UploadCsvButton,
   IngestAllButton,
   IngestButton,
   ClearButton,
@@ -149,6 +150,7 @@ export default async function Dashboard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
+          <UploadCsvButton />
           <ScanButton disconnected={!gmailToken} />
         </div>
       </header>

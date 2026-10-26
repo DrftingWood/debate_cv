@@ -4,6 +4,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/db';
 import { persistTokensFromAccount } from '@/lib/gmail/client';
 import { withoutStoredTokens } from '@/lib/authAdapter';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * Look up the DB User.id with multiple fallbacks. NextAuth v5 beta
@@ -46,7 +47,14 @@ async function resolveUserId(args: {
 
 const next = NextAuth({
   // Tokens go to the encrypted GmailToken, never into Account (see authAdapter).
-  adapter: withoutStoredTokens(PrismaAdapter(prisma), persistTokensFromAccount),
+  adapter: withoutStoredTokens(PrismaAdapter(prisma), persistTokensFromAccount, (err, userId) => {
+    // Sign-in continues without Gmail access; make the cause loud so it is fixed.
+    console.error('[auth.linkAccount] could not save the encrypted Gmail token; linked without Gmail access', {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    Sentry.captureException(err, { tags: { area: 'auth.linkAccount' } });
+  }),
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,

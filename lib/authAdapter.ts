@@ -15,9 +15,15 @@
  * /client.ts records that the events have been seen to no-op under NextAuth
  * v5 beta, which is why Account used to be treated as the source of truth. The
  * adapter call is the one write NextAuth cannot skip, so the encrypted copy is
- * made on that path. If persisting fails, the error propagates and no Account
- * row is created with or without tokens: the user is told the connection
- * failed, rather than being left connected with no usable Gmail token.
+ * made on that path.
+ *
+ * If saving the encrypted copy fails (a bad or missing TOKEN_ENCRYPTION_KEY, a
+ * database blip), sign-in must still work: the account is linked WITHOUT
+ * tokens and the failure is reported. The user is signed in with Gmail not
+ * connected, and the existing "reconnect Gmail" path restores it once the cause
+ * is fixed. Letting the error propagate instead turns a misconfigured secret
+ * into a sign-in outage (the 2026-10-26 "Server error" on /api/auth/callback).
+ * The plain tokens are never written to Account either way.
  */
 
 import type { Adapter, AdapterAccount } from 'next-auth/adapters';
@@ -32,17 +38,22 @@ type Tokens = {
 export function withoutStoredTokens(
   base: Adapter,
   persistTokens: (userId: string, tokens: Tokens) => Promise<void>,
+  onPersistError: (err: unknown, userId: string) => void = () => {},
 ): Adapter {
   return {
     ...base,
     async linkAccount(account: AdapterAccount) {
       if (account.provider === 'google' && account.access_token) {
-        await persistTokens(account.userId, {
-          access_token: account.access_token,
-          refresh_token: account.refresh_token,
-          expires_at: account.expires_at,
-          scope: account.scope,
-        });
+        try {
+          await persistTokens(account.userId, {
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+            expires_at: account.expires_at,
+            scope: account.scope,
+          });
+        } catch (err) {
+          onPersistError(err, account.userId);
+        }
       }
       // A copy, never the object NextAuth hands the events afterwards.
       const stripped: AdapterAccount = {

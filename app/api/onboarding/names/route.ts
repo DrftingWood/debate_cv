@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { proximityToYou } from '@/lib/identity/nameProximity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,12 @@ export const dynamic = 'force-dynamic';
  *
  * Drives the multi-select on /onboarding: one row per distinct name, ordered
  * by URL count desc so the user's most common spelling is at the top.
+ *
+ * Each name also carries `proximity`: how close it is to the user's Google
+ * profile name or a name they have already claimed (match / close / different,
+ * or unknown with no reference). A private URL is a credential for one person,
+ * so a name that looks nothing like the user is flagged on the picker rather
+ * than quietly offered. It informs the user's tick; it blocks nothing.
  */
 export async function GET() {
   const session = await auth();
@@ -67,6 +74,11 @@ export async function GET() {
     select: { normalizedName: true },
   });
   const claimedSet = new Set(claimed.map((p) => p.normalizedName));
+  const mine = await prisma.person.findMany({
+    where: { claimedByUserId: userId },
+    select: { displayName: true },
+  });
+  const references = [session.user.name, ...mine.map((p) => p.displayName)];
 
   const names = [...byNormalized.values()]
     .map((e) => ({
@@ -74,6 +86,7 @@ export async function GET() {
       normalizedName: e.normalizedName,
       urlCount: e.urlCount,
       isMine: claimedSet.has(e.normalizedName),
+      proximity: proximityToYou(e.displayName, references),
     }))
     .sort((a, b) => b.urlCount - a.urlCount || a.displayName.localeCompare(b.displayName));
 
