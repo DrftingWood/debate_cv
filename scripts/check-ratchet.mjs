@@ -27,7 +27,9 @@ const BASELINE = {
   // #168 added three in lib/identity/affectedTournaments.ts, landing on main
   // before CI ran the ratchet. Raised so main is green; those three are the
   // first candidates when this number next falls.
-  nonNull: 76,
+  // 76 -> 73 (2026-10-27): those three are gone (the round-overlap rework of
+  // affectedTournaments.ts).
+  nonNull: 73,
   eslintDisableUnexplained: 4,
 };
 
