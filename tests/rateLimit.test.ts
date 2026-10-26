@@ -7,6 +7,7 @@ import {
   RATE_LIMITS,
   consumeRateLimit,
   enforceRateLimit,
+  formatWait,
   pruneRateLimits,
 } from '@/lib/rateLimit';
 
@@ -142,15 +143,64 @@ describe('enforceRateLimit', () => {
     expect(res!.headers.get('RateLimit-Remaining')).toBe('0');
     expect(res!.headers.get('RateLimit-Reset')).toBe('3000');
     const body = await res!.json();
-    // 3000 s rounds up to 50 minutes.
-    expect(body).toEqual({ error: 'rate_limited', reason: 'Too many requests. Try again in 50 minute(s).' });
+    // 3000 s is 50 minutes. Was "50 minute(s)" before formatWait: the message
+    // now pluralises properly and picks the unit (see the formatWait suite).
+    expect(body).toEqual({ error: 'rate_limited', reason: 'Too many requests. Try again in 50 minutes.' });
   });
 
-  it('rounds sub-minute waits up to 1 minute in the message', async () => {
+  it('states sub-minute waits in seconds', async () => {
+    // Previously pinned as "1 minute(s)": every wait was rounded up to whole
+    // minutes. A 10 s wait now says 10 seconds; Retry-After is unchanged.
     prismaMock.$queryRaw.mockResolvedValue(counterRow(99, 3590));
     const res = await enforceRateLimit('ingest:url', 'user-1');
+    expect(res!.headers.get('Retry-After')).toBe('10');
     const body = await res!.json();
-    expect(body.reason).toBe('Too many requests. Try again in 1 minute(s).');
+    expect(body.reason).toBe('Too many requests. Try again in 10 seconds.');
+  });
+
+  it('regression: the daily CSV limit no longer reads "1440 minute(s)"', async () => {
+    prismaMock.$queryRaw.mockResolvedValue(counterRow(6, 0));
+    const res = await enforceRateLimit('ingest:csv', 'user-1');
+    // The header stays in seconds; only the human message changed.
+    expect(res!.headers.get('Retry-After')).toBe('86400');
+    expect(res!.headers.get('RateLimit-Reset')).toBe('86400');
+    const body = await res!.json();
+    expect(body.reason).toBe('Too many requests. Try again in 1 day.');
+  });
+});
+
+describe('formatWait', () => {
+  it.each([
+    [0, '1 second'],
+    [1, '1 second'],
+    [10, '10 seconds'],
+    [59, '59 seconds'],
+    [60, '1 minute'],
+    [61, '2 minutes'],
+    [3000, '50 minutes'],
+    [3599, '1 hour'],
+    [3600, '1 hour'],
+    [3601, '1 hour 1 minute'],
+    [5400, '1 hour 30 minutes'],
+    [7200, '2 hours'],
+    [86000, '23 hours 54 minutes'],
+    [86400, '1 day'],
+    [86401, '1 day 1 hour'],
+    [90000, '1 day 1 hour'],
+    [2 * 86400 - 60, '2 days'],
+    [3 * 86400, '3 days'],
+  ])('%i s -> %s', (sec, text) => {
+    expect(formatWait(sec)).toBe(text);
+  });
+
+  it('never understates the wait (rounds up at the smallest unit shown)', () => {
+    for (let s = 1; s <= 3 * 86400; s += 211) {
+      const text = formatWait(s);
+      const parts = [...text.matchAll(/(\d+) (second|minute|hour|day)/g)];
+      const mult = { second: 1, minute: 60, hour: 3600, day: 86400 } as const;
+      const total = parts.reduce((acc, [, n, u]) => acc + Number(n) * mult[u as keyof typeof mult], 0);
+      expect(total, `${s} -> ${text}`).toBeGreaterThanOrEqual(s);
+    }
   });
 });
 
