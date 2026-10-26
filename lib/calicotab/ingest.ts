@@ -1202,7 +1202,7 @@ async function claimedPlaceholderNorms(names: Iterable<string>): Promise<Set<str
 // stays at 45s. The pre-scrape runs on GitHub Actions with no function limit
 // and ~50ms to the database, where large tournaments need longer than 45s.
 const LIVE_TX_TIMEOUT_MS = 45_000;
-const PRESCRAPE_TX_TIMEOUT_MS = 5 * 60_000;
+const PRESCRAPE_TX_TIMEOUT_MS = 15 * 60_000;
 
 async function writeIngestTransaction(
   loaded: LoadedState,
