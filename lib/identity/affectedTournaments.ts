@@ -1,13 +1,17 @@
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { isPlaceholderPersonName, isRedactedName } from '@/lib/calicotab/names';
+import { extractNavigation } from '@/lib/calicotab/parseNav';
 import {
   parseParticipantsList,
+  parseRoundResults,
   parseSpeakerTab,
   parseTeamTab,
   type ParticipantsRow,
+  type RoundDebate,
   type SpeakerTabRow,
   type TeamTabRow,
 } from '@/lib/calicotab/parseTabs';
+import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
 import { cleanName } from '@/lib/calicotab/tabbycatApi';
 import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/calicotab/tabbycatApiRounds';
 
@@ -22,7 +26,7 @@ import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/
  *   (a) a name with letters in it whose v1 key (normalizePersonName) is
  *       empty — "李明", "Иван" — is skipped by preCommitPersons, so that
  *       person has no Person and no TournamentParticipant at all;
- *   (b) two different entries at one tournament whose v1 keys are equal —
+ *   (b) two different people at one tournament whose v1 keys are equal —
  *       namesakes, or "José Silva" / "Jose Silva", or "王欣月2" / "李明2"
  *       (both "2") — become one participant: the participants list is
  *       merged by key (lib/calicotab/ingest.ts, the participantByName map)
@@ -33,79 +37,97 @@ import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/
  * tests share it, and nothing here can reach a database or the network. It
  * reuses the ingest parsers unchanged, so it sees the rows ingest would see.
  *
- * Counting rules, deliberately conservative toward "affected":
+ * Counting rules:
  * - Redacted and stand-in names ("<em>Redacted</em>", "Speaker 1") are left
  *   out of (b). They share a key by design and ingest already handles them
  *   (names.ts, redactedSpeaker.ts); counting them would flag nearly every
  *   tournament.
  * - (a) needs at least one letter or digit in the raw name. Punctuation-only
  *   cells ("—", "?") are not people, and v2 drops them too.
- * - (b) is judged within ONE list at a time (team tab rosters, speaker tab,
- *   participants list, API participants). Each list names each person once,
- *   so two rows with one key in one list are two entries. Across lists the
- *   same person appears in every list, so matching across them would count
- *   everyone. Rows identical in every field are counted once, so a parser
- *   that reads one row twice does not invent a namesake.
+ * - (b) pairs rows within ONE list at a time (team tab rosters, speaker tab,
+ *   participants list, API participants). Each list names each person once
+ *   per role, so two rows with one key in one list are two entries. Across
+ *   lists the same person appears in every list, so pairing across them
+ *   would count everyone. Rows identical in every field are counted once, so
+ *   a parser that reads one row twice does not invent a namesake.
  *
- * Not every shared key is a merge that loses a person, so each one is put in
- * exactly one class, judged against what ingest actually writes:
+ * ── Is a shared key one person or two? The owner's rule ──
  *
- *   sameRole  — two speaker rows, or two adjudicator rows, with one key and a
- *               different team or institution. A real collision: the
- *               speaker loop upserts both onto one (tournamentId, personId)
- *               TournamentParticipant, the second overwriting the first's
- *               team, rank and total; and participantByName keeps only the
- *               last adjudicator row, so the other judge gets no row at all.
- *   crossRole — a speaker row and an adjudicator (or other) row with one
- *               key, and no same-role pair. Also a real collision. The
- *               owner's domain rule: nobody is both a speaker and a judge at
- *               one tournament, so a key on both lists is two people
- *               (namesakes), not one participant holding two roles. ingest
- *               still gives them one Person and one TournamentParticipant,
- *               and participantByName keeps only one of the two rows (see
- *               judgeRoleDropped below). An 'other' row (no role column, no
- *               section title) is counted the same way, conservatively.
- *               `crossRoleInstitution` says whether the speaker and judge
- *               rows name the same institution: the one case where a data
- *               error rather than a namesake is plausible, kept apart so the
- *               owner can eyeball it.
+ * A person cannot speak and judge in the SAME ROUND, nor speak for two teams
+ * in one round, nor sit on two panels in one round. Nothing stops one person
+ * speaking in the prelims and judging the outrounds, or an organiser being
+ * entered on several swing teams to fill rooms in different rounds. So two
+ * entries with one key are judged by their ROUNDS:
+ *
+ *   overlap   — some round has both entries in it: two speaker entries both
+ *               scored (or both teams drawn) in round N; a speaker entry
+ *               scored in N while the key judged N; two judges with the key
+ *               on round N's results. Two people. A real collision, counted.
+ *   disjoint  — every pair of entries has round data and no round in common.
+ *               Plausibly one person (a speaker who later judged, a swing
+ *               or replacement, an organiser on several teams). Not a
+ *               collision, not counted. Split into `crossRole` (a speaker
+ *               and a judge entry) and same-role (only one role).
+ *   unknown   — some pair cannot be decided because one side has no
+ *               per-round data in the export. Reported on its own; counted
+ *               only in the second, upper-bound "affected" number.
  *   duplicate — the same role with the same team and institution: one
- *               person listed twice (a second table on the page, a split
- *               category tab), not a namesake.
+ *               person listed twice (a second table, a split category tab).
+ *
+ * Where rounds come from, all from stored pages:
+ *   - a speaker entry: its own speaker-tab row (rounds with a score), else a
+ *     speaker-tab row with the same key and team, else the rounds its team
+ *     appears in on the round-results pages (/results/round/N/);
+ *   - judges: the adjudicator column of the round-results pages, by key.
+ *     Those pages list names, not people, and parseRoundResults keeps one
+ *     entry per name and panel role in a round, so two judges spelled
+ *     identically in the same panel role in one round read as one. Two
+ *     identically spelled judge entries are therefore 'unknown' unless a
+ *     round shows the key twice (in two roles or two spellings).
+ * Rounds are compared by `roundKey`: a prelim is its number, so the halves
+ * of a split round (R1A, R1B) are one round; an outround is its stage and
+ * break category ("Novice Final" is not the "Open Final").
  *
  * `judgeRoleDropped` flags a participants-list group where participantByName
  * (Map.set, last row wins) ends on a non-adjudicator row while an
  * adjudicator row shares the key: ingest writes no judge role for that key,
  * because the adjudicator loop only reads rows still marked adjudicator.
  * Tabbycat lists the Adjudicators table before the Speakers table, so the
- * speaker row usually wins. Under the owner's rule this is not a separate
- * bug: it is how the cross-role collision shows up, the judge namesake
- * losing their row to the speaker namesake. Every such key is already a
- * cross-role (or same-role) group, so it adds nothing to "affected"; it is
- * reported as the count of keys where the merge visibly lost the judge.
+ * speaker row usually wins. On an overlap group that is the collision
+ * itself; on a DISJOINT speaker+judge group it is one person losing their
+ * judge credit — a real ingest bug of its own (reported as
+ * judgeRoleLostByOnePerson), which phase 7 fixes by keeping both roles.
  */
 
 export type DocumentKind = 'teamTab' | 'speakerTab' | 'participants' | 'apiTeams' | 'apiAdjudicators';
+
+/** Pages read only for their rounds; they never make a tournament on their own. */
+export type RoundPageKind = 'landing' | 'roundResults';
 
 export type ClassifiedUrl = {
   /** Public tournament base, `https://host/slug/` (or `https://host/` when root-hosted). */
   base: string;
   host: string;
   slug: string | null;
-  kind: DocumentKind;
+  kind: DocumentKind | RoundPageKind;
+  /** The round's sequence number, for a round-results page. */
+  roundSeq?: number;
 };
 
 // Same paths extractNavigation (lib/calicotab/parseNav.ts) accepts for these tabs.
-const HTML_KINDS: Array<[RegExp, DocumentKind]> = [
+const HTML_KINDS: Array<[RegExp, DocumentKind | RoundPageKind]> = [
   [/^(.*?)\/tab\/(?:team(?:-standings)?|overall)\/?$/, 'teamTab'],
   [/^(.*?)\/tab\/speaker(?:-standings)?\/?$/, 'speakerTab'],
   [/^(.*?)\/participants\/list\/?$/, 'participants'],
+  // The by-team and by-debate views carry the same results.
+  [/^(.*?)\/results\/round\/\d+\/?(?:by-team\/|by-debate\/)?$/, 'roundResults'],
+  [/^(\/[^/]+)?\/?$/, 'landing'],
 ];
 
 /**
  * The tournament and page kind of one stored document URL, or null when it
- * is not one of the pages this check reads (landing pages, rounds, break
- * tabs, motions, other API endpoints, private URLs).
+ * is not one of the pages this check reads (break tabs, motions, other API
+ * endpoints, private URLs).
  */
 export function classifyDocumentUrl(url: string): ClassifiedUrl | null {
   let u: URL;
@@ -118,18 +140,21 @@ export function classifyDocumentUrl(url: string): ClassifiedUrl | null {
   if (/\/privateurls\//i.test(path)) return null;
   const api = path.match(/^\/api\/v1\/tournaments\/([^/]+)\/(teams|adjudicators)\/?$/);
   if (api) {
-    const slug = api[1]!;
-    return { base: `${u.origin}/${slug}/`, host: u.host, slug, kind: api[2] === 'teams' ? 'apiTeams' : 'apiAdjudicators' };
+    const [, slug = '', list] = api;
+    return { base: `${u.origin}/${slug}/`, host: u.host, slug, kind: list === 'teams' ? 'apiTeams' : 'apiAdjudicators' };
   }
+  if (/^\/api(?:\/|$)/.test(path)) return null;
   for (const [re, kind] of HTML_KINDS) {
     const m = path.match(re);
     if (!m) continue;
-    const prefix = m[1]!.split('/').filter(Boolean);
+    const prefix = (m[1] ?? '').split('/').filter(Boolean);
     // Tabbycat tournaments live at /<slug>/...; a root-hosted install has
     // the tabs directly under /. Anything deeper is not a tab page.
     if (prefix.length > 1) return null;
     const slug = prefix[0] ?? null;
-    return { base: slug ? `${u.origin}/${slug}/` : `${u.origin}/`, host: u.host, slug, kind };
+    const out: ClassifiedUrl = { base: slug ? `${u.origin}/${slug}/` : `${u.origin}/`, host: u.host, slug, kind };
+    if (kind === 'roundResults') out.roundSeq = Number(/\/results\/round\/(\d+)/.exec(path)?.[1]);
+    return out;
   }
   return null;
 }
@@ -149,29 +174,49 @@ export type TournamentDocuments = {
   slug: string | null;
   /** The newest successful document of each kind; what a fresh ingest would read. */
   docs: Partial<Record<DocumentKind, IndexEntry>>;
+  /** The newest landing page: its nav names each results round ("Quarterfinals"). */
+  landing?: IndexEntry;
+  /** The newest results page of each round, in round order. */
+  results: IndexEntry[];
 };
 
 /**
  * Group the export index by tournament, keeping the newest 200 document of
  * each kind. The export can hold several snapshots of one URL (one per
  * content hash), and a tab may be stored under two URL spellings
- * (/tab/team/ and /tab/team-standings/); the newest wins either way.
+ * (/tab/team/ and /tab/team-standings/); the newest wins either way. Landing
+ * and results pages are attached to a tournament that has a tab page but do
+ * not make one on their own, so the tournament count is unchanged by them.
  */
 export function groupByTournament(entries: Iterable<IndexEntry>): TournamentDocuments[] {
-  const byBase = new Map<string, TournamentDocuments>();
+  const byBase = new Map<string, TournamentDocuments & { bySeq: Map<number, IndexEntry> }>();
   for (const e of entries) {
     if (e.status != null && e.status !== 200) continue;
     const c = classifyDocumentUrl(e.url);
     if (!c) continue;
     let t = byBase.get(c.base);
     if (!t) {
-      t = { base: c.base, host: c.host, slug: c.slug, docs: {} };
+      t = { base: c.base, host: c.host, slug: c.slug, docs: {}, results: [], bySeq: new Map() };
       byBase.set(c.base, t);
     }
-    const prev = t.docs[c.kind];
-    if (!prev || time(e.fetchedAt) > time(prev.fetchedAt)) t.docs[c.kind] = e;
+    if (c.kind === 'landing') {
+      if (!t.landing || time(e.fetchedAt) > time(t.landing.fetchedAt)) t.landing = e;
+    } else if (c.kind === 'roundResults') {
+      const seq = c.roundSeq ?? 0;
+      const prev = t.bySeq.get(seq);
+      if (!prev || time(e.fetchedAt) > time(prev.fetchedAt)) t.bySeq.set(seq, e);
+    } else {
+      const prev = t.docs[c.kind];
+      if (!prev || time(e.fetchedAt) > time(prev.fetchedAt)) t.docs[c.kind] = e;
+    }
   }
-  return [...byBase.values()].sort((a, b) => (a.base < b.base ? -1 : a.base > b.base ? 1 : 0));
+  return [...byBase.values()]
+    .filter((t) => Object.keys(t.docs).length > 0)
+    .map(({ bySeq, ...t }) => ({
+      ...t,
+      results: [...bySeq.entries()].sort((a, b) => a[0] - b[0]).map(([, e]) => e),
+    }))
+    .sort((a, b) => (a.base < b.base ? -1 : a.base > b.base ? 1 : 0));
 }
 
 function time(s: string | null): number {
@@ -186,17 +231,22 @@ export type ParsedLists = {
   speakerRows?: SpeakerTabRow[];
   participantRows?: ParticipantsRow[];
   apiParticipantRows?: ParticipantsRow[];
+  /** The round-results pages, parsed as ingest parses them. */
+  rounds?: RoundDebate[];
 };
 
 /**
  * Parse the bodies of one tournament's documents with the ingest parsers.
  * `read` returns a document's decompressed body. The two API lists are only
  * combined when the teams list is present, as ingest's API participants path
- * needs both (an absent adjudicators list reads as none).
+ * needs both (an absent adjudicators list reads as none). `roundPages` are
+ * the landing page (for the nav's round labels) and the results pages; a
+ * results page that fails to parse is skipped, not fatal.
  */
 export function parseTournamentDocuments(
   docs: TournamentDocuments['docs'],
   read: (entry: IndexEntry) => string,
+  roundPages?: { landing?: IndexEntry; results?: IndexEntry[] },
 ): ParsedLists {
   const out: ParsedLists = {};
   if (docs.teamTab) out.teamRows = parseTeamTab(read(docs.teamTab));
@@ -207,7 +257,48 @@ export function parseTournamentDocuments(
     const adjudicators = docs.apiAdjudicators ? jsonList(read(docs.apiAdjudicators)).filter(isApiAdjudicator) : [];
     out.apiParticipantRows = mapParticipants({ teams, adjudicators });
   }
+  if (roundPages?.results?.length) out.rounds = parseRoundPages(roundPages.results, roundPages.landing, read);
   return out;
+}
+
+const RESULTS_SEQ = /\/results\/round\/(\d+)/;
+
+/**
+ * The nav's link text is the round's own name ("Quarterfinals"), which ingest
+ * passes to parseRoundResults too. Keyed by round number, because the stored
+ * URL may be the by-team view or the other scheme. No landing page, or one
+ * that fails to parse: no labels, and rounds fall back to the page heading or
+ * "Round N".
+ */
+function roundLabels(landing: IndexEntry | undefined, read: (entry: IndexEntry) => string): Map<number, string> {
+  const labelBySeq = new Map<number, string>();
+  if (!landing) return labelBySeq;
+  let labels: Record<string, string> = {};
+  try {
+    labels = extractNavigation(read(landing), landing.url).resultsRoundLabels;
+  } catch {
+    return labelBySeq;
+  }
+  for (const [u, label] of Object.entries(labels)) {
+    const seq = Number(RESULTS_SEQ.exec(u)?.[1] ?? NaN);
+    if (Number.isFinite(seq) && !labelBySeq.has(seq)) labelBySeq.set(seq, label);
+  }
+  return labelBySeq;
+}
+
+/** Each results page as ingest parses it; one unreadable page leaves that round out. */
+function parseRoundPages(results: IndexEntry[], landing: IndexEntry | undefined, read: (entry: IndexEntry) => string): RoundDebate[] {
+  const labelBySeq = roundLabels(landing, read);
+  const rounds: RoundDebate[] = [];
+  for (const e of results) {
+    const seq = Number(RESULTS_SEQ.exec(e.url)?.[1] ?? NaN);
+    try {
+      rounds.push(parseRoundResults(read(e), e.url, labelBySeq.get(seq) ?? null));
+    } catch {
+      // An unreadable page: that round's evidence is left out.
+    }
+  }
+  return rounds;
 }
 
 function jsonList(body: string): unknown[] {
@@ -236,9 +327,94 @@ function isApiAdjudicator(v: unknown): v is ApiAdjudicator {
   return isObject(v) && (v.name === null || typeof v.name === 'string') && typeof v.anonymous === 'boolean';
 }
 
+// ── Rounds ──────────────────────────────────────────────────────────────────
+
+/**
+ * One round, comparable across the speaker tab's column headers and the
+ * results pages' labels. A prelim is "R<number>": "R3", "Round 3", "3",
+ * "Ronda 3" and both halves of a split round ("R1A", "Round 1B") are one
+ * round. An outround is its stage plus break category ("semifinal novice"),
+ * so concurrent finals of two brackets are two rounds. `fallbackSeq` is used
+ * when the label is empty.
+ */
+export function roundKey(label: string | null | undefined, fallbackSeq?: number | null): string | null {
+  const text = cleanName(label ?? '');
+  if (!text || /^average$/i.test(text)) return fallbackSeq != null ? `R${fallbackSeq}` : null;
+  const { stage, category } = splitStageLabel(text);
+  if (stage) return category ? `${stage} ${category.toLowerCase()}` : stage;
+  const n = text.match(/\d+/);
+  if (n) return `R${Number(n[0])}`;
+  return text.toLowerCase();
+}
+
+/** Prelims in number order first, then the rest alphabetically. */
+function compareRounds(a: string, b: string): number {
+  const na = /^R(\d+)$/.exec(a);
+  const nb = /^R(\d+)$/.exec(b);
+  if (na && nb) return Number(na[1]) - Number(nb[1]);
+  if (na) return -1;
+  if (nb) return 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function sortedRounds(s: Iterable<string>): string[] {
+  return [...s].sort(compareRounds);
+}
+
+/** "R1-R5" for a run, else a comma list, so the evidence column stays short. */
+function formatRounds(rounds: Iterable<string>): string {
+  const list = sortedRounds(rounds);
+  const nums = list.map((r) => /^R(\d+)$/.exec(r)?.[1]).map((n) => (n ? Number(n) : null));
+  if (list.length > 2 && nums.every((n) => n != null) && nums.every((n, i) => i === 0 || n === nums[i - 1]! + 1)) {
+    return `${list[0]}-${list[list.length - 1]}`;
+  }
+  return list.join(',');
+}
+
+/** What the round-results pages say, indexed for the checks below. */
+type RoundIndex = {
+  /** Loose team name → rounds the team has a result in. */
+  teamRounds: Map<string, Set<string>>;
+  /** v1 key → round → the distinct "name|panel role" entries for that key. */
+  judgesByKey: Map<string, Map<string, Set<string>>>;
+  /** Exact judge spelling → rounds. */
+  judgeNameRounds: Map<string, Set<string>>;
+  /** At least one results page named at least one judge. */
+  hasJudges: boolean;
+  /** Results pages read. */
+  pages: number;
+};
+
+function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
+  const idx: RoundIndex = { teamRounds: new Map(), judgesByKey: new Map(), judgeNameRounds: new Map(), hasJudges: false, pages: 0 };
+  for (const r of rounds ?? []) {
+    idx.pages += 1;
+    const key = roundKey(r.roundLabel, r.roundNumber);
+    if (!key) continue;
+    for (const t of r.teamResults) addTo(idx.teamRounds, loose(t.teamName), key);
+    for (const j of r.judgeAssignments) {
+      const name = cleanName(j.personName);
+      const k = normalizePersonName(name);
+      if (!k || ignoredForSharing(name)) continue;
+      idx.hasJudges = true;
+      const byRound = idx.judgesByKey.get(k) ?? new Map<string, Set<string>>();
+      idx.judgesByKey.set(k, byRound);
+      addTo(byRound, key, `${name}|${j.panelRole ?? ''}`);
+      addTo(idx.judgeNameRounds, name, key);
+    }
+  }
+  return idx;
+}
+
+function addTo<K, V>(m: Map<K, Set<V>>, k: K, v: V): void {
+  const s = m.get(k) ?? new Set<V>();
+  s.add(v);
+  m.set(k, s);
+}
+
 // ── The check ───────────────────────────────────────────────────────────────
 
-export type SharedKeyClass = 'sameRole' | 'crossRole' | 'duplicate';
+export type SharedKeyClass = 'overlap' | 'disjoint' | 'unknown' | 'duplicate';
 
 export type SharedKey = {
   key: string;
@@ -246,11 +422,20 @@ export type SharedKey = {
   names: string[];
   /** The largest number of distinct entries sharing the key in any one list. */
   entries: number;
-  /** Which lists showed the collision. */
+  /** Which lists showed the shared key. */
   sources: string[];
-  /** The strongest class any one list showed (sameRole > crossRole > duplicate). */
+  /** The strongest class any one list showed (overlap > unknown > disjoint > duplicate). */
   class: SharedKeyClass;
-  /** The participants merge leaves this key with no adjudicator row (a symptom of the collision). */
+  /** Some list held the key under both a speaker and an adjudicator row. */
+  crossRole: boolean;
+  /**
+   * Why the class was given, rounds only (names stay in the name column):
+   * the first overlapping round and the two sides' sources for an overlap,
+   * each side's rounds for a disjoint group, the side without rounds for an
+   * unknown one.
+   */
+  evidence: string;
+  /** The participants merge leaves this key with no adjudicator row. */
   judgeRoleDropped: boolean;
   /**
    * For a key that some list holds under two roles: whether a speaker row
@@ -268,12 +453,24 @@ export type TournamentFindings = {
   emptyKeyNames: string[];
   /** (b) Keys held by two or more distinct entries in one list. */
   sharedKeys: SharedKey[];
+  /** Round-results pages that were read (0: judge rounds unknowable). */
+  resultsPages?: number;
 };
 
 type Role = ParticipantsRow['role'];
-type Entry = { name: string; identity: string; role: Role; affiliation: string; institution: string };
+type Entry = {
+  name: string;
+  identity: string;
+  role: Role;
+  affiliation: string;
+  institution: string;
+  /** Loose team name; '' when the row names none. */
+  team: string;
+  /** Rounds this very row was scored in (speaker tab rows only). */
+  ownRounds: Set<string> | null;
+};
 
-const CLASS_RANK: Record<SharedKeyClass, number> = { duplicate: 0, crossRole: 1, sameRole: 2 };
+const CLASS_RANK: Record<SharedKeyClass, number> = { duplicate: 0, disjoint: 1, unknown: 2, overlap: 3 };
 const MATCH_RANK: Record<InstitutionMatch, number> = { unknown: 0, different: 1, same: 2 };
 
 /** Spelled loosely enough that one team or institution reads as one. */
@@ -306,18 +503,128 @@ function institutionMatch(rows: Entry[]): InstitutionMatch | null {
   return best;
 }
 
+/** Rounds with a score on one speaker-tab row. */
+function scoredRounds(r: SpeakerTabRow): Set<string> {
+  const out = new Set<string>();
+  for (const s of r.roundScores) {
+    if (s.score == null || s.positionLabel === 'average') continue;
+    const k = roundKey(s.roundLabel);
+    if (k) out.add(k);
+  }
+  return out;
+}
+
+/** Everything the pair checks look rounds up in. */
+type Evidence = {
+  rounds: RoundIndex;
+  /** v1 key → speaker-tab rows' (loose team, scored rounds). */
+  speakerTab: Map<string, Array<{ team: string; rounds: Set<string> }>>;
+};
+
+/** One shared key at one tournament, and the evidence to judge it by. */
+type KeyContext = { key: string; ev: Evidence };
+
+/** One side of a pair: what it is ("speaker", "judge"), its rounds (null: none known), and where they came from. */
+type Side = { word: string; rounds: Set<string> | null; from: string };
+
+const noRounds = (word: string): Side => ({ word, rounds: null, from: '' });
+
+/** The rounds one speaker entry spoke in, best source first. */
+function speakerSide(e: Entry, { key, ev }: KeyContext): Side {
+  if (e.ownRounds && e.ownRounds.size > 0) return { word: 'speaker', rounds: e.ownRounds, from: 'speaker tab' };
+  if (!e.team) return noRounds('speaker');
+  const tab = (ev.speakerTab.get(key) ?? []).filter((r) => r.team === e.team && r.rounds.size > 0);
+  if (tab.length > 0) return { word: 'speaker', rounds: new Set(tab.flatMap((r) => [...r.rounds])), from: 'speaker tab' };
+  const team = ev.rounds.teamRounds.get(e.team);
+  return team && team.size > 0 ? { word: 'speaker', rounds: team, from: 'team results' } : noRounds('speaker');
+}
+
+/** The rounds the key judged, from the results pages. */
+function judgeSide({ key, ev }: KeyContext): Side {
+  const byRound = ev.rounds.judgesByKey.get(key);
+  return byRound && byRound.size > 0 ? { word: 'judge', rounds: new Set(byRound.keys()), from: 'results' } : noRounds('judge');
+}
+
+type PairVerdict = { cls: 'overlap' | 'disjoint' | 'unknown'; crossRole: boolean; evidence: string };
+
+function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
+  const ra = a.rounds;
+  const rb = b.rounds;
+  if (!ra || !rb) {
+    const missing = [!ra ? a.word : null, !rb ? b.word : null].filter(Boolean).join(' and ');
+    return { cls: 'unknown', crossRole, evidence: `no rounds for the ${missing}` };
+  }
+  const shared = sortedRounds([...ra].filter((r) => rb.has(r)));
+  if (shared.length > 0) {
+    return { cls: 'overlap', crossRole, evidence: `${shared[0]}: ${a.word} (${a.from}) and ${b.word} (${b.from})` };
+  }
+  return {
+    cls: 'disjoint',
+    crossRole,
+    evidence: `${a.word} ${formatRounds(ra)} (${a.from}); ${b.word} ${formatRounds(rb)} (${b.from})`,
+  };
+}
+
+/**
+ * Two judge entries with one key. The results pages give a judge's name and
+ * panel role per round, deduplicated by that pair, so: a round showing the
+ * key twice (two spellings, or two panel roles) is an overlap; two different
+ * spellings that never share a round are disjoint; one spelling that appears
+ * once per round cannot tell one judge from two on matching roles: unknown.
+ */
+function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerdict {
+  const byRound = ev.rounds.judgesByKey.get(key);
+  if (!byRound || byRound.size === 0) return { cls: 'unknown', crossRole: false, evidence: 'no rounds for either judge' };
+  const twice = sortedRounds([...byRound].filter(([, seen]) => seen.size >= 2).map(([r]) => r));
+  if (twice.length > 0) return { cls: 'overlap', crossRole: false, evidence: `${twice[0]}: two judges (results)` };
+  const na = cleanName(a.name);
+  const nb = cleanName(b.name);
+  if (na === nb) {
+    return {
+      cls: 'unknown',
+      crossRole: false,
+      evidence: `judge ${formatRounds(byRound.keys())} (results): one spelling, can't tell one judge from two`,
+    };
+  }
+  const side = (name: string): Side => ({ word: 'judge', rounds: ev.rounds.judgeNameRounds.get(name) ?? null, from: 'results' });
+  return sideVerdict(side(na), side(nb), false);
+}
+
+function pairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
+  const roles = [a.role, b.role].sort().join('+');
+  switch (roles) {
+    case 'speaker+speaker':
+      return sideVerdict(speakerSide(a, ctx), speakerSide(b, ctx), false);
+    case 'adjudicator+speaker':
+      return sideVerdict(speakerSide(a.role === 'speaker' ? a : b, ctx), judgeSide(ctx), true);
+    case 'adjudicator+adjudicator':
+      return judgePairVerdict(a, b, ctx);
+    default:
+      // An 'other' row (no role column, no section title) has no rounds.
+      return { cls: 'unknown', crossRole: a.role !== b.role, evidence: 'no rounds for the other row' };
+  }
+}
+
 /**
  * The class of one key within one list. `rows` are the distinct entries (at
- * least two). 'other' rows (neither speaker nor adjudicator) are never
- * written as people, so they only ever make a group cross-role.
+ * least two). Pairs with the same role, team and institution are one person
+ * listed twice and are skipped; if every pair is like that the group is a
+ * duplicate. Otherwise the strongest pair wins: any overlap, else any
+ * unknown, else disjoint.
  */
-function classify(rows: Entry[]): SharedKeyClass {
-  for (const role of ['speaker', 'adjudicator'] as const) {
-    const affs = new Set(rows.filter((r) => r.role === role).map((r) => r.affiliation));
-    if (affs.size >= 2) return 'sameRole';
+function classify(rows: Entry[], ctx: KeyContext): PairVerdict | { cls: 'duplicate'; crossRole: false; evidence: string } {
+  let best: PairVerdict | null = null;
+  let crossRole = false;
+  for (const [i, a] of rows.entries()) {
+    for (const b of rows.slice(i + 1)) {
+      if (a.role === b.role && a.affiliation === b.affiliation) continue;
+      const v = pairVerdict(a, b, ctx);
+      crossRole ||= v.crossRole;
+      if (!best || CLASS_RANK[v.cls] > CLASS_RANK[best.cls]) best = v;
+    }
   }
-  if (new Set(rows.map((r) => r.role)).size >= 2) return 'crossRole';
-  return 'duplicate';
+  if (!best) return { cls: 'duplicate', crossRole: false, evidence: 'same role, team and institution' };
+  return { ...best, crossRole };
 }
 
 /** Does v1 throw away a whole name a person would recognise as theirs? */
@@ -346,6 +653,8 @@ function sourcesOf(lists: ParsedLists): Source[] {
           role: 'speaker' as const,
           affiliation: affiliation(t.teamName, t.institution),
           institution: loose(t.institution),
+          team: loose(t.teamName),
+          ownRounds: null,
         })),
       ),
       mergedByName: false,
@@ -360,6 +669,8 @@ function sourcesOf(lists: ParsedLists): Source[] {
         role: 'speaker' as const,
         affiliation: affiliation(r.teamName, r.institution),
         institution: loose(r.institution),
+        team: loose(r.teamName),
+        ownRounds: scoredRounds(r),
       })),
       mergedByName: false,
     });
@@ -373,6 +684,8 @@ function sourcesOf(lists: ParsedLists): Source[] {
       role: r.role,
       affiliation: affiliation(r.teamName, r.institution),
       institution: loose(r.institution),
+      team: loose(r.teamName),
+      ownRounds: null,
     }));
   if (lists.participantRows) {
     sources.push({ source: 'participants', entries: fromParticipants(lists.participantRows), mergedByName: true });
@@ -404,21 +717,34 @@ function groupByKey(entries: Entry[], lost: Set<string>): Map<string, KeyGroup> 
     if (!key) continue;
     const g = byKey.get(key) ?? { names: [], rows: new Map<string, Entry>(), lastRole: e.role };
     byKey.set(key, g);
-    if (!g.rows.has(e.identity)) g.rows.set(e.identity, e);
+    if (!g.rows.has(e.identity)) g.rows.set(e.identity, { ...e, name });
     g.lastRole = e.role;
     if (!g.names.includes(name)) g.names.push(name);
   }
   return byKey;
 }
 
+function speakerTabIndex(rows: SpeakerTabRow[] | undefined): Evidence['speakerTab'] {
+  const out: Evidence['speakerTab'] = new Map();
+  for (const r of rows ?? []) {
+    const key = normalizePersonName(r.speakerName);
+    if (!key) continue;
+    const list = out.get(key) ?? [];
+    list.push({ team: loose(r.teamName), rounds: scoredRounds(r) });
+    out.set(key, list);
+  }
+  return out;
+}
+
 export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
   const lost = new Set<string>();
   const shared = new Map<string, SharedKey>();
+  const ev: Evidence = { rounds: indexRounds(lists.rounds), speakerTab: speakerTabIndex(lists.speakerRows) };
   for (const { source, entries, mergedByName } of sourcesOf(lists)) {
     for (const [key, g] of groupByKey(entries, lost)) {
       if (g.rows.size < 2) continue;
       const rows = [...g.rows.values()];
-      const cls = classify(rows);
+      const v = classify(rows, { key, ev });
       const dropped = mergedByName && g.lastRole !== 'adjudicator' && rows.some((r) => r.role === 'adjudicator');
       const inst = institutionMatch(rows);
       const s: SharedKey = shared.get(key) ?? {
@@ -426,14 +752,20 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
         names: [],
         entries: 0,
         sources: [],
-        class: cls,
+        class: v.cls,
+        crossRole: false,
+        evidence: v.evidence,
         judgeRoleDropped: false,
         crossRoleInstitution: null,
       };
       s.names.push(...g.names.filter((n) => !s.names.includes(n)));
       s.entries = Math.max(s.entries, g.rows.size);
       s.sources.push(source);
-      if (CLASS_RANK[cls] > CLASS_RANK[s.class]) s.class = cls;
+      if (CLASS_RANK[v.cls] > CLASS_RANK[s.class]) {
+        s.class = v.cls;
+        s.evidence = v.evidence;
+      }
+      s.crossRole ||= v.crossRole;
       s.judgeRoleDropped ||= dropped;
       if (inst && (s.crossRoleInstitution === null || MATCH_RANK[inst] > MATCH_RANK[s.crossRoleInstitution])) {
         s.crossRoleInstitution = inst;
@@ -444,6 +776,7 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
   return {
     emptyKeyNames: [...lost].sort(),
     sharedKeys: [...shared.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
+    resultsPages: ev.rounds.pages,
   };
 }
 
@@ -453,7 +786,7 @@ export type TournamentReport = {
   base: string;
   host: string;
   slug: string | null;
-  pagesRead: DocumentKind[];
+  pagesRead: string[];
   findings: TournamentFindings;
   error?: string;
 };
@@ -462,23 +795,28 @@ function ofClass(r: TournamentReport, cls: SharedKeyClass): SharedKey[] {
   return r.findings.sharedKeys.filter((s) => s.class === cls);
 }
 
-/** A shared key that is two people merged into one: same-role or cross-role. */
-function isCollision(s: SharedKey): boolean {
-  return s.class === 'sameRole' || s.class === 'crossRole';
+/** A disjoint speaker+judge group: plausibly one person who spoke and judged. */
+function isSpeakerJudge(s: SharedKey): boolean {
+  return s.class === 'disjoint' && s.crossRole;
+}
+
+/** One plausible person whose judge role the participants merge drops today. */
+function isJudgeRoleLost(s: SharedKey): boolean {
+  return isSpeakerJudge(s) && s.judgeRoleDropped;
 }
 
 /**
- * Would a phase-7 re-ingest change this tournament? (a), or any real
- * collision: same-role, or cross-role (a speaker and a judge at one
- * tournament are never one person). A duplicate row is one person and does
- * not count.
+ * Would a phase-7 re-ingest change this tournament? (a), or a shared key
+ * whose entries overlap in some round (two people). Disjoint, unknown and
+ * duplicate groups do not count here; see isAffectedIfUnknownCounted.
  */
 export function isAffected(r: TournamentReport): boolean {
-  return r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.some(isCollision);
+  return r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.some((s) => s.class === 'overlap');
 }
 
-function crossRoleWith(r: TournamentReport, m: InstitutionMatch): number {
-  return ofClass(r, 'crossRole').filter((s) => s.crossRoleInstitution === m).length;
+/** The upper bound: as isAffected, with every 'unknown' group taken as two people. */
+export function isAffectedIfUnknownCounted(r: TournamentReport): boolean {
+  return isAffected(r) || r.findings.sharedKeys.some((s) => s.class === 'unknown');
 }
 
 export const CSV_HEADER = [
@@ -486,72 +824,87 @@ export const CSV_HEADER = [
   'host',
   'slug',
   'affected',
+  'affected_if_unknown_counted',
   'empty_key_names',
   'shared_key_groups',
   'shared_key_entries',
-  'same_role_groups',
-  'cross_role_groups',
-  'cross_role_same_institution',
-  'cross_role_different_institution',
-  'cross_role_unknown_institution',
+  'overlap_groups',
+  'disjoint_speaker_judge_groups',
+  'disjoint_same_role_groups',
+  'unknown_round_groups',
   'duplicate_groups',
+  'cross_role_same_institution',
   'judge_role_dropped',
+  'judge_role_lost_one_person',
+  'results_pages',
   'empty_key_examples',
   'shared_key_examples',
+  'round_evidence',
   'pages_read',
   'error',
 ] as const;
 
-const CLASS_LABEL: Record<SharedKeyClass, string> = { sameRole: 'same-role', crossRole: 'cross-role', duplicate: 'duplicate' };
+const CLASS_LABEL: Record<SharedKeyClass, string> = {
+  overlap: 'overlapping rounds',
+  disjoint: 'disjoint rounds',
+  unknown: 'rounds unknown',
+  duplicate: 'duplicate',
+};
 
 const MAX_EXAMPLES = 5;
 
-/** "cross-role, same institution" for cross-role groups, so the owner can scan for them. */
+/** The class, the roles, and for speaker+judge groups the institution match. */
 function exampleLabel(s: SharedKey): string {
-  if (s.class !== 'crossRole' || !s.crossRoleInstitution) return CLASS_LABEL[s.class];
-  return `${CLASS_LABEL[s.class]}, ${s.crossRoleInstitution} institution`;
+  const parts = [CLASS_LABEL[s.class]];
+  if (s.class !== 'duplicate') parts.push(s.crossRole ? 'speaker+judge' : 'same role');
+  if (s.crossRole && s.crossRoleInstitution) parts.push(`${s.crossRoleInstitution} institution`);
+  return parts.join(', ');
 }
 
-function csvCell(v: string | number | boolean | null): string {
+function csvCell(v: string | number | boolean | null | undefined): string {
   const s = v == null ? '' : String(v);
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /**
- * The CSV the owner reads: one row per tournament, affected ones first.
+ * The CSV the owner reads: one row per tournament, affected ones first, then
+ * those affected only if unknown groups count.
  * The tournament id is not in the export (index.jsonl carries URLs only), so
  * the row is keyed by the public tournament URL, which is exactly what
  * Tournament.sourceUrlRaw stores (lib/cv/publicTournamentUrl.ts) and what the
  * pre-scrape runner takes as input.
  */
 export function toCsv(reports: TournamentReport[]): string {
-  const ordered = [...reports].sort((a, b) => Number(isAffected(b)) - Number(isAffected(a)) || (a.base < b.base ? -1 : 1));
+  const rank = (r: TournamentReport) => (isAffected(r) ? 2 : isAffectedIfUnknownCounted(r) ? 1 : 0);
+  const ordered = [...reports].sort((a, b) => rank(b) - rank(a) || (a.base < b.base ? -1 : 1));
   const lines = [CSV_HEADER.join(',')];
   for (const r of ordered) {
     const f = r.findings;
+    // Overlaps first, so the five examples show what matters; the evidence
+    // column follows the same order, one entry per example.
+    const examples = [...f.sharedKeys].sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class]).slice(0, MAX_EXAMPLES);
     lines.push(
       [
         r.base,
         r.host,
         r.slug,
         isAffected(r),
+        isAffectedIfUnknownCounted(r),
         f.emptyKeyNames.length,
         f.sharedKeys.length,
         f.sharedKeys.reduce((n, s) => n + s.entries, 0),
-        ofClass(r, 'sameRole').length,
-        ofClass(r, 'crossRole').length,
-        crossRoleWith(r, 'same'),
-        crossRoleWith(r, 'different'),
-        crossRoleWith(r, 'unknown'),
+        ofClass(r, 'overlap').length,
+        f.sharedKeys.filter(isSpeakerJudge).length,
+        ofClass(r, 'disjoint').filter((s) => !s.crossRole).length,
+        ofClass(r, 'unknown').length,
         ofClass(r, 'duplicate').length,
+        f.sharedKeys.filter((s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same').length,
         f.sharedKeys.filter((s) => s.judgeRoleDropped).length,
+        f.sharedKeys.filter(isJudgeRoleLost).length,
+        f.resultsPages ?? 0,
         f.emptyKeyNames.slice(0, MAX_EXAMPLES).join(' | '),
-        // Real collisions first, so the five examples show what matters.
-        [...f.sharedKeys]
-          .sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class])
-          .slice(0, MAX_EXAMPLES)
-          .map((s) => `${s.names.join(' / ')} (x${s.entries}, ${exampleLabel(s)}, ${s.sources.join('+')})`)
-          .join(' | '),
+        examples.map((s) => `${s.names.join(' / ')} (x${s.entries}, ${exampleLabel(s)}, ${s.sources.join('+')})`).join(' | '),
+        examples.map((s) => s.evidence).join(' | '),
         r.pagesRead.join(' '),
         r.error ?? null,
       ]
@@ -567,22 +920,31 @@ export type Tally = { tournaments: number; groups: number };
 
 export type Summary = {
   tournaments: number;
-  /** The union: tournaments with (a), a same-role or a cross-role group, each counted once. */
+  /** The union: tournaments with (a) or an overlapping-rounds group, each counted once. */
   affected: number;
-  /** Tournaments with a same-role or a cross-role group, each counted once. */
-  withCollision: number;
+  /** The same union, with every rounds-unknown group taken as a collision too. */
+  affectedIfUnknownCounted: number;
   withEmptyKey: number;
   withSharedKey: number;
   emptyKeyNames: number;
   sharedKeyGroups: number;
-  sameRole: Tally;
-  crossRole: Tally;
-  /** The cross-role groups split by whether speaker and judge share an institution. */
-  crossRoleSameInstitution: Tally;
-  crossRoleDifferentInstitution: Tally;
-  crossRoleUnknownInstitution: Tally;
+  /** Overlapping rounds: two people. Counted. */
+  overlap: Tally;
+  overlapSpeakerJudge: Tally;
+  /** Disjoint rounds, a speaker and a judge entry: plausibly one person who did both. */
+  disjointSpeakerJudge: Tally;
+  /** Disjoint rounds, one role: plausibly a swing, replacement or organiser on several teams. */
+  disjointSameRole: Tally;
+  /** Some pair has no round data on one side. */
+  unknown: Tally;
   duplicate: Tally;
+  /** Speaker+judge groups (any class but duplicate) whose rows name the same institution. */
+  crossRoleSameInstitution: Tally;
   judgeRoleDropped: Tally;
+  /** Disjoint speaker+judge groups whose judge role the participants merge drops: lost credit. */
+  judgeRoleLostByOnePerson: Tally;
+  /** Tournaments with no results page read: their judge rounds are unknowable. */
+  withoutResultsPages: number;
   errors: number;
 };
 
@@ -595,18 +957,21 @@ export function summarise(reports: TournamentReport[]): Summary {
   return {
     tournaments: reports.length,
     affected: reports.filter(isAffected).length,
-    withCollision: reports.filter((r) => r.findings.sharedKeys.some(isCollision)).length,
+    affectedIfUnknownCounted: reports.filter(isAffectedIfUnknownCounted).length,
     withEmptyKey: reports.filter((r) => r.findings.emptyKeyNames.length > 0).length,
     withSharedKey: reports.filter((r) => r.findings.sharedKeys.length > 0).length,
     emptyKeyNames: reports.reduce((n, r) => n + r.findings.emptyKeyNames.length, 0),
     sharedKeyGroups: reports.reduce((n, r) => n + r.findings.sharedKeys.length, 0),
-    sameRole: tally(reports, (s) => s.class === 'sameRole'),
-    crossRole: tally(reports, (s) => s.class === 'crossRole'),
-    crossRoleSameInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'same'),
-    crossRoleDifferentInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'different'),
-    crossRoleUnknownInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'unknown'),
+    overlap: tally(reports, (s) => s.class === 'overlap'),
+    overlapSpeakerJudge: tally(reports, (s) => s.class === 'overlap' && s.crossRole),
+    disjointSpeakerJudge: tally(reports, isSpeakerJudge),
+    disjointSameRole: tally(reports, (s) => s.class === 'disjoint' && !s.crossRole),
+    unknown: tally(reports, (s) => s.class === 'unknown'),
     duplicate: tally(reports, (s) => s.class === 'duplicate'),
+    crossRoleSameInstitution: tally(reports, (s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same'),
     judgeRoleDropped: tally(reports, (s) => s.judgeRoleDropped),
+    judgeRoleLostByOnePerson: tally(reports, isJudgeRoleLost),
+    withoutResultsPages: reports.filter((r) => !r.findings.resultsPages).length,
     errors: reports.filter((r) => r.error).length,
   };
 }
@@ -650,7 +1015,7 @@ export function exportUrlStats(entries: IndexEntry[], tournaments: TournamentDoc
           rootHosts.has(t.host) &&
           Object.keys(t.docs).every((k) => k === 'apiTeams' || k === 'apiAdjudicators'),
       )
-      .map((t) => `${t.host}/${t.slug!.toLowerCase()}`),
+      .map((t) => `${t.host}/${(t.slug ?? '').toLowerCase()}`),
   );
   return {
     documents: entries.length,

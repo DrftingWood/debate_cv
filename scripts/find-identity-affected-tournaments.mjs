@@ -76,11 +76,13 @@ try {
   const reports = [];
   let done = 0;
   for (const t of tournaments) {
-    const pagesRead = Object.keys(t.docs).sort();
-    let findings = { emptyKeyNames: [], sharedKeys: [] };
+    // The tab pages, then the pages read for rounds only: the landing page
+    // (round names) and how many round-results pages (judge rounds).
+    const pagesRead = [...Object.keys(t.docs).sort(), ...(t.landing ? ['landing'] : []), `results:${t.results.length}`];
+    let findings = { emptyKeyNames: [], sharedKeys: [], resultsPages: 0 };
     let error;
     try {
-      findings = m.findIdentityIssues(m.parseTournamentDocuments(t.docs, read));
+      findings = m.findIdentityIssues(m.parseTournamentDocuments(t.docs, read, { landing: t.landing, results: t.results }));
     } catch (e) {
       error = e instanceof Error ? e.message.slice(0, 200) : String(e);
     }
@@ -107,17 +109,21 @@ Tournament URLs with a tab page: ${u.tournamentUrls} (on ${u.hosts} hosts)
   see the runbook, "Why the export total is not the Tournament count".
 
 Tournaments with a tab page:     ${s.tournaments}
-Affected (a or real collision):  ${s.affected} of ${s.tournaments}   (union; each tournament counted once)
+Affected (a or overlapping rounds): ${s.affected} of ${s.tournaments}   (union; each tournament counted once; the .txt list)
+Affected if unknown counted:     ${s.affectedIfUnknownCounted} of ${s.tournaments}   (upper bound: every rounds-unknown group taken as two people)
   (a) names with an empty key:   ${s.withEmptyKey} tournaments, ${s.emptyKeyNames} names
   (b) shared key in one list:    ${t({ tournaments: s.withSharedKey, groups: s.sharedKeyGroups })}
-      real collisions (same-role or cross-role): ${s.withCollision} tournaments
-      same-role:                 ${t(s.sameRole)}   (same role, different team or institution; counted)
-      cross-role:                ${t(s.crossRole)}   (speaker and judge: two people, never one; counted)
-        same institution:        ${t(s.crossRoleSameInstitution)}   (eyeball these: the only case where one person is plausible)
-        different institution:   ${t(s.crossRoleDifferentInstitution)}
-        institution unknown:     ${t(s.crossRoleUnknownInstitution)}   (one side names no institution)
+      overlapping rounds:        ${t(s.overlap)}   (two people: counted)
+        of which speaker+judge:  ${t(s.overlapSpeakerJudge)}
+      disjoint rounds, plausibly one person (not counted):
+        speaker and judge:       ${t(s.disjointSpeakerJudge)}   (spoke in some rounds, judged others)
+        same role:               ${t(s.disjointSameRole)}   (swing, replacement, organiser on several teams)
+      rounds unknown:            ${t(s.unknown)}   (one side has no per-round data; counted only in the upper bound)
       duplicate rows:            ${t(s.duplicate)}   (same role, same team and institution; not counted)
-  judge role dropped by the participants merge: ${t(s.judgeRoleDropped)} (how a cross-role collision shows today; same cause, already in Affected)
+  speaker+judge, same institution: ${t(s.crossRoleSameInstitution)}   (any class but duplicate; eyeball these)
+  judge role dropped by the participants merge: ${t(s.judgeRoleDropped)}
+    of which one plausible person (disjoint speaker+judge): ${t(s.judgeRoleLostByOnePerson)}   (judge credit lost today: an ingest bug, not a collision)
+Tournaments with no results page: ${s.withoutResultsPages}   (judge rounds unknowable there)
 Tournaments that failed to parse: ${s.errors}
 
 CSV:  ${outCsv}

@@ -1,37 +1,56 @@
 # Runbook: which tournaments the identity phase 7 re-ingest needs
 
-Owner-run. First run on the real export (2026-10, before (b) was split into classes): 855 tournaments with a tab page, 238 affected; (a) 23 tournaments / 44 names, (b) 219 tournaments / 431 groups. Second run (PR #171 classes, cross-role not counted): 146 of 855 affected; 126 tournaments with a same-role group, 122 with a cross-role group, 23 with an empty-key name. Cross-role groups now count as collisions (the owner's rule below), so **re-run** for the new `Affected` union; expect it between 146 and 238. Design: `docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md`, section 10, phase 7, and open question 1 ("first measure how often...").
+Owner-run. Earlier runs on the real export (855 tournaments with a tab page): 238 affected before (b) was split into classes; 146 with PR #171's classes (speaker+judge not counted). PR #176 then counted every speaker+judge pair as a collision. That rule has since been **refined by the owner** (below: "not in the same round"), and the check now compares rounds. Run on the 2026-10 export with this version: **158 of 855 affected**, **221 if every rounds-unknown group is counted too**; (a) 23 tournaments / 44 names; overlapping rounds 139 tournaments / 203 groups; disjoint speaker+judge 19 / 37; disjoint same role 10 / 12; rounds unknown 87 / 161; duplicates 14 / 18. **Re-run** it yourself (section 1) before acting on the list. Design: `docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md`, section 10, phase 7, and open question 1 ("first measure how often...").
 
 **What it answers.** Phase 7 changes two things about how ingest handles names. The spec expects this to need a `PARSER_VERSION` bump and a re-ingest of every tournament. This check counts the tournaments where either change would make any difference, so you can see the real size of the re-ingest:
 
 - **(a) Lost names.** The name has letters, but its current key (`normalizePersonName`, `lib/calicotab/fingerprint.ts`) is empty: "李明", "Иван". `preCommitPersons` skips the name (`lib/calicotab/ingest.ts`, `if (!norm) continue`), so the person has no participant row at all.
-- **(b) Merged entries.** Two or more different entries in one list at one tournament share a key, and ingest keeps them as one participant. The cases are namesakes, "José Silva" / "Jose Silva", and "王欣月2" / "李明2" (both key to "2"). The merge happens in two places: the participants-list merge in `ingest.ts` (the `participantByName` map, about lines 965-982) and the `(tournamentId, personId)` unique key on `TournamentParticipant`. Not every shared key is a lost person, so each one is put in one of three classes (below); same-role and cross-role make a tournament affected, duplicate does not.
+- **(b) Merged entries.** Two or more different entries in one list at one tournament share a key, and ingest keeps them as one participant. The cases are namesakes, "José Silva" / "Jose Silva", and "王欣月2" / "李明2" (both key to "2"). The merge happens in two places: the participants-list merge in `ingest.ts` (the `participantByName` map, about lines 965-982) and the `(tournamentId, personId)` unique key on `TournamentParticipant`. A shared key is not always two people, so each one is put in a class (below) by comparing the rounds each entry was in.
 
-### The three classes of (b)
+### What ingest writes today
 
-What ingest actually writes, from `lib/calicotab/ingest.ts`:
+From `lib/calicotab/ingest.ts`:
 
 - Speakers come from the speaker tab only. Each row is upserted on `(tournamentId, personId)`, so two rows with one key end as one `TournamentParticipant`; the second overwrites the first's team, rank and total.
 - Judges come from the participants list (the HTML page, or the API list in its place) only, after `participantByName` has collapsed it to one row per key. `Map.set` keeps the **last** row with a key, and only rows still marked adjudicator get a judge role.
-- Roles live in `ParticipantRole`, keyed `(tournamentParticipantId, role)`. The schema lets one participant hold both `speaker` and `judge`, but that never describes a real person (next point).
+- Roles live in `ParticipantRole`, keyed `(tournamentParticipantId, role)`. The schema lets one participant hold both `speaker` and `judge`.
 
-**The owner's domain rule: a person is never both a speaker and a judge at one tournament.** So a key on the speaker list and on the adjudicator list at one tournament is two different people with one name (namesakes), and ingest merging them into one participant is a real collision, exactly like two speakers on two teams. (PR #171 assumed the opposite, that this was one person with two roles; that is reversed here.)
+### The owner's rule: not in the same round
 
-So:
+**A person cannot speak and judge in the same round.** Nor can they speak for two teams in one round, or sit on two panels in one round. They can do different things in different rounds: speak in the prelims and judge the outrounds, replace a missing speaker in one round, or (as an organiser or stop-gap) be entered on several "swing" teams so every room has its 4 teams (BP) or 2 (two-team formats). This replaces the earlier rule ("never both a speaker and a judge at one tournament") that PR #176 counted by.
+
+So two entries with one key are judged by their **rounds**:
 
 | Class | What it is | Counted as affected? |
 | --- | --- | --- |
-| **same-role** (namesake collision) | Two speaker rows, or two adjudicator rows, with one key and a different team or institution. One of the two people is lost or overwritten today. | **Yes** |
-| **cross-role** (namesake collision) | One key on a speaker row and an adjudicator row, with no same-role pair. Two people, merged into one participant; one of them loses their row (see "judge role dropped"). A key on a row with no role (`other`: no role column, no section title) next to a speaker or judge is counted the same way, to err toward re-ingesting. | **Yes** |
-| **duplicate** | The same role with the same team and institution: one person listed twice, not a namesake. | No |
+| **overlapping rounds** | Some round has both entries in it: two speaker entries both scored (or both teams drawn) in round N; a speaker entry in round N while the name judged round N; or two judges with the name on round N's results. **Two people.** One of them is lost or overwritten today. | **Yes** |
+| **disjoint rounds, speaker and judge** | A speaker entry and a judge entry, both with known rounds, never in the same round: someone who spoke, then judged (often the outrounds). **Plausibly one person.** Not a collision. | No (but see "judge role lost" below) |
+| **disjoint rounds, same role** | Two speaker entries on different teams (or two judge spellings) never in the same round: a swing, a replacement, an organiser filling rooms. **Plausibly one person.** | No |
+| **rounds unknown** | At least one pair cannot be decided: one side has no round data in the export (below). Reported on its own. | Only in the second number, `Affected if unknown counted` |
+| **duplicate** | The same role with the same team and institution: one person listed twice. | No |
 
-A key that shows several classes in different lists takes the strongest (same-role, then cross-role, then duplicate). Per-class tournament counts overlap (one tournament can hold a same-role group and a cross-role group, or an empty-key name too); `Affected` is their union and counts each tournament once.
+Within one list, a group with several entries takes its strongest pair: any overlap, else any unknown, else disjoint. A key that shows several classes in different lists takes the strongest (overlap, unknown, disjoint, duplicate). Per-class tournament counts overlap; both `Affected` numbers are unions and count each tournament once.
 
-**Cross-role by institution.** Each cross-role group is also marked by whether the speaker row and the judge row name the same institution. **Same institution** is the only case where "one person listed twice by mistake" is plausible (a tab-room data-entry error, say), so those are counted separately for you to eyeball in the CSV; they still count as affected. **Different institution** is two people beyond doubt. **Institution unknown** means one of the two rows names none (Tabbycat's Speakers table often shows a team and no institution), so the check cannot tell.
+**How `unknown` is counted.** It is not in `Affected` and not in the `.txt` list, because nothing shows two people. It is in `Affected if unknown counted`, the upper bound, and the CSV's `affected_if_unknown_counted` column marks those tournaments, so you can add any you want re-ingested to the list by hand after reading their examples.
 
-**Judge role dropped: the same collision, not a separate bug.** Tabbycat lists the Adjudicators table before the Speakers table. When a judge and a speaker share a key there, `participantByName` keeps the speaker row, so ingest writes **no** judge role for that key. Under the rule above that is the judge namesake losing their row to the speaker namesake: the visible symptom of a cross-role collision, fixed by the same phase 7 change (one participant per entry, not per key). Every such key is already a cross-role (or same-role) group, so `judge_role_dropped` adds nothing to `Affected`; it counts where the loss already shows on a CV. The API participants list puts adjudicators last, so there the judge role is written, but onto the speaker's participant: still the same merge of two people, just not visible as a lost judge credit.
+**Where the rounds come from** (all from stored pages; no network):
 
-**What it does not do.** It does not connect to a database or the network, and it never writes outside the two output files. It reads the export folder that `scripts/export-source-documents.mjs` wrote (`*.html.gz` and `index.jsonl`). It runs the ingest parsers unchanged (`parseTeamTab`, `parseSpeakerTab`, `parseParticipantsList`, and `mapParticipants` for stored API JSON). The counting rules are in `lib/identity/affectedTournaments.ts`; tests are in `tests/identity.affectedTournaments.test.ts`.
+- **A speaker entry:** its own speaker-tab row (the rounds with a score; a blank cell means the speaker did not speak that round), else a speaker-tab row with the same name key and team, else the rounds its **team** has a result in on the round-results pages (`/results/round/N/`). The team proxy assumes the listed speaker spoke whenever the team debated; a replaced speaker breaks that, so an overlap whose evidence says `team results` is a little weaker than one that says `speaker tab`.
+- **Judges:** the adjudicator column of the round-results pages, by name key. Ingest stores no per-judge round list outside these pages, and the API `pairings` endpoint is not in the export.
+- **Round names:** the landing page's nav ("Round 1A", "Quarterfinals"), as ingest reads it. A prelim compares by its number, so the halves of a split round (R1A, R1B) are **one round**; an outround by its stage and break category, so the Novice final and the Open final are two rounds.
+
+**Limits, in the order they matter:**
+
+- **Judge rounds exist only where results pages were stored.** No results page means every speaker+judge or judge+judge pair at that tournament is `unknown` (the summary's `Tournaments with no results page` line).
+- **Two judges spelled identically.** `parseRoundResults` keeps one entry per name and panel role in a round, so two namesakes who both chaired round 3 read as one chair. Two judge entries with one spelling are therefore `unknown` unless some round shows the name twice (a chair and a panellist, or two spellings), which is an overlap.
+- **Teams with no results.** Swing teams are often missing from the public results, and a withdrawn team has none, so a speaker on such a team has no rounds unless the speaker tab gives them: `unknown`.
+- **Outround labels.** A speaker tab whose outround column reads "QF" and a nav that says "Quarterfinals" are matched through the stage lexicon; an unrecognised label compares only to itself.
+
+**Same institution.** Each speaker+judge group (any class) is also marked by whether the speaker row and the judge row name the same institution: **same** (eyeball these; a data-entry slip is plausible), **different**, or **unknown** (one side names none; Tabbycat's Speakers table often shows a team and no institution). The flag does not change the class.
+
+**Judge role dropped, and lost.** Tabbycat lists the Adjudicators table before the Speakers table. When a judge and a speaker share a key there, `participantByName` keeps the speaker row, so ingest writes **no** judge role for that key. On an **overlap** group that is the collision itself (the judge namesake loses their row). On a **disjoint speaker+judge** group it is one person losing their judge credit: a real ingest bug of its own, not a collision, counted as `judge_role_lost_one_person`. Phase 7's merge must keep both roles for such a person (spec, "The owner's rule"). Re-ingesting today does not fix it. The API participants list puts adjudicators last, so there the judge role is written.
+
+**What it does not do.** It does not connect to a database or the network, and it never writes outside the two output files. It reads the export folder that `scripts/export-source-documents.mjs` wrote (`*.html.gz` and `index.jsonl`). It runs the ingest parsers unchanged (`parseTeamTab`, `parseSpeakerTab`, `parseParticipantsList`, `parseRoundResults`, `extractNavigation`, and `mapParticipants` for stored API JSON). The counting rules are in `lib/identity/affectedTournaments.ts`; tests are in `tests/identity.affectedTournaments.test.ts`.
 
 ## 1. Run it (PowerShell)
 
@@ -44,10 +63,10 @@ node scripts/find-identity-affected-tournaments.mjs --in "$HOME\Documents\source
 
 - `--in` defaults to `$HOME\Documents\source-docs`, so you can leave it out if the export is there.
 - It writes two files into the export folder, not into the repository, because they contain participants' names:
-  - `identity-affected-tournaments.csv` has one row per tournament, affected ones first. It opens in Excel with non-Latin names intact.
-  - `identity-affected-tournaments.txt` lists the affected tournament URLs, one per line. Step 3 takes this file as input.
+  - `identity-affected-tournaments.csv` has one row per tournament: affected ones first, then those affected only if unknown groups count. It opens in Excel with non-Latin names intact.
+  - `identity-affected-tournaments.txt` lists the affected tournament URLs (the strict number), one per line. Step 3 takes this file as input.
 - Use `--out <file>` and `--list <file>` to write them somewhere else.
-- It takes a minute or two for a few thousand pages, and you can run it as often as you like.
+- It reads every stored results page too, so it takes about three minutes on the 26,000-document export. You can run it as often as you like.
 
 The summary at the end is the number you need:
 
@@ -57,22 +76,28 @@ Documents in index:              <documents>
 Tournament URLs with a tab page: <total> (on <hosts> hosts)
   slug case and http/https folded: ...
   of which API-only next to a root-hosted tab: ... (so about ... tournaments)
+  ...
 
 Tournaments with a tab page:     <total>
-Affected (a or real collision):  <N> of <total>   (union; each tournament counted once)
+Affected (a or overlapping rounds): <N> of <total>   (union; each tournament counted once; the .txt list)
+Affected if unknown counted:     <M> of <total>   (upper bound: every rounds-unknown group taken as two people)
   (a) names with an empty key:   ... tournaments, ... names
   (b) shared key in one list:    ... tournaments, ... groups
-      real collisions (same-role or cross-role): ... tournaments
-      same-role:                 ... tournaments, ... groups
-      cross-role:                ... tournaments, ... groups
-        same institution:        ... tournaments, ... groups   (eyeball these)
-        different institution:   ... tournaments, ... groups
-        institution unknown:     ... tournaments, ... groups
-      duplicate rows:            ... tournaments, ... groups
-  judge role dropped by the participants merge: ... tournaments, ... groups (same cause, already in Affected)
+      overlapping rounds:        ... tournaments, ... groups   (two people: counted)
+        of which speaker+judge:  ... tournaments, ... groups
+      disjoint rounds, plausibly one person (not counted):
+        speaker and judge:       ... tournaments, ... groups   (spoke in some rounds, judged others)
+        same role:               ... tournaments, ... groups   (swing, replacement, organiser on several teams)
+      rounds unknown:            ... tournaments, ... groups   (one side has no per-round data; counted only in the upper bound)
+      duplicate rows:            ... tournaments, ... groups   (same role, same team and institution; not counted)
+  speaker+judge, same institution: ... tournaments, ... groups   (any class but duplicate; eyeball these)
+  judge role dropped by the participants merge: ... tournaments, ... groups
+    of which one plausible person (disjoint speaker+judge): ... tournaments, ... groups   (judge credit lost today: an ingest bug, not a collision)
+Tournaments with no results page: ...   (judge rounds unknowable there)
+Tournaments that failed to parse: ...
 ```
 
-`Affected` is (a) or a same-role or cross-role group, and the `.txt` list holds exactly those tournaments. Each tournament is counted once, so `Affected` is less than (a) + same-role + cross-role whenever a tournament has more than one kind; `real collisions` is the union of same-role and cross-role alone. The `(b) shared key` line is the total including duplicates; its group counts are the sum of same-role, cross-role and duplicate. The three institution lines add up to the cross-role line. Everything above the blank line is printed only and never written to a file.
+`Affected` is (a) or an overlapping-rounds group, and the `.txt` list holds exactly those tournaments. `Affected if unknown counted` adds the tournaments whose only uncertain groups are `unknown`. The `(b) shared key` line's groups are the sum of overlapping, disjoint (both kinds), unknown and duplicate. Everything above the blank line is printed only and never written to a file.
 
 ### Why the export total is not the `Tournament` count
 
@@ -95,32 +120,36 @@ SELECT count(DISTINCT lower(substring("sourceUrlRaw" from '^https?://([^/]+/[^/]
 | Column | Meaning |
 | --- | --- |
 | `tournament_url` | Public tournament address `https://host/slug/`. It is the same value as `Tournament.sourceUrlRaw`, and the same input the pre-scrape runner takes. The export has no tournament id (`index.jsonl` holds URLs only), so step 3 finds the id from this URL. |
-| `affected` | true if (a), `same_role_groups` or `cross_role_groups` is non-zero. |
+| `affected` | true if (a) or `overlap_groups` is non-zero. The `.txt` list. |
+| `affected_if_unknown_counted` | true if `affected`, or `unknown_round_groups` is non-zero. The upper bound. |
 | `empty_key_names` | (a): distinct raw names with letters and an empty key. |
 | `shared_key_groups` | (b): the number of keys that two or more entries share, all classes. |
 | `shared_key_entries` | The total number of entries in those groups. |
-| `same_role_groups` | (b) same-role collisions. Each is a person who loses a row or has their scores overwritten. Counted. |
-| `cross_role_groups` | (b) a speaker and a judge on one key: two people merged into one participant. Counted. |
-| `cross_role_same_institution` | Of those, groups where the speaker and judge rows name the same institution. Eyeball these. |
-| `cross_role_different_institution` | Groups where they name different institutions. |
-| `cross_role_unknown_institution` | Groups where one side names no institution. |
-| `duplicate_groups` | (b) one person listed twice. Not counted. |
-| `judge_role_dropped` | Keys whose judge row the participants merge drops: the cross-role collision as it shows today. Already in `affected`. |
-| `empty_key_examples`, `shared_key_examples` | Up to five of each, collisions first. A shared example reads `José Silva / Jos Silva (x2, cross-role, unknown institution, participants)`: the spellings, how many entries, the class (with the institution match for cross-role), and which list showed it. |
-| `pages_read` | Which stored pages were found: `teamTab speakerTab participants apiTeams apiAdjudicators`. |
+| `overlap_groups` | (b) entries in the same round: two people. Counted. |
+| `disjoint_speaker_judge_groups` | A speaker and a judge entry in different rounds: plausibly one person who did both. Not counted. |
+| `disjoint_same_role_groups` | One role, different teams or spellings, different rounds: plausibly a swing, replacement or organiser. Not counted. |
+| `unknown_round_groups` | Some pair has no round data on one side. Counted only in `affected_if_unknown_counted`. |
+| `duplicate_groups` | One person listed twice (same role, team and institution). Not counted. |
+| `cross_role_same_institution` | Speaker+judge groups (any class but duplicate) whose two rows name the same institution. Eyeball these. |
+| `judge_role_dropped` | Keys whose judge row the participants merge drops. |
+| `judge_role_lost_one_person` | Of those, disjoint speaker+judge groups: one plausible person losing their judge credit today. |
+| `results_pages` | Round-results pages read for this tournament. 0 means judge rounds are unknowable here. |
+| `empty_key_examples`, `shared_key_examples` | Up to five of each; overlaps first, then unknown, disjoint, duplicate. A shared example reads `Dee Rao (x2, overlapping rounds, speaker+judge, different institution, participants)`: the spellings, how many entries, the class, the roles, the institution match for speaker+judge groups, and which list showed it. |
+| `round_evidence` | One entry per shared example, in the same order, with rounds only (no names). Overlap: the first shared round and each side's source, `R2: speaker (team results) and judge (results)`. Disjoint: each side's rounds, `speaker R1-R5 (speaker tab); judge quarterfinal (results)`. Unknown: which side has no rounds, `no rounds for the judge`, or `one spelling, can't tell one judge from two`. |
+| `pages_read` | Which stored pages were found: `teamTab speakerTab participants apiTeams apiAdjudicators`, then `landing` and `results:<n>`. |
 | `error` | A parser failure on this tournament. The row then counts as not affected, so check it by hand. |
 
 ### How to read the numbers
 
-- **(b) is judged within one list at a time.** The lists are the team-tab rosters, the speaker tab, the participants list and the API participants. Tabbycat names each person once per list, so two rows with one key in one list are two entries. The same person also appears in every list, so matching across lists would count everyone. Rows identical in every field count once, so a page read twice does not create a namesake.
+- **(b) is judged within one list at a time.** The lists are the team-tab rosters, the speaker tab, the participants list and the API participants. Tabbycat names each person once per list and role, so two rows with one key in one list are two entries. The same person also appears in every list, so pairing across lists would count everyone. Rows identical in every field count once, so a page read twice does not create a namesake. Rounds, though, are looked up across pages: a participants-list speaker gets their rounds from the speaker tab or their team's results.
 - **Left out of (b):** redacted names ("&lt;em&gt;Redacted&lt;/em&gt;", "Anonymous") and stand-ins ("Speaker 1", "Swing 2"). They share a key by design, and ingest already handles them (`lib/calicotab/names.ts`).
 - **Left out of (a):** cells with no letters or digits ("—", "?"). They are not people.
-- **What can still be off.** Speaker namesakes are also taken from the team-tab rosters and the participants list, which ingest does not write people from; they stand in for the speaker tab when it is missing from the export, and are the same namesakes when it is not. A speaker the tab lists under two different teams (a swing moved between teams) reads as two namesakes. Read the examples before acting on a borderline row.
+- **What can still be off.** See "Limits" above. An overlap read off team results (not the speaker tab) assumes the listed speaker spoke whenever their team debated. A disjoint group is "plausibly" one person, not proven: two namesakes who happened never to share a round also read as disjoint. Read the examples and evidence before acting on a borderline row.
 - **Coverage.** The total is the number of tournaments that have a team tab, speaker tab or participants page in the export, not the number of rows in `Tournament` (see "Why the export total is not the `Tournament` count" above). These are not covered:
   - tournaments whose bodies were never stored. Bodies have been off by default since `STORE_SOURCE_BODIES`.
   - private-URL pages, which are excluded from the export by default.
-  - judge names that appear only in round results.
-  
+  - judge names that appear only in round results (they are used for rounds, but a judge on no list is never in a group).
+
   If many tournaments in the database are missing from the export, the result is a lower bound.
 
 ## 2. Before any re-ingest: what a re-ingest can and cannot fix
