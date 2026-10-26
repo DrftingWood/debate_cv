@@ -86,7 +86,8 @@ export async function getOAuthClientForUser(userId: string): Promise<OAuth2Clien
  * (access_token, refresh_token, expires_at, scope as plaintext columns
  * — that's the adapter's contract, not ours). Our GmailToken table is a
  * derived, encrypted-at-rest cache that's normally populated by
- * events.signIn / events.linkAccount in lib/auth.ts.
+ * the adapter's linkAccount (lib/authAdapter.ts) or events.signIn in
+ * lib/auth.ts.
  *
  * In NextAuth v5 beta the events flow has been observed to no-op the
  * write while still logging success (the Reconnect Gmail flow:
