@@ -101,6 +101,8 @@ jobs:
           PRESCRAPE_SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
           PRESCRAPE_REPORT: prescrape-shard-${{ matrix.shard }}.json
           PRESCRAPE_PAUSE_MS: '3000'
+          # root pages expand to every tournament they link, up to this year
+          PRESCRAPE_MAX_YEAR: '2026'
           # Neon Free fails writes past 1 GB; stop at 0.85 GiB. Shards check
           # independently, so a few tournaments of overshoot are possible.
           PRESCRAPE_MAX_DB_BYTES: '912680550'
