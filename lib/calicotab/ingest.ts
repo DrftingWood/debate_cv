@@ -20,7 +20,7 @@ import {
   type ApiTabsResult,
 } from './tabbycatApi';
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
-import { dedupeJudgeHits, judgeHitsFromRounds, publicTournamentBase, storedTournamentFresh } from './prescrape';
+import { dedupeJudgeHits, judgeHitsFromRounds, publicTournamentBase, releasedTabMissing, storedTournamentFresh } from './prescrape';
 import {
   parsePrivateUrlPage,
   extractAdjudicatorRounds,
@@ -703,6 +703,28 @@ async function checkCacheFreshness(
       distinct: ['roundNumber'],
     });
     cacheStale = navRoundCount > storedRounds.length;
+  }
+  // The same for the tabs: once the landing page links the team or speaker
+  // tab, the tournament has released it, and a stored copy without it is
+  // incomplete. Nothing is released after the last round and both tabs.
+  if (!cacheStale) {
+    const discovered = snapshot.navigation.meta.discovered;
+    const wantTeam = discovered.includes('teamTab');
+    const wantSpeaker = discovered.includes('speakerTab');
+    if (wantTeam || wantSpeaker) {
+      const [teamRow, speakerRow] = await Promise.all([
+        wantTeam
+          ? prisma.teamResult.findFirst({ where: { tournamentId: existing.id, roundNumber: 0 }, select: { id: true } })
+          : Promise.resolve(null),
+        wantSpeaker
+          ? prisma.tournamentParticipant.findFirst({
+              where: { tournamentId: existing.id, speakerScoreTotal: { not: null } },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      cacheStale = releasedTabMissing(discovered, { hasTeamTab: teamRow !== null, hasSpeakerTab: speakerRow !== null });
+    }
   }
   if (!fresh || !parserUpToDate || cacheStale) return { kind: 'miss' };
 
