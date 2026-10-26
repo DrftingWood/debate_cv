@@ -6,6 +6,7 @@ import {
   publicTournamentBase,
   storedTournamentFresh,
   tournamentSlugsFromRootPage,
+  expandRootSlugs,
   parseShard,
   shardOf,
 } from '@/lib/calicotab/prescrape';
@@ -158,5 +159,17 @@ describe('parseShard', () => {
     expect(() => parseShard('4/4')).toThrow();
     expect(() => parseShard('x/4')).toThrow();
     expect(() => parseShard('1')).toThrow();
+  });
+});
+
+describe('expandRootSlugs', () => {
+  it('keeps every tournament up to the max year and drops later ones', () => {
+    expect(expandRootSlugs(['tido2025', 'tido2026'], 2025)).toEqual(['tido2025']);
+  });
+  it('keeps all sub-tournaments of a root and slugs with no year', () => {
+    expect(expandRootSlugs(['open', 'masters'], 2025)).toEqual(['open', 'masters']);
+  });
+  it('does not read a year out of a longer number', () => {
+    expect(expandRootSlugs(['edition20267'], 2025)).toEqual(['edition20267']);
   });
 });

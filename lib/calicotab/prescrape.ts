@@ -143,6 +143,19 @@ export function tournamentSlugsFromRootPage(html: string, host: string): string[
 }
 
 /**
+ * The tournaments a root-hosted entry stands for. One link: that tournament.
+ * Several: all of them, except those whose slug names a year after `maxYear`
+ * (a root such as tido2025 also links the not-yet-played tido2026). A slug
+ * with no year is kept. Nothing linked: none, so the caller skips the entry.
+ */
+export function expandRootSlugs(slugs: string[], maxYear: number): string[] {
+  return slugs.filter((slug) => {
+    const years = [...slug.matchAll(/(?:^|[^0-9])((?:19|20)[0-9]{2})(?![0-9])/g)].map((m) => Number(m[1]));
+    return years.length === 0 || Math.max(...years) <= maxYear;
+  });
+}
+
+/**
  * Which of `total` shards a tournament belongs to, decided by its HOST.
  *
  * The load is split across parallel jobs to finish sooner. Sharding by host
