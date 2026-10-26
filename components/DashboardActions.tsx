@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock, Square } from 'lucide-react';
+import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock, Square, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -145,6 +145,79 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
         </Button>
       ) : null}
     </div>
+  );
+}
+
+type CsvResponse = { queued: number; rows: Array<{ line: number; status: string }> };
+
+/** Plain-language reasons for the lines of an uploaded CSV that were not queued. */
+const CSV_SKIP_REASON: Record<string, string> = {
+  not_a_private_url: 'not a private tournament URL',
+  duplicate: 'repeated',
+  over_limit: 'over the 20 URL limit',
+};
+
+/**
+ * Upload a CSV of private tournament URLs (one per line, or a "url" column).
+ * The server queues up to 20 of them; the queue then drains like a Gmail scan.
+ * The file is read in the browser and posted as text, so nothing but the
+ * URLs leaves the page, and the response never contains them again.
+ */
+export function UploadCsvButton() {
+  const router = useRouter();
+  const toast = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv,text/plain"
+        className="sr-only"
+        aria-label="Upload a CSV of private tournament URLs"
+        tabIndex={-1}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          startTransition(async () => {
+            const result = await postJson<CsvResponse>('/api/ingest/csv', { csv: await file.text() });
+            if (!result.ok) {
+              toast.show({ kind: 'error', title: 'CSV upload failed', description: result.error });
+              return;
+            }
+            const skipped = result.data.rows.filter((r) => r.status !== 'ok');
+            const byReason = new Map<string, number[]>();
+            for (const r of skipped) byReason.set(r.status, [...(byReason.get(r.status) ?? []), r.line]);
+            const detail = [...byReason.entries()]
+              .map(([status, lines]) => `${lines.length} ${CSV_SKIP_REASON[status] ?? status} (line${lines.length === 1 ? '' : 's'} ${lines.slice(0, 5).join(', ')}${lines.length > 5 ? '…' : ''})`)
+              .join('; ');
+            toast.show({
+              kind: result.data.queued > 0 ? 'success' : 'error',
+              title: result.data.queued > 0 ? `Queued ${result.data.queued} tournament${result.data.queued === 1 ? '' : 's'}` : 'Nothing to queue',
+              description: detail || undefined,
+            });
+            router.refresh();
+            if (result.data.queued > 0) {
+              const drain = await drainUntilEmpty(() => router.refresh());
+              toast.show(summariseDrain(drain, false));
+              router.refresh();
+            }
+          });
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        loading={isPending}
+        leftIcon={!isPending ? <Upload className="h-4 w-4" aria-hidden /> : undefined}
+        onClick={() => inputRef.current?.click()}
+      >
+        Upload CSV
+      </Button>
+    </>
   );
 }
 
