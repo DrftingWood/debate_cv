@@ -392,21 +392,41 @@ export async function buildCvData(
   const tournamentById = new Map<bigint, TournamentMeta>();
   for (const u of urls) if (u.tournament) tournamentById.set(u.tournament.id, u.tournament);
 
+  const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
+
+  // The season-ordering date comes from the user's OWN private URL only. A
+  // mailbox also holds links registered to other people — a teammate's
+  // forwarded private URL, a convenor's broadcast — and those emails can
+  // land weeks before or after the user's own, so taking the earliest across
+  // every URL let someone else's email decide where this tournament sits in
+  // the season. A URL is the user's own when its registration person is one
+  // they claimed, or its registration name normalises to a claimed alias (the
+  // alias test myNameByTournament applies below). A URL whose landing
+  // never named anyone (registrationName null or '', no person) carries no
+  // evidence either way; it was still found in the user's own mail, so it
+  // counts — dropping it would blank the date for every tournament whose
+  // private-URL page doesn't print a name.
+  const isSomeoneElsesUrl = (u: (typeof urls)[number]): boolean => {
+    if (u.registrationPersonId != null && claimedPersonIds.has(u.registrationPersonId)) return false;
+    const reg = (u.registrationName ?? '').trim();
+    if (reg && claimedNormalizedNames.has(normalizePersonName(reg))) return false;
+    return u.registrationPersonId != null || !!reg;
+  };
+  const emailDateByTournament = new Map<bigint, string>();
+  for (const u of urls) {
+    if (!u.tournamentId || !u.messageDate) continue;
+    if (isSomeoneElsesUrl(u)) continue;
+    const day = u.messageDate.toISOString().slice(0, 10);
+    const prev = emailDateByTournament.get(u.tournamentId);
+    if (!prev || day < prev) emailDateByTournament.set(u.tournamentId, day);
+  }
+
   // Per-tournament registration name from the URL the user actually uploaded,
   // gated by whether that name is in their claimed-aliases set. Different
   // tournaments often spell the same person differently — show the spelling
   // that was on this tournament's private URL rather than a single canonical
   // name plastered across every row. Sort by URL so the picked spelling is
   // deterministic across page loads.
-  const emailDateByTournament = new Map<bigint, string>();
-  for (const u of urls) {
-    if (!u.tournamentId || !u.messageDate) continue;
-    const day = u.messageDate.toISOString().slice(0, 10);
-    const prev = emailDateByTournament.get(u.tournamentId);
-    if (!prev || day < prev) emailDateByTournament.set(u.tournamentId, day);
-  }
-
-  const claimedNormalizedNames = new Set(claimedPersons.map((p) => p.normalizedName));
   const myNameByTournament = new Map<bigint, string>();
   for (const u of [...urls].sort((a, b) => a.url.localeCompare(b.url))) {
     if (!u.tournamentId || myNameByTournament.has(u.tournamentId)) continue;
@@ -1037,12 +1057,23 @@ export async function buildCvData(
     if (!existing || score(p) > score(existing)) judgeByTournament.set(p.tournamentId, p);
   }
 
+  // Distinct prelim rounds sat, keyed by ROUND, not by how the row spelled
+  // it. One round can reach JudgeAssignment twice: the landing writer and the
+  // round-results writer both store it, one with roundNumber set and one
+  // (older rows, or a stage cell read without its tooltip) with only the
+  // "Round N" label; a claimed alias can hold a second copy too. Keying on
+  // `stage:roundNumber` counted "Round 2:2" and "Round 2:" as two rounds.
+  // The number is read the same way judgedRoundNumbers reads it below, so
+  // the count and the list of rounds agree; only an inround with no number
+  // anywhere falls back to its label.
   const judgeInroundsByTournament = new Map<bigint, Set<string>>();
   for (const a of judgeAssignmentRows) {
     if (!claimedPersonIds.has(a.personId)) continue;
     if (classifyRoundLabel(a.stage) !== 'inround') continue;
+    const n = a.roundNumber ?? Number((a.stage ?? '').match(/\d+/)?.[0]);
+    const key = Number.isFinite(n) ? `#${n}` : `label:${a.stage ?? ''}`;
     const set = judgeInroundsByTournament.get(a.tournamentId) ?? new Set<string>();
-    set.add(`${a.stage ?? ''}:${a.roundNumber ?? ''}`);
+    set.add(key);
     judgeInroundsByTournament.set(a.tournamentId, set);
   }
 
@@ -1199,8 +1230,15 @@ export async function buildCvData(
   }
 
   const totalTournaments = tournamentIds.length;
-  const breaks =
-    speakerRows.filter((r) => r.broke).length + judgeRows.filter((r) => r.broke).length;
+  // Tournaments at which the user broke, in any role. Every surface reads
+  // this against totalTournaments (the /cv header's "N% of entries", the
+  // public page's "Breaks" tile, the JSON Resume summary), which counts each
+  // tournament once — so a tournament with a speaker break AND a judge break
+  // is one break here, not two. Summing the two row lists could push the
+  // rate past 100%.
+  const breaks = new Set(
+    [...speakerRows, ...judgeRows].filter((r) => r.broke).map((r) => r.tournamentId),
+  ).size;
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   // ── Highlights ───────────────────────────────────────────────────────
