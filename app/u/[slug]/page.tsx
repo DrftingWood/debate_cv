@@ -320,8 +320,8 @@ export default async function PublicCvPage({
       ) : null}
 
       <p className="border-t border-border pt-4 text-caption text-ink-soft">
-        Every row links to the tournament tab it was read from, at calicotab.com or
-        herokuapp.com. Figures are as the tab published them.
+        Every row links to the tournament tab it was read from, at calicotab.com,
+        yellowtabs.com or herokuapp.com. Figures are as the tab published them.
       </p>
     </div>
   );

@@ -28,8 +28,8 @@ export default function Privacy() {
       <p>
         When you sign in with Google, we request the{' '}
         <code>https://www.googleapis.com/auth/gmail.readonly</code> scope. We use it to search
-        your Gmail for Tabbycat private URLs matching <code>calicotab.com</code> or{' '}
-        <code>herokuapp.com</code> with a <code>/privateurls/</code> path.
+        your Gmail for Tabbycat private URLs matching <code>calicotab.com</code>,{' '}
+        <code>yellowtabs.com</code> or <code>herokuapp.com</code> with a <code>/privateurls/</code> path.
       </p>
 
       <h2>What we store</h2>
