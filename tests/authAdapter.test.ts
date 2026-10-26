@@ -65,11 +65,17 @@ describe('withoutStoredTokens', () => {
     expect(original.refresh_token).toBe('RT-secret');
   });
 
-  it('creates no account row when the encrypted copy cannot be saved', async () => {
-    const { adapter, linkAccount, persist } = setup();
-    persist.mockRejectedValueOnce(new Error('db down'));
-    await expect(adapter.linkAccount!(account())).rejects.toThrow('db down');
-    expect(linkAccount).not.toHaveBeenCalled();
+  it('still links the account, without tokens, when the encrypted copy cannot be saved (sign-in must not break)', async () => {
+    const { linkAccount, persist } = setup();
+    const onError = vi.fn();
+    const adapter = withoutStoredTokens({ linkAccount } as unknown as Adapter, persist, onError);
+    persist.mockRejectedValueOnce(new Error('TOKEN_ENCRYPTION_KEY must be 32 bytes'));
+    await adapter.linkAccount!(account());
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), 'user-1');
+    const written = linkAccount.mock.calls[0][0] as AdapterAccount;
+    expect(written.access_token).toBeUndefined();
+    expect(written.refresh_token).toBeUndefined();
+    expect(written.id_token).toBeUndefined();
   });
 
   it('saves no Gmail token when Google returned no access token, and still links', async () => {
