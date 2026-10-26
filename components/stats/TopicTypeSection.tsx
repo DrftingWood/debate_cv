@@ -12,7 +12,7 @@
 
 import { useMemo } from 'react';
 import type { StatsFacts } from '@/lib/cv/statsFacts';
-import { topicTypeHeatmap, type HeatCell } from '@/lib/cv/statsHeatmap';
+import { topicTypeHeatmap, type HeatCell, type MixedBucket } from '@/lib/cv/statsHeatmap';
 import { MIN_QUIRK_ROUNDS } from '@/lib/cv/speakerStats';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, TableScroll } from '@/components/ui/DataTable';
@@ -23,7 +23,7 @@ const signed = (n: number) => {
   return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}`;
 };
 
-function CellValue({ cell }: { cell: HeatCell | undefined }) {
+function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   if (!cell)
     return (
       <span className="text-ink-soft/50">
@@ -59,8 +59,8 @@ function CellValue({ cell }: { cell: HeatCell | undefined }) {
 
 export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
   const grid = useMemo(() => topicTypeHeatmap(facts.rounds), [facts]);
-  // Nothing to say until at least one cell clears the gate.
-  if (!grid.cells.some((c) => c.enough)) return null;
+  // Nothing to say until at least one cell, or the choice-round bucket, clears the gate.
+  if (!grid.cells.some((c) => c.enough) && !grid.mixed?.enough) return null;
 
   const cellAt = new Map(grid.cells.map((c) => [`${c.topic}\u0000${c.type}`, c]));
 
@@ -99,6 +99,18 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
           </Table>
         </TableScroll>
       </div>
+      {grid.mixed ? (
+        <div className="panel flex items-center justify-between gap-4 px-4 py-3">
+          <div className="min-w-0">
+            <div className="font-medium text-ink">Choice of motions</div>
+            <div className="text-caption text-ink-soft">
+              Rounds that released several motions of different topics or types (Asian Parliamentary's three), clubbed
+              together because the motion debated is not recorded.
+            </div>
+          </div>
+          <CellValue cell={grid.mixed} />
+        </div>
+      ) : null}
       <p className="text-caption text-ink-soft">
         Speaker-score difference from your mean over these rounds, prelims only. A cell with fewer than{' '}
         {MIN_QUIRK_ROUNDS} rounds shows a dot instead of a figure. Topics are the community tags; rounds whose motion

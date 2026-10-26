@@ -32,7 +32,12 @@ export type HeatCell = {
   enough: boolean;
 };
 
+/** The round was a choice of motions; they are clubbed into one bucket. */
+export type MixedBucket = Omit<HeatCell, 'topic' | 'type'>;
+
 export type TopicTypeHeatmap = {
+  /** Choice rounds (several motions that disagree on type or topic), clubbed together. Null when there were none. */
+  mixed: MixedBucket | null;
   topics: string[];
   types: string[];
   cells: HeatCell[];
@@ -46,9 +51,12 @@ export type TopicTypeHeatmap = {
 
 export function topicTypeHeatmap(rounds: RoundFact[]): TopicTypeHeatmap {
   const scored = rounds.filter((r) => !r.isOutround && r.score != null);
-  const covered = scored.filter((r) => r.motionType != null && r.motionTopic != null);
+  const choice = scored.filter((r) => r.choiceRound === true);
+  const covered = scored.filter((r) => r.choiceRound !== true && r.motionType != null && r.motionTopic != null);
 
-  const baseline = covered.length === 0 ? null : covered.reduce((s, r) => s + (r.score as number), 0) / covered.length;
+  // One baseline for the whole grid, choice rounds included, so every delta is comparable.
+  const inGrid = [...covered, ...choice];
+  const baseline = inGrid.length === 0 ? null : inGrid.reduce((s, r) => s + (r.score as number), 0) / inGrid.length;
 
   const buckets = new Map<string, { topic: string; type: string; scores: number[]; tournaments: Set<string> }>();
   for (const r of covered) {
@@ -84,12 +92,26 @@ export function topicTypeHeatmap(rounds: RoundFact[]): TopicTypeHeatmap {
     return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k]) => k);
   };
 
+  let mixed: MixedBucket | null = null;
+  if (choice.length > 0) {
+    const enough = choice.length >= MIN_QUIRK_ROUNDS;
+    const avg = choice.reduce((s, r) => s + (r.score as number), 0) / choice.length;
+    mixed = {
+      rounds: choice.length,
+      tournaments: new Set(choice.map((r) => r.tournamentId)).size,
+      avgScore: enough ? avg : null,
+      scoreDelta: enough && baseline != null ? avg - baseline : null,
+      enough,
+    };
+  }
+
   return {
+    mixed,
     topics: weight((c) => c.topic),
     types: weight((c) => c.type),
     cells,
     baseline,
-    coveredRounds: covered.length,
+    coveredRounds: covered.length + choice.length,
     scoredRounds: scored.length,
   };
 }

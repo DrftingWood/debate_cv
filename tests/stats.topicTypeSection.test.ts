@@ -55,6 +55,12 @@ describe('TopicTypeSection', () => {
     expect(out).toContain('12 of 12 scored prelim rounds');
   });
 
+  it('shows the clubbed choice-of-motions bucket and keeps the section when only it clears the gate', () => {
+    const out = html(many(6, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }));
+    expect(out).toContain('Choice of motions');
+    expect(out).toContain('three');
+  });
+
   it('shows a dot, not a figure, for a thin cell next to a full one', () => {
     const out = html([
       ...many(6, { motionTopic: 'Education', motionType: 'Policy', score: 80 }),
