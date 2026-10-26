@@ -12,6 +12,8 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 **Tasks that need design judgement (B6, B8, B9 and the parked set) are listed in `docs/OPUS_TASKS.md` with a "done when" line each — read it before picking one up.**
 
+**Coding rules (40, each with how it is enforced) are in `docs/CODING_STANDARDS.md`; what CI checks and how to run each check locally is in `docs/CI_PLAN-2026-10-27.md`.**
+
 ## Stack (from package.json)
 
 - **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)

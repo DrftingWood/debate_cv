@@ -1,0 +1,17 @@
+# Prettier is report-only here (Q1 phase 1b; docs/CI_PLAN-2026-10-27.md).
+# `npm run format:check` only looks at code and config (see the glob in
+# package.json); this file keeps generated, vendored and data files out of it.
+node_modules/
+.next/
+.reports/
+.claude/
+coverage/
+package-lock.json
+prisma/migrations/
+next-env.d.ts
+# Captured tournament pages and corpus data: formatting them would change the
+# bytes the parser tests read.
+tests/fixtures/
+tests/**/*.html
+scripts/prescrape/*.txt
+docs/

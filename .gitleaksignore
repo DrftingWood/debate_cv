@@ -1,0 +1,10 @@
+# Reviewed false positives (2026-10-27, Q1 phase 1b). Each is prose or a table
+# row in a doc that the generic-api-key rule's entropy check mistook for a key;
+# none is a credential. Add a line here only after reading the finding, and
+# say why in the comment above it (without quoting the matched text, or the
+# comment itself gets flagged).
+# B9 design doc, line 125: a sentence about which Tabbycat pages use the API.
+a585e8df8836eb29f02489755d621ec46129af24:docs/superpowers/specs/2026-10-25-b9-prescrape-design.md:generic-api-key:125
+# Sizing note, line 49 in two earlier revisions: a table row naming a Tabbycat API path.
+aa17fc778d13ae84984bd1c9c569a93d92069976:docs/SIZING-2026-10-25.md:generic-api-key:49
+aa89fd63c6579dbc2bcfcd6fd020ccfd72fa58c7:docs/SIZING-2026-10-25.md:generic-api-key:49

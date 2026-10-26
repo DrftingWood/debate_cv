@@ -28,3 +28,6 @@ source-docs/
 .claude/settings.local.json
 .superpowers/
 graphify-out/
+
+# Report output from the Q1 phase 1b checks (knip, jscpd, depcruise, prettier, audit, gitleaks)
+.reports/

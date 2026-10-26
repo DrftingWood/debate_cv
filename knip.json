@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@6.41.0/schema.json",
+  "entry": ["scripts/*.mjs", "scripts/prescrape/*.mjs", "sentry.{client,server,edge}.config.ts"],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "lib/**/*.ts",
+    "components/**/*.tsx",
+    "scripts/**/*.mjs",
+    "tests/**/*.ts",
+    "*.{ts,mjs,cjs}"
+  ],
+  "ignore": ["next-env.d.ts"],
+  "ignoreDependencies": ["eslint-config-next"]
+}

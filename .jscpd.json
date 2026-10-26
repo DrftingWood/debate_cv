@@ -1,0 +1,12 @@
+{
+  "path": ["app", "lib", "components", "scripts"],
+  "format": ["typescript", "tsx", "javascript"],
+  "ignore": ["**/node_modules/**", "**/.next/**", "**/*.d.ts", "prisma/migrations/**", "tests/**"],
+  "minLines": 5,
+  "minTokens": 50,
+  "mode": "mild",
+  "gitignore": true,
+  "reporters": ["console", "markdown", "json"],
+  "output": ".reports/jscpd",
+  "absolute": false
+}
