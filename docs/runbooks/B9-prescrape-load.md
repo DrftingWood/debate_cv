@@ -117,7 +117,11 @@ Actions → **Pre-scrape (B9)** → **Run workflow**.
 
 ### 6. Stage B, only if production is ≤ 0.55 GB after stage A
 
-The list is `scripts/prescrape/stage-b-2020-2022.txt` (217 Calicotab tournaments, built from the Tabs sheet of the Official Global Debating Spreadsheet by taking each tournament link whose slug or name carries a year from 2020 to 2022). Run step 4 with that list; tournaments already loaded are skipped. Otherwise move to Launch first, or leave stage B unloaded; those tournaments keep working through the normal ingest.
+The list is `scripts/prescrape/stage-b-2020-2022.txt` (217 Calicotab tournaments, built from the Tabs sheet of the Official Global Debating Spreadsheet by taking each tournament link whose slug or name carries a year from 2020 to 2022). Run step 4 with that list; tournaments already loaded are skipped.
+
+### 7. Stage C, tournaments the first two lists missed
+
+`scripts/prescrape/stage-c-2020-2025.txt` holds 109 Calicotab tournaments dated 2020–2025 that the Tabs sheet of the Official Global Debating Spreadsheet lists but stages A and B do not (matched on host and slug). Entries whose slug is not known are root URLs, which the runner expands into every tournament the root page links, up to 2025. Run step 4 with this list; already loaded tournaments are skipped. Some pages may not be published yet and will fail with HTTP 404, as `hufsiv2023` did. Otherwise move to Launch first, or leave stage B unloaded; those tournaments keep working through the normal ingest.
 
 ## If storage nears 1 GB
 
