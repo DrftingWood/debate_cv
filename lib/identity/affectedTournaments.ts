@@ -444,6 +444,32 @@ export type SharedKey = {
    * held the key under two roles.
    */
   crossRoleInstitution: InstitutionMatch | null;
+  /**
+   * For an 'unknown' group: the pair that left it undecided, with what each
+   * side is evidenced in, so the owner can decide it by eye
+   * (lib/identity/unknownRounds.ts writes these out). Absent otherwise.
+   */
+  undecided?: UndecidedPair;
+};
+
+/** One side of an undecided pair, spelled as the page shows it. */
+export type UndecidedEntry = {
+  name: string;
+  role: ParticipantsRow['role'];
+  team: string;
+  institution: string;
+  /** Rounds this entry is evidenced in (roundKey form, sorted); empty when none. */
+  rounds: string[];
+};
+
+export type UndecidedPair = {
+  a: UndecidedEntry;
+  b: UndecidedEntry;
+  /**
+   * Two judge entries with one spelling, both seen on the results pages:
+   * the rounds are the name's, and the pages cannot say which entry sat.
+   */
+  sameSpellingJudges: boolean;
 };
 
 export type InstitutionMatch = 'same' | 'different' | 'unknown';
@@ -466,6 +492,8 @@ type Entry = {
   institution: string;
   /** Loose team name; '' when the row names none. */
   team: string;
+  /** Team and institution as the page spells them, for the owner's sheet. */
+  label: { team: string; institution: string };
   /** Rounds this very row was scored in (speaker tab rows only). */
   ownRounds: Set<string> | null;
 };
@@ -476,6 +504,10 @@ const MATCH_RANK: Record<InstitutionMatch, number> = { unknown: 0, different: 1,
 /** Spelled loosely enough that one team or institution reads as one. */
 function loose(s: string | null | undefined): string {
   return cleanName(s ?? '').toLowerCase();
+}
+
+function entryLabel(team: string | null | undefined, institution: string | null | undefined): Entry['label'] {
+  return { team: cleanName(team ?? ''), institution: cleanName(institution ?? '') };
 }
 
 /** Team and institution together. */
@@ -545,7 +577,13 @@ function judgeSide({ key, ev }: KeyContext): Side {
   return byRound && byRound.size > 0 ? { word: 'judge', rounds: new Set(byRound.keys()), from: 'results' } : noRounds('judge');
 }
 
-type PairVerdict = { cls: 'overlap' | 'disjoint' | 'unknown'; crossRole: boolean; evidence: string };
+type PairVerdict = {
+  cls: 'overlap' | 'disjoint' | 'unknown';
+  crossRole: boolean;
+  evidence: string;
+  /** Set on an 'unknown' verdict only. */
+  pair?: UndecidedPair;
+};
 
 function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
   const ra = a.rounds;
@@ -590,7 +628,45 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
   return sideVerdict(side(na), side(nb), false);
 }
 
+/**
+ * The rounds one entry of a pair is evidenced in, the same lookups the
+ * verdicts use: a speaker's own rounds; a judge's by spelling when the pair
+ * are two judge spellings, else by key.
+ */
+function roundsOf(e: Entry, other: Entry, ctx: KeyContext): Set<string> | null {
+  if (e.role === 'speaker') return speakerSide(e, ctx).rounds;
+  if (e.role !== 'adjudicator') return null;
+  const name = cleanName(e.name);
+  if (other.role === 'adjudicator' && name !== cleanName(other.name)) {
+    return ctx.ev.rounds.judgeNameRounds.get(name) ?? null;
+  }
+  return judgeSide(ctx).rounds;
+}
+
+function undecidedPair(a: Entry, b: Entry, ctx: KeyContext): UndecidedPair {
+  const side = (e: Entry, other: Entry): UndecidedEntry => ({
+    name: e.name,
+    role: e.role,
+    team: e.label.team,
+    institution: e.label.institution,
+    rounds: sortedRounds(roundsOf(e, other, ctx) ?? []),
+  });
+  const sa = side(a, b);
+  const sb = side(b, a);
+  const sameSpellingJudges =
+    a.role === 'adjudicator' &&
+    b.role === 'adjudicator' &&
+    cleanName(a.name) === cleanName(b.name) &&
+    sa.rounds.length > 0;
+  return { a: sa, b: sb, sameSpellingJudges };
+}
+
 function pairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
+  const v = basePairVerdict(a, b, ctx);
+  return v.cls === 'unknown' ? { ...v, pair: undecidedPair(a, b, ctx) } : v;
+}
+
+function basePairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
   const roles = [a.role, b.role].sort().join('+');
   switch (roles) {
     case 'speaker+speaker':
@@ -612,7 +688,10 @@ function pairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
  * duplicate. Otherwise the strongest pair wins: any overlap, else any
  * unknown, else disjoint.
  */
-function classify(rows: Entry[], ctx: KeyContext): PairVerdict | { cls: 'duplicate'; crossRole: false; evidence: string } {
+function classify(
+  rows: Entry[],
+  ctx: KeyContext,
+): PairVerdict | { cls: 'duplicate'; crossRole: false; evidence: string; pair?: undefined } {
   let best: PairVerdict | null = null;
   let crossRole = false;
   for (const [i, a] of rows.entries()) {
@@ -654,6 +733,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
           affiliation: affiliation(t.teamName, t.institution),
           institution: loose(t.institution),
           team: loose(t.teamName),
+          label: entryLabel(t.teamName, t.institution),
           ownRounds: null,
         })),
       ),
@@ -670,6 +750,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
         affiliation: affiliation(r.teamName, r.institution),
         institution: loose(r.institution),
         team: loose(r.teamName),
+        label: entryLabel(r.teamName, r.institution),
         ownRounds: scoredRounds(r),
       })),
       mergedByName: false,
@@ -685,6 +766,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
       affiliation: affiliation(r.teamName, r.institution),
       institution: loose(r.institution),
       team: loose(r.teamName),
+      label: entryLabel(r.teamName, r.institution),
       ownRounds: null,
     }));
   if (lists.participantRows) {
@@ -757,6 +839,7 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
         evidence: v.evidence,
         judgeRoleDropped: false,
         crossRoleInstitution: null,
+        undecided: v.pair,
       };
       s.names.push(...g.names.filter((n) => !s.names.includes(n)));
       s.entries = Math.max(s.entries, g.rows.size);
@@ -764,6 +847,7 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
       if (CLASS_RANK[v.cls] > CLASS_RANK[s.class]) {
         s.class = v.cls;
         s.evidence = v.evidence;
+        s.undecided = v.pair;
       }
       s.crossRole ||= v.crossRole;
       s.judgeRoleDropped ||= dropped;
@@ -789,6 +873,8 @@ export type TournamentReport = {
   pagesRead: string[];
   findings: TournamentFindings;
   error?: string;
+  /** The landing page's tournament name, when a landing page was stored. */
+  name?: string | null;
 };
 
 function ofClass(r: TournamentReport, cls: SharedKeyClass): SharedKey[] {
