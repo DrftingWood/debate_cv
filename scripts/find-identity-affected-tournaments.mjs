@@ -94,12 +94,26 @@ try {
   writeFileSync(outCsv, '﻿' + m.toCsv(reports));
   writeFileSync(outList, m.affectedList(reports) + '\n');
   const s = m.summarise(reports);
+  const u = m.exportUrlStats(entries, tournaments);
+  const t = (x) => `${x.tournaments} tournaments, ${x.groups} groups`;
+  // Printed only, never written to a file: the runbook explains each line.
   console.log(`\n
-Documents in index:              ${entries.length}${badLines ? ` (${badLines} unreadable lines skipped)` : ''}
+Documents in index:              ${u.documents}${badLines ? ` (${badLines} unreadable lines skipped)` : ''}
+  distinct document URLs:        ${u.distinctUrls}
+Tournament URLs with a tab page: ${u.tournamentUrls} (on ${u.hosts} hosts)
+  slug case and http/https folded: ${u.foldedUrls}
+  of which API-only next to a root-hosted tab: ${u.rootApiSplits} (so about ${u.foldedUrls - u.rootApiSplits} tournaments)
+  These count tournament addresses in the export, not rows in "Tournament";
+  see the runbook, "Why the export total is not the Tournament count".
+
 Tournaments with a tab page:     ${s.tournaments}
-Affected (a or b):               ${s.affected} of ${s.tournaments}
+Affected (a or real collision):  ${s.affected} of ${s.tournaments}
   (a) names with an empty key:   ${s.withEmptyKey} tournaments, ${s.emptyKeyNames} names
-  (b) shared key in one list:    ${s.withSharedKey} tournaments, ${s.sharedKeyGroups} groups
+  (b) shared key in one list:    ${t({ tournaments: s.withSharedKey, groups: s.sharedKeyGroups })}
+      real namesake collisions:  ${t(s.sameRole)}   (same role, different team or institution)
+      cross-role:                ${t(s.crossRole)}   (speaker and judge: one participant, two roles; not counted)
+      duplicate rows:            ${t(s.duplicate)}   (same role, same team and institution; not counted)
+  judge role dropped by the participants merge: ${t(s.judgeRoleDropped)} (a separate v1 bug; not counted)
 Tournaments that failed to parse: ${s.errors}
 
 CSV:  ${outCsv}
