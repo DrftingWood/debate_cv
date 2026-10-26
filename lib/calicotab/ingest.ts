@@ -437,7 +437,13 @@ async function runFullScrape(
   // Logged so the reserve's per-row rate can be re-checked against real runs.
   const writeStarted = Date.now();
   const persons = await preCommitPeopleAndBuildIndex(loaded, fetched);
-  const txResult = await writeIngestTransaction(loaded, fetched, persons, options);
+  const txResult = await writeIngestTransaction(
+    loaded,
+    fetched,
+    persons,
+    options,
+    userId === null ? PRESCRAPE_TX_TIMEOUT_MS : LIVE_TX_TIMEOUT_MS,
+  );
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
   if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
   console.info('[ingest] write phase', {
@@ -1191,11 +1197,18 @@ async function claimedPlaceholderNorms(names: Iterable<string>): Promise<Set<str
   return new Set(rows.map((r) => r.normalizedName));
 }
 
+// Live ingests run inside a 60s Vercel function, so their write transaction
+// stays at 45s. The pre-scrape runs on GitHub Actions with no function limit
+// and ~50ms to the database, where large tournaments need longer than 45s.
+const LIVE_TX_TIMEOUT_MS = 45_000;
+const PRESCRAPE_TX_TIMEOUT_MS = 5 * 60_000;
+
 async function writeIngestTransaction(
   loaded: LoadedState,
   fetched: FetchedTabs,
   persons: PersonContext,
   options: { force?: boolean },
+  txTimeoutMs: number,
 ): Promise<TxResult> {
   const {
     normalized,
@@ -1629,7 +1642,7 @@ async function writeIngestTransaction(
     }
 
     return { tournamentId: t.id, speakerRoundScoreCreates, speakerParticipantIds };
-  }, { maxWait: 10000, timeout: 45000 });
+  }, { maxWait: 10000, timeout: txTimeoutMs });
   // Tx timeout is 45s — leaves 15s headroom under the 60s Vercel Hobby
   // function budget for the post-tx bulk SpeakerRoundScore writes plus the
   // landing-derived per-round writes (recordJudgeRounds*, recordSpeakerRounds*).
