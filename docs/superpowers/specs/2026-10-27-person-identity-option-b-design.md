@@ -385,11 +385,43 @@ Each PR is small and shippable alone. Flags are env vars read in one helper (`li
 
 ## 9. Open questions for the owner
 
-1. **Same-name pairs at one tournament, and non-Latin names (phase 7).** Do phase 7 now, as part of H2, or after phases 1-6 have shipped? It needs a parser version bump and a full re-ingest. **Recommended default: after.** First measure how often two people share a name at one tournament, from the corpus (not production), and do phase 7 only if it is more than a handful of tournaments or a non-Latin user asks.
+1. **Same-name pairs at one tournament, and non-Latin names (phase 7).** Do phase 7 now, as part of H2, or after phases 1-6 have shipped? It needs a parser version bump and a full re-ingest. **Recommended default: after.** First measure how often two people share a name at one tournament, from the corpus (not production), and do phase 7 only if it is more than a handful of tournaments or a non-Latin user asks. *(Measured since; see "Owner's rule" below: it is far more than a handful, and the default is revised.)*
 2. **Legacy participations not carried over.** Old claims cover a namesake's tournaments the user never had a URL for (report V5). These never showed on the CV, but they appear in the account export and dashboard counts today. **Recommended default: do not carry them over**, and keep the V5 report for the owner to look over once.
 3. **Auto-claim on a "close" name.** Decision A accepts a close name as proof. Should a `close` registration name auto-claim at ingest, or only `match`, with `close` shown for one-tap confirmation? **Recommended default: auto-claim on both**, as decision A says, with a visible "linked by close name" marker that the user can undo.
 4. **Suppression scope.** Suppression stays on the name, so one person's erasure request also masks every namesake (and stops those namesakes claiming). **Recommended default: keep it on the name for now**, because over-masking is the safe side for erasure, and handle a namesake who complains through the admin route.
 5. **Soak and who runs production steps.** **Recommended default:** the owner runs the backfill and verification SQL from the runbook, after an agent-prepared rehearsal on a Neon branch. The read switch runs for 14 days with V1-V4 clean before the contract migration, which is preceded by a Neon branch restore point kept for 14 days.
+
+### Owner's rule: a speaker and a judge at one tournament are different people (2026-10-27)
+
+The owner, a debater, set a domain rule: **nobody is both a speaker and a judge at the same tournament.** So when one name key appears on both the speaker list and the adjudicator list of a tournament, it belongs to two people who share a name. It is never one person with two roles.
+
+What this means for the model:
+
+- **Claims (3.3, 3.4).** A participation claim can safely assume one role family per person per tournament: speaker or judge, never both. Two cases signal a merged namesake pair, not the user's own record:
+  - a user holds a speaker participation and a judge participation at the same tournament;
+  - one `TournamentParticipant` carries both a `speaker` and a `judge` `ParticipantRole`.
+  The claim paths should show either case as a conflict, not auto-claim the row whole. `ParticipantRole`'s `(tournamentParticipantId, role)` key still allows both roles on one row. Under this rule, such a row is a sign of a merge, not a valid state.
+- **Within-tournament identity (phase 7).** A speaker and a judge who share a name need **distinct participant rows**.
+  - The per-tournament entry key must keep them apart. In the API they are different Tabbycat objects with different URLs. The fallback key (v2 name + team) must also carry the role family, because a judge has no team.
+  - The participants-list merge (`participantByName`, `ingest.ts:965-982`) must stop merging a speaker row with an adjudicator row. Today the last row wins. Tabbycat lists Adjudicators before Speakers, so the judge namesake ends up with no judge role. The checker's "judge role dropped" finding is this same collision, not a separate bug.
+
+**Measured (open question 1 asked for this).** The offline checker is `scripts/find-identity-affected-tournaments.mjs` (runbook: `docs/runbooks/identity-affected-tournaments.md`). The owner ran it on an export of 855 tournaments with a tab page, **before** this rule was applied:
+
+- **146 of 855** tournaments were affected. That count included only empty-key names and same-role collisions.
+- **126** tournaments had a same-role collision: two speakers, or two judges, with one key and a different team or institution.
+- **122** had a cross-role group: a speaker and a judge on one key.
+- **23** had a name whose v1 key is empty.
+
+The class counts overlap. Under the owner's rule, cross-role groups are real collisions as well, so the checker now counts them (PR #176). `Affected` is now the union of empty-key, same-role and cross-role, with each tournament counted once. The new total will come from re-running the updated script. It must fall between **146** (if no tournament is cross-role only) and **238** (the earlier count of every tournament with any shared or empty key). The script also splits cross-role groups by whether the speaker row and the judge row name the same institution. That is the only case where a listing error is plausible rather than a namesake, and those rows are for the owner to check by eye.
+
+**Revised re-ingest estimate.** The runbook (step 4) gives about 25 s per tournament on one shard:
+
+| Route | Tournaments | Actions time |
+| --- | --- | --- |
+| Short list from the checker | 146-238 | about 60-100 minutes |
+| Global `PARSER_VERSION` bump | all 855 in the export | about 6 hours, and every user's cached parses are invalidated |
+
+The short list is 17-28 % of the export, not "a handful". So the recommended default for open question 1 changes to **do phase 7**, with a short-list re-ingest of the checker's list instead of a global bump. Runbook step 2's caveat still applies: the v1-to-v2 re-key of `Person` is a data migration and must run first. The exact figure will follow the re-run.
 
 ## Sources
 
