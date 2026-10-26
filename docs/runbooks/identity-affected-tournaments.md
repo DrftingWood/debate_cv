@@ -31,7 +31,7 @@ So two entries with one key are judged by their **rounds**:
 
 Within one list, a group with several entries takes its strongest pair: any overlap, else any unknown, else disjoint. A key that shows several classes in different lists takes the strongest (overlap, unknown, disjoint, duplicate). Per-class tournament counts overlap; both `Affected` numbers are unions and count each tournament once.
 
-**How `unknown` is counted.** It is not in `Affected` and not in the `.txt` list, because nothing shows two people. It is in `Affected if unknown counted`, the upper bound, and the CSV's `affected_if_unknown_counted` column marks those tournaments, so you can add any you want re-ingested to the list by hand after reading their examples.
+**How `unknown` is counted.** It is not in `Affected` and not in the `.txt` list, because nothing shows two people. It is in `Affected if unknown counted`, the upper bound, and the CSV's `affected_if_unknown_counted` column marks those tournaments, so you can add any you want re-ingested to the list by hand after reading their examples. `identity-unknown-rounds.csv` (section 1b) lays every unknown group out one per row for that.
 
 **Where the rounds come from** (all from stored pages; no network):
 
@@ -50,7 +50,7 @@ Within one list, a group with several entries takes its strongest pair: any over
 
 **Judge role dropped, and lost.** Tabbycat lists the Adjudicators table before the Speakers table. When a judge and a speaker share a key there, `participantByName` keeps the speaker row, so ingest writes **no** judge role for that key. On an **overlap** group that is the collision itself (the judge namesake loses their row). On a **disjoint speaker+judge** group it is one person losing their judge credit: a real ingest bug of its own, not a collision, counted as `judge_role_lost_one_person`. Phase 7's merge must keep both roles for such a person (spec, "The owner's rule"). Re-ingesting today does not fix it. The API participants list puts adjudicators last, so there the judge role is written.
 
-**What it does not do.** It does not connect to a database or the network, and it never writes outside the two output files. It reads the export folder that `scripts/export-source-documents.mjs` wrote (`*.html.gz` and `index.jsonl`). It runs the ingest parsers unchanged (`parseTeamTab`, `parseSpeakerTab`, `parseParticipantsList`, `parseRoundResults`, `extractNavigation`, and `mapParticipants` for stored API JSON). The counting rules are in `lib/identity/affectedTournaments.ts`; tests are in `tests/identity.affectedTournaments.test.ts`.
+**What it does not do.** It does not connect to a database or the network, and it never writes outside its three output files. It reads the export folder that `scripts/export-source-documents.mjs` wrote (`*.html.gz` and `index.jsonl`). It runs the ingest parsers unchanged (`parseTeamTab`, `parseSpeakerTab`, `parseParticipantsList`, `parseRoundResults`, `extractNavigation`, and `mapParticipants` for stored API JSON). The counting rules are in `lib/identity/affectedTournaments.ts`; tests are in `tests/identity.affectedTournaments.test.ts`.
 
 ## 1. Run it (PowerShell)
 
@@ -62,10 +62,11 @@ node scripts/find-identity-affected-tournaments.mjs --in "$HOME\Documents\source
 ```
 
 - `--in` defaults to `$HOME\Documents\source-docs`, so you can leave it out if the export is there.
-- It writes two files into the export folder, not into the repository, because they contain participants' names:
+- It writes three files into the export folder, not into the repository, because they contain participants' names. **Never commit any of them.**
   - `identity-affected-tournaments.csv` has one row per tournament: affected ones first, then those affected only if unknown groups count. It opens in Excel with non-Latin names intact.
   - `identity-affected-tournaments.txt` lists the affected tournament URLs (the strict number), one per line. Step 3 takes this file as input.
-- Use `--out <file>` and `--list <file>` to write them somewhere else.
+  - `identity-unknown-rounds.csv` has one row per rounds-unknown group, for you to decide by hand. See section 1b.
+- Use `--out <file>`, `--list <file>` and `--unknown <file>` to write them somewhere else.
 - It reads every stored results page too, so it takes about three minutes on the 26,000-document export. You can run it as often as you like.
 
 The summary at the end is the number you need:
@@ -95,7 +96,14 @@ Affected if unknown counted:     <M> of <total>   (upper bound: every rounds-unk
     of which one plausible person (disjoint speaker+judge): ... tournaments, ... groups   (judge credit lost today: an ingest bug, not a collision)
 Tournaments with no results page: ...   (judge rounds unknowable there)
 Tournaments that failed to parse: ...
+
+CSV:  <export folder>\identity-affected-tournaments.csv
+List: <export folder>\identity-affected-tournaments.txt
+Rounds-unknown sheet: <export folder>\identity-unknown-rounds.csv
+  <n> rows, one per undecided group; fill owner_verdict with one / two
 ```
+
+The sheet's row count equals the groups on the `rounds unknown` line.
 
 `Affected` is (a) or an overlapping-rounds group, and the `.txt` list holds exactly those tournaments. `Affected if unknown counted` adds the tournaments whose only uncertain groups are `unknown`. The `(b) shared key` line's groups are the sum of overlapping, disjoint (both kinds), unknown and duplicate. Everything above the blank line is printed only and never written to a file.
 
@@ -151,6 +159,41 @@ SELECT count(DISTINCT lower(substring("sourceUrlRaw" from '^https?://([^/]+/[^/]
   - judge names that appear only in round results (they are used for rounds, but a judge on no list is never in a group).
 
   If many tournaments in the database are missing from the export, the result is a lower bound.
+
+## 1b. Decide the rounds-unknown groups by hand
+
+`identity-unknown-rounds.csv` is the checker's "I can't tell" pile, laid out for a debater to decide by eye. It has one row per rounds-unknown group (161 groups at 87 tournaments on the 2026-10 export). Each row shows two entries that share a name, side by side, with the rounds each one is known to be in.
+
+**Open it.** Double-click it, or in Excel use Data → From Text/CSV and pick UTF-8. The file starts with a byte-order mark, so non-Latin names display correctly either way. Turn on a filter (Ctrl+Shift+L) and sort by `suggested` or `why_unknown` to work through similar rows together. Open `tournament_url` in a browser when you need the tab itself. The file is local only: it contains real names, so do not commit it, attach it to a PR or paste it into a chat.
+
+**Decide each row.** Write `one` (one person under one name) or `two` (two different people) in `owner_verdict`. Leave it blank if you cannot tell. Save as CSV UTF-8 so the names survive. A `two` puts that tournament in the same position as an overlap: add its URL to `identity-affected-tournaments.txt` before step 3.
+
+| Column | Meaning |
+| --- | --- |
+| `tournament_url` | Public tournament address, as in the main CSV. |
+| `tournament_name` | The name from the stored landing page's title, read as ingest reads it. Blank when no landing page was stored. |
+| `name_as_listed` | The name as the tab page spells it. Two spellings that share a key (`José Silva / Jose Silva`) are both shown. |
+| `role_a`, `role_b` | `speaker` or `judge` for each entry (`other` for a participants row with no role, which is rare). |
+| `team_a`, `team_b` | The team each entry is listed on, as the page spells it. Blank for a judge. |
+| `institution_a`, `institution_b` | The institution each entry is listed under. Often blank for a speaker, because Tabbycat's Speakers table shows the team and not the institution. |
+| `rounds_known_a`, `rounds_known_b` | Comma list of the rounds each entry is evidenced in: `R1,R2` for prelims, and the stage and bracket for outrounds (`quarterfinal`, `final novice`). Blank means no round is known for that entry, not that it did nothing. A speaker's rounds come from their speaker-tab scores, or else the rounds their team has a result in. A judge's come from the round-results pages. |
+| `why_unknown` | Why the checker could not decide, as `code: sentence`. When both entries lack rounds for different reasons, both reasons are listed, separated by `;`. The codes are listed below. |
+| `team_results_pages_available` | `yes` if at least one round-results page was stored for this tournament, `no` if none was. With `no`, no judge has rounds and no speaker can fall back on their team's results. |
+| `suggested` | A hint only, from simple evidence. `likely two people`: the two entries name different institutions. `likely one person`: they name the same institution, and their known rounds have no round in common (a blank side clashes with nothing). `no evidence`: anything else, including when either institution is blank. |
+| `owner_verdict` | Empty. Fill it with `one` or `two`. |
+
+**`why_unknown` codes.**
+
+| Code | Sentence | What to look at |
+| --- | --- | --- |
+| `no_results_pages` | results pages missing for this tournament | No round-results page was stored, so nobody's rounds are known except speakers with scored rounds on the speaker tab. Open the tournament's results pages, if they are public, and look for the name. |
+| `speaker_no_rounds` | no scored speaker rounds and team has no results page | The speaker tab gives this speaker no scored round, and their team appears on no stored results page. This is common for swing teams and withdrawn teams. |
+| `speaker_no_team` | no scored speaker rounds and no team named | The row names no team to fall back on. |
+| `judge_not_on_results` | judge appears on no results page | Results pages exist, but this name is on none of their panels. Such a judge may have been listed and never allocated. |
+| `same_spelling_judges` | same-spelled judges merged in results | Both entries are judges with one spelling. The results pages list each name once per panel role per round, so two namesakes on the same role read as one. Both `rounds_known` columns show the name's rounds, because the pages cannot say which judge sat. Different institutions are the best clue. |
+| `no_role` | row has no speaker or judge role, so no rounds | A participants row without a role column. |
+
+**What the hint does not do.** `suggested` never changes a count, a class or the `.txt` list. Only your `owner_verdict` does, through the list you edit by hand. One group can hold three or more entries. The sheet then shows the first pair the checker could not decide, and your verdict on that pair settles whether the name is one person or more. The sheet comes from `lib/identity/unknownRounds.ts`, and its tests are in `tests/identity.unknownRounds.test.ts`.
 
 ## 2. Before any re-ingest: what a re-ingest can and cannot fix
 

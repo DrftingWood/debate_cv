@@ -11,8 +11,11 @@
 //   --out <file>   the CSV. Default: <in>/identity-affected-tournaments.csv
 //   --list <file>  affected tournament URLs, one per line (the re-ingest input).
 //                  Default: <in>/identity-affected-tournaments.txt
+//   --unknown <file>  one row per 'rounds unknown' group, for deciding by
+//                  hand (lib/identity/unknownRounds.ts).
+//                  Default: <in>/identity-unknown-rounds.csv
 //
-// Both outputs default to the export folder, outside the repository: they
+// All outputs default to the export folder, outside the repository: they
 // hold participants' names, which are public tab data but have no business in
 // git. What is counted, and why: lib/identity/affectedTournaments.ts. How to
 // act on the result: docs/runbooks/identity-affected-tournaments.md.
@@ -32,13 +35,16 @@ const value = (name, fallback) => {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
 };
 if (args.includes('--help') || args.includes('-h')) {
-  console.log('node scripts/find-identity-affected-tournaments.mjs [--in <export dir>] [--out <csv>] [--list <txt>]');
+  console.log(
+    'node scripts/find-identity-affected-tournaments.mjs [--in <export dir>] [--out <csv>] [--list <txt>] [--unknown <csv>]',
+  );
   process.exit(0);
 }
 
 const inDir = resolve(value('--in', join(homedir(), 'Documents', 'source-docs')));
 const outCsv = resolve(value('--out', join(inDir, 'identity-affected-tournaments.csv')));
 const outList = resolve(value('--list', join(inDir, 'identity-affected-tournaments.txt')));
+const outUnknown = resolve(value('--unknown', join(inDir, 'identity-unknown-rounds.csv')));
 const indexPath = join(inDir, 'index.jsonl');
 if (!existsSync(indexPath)) {
   console.error(`No index.jsonl in ${inDir}. Pass the export folder with --in.`);
@@ -59,6 +65,7 @@ const vite = await createServer({
 
 try {
   const m = await vite.ssrLoadModule('/lib/identity/affectedTournaments.ts');
+  const unknown = await vite.ssrLoadModule('/lib/identity/unknownRounds.ts');
 
   const entries = [];
   let badLines = 0;
@@ -86,7 +93,8 @@ try {
     } catch (e) {
       error = e instanceof Error ? e.message.slice(0, 200) : String(e);
     }
-    reports.push({ base: t.base, host: t.host, slug: t.slug, pagesRead, findings, error });
+    const name = unknown.tournamentNameOf(t.landing, read);
+    reports.push({ base: t.base, host: t.host, slug: t.slug, pagesRead, findings, error, name });
     done += 1;
     if (done % 25 === 0) process.stdout.write(`\rread ${done} of ${tournaments.length} tournaments`);
   }
@@ -95,6 +103,8 @@ try {
   // names as UTF-8 rather than the ANSI code page.
   writeFileSync(outCsv, '﻿' + m.toCsv(reports));
   writeFileSync(outList, m.affectedList(reports) + '\n');
+  const unknownRows = unknown.unknownRoundsRows(reports);
+  writeFileSync(outUnknown, '﻿' + unknown.toUnknownRoundsCsv(unknownRows));
   const s = m.summarise(reports);
   const u = m.exportUrlStats(entries, tournaments);
   const t = (x) => `${x.tournaments} tournaments, ${x.groups} groups`;
@@ -127,7 +137,9 @@ Tournaments with no results page: ${s.withoutResultsPages}   (judge rounds unkno
 Tournaments that failed to parse: ${s.errors}
 
 CSV:  ${outCsv}
-List: ${outList}`);
+List: ${outList}
+Rounds-unknown sheet: ${outUnknown}
+  ${unknownRows.length} rows, one per undecided group; fill owner_verdict with one / two`);
 } finally {
   await vite.close();
 }
