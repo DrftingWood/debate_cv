@@ -88,3 +88,24 @@ export function nameProximity(registrationName: string, profileName: string): Na
   if (surnameAgrees(ta[ta.length - 1], tb[0]) && firstNameAgrees(ta[0], tb[tb.length - 1])) return 'close';
   return 'different';
 }
+
+export type ProximityToYou = NameProximity | 'unknown';
+
+/**
+ * How a name found on one of the user's private URLs relates to who the user
+ * is, judged against every name we hold for them: their Google profile name
+ * and the names they have already claimed. The best answer wins, so a user who
+ * plays under "Abhi A" and has claimed that name is not flagged for it. With
+ * no reference name at all the answer is 'unknown', not 'different'.
+ */
+export function proximityToYou(name: string, references: ReadonlyArray<string | null | undefined>): ProximityToYou {
+  const refs = references.filter((r): r is string => typeof r === 'string' && r.trim() !== '');
+  if (refs.length === 0) return 'unknown';
+  let best: NameProximity = 'different';
+  for (const ref of refs) {
+    const p = nameProximity(name, ref);
+    if (p === 'match') return 'match';
+    if (p === 'close') best = 'close';
+  }
+  return best;
+}
