@@ -172,7 +172,7 @@ describe('drainQueue — per-job deadline', () => {
     return { now: () => t, advance: (ms: number) => (t += ms) };
   }
   class DeadlineError extends Error {
-    name = 'IngestDeadlineError';
+    override name = 'IngestDeadlineError';
   }
   const isDeadline = (e: unknown) => e instanceof DeadlineError;
 
