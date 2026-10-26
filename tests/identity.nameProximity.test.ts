@@ -44,3 +44,18 @@ describe('nameProximity', () => {
     expect(nameProximity('Abhishek Acharya', '   ')).toBe('different');
   });
 });
+
+import { proximityToYou } from '@/lib/identity/nameProximity';
+
+describe('proximityToYou', () => {
+  it('is unknown with no reference name, not different', () => {
+    expect(proximityToYou('Abhishek Acharya', [])).toBe('unknown');
+    expect(proximityToYou('Abhishek Acharya', [null, undefined, '  '])).toBe('unknown');
+  });
+
+  it('takes the best answer over the profile name and the names already claimed', () => {
+    expect(proximityToYou('Abhi A', ['Abhishek Acharya', 'Abhi A'])).toBe('match');
+    expect(proximityToYou('A. Acharya', ['Rohit Sharma', 'Abhishek Acharya'])).toBe('close');
+    expect(proximityToYou('Priya Nair', ['Abhishek Acharya', 'Abhi A'])).toBe('different');
+  });
+});

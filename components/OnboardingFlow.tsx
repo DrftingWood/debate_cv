@@ -26,7 +26,14 @@ type PreflightResponse = {
   errors: { url: string; error: string }[];
 };
 type NamesResponse = {
-  names: { displayName: string; normalizedName: string; urlCount: number; isMine: boolean }[];
+  names: {
+    displayName: string;
+    normalizedName: string;
+    urlCount: number;
+    isMine: boolean;
+    /** How close the name is to the user's Google name or a name they already claimed. */
+    proximity: 'match' | 'close' | 'different' | 'unknown';
+  }[];
   totals: { urls: number; named: number; unknown: number; failed: number };
 };
 
@@ -118,7 +125,9 @@ export function OnboardingFlow({
       setSelected(
         new Set(
           (res.names ?? [])
-            .filter((n: { isMine: boolean }) => n.isMine)
+            // Already mine, or a name that looks like the user's Google name.
+            // A name that does not is never pre-ticked.
+            .filter((n: { isMine: boolean; proximity: string }) => n.isMine || n.proximity === 'match' || n.proximity === 'close')
             .map((n: { normalizedName: string }) => n.normalizedName),
         ),
       );
@@ -328,6 +337,10 @@ export function OnboardingFlow({
                           <span className="font-medium text-ink">{n.displayName}</span>
                           {n.isMine ? (
                             <Badge variant="success">Already mine</Badge>
+                          ) : n.proximity === 'close' ? (
+                            <Badge variant="neutral">Close to your Google name</Badge>
+                          ) : n.proximity === 'different' ? (
+                            <Badge variant="warning">Not like your Google name</Badge>
                           ) : null}
                         </span>
                         <span className="whitespace-nowrap text-caption text-ink-soft">
@@ -339,6 +352,13 @@ export function OnboardingFlow({
                 })}
               </ul>
             )}
+
+            {names.some((n) => selected.has(n.normalizedName) && !n.isMine && n.proximity === 'different') ? (
+              <p role="status" className="text-caption text-warning">
+                You ticked a name that does not look like your Google name. A private URL is a personal link, so tick it
+                only if it really is you.
+              </p>
+            ) : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <p className="text-caption text-ink-soft">
