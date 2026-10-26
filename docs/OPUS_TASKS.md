@@ -76,6 +76,19 @@ Step 1, before any build: count rows per table from the existing corpus export, 
 
 Done when: the size estimate is written up and the owner picks scope. Only then design the schema and the match flow.
 
+## B10. Scrape Yellow Tab tournaments
+
+**Status (2026-10-26): open, untested.** Yellow Tab tournaments (hosted on `*.yellowtabs.com`, for example `cnlupd.yellowtabs.com/cnlupd26/`) are expected to share Calicotab's page structure, since both are Tabbycat installs, but nothing has been run against them. The two spreadsheets the pre-scrape lists came from hold exactly one such link, so the count is small today; the host is allowed nowhere yet, so a pasted or emailed Yellow Tab URL is refused.
+
+Approach, smallest step first:
+- Fetch one Yellow Tab tournament by hand (landing, team tab, speaker tab, one results round, motions) and diff the HTML against a Calicotab fixture. Record any difference in the markup or the URL shape.
+- If it parses as is: add `.yellowtabs.com` to the host allowlist (`ALLOWED_TAB_HOST_SUFFIXES` in `lib/gmail/extract.ts`, the private-URL matcher beside it, and the redirect check in `lib/calicotab/fetch.ts`), then run the pre-scrape smoke mode on that tournament against a throwaway database.
+- If not: list the parser differences and decide whether they belong in the existing parsers or in a host adapter.
+
+Care: the allowlist is the SSRF defence. A suffix match on `.yellowtabs.com` must keep the existing tests that reject `a.yellowtabs.com.evil.example`; add the same cases for the new suffix.
+
+Done when: one real Yellow Tab tournament loads end to end with the same rows a Calicotab one produces, the allowlist tests cover the new host, and the owner has seen it on a record.
+
 ## C1. Outround motions on the /cv round ledger
 
 **Status (2026-10-25): built on `opus/outround-motions`.** Outround motions are stored with `roundNumber` null and only a label, while the ledger matched motions by round number, so outround rows never showed a motion (525 of 1,023 on the seeded record).
