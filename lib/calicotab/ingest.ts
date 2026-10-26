@@ -122,6 +122,12 @@ type FetchedTabs = {
   motions: ReturnType<typeof parseMotionsTab>;
   tournamentName: string;
   totalParticipants: number | null;
+  /**
+   * Whether totalParticipants was counted from the participants list (page or
+   * API) rather than from the landing card / speaker rows it falls back to.
+   * The regression guard only compares like with like; see checkRegressionGuard.
+   */
+  participantsFromList: boolean;
   totalTeams: number | null;
   prelimRoundCount: number | null;
   format: ReturnType<typeof inferTournamentFormat>;
@@ -676,8 +682,9 @@ async function checkCacheFreshness(
   const { landingDoc, landingHtml, snapshot, existing, urlVariants, tournamentFingerprint, parseStart, landingWarnings } = loaded;
   if (!existing || options.force) return { kind: 'miss' };
 
-  // 30 days for any tournament; a year for a settled one (an earlier year's),
-  // so a pre-scraped tournament is served from storage (lib/calicotab/prescrape.ts).
+  // Age does not matter: any stored row is fresh unless Re-ingest all marked
+  // it with an epoch scrapedAt (lib/calicotab/prescrape.ts). Incomplete data
+  // is caught by the parser-version, round-count and released-tab checks below.
   const fresh = storedTournamentFresh(existing);
   // Reparse invalidation: was the stored data produced by the current
   // PARSER_VERSION? Tournament-scoped via Tournament.parserVersion — the
@@ -1005,6 +1012,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const motions = motionsHtml ? parseMotionsTab(motionsHtml) : [];
   const tournamentName = snapshot.tournamentName ?? loaded.tournamentSlug ?? 'Unknown tournament';
   const totalParticipants = mergedParticipantRows.length || speakerRows.length || null;
+  const participantsFromList = participantRows.length > 0;
   const totalTeams = teamRows.length || null;
 
   // Authoritative prelim round count: how many of the parsed rounds turned
@@ -1058,6 +1066,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     motions,
     tournamentName,
     totalParticipants,
+    participantsFromList,
     totalTeams,
     prelimRoundCount,
     format,
@@ -1113,14 +1122,36 @@ async function checkRegressionGuard(
   const newTeams = fetched.totalTeams ?? 0;
   const newParticipants = fetched.totalParticipants ?? 0;
   const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
-  const participantsDropped = oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
+  // totalParticipants has two sources: the participants list (speakers AND
+  // adjudicators) when it loads, else the speaker rows (or a lone landing
+  // card). The stored figure does not say which source it came from, so a
+  // re-scrape whose participants page is withheld would compare a speaker
+  // count against a stored speakers-plus-judges count and could block a
+  // healthy re-ingest. Only compare when this parse counted from the list:
+  // the stored figure is then either a list count (like for like) or a
+  // speaker count, which a healthy list never falls below. When the list is
+  // missing, a degraded speaker tab is still caught by the rank check below.
+  const participantsDropped =
+    fetched.participantsFromList && oldParticipants > 5 && newParticipants < oldParticipants * 0.5;
 
   // Speaker-rank regression: count old participants with a known rank vs
-  // how many of this parse's speakerRows actually carry a rank.
+  // how many people this parse would write a rank for. That is one per
+  // distinct name, not one per row (an iron-man has a row per team but one
+  // participant), and never an unclaimed stand-in such as "Speaker 1",
+  // whose rows are not written (preCommitPeopleAndBuildIndex) and so would
+  // otherwise prop up the new count against a real drop.
   const oldRankCount = await prisma.tournamentParticipant.count({
     where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
   });
-  const newRankCount = fetched.speakerRows.filter((r) => r.rank != null).length;
+  const claimedStandIns = await claimedPlaceholderNorms(fetched.speakerRows.map((r) => r.speakerName));
+  const rankedNames = new Set<string>();
+  for (const r of fetched.speakerRows) {
+    if (r.rank == null) continue;
+    const norm = normalizePersonName(r.speakerName);
+    if (isPlaceholderPersonName(r.speakerName) && !claimedStandIns.has(norm)) continue;
+    rankedNames.add(norm);
+  }
+  const newRankCount = rankedNames.size;
   const ranksDropped = oldRankCount > 5 && newRankCount < oldRankCount * 0.5;
 
   if (!teamsDropped && !participantsDropped && !ranksDropped) {
@@ -1548,7 +1579,12 @@ async function writeIngestTransaction(
           speakerRankEsl: sp.rankEsl,
           speakerRankEfl: sp.rankEfl,
           speakerCategories: sp.categories,
-          teamBreakRank: sp.teamName ? (teamBreakRankByTeam.get(sp.teamName) ?? null) : null,
+          // The primary team's break rank, as on update: teamBreakRank is read
+          // beside teamName (lib/cv/teamPlacement.ts, /cv/verify), so the two
+          // must name the same team. An iron-man's first row used to create
+          // with that row's own team; a later row's update then overwrote it
+          // in the same transaction, so stored rows already agree.
+          teamBreakRank: breakRankForTeam,
         },
       });
       await tx.participantRole.upsert({
@@ -1570,6 +1606,13 @@ async function writeIngestTransaction(
         speakerRoundScoreCreates.push({
           tournamentParticipantId: participant.id,
           roundNumber: rn,
+          // A blank cell (the speaker sat the round out, or the tab hides
+          // that score) is still written, as score null with label ''. It is
+          // intended: it records that the column exists for this speaker, and
+          // every score consumer (buildCvData, speakerStats, milestones,
+          // statsFacts, exportFields) filters score != null, so it never
+          // counts as a speech. Only /cv/verify's per-round list shows it,
+          // as "—".
           positionLabel: rs.positionLabel ?? '',
           score: rs.score as unknown as undefined,
         });

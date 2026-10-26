@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdapterAccount } from 'next-auth/adapters';
 
 /**
- * lib/auth.ts is NextAuth configuration plus two sign-in events that copy
- * Google's tokens into the encrypted GmailToken row. The adapter wrapper has
+ * lib/auth.ts is NextAuth configuration plus a sign-in event that copies
+ * Google's tokens into the encrypted GmailToken row when the adapter has not
+ * just done so. The adapter wrapper has
  * its own suite (authAdapter.test.ts); this one pins the rest: the Google
  * provider's scope and offline-access settings, the database session
  * strategy, the adapter's error hook, and the userId fallback chain inside
@@ -46,7 +47,6 @@ import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 import '@/lib/auth';
 
 type Events = {
-  linkAccount: (args: { user: Record<string, unknown>; account: Record<string, unknown> }) => Promise<void>;
   signIn: (args: {
     user: Record<string, unknown>;
     account: Record<string, unknown> | null;
@@ -100,19 +100,26 @@ describe('NextAuth configuration', () => {
     const adapter = h.config!.adapter as { linkAccount: (a: AdapterAccount) => Promise<unknown> };
     await adapter.linkAccount({ ...googleAccount(), userId: 'user-1' } as AdapterAccount);
     expect(h.baseLinkAccount).toHaveBeenCalledTimes(1);
+    // Wording changed from "linked without Gmail access" when the adapter and
+    // events.signIn started sharing one reporter (reportTokenSaveFailure).
     expect(console.error).toHaveBeenCalledWith(
-      '[auth.linkAccount] could not save the encrypted Gmail token; linked without Gmail access',
+      '[auth.linkAccount] could not save the encrypted Gmail token; signed in without Gmail access',
       { userId: 'user-1', message: 'bad TOKEN_ENCRYPTION_KEY' },
     );
     expect(h.captureException).toHaveBeenCalledWith(boom, { tags: { area: 'auth.linkAccount' } });
   });
+
+  it('registers no linkAccount event (it only repeated the adapter save)', () => {
+    expect(Object.keys(h.config!.events as object)).toEqual(['signIn']);
+  });
 });
 
-describe.each(['linkAccount', 'signIn'] as const)('events.%s', (name) => {
+// This suite used to run against events.linkAccount too. That event is gone:
+// it ran straight after the adapter's linkAccount with the same tokens, so it
+// was a second save of the same token on every first sign-in.
+describe.each(['signIn'] as const)('events.%s', (name) => {
   const run = (user: Record<string, unknown>, account: Record<string, unknown>, profile?: Record<string, unknown>) =>
-    name === 'signIn'
-      ? events().signIn({ user, account, profile })
-      : events().linkAccount({ user, account });
+    events().signIn({ user, account, profile });
 
   it('persists tokens under user.id when NextAuth supplies it, with no lookups', async () => {
     await run({ id: 'user-1', email: 'a@example.com' }, googleAccount());
@@ -197,8 +204,93 @@ describe('events.signIn only', () => {
     expect(h.persist).not.toHaveBeenCalled();
   });
 
-  it('a persist failure inside the event propagates (unlike the adapter path)', async () => {
+  it('a persist failure inside the event is reported, not thrown (same as the adapter path)', async () => {
+    // Previously pinned as propagating. Auth.js wraps events and would only
+    // log the throw to its own logger, so it never reached Sentry; the
+    // adapter path already caught and reported. Both now behave the same.
+    const boom = new Error('db down');
+    h.persist.mockRejectedValueOnce(boom);
+    await expect(events().signIn({ user: { id: 'user-1' }, account: googleAccount() })).resolves.toBeUndefined();
+    expect(console.error).toHaveBeenCalledWith(
+      '[auth.signIn] could not save the encrypted Gmail token; signed in without Gmail access',
+      { userId: 'user-1', message: 'db down' },
+    );
+    expect(h.captureException).toHaveBeenCalledWith(boom, { tags: { area: 'auth.signIn' } });
+  });
+
+  it('the failure report carries no token', async () => {
     h.persist.mockRejectedValueOnce(new Error('db down'));
-    await expect(events().signIn({ user: { id: 'user-1' }, account: googleAccount() })).rejects.toThrow('db down');
+    await events().signIn({
+      user: { id: 'user-1' },
+      account: googleAccount({ access_token: 'AT-very-secret', refresh_token: 'RT-very-secret' }),
+    });
+    const reported = JSON.stringify([
+      vi.mocked(console.error).mock.calls,
+      vi.mocked(console.info).mock.calls,
+      h.captureException.mock.calls.map(([e, ctx]) => [String(e), ctx]),
+    ]);
+    expect(reported).not.toContain('very-secret');
+  });
+});
+
+/**
+ * Which sign-ins save a token, replaying the order Auth.js 5.0.0-beta.25
+ * calls things in (@auth/core lib/actions/callback): adapter.linkAccount only
+ * when the Google account is not linked yet, then events.signIn on every
+ * OAuth callback. Before this, a first sign-in saved the same token three
+ * times (adapter, events.linkAccount, events.signIn).
+ */
+describe('one token save per sign-in', () => {
+  const adapter = () => h.config!.adapter as { linkAccount: (a: AdapterAccount) => Promise<unknown> };
+
+  it('first sign-in (or re-link after disconnect): the adapter saves, signIn does not save again', async () => {
+    const account = googleAccount({ access_token: 'AT-first' });
+    await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
+    await events().signIn({ user: { id: 'user-1' }, account });
+    expect(h.persist).toHaveBeenCalledTimes(1);
+    expect(h.persist).toHaveBeenCalledWith('user-1', expect.objectContaining({ access_token: 'AT-first' }));
+  });
+
+  it('returning user (Account already linked, no adapter call): signIn is the one save', async () => {
+    await events().signIn({ user: { id: 'user-1' }, account: googleAccount({ access_token: 'AT-returning' }) });
+    expect(h.persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("the adapter's mark is consumed: the next sign-in with the same token saves again", async () => {
+    const account = googleAccount({ access_token: 'AT-consumed' });
+    await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
+    await events().signIn({ user: { id: 'user-1' }, account });
+    await events().signIn({ user: { id: 'user-1' }, account });
+    expect(h.persist).toHaveBeenCalledTimes(2);
+  });
+
+  it('a different token after an adapter save is not skipped', async () => {
+    await adapter().linkAccount({ ...googleAccount({ access_token: 'AT-old' }), userId: 'user-1' } as AdapterAccount);
+    await events().signIn({ user: { id: 'user-1' }, account: googleAccount({ access_token: 'AT-new' }) });
+    expect(h.persist).toHaveBeenCalledTimes(2);
+    expect(h.persist).toHaveBeenLastCalledWith('user-1', expect.objectContaining({ access_token: 'AT-new' }));
+  });
+
+  it('if the adapter save failed, signIn tries once more, and neither failure breaks sign-in', async () => {
+    h.persist.mockRejectedValueOnce(new Error('blip')).mockRejectedValueOnce(new Error('blip again'));
+    const account = googleAccount({ access_token: 'AT-retry' });
+    await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
+    await expect(events().signIn({ user: { id: 'user-1' }, account })).resolves.toBeUndefined();
+    expect(h.persist).toHaveBeenCalledTimes(2);
+    expect(h.captureException).toHaveBeenCalledTimes(2);
+    expect(h.baseLinkAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it('the mark expires after a minute, so a stale one cannot suppress a later save', async () => {
+    vi.useFakeTimers();
+    try {
+      const account = googleAccount({ access_token: 'AT-stale' });
+      await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
+      vi.advanceTimersByTime(61_000);
+      await events().signIn({ user: { id: 'user-1' }, account });
+      expect(h.persist).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

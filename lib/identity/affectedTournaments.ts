@@ -51,30 +51,38 @@ import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/
  * exactly one class, judged against what ingest actually writes:
  *
  *   sameRole  — two speaker rows, or two adjudicator rows, with one key and a
- *               different team or institution. The real collision: the
+ *               different team or institution. A real collision: the
  *               speaker loop upserts both onto one (tournamentId, personId)
  *               TournamentParticipant, the second overwriting the first's
  *               team, rank and total; and participantByName keeps only the
  *               last adjudicator row, so the other judge gets no row at all.
  *   crossRole — a speaker row and an adjudicator (or other) row with one
- *               key, and no same-role pair. NOT a namesake collision as
- *               ingest models people: one Person, one TournamentParticipant,
- *               and ParticipantRole is keyed (tournamentParticipantId, role),
- *               so a speaker who also judges legitimately holds both roles.
- *               Whether the two rows are one human or two cannot be told
- *               from the key, and phase 7 does not change that.
+ *               key, and no same-role pair. Also a real collision. The
+ *               owner's domain rule: nobody is both a speaker and a judge at
+ *               one tournament, so a key on both lists is two people
+ *               (namesakes), not one participant holding two roles. ingest
+ *               still gives them one Person and one TournamentParticipant,
+ *               and participantByName keeps only one of the two rows (see
+ *               judgeRoleDropped below). An 'other' row (no role column, no
+ *               section title) is counted the same way, conservatively.
+ *               `crossRoleInstitution` says whether the speaker and judge
+ *               rows name the same institution: the one case where a data
+ *               error rather than a namesake is plausible, kept apart so the
+ *               owner can eyeball it.
  *   duplicate — the same role with the same team and institution: one
  *               person listed twice (a second table on the page, a split
  *               category tab), not a namesake.
  *
- * Separately, `judgeRoleDropped` flags a participants-list group where
- * participantByName (Map.set, last row wins) ends on a non-adjudicator row
- * while an adjudicator row shares the key. ingest then writes no judge role
- * for that key, because the adjudicator loop only reads rows still marked
- * adjudicator. Tabbycat lists the Adjudicators table before the Speakers
- * table, so a person on both loses the judge role today. That is a v1 bug
- * in its own right, not a namesake merge, so it is reported but does not
- * make a tournament "affected".
+ * `judgeRoleDropped` flags a participants-list group where participantByName
+ * (Map.set, last row wins) ends on a non-adjudicator row while an
+ * adjudicator row shares the key: ingest writes no judge role for that key,
+ * because the adjudicator loop only reads rows still marked adjudicator.
+ * Tabbycat lists the Adjudicators table before the Speakers table, so the
+ * speaker row usually wins. Under the owner's rule this is not a separate
+ * bug: it is how the cross-role collision shows up, the judge namesake
+ * losing their row to the speaker namesake. Every such key is already a
+ * cross-role (or same-role) group, so it adds nothing to "affected"; it is
+ * reported as the count of keys where the merge visibly lost the judge.
  */
 
 export type DocumentKind = 'teamTab' | 'speakerTab' | 'participants' | 'apiTeams' | 'apiAdjudicators';
@@ -242,9 +250,18 @@ export type SharedKey = {
   sources: string[];
   /** The strongest class any one list showed (sameRole > crossRole > duplicate). */
   class: SharedKeyClass;
-  /** The participants merge leaves this key with no adjudicator row. */
+  /** The participants merge leaves this key with no adjudicator row (a symptom of the collision). */
   judgeRoleDropped: boolean;
+  /**
+   * For a key that some list holds under two roles: whether a speaker row
+   * and a judge row name the same institution ('same'), only different ones
+   * ('different'), or one side names none ('unknown'). null when no list
+   * held the key under two roles.
+   */
+  crossRoleInstitution: InstitutionMatch | null;
 };
+
+export type InstitutionMatch = 'same' | 'different' | 'unknown';
 
 export type TournamentFindings = {
   /** (a) Distinct raw names with letters whose v1 key is empty. */
@@ -254,14 +271,39 @@ export type TournamentFindings = {
 };
 
 type Role = ParticipantsRow['role'];
-type Entry = { name: string; identity: string; role: Role; affiliation: string };
+type Entry = { name: string; identity: string; role: Role; affiliation: string; institution: string };
 
 const CLASS_RANK: Record<SharedKeyClass, number> = { duplicate: 0, crossRole: 1, sameRole: 2 };
+const MATCH_RANK: Record<InstitutionMatch, number> = { unknown: 0, different: 1, same: 2 };
 
-/** Team and institution, spelled loosely enough that one team reads as one. */
+/** Spelled loosely enough that one team or institution reads as one. */
+function loose(s: string | null | undefined): string {
+  return cleanName(s ?? '').toLowerCase();
+}
+
+/** Team and institution together. */
 function affiliation(team: string | null | undefined, institution: string | null | undefined): string {
-  const norm = (s: string | null | undefined) => cleanName(s ?? '').toLowerCase();
-  return JSON.stringify([norm(team), norm(institution)]);
+  return JSON.stringify([loose(team), loose(institution)]);
+}
+
+/**
+ * Do rows of different roles in one group name the same institution? 'same'
+ * if any such pair shares a non-empty institution, else 'different' if some
+ * pair names two different ones, else 'unknown' (no pair names both). null
+ * when the group holds only one role.
+ */
+function institutionMatch(rows: Entry[]): InstitutionMatch | null {
+  let best: InstitutionMatch | null = null;
+  for (const a of rows) {
+    for (const b of rows) {
+      // Each unordered pair of different roles once.
+      if (a.role >= b.role) continue;
+      const m: InstitutionMatch =
+        !a.institution || !b.institution ? 'unknown' : a.institution === b.institution ? 'same' : 'different';
+      if (best === null || MATCH_RANK[m] > MATCH_RANK[best]) best = m;
+    }
+  }
+  return best;
 }
 
 /**
@@ -303,6 +345,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
           identity: JSON.stringify([i, j]),
           role: 'speaker' as const,
           affiliation: affiliation(t.teamName, t.institution),
+          institution: loose(t.institution),
         })),
       ),
       mergedByName: false,
@@ -316,6 +359,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
         identity: JSON.stringify([r.speakerName, r.teamName, r.institution, r.rank, r.totalScore, r.roundScores.map((s) => s.score)]),
         role: 'speaker' as const,
         affiliation: affiliation(r.teamName, r.institution),
+        institution: loose(r.institution),
       })),
       mergedByName: false,
     });
@@ -328,6 +372,7 @@ function sourcesOf(lists: ParsedLists): Source[] {
       identity: JSON.stringify([r.name, r.role, r.judgeTag, r.teamName, r.institution]),
       role: r.role,
       affiliation: affiliation(r.teamName, r.institution),
+      institution: loose(r.institution),
     }));
   if (lists.participantRows) {
     sources.push({ source: 'participants', entries: fromParticipants(lists.participantRows), mergedByName: true });
@@ -375,12 +420,24 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
       const rows = [...g.rows.values()];
       const cls = classify(rows);
       const dropped = mergedByName && g.lastRole !== 'adjudicator' && rows.some((r) => r.role === 'adjudicator');
-      const s = shared.get(key) ?? { key, names: [], entries: 0, sources: [], class: cls, judgeRoleDropped: false };
+      const inst = institutionMatch(rows);
+      const s: SharedKey = shared.get(key) ?? {
+        key,
+        names: [],
+        entries: 0,
+        sources: [],
+        class: cls,
+        judgeRoleDropped: false,
+        crossRoleInstitution: null,
+      };
       s.names.push(...g.names.filter((n) => !s.names.includes(n)));
       s.entries = Math.max(s.entries, g.rows.size);
       s.sources.push(source);
       if (CLASS_RANK[cls] > CLASS_RANK[s.class]) s.class = cls;
       s.judgeRoleDropped ||= dropped;
+      if (inst && (s.crossRoleInstitution === null || MATCH_RANK[inst] > MATCH_RANK[s.crossRoleInstitution])) {
+        s.crossRoleInstitution = inst;
+      }
       shared.set(key, s);
     }
   }
@@ -405,13 +462,23 @@ function ofClass(r: TournamentReport, cls: SharedKeyClass): SharedKey[] {
   return r.findings.sharedKeys.filter((s) => s.class === cls);
 }
 
+/** A shared key that is two people merged into one: same-role or cross-role. */
+function isCollision(s: SharedKey): boolean {
+  return s.class === 'sameRole' || s.class === 'crossRole';
+}
+
 /**
- * Would a phase-7 re-ingest change this tournament? Only (a) and the real
- * namesake collisions count: a cross-role key is one participant with two
- * roles both before and after phase 7, and a duplicate row is one person.
+ * Would a phase-7 re-ingest change this tournament? (a), or any real
+ * collision: same-role, or cross-role (a speaker and a judge at one
+ * tournament are never one person). A duplicate row is one person and does
+ * not count.
  */
 export function isAffected(r: TournamentReport): boolean {
-  return r.findings.emptyKeyNames.length > 0 || ofClass(r, 'sameRole').length > 0;
+  return r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.some(isCollision);
+}
+
+function crossRoleWith(r: TournamentReport, m: InstitutionMatch): number {
+  return ofClass(r, 'crossRole').filter((s) => s.crossRoleInstitution === m).length;
 }
 
 export const CSV_HEADER = [
@@ -424,6 +491,9 @@ export const CSV_HEADER = [
   'shared_key_entries',
   'same_role_groups',
   'cross_role_groups',
+  'cross_role_same_institution',
+  'cross_role_different_institution',
+  'cross_role_unknown_institution',
   'duplicate_groups',
   'judge_role_dropped',
   'empty_key_examples',
@@ -435,6 +505,12 @@ export const CSV_HEADER = [
 const CLASS_LABEL: Record<SharedKeyClass, string> = { sameRole: 'same-role', crossRole: 'cross-role', duplicate: 'duplicate' };
 
 const MAX_EXAMPLES = 5;
+
+/** "cross-role, same institution" for cross-role groups, so the owner can scan for them. */
+function exampleLabel(s: SharedKey): string {
+  if (s.class !== 'crossRole' || !s.crossRoleInstitution) return CLASS_LABEL[s.class];
+  return `${CLASS_LABEL[s.class]}, ${s.crossRoleInstitution} institution`;
+}
 
 function csvCell(v: string | number | boolean | null): string {
   const s = v == null ? '' : String(v);
@@ -464,6 +540,9 @@ export function toCsv(reports: TournamentReport[]): string {
         f.sharedKeys.reduce((n, s) => n + s.entries, 0),
         ofClass(r, 'sameRole').length,
         ofClass(r, 'crossRole').length,
+        crossRoleWith(r, 'same'),
+        crossRoleWith(r, 'different'),
+        crossRoleWith(r, 'unknown'),
         ofClass(r, 'duplicate').length,
         f.sharedKeys.filter((s) => s.judgeRoleDropped).length,
         f.emptyKeyNames.slice(0, MAX_EXAMPLES).join(' | '),
@@ -471,7 +550,7 @@ export function toCsv(reports: TournamentReport[]): string {
         [...f.sharedKeys]
           .sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class])
           .slice(0, MAX_EXAMPLES)
-          .map((s) => `${s.names.join(' / ')} (x${s.entries}, ${CLASS_LABEL[s.class]}, ${s.sources.join('+')})`)
+          .map((s) => `${s.names.join(' / ')} (x${s.entries}, ${exampleLabel(s)}, ${s.sources.join('+')})`)
           .join(' | '),
         r.pagesRead.join(' '),
         r.error ?? null,
@@ -488,13 +567,20 @@ export type Tally = { tournaments: number; groups: number };
 
 export type Summary = {
   tournaments: number;
+  /** The union: tournaments with (a), a same-role or a cross-role group, each counted once. */
   affected: number;
+  /** Tournaments with a same-role or a cross-role group, each counted once. */
+  withCollision: number;
   withEmptyKey: number;
   withSharedKey: number;
   emptyKeyNames: number;
   sharedKeyGroups: number;
   sameRole: Tally;
   crossRole: Tally;
+  /** The cross-role groups split by whether speaker and judge share an institution. */
+  crossRoleSameInstitution: Tally;
+  crossRoleDifferentInstitution: Tally;
+  crossRoleUnknownInstitution: Tally;
   duplicate: Tally;
   judgeRoleDropped: Tally;
   errors: number;
@@ -509,12 +595,16 @@ export function summarise(reports: TournamentReport[]): Summary {
   return {
     tournaments: reports.length,
     affected: reports.filter(isAffected).length,
+    withCollision: reports.filter((r) => r.findings.sharedKeys.some(isCollision)).length,
     withEmptyKey: reports.filter((r) => r.findings.emptyKeyNames.length > 0).length,
     withSharedKey: reports.filter((r) => r.findings.sharedKeys.length > 0).length,
     emptyKeyNames: reports.reduce((n, r) => n + r.findings.emptyKeyNames.length, 0),
     sharedKeyGroups: reports.reduce((n, r) => n + r.findings.sharedKeys.length, 0),
     sameRole: tally(reports, (s) => s.class === 'sameRole'),
     crossRole: tally(reports, (s) => s.class === 'crossRole'),
+    crossRoleSameInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'same'),
+    crossRoleDifferentInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'different'),
+    crossRoleUnknownInstitution: tally(reports, (s) => s.class === 'crossRole' && s.crossRoleInstitution === 'unknown'),
     duplicate: tally(reports, (s) => s.class === 'duplicate'),
     judgeRoleDropped: tally(reports, (s) => s.judgeRoleDropped),
     errors: reports.filter((r) => r.error).length,

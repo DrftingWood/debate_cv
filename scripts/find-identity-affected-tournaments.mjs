@@ -107,13 +107,17 @@ Tournament URLs with a tab page: ${u.tournamentUrls} (on ${u.hosts} hosts)
   see the runbook, "Why the export total is not the Tournament count".
 
 Tournaments with a tab page:     ${s.tournaments}
-Affected (a or real collision):  ${s.affected} of ${s.tournaments}
+Affected (a or real collision):  ${s.affected} of ${s.tournaments}   (union; each tournament counted once)
   (a) names with an empty key:   ${s.withEmptyKey} tournaments, ${s.emptyKeyNames} names
   (b) shared key in one list:    ${t({ tournaments: s.withSharedKey, groups: s.sharedKeyGroups })}
-      real namesake collisions:  ${t(s.sameRole)}   (same role, different team or institution)
-      cross-role:                ${t(s.crossRole)}   (speaker and judge: one participant, two roles; not counted)
+      real collisions (same-role or cross-role): ${s.withCollision} tournaments
+      same-role:                 ${t(s.sameRole)}   (same role, different team or institution; counted)
+      cross-role:                ${t(s.crossRole)}   (speaker and judge: two people, never one; counted)
+        same institution:        ${t(s.crossRoleSameInstitution)}   (eyeball these: the only case where one person is plausible)
+        different institution:   ${t(s.crossRoleDifferentInstitution)}
+        institution unknown:     ${t(s.crossRoleUnknownInstitution)}   (one side names no institution)
       duplicate rows:            ${t(s.duplicate)}   (same role, same team and institution; not counted)
-  judge role dropped by the participants merge: ${t(s.judgeRoleDropped)} (a separate v1 bug; not counted)
+  judge role dropped by the participants merge: ${t(s.judgeRoleDropped)} (how a cross-role collision shows today; same cause, already in Affected)
 Tournaments that failed to parse: ${s.errors}
 
 CSV:  ${outCsv}
