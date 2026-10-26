@@ -106,7 +106,9 @@ Done when: tests cover each rule (`tests/cv.roundLedger.test.ts`), and the owner
 
 ## Q1. Code-standards changes (queued: start only after the database fixes)
 
-**Status (2026-10-26): queued, not started.** The owner asked for this to be a to-do and picked up after the database changes (docs/DATABASE_REVIEW-2026-10-26.md). Research and the comparison are written: `docs/CODE_STANDARDS_REVIEW-2026-10-26.md` (with the cited checklist and the counted metrics beside it). Do not start any of it while a database fix is in flight.
+**Status (2026-10-27): phase 1 done; phases 2 to 4 not started.** Phase 1 is the compiler flags, the five lint rules as warnings and the escape-hatch ratchet (`npm run ratchet`). The baseline counts are in `docs/CODE_STANDARDS_BASELINE-2026-10-27.md`: 345 size and complexity warnings, plus 0 `any`, 7 `as unknown as`, 75 non-null `!` and 4 unexplained `eslint-disable`.
+
+**Earlier status (2026-10-26): queued, not started.** The owner asked for this to be a to-do and picked up after the database changes (docs/DATABASE_REVIEW-2026-10-26.md). Research and the comparison are written: `docs/CODE_STANDARDS_REVIEW-2026-10-26.md` (with the cited checklist and the counted metrics beside it). Do not start any of it while a database fix is in flight.
 
 Phases, in order, one small PR each:
 1. Cheap settings: `noFallthroughCasesInSwitch` and `noImplicitOverride`; ESLint `max-lines`, `max-lines-per-function`, `complexity`, `max-params`, `max-depth` as warnings to create a baseline; a written ratchet (no new `any`, `as unknown as`, `!` or unexplained `eslint-disable`).
