@@ -437,11 +437,22 @@ export async function storeSourceDocument(
 ): Promise<{ id: string; contentHash: string; contentLength: number }> {
   const contentHash = sha256Hex(body);
   const contentLength = Buffer.byteLength(body, 'utf8');
-  const bodyGzip = contentLength <= MAX_STORED_BODY_BYTES ? gzipSync(body) : null;
+  // The page body is kept in the database only when STORE_SOURCE_BODIES=1.
+  // By default it is not: nothing in the app reads it back, it was 217 MB of the
+  // 550 MB on 2026-10-26, and the owner keeps a local copy instead
+  // (scripts/export-source-documents.mjs, docs/runbooks/source-document-bodies.md).
+  // The row itself (url, hash, length, status, fetch time) is still written, so
+  // the provenance trail and the unchanged-page dedup are unaffected.
+  const keepBody = process.env.STORE_SOURCE_BODIES === '1' && contentLength <= MAX_STORED_BODY_BYTES;
+  const bodyGzip = keepBody ? gzipSync(body) : null;
 
   const doc = await prisma.sourceDocument.upsert({
     where: { url_contentHash: { url, contentHash } },
-    update: { fetchedAt: new Date(), status, contentLength, bodyGzip },
+    // When bodies are off, leave an existing body alone rather than null it:
+    // clearing is a deliberate, separate step.
+    update: keepBody
+      ? { fetchedAt: new Date(), status, contentLength, bodyGzip }
+      : { fetchedAt: new Date(), status, contentLength },
     create: { url, contentHash, contentLength, status, bodyGzip },
   });
   return { id: doc.id, contentHash, contentLength };
