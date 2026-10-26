@@ -1,6 +1,6 @@
 # Paste-a-URL ingest: threat model (draft for the owner)
 
-Goal: let a signed-in user add a tournament by pasting their private tab URL, so the app no longer needs the Gmail read scope (Google's restricted-scope verification is the blocker for wider use). This note is written before any code change, as `docs/OPUS_TASKS.md` asks.
+Goal: let a signed-in user add a tournament by pasting their private tab URL or uploading a CSV of them. The Gmail read stays (owner decision, below), so this is an extra route and does not by itself avoid Google's restricted-scope verification. This note is written before any code change, as `docs/OPUS_TASKS.md` asks.
 
 ## What already exists
 
@@ -38,12 +38,18 @@ A capability URL: whoever holds it can read one person's private page in one tou
 2. Gmail scanning becomes optional or is removed, depending on question C. Removing it lets the `gmail.readonly` scope go and avoids the verification.
 3. The queue path stays for tournaments too slow for one request.
 
-## Open questions for the owner
+## Owner's answers (2026-10-26)
 
-- A. Identity claims: is "holding the private URL" enough to claim the person, as now, or should a name match against the Google profile also be required?
-- B. Retention: delete the stored private URL once the ingest succeeds and the person is linked (re-ingest then needs the user to paste again), or keep it?
-- C. Gmail: keep it as an optional second route, or remove it with the scope?
-- D. Limits: daily cap per user, and how many URLs per paste?
+- A. Identity claims: a name close to the user's Google profile name is acceptable proof. For URLs found by the Gmail scan, the registration name must match or be close to the profile name (fuzzy, so nicknames and initials still pass). Add an option to upload a CSV of URLs.
+- B. Retention: not yet answered. Proposed default: delete the stored private URL once the ingest succeeds and the person is linked.
+- C. Gmail: keep the Gmail read (and its scope) as a route alongside paste and CSV.
+- D. Limits: keep the daily cap per user, and 20 URLs per paste (the CSV upload is capped the same).
+
+### Consequences for the build
+
+1. Name proximity check: a pure, tested function comparing the registration name with the Google profile name (case, accents, word order, initials). Below the threshold the URL is held for confirmation instead of linked.
+2. CSV upload: one URL per row (or a column named url), at most 20 usable rows, each validated exactly like a single paste, with a per-row result.
+3. Gmail stays. Because it stays, the restricted-scope verification is not avoided by this work; the paste and CSV routes are an addition.
 
 ## Done when
 
