@@ -38,6 +38,8 @@ export type RoundFact = {
   partnerGap: number | null;
   proAm: ProAm | null;
   motionType: MotionClass | null;
+  /** Approved subject-area tag shared by every motion released for the round, or none. Optional so older fixtures still type. */
+  motionTopic?: string | null;
   /** Any motion is known for the round — the info-slide and framing flags mean nothing without one. */
   hasMotion: boolean;
   /** Every motion released for the round was context-led. Independent of whether they share a type. */
@@ -165,15 +167,23 @@ function pairingFor(row: CvSpeakerRow) {
 
 /** A round's motion type: shared by every motion released for it, or none. */
 function motionFor(motions: CvTaggedMotion[]) {
-  if (motions.length === 0) return { motionType: null, hasMotion: false, contextLed: false, infoSlide: false };
+  if (motions.length === 0) {
+    return { motionType: null, motionTopic: null, hasMotion: false, contextLed: false, infoSlide: false };
+  }
   const classified = motions.map((m) => classifyMotion(m.text, m.infoSlide));
   const type = classified[0].type;
   // The flags don't wait for a shared type: a choice round where every
   // option came with an info slide was an info-slide round whichever the
   // room picked. Only the type needs the options to agree.
   const shared = type !== 'Unclassified' && classified.every((c) => c.type === type);
+  // The topic is the owner-approved tag, and only counts when every motion
+  // released for the round carries the same one (a choice round whose options
+  // disagree has no single topic).
+  const topics = new Set(motions.map((m) => m.topic));
+  const topic = topics.size === 1 ? [...topics][0] : null;
   return {
     motionType: shared ? type : null,
+    motionTopic: topic ?? null,
     hasMotion: true,
     contextLed: classified.every((c) => c.contextLed),
     infoSlide: classified.every((c) => c.infoSlide),
