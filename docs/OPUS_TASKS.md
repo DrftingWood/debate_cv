@@ -104,6 +104,18 @@ When unsure it shows no motion:
 
 Done when: tests cover each rule (`tests/cv.roundLedger.test.ts`), and the owner has checked an outround-heavy record on /cv.
 
+## Q1. Code-standards changes (queued: start only after the database fixes)
+
+**Status (2026-10-26): queued, not started.** The owner asked for this to be a to-do and picked up after the database changes (docs/DATABASE_REVIEW-2026-10-26.md). Research and the comparison are written: `docs/CODE_STANDARDS_REVIEW-2026-10-26.md` (with the cited checklist and the counted metrics beside it). Do not start any of it while a database fix is in flight.
+
+Phases, in order, one small PR each:
+1. Cheap settings: `noFallthroughCasesInSwitch` and `noImplicitOverride`; ESLint `max-lines`, `max-lines-per-function`, `complexity`, `max-params`, `max-depth` as warnings to create a baseline; a written ratchet (no new `any`, `as unknown as`, `!` or unexplained `eslint-disable`).
+2. Tests before refactors: `rateLimit`, `fetchSession`, the untested parts of `auth`; characterization tests around `buildCvData` and the ingest transaction.
+3. Structure, each with a short design note first: split `lib/calicotab/ingest.ts` (2,331 lines) and `buildCvData` (one function of about 939 lines) along real seams, one extraction per PR; type-aware strict linting in warning mode; `noUncheckedIndexedAccess` last.
+4. Platform upgrades as separate planned migrations: Next 16, Zod 4, TypeScript 6/7, Prisma 7 (heaviest).
+
+Done when: the warnings baseline is recorded and falling, the named modules have tests, `ingest.ts` and `buildCvData` are split with the suite green at every step, and the owner has decided the upgrade order.
+
 ## Parked (backlog sections C and D)
 
 Not in scope until A and B are clear.
