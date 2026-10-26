@@ -106,7 +106,9 @@ Done when: tests cover each rule (`tests/cv.roundLedger.test.ts`), and the owner
 
 ## Q1. Code-standards changes (queued: start only after the database fixes)
 
-**Status (2026-10-27): phase 1 done; phases 2 to 4 not started.** Phase 1 is the compiler flags, the five lint rules as warnings and the escape-hatch ratchet (`npm run ratchet`). The baseline counts are in `docs/CODE_STANDARDS_BASELINE-2026-10-27.md`: 345 size and complexity warnings, plus 0 `any`, 7 `as unknown as`, 75 non-null `!` and 4 unexplained `eslint-disable`.
+**Status (2026-10-27, later): phase 1b in review (PR open, not merged).** Written standards (`docs/CODING_STANDARDS.md`, 40 rules, each with its enforcement), a CI workflow (`.github/workflows/ci.yml`: blocking `verify` job running typecheck, lint, tests, the ratchet and `next build`; a non-blocking `report` job running knip, jscpd, dependency-cruiser, Prettier, `npm audit` and gitleaks), a PR template, `noUnusedLocals` and `noUnusedParameters` (0 errors), and a lint error against `new PrismaClient` outside `lib/db.ts`. The plan, the one-time GitHub settings the owner has to make (require `verify` on `main`) and the graduation rule are in `docs/CI_PLAN-2026-10-27.md`; the report-only numbers are a new section of `docs/CODE_STANDARDS_BASELINE-2026-10-27.md`. Phase 2's tests landed in #169.
+
+**Earlier status (2026-10-27): phase 1 done; phases 2 to 4 not started.** Phase 1 is the compiler flags, the five lint rules as warnings and the escape-hatch ratchet (`npm run ratchet`). The baseline counts are in `docs/CODE_STANDARDS_BASELINE-2026-10-27.md`: 345 size and complexity warnings, plus 0 `any`, 7 `as unknown as`, 75 non-null `!` and 4 unexplained `eslint-disable`.
 
 **Earlier status (2026-10-26): queued, not started.** The owner asked for this to be a to-do and picked up after the database changes (docs/DATABASE_REVIEW-2026-10-26.md). Research and the comparison are written: `docs/CODE_STANDARDS_REVIEW-2026-10-26.md` (with the cited checklist and the counted metrics beside it). Do not start any of it while a database fix is in flight.
 

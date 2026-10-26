@@ -1,0 +1,163 @@
+# Pull-request and main-branch checks (Q1 phase 1b). What runs here, which
+# checks block and which only report, and how a check graduates from one to
+# the other are in docs/CI_PLAN-2026-10-27.md; read that before changing this.
+#
+# Two jobs:
+#   verify  BLOCKING. typecheck, lint, tests, the escape-hatch ratchet and a
+#           production `next build`. Any red step fails the job, and the job
+#           name is what branch protection requires.
+#   report  REPORT-ONLY. knip, jscpd, dependency-cruiser, prettier --check,
+#           npm audit and gitleaks. Every step has continue-on-error, so the
+#           job is green whatever they find; the counts land in the job summary
+#           for comparison with docs/CODE_STANDARDS_BASELINE-2026-10-27.md.
+#
+# No repository secret is read anywhere in this file. The build runs with no
+# app environment; with no Postgres URL it never talks to a database (and
+# `scripts/migrate-if-configured.mjs` is not called at all: the step runs
+# `next build` directly, not `npm run build`).
+#
+# Actions are pinned to full commit SHAs (the tag is in the trailing comment)
+# so a moved tag cannot change what runs here. Update both together.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: the token can read the repository and nothing else. Neither
+# job writes to the repo, comments on the PR or uploads security results.
+permissions:
+  contents: read
+
+# A new push to a PR branch cancels that branch's run in progress. Runs on main
+# are never cancelled, so every merge commit gets a complete result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      # Frozen install from package-lock.json. postinstall runs `prisma generate`,
+      # which needs the schema but no database.
+      - run: npm ci
+
+      # `if: !cancelled()` on the later steps runs every check even after one
+      # fails, so a PR sees all of its problems in one pass. The job still fails.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Test
+        if: ${{ !cancelled() }}
+        run: npm test
+
+      - name: Escape-hatch ratchet
+        if: ${{ !cancelled() }}
+        run: npm run ratchet
+
+      # Next's own incremental cache, keyed as the Next.js CI-caching guide
+      # suggests but hashing only our source folders (hashing **/*.ts would walk
+      # node_modules). Vercel keeps its own cache; this one only speeds up CI.
+      - name: Restore Next.js build cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'lib/**', 'components/**', '*.ts', '*.mjs') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
+
+      # Built with no environment at all: checked locally on 2026-10-27, every
+      # route that touches the database or Auth.js is dynamic (ƒ), so nothing
+      # reads env at build time. If a future page needs a value at build, give
+      # it an obviously fake placeholder here, never a repository secret.
+      - name: Build
+        if: ${{ !cancelled() }}
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  report:
+    name: report (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history, so gitleaks can scan every commit, not just the tip.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: mkdir -p .reports
+
+      - name: knip (unused files, exports, dependencies)
+        continue-on-error: true
+        run: |
+          npx knip --reporter compact || true
+          npx knip --no-exit-code --reporter json > .reports/knip.json
+
+      - name: jscpd (duplicated blocks)
+        continue-on-error: true
+        run: npm run dup
+
+      - name: dependency-cruiser (cycles and layer rules)
+        continue-on-error: true
+        run: |
+          npm run arch
+          npx depcruise app lib components middleware.ts instrumentation.ts --output-type json --output-to .reports/depcruise.json
+
+      - name: prettier --check
+        continue-on-error: true
+        run: |
+          npx prettier --list-different "**/*.{ts,tsx,js,mjs,cjs,json,css}" > .reports/prettier.txt || true
+          echo "$(grep -c . .reports/prettier.txt || true) files differ from Prettier's output"
+
+      - name: npm audit
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=high || true
+          npm audit --json > .reports/audit.json || true
+
+      # gitleaks from its release binary, checked against a pinned SHA-256 so a
+      # replaced asset fails here instead of running. --redact keeps any real
+      # secret out of the log; .gitleaksignore lists reviewed false positives.
+      - name: gitleaks (secrets in history)
+        continue-on-error: true
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git . --redact --no-banner \
+            --report-format json --report-path .reports/gitleaks.json
+
+      - name: Write job summary
+        if: ${{ always() }}
+        run: node scripts/ci-report-summary.mjs >> "$GITHUB_STEP_SUMMARY"

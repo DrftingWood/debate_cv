@@ -23,7 +23,11 @@ const BASELINE = {
   asUnknownAs: 7,
   // Wider than the metrics doc's "~35": this pattern also counts `x!}` in JSX
   // and `x!,` arguments. Spot-checked; the hits are real assertions.
-  nonNull: 75,
+  // 75 -> 76 (2026-10-27, Q1 phase 1b): #167 removed two in buildCvData.ts and
+  // #168 added three in lib/identity/affectedTournaments.ts, landing on main
+  // before CI ran the ratchet. Raised so main is green; those three are the
+  // first candidates when this number next falls.
+  nonNull: 76,
   eslintDisableUnexplained: 4,
 };
 

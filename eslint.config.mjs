@@ -36,7 +36,23 @@ const config = [
       complexity: ['warn', { max: 15 }],
       'max-params': ['warn', { max: 3 }],
       'max-depth': ['warn', { max: 3 }],
+      // One PrismaClient per process (docs/CODING_STANDARDS.md DB-1). A second
+      // client opens its own pool, and on Vercel every warm lambda would then
+      // hold two sets of connections against Neon's limit. lib/db.ts is the
+      // singleton; the standalone scripts below run outside Next and make their
+      // own. Zero hits when this was added (Q1 phase 1b), so it is an error.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='PrismaClient']",
+          message: 'Import the singleton from @/lib/db instead of constructing PrismaClient.',
+        },
+      ],
     },
+  },
+  {
+    files: ['lib/db.ts', 'scripts/**'],
+    rules: { 'no-restricted-syntax': 'off' },
   },
 ];
 
