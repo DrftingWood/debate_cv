@@ -16,6 +16,11 @@ prisma/*.db
 # data dumps (legacy)
 data/*.json
 
+# operator-script output written next to the repo (scripts/approve-tag-proposals.mjs,
+# scripts/export-source-documents.mjs): production data, never committed
+tag-approval-output/
+source-docs/
+
 # local tooling scratch space — must never be committed
 # .claude/settings.local.json is per-user permission config
 # .superpowers/ holds brainstorm/sketch session state
