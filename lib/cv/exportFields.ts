@@ -7,6 +7,7 @@ import type {
 } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
+import { breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
 
 /**
  * Single source of truth for exportable CV columns. The /api/cv/export
@@ -107,7 +108,7 @@ export const EXPORT_FIELDS: ExportField[] = [
   },
   { id: 'speaker_average', label: 'Speaker average', speaker: (r) => r.speakerAvgScore },
   { id: 'prelims_spoken', label: 'Prelims spoken', speaker: (r) => r.prelimsSpoken || '' },
-  { id: 'speaker_rank', label: 'Speaker rank', speaker: fmtSpeakerRanks },
+  { id: 'speaker_rank', label: 'Speaker-tab rank', speaker: fmtSpeakerRanks },
   {
     id: 'broken',
     label: 'Broken',
@@ -124,7 +125,7 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'region', label: 'Region', speaker: (r) => r.region, judge: (r) => r.region },
   {
     id: 'field_placement',
-    label: 'Field placement',
+    label: 'Speaker-tab placement',
     speaker: (r, ctx) => {
       const f = ctx.fieldByTournament.get(r.tournamentId.toString());
       if (!f || f.betterThanUser == null || f.speakerCount <= 0) return '';
@@ -188,6 +189,27 @@ export const EXPORT_FIELDS: ExportField[] = [
     id: 'team_seconds',
     label: 'Seconds',
     speaker: (r) => r.teamSeconds ?? '',
+  },
+  {
+    id: 'team_placement',
+    label: 'Team placement',
+    // How high the user placed is a TEAM-tab fact: prelim team rank against
+    // the teams on the tab, with the "top N%" a reader means. The speaker-tab
+    // columns above are individual figures and say so in their labels.
+    speaker: (r) => {
+      const p = teamTabPlacement(r.teamRank, r.totalTeams);
+      return p ? `${p.rank}/${p.of} (top ${formatTopPercent(p.topPercent)})` : '';
+    },
+  },
+  {
+    id: 'break_rank',
+    label: 'Break rank',
+    // Break seed, against the Open break's size when the team is on it.
+    speaker: (r) => {
+      const seed = breakSeed(r);
+      if (!seed) return '';
+      return seed.of != null ? `${seed.rank}/${seed.of}` : `#${seed.rank}`;
+    },
   },
 ];
 

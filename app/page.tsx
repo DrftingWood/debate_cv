@@ -180,7 +180,7 @@ function StatisticsShowcase() {
     {
       label: 'Level',
       figure: 'Top 8%',
-      body: 'Where your average placed among every speaker on the tab, tournament by tournament — not a raw number that means something different on every circuit.',
+      body: 'Where your team finished on the team tab, tournament by tournament, and how far it went in the outrounds — with your own speaker-tab placement alongside, not a raw score that means something different on every circuit.',
     },
     {
       label: 'Consistency',

@@ -13,15 +13,15 @@ import { TrendChart } from '@/components/ui/TrendChart';
 export const metadata: Metadata = {
   title: 'Sample CV',
   description:
-    'A sample debate CV showing the round ledger, motions, field placement and statistics.',
+    'A sample debate CV showing the round ledger, motions, team placement and statistics.',
 };
 
 const rows = [
-  { year: '2024', tournament: 'World Universities Debating Championship', role: 'Speaker', team: 'Maya / Lena', result: 'Octofinals', avg: '73.8', field: '18/412' },
-  { year: '2024', tournament: 'Australs', role: 'Speaker', team: 'Maya / Anika', result: 'Open break', avg: '72.9', field: '31/188' },
-  { year: '2023', tournament: 'Hart House IV', role: 'Speaker', team: 'Maya / Lena', result: 'Champion', avg: '74.2', field: '4/96' },
+  { year: '2024', tournament: 'World Universities Debating Championship', role: 'Speaker', team: 'Maya / Lena', result: 'Octofinals', avg: '73.8', field: '9/206' },
+  { year: '2024', tournament: 'Australs', role: 'Speaker', team: 'Maya / Anika', result: 'Open break', avg: '72.9', field: '15/94' },
+  { year: '2023', tournament: 'Hart House IV', role: 'Speaker', team: 'Maya / Lena', result: 'Champion', avg: '74.2', field: '2/48' },
   { year: '2023', tournament: 'Cambridge IV', role: 'Judge', team: '—', result: 'Outround chair', avg: '—', field: '—' },
-  { year: '2022', tournament: 'University Novice Championship', role: 'Speaker', team: 'Maya / Sam', result: 'Finals', avg: '69.7', field: '9/74' },
+  { year: '2022', tournament: 'University Novice Championship', role: 'Speaker', team: 'Maya / Sam', result: 'Finals', avg: '69.7', field: '5/37' },
 ];
 
 const roundLedger = [
@@ -114,7 +114,7 @@ export default function SamplePage() {
                     <th>Role</th>
                     <th>Team</th>
                     <th scope="col" className="text-right">Spk avg</th>
-                    <th scope="col" className="text-right">On the tab</th>
+                    <th scope="col" className="text-right">Team rank</th>
                     <th scope="col" className="pr-4">Result</th>
                   </tr>
                 </thead>
@@ -193,7 +193,7 @@ export default function SamplePage() {
           <StatRow>
             <StatTile label="Career speaker average" value="74.2" hint="156 scored speeches" />
             <StatTile label="Consistency (σ)" value="1.86" hint="Lower means tighter clustering" />
-            <StatTile label="Average tab placement" value="Top 8%" accent="blue" hint="23 tournaments" />
+            <StatTile label="Average team placement" value="Top 8%" accent="blue" hint="Team tab · 23 tournaments" />
             <StatTile label="Break rate" value="39%" accent="gold" hint="9 of 23 entries" />
           </StatRow>
 
@@ -203,7 +203,7 @@ export default function SamplePage() {
               <TrendChart points={trend} baseline={73.1} baselineLabel="career average" />
             </div>
             <div className="panel space-y-4 p-4">
-              <Meter label="Placement percentile" display="92nd" value={92} tone="blue" />
+              <Meter label="Team-tab percentile" display="92nd" value={92} tone="blue" />
               <Meter label="Round win rate" display="53%" value={53} />
               <div className="border-t border-border pt-3">
                 <div className="data-label mb-3">Team points per round</div>

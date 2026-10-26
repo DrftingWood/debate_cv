@@ -35,6 +35,7 @@ import {
 import {
   Coverage,
   FieldStanding,
+  TeamStanding,
   HeadlineStats,
   Quirks,
   ResultsSection,
@@ -140,10 +141,20 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <ScoreDistribution stats={stats} />
             {bySeat ? (
               <WithheldSection
+                id="team-tab"
+                label="Team tab"
+                title="How high your team placed"
+                reason="Team placement is a fact about a whole tournament, so it isn't shown while filtering by seat."
+              />
+            ) : (
+              <TeamStanding stats={stats} />
+            )}
+            {bySeat ? (
+              <WithheldSection
                 id="field"
-                label="Field"
-                title="How you placed against the people in the room"
-                reason="Tab placement is a fact about a whole tournament, so it isn't shown while filtering by seat."
+                label="Speaker tab"
+                title="How your own scores placed among the speakers"
+                reason="Speaker-tab placement is a fact about a whole tournament, so it isn't shown while filtering by seat."
               />
             ) : (
               <FieldStanding stats={stats} />

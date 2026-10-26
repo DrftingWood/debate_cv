@@ -6,6 +6,7 @@ import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import { placementHighlights } from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -190,14 +191,44 @@ export type CvUnmatchedTournament = {
 export type CvHighlights = {
   /** Tournaments where the user's team won the GF (wonTournament === true). */
   championships: { tournamentName: string; year: number | null }[];
-  /** Top-percentile speaker breaks (rank ≤ ceil(totalTeams * 0.10)). */
-  topBreaks: {
+  /**
+   * Breaks ranked by strength: furthest outround reached first, then a won
+   * final, then break seed, then team-tab placement (compareBreakStrength in
+   * lib/cv/teamPlacement.ts). Never by speaker rank — break depth is a team
+   * fact. `stage` is null for a break whose outround draw was never published.
+   */
+  deepestBreaks: {
+    tournamentName: string;
+    year: number | null;
+    stage: string | null;
+    won: boolean;
+    breakRank: number | null;
+  }[];
+  /**
+   * Tournaments where the TEAM finished in the top 10% of the prelim team tab
+   * (teamRank ≤ ceil(totalTeams * 0.10)), best share first. Replaces the old
+   * speaker-rank "top-10% break", which compared a speaker rank with a team
+   * count.
+   */
+  topTeamFinishes: {
     tournamentName: string;
     year: number | null;
     rank: number;
     totalTeams: number;
   }[];
-  /** Single best Open speaker rank across all tournaments. */
+  /** Best team-tab placement as a share of the field (ties: the bigger field). */
+  bestTeamFinish: {
+    tournamentName: string;
+    year: number | null;
+    rank: number;
+    totalTeams: number;
+    topPercent: number;
+  } | null;
+  /**
+   * Single best Open SPEAKER-tab rank across all tournaments. An individual
+   * statistic: every surface labels it as the speaker tab, and nothing uses
+   * it as the measure of how high the user placed.
+   */
   bestSpeakerRank: { tournamentName: string; year: number | null; rank: number } | null;
   /** Single highest speaker average across all tournaments. */
   bestSpeakerAverage: {
@@ -1183,23 +1214,7 @@ export async function buildCvData(
     .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
     .slice(0, 5);
 
-  const topBreaks = speakerRows
-    .filter(
-      (r) =>
-        r.broke &&
-        r.speakerRankOpen != null &&
-        r.totalTeams != null &&
-        r.totalTeams > 0 &&
-        r.speakerRankOpen <= Math.ceil(r.totalTeams * 0.1),
-    )
-    .map((r) => ({
-      tournamentName: r.tournamentName,
-      year: r.year,
-      rank: r.speakerRankOpen!,
-      totalTeams: r.totalTeams!,
-    }))
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 5);
+  const { deepestBreaks, topTeamFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
   const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
     if (r.speakerRankOpen == null) return best;
@@ -1241,7 +1256,9 @@ export async function buildCvData(
 
   const highlights: CvHighlights = {
     championships,
-    topBreaks,
+    deepestBreaks,
+    topTeamFinishes,
+    bestTeamFinish,
     bestSpeakerRank,
     bestSpeakerAverage,
     outroundsChaired,

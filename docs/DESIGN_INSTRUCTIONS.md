@@ -234,6 +234,13 @@ Bad findings:
 
 A raw speaker average is not comparable across circuits. Wherever a score is shown as evidence of level, show the placement against the field that was actually in the room next to it.
 
+### Placement is a team fact (owner rule, 2026-10)
+
+- **How high the user placed** — any "top N%", "best finish" or placement percentile — is the TEAM's prelim rank against the number of teams on the team tab. Never the speaker tab, and never a speaker rank compared with a team count.
+- **How strong a break was** is the furthest outround reached (then a won final, then break seed). Never speaker rank.
+- Speaker-tab figures (speaker average, speaker-tab rank, speaker-tab percentile) stay, but are always labelled "speaker tab" so they cannot be read as the user's placement.
+- One definition for all of it: `lib/cv/teamPlacement.ts`.
+
 ## 10. Privacy and trust requirements
 
 Privacy is a conversion requirement, not a footer obligation.

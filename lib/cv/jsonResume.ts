@@ -1,4 +1,5 @@
 import type { CvData, CvJudgeRow, CvSpeakerRow } from './buildCvData';
+import { teamTabPlacement } from './teamPlacement';
 
 /**
  * The CV as a JSON Resume document (https://jsonresume.org/schema), so a
@@ -107,7 +108,14 @@ function speakerAward(row: CvSpeakerRow): JsonResumeAward | null {
   else if (row.broke) title = row.eliminationReached ? `Broke — reached ${row.eliminationReached}` : 'Broke to outrounds';
   else if (speakerNote) title = speakerNote.replace(/^./, (c) => c.toUpperCase());
   if (!title) return null;
-  const summary = [title !== speakerNote && speakerNote, row.teamName && `Team ${row.teamName}`]
+  // The award's placement is the TEAM's: team-tab rank against the number of
+  // teams. A best-speaker note is an individual award and is named as one.
+  const team = teamTabPlacement(row.teamRank, row.totalTeams);
+  const summary = [
+    title !== speakerNote && speakerNote,
+    row.teamName && `Team ${row.teamName}`,
+    team && `team ranked ${team.rank} of ${team.of} after prelims`,
+  ]
     .filter(Boolean)
     .join('; ');
   return { title, ...(date ? { date } : {}), awarder: row.tournamentName, ...(summary ? { summary } : {}) };

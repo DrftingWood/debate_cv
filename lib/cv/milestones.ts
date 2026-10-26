@@ -83,7 +83,9 @@ export type Milestones = {
     unbounded: number;
     at: Array<RecordHolder & { round: number }>;
   } | null;
-  /** Smallest open speaker-tab rank; `of` = tournaments with a published rank. */
+  /** Smallest prelim TEAM-tab rank — how high the user placed; `of` = tournaments with a team rank. */
+  bestTeamRank: { rank: number; of: number; at: RecordHolder[] } | null;
+  /** Smallest open speaker-tab rank (an individual record); `of` = tournaments with a published rank. */
   bestSpeakerRank: { rank: number; of: number; at: RecordHolder[] } | null;
   /** Smallest open-bracket team break rank; `of` = open breaks with a published break rank. */
   bestBreakRank: { rank: number; of: number; at: RecordHolder[] } | null;
@@ -282,6 +284,7 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
       brackets: [...new Set(categoryFinals.map((r) => splitStageLabel(r.eliminationReached).category!))].sort(),
     },
     bestSpeech,
+    bestTeamRank: bestRank(rows, (r) => r.teamRank),
     bestSpeakerRank: bestRank(rows, (r) => r.speakerRankOpen),
     bestBreakRank,
     bestBreakRankOtherBracket:
@@ -300,6 +303,6 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
   // "undated"; only a record with no figure of any kind has nothing to show.
   const { break: b, final: f, title: w } = out.undatedFirsts;
   const empty =
-    !out.firstTournament && !out.bestSpeech && !out.bestSpeakerRank && !out.bestBreakRank && !out.breakRun && b + f + w === 0;
+    !out.firstTournament && !out.bestSpeech && !out.bestTeamRank && !out.bestSpeakerRank && !out.bestBreakRank && !out.breakRun && b + f + w === 0;
   return empty ? null : out;
 }

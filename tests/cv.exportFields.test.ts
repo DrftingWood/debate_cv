@@ -65,6 +65,8 @@ describe('buildExportCsv', () => {
         'speaker_categories',
         'team_firsts',
         'team_seconds',
+        'team_placement',
+        'break_rank',
       ].join(','),
     );
   });

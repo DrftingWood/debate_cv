@@ -110,7 +110,7 @@ export function filterCvData<T extends FilterableData>(data: T, facts: StatsFact
  * remaining rounds are a slice of each tournament, so these would still print
  * a confident number that no longer means anything — they are withheld.
  */
-const TOURNAMENT_LEVEL_QUIRKS = new Set(['momentum', 'streak', 'field-percentile', 'field-size', 'break-rate']);
+const TOURNAMENT_LEVEL_QUIRKS = new Set(['momentum', 'streak', 'team-percentile', 'field-percentile', 'field-size', 'break-rate']);
 
 /**
  * Findings the filterable page supersedes, whatever the filter. Both rest on

@@ -1,6 +1,13 @@
-import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe } from 'lucide-react';
+import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe, Users } from 'lucide-react';
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
 import { SectionHeader } from '@/components/ui/Card';
+import { formatStageForDisplay } from '@/lib/cv/formatStage';
+
+/** "Semifinals", or "ESL Final (won)" when the team took that bracket's final. */
+function breakLabel(stage: string, won: boolean): string {
+  const display = formatStageForDisplay(stage);
+  return won ? `${display} (won)` : display;
+}
 
 /**
  * Auto-derived highlights, restyled as statement "positions": a compact
@@ -22,7 +29,8 @@ function withYear(name: string, year: number | null): string {
 export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   const {
     championships,
-    topBreaks,
+    deepestBreaks,
+    topTeamFinishes,
     bestSpeakerRank,
     bestSpeakerAverage,
     outroundsChaired,
@@ -47,20 +55,35 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       gold: true,
     });
   }
-  if (topBreaks.length > 0) {
+  // Break strength is the furthest outround reached — never speaker rank.
+  // deepestBreaks arrives already ordered by depth (compareBreakStrength).
+  if (deepestBreaks.length > 0) {
+    const top = deepestBreaks[0];
     tiles.push({
       label: 'Deepest breaks',
-      title: `Top-10% break × ${topBreaks.length}`,
-      items: topBreaks.map(
-        (b) => `#${b.rank} of ${b.totalTeams} · ${withYear(b.tournamentName, b.year)}`,
+      title: top.stage ? breakLabel(top.stage, top.won) : `Broke × ${deepestBreaks.length}`,
+      items: deepestBreaks.map(
+        (b) =>
+          `${b.stage ? breakLabel(b.stage, b.won) : 'Broke'} · ${withYear(b.tournamentName, b.year)}`,
       ),
       icon: <Mic className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });
   }
+  // "Top 10%" is a claim about the TEAM tab: team rank against team count.
+  if (topTeamFinishes.length > 0) {
+    tiles.push({
+      label: 'Team tab',
+      title: `Top-10% team finish × ${topTeamFinishes.length}`,
+      items: topTeamFinishes.map(
+        (b) => `#${b.rank} of ${b.totalTeams} teams · ${withYear(b.tournamentName, b.year)}`,
+      ),
+      icon: <Users className="h-3.5 w-3.5" aria-hidden />,
+    });
+  }
   if (bestSpeakerRank) {
     tiles.push({
-      label: 'Best speaker rank',
+      label: 'Best speaker-tab rank',
       title: `#${bestSpeakerRank.rank}`,
       items: [
         withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year),
