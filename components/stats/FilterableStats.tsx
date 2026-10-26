@@ -20,6 +20,7 @@ import { SectionHeader } from '@/components/ui/Card';
 import { PageJumpNav } from '@/components/PageJumpNav';
 import { StatsFilterBar } from '@/components/stats/StatsFilterBar';
 import { CrossTabsSection } from '@/components/stats/CrossTabsSection';
+import { TopicTypeSection } from '@/components/stats/TopicTypeSection';
 import { BreakMarginSection } from '@/components/stats/BreakViews';
 import { MilestonesSection, OutroundFunnelSection } from '@/components/stats/CareerViews';
 import { JudgingLensSection, SpeakingVsJudgingSection } from '@/components/stats/JudgingViews';
@@ -192,6 +193,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <PositionsSection facts={filteredFacts} baseline={facts.rounds} />
             <MotionTypesSection facts={filteredFacts} baseline={facts.rounds} />
             <CrossTabsSection facts={filteredFacts} baseline={facts.rounds} />
+            <TopicTypeSection facts={filteredFacts} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
             <CarrySection facts={filteredFacts} baseline={facts.rounds} byPairing={filter.pairings.length > 0} />
