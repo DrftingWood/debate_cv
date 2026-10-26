@@ -264,6 +264,20 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric className="pr-4">{m.bestSpeech ? plural(m.bestSpeech.speeches, 'prelim speech', 'prelim speeches') : <Nil />}</Td>
               </Tr>
               <Tr>
+                <Td className="pl-4 font-medium">Best team-tab rank</Td>
+                <Td numeric>{m.bestTeamRank ? `#${m.bestTeamRank.rank}` : <Nil />}</Td>
+                <Td>
+                  {m.bestTeamRank ? (
+                    <span className="block max-w-[22rem] truncate" title={m.bestTeamRank.at.map((h) => h.tournament).join('\n')}>
+                      {holders(m.bestTeamRank.at)}
+                    </span>
+                  ) : (
+                    <Nil title="No published team tab" />
+                  )}
+                </Td>
+                <Td numeric className="pr-4">{m.bestTeamRank ? plural(m.bestTeamRank.of, 'team tab') : <Nil />}</Td>
+              </Tr>
+              <Tr>
                 <Td className="pl-4 font-medium">Best speaker-tab rank</Td>
                 <Td numeric>{m.bestSpeakerRank ? `#${m.bestSpeakerRank.rank}` : <Nil />}</Td>
                 <Td>

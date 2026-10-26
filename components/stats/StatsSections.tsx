@@ -13,6 +13,8 @@ import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
+import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { formatTopPercent } from '@/lib/cv/teamPlacement';
 
 // ── Headline ──────────────────────────────────────────────────────────────
 
@@ -31,7 +33,7 @@ export function HeadlineStats({
   /** Any filter active — the figures cover a slice of the career, not all of it. */
   filtered?: boolean;
 }) {
-  const { scoreProfile, fieldContext, results, volume } = stats;
+  const { scoreProfile, teamContext, results, volume } = stats;
   const tiles: React.ReactNode[] = [];
 
   if (scoreProfile.mean != null) {
@@ -54,14 +56,16 @@ export function HeadlineStats({
       />,
     );
   }
-  if (!perRoundOnly && fieldContext.meanPercentile != null) {
+  // How high the user placed is the TEAM's placement on the team tab — team
+  // rank against the number of teams — never the speaker tab.
+  if (!perRoundOnly && teamContext.meanTopPercent != null) {
     tiles.push(
       <StatTile
         key="pct"
-        label="Average tab placement"
-        value={`Top ${Math.round(100 - fieldContext.meanPercentile)}%`}
+        label="Average team placement"
+        value={`Top ${formatTopPercent(teamContext.meanTopPercent)}`}
         accent="blue"
-        hint={`Across ${fieldContext.placements.length} tournaments · ${fieldContext.speakersFaced.toLocaleString()} speakers`}
+        hint={`Team tab · ${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
       />,
     );
   }
@@ -102,14 +106,15 @@ export function HeadlineStats({
       <StatRow columns={Math.min(tiles.length, 5)}>{tiles.slice(0, 5)}</StatRow>
       {perRoundOnly ? (
         <p className="text-caption text-ink-soft">
-          Filtered by seat, so only per-round figures are shown. Tab placement and break rate
+          Filtered by seat, so only per-round figures are shown. Team placement and break rate
           describe whole tournaments and are left out.
         </p>
       ) : (
         <p className="text-caption text-ink-soft">
-          Speaker scores are compared across tournaments. Circuits scale differently, so the tab
-          placement above is the stronger measure of level — it compares you only with the people
-          who were in the same rooms.
+          Placement is your team&rsquo;s rank on the team tab against the number of teams, and a
+          break is measured by the furthest outround reached. Speaker scores are an individual
+          figure: circuits scale them differently, so the speaker-tab section below compares them
+          only with the speakers who were in the same rooms.
         </p>
       )}
     </section>
@@ -241,6 +246,130 @@ export function StatLine({
   );
 }
 
+// ── Team standing ─────────────────────────────────────────────────────────
+
+/**
+ * How high the user placed: the team's prelim rank against the teams on the
+ * tab, and how far the team went in the outrounds. The headline "Average team
+ * placement" tile and the team-percentile finding are checkable against this
+ * table.
+ */
+export function TeamStanding({ stats }: { stats: SpeakerStats }) {
+  const t = stats.teamContext;
+  if (t.placements.length === 0) return null;
+
+  const trend = [...t.placements]
+    .filter((p) => p.year != null)
+    .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
+    .map((p) => ({ label: String(p.year), value: p.percentile }));
+
+  return (
+    <section id="team-tab" aria-label="Standing on the team tab" className="scroll-mt-24 space-y-3">
+      <SectionHeader
+        label="Team tab"
+        title="How high your team placed"
+        meta={`${t.placements.length} tournament${t.placements.length === 1 ? '' : 's'} with a team rank`}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="panel p-4 lg:col-span-1">
+          <div className="space-y-4">
+            {t.meanPercentile != null && t.meanTopPercent != null ? (
+              <Meter
+                label="Average team placement"
+                display={`Top ${formatTopPercent(t.meanTopPercent)}`}
+                value={t.meanPercentile}
+                tone="blue"
+              />
+            ) : null}
+            {t.bestPlacement ? (
+              <Meter
+                label={`Best — ${t.bestPlacement.tournamentName}`}
+                display={`Top ${formatTopPercent(t.bestPlacement.topPercent)}`}
+                value={t.bestPlacement.percentile}
+                tone="gold"
+              />
+            ) : null}
+            <p className="border-t border-border pt-3 text-caption text-ink-soft">
+              Rank on the prelim team tab against the number of teams. The top 10% of a 40-team
+              tab is rank 4 or better.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel overflow-hidden lg:col-span-2">
+          <TableScroll>
+            <Table
+              className="min-w-max"
+              label="Your team's placement and furthest outround, tournament by tournament"
+            >
+              <thead>
+                <tr>
+                  <Th className="pl-4">Tournament</Th>
+                  <Th numeric>Year</Th>
+                  <Th numeric title="Prelim team-tab rank, of the teams on the tab">Team rank</Th>
+                  <Th numeric>Top</Th>
+                  <Th numeric title="Break seed, of the teams on the Open break where known">Break</Th>
+                  <Th className="pr-4">Furthest outround</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {t.placements.map((p) => (
+                  <Tr key={p.tournamentId}>
+                    <Td className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block truncate" title={p.tournamentName}>
+                        {p.tournamentName}
+                      </span>
+                    </Td>
+                    <Td numeric className="text-ink-soft">{p.year ?? <Nil />}</Td>
+                    <Td numeric>
+                      {p.teamRank}/{p.totalTeams}
+                    </Td>
+                    <Td numeric className="text-ink-soft">{formatTopPercent(p.topPercent)}</Td>
+                    <Td numeric>
+                      {p.breakRank == null ? (
+                        <Nil title="No break seed published" />
+                      ) : p.breakingTeams != null ? (
+                        `${p.breakRank}/${p.breakingTeams}`
+                      ) : (
+                        `#${p.breakRank}`
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap pr-4">
+                      {p.outround ? (
+                        <span className="text-break-gold">
+                          {formatStageForDisplay(p.outround)}
+                          {p.won ? ' (won)' : ''}
+                        </span>
+                      ) : (
+                        <Nil title="Did not reach an outround" />
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableScroll>
+        </div>
+      </div>
+
+      {trend.length >= 3 ? (
+        <div className="panel p-4">
+          <div className="data-label mb-2">Team-tab percentile over time</div>
+          <TrendChart
+            points={trend}
+            color="blue"
+            formatValue={(n) => `${Math.round(n)}`}
+            domain={[0, 100]}
+            baseline={50}
+            baselineLabel="median team"
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 // ── Field standing ────────────────────────────────────────────────────────
 
 export function FieldStanding({ stats }: { stats: SpeakerStats }) {
@@ -257,11 +386,11 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
     .map((p) => ({ label: String(p.year), value: p.percentile! }));
 
   return (
-    <section id="field" aria-label="Standing against the field" className="scroll-mt-24 space-y-3">
+    <section id="field" aria-label="Standing on the speaker tab" className="scroll-mt-24 space-y-3">
       <SectionHeader
-        label="Field"
-        title="How you placed against the people in the room"
-        meta={`${rows.length} tournament${rows.length === 1 ? '' : 's'} with a comparable tab`}
+        label="Speaker tab"
+        title="How your own scores placed among the speakers"
+        meta={`${rows.length} tournament${rows.length === 1 ? '' : 's'} with a comparable speaker tab`}
       />
 
       <div className="grid gap-3 lg:grid-cols-3">
@@ -269,7 +398,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
           <div className="space-y-4">
             {f.meanPercentile != null ? (
               <Meter
-                label="Average placement percentile"
+                label="Average speaker-tab percentile"
                 display={`${f.meanPercentile.toFixed(0)}th`}
                 value={f.meanPercentile}
                 tone="blue"
@@ -277,7 +406,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
             ) : null}
             {f.bestPlacement?.percentile != null ? (
               <Meter
-                label={`Best — ${f.bestPlacement.tournamentName}`}
+                label={`Best speaker tab — ${f.bestPlacement.tournamentName}`}
                 display={`${f.bestPlacement.percentile.toFixed(0)}th`}
                 value={f.bestPlacement.percentile}
                 tone="gold"
@@ -307,7 +436,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
 
         <div className="panel overflow-hidden lg:col-span-2">
           <TableScroll>
-            <Table className="min-w-max" label="Your average against the field, tournament by tournament">
+            <Table className="min-w-max" label="Your speaker average against the speaker tab, tournament by tournament">
               <thead>
                 <tr>
                   <Th className="pl-4">Tournament</Th>
@@ -316,7 +445,9 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                   <Th numeric>Field avg</Th>
                   <Th numeric>Δ</Th>
                   <Th numeric>z</Th>
-                  <Th numeric className="pr-4">Placed</Th>
+                  <Th numeric className="pr-4" title="Your place among every speaker on the speaker tab">
+                    Spk tab
+                  </Th>
                 </tr>
               </thead>
               <tbody>
@@ -355,7 +486,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                     </Td>
                     <Td numeric className="pr-4">
                       {p.placement != null ? (
-                        <span title={`Top ${(100 - (p.percentile ?? 0)).toFixed(0)}% of the tab`}>
+                        <span title={`Top ${(100 - (p.percentile ?? 0)).toFixed(0)}% of the speaker tab`}>
                           {p.placement}/{p.speakerCount}
                         </span>
                       ) : (
@@ -372,7 +503,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
 
       {trend.length >= 3 ? (
         <div className="panel p-4">
-          <div className="data-label mb-2">Placement percentile over time</div>
+          <div className="data-label mb-2">Speaker-tab percentile over time</div>
           <TrendChart
             points={trend}
             color="blue"
@@ -381,7 +512,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
             // auto-fitted to −4…104, which are not values it can take.
             domain={[0, 100]}
             baseline={50}
-            baselineLabel="median of the field"
+            baselineLabel="median speaker"
           />
         </div>
       ) : null}
@@ -775,7 +906,8 @@ export const STATS_SECTIONS = [
   { id: 'headline', label: 'Headline' },
   { id: 'findings', label: 'Findings' },
   { id: 'distribution', label: 'Distribution' },
-  { id: 'field', label: 'Field' },
+  { id: 'team-tab', label: 'Team tab' },
+  { id: 'field', label: 'Speaker tab' },
   { id: 'dynamics', label: 'Across a draw' },
   { id: 'round-curve', label: 'Round by round' },
   { id: 'momentum', label: 'Momentum' },

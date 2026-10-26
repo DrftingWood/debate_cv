@@ -5,6 +5,7 @@ import type {
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
 import { outroundRank } from '@/lib/calicotab/judgeStats';
+import { breakDepth, breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
 
 /**
  * The deep statistics layer for a speaker's record.
@@ -147,7 +148,49 @@ export type FieldPlacement = {
   incompleteDraw: boolean;
 };
 
+/**
+ * One tournament's TEAM result: where the team finished on the prelim team
+ * tab and how far it went in the outrounds. This, not the speaker tab, is
+ * the answer to "how high did I place" (owner rule, see lib/cv/teamPlacement.ts).
+ */
+export type TeamPlacementRow = {
+  tournamentId: string;
+  tournamentName: string;
+  year: number | null;
+  teamName: string | null;
+  /** 1-based prelim team-tab rank. */
+  teamRank: number;
+  totalTeams: number;
+  /** 0..100 — share of the other teams finished above. */
+  percentile: number;
+  /** rank / teams × 100: the "top N%". */
+  topPercent: number;
+  /** Furthest outround reached, as stored; null when the team did not break. */
+  outround: string | null;
+  /** True when the team won the final of that bracket. */
+  won: boolean;
+  /** Break seed, and the Open break's size when known. */
+  breakRank: number | null;
+  breakingTeams: number | null;
+};
+
+export type TeamContext = {
+  placements: TeamPlacementRow[];
+  /** Mean team-tab percentile across tournaments with a usable team rank. */
+  meanPercentile: number | null;
+  /** 100 − meanPercentile: the average "top N%". */
+  meanTopPercent: number | null;
+  /** Best share of the field (ties: the bigger field). */
+  bestPlacement: TeamPlacementRow | null;
+  /** Teams the user's teams were ranked against, summed across the CV. */
+  teamsFaced: number;
+};
+
 export type FieldContext = {
+  /**
+   * SPEAKER-tab placements: the user's own total against every speaker. An
+   * individual statistic — the team's placement lives in TeamContext.
+   */
   placements: FieldPlacement[];
   /**
    * Career aggregates. All four exclude `incompleteDraw` rows — see the
@@ -274,6 +317,7 @@ export type SpeakerStats = {
   };
   scoreProfile: ScoreProfile;
   fieldContext: FieldContext;
+  teamContext: TeamContext;
   roundDynamics: RoundDynamics;
   results: ResultsProfile;
   splits: {
@@ -616,6 +660,48 @@ export function computeSpeakerStats(input: {
     incompleteDraws: placements.length - comparable.length,
   };
 
+  // ── Team context ────────────────────────────────────────────────────
+  // How high the user placed is a team-tab fact: prelim team rank against
+  // the number of teams. Not affected by a missed round the way the speaker
+  // tab is, so nothing is set aside as a partial draw here.
+  const teamPlacements: TeamPlacementRow[] = [];
+  for (const row of speakerRows) {
+    const p = teamTabPlacement(row.teamRank, row.totalTeams);
+    if (!p) continue;
+    const seed = breakSeed(row);
+    teamPlacements.push({
+      tournamentId: row.tournamentId.toString(),
+      tournamentName: row.tournamentName,
+      year: row.year,
+      teamName: row.teamName,
+      teamRank: p.rank,
+      totalTeams: p.of,
+      percentile: p.percentile,
+      topPercent: p.topPercent,
+      outround: breakDepth(row)?.stage ?? null,
+      won: row.wonTournament === true,
+      breakRank: seed?.rank ?? null,
+      breakingTeams: seed?.of ?? null,
+    });
+  }
+  teamPlacements.sort((a, b) => (b.year ?? -Infinity) - (a.year ?? -Infinity));
+  const teamMeanPercentile = mean(teamPlacements.map((p) => p.percentile));
+  const teamContext: TeamContext = {
+    placements: teamPlacements,
+    meanPercentile: teamMeanPercentile,
+    meanTopPercent: teamMeanPercentile == null ? null : 100 - teamMeanPercentile,
+    bestPlacement: teamPlacements.reduce<TeamPlacementRow | null>(
+      (best, p) =>
+        !best ||
+        p.topPercent < best.topPercent ||
+        (p.topPercent === best.topPercent && p.totalTeams > best.totalTeams)
+          ? p
+          : best,
+      null,
+    ),
+    teamsFaced: teamPlacements.reduce((s, p) => s + p.totalTeams, 0),
+  };
+
   // ── Round dynamics ──────────────────────────────────────────────────
   const byRoundNumber = new Map<number, number[]>();
   const perTournamentSlopes: number[] = [];
@@ -904,6 +990,7 @@ export function computeSpeakerStats(input: {
     volume,
     scoreProfile,
     fieldContext,
+    teamContext,
     roundDynamics,
     results,
     splits,
@@ -1046,7 +1133,7 @@ function reachedFinal(label: string | null): boolean {
  */
 export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
   const quirks: Quirk[] = [];
-  const { scoreProfile, roundDynamics, results, splits, fieldContext } = stats;
+  const { scoreProfile, roundDynamics, results, splits, fieldContext, teamContext } = stats;
 
   const fmt = (n: number, digits = 1) => n.toFixed(digits);
   const pct = (n: number) => `${Math.round(n)}%`;
@@ -1078,11 +1165,21 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     });
   }
 
-  // Standing against the field.
+  // Standing against the field. How high the user placed is a TEAM-tab
+  // question, so the team finding comes first; the speaker-tab one is an
+  // individual statistic and says so in its own words.
+  if (teamContext.meanTopPercent != null && teamContext.placements.length >= 3) {
+    quirks.push({
+      id: 'team-percentile',
+      text: `Across your tournaments your team finishes in the top ${formatTopPercent(teamContext.meanTopPercent)} of the team tab on average.`,
+      basis: `${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams ranked against`,
+      tone: teamContext.meanTopPercent <= 50 ? 'pos' : 'neutral',
+    });
+  }
   if (fieldContext.meanPercentile != null && fieldContext.placements.length >= 3) {
     quirks.push({
       id: 'field-percentile',
-      text: `Across your tournaments you finish in the top ${pct(100 - fieldContext.meanPercentile)} of the speaker tab on average.`,
+      text: `On the speaker tab, your own scores place you in the top ${pct(100 - fieldContext.meanPercentile)} of speakers on average.`,
       basis: `${fieldContext.placements.length} tournaments · ${fieldContext.speakersFaced.toLocaleString()} speakers ranked against`,
       tone: fieldContext.meanPercentile >= 50 ? 'pos' : 'neutral',
     });

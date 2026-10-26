@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { buildCvData, type CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
+import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { CvHighlights } from '@/components/CvHighlights';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
 import { Badge } from '@/components/ui/Badge';
@@ -113,7 +114,17 @@ export default async function PublicCvPage({
     );
   }
   if (summary.breaks > 0) {
-    summaryTiles.push(<StatTile key="b" label="Breaks" value={summary.breaks} accent="gold" />);
+    // Break strength is the furthest outround reached, so the count carries it.
+    const deepest = highlights.deepestBreaks[0]?.stage;
+    summaryTiles.push(
+      <StatTile
+        key="b"
+        label="Breaks"
+        value={summary.breaks}
+        accent="gold"
+        hint={deepest ? `Deepest: ${formatStageForDisplay(deepest)}` : undefined}
+      />,
+    );
   }
   if (stats.scoreProfile.mean != null) {
     summaryTiles.push(
@@ -210,8 +221,10 @@ export default async function PublicCvPage({
                     <Th numeric>Year</Th>
                     <Th>Format</Th>
                     <Th>Team</Th>
-                    <Th numeric>Team rank</Th>
-                    <Th numeric>Speaker rank</Th>
+                    <Th numeric title="Where the team finished on the prelim team tab">Team rank</Th>
+                    <Th numeric title="Open speaker-tab rank — an individual figure, not the team's placement">
+                      Spk-tab rank
+                    </Th>
                     <Th numeric>Avg score</Th>
                     <Th className="pr-4">Result</Th>
                   </tr>
@@ -239,7 +252,20 @@ export default async function PublicCvPage({
                         <Td className="max-w-[10rem] truncate text-ink" title={r.teamName ?? undefined}>
                           {r.teamName ?? <Nil />}
                         </Td>
-                        <Td numeric>{r.teamRank != null ? `#${r.teamRank}` : <Nil />}</Td>
+                        <Td numeric>
+                          {r.teamRank != null ? (
+                            <span
+                              title={(() => {
+                                const p = teamTabPlacement(r.teamRank, r.totalTeams);
+                                return p ? formatTeamTabPlacement(p) : undefined;
+                              })()}
+                            >
+                              #{r.teamRank}
+                            </span>
+                          ) : (
+                            <Nil />
+                          )}
+                        </Td>
                         <Td numeric>
                           {r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : <Nil />}
                         </Td>

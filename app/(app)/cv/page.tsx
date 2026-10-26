@@ -28,6 +28,7 @@ import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { CvSubNav } from '@/components/CvSubNav';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
+import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { bpPlacement, cumulativePoints, isFourTeamRound, ledgerMotions, ledgerRoundNames } from '@/lib/cv/roundLedger';
 import { cn } from '@/lib/utils/cn';
 
@@ -104,6 +105,10 @@ export default async function CvPage() {
     speakerCount: speakerRows.length,
     judgeCount: judgeRows.length,
     activeYears: highlights.activeYears,
+    deepestBreak: highlights.deepestBreaks[0]?.stage
+      ? formatStageForDisplay(highlights.deepestBreaks[0].stage)
+      : null,
+    bestTeamFinish: highlights.bestTeamFinish,
   });
 
   const compiled = new Date().toLocaleDateString('en-GB', {
@@ -225,12 +230,14 @@ export default async function CvPage() {
                 in full already.
               */}
               <p className="hidden text-caption text-ink-soft md:block">
+                <span className="font-medium text-ink">Team rank</span> is where your team
+                finished on the prelim team tab — your placement.{' '}
                 <span className="font-medium text-ink">Spk avg</span> is your speaker score per
-                prelim round. <span className="font-medium text-ink">Field</span> is where that
-                average placed among every speaker on the tab.{' '}
-                <span className="font-medium text-ink">Spk rank</span> is the tab&rsquo;s own rank
-                within each break category — Open, ESL (English as Second Language) and EFL
-                (English as Foreign Language).
+                prelim round. <span className="font-medium text-ink">Spk tab</span> is where that
+                average placed among every speaker on the speaker tab.{' '}
+                <span className="font-medium text-ink">Spk rank</span> is the speaker tab&rsquo;s
+                own rank within each break category — Open, ESL (English as Second Language) and
+                EFL (English as Foreign Language).
               </p>
             </section>
           ) : null}
@@ -254,6 +261,16 @@ export default async function CvPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Hover text for the team-rank cell: "3 of 40 teams · top 8%", the team's
+ * placement against the team tab. Falls back to the bare rank when the field
+ * size is unknown or inconsistent with it.
+ */
+function teamPlacementTitle(r: { teamRank: number | null; totalTeams: number | null }): string | undefined {
+  const p = teamTabPlacement(r.teamRank, r.totalTeams);
+  return p ? `${formatTeamTabPlacement(p)} on the prelim team tab` : undefined;
 }
 
 // Pretty-print speaker rank columns: "#5 Open · #3 ESL"
@@ -466,13 +483,13 @@ function SpeakingTable({
                 <Th numeric>Teams</Th>
                 <Th>Team</Th>
                 <Th>Partner</Th>
-                <Th numeric title="Where the team finished on the team tab">Rank</Th>
+                <Th numeric title="Where the team finished on the prelim team tab">Team rank</Th>
                 <Th numeric>Pts</Th>
                 <Th numeric title="Average speaker score per prelim round spoken">
                   Spk avg
                 </Th>
-                <Th numeric title="Where that average placed among every speaker on the tab">
-                  Field
+                <Th numeric title="Where that average placed among every speaker on the speaker tab — an individual figure, not the team's placement">
+                  Spk tab
                 </Th>
                 <Th title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language.">
                   Spk rank
@@ -521,7 +538,13 @@ function SpeakingTable({
                     >
                       {r.teammates.length ? r.teammates.join(', ') : <Nil />}
                     </Td>
-                    <Td numeric>{r.teamRank != null ? `#${r.teamRank}` : <Nil />}</Td>
+                    <Td numeric>
+                      {r.teamRank != null ? (
+                        <span title={teamPlacementTitle(r)}>#{r.teamRank}</span>
+                      ) : (
+                        <Nil />
+                      )}
+                    </Td>
                     <Td numeric>
                       {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : <Nil />)}
                     </Td>
@@ -538,7 +561,7 @@ function SpeakingTable({
                     <Td numeric className="text-ink-soft">
                       {field?.betterThanUser != null && field.speakerCount > 0 ? (
                         <span
-                          title={`${field.betterThanUser + 1} of ${field.speakerCount} speakers on the tab`}
+                          title={`${field.betterThanUser + 1} of ${field.speakerCount} speakers on the speaker tab`}
                         >
                           {field.betterThanUser + 1}/{field.speakerCount}
                         </span>
@@ -619,14 +642,20 @@ function SpeakingTable({
                 {r.speakerAvgScore ? <Field label="Speaker avg" value={r.speakerAvgScore} mono /> : null}
                 {field?.betterThanUser != null && field.speakerCount > 0 ? (
                   <Field
-                    label="On the tab"
+                    label="Speaker tab"
                     value={`${field.betterThanUser + 1} of ${field.speakerCount}`}
                     mono
                   />
                 ) : null}
-                {r.teamRank != null ? <Field label="Team rank" value={`#${r.teamRank}`} mono /> : null}
+                {r.teamRank != null ? (
+                  <Field
+                    label="Team rank"
+                    value={r.totalTeams != null ? `#${r.teamRank} of ${r.totalTeams}` : `#${r.teamRank}`}
+                    mono
+                  />
+                ) : null}
                 {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
-                {ranks ? <Field label="Speaker rank" value={ranks} /> : null}
+                {ranks ? <Field label="Speaker-tab rank" value={ranks} /> : null}
                 {r.format ? <Field label="Format" value={r.format} /> : null}
                 {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
                 {r.teamName ? <Field label="Team" value={r.teamName} /> : null}

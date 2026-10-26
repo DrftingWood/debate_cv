@@ -1,3 +1,5 @@
+import { formatTopPercent } from '@/lib/cv/teamPlacement';
+
 /**
  * Which summary tiles the /cv account header shows.
  *
@@ -30,6 +32,13 @@ export function pickHeaderMetrics(input: {
   speakerCount: number;
   judgeCount: number;
   activeYears: { from: number; to: number } | null;
+  /**
+   * Furthest outround reached, as a display label ("Semifinals"). Break
+   * depth is judged by the outround, never by speaker rank.
+   */
+  deepestBreak?: string | null;
+  /** Best TEAM-tab finish (prelim team rank against teams on the tab). */
+  bestTeamFinish?: { rank: number; totalTeams: number; topPercent: number } | null;
 }): HeaderMetric[] {
   const {
     totalTournaments,
@@ -40,6 +49,8 @@ export function pickHeaderMetrics(input: {
     bestSpeakerAverage,
     speakerCount,
     judgeCount,
+    deepestBreak = null,
+    bestTeamFinish = null,
   } = input;
 
   const speakerLeaning = judgeCount === 0 || speakerCount >= judgeCount * 3;
@@ -60,18 +71,31 @@ export function pickHeaderMetrics(input: {
 
   if (speakerLeaning) {
     if (breaks > 0) {
+      // The break count carries its depth: how far the best run went is
+      // the strength of the break, and it is a team fact (outround reached).
+      const hint = [
+        totalTournaments > 0 ? `${Math.round((breaks / totalTournaments) * 100)}% of entries` : null,
+        deepestBreak ? `deepest ${deepestBreak}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      candidates.push({ label: 'Breaks', value: breaks, accent: 'gold', hint: hint || undefined });
+    }
+    // How high the user placed is a TEAM-tab question; it outranks the
+    // speaker-tab figures below, which are individual statistics and are
+    // labelled as such.
+    if (bestTeamFinish) {
       candidates.push({
-        label: 'Breaks',
-        value: breaks,
-        accent: 'gold',
-        hint: totalTournaments > 0 ? `${Math.round((breaks / totalTournaments) * 100)}% of entries` : undefined,
+        label: 'Best team finish',
+        value: `#${bestTeamFinish.rank}`,
+        hint: `of ${bestTeamFinish.totalTeams} teams · top ${formatTopPercent(bestTeamFinish.topPercent)}`,
       });
     }
     if (bestSpeakerAverage != null) {
       candidates.push({ label: 'Best speaker avg', value: bestSpeakerAverage.toFixed(1) });
     }
     if (bestSpeakerRank != null) {
-      candidates.push({ label: 'Best speaker rank', value: `#${bestSpeakerRank}` });
+      candidates.push({ label: 'Best speaker-tab rank', value: `#${bestSpeakerRank}` });
     }
   } else if (judgeLeaning) {
     if (totalRoundsChaired > 0) {
