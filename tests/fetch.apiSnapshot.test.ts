@@ -16,6 +16,8 @@ function respond(body: string, status = 200) {
 describe('withApiSnapshots', () => {
   beforeEach(() => {
     upsert.mockClear();
+    // Page bodies are off by default; these tests are about the archive when on.
+    process.env.STORE_SOURCE_BODIES = '1';
   });
 
   test('a 200 JSON list is stored under its endpoint URL, body as received', async () => {
@@ -148,5 +150,34 @@ describe('withApiSnapshots', () => {
     const url = (upsert.mock.calls[0][0] as unknown as { where: { url_contentHash: { url: string } } }).where
       .url_contentHash.url;
     expect(url).toBe('https://wudc2024.calicotab.com/api/v1/tournaments/wudc/preferences');
+  });
+});
+
+describe('storeSourceDocument with page bodies off (the default)', () => {
+  beforeEach(() => {
+    upsert.mockClear();
+    delete process.env.STORE_SOURCE_BODIES;
+  });
+
+  test('writes the row but no body, and does not touch an existing body on update', async () => {
+    const { storeSourceDocument } = await import('@/lib/calicotab/fetch');
+    const out = await storeSourceDocument('https://x.calicotab.com/t/', 200, '<html>page</html>');
+    expect(out.contentLength).toBe(Buffer.byteLength('<html>page</html>'));
+    const arg = upsert.mock.calls[0][0] as unknown as {
+      create: { bodyGzip: unknown; contentHash: string };
+      update: Record<string, unknown>;
+    };
+    expect(arg.create.bodyGzip).toBeNull();
+    expect(arg.create.contentHash).toBe(out.contentHash);
+    expect('bodyGzip' in arg.update).toBe(false);
+  });
+
+  test('STORE_SOURCE_BODIES=1 stores the gzipped body again', async () => {
+    process.env.STORE_SOURCE_BODIES = '1';
+    const { storeSourceDocument } = await import('@/lib/calicotab/fetch');
+    await storeSourceDocument('https://x.calicotab.com/t/', 200, '<html>page</html>');
+    const arg = upsert.mock.calls[0][0] as unknown as { create: { bodyGzip: Buffer } };
+    expect(gunzipSync(arg.create.bodyGzip).toString('utf8')).toBe('<html>page</html>');
+    delete process.env.STORE_SOURCE_BODIES;
   });
 });
