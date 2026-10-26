@@ -114,6 +114,13 @@ export async function syncGmailTokenFromAccount(userId: string): Promise<boolean
       expires_at: account.expires_at,
       scope: account.scope,
     });
+    // The encrypted copy now exists, so the plain one is cleared: it only
+    // ever widened who could read the mailbox. Cleared after the write, so a
+    // failure above leaves it for the next attempt.
+    await prisma.account.updateMany({
+      where: { userId, provider: 'google' },
+      data: { access_token: null, refresh_token: null, id_token: null },
+    });
     console.info('[gmail.sync] recovered GmailToken from Account', { userId });
     return true;
   } catch (err) {

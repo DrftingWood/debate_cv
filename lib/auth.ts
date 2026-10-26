@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/db';
 import { persistTokensFromAccount } from '@/lib/gmail/client';
+import { withoutStoredTokens } from '@/lib/authAdapter';
 
 /**
  * Look up the DB User.id with multiple fallbacks. NextAuth v5 beta
@@ -44,7 +45,8 @@ async function resolveUserId(args: {
 }
 
 const next = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // Tokens go to the encrypted GmailToken, never into Account (see authAdapter).
+  adapter: withoutStoredTokens(PrismaAdapter(prisma), persistTokensFromAccount),
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
