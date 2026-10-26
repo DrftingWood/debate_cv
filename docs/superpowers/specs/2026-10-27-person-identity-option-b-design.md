@@ -385,43 +385,43 @@ Each PR is small and shippable alone. Flags are env vars read in one helper (`li
 
 ## 9. Open questions for the owner
 
-1. **Same-name pairs at one tournament, and non-Latin names (phase 7).** Do phase 7 now, as part of H2, or after phases 1-6 have shipped? It needs a parser version bump and a full re-ingest. **Recommended default: after.** First measure how often two people share a name at one tournament, from the corpus (not production), and do phase 7 only if it is more than a handful of tournaments or a non-Latin user asks. *(Measured since; see "Owner's rule" below: it is far more than a handful, and the default is revised.)*
+1. **Same-name pairs at one tournament, and non-Latin names (phase 7).** Do phase 7 now, as part of H2, or after phases 1-6 have shipped? It needs a parser version bump and a full re-ingest. **Recommended default: after.** First measure how often two people share a name at one tournament, from the corpus (not production), and do phase 7 only if it is more than a handful of tournaments or a non-Latin user asks. *(Measured since; see "Owner's rule: not in the same round" below: it is far more than a handful, and the default is revised.)*
 2. **Legacy participations not carried over.** Old claims cover a namesake's tournaments the user never had a URL for (report V5). These never showed on the CV, but they appear in the account export and dashboard counts today. **Recommended default: do not carry them over**, and keep the V5 report for the owner to look over once.
 3. **Auto-claim on a "close" name.** Decision A accepts a close name as proof. Should a `close` registration name auto-claim at ingest, or only `match`, with `close` shown for one-tap confirmation? **Recommended default: auto-claim on both**, as decision A says, with a visible "linked by close name" marker that the user can undo.
 4. **Suppression scope.** Suppression stays on the name, so one person's erasure request also masks every namesake (and stops those namesakes claiming). **Recommended default: keep it on the name for now**, because over-masking is the safe side for erasure, and handle a namesake who complains through the admin route.
 5. **Soak and who runs production steps.** **Recommended default:** the owner runs the backfill and verification SQL from the runbook, after an agent-prepared rehearsal on a Neon branch. The read switch runs for 14 days with V1-V4 clean before the contract migration, which is preceded by a Neon branch restore point kept for 14 days.
 
-### Owner's rule: a speaker and a judge at one tournament are different people (2026-10-27)
+### Owner's rule: not in the same round (2026-10-27, refined)
 
-The owner, a debater, set a domain rule: **nobody is both a speaker and a judge at the same tournament.** So when one name key appears on both the speaker list and the adjudicator list of a tournament, it belongs to two people who share a name. It is never one person with two roles.
+The owner, a debater, refined the rule recorded here earlier ("nobody is both a speaker and a judge at the same tournament"). The rule is now: **a person cannot speak and judge in the same round.** Nor can they speak for two teams, or sit on two panels, in one round. Across rounds they can do different things: a speaker who did not break judges the outrounds; a replacement speaks one round; an organiser or stop-gap is entered on several "swing" teams so that every room has its 4 teams (BP) or 2 (two-team formats).
+
+So entries that share a name key at one tournament are judged by their **rounds**, not by their roles:
+
+- **Overlapping rounds** (two speaker entries both scored in round N; a speaker entry in round N while the name judged round N; two judges with the name on round N): **different people.**
+- **Disjoint rounds:** **plausibly one person**, holding both roles (speaker, then judge) or listed on several teams.
+- **No round data on one side:** unknown.
 
 What this means for the model:
 
-- **Claims (3.3, 3.4).** A participation claim can safely assume one role family per person per tournament: speaker or judge, never both. Two cases signal a merged namesake pair, not the user's own record:
-  - a user holds a speaker participation and a judge participation at the same tournament;
-  - one `TournamentParticipant` carries both a `speaker` and a `judge` `ParticipantRole`.
-  The claim paths should show either case as a conflict, not auto-claim the row whole. `ParticipantRole`'s `(tournamentParticipantId, role)` key still allows both roles on one row. Under this rule, such a row is a sign of a merge, not a valid state.
-- **Within-tournament identity (phase 7).** A speaker and a judge who share a name need **distinct participant rows**.
-  - The per-tournament entry key must keep them apart. In the API they are different Tabbycat objects with different URLs. The fallback key (v2 name + team) must also carry the role family, because a judge has no team.
-  - The participants-list merge (`participantByName`, `ingest.ts:965-982`) must stop merging a speaker row with an adjudicator row. Today the last row wins. Tabbycat lists Adjudicators before Speakers, so the judge namesake ends up with no judge role. The checker's "judge role dropped" finding is this same collision, not a separate bug.
+- **Claims (3.3, 3.4).** One `TournamentParticipant` carrying both a `speaker` and a `judge` `ParticipantRole` is a **valid state** (one person, disjoint rounds), so the claim paths must not treat it as a merge on its own. The conflict signal is two entries of one name whose rounds overlap.
+- **Within-tournament identity (phase 7).** The identity key is **name + non-overlapping rounds**:
+  - entries of one name whose rounds **overlap** get **separate participant rows**. In the API they are different Tabbycat objects with different URLs; the HTML fallback key (v2 name + team) must split them by round overlap, which needs the round data at ingest time (speaker-tab scores, the results pages' adjudicators, or the team's results rounds);
+  - entries whose rounds are **disjoint** are **one participant holding both roles** (or several team entries). So the participants-list merge (`participantByName`, `ingest.ts:965-982`) must **keep both the speaker and the judge role** for such a person. Today `Map.set` keeps the last row; Tabbycat lists Adjudicators before Speakers, so the speaker row wins and the judge role is dropped. For a disjoint pair that is lost credit for one real person, a bug of its own (the checker's `judge_role_lost_one_person`), not a namesake collision;
+  - where rounds are **unknown**, the recommended default is separate rows per role family. Under option B claims bind to participations, so one person split in two can claim both rows, while two people merged into one row cannot be told apart afterwards.
 
-**Measured (open question 1 asked for this).** The offline checker is `scripts/find-identity-affected-tournaments.mjs` (runbook: `docs/runbooks/identity-affected-tournaments.md`). The owner ran it on an export of 855 tournaments with a tab page, **before** this rule was applied:
+**Measured (open question 1 asked for this).** The offline checker is `scripts/find-identity-affected-tournaments.mjs` (runbook: `docs/runbooks/identity-affected-tournaments.md`), run on an export of 855 tournaments with a tab page:
 
-- **146 of 855** tournaments were affected. That count included only empty-key names and same-role collisions.
-- **126** tournaments had a same-role collision: two speakers, or two judges, with one key and a different team or institution.
-- **122** had a cross-role group: a speaker and a judge on one key.
-- **23** had a name whose v1 key is empty.
-
-The class counts overlap. Under the owner's rule, cross-role groups are real collisions as well, so the checker now counts them (PR #176). `Affected` is now the union of empty-key, same-role and cross-role, with each tournament counted once. The owner re-ran the updated script on 2026-10-27: **232 of 855** tournaments are affected (union, each counted once). Of those, 23 have empty-key names (44 names), 126 have same-role collisions (202 groups) and 122 have cross-role collisions (211 groups). Of the cross-role groups, only 7 tournaments name the same institution on both sides (the only case where one person is plausible), 5 name different institutions, and 113 have an unknown institution on one side. 14 tournaments with exact duplicate rows are not counted. The script also splits cross-role groups by whether the speaker row and the judge row name the same institution. That is the only case where a listing error is plausible rather than a namesake, and those rows are for the owner to check by eye.
+- Before any rule: **146 of 855** affected (empty-key names and same-role collisions only). Under the earlier "never both at one tournament" rule (PR #176): **232 of 855**.
+- Under the **same-round rule** (the checker now compares rounds; agent run on the 2026-10 export, to be confirmed by the owner's re-run): **158 of 855** affected (empty-key names, or a group whose entries overlap in some round), and **221 of 855** if every rounds-unknown group is also counted as two people. Of the groups: 203 overlap (139 tournaments; 75 of them speaker+judge), 37 are disjoint speaker+judge (19 tournaments; all 37 lose their judge role in the merge today), 12 are disjoint same-role (10 tournaments), 161 are unknown (87 tournaments), 18 are duplicate rows. 23 tournaments have empty-key names (44 names). Judge rounds come only from stored results pages; 9 tournaments have none.
 
 **Revised re-ingest estimate.** The runbook (step 4) gives about 25 s per tournament on one shard:
 
 | Route | Tournaments | Actions time |
 | --- | --- | --- |
-| Short list from the checker | 232 | about 100 minutes |
+| Short list from the checker | 158 (221 with unknowns) | about 66 (92) minutes |
 | Global `PARSER_VERSION` bump | all 855 in the export | about 6 hours, and every user's cached parses are invalidated |
 
-The short list is 17-28 % of the export, not "a handful". So the recommended default for open question 1 changes to **do phase 7**, with a short-list re-ingest of the checker's list instead of a global bump. Runbook step 2's caveat still applies: the v1-to-v2 re-key of `Person` is a data migration and must run first. The exact figure will follow the re-run.
+The short list is 18-26 % of the export, not "a handful". So the recommended default for open question 1 stays **do phase 7**, with a short-list re-ingest of the checker's list instead of a global bump. Runbook step 2's caveat still applies: the v1-to-v2 re-key of `Person` is a data migration and must run first. The disjoint speaker+judge people are not on the strict list (nothing collides), but their lost judge role is fixed only by phase 7's merge change plus a re-ingest, so add those tournaments to the list once that change ships.
 
 ## Sources
 
