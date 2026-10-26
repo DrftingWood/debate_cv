@@ -83,6 +83,24 @@ describe('topicTypeHeatmap', () => {
     expect(h.types).toEqual(['Policy', 'Belief']);
   });
 
+  it('clubs rounds that offered several different motions into one bucket instead of dropping them', () => {
+    const h = topicTypeHeatmap([
+      ...many(MIN_QUIRK_ROUNDS, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }),
+      ...many(MIN_QUIRK_ROUNDS, { motionTopic: 'Education', motionType: 'Belief', score: 70 }),
+    ]);
+    expect(h.mixed).toMatchObject({ rounds: MIN_QUIRK_ROUNDS, enough: true });
+    expect(h.mixed!.avgScore).toBeCloseTo(80, 6);
+    // one baseline for the whole grid: (80 + 70) / 2
+    expect(h.baseline).toBeCloseTo(75, 6);
+    expect(h.mixed!.scoreDelta).toBeCloseTo(5, 6);
+    expect(h.cells).toHaveLength(1);
+    expect(h.coveredRounds).toBe(MIN_QUIRK_ROUNDS * 2);
+  });
+
+  it('has no choice bucket when no round offered a choice', () => {
+    expect(topicTypeHeatmap(many(6, {})).mixed).toBeNull();
+  });
+
   it('is empty and has no baseline when nothing is tagged', () => {
     const h = topicTypeHeatmap([round({ motionTopic: null })]);
     expect(h.cells).toEqual([]);

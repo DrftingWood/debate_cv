@@ -40,6 +40,13 @@ export type RoundFact = {
   motionType: MotionClass | null;
   /** Approved subject-area tag shared by every motion released for the round, or none. Optional so older fixtures still type. */
   motionTopic?: string | null;
+  /**
+   * The round released several motions that do not share one type and topic
+   * (Asian Parliamentary's three-motion rounds). Without per-room draw data
+   * the motion debated is unknown, so these rounds are clubbed into one bucket
+   * rather than dropped or credited to each motion.
+   */
+  choiceRound?: boolean;
   /** Any motion is known for the round — the info-slide and framing flags mean nothing without one. */
   hasMotion: boolean;
   /** Every motion released for the round was context-led. Independent of whether they share a type. */
@@ -168,7 +175,7 @@ function pairingFor(row: CvSpeakerRow) {
 /** A round's motion type: shared by every motion released for it, or none. */
 function motionFor(motions: CvTaggedMotion[]) {
   if (motions.length === 0) {
-    return { motionType: null, motionTopic: null, hasMotion: false, contextLed: false, infoSlide: false };
+    return { motionType: null, motionTopic: null, choiceRound: false, hasMotion: false, contextLed: false, infoSlide: false };
   }
   const classified = motions.map((m) => classifyMotion(m.text, m.infoSlide));
   const type = classified[0].type;
@@ -184,6 +191,7 @@ function motionFor(motions: CvTaggedMotion[]) {
   return {
     motionType: shared ? type : null,
     motionTopic: topic ?? null,
+    choiceRound: motions.length > 1 && !(shared && topic != null),
     hasMotion: true,
     contextLed: classified.every((c) => c.contextLed),
     infoSlide: classified.every((c) => c.infoSlide),

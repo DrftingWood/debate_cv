@@ -785,6 +785,7 @@ export const STATS_SECTIONS = [
   { id: 'positions', label: 'Positions' },
   { id: 'motion-types', label: 'Motion types' },
   { id: 'cross-tabs', label: 'Cross-tabs' },
+  { id: 'topic-types', label: 'Topic × type' },
   { id: 'splits', label: 'Splits' },
   { id: 'partners', label: 'Teammates' },
   { id: 'carry', label: 'Carry index' },
