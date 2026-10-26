@@ -77,7 +77,7 @@ The scan works on text, not types. It strips comments and one-line string litera
 
 ## Report-only baseline (Q1 phase 1b)
 
-Measured 2026-10-27 on `origin/main` at `c3da602` (after #167 to #174 merged) plus the phase 1b PR, with the pinned tool versions in `docs/CI_PLAN-2026-10-27.md`. These checks run in the `report (non-blocking)` job of `.github/workflows/ci.yml` and never fail a build. The job summary prints the same table, so a PR that raises a number shows it. How each one graduates to blocking is in the CI plan.
+Measured 2026-10-27 on `origin/main` at `83b278b` (after #167 to #176 merged) plus the phase 1b PR, with the pinned tool versions in `docs/CI_PLAN-2026-10-27.md`. These checks run in the `report (non-blocking)` job of `.github/workflows/ci.yml` and never fail a build. The job summary prints the same table, so a PR that raises a number shows it. How each one graduates to blocking is in the CI plan.
 
 | Check | Count | Notes |
 |---|---:|---|
@@ -99,4 +99,4 @@ Measured 2026-10-27 on `origin/main` at `c3da602` (after #167 to #174 merged) pl
 - `tsconfig.json`: `noUnusedLocals` and `noUnusedParameters` are on. They produced **0** errors when enabled, so no code changed.
 - `eslint.config.mjs`: `no-restricted-syntax` as an **error** against `new PrismaClient(...)` outside `lib/db.ts` and `scripts/` (0 hits).
 - The ratchet's `nonNull` baseline moved from 75 to **76**. `main` was already at 76 before this PR: #167 removed two `!` from `lib/cv/buildCvData.ts` and #168 added three in `lib/identity/affectedTournaments.ts`, both landing before CI ran the ratchet. Raised so `verify` is green on `main`; those three are the first to remove.
-- Lint warnings are now **360** (186 `max-lines-per-function`, 72 `complexity`, 60 `max-depth`, 21 `max-lines`, 20 `max-params`, 1 `no-unused-vars`), up from 346 at phase 1. The rise came with the code merged in #167 to #174; this PR adds no warnings.
+- Lint warnings are now **360** (186 `max-lines-per-function`, 72 `complexity`, 60 `max-depth`, 21 `max-lines`, 20 `max-params`, 1 `no-unused-vars`), up from 346 at phase 1. The rise came with the code merged in #167 to #176; this PR adds no warnings.
