@@ -83,9 +83,23 @@ function askHidden(prompt) {
 
 /** The direct (non-pooled) form of a Neon string, without options Prisma may reject. */
 function directConnectionString(raw) {
-  const u = new URL(raw.trim());
-  if (u.protocol !== 'postgresql:' && u.protocol !== 'postgres:') {
-    throw new Error('That is not a postgresql:// connection string.');
+  // Neon's Connect dialog offers a psql command, a DATABASE_URL="..." line and a
+  // multi-line .env block. Take just the address out of whatever was pasted,
+  // ignoring a leading "psql", a NAME=, and surrounding quotes. Nothing pasted
+  // is ever echoed back, so an error cannot leak the password.
+  const found = String(raw).match(/postgres(?:ql)?:\/\/[^\s'"]+/);
+  if (!found) {
+    throw new Error(
+      'No postgresql://... address found in what was pasted. In the Neon Connect dialog copy only the connection string.',
+    );
+  }
+  let u;
+  try {
+    u = new URL(found[0]);
+  } catch {
+    throw new Error(
+      'The address could not be read. Copy the connection string again from the Neon Connect dialog, exactly as shown.',
+    );
   }
   u.hostname = u.hostname.replace('-pooler', '');
   u.searchParams.delete('channel_binding');
