@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-26 — B9 pre-scrape: where it stands
+
+**Lists on main** (`scripts/prescrape/`): stage A 2023–25 (260), B 2020–22 (217), C sheet leftovers 2020–25 (108), D second-sheet 2020–25 (65), E 2026 + undated + pre-2020 (158), and `retry-timeouts.txt` (wudc2020, wudckorea). B–E were built from the Tabs tabs of the two Official Global Debating Spreadsheets, matched on host + slug.
+
+**Loaded so far:** A (258 of 260 usable) and B (all but 7: four unpublished 404s, one 403, two write timeouts). The duplicate check at the end of every load covers the whole Tournament table (host + slug under more than one fingerprint) and has returned none. Database about 393 MB of 1024 MB after B.
+
+**Gotchas learned**
+- The workflow's `concurrency: prescrape` group (cancel-in-progress false) keeps one running and ONE pending run. A third dispatch cancels the pending one. Start loads one at a time.
+- A shard's runner can have 65 ms to the database instead of 4 ms; the same big tournament then takes 5–6 minutes instead of 40 seconds. Use more, smaller shards (4) and expect shard 0 to be the slow one.
+- Pre-scrape write limit is 15 minutes (live ingest stays 45 s). `PRESCRAPE_MAX_YEAR=2026` makes root pages expand to 2026 tournaments.
+- Cancelling a run is safe: each tournament is one transaction and the loader skips ones already written; the report step runs on cancel, so the progress is kept.
+
+**Tagging:** answers for the 2026-10-26 export (4,072 topics, 3,918 types, 352 of 404 regions) are loaded and approved. 52 tournaments have no region (names give no place). edudrift and wolce are tagged Southeast Asia (the owner calls them Singapore and Malaysia; the vocabulary has regions only). A fresh Download untagged is needed after each load.
+
+---
+
 ## 2026-10-25 (night) — B8: should `TABBYCAT_API_ROUNDS` be turned on?
 
 **Recommendation: turn it on, after the current Re-ingest all has finished.** Set `TABBYCAT_API_ROUNDS=1` in Vercel (Production) and redeploy. Waiting keeps the re-ingest's evidence (write times, failures) from being mixed with a second change.
