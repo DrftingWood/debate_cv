@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { hashRank, rankLabel, tiedRanks } from '@/lib/cv/rankDisplay';
+import { hashRank, rankLabel, rankOfField, tiedRanks } from '@/lib/cv/rankDisplay';
 import { formatTeamTabPlacement, teamTabPlacement } from '@/lib/cv/teamPlacement';
 import { buildExportCsv, EXPORT_FIELDS } from '@/lib/cv/exportFields';
 import { makeCvData, makeSpeakerRow } from './setup/cv-fixtures';
@@ -49,5 +49,21 @@ describe('tied ranks read "5=" (I17)', () => {
     expect(csv).toContain('#6');
     expect(csv).not.toContain('#6=');
     expect(csv).toContain('#8 Open');
+  });
+});
+
+// C15, C16 (owner): best rank is shown raw, with the field size.
+describe('rankOfField: "3rd of 120"', () => {
+  test('ordinal with the field size', () => {
+    expect(rankOfField(3, 120)).toBe('3rd of 120');
+    expect(rankOfField(1, 8)).toBe('1st of 8');
+    expect(rankOfField(22, 300)).toBe('22nd of 300');
+    expect(rankOfField(11, 50)).toBe('11th of 50');
+    expect(rankOfField(13, 50)).toBe('13th of 50');
+  });
+
+  test('a tied rank keeps the "=" and an unknown field drops the "of"', () => {
+    expect(rankOfField(5, 40, true)).toBe('5th= of 40');
+    expect(rankOfField(3, null)).toBe('3rd');
   });
 });

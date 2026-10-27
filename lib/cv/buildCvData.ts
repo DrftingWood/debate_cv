@@ -10,7 +10,13 @@ import {
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
-import { championshipHighlights, placementHighlights } from '@/lib/cv/teamPlacement';
+import { isMajor } from '@/lib/cv/majors';
+import { summarizeBreaks } from '@/lib/cv/headerMetrics';
+import {
+  bestSpeakerRankHighlight,
+  championshipHighlights,
+  placementHighlights,
+} from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -109,6 +115,8 @@ export type CvSpeakerRow = {
    */
   prelimRoundCount: number | null;
   speakerRankOpen: number | null;
+  /** Speakers on the tab with a score total (the field the rank is against); absent when the field was not loaded. */
+  speakerFieldSize?: number | null;
   /** Another speaker has the same total, so the rank reads "7=". False when the field was not loaded. */
   speakerRankTied?: boolean;
   speakerRankEsl: number | null;
@@ -237,13 +245,25 @@ export type CvHighlights = {
     rank: number;
     totalTeams: number;
     topPercent: number;
+    /** The team rank is shared (reads "5th="). */
+    tied: boolean;
   } | null;
   /**
    * Single best Open SPEAKER-tab rank across all tournaments. An individual
    * statistic: every surface labels it as the speaker tab, and nothing uses
    * it as the measure of how high the user placed.
    */
-  bestSpeakerRank: { tournamentName: string; year: number | null; rank: number } | null;
+  bestSpeakerRank: {
+    tournamentName: string;
+    year: number | null;
+    rank: number;
+    /** Speakers on that tab; null when unknown. */
+    totalSpeakers: number | null;
+    /** rank / totalSpeakers as a percentage ("top N%"); null with the field. */
+    topPercent: number | null;
+    /** The rank is shared with another speaker (reads "5th="). */
+    tied: boolean;
+  } | null;
   /** Single highest speaker average across all tournaments. */
   bestSpeakerAverage: {
     tournamentName: string;
@@ -259,7 +279,7 @@ export type CvHighlights = {
    * rather than hiding the role inside a generic judge count.
    */
   adjCoreCount: number;
-  /** Detected major-circuit events the user has attended (WUDC / EUDC / Australs / Worlds). */
+  /** Detected major-circuit events the user has attended (the list in lib/cv/majors.ts). */
   majorEvents: { tournamentName: string; year: number | null }[];
   /** Earliest and latest year with at least one row. */
   activeYears: { from: number; to: number } | null;
@@ -369,7 +389,14 @@ export type CvData = {
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
     totalTournaments: number;
-    breaks: number;
+    /** Tournaments the user broke at as a speaker (team break). Judged outrounds are not counted here. */
+    speakingBreaks: number;
+    /** Tournaments the user broke at as a judge (judged an outround or on the adjudicator break). */
+    judgingBreaks: number;
+    /** Distinct tournaments spoken at: the speaking break rate's denominator. */
+    tournamentsSpoken: number;
+    /** Distinct tournaments judged at: the judging break rate's denominator. */
+    tournamentsJudged: number;
     totalRoundsChaired: number;
   };
   highlights: CvHighlights;
@@ -392,6 +419,12 @@ export type BuildCvDataOptions = {
    */
   includeFieldStats?: boolean;
   /**
+   * Only the number of speakers on each tab (one grouped count, no row
+   * transfer), so "Nth of N" and a percentile can be shown without the heavy
+   * field summary. Implied by includeFieldStats; the public page sets it.
+   */
+  includeFieldSizes?: boolean;
+  /**
    * Tournaments to leave out of the whole record (rows, summary, highlights,
    * motions). The public CV passes the owner's hidden tournaments (C101);
    * the owner's own /cv never does.
@@ -405,6 +438,7 @@ export async function buildCvData(
 ): Promise<CvData> {
   const includeFieldStats = options.includeFieldStats ?? true;
   const excluded = new Set(options.excludeTournamentIds ?? []);
+  const includeFieldSizes = options.includeFieldSizes ?? false;
   const [user, allUrls, claimedPersons] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -998,6 +1032,38 @@ export async function buildCvData(
     const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}#${row.speakerRankOpen}`;
     speakersOnTotal.set(k, (speakersOnTotal.get(k) ?? 0) + 1);
   }
+  // The public page loads no field rows, so ask the database for the same two
+  // facts in two batched grouped counts (no per-tournament queries): the
+  // speakers on each tab, and only the (total, rank) groups with 2+ speakers.
+  const cheapFieldSizes = new Map<bigint, number>();
+  if (!includeFieldStats && includeFieldSizes && tournamentIds.length) {
+    const speakerWhere = {
+      tournamentId: { in: tournamentIds },
+      speakerScoreTotal: { not: null },
+      roles: { some: { role: 'speaker' as const } },
+    };
+    const [counts, tiedGroups] = await Promise.all([
+      prisma.tournamentParticipant.groupBy({
+        by: ['tournamentId'],
+        where: speakerWhere,
+        _count: { _all: true },
+      }),
+      prisma.tournamentParticipant.groupBy({
+        by: ['tournamentId', 'speakerScoreTotal', 'speakerRankOpen'],
+        where: { ...speakerWhere, speakerRankOpen: { not: null } },
+        having: { tournamentId: { _count: { gt: 1 } } },
+        _count: { _all: true },
+      }),
+    ]);
+    for (const c of counts) cheapFieldSizes.set(c.tournamentId, c._count._all);
+    for (const g of tiedGroups) {
+      if (g.speakerScoreTotal == null || g.speakerRankOpen == null) continue;
+      speakersOnTotal.set(
+        `${g.tournamentId}#${Number(g.speakerScoreTotal)}#${g.speakerRankOpen}`,
+        g._count._all,
+      );
+    }
+  }
 
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
@@ -1339,34 +1405,34 @@ export async function buildCvData(
   }
 
   const totalTournaments = tournamentIds.length;
-  // Tournaments at which the user broke, in any role. Every surface reads
-  // this against totalTournaments (the /cv header's "N% of entries", the
-  // public page's "Breaks" tile, the JSON Resume summary), which counts each
-  // tournament once — so a tournament with a speaker break AND a judge break
-  // is one break here, not two. Summing the two row lists could push the
-  // rate past 100%.
-  const breaks = new Set(
-    [...speakerRows, ...judgeRows].filter((r) => r.broke).map((r) => r.tournamentId),
-  ).size;
+  // Breaks are reported per role (owner decision C25/C26): a judged outround
+  // is never folded into the speaking count, and each side's rate has its own
+  // denominator. A tournament counts once per role.
+  const breakSummary = summarizeBreaks(speakerRows, judgeRows);
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   // ── Highlights ───────────────────────────────────────────────────────
   // Auto-derived achievements surfaced above the tables on /cv. Pure
   // functions of the rows we already computed; no extra DB hits.
-  const MAJOR_PATTERN =
-    /\b(?:wudc|world(?: university)? debating|eudc|european debating|australs|asian debating|naudc|north american debating)\b/i;
-
   const championships = championshipHighlights(speakerRows);
 
   const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
-  const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
-    if (r.speakerRankOpen == null) return best;
-    if (!best || r.speakerRankOpen < best.rank) {
-      return { tournamentName: r.tournamentName, year: r.year, rank: r.speakerRankOpen };
-    }
-    return best;
-  }, null);
+  // Speaker field size per tournament, so the best rank can read "3rd of 400".
+  // Empty when the field was not loaded (includeFieldStats: false).
+  const speakerFieldByTournament = new Map<bigint, number>();
+  for (const f of fieldRows) {
+    if (f.speakerScoreTotal == null) continue;
+    speakerFieldByTournament.set(
+      f.tournamentId,
+      (speakerFieldByTournament.get(f.tournamentId) ?? 0) + 1,
+    );
+  }
+  // Public page: the counts fetched above, in the database.
+  for (const [tid, n] of cheapFieldSizes) speakerFieldByTournament.set(tid, n);
+  for (const r of speakerRows)
+    r.speakerFieldSize = speakerFieldByTournament.get(r.tournamentId) ?? null;
+  const bestSpeakerRank = bestSpeakerRankHighlight(speakerRows);
 
   const bestSpeakerAverage = speakerRows.reduce<CvHighlights['bestSpeakerAverage']>((best, r) => {
     if (!r.speakerAvgScore) return best;
@@ -1382,7 +1448,7 @@ export async function buildCvData(
   const adjCoreCount = judgeRows.filter((r) => r.judgeTypeTag === 'core').length;
 
   const majorEvents = [...speakerRows, ...judgeRows]
-    .filter((r) => MAJOR_PATTERN.test(r.tournamentName))
+    .filter((r) => isMajor(r.tournamentName))
     .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
     // Dedup by name+year so a user with both a speaker and judge row at the
     // same major doesn't double-count.
@@ -1420,7 +1486,14 @@ export async function buildCvData(
     teamOutroundResults,
     fieldStats,
     unmatchedTournaments,
-    summary: { totalTournaments, breaks, totalRoundsChaired },
+    summary: {
+      totalTournaments,
+      speakingBreaks: breakSummary.speaking,
+      judgingBreaks: breakSummary.judging,
+      tournamentsSpoken: breakSummary.tournamentsSpoken,
+      tournamentsJudged: breakSummary.tournamentsJudged,
+      totalRoundsChaired,
+    },
     highlights,
     lastIngestedAt: urls.reduce<Date | null>(
       (latest, u) => (u.ingestedAt && (!latest || u.ingestedAt > latest) ? u.ingestedAt : latest),

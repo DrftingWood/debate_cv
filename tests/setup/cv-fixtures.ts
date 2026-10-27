@@ -101,7 +101,14 @@ export function makeCvData(overrides: Partial<CvData> = {}): CvData {
     teamOutroundResults: [],
     fieldStats: [],
     unmatchedTournaments: [],
-    summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
+    summary: {
+      totalTournaments: 0,
+      speakingBreaks: 0,
+      judgingBreaks: 0,
+      tournamentsSpoken: 0,
+      tournamentsJudged: 0,
+      totalRoundsChaired: 0,
+    },
     highlights: {
       championships: [],
       deepestBreaks: [],

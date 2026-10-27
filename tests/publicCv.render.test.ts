@@ -209,6 +209,7 @@ describe('PublicCvPage', () => {
     await render([], []);
     expect(buildCvData).toHaveBeenCalledWith('u1', {
       includeFieldStats: false,
+      includeFieldSizes: true,
       excludeTournamentIds: [7n],
     });
   });

@@ -23,6 +23,8 @@
  * variables.
  */
 
+import { formatBreaks } from '@/lib/cv/headerMetrics';
+
 const LEDGER = {
   canvas: '#F6F7F9', // --background 210 20% 97%
   card: '#FFFFFF', // --card
@@ -37,7 +39,8 @@ const TRUST = ['Read-only Gmail', 'Private until shared', 'Source-backed rows'];
 export type ShareCardPerson = {
   name: string;
   tournaments: number;
-  breaks: number;
+  speakingBreaks: number;
+  judgingBreaks: number;
   activeYears?: string | null;
 };
 
@@ -103,9 +106,7 @@ export function ShareCard({ person }: { person?: ShareCardPerson } = {}) {
           {person
             ? [
                 `${person.tournaments} tournament${person.tournaments === 1 ? '' : 's'}`,
-                person.breaks > 0
-                  ? `${person.breaks} break${person.breaks === 1 ? '' : 's'}`
-                  : null,
+                formatBreaks({ speaking: person.speakingBreaks, judging: person.judgingBreaks }),
                 person.activeYears ?? null,
               ]
                 .filter(Boolean)

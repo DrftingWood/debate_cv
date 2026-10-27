@@ -238,10 +238,39 @@ export function placementHighlights(
         rank: best.p.rank,
         totalTeams: best.p.of,
         topPercent: best.p.topPercent,
+        tied: best.r.teamRankTied === true,
       }
     : null;
 
   return { deepestBreaks, topSpeakerFinishes, bestTeamFinish };
+}
+
+/**
+ * Best Open speaker-tab rank (owner decision C16): the smallest RAW rank, with
+ * the field size and the share-of-field percentile alongside. At an equal rank
+ * the bigger field is the better finish. The field size is null when the tab's
+ * speaker count was not loaded or contradicts the rank.
+ */
+export function bestSpeakerRankHighlight(rows: CvSpeakerRow[]): CvHighlights['bestSpeakerRank'] {
+  let best: { r: CvSpeakerRow; rank: number; field: number } | null = null;
+  for (const r of rows) {
+    const rank = r.speakerRankOpen;
+    if (rank == null) continue;
+    const field = teamTabPlacement(rank, r.speakerFieldSize)?.of ?? 0;
+    if (!best || rank < best.rank || (rank === best.rank && field > best.field)) {
+      best = { r, rank, field };
+    }
+  }
+  if (!best) return null;
+  const p = teamTabPlacement(best.rank, best.r.speakerFieldSize);
+  return {
+    tournamentName: best.r.tournamentName,
+    year: best.r.year,
+    rank: best.rank,
+    totalSpeakers: p?.of ?? null,
+    topPercent: p?.topPercent ?? null,
+    tied: best.r.speakerRankTied === true,
+  };
 }
 
 /** "3 of 40 teams · top 8%" — the one wording every surface uses. */

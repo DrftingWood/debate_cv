@@ -15,6 +15,27 @@ export function rankLabel(rank: number, tied: boolean | null | undefined): strin
   return tied ? `${rank}=` : String(rank);
 }
 
+/** 1 -> "1st", 12 -> "12th", 22 -> "22nd". */
+export function ordinalRank(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
+}
+
+/**
+ * "3rd of 120": a best rank is shown raw WITH its field size (owner decision,
+ * assumptions C15/C16). A tie reads "5th=". With no known field it is just
+ * the ordinal, never an invented "of".
+ */
+export function rankOfField(
+  rank: number,
+  of: number | null | undefined,
+  tied?: boolean | null,
+): string {
+  const base = `${ordinalRank(rank)}${tied ? '=' : ''}`;
+  return of != null ? `${base} of ${of}` : base;
+}
+
 /** "#5=" / "#5": the form every ledger cell and export uses. */
 export function hashRank(rank: number, tied: boolean | null | undefined): string {
   return `#${rankLabel(rank, tied)}`;
