@@ -484,11 +484,11 @@ describe('buildCvData characterization: the judge row (T2)', () => {
 describe('buildCvData characterization: highlights (except the placement fields)', () => {
   it('pins championships, best average, chairs, adj core, majors and active years', async () => {
     const cv = await buildCvData(USER);
-    // The placement fields (deepestBreaks, topTeamFinishes, bestTeamFinish, bestSpeakerRank)
+    // The placement fields (deepestBreaks, topSpeakerFinishes, bestTeamFinish, bestSpeakerRank)
     // are pinned in tests/cv.teamPlacement.test.ts since PR #167 reworked them.
     const {
       deepestBreaks: _deepestBreaks,
-      topTeamFinishes: _topTeamFinishes,
+      topSpeakerFinishes: _topSpeakerFinishes,
       bestTeamFinish: _bestTeamFinish,
       bestSpeakerRank: _bestSpeakerRank,
       ...rest
@@ -573,7 +573,7 @@ describe('buildCvData characterization: queries', () => {
       highlights: {
         championships: [],
         deepestBreaks: [],
-        topTeamFinishes: [],
+        topSpeakerFinishes: [],
         bestTeamFinish: null,
         bestSpeakerRank: null,
         bestSpeakerAverage: null,

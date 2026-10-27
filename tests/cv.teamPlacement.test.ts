@@ -4,7 +4,7 @@ import {
   breakSeed,
   compareBreakStrength,
   formatTopPercent,
-  inTopShareOfTeamTab,
+  isTopSpeaker,
   placementHighlights,
   teamTabPlacement,
 } from '@/lib/cv/teamPlacement';
@@ -34,12 +34,12 @@ describe('teamTabPlacement', () => {
     expect(teamTabPlacement(41, 40)).toBeNull();
   });
 
-  test('top-10% uses ceil, so a 15-team tab still has a top-10% place', () => {
-    expect(inTopShareOfTeamTab(4, 40)).toBe(true);
-    expect(inTopShareOfTeamTab(5, 40)).toBe(false);
-    expect(inTopShareOfTeamTab(2, 15)).toBe(true);
-    expect(inTopShareOfTeamTab(3, 15)).toBe(false);
-    expect(inTopShareOfTeamTab(null, 15)).toBe(false);
+  test('Top 10 speaker is an absolute rank, not a percentile (C3 replaced)', () => {
+    expect(isTopSpeaker(1)).toBe(true);
+    expect(isTopSpeaker(10)).toBe(true);
+    expect(isTopSpeaker(11)).toBe(false);
+    expect(isTopSpeaker(0)).toBe(false);
+    expect(isTopSpeaker(null)).toBe(false);
   });
 
   test('formatTopPercent never claims "top 0%"', () => {
@@ -133,16 +133,21 @@ describe('breakDepth and break strength', () => {
 });
 
 describe('placementHighlights', () => {
-  test('top-10% is judged by TEAM rank against team count, not speaker rank', () => {
+  test('Top 10 speaker is speaker rank <= 10 at any field size; team rank no longer counts (C3)', () => {
     const rows = [
-      // Speaker #3 of a 40-team tab: the old rule called this a top-10% break
-      // (3 ≤ ceil(40 × 0.1)) though the team finished 20th.
+      // Speaker #3 of a 40-team tab: a Top 10 speaker though the team finished 20th.
       makeSpeakerRow({ tournamentName: 'Speaker star', broke: true, speakerRankOpen: 3, teamRank: 20, totalTeams: 40 }),
-      // Team 4th of 40 with a middling speaker rank: a genuine top-10% finish.
+      // Team 4th of 40 with a middling speaker rank: no longer a highlight.
       makeSpeakerRow({ tournamentName: 'Team star', teamRank: 4, totalTeams: 40, speakerRankOpen: 30 }),
+      // #10 of 400 teams qualifies; #11 does not.
+      makeSpeakerRow({ tournamentName: 'Tenth', teamRank: 90, totalTeams: 400, speakerRankOpen: 10 }),
+      makeSpeakerRow({ tournamentName: 'Eleventh', teamRank: 2, totalTeams: 15, speakerRankOpen: 11 }),
     ];
     const h = placementHighlights(rows);
-    expect(h.topTeamFinishes).toEqual([{ tournamentName: 'Team star', year: 2025, rank: 4, totalTeams: 40 }]);
+    expect(h.topSpeakerFinishes).toEqual([
+      { tournamentName: 'Speaker star', year: 2025, rank: 3, totalTeams: 40 },
+      { tournamentName: 'Tenth', year: 2025, rank: 10, totalTeams: 400 },
+    ]);
     expect(h.bestTeamFinish).toMatchObject({ tournamentName: 'Team star', rank: 4, totalTeams: 40, topPercent: 10 });
   });
 

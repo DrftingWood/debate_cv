@@ -211,16 +211,17 @@ export type CvHighlights = {
     breakRank: number | null;
   }[];
   /**
-   * Tournaments where the TEAM finished in the top 10% of the prelim team tab
-   * (teamRank ≤ ceil(totalTeams * 0.10)), best share first. Replaces the old
-   * speaker-rank "top-10% break", which compared a speaker rank with a team
-   * count.
+   * Tournaments where the user was a Top 10 speaker: Open speaker-tab rank
+   * <= TOP_SPEAKER_RANK (10), best rank first. An absolute rank, not a
+   * percentile (owner decision, assumptions C3/Q5) — it replaces the earlier
+   * "top 10% of the team tab" rule and its ceil rounding. `totalTeams` is the
+   * field size when known, for context only.
    */
-  topTeamFinishes: {
+  topSpeakerFinishes: {
     tournamentName: string;
     year: number | null;
     rank: number;
-    totalTeams: number;
+    totalTeams: number | null;
   }[];
   /** Best team-tab placement as a share of the field (ties: the bigger field). */
   bestTeamFinish: {
@@ -1261,7 +1262,7 @@ export async function buildCvData(
     })
     .slice(0, 5);
 
-  const { deepestBreaks, topTeamFinishes, bestTeamFinish } = placementHighlights(speakerRows);
+  const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
   const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
     if (r.speakerRankOpen == null) return best;
@@ -1304,7 +1305,7 @@ export async function buildCvData(
   const highlights: CvHighlights = {
     championships,
     deepestBreaks,
-    topTeamFinishes,
+    topSpeakerFinishes,
     bestTeamFinish,
     bestSpeakerRank,
     bestSpeakerAverage,

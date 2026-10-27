@@ -1,5 +1,5 @@
 import type { CvData, CvJudgeRow, CvSpeakerRow } from './buildCvData';
-import { teamTabPlacement } from './teamPlacement';
+import { teamTabPlacement, TOP_SPEAKER_RANK } from './teamPlacement';
 import { championTitle } from './formatStage';
 
 /**
@@ -37,8 +37,6 @@ export const DEBATE_EXTENSION_KEY = 'x-debate-cv';
 /** Bump on a breaking change to the extension's shape (and its schema file). */
 export const DEBATE_EXTENSION_VERSION = 1;
 
-/** A speaker rank at or inside this reads as an award on its own. */
-const TOP_SPEAKER_RANK = 10;
 
 export type JsonResumeAward = { title: string; date?: string; awarder: string; summary?: string };
 

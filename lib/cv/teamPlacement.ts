@@ -61,18 +61,15 @@ export function teamTabPlacement(
 }
 
 /**
- * True when the team finished inside the top `share` of the team tab
- * (0.1 = top 10%). Uses ceil so a 15-team tab still has a top-10% place
- * (rank 1 or 2) rather than none.
+ * The "Top 10 speaker" bar: an ABSOLUTE speaker-tab rank, not a percentile.
+ * Owner decision (assumptions C3, Q5) — the earlier "top 10% of the team
+ * tab" rule, with its ceil rounding, is gone. Rank 10 qualifies at any field
+ * size; rank 11 never does.
  */
-export function inTopShareOfTeamTab(
-  teamRank: number | null | undefined,
-  totalTeams: number | null | undefined,
-  share = 0.1,
-): boolean {
-  const p = teamTabPlacement(teamRank, totalTeams);
-  if (!p) return false;
-  return p.rank <= Math.ceil(p.of * share);
+export const TOP_SPEAKER_RANK = 10;
+
+export function isTopSpeaker(rank: number | null | undefined): boolean {
+  return rank != null && Number.isInteger(rank) && rank >= 1 && rank <= TOP_SPEAKER_RANK;
 }
 
 export type BreakDepth = {
@@ -189,7 +186,7 @@ export function compareBreakStrength(a: StrengthRow, b: StrengthRow): number {
  */
 export function placementHighlights(
   rows: CvSpeakerRow[],
-): Pick<CvHighlights, 'deepestBreaks' | 'topTeamFinishes' | 'bestTeamFinish'> {
+): Pick<CvHighlights, 'deepestBreaks' | 'topSpeakerFinishes' | 'bestTeamFinish'> {
   const deepestBreaks = rows
     .filter((r) => r.broke)
     .sort(compareBreakStrength)
@@ -209,10 +206,18 @@ export function placementHighlights(
     // the harder finish.
     .sort((a, b) => a.p.topPercent - b.p.topPercent || b.p.of - a.p.of);
 
-  const topTeamFinishes = placed
-    .filter(({ p }) => inTopShareOfTeamTab(p.rank, p.of, 0.1))
+  // Best (lowest) speaker rank first; Array.sort is stable, so equal ranks keep
+  // row order.
+  const topSpeakerFinishes = rows
+    .filter((r) => isTopSpeaker(r.speakerRankOpen))
+    .sort((a, b) => (a.speakerRankOpen as number) - (b.speakerRankOpen as number))
     .slice(0, 5)
-    .map(({ r, p }) => ({ tournamentName: r.tournamentName, year: r.year, rank: p.rank, totalTeams: p.of }));
+    .map((r) => ({
+      tournamentName: r.tournamentName,
+      year: r.year,
+      rank: r.speakerRankOpen as number,
+      totalTeams: r.totalTeams ?? null,
+    }));
 
   const best = placed[0];
   const bestTeamFinish = best
@@ -225,7 +230,7 @@ export function placementHighlights(
       }
     : null;
 
-  return { deepestBreaks, topTeamFinishes, bestTeamFinish };
+  return { deepestBreaks, topSpeakerFinishes, bestTeamFinish };
 }
 
 /** "3 of 40 teams · top 8%" — the one wording every surface uses. */
