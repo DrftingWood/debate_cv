@@ -97,7 +97,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
-        <dl className="grid grid-cols-4 gap-4 text-table">
+        <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
           <div>
             <dt className="text-ink-soft">Tournaments</dt>
             <dd className="text-stat font-semibold mt-1">{tournaments}</dd>

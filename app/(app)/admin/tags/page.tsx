@@ -32,14 +32,14 @@ export default async function AdminTagsPage() {
           Tag proposals
         </h1>
         <hr className="hairline" />
-        <div className="byline flex items-center justify-between gap-2">
+        <div className="byline flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span>
             "Suggest all tags" fills this list with an answer for every untagged motion and
             tournament. Reject the few that look wrong, then approve the rest in one click.
             Approved values are written to the canonical Tournament.region / Motion.motionType /
             Motion.topic columns and become visible on all CVs.
           </span>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <AdminTagPreprocess />
             <AdminClassifyMotionsButton />
             <Link href="/admin">

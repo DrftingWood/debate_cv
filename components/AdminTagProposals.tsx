@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { postJson } from '@/lib/utils/api';
+import { postJson, type ApiResult } from '@/lib/utils/api';
 
 type ProposalRow = {
   id: string;
@@ -31,6 +31,39 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   rejected: 'Rejected',
 };
 
+const MAX_APPROVE_ALL_PASSES = 40;
+
+export type ApproveAllOutcome = {
+  approved: number;
+  /** True only when the endpoint reported an empty queue. */
+  complete: boolean;
+  error: string | null;
+};
+
+/**
+ * Drives the bounded approve-all endpoint until it reports nothing left.
+ *
+ * `complete` is the point of this helper. The list used to be cleared after
+ * the loop whatever happened, so a pass that failed half-way (or a queue
+ * still non-empty after the pass cap) left the page saying "No pending
+ * proposals" while some were still pending: a false status on the one
+ * screen whose job is to show what is left. The caller now clears the list
+ * only on `complete` and refetches otherwise.
+ */
+export async function approveAllInPasses(
+  post: () => Promise<ApiResult<{ approved: number }>>,
+  maxPasses = MAX_APPROVE_ALL_PASSES,
+): Promise<ApproveAllOutcome> {
+  let approved = 0;
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const res = await post();
+    if (!res.ok) return { approved, complete: false, error: res.error };
+    approved += res.data.approved;
+    if (res.data.approved === 0) return { approved, complete: true, error: null };
+  }
+  return { approved, complete: false, error: null };
+}
+
 /**
  * Client component that loads and manages the admin tag-proposal queue.
  * Fetches from GET /api/admin/tag-proposals?status=<filter> on mount and
@@ -51,6 +84,10 @@ export function AdminTagProposals() {
   // each have their own note field open at once.
   const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
 
+  // Bumped to refetch the current filter without changing it (after an
+  // approve-all that did not finish).
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -68,7 +105,7 @@ export function AdminTagProposals() {
         setLoading(false);
       }
     })();
-  }, [filter]);
+  }, [filter, reloadKey]);
 
   const [, startTransition] = useTransition();
 
@@ -81,20 +118,18 @@ export function AdminTagProposals() {
   const approveAll = async () => {
     setApprovingAll(true);
     try {
-      let total = 0;
       // The endpoint approves a bounded chunk per call; keep asking until it
       // reports nothing left (bounded, so a stuck queue cannot loop forever).
-      for (let pass = 0; pass < 40; pass += 1) {
-        const res = await postJson<{ approved: number }>('/api/admin/tag-proposals/approve-all', {});
-        if (!res.ok) {
-          toast.show({ kind: 'error', title: 'Approve all failed', description: res.error });
-          break;
-        }
-        total += res.data.approved;
-        if (res.data.approved === 0) break;
+      const outcome = await approveAllInPasses(() =>
+        postJson<{ approved: number }>('/api/admin/tag-proposals/approve-all', {}),
+      );
+      const n = outcome.approved;
+      if (n > 0) toast.show({ kind: 'success', title: `Approved ${n} tag${n === 1 ? '' : 's'}` });
+      if (outcome.error) {
+        toast.show({ kind: 'error', title: 'Approve all stopped', description: outcome.error });
       }
-      if (total > 0) toast.show({ kind: 'success', title: `Approved ${total} tag${total === 1 ? '' : 's'}` });
-      setProposals([]);
+      if (outcome.complete) setProposals([]);
+      else setReloadKey((k) => k + 1);
     } finally {
       setApprovingAll(false);
       setConfirmingAll(false);
@@ -154,6 +189,7 @@ export function AdminTagProposals() {
             key={s}
             type="button"
             onClick={() => setFilter(s)}
+            aria-pressed={filter === s}
             className={
               'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
@@ -259,6 +295,7 @@ export function AdminTagProposals() {
                             type="button"
                             size="sm"
                             variant="primary"
+                            aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
                             onClick={() => handleAction(p.id, 'approve')}
                           >
                             Approve
@@ -267,6 +304,7 @@ export function AdminTagProposals() {
                             type="button"
                             size="sm"
                             variant="outline"
+                            aria-label={`Reject ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
                             onClick={() => handleAction(p.id, 'reject')}
                           >
                             Reject
@@ -278,6 +316,7 @@ export function AdminTagProposals() {
                         <input
                           type="text"
                           placeholder="Rejection note (optional)"
+                          aria-label={`Rejection note for ${p.value}, ${p.tournamentName} (optional)`}
                           value={rejectNotes[p.id] ?? ''}
                           onChange={(e) =>
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))

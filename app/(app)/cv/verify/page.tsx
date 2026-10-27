@@ -34,7 +34,10 @@ export default async function CvVerifyPage({
   const userId = session.user.id;
 
   const { mine: mineParam, t: selectedParam } = await searchParams;
-  const mineOnly = mineParam === '1';
+  // Defaults to the user's own rows. This is the page for checking your own
+  // parse, and "everyone" put ~1,300 strangers and 9,700 px of scroll on a
+  // phone ahead of your own row. `?mine=0` shows every participant.
+  const mineOnly = mineParam !== '0';
 
   // Top 5 most recent tournaments: order DiscoveredUrl by message date then
   // creation, dedup by tournamentId, stop at 5.
@@ -229,7 +232,7 @@ export default async function CvVerifyPage({
                   */}
                   {!isSelected ? (
                     <Link
-                      href={`/cv/verify?t=${t.id}${mineOnly ? '&mine=1' : ''}`}
+                      href={`/cv/verify?t=${t.id}${mineOnly ? '' : '&mine=0'}`}
                       scroll={false}
                       className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
                     >
