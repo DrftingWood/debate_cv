@@ -16,7 +16,7 @@ import { formatDate } from '@/lib/utils/date';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Account settings' };
+export const metadata: Metadata = { title: 'Account · Settings' };
 
 const gmailTokenSelect = {
   encryptionVersion: true,
@@ -59,8 +59,9 @@ export default async function AccountSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · ACCOUNT</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Connections and data
+          Account
         </h1>
+        <p className="text-body text-ink-soft">Connections and data.</p>
         <hr className="hairline" />
       </header>
 

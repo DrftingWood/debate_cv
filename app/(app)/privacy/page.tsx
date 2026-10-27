@@ -77,13 +77,13 @@ export default function Privacy() {
       <h2>Data deletion</h2>
       <p>
         You can delete your data yourself at any time. Go to{' '}
-        <a href="/settings/account">Settings → Account</a>, click <strong>Delete my data</strong>, and confirm by
+        <a href="/settings/account">Settings → Account</a>, click <strong>Delete my account</strong>, and confirm by
         typing your email. Your account, OAuth tokens, discovered URLs, ingest jobs, and identity
         claims are removed immediately.
       </p>
       <p>
         To revoke our access to your Gmail without deleting the account, use{' '}
-        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+        <a href="https://myaccount.google.com/permissions">
           Google Account permissions
         </a>{' '}
         — that revokes the OAuth grant. Settings → Disconnect does the same.
@@ -120,11 +120,7 @@ export default function Privacy() {
         {contactEmail ? (
           <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
         ) : (
-          <a
-            href="https://github.com/DrftingWood/debate_cv/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href="https://github.com/DrftingWood/debate_cv/issues">
             the project's issue tracker
           </a>
         )}{' '}

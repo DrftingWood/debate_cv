@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
 import { usePopover } from '@/components/ui/usePopover';
 import { EXPORT_FIELDS, EXPORT_FIELD_IDS } from '@/lib/cv/exportFields';
 
@@ -167,18 +167,16 @@ export function CvDownloadButton() {
                 <div className="text-caption font-medium text-ink">JSON Resume</div>
                 <p className="text-byline text-ink-soft">For resume themes and portfolio sites.</p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}
-                onClick={() => {
-                  window.location.assign('/api/cv/export?format=json-resume');
-                  setOpen(false);
-                }}
+              {/* A GET that downloads a file is a link, not a button (NV-29). */}
+              <a
+                href="/api/cv/export?format=json-resume"
+                download
+                className={buttonClasses({ variant: 'outline', size: 'sm' })}
+                onClick={() => setOpen(false)}
               >
-                .json
-              </Button>
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Download JSON Resume
+              </a>
             </div>
 
             <div className="flex items-center justify-between gap-2">

@@ -212,10 +212,14 @@ export default async function CvPage() {
               finish.
             </>
           }
+          // The disconnect notice above already carries the one primary to
+          // /dashboard; a second identical one made two (NV-16).
           action={
-            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
-              <Search className="h-4 w-4" aria-hidden /> Open imports
-            </Link>
+            gmailToken ? (
+              <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+                <Search className="h-4 w-4" aria-hidden /> Open imports
+              </Link>
+            ) : undefined
           }
         />
       ) : (

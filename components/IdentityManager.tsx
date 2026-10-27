@@ -139,6 +139,11 @@ export function IdentityManager() {
   // reversible (tick it again) but easy to do by accident, and unticking
   // everything used to empty the whole record without a word (SET-6, UX-17).
   const onSave = () => {
+    // The button stays enabled so the reason can be given on press (UX-71).
+    if (!dirty) {
+      setSavedMessage('Nothing to save yet. Tick or untick a name first.');
+      return;
+    }
     if (removal.removed.length > 0) {
       setConfirmingRemoval(true);
       focusAfterRender(keepRef);
@@ -243,22 +248,21 @@ export function IdentityManager() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-caption text-ink-soft">
-          {selected.size} of {names.length} selected
-        </p>
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           ref={saveRef}
           type="button"
           variant="primary"
           size="sm"
           loading={isSaving}
-          disabled={!dirty || isSaving}
           leftIcon={!isSaving ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : undefined}
           onClick={onSave}
         >
           {isSaving ? 'Saving…' : 'Save changes'}
         </Button>
+        <p className="text-caption text-ink-soft">
+          {selected.size} of {names.length} selected
+        </p>
       </div>
       <p
         ref={savedRef}

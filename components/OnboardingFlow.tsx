@@ -442,10 +442,7 @@ export function OnboardingFlow({
             ) : null}
 
             {namesState === 'ready' && names.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <p className="text-caption text-ink-soft">
-                  {selected.size} of {names.length} selected
-                </p>
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Button
                   type="button"
                   variant="primary"
@@ -458,6 +455,20 @@ export function OnboardingFlow({
                 >
                   {isConfirming ? 'Confirming…' : 'These are me — continue'}
                 </Button>
+                {/* A way back to the scan step, for example to rescan after
+                    connecting the right inbox (NV-15, UX-83). */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  disabled={isConfirming}
+                  onClick={() => goTo('scan')}
+                >
+                  Back: scan again
+                </Button>
+                <p className="ml-auto text-caption text-ink-soft">
+                  {selected.size} of {names.length} selected
+                </p>
               </div>
             ) : null}
           </CardBody>

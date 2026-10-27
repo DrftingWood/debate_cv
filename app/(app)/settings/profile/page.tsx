@@ -5,7 +5,7 @@ import { IdentityManager } from '@/components/IdentityManager';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Profile settings' };
+export const metadata: Metadata = { title: 'Profile · Settings' };
 
 export default function ProfileSettingsPage() {
   return (
@@ -13,8 +13,9 @@ export default function ProfileSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · PROFILE</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          What we know about you
+          Profile
         </h1>
+        <p className="text-body text-ink-soft">What we know about you, and which names are yours.</p>
         <hr className="hairline" />
       </header>
 
