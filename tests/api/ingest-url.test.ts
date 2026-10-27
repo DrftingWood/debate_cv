@@ -40,6 +40,16 @@ describe('POST /api/ingest/url', () => {
   it('returns 401 when unauthenticated', () =>
     expectUnauthorized(() => POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK } }))));
 
+  it('enforces both the hourly and the daily paste cap (C85)', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1'));
+    const rl = await import('@/lib/rateLimit');
+    const spy = vi.spyOn(rl, 'enforceRateLimit').mockResolvedValue(null);
+    await POST(jsonRequest('/api/ingest/url', { body: { url: 'https://example.com/x' } }));
+    expect(spy).toHaveBeenCalledWith('ingest:url', 'user-1');
+    expect(spy).toHaveBeenCalledWith('ingest:url:daily', 'user-1');
+    spy.mockRestore();
+  });
+
   it('rejects malformed body', () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
     return expectMalformedBody(() =>

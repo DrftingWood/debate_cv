@@ -142,38 +142,73 @@ export async function markJobDone(id: string): Promise<void> {
     data: { status: IngestJobStatus.done, finishedAt: new Date(), lastError: null },
     select: { userId: true },
   });
-  // After this job finishes, was it the user's last pending/running one?
-  // If so, surface a "your CV is ready" bell notification — closes the
-  // post-onboarding loop for users who left the tab and came back later.
-  // Best-effort + deduped, so back-to-back drains don't fire twice.
+  await notifyIfQueueSettled(updated.userId);
+}
+
+/** A "batch" for the CV-ready notice: jobs finished within this window count. */
+const READY_BATCH_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When a job reaches a terminal state and it was the user's last
+ * pending/running one, surface a "your CV is ready" bell notification — but
+ * only if at least one tournament actually loaded recently (C106). A queue
+ * that emptied because everything failed gets the failure notice instead,
+ * never "ready". Best-effort + deduped, so back-to-back drains don't fire
+ * twice.
+ */
+async function notifyIfQueueSettled(userId: string): Promise<void> {
   const remaining = await prisma.ingestJob.count({
+    where: { userId, status: { in: [IngestJobStatus.pending, IngestJobStatus.running] } },
+  });
+  if (remaining !== 0) return;
+  const loaded = await prisma.ingestJob.count({
     where: {
-      userId: updated.userId,
-      status: { in: [IngestJobStatus.pending, IngestJobStatus.running] },
+      userId,
+      status: IngestJobStatus.done,
+      finishedAt: { gte: new Date(Date.now() - READY_BATCH_WINDOW_MS) },
     },
   });
-  if (remaining === 0) {
-    const { writeNotification } = await import('@/lib/notifications/write');
-    await writeNotification({
-      userId: updated.userId,
-      kind: 'ingest_done',
-      title: 'Your CV is ready',
-      body: 'All queued tournaments have been ingested.',
-      href: '/cv',
-      dedupeWithinMs: 60 * 1000,
-    });
-  }
+  if (loaded === 0) return;
+  const { writeNotification } = await import('@/lib/notifications/write');
+  await writeNotification({
+    userId,
+    kind: 'ingest_done',
+    title: 'Your CV is ready',
+    body: 'Your tournaments have been loaded.',
+    href: '/cv',
+    dedupeWithinMs: 60 * 1000,
+  });
+}
+
+/**
+ * Bell notice for a job that failed for good. Plain language: no error text,
+ * which is for the dashboard and Sentry. Deduped over ten minutes so a batch
+ * of failures is one bell entry. In-app only, by design.
+ */
+async function notifyJobFailed(userId: string): Promise<void> {
+  const { writeNotification } = await import('@/lib/notifications/write');
+  await writeNotification({
+    userId,
+    kind: 'ingest_failed',
+    title: "We couldn't load a tournament",
+    body: 'One of your tournament links could not be loaded. Open the dashboard to retry it.',
+    href: '/dashboard',
+    dedupeWithinMs: 10 * 60 * 1000,
+  });
 }
 
 export async function markJobFailed(id: string, error: string): Promise<void> {
-  await prisma.ingestJob.update({
+  const updated = await prisma.ingestJob.update({
     where: { id },
     data: {
       status: IngestJobStatus.failed,
       finishedAt: new Date(),
       lastError: error.slice(0, 2000),
     },
+    select: { userId: true },
   });
+  await notifyJobFailed(updated.userId);
+  await notifyIfQueueSettled(updated.userId);
 }
 
 /**
@@ -200,14 +235,17 @@ export function isPermanentError(error: string): boolean {
  * naturally skips these via the status enum rather than regex.
  */
 export async function markJobAbandoned(id: string, error: string): Promise<void> {
-  await prisma.ingestJob.update({
+  const updated = await prisma.ingestJob.update({
     where: { id },
     data: {
       status: IngestJobStatus.abandoned,
       finishedAt: new Date(),
       lastError: error.slice(0, 2000),
     },
+    select: { userId: true },
   });
+  await notifyJobFailed(updated.userId);
+  await notifyIfQueueSettled(updated.userId);
 }
 
 /**

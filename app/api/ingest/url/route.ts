@@ -33,6 +33,8 @@ export async function POST(req: Request) {
   }
   const limited = await enforceRateLimit('ingest:url', session.user.id);
   if (limited) return limited;
+  const limitedDaily = await enforceRateLimit('ingest:url:daily', session.user.id);
+  if (limitedDaily) return limitedDaily;
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
     return NextResponse.json(
