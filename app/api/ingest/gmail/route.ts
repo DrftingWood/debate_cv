@@ -41,7 +41,11 @@ export async function POST() {
       if (elapsed < SCAN_COOLDOWN_MS) {
         const retryAfter = Math.ceil((SCAN_COOLDOWN_MS - elapsed) / 1000);
         return NextResponse.json(
-          { error: 'rate_limited', hint: `Please wait ${retryAfter}s before scanning again.`, retryAfter },
+          {
+            error: 'rate_limited',
+            hint: `Please wait ${retryAfter}s before scanning again.`,
+            retryAfter,
+          },
           { status: 429, headers: { 'Retry-After': String(retryAfter) } },
         );
       }
@@ -85,7 +89,10 @@ export async function POST() {
       );
     }
     // A genuine unexpected error: report with the userId so it can be correlated.
-    Sentry.captureException(err, { tags: { route: 'api/ingest/gmail' }, user: userId ? { id: userId } : undefined });
+    Sentry.captureException(err, {
+      tags: { route: 'api/ingest/gmail' },
+      user: userId ? { id: userId } : undefined,
+    });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

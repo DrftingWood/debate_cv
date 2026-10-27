@@ -30,13 +30,13 @@ import { championTitle } from './formatStage';
  * route decides who may download it.
  */
 
-export const JSON_RESUME_SCHEMA = 'https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json';
+export const JSON_RESUME_SCHEMA =
+  'https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json';
 
 /** Where the debate extension lives inside `meta`. */
 export const DEBATE_EXTENSION_KEY = 'x-debate-cv';
 /** Bump on a breaking change to the extension's shape (and its schema file). */
 export const DEBATE_EXTENSION_VERSION = 1;
-
 
 export type JsonResumeAward = { title: string; date?: string; awarder: string; summary?: string };
 
@@ -101,10 +101,14 @@ export type BuildJsonResumeOptions = {
 function speakerAward(row: CvSpeakerRow): JsonResumeAward | null {
   const date = row.year != null ? String(row.year) : undefined;
   const rank = row.speakerRankOpen;
-  const speakerNote = rank != null && rank <= TOP_SPEAKER_RANK ? `${ordinal(rank)} best speaker` : null;
+  const speakerNote =
+    rank != null && rank <= TOP_SPEAKER_RANK ? `${ordinal(rank)} best speaker` : null;
   let title: string | null = null;
   if (row.wonTournament) title = championTitle(row.eliminationReached);
-  else if (row.broke) title = row.eliminationReached ? `Broke — reached ${row.eliminationReached}` : 'Broke to outrounds';
+  else if (row.broke)
+    title = row.eliminationReached
+      ? `Broke — reached ${row.eliminationReached}`
+      : 'Broke to outrounds';
   else if (speakerNote) title = speakerNote.replace(/^./, (c) => c.toUpperCase());
   if (!title) return null;
   // The award's placement is the TEAM's: team-tab rank against the number of
@@ -117,7 +121,12 @@ function speakerAward(row: CvSpeakerRow): JsonResumeAward | null {
   ]
     .filter(Boolean)
     .join('; ');
-  return { title, ...(date ? { date } : {}), awarder: row.tournamentName, ...(summary ? { summary } : {}) };
+  return {
+    title,
+    ...(date ? { date } : {}),
+    awarder: row.tournamentName,
+    ...(summary ? { summary } : {}),
+  };
 }
 
 function judgeAward(row: CvJudgeRow): JsonResumeAward | null {
@@ -138,7 +147,8 @@ function ordinal(n: number): string {
 }
 
 // Newest first, as a CV reads; undated rows last.
-const byYearDesc = <T extends { year: number | null }>(a: T, b: T) => (b.year ?? -Infinity) - (a.year ?? -Infinity);
+const byYearDesc = <T extends { year: number | null }>(a: T, b: T) =>
+  (b.year ?? -Infinity) - (a.year ?? -Infinity);
 
 export function buildJsonResume(data: CvData, options: BuildJsonResumeOptions = {}): JsonResume {
   const now = options.now ?? new Date();
@@ -147,10 +157,9 @@ export function buildJsonResume(data: CvData, options: BuildJsonResumeOptions = 
   return {
     $schema: JSON_RESUME_SCHEMA,
     basics: { name: data.myDisplayName },
-    awards: [
-      ...speaking.map(speakerAward),
-      ...judging.map(judgeAward),
-    ].filter((a): a is JsonResumeAward => a !== null),
+    awards: [...speaking.map(speakerAward), ...judging.map(judgeAward)].filter(
+      (a): a is JsonResumeAward => a !== null,
+    ),
     meta: {
       // canonical is the document's own URL, not the schema's ($schema is that).
       ...(options.canonical ? { canonical: options.canonical } : {}),

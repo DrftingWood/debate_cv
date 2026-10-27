@@ -13,7 +13,11 @@ import {
 } from '@/lib/calicotab/parseTabs';
 import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
 import { cleanName } from '@/lib/calicotab/tabbycatApi';
-import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/calicotab/tabbycatApiRounds';
+import {
+  mapParticipants,
+  type ApiAdjudicator,
+  type ApiRoundsTeam,
+} from '@/lib/calicotab/tabbycatApiRounds';
 
 /**
  * Which tournaments would a phase-7 identity re-ingest actually change?
@@ -99,7 +103,8 @@ import { mapParticipants, type ApiAdjudicator, type ApiRoundsTeam } from '@/lib/
  * judgeRoleLostByOnePerson), which phase 7 fixes by keeping both roles.
  */
 
-export type DocumentKind = 'teamTab' | 'speakerTab' | 'participants' | 'apiTeams' | 'apiAdjudicators';
+export type DocumentKind =
+  'teamTab' | 'speakerTab' | 'participants' | 'apiTeams' | 'apiAdjudicators';
 
 /** Pages read only for their rounds; they never make a tournament on their own. */
 export type RoundPageKind = 'landing' | 'roundResults';
@@ -141,7 +146,12 @@ export function classifyDocumentUrl(url: string): ClassifiedUrl | null {
   const api = path.match(/^\/api\/v1\/tournaments\/([^/]+)\/(teams|adjudicators)\/?$/);
   if (api) {
     const [, slug = '', list] = api;
-    return { base: `${u.origin}/${slug}/`, host: u.host, slug, kind: list === 'teams' ? 'apiTeams' : 'apiAdjudicators' };
+    return {
+      base: `${u.origin}/${slug}/`,
+      host: u.host,
+      slug,
+      kind: list === 'teams' ? 'apiTeams' : 'apiAdjudicators',
+    };
   }
   if (/^\/api(?:\/|$)/.test(path)) return null;
   for (const [re, kind] of HTML_KINDS) {
@@ -152,7 +162,12 @@ export function classifyDocumentUrl(url: string): ClassifiedUrl | null {
     // the tabs directly under /. Anything deeper is not a tab page.
     if (prefix.length > 1) return null;
     const slug = prefix[0] ?? null;
-    const out: ClassifiedUrl = { base: slug ? `${u.origin}/${slug}/` : `${u.origin}/`, host: u.host, slug, kind };
+    const out: ClassifiedUrl = {
+      base: slug ? `${u.origin}/${slug}/` : `${u.origin}/`,
+      host: u.host,
+      slug,
+      kind,
+    };
     if (kind === 'roundResults') out.roundSeq = Number(/\/results\/round\/(\d+)/.exec(path)?.[1]);
     return out;
   }
@@ -254,10 +269,13 @@ export function parseTournamentDocuments(
   if (docs.participants) out.participantRows = parseParticipantsList(read(docs.participants));
   if (docs.apiTeams) {
     const teams = jsonList(read(docs.apiTeams)).filter(isApiTeam);
-    const adjudicators = docs.apiAdjudicators ? jsonList(read(docs.apiAdjudicators)).filter(isApiAdjudicator) : [];
+    const adjudicators = docs.apiAdjudicators
+      ? jsonList(read(docs.apiAdjudicators)).filter(isApiAdjudicator)
+      : [];
     out.apiParticipantRows = mapParticipants({ teams, adjudicators });
   }
-  if (roundPages?.results?.length) out.rounds = parseRoundPages(roundPages.results, roundPages.landing, read);
+  if (roundPages?.results?.length)
+    out.rounds = parseRoundPages(roundPages.results, roundPages.landing, read);
   return out;
 }
 
@@ -270,7 +288,10 @@ const RESULTS_SEQ = /\/results\/round\/(\d+)/;
  * that fails to parse: no labels, and rounds fall back to the page heading or
  * "Round N".
  */
-function roundLabels(landing: IndexEntry | undefined, read: (entry: IndexEntry) => string): Map<number, string> {
+function roundLabels(
+  landing: IndexEntry | undefined,
+  read: (entry: IndexEntry) => string,
+): Map<number, string> {
   const labelBySeq = new Map<number, string>();
   if (!landing) return labelBySeq;
   let labels: Record<string, string> = {};
@@ -287,7 +308,11 @@ function roundLabels(landing: IndexEntry | undefined, read: (entry: IndexEntry) 
 }
 
 /** Each results page as ingest parses it; one unreadable page leaves that round out. */
-function parseRoundPages(results: IndexEntry[], landing: IndexEntry | undefined, read: (entry: IndexEntry) => string): RoundDebate[] {
+function parseRoundPages(
+  results: IndexEntry[],
+  landing: IndexEntry | undefined,
+  read: (entry: IndexEntry) => string,
+): RoundDebate[] {
   const labelBySeq = roundLabels(landing, read);
   const rounds: RoundDebate[] = [];
   for (const e of results) {
@@ -319,12 +344,21 @@ function isApiTeam(v: unknown): v is ApiRoundsTeam {
     isObject(v) &&
     typeof v.short_name === 'string' &&
     Array.isArray(v.speakers) &&
-    v.speakers.every((s) => isObject(s) && (s.name === null || typeof s.name === 'string') && typeof s.anonymous === 'boolean')
+    v.speakers.every(
+      (s) =>
+        isObject(s) &&
+        (s.name === null || typeof s.name === 'string') &&
+        typeof s.anonymous === 'boolean',
+    )
   );
 }
 
 function isApiAdjudicator(v: unknown): v is ApiAdjudicator {
-  return isObject(v) && (v.name === null || typeof v.name === 'string') && typeof v.anonymous === 'boolean';
+  return (
+    isObject(v) &&
+    (v.name === null || typeof v.name === 'string') &&
+    typeof v.anonymous === 'boolean'
+  );
 }
 
 // ── Rounds ──────────────────────────────────────────────────────────────────
@@ -337,7 +371,10 @@ function isApiAdjudicator(v: unknown): v is ApiAdjudicator {
  * so concurrent finals of two brackets are two rounds. `fallbackSeq` is used
  * when the label is empty.
  */
-export function roundKey(label: string | null | undefined, fallbackSeq?: number | null): string | null {
+export function roundKey(
+  label: string | null | undefined,
+  fallbackSeq?: number | null,
+): string | null {
   const text = cleanName(label ?? '');
   if (!text || /^average$/i.test(text)) return fallbackSeq != null ? `R${fallbackSeq}` : null;
   const { stage, category } = splitStageLabel(text);
@@ -365,7 +402,11 @@ function sortedRounds(s: Iterable<string>): string[] {
 function formatRounds(rounds: Iterable<string>): string {
   const list = sortedRounds(rounds);
   const nums = list.map((r) => /^R(\d+)$/.exec(r)?.[1]).map((n) => (n ? Number(n) : null));
-  if (list.length > 2 && nums.every((n) => n != null) && nums.every((n, i) => i === 0 || n === nums[i - 1]! + 1)) {
+  if (
+    list.length > 2 &&
+    nums.every((n) => n != null) &&
+    nums.every((n, i) => i === 0 || n === nums[i - 1]! + 1)
+  ) {
     return `${list[0]}-${list[list.length - 1]}`;
   }
   return list.join(',');
@@ -386,7 +427,13 @@ type RoundIndex = {
 };
 
 function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
-  const idx: RoundIndex = { teamRounds: new Map(), judgesByKey: new Map(), judgeNameRounds: new Map(), hasJudges: false, pages: 0 };
+  const idx: RoundIndex = {
+    teamRounds: new Map(),
+    judgesByKey: new Map(),
+    judgeNameRounds: new Map(),
+    hasJudges: false,
+    pages: 0,
+  };
   for (const r of rounds ?? []) {
     idx.pages += 1;
     const key = roundKey(r.roundLabel, r.roundNumber);
@@ -498,7 +545,12 @@ type Entry = {
   ownRounds: Set<string> | null;
 };
 
-const CLASS_RANK: Record<SharedKeyClass, number> = { duplicate: 0, disjoint: 1, unknown: 2, overlap: 3 };
+const CLASS_RANK: Record<SharedKeyClass, number> = {
+  duplicate: 0,
+  disjoint: 1,
+  unknown: 2,
+  overlap: 3,
+};
 const MATCH_RANK: Record<InstitutionMatch, number> = { unknown: 0, different: 1, same: 2 };
 
 /** Spelled loosely enough that one team or institution reads as one. */
@@ -506,12 +558,18 @@ function loose(s: string | null | undefined): string {
   return cleanName(s ?? '').toLowerCase();
 }
 
-function entryLabel(team: string | null | undefined, institution: string | null | undefined): Entry['label'] {
+function entryLabel(
+  team: string | null | undefined,
+  institution: string | null | undefined,
+): Entry['label'] {
   return { team: cleanName(team ?? ''), institution: cleanName(institution ?? '') };
 }
 
 /** Team and institution together. */
-function affiliation(team: string | null | undefined, institution: string | null | undefined): string {
+function affiliation(
+  team: string | null | undefined,
+  institution: string | null | undefined,
+): string {
   return JSON.stringify([loose(team), loose(institution)]);
 }
 
@@ -528,7 +586,11 @@ function institutionMatch(rows: Entry[]): InstitutionMatch | null {
       // Each unordered pair of different roles once.
       if (a.role >= b.role) continue;
       const m: InstitutionMatch =
-        !a.institution || !b.institution ? 'unknown' : a.institution === b.institution ? 'same' : 'different';
+        !a.institution || !b.institution
+          ? 'unknown'
+          : a.institution === b.institution
+            ? 'same'
+            : 'different';
       if (best === null || MATCH_RANK[m] > MATCH_RANK[best]) best = m;
     }
   }
@@ -563,18 +625,28 @@ const noRounds = (word: string): Side => ({ word, rounds: null, from: '' });
 
 /** The rounds one speaker entry spoke in, best source first. */
 function speakerSide(e: Entry, { key, ev }: KeyContext): Side {
-  if (e.ownRounds && e.ownRounds.size > 0) return { word: 'speaker', rounds: e.ownRounds, from: 'speaker tab' };
+  if (e.ownRounds && e.ownRounds.size > 0)
+    return { word: 'speaker', rounds: e.ownRounds, from: 'speaker tab' };
   if (!e.team) return noRounds('speaker');
   const tab = (ev.speakerTab.get(key) ?? []).filter((r) => r.team === e.team && r.rounds.size > 0);
-  if (tab.length > 0) return { word: 'speaker', rounds: new Set(tab.flatMap((r) => [...r.rounds])), from: 'speaker tab' };
+  if (tab.length > 0)
+    return {
+      word: 'speaker',
+      rounds: new Set(tab.flatMap((r) => [...r.rounds])),
+      from: 'speaker tab',
+    };
   const team = ev.rounds.teamRounds.get(e.team);
-  return team && team.size > 0 ? { word: 'speaker', rounds: team, from: 'team results' } : noRounds('speaker');
+  return team && team.size > 0
+    ? { word: 'speaker', rounds: team, from: 'team results' }
+    : noRounds('speaker');
 }
 
 /** The rounds the key judged, from the results pages. */
 function judgeSide({ key, ev }: KeyContext): Side {
   const byRound = ev.rounds.judgesByKey.get(key);
-  return byRound && byRound.size > 0 ? { word: 'judge', rounds: new Set(byRound.keys()), from: 'results' } : noRounds('judge');
+  return byRound && byRound.size > 0
+    ? { word: 'judge', rounds: new Set(byRound.keys()), from: 'results' }
+    : noRounds('judge');
 }
 
 type PairVerdict = {
@@ -594,7 +666,11 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
   }
   const shared = sortedRounds([...ra].filter((r) => rb.has(r)));
   if (shared.length > 0) {
-    return { cls: 'overlap', crossRole, evidence: `${shared[0]}: ${a.word} (${a.from}) and ${b.word} (${b.from})` };
+    return {
+      cls: 'overlap',
+      crossRole,
+      evidence: `${shared[0]}: ${a.word} (${a.from}) and ${b.word} (${b.from})`,
+    };
   }
   return {
     cls: 'disjoint',
@@ -612,9 +688,11 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
  */
 function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerdict {
   const byRound = ev.rounds.judgesByKey.get(key);
-  if (!byRound || byRound.size === 0) return { cls: 'unknown', crossRole: false, evidence: 'no rounds for either judge' };
+  if (!byRound || byRound.size === 0)
+    return { cls: 'unknown', crossRole: false, evidence: 'no rounds for either judge' };
   const twice = sortedRounds([...byRound].filter(([, seen]) => seen.size >= 2).map(([r]) => r));
-  if (twice.length > 0) return { cls: 'overlap', crossRole: false, evidence: `${twice[0]}: two judges (results)` };
+  if (twice.length > 0)
+    return { cls: 'overlap', crossRole: false, evidence: `${twice[0]}: two judges (results)` };
   const na = cleanName(a.name);
   const nb = cleanName(b.name);
   if (na === nb) {
@@ -624,7 +702,11 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
       evidence: `judge ${formatRounds(byRound.keys())} (results): one spelling, can't tell one judge from two`,
     };
   }
-  const side = (name: string): Side => ({ word: 'judge', rounds: ev.rounds.judgeNameRounds.get(name) ?? null, from: 'results' });
+  const side = (name: string): Side => ({
+    word: 'judge',
+    rounds: ev.rounds.judgeNameRounds.get(name) ?? null,
+    from: 'results',
+  });
   return sideVerdict(side(na), side(nb), false);
 }
 
@@ -677,7 +759,11 @@ function basePairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
       return judgePairVerdict(a, b, ctx);
     default:
       // An 'other' row (no role column, no section title) has no rounds.
-      return { cls: 'unknown', crossRole: a.role !== b.role, evidence: 'no rounds for the other row' };
+      return {
+        cls: 'unknown',
+        crossRole: a.role !== b.role,
+        evidence: 'no rounds for the other row',
+      };
   }
 }
 
@@ -702,7 +788,8 @@ function classify(
       if (!best || CLASS_RANK[v.cls] > CLASS_RANK[best.cls]) best = v;
     }
   }
-  if (!best) return { cls: 'duplicate', crossRole: false, evidence: 'same role, team and institution' };
+  if (!best)
+    return { cls: 'duplicate', crossRole: false, evidence: 'same role, team and institution' };
   return { ...best, crossRole };
 }
 
@@ -745,7 +832,14 @@ function sourcesOf(lists: ParsedLists): Source[] {
       source: 'speaker tab',
       entries: lists.speakerRows.map((r) => ({
         name: r.speakerName,
-        identity: JSON.stringify([r.speakerName, r.teamName, r.institution, r.rank, r.totalScore, r.roundScores.map((s) => s.score)]),
+        identity: JSON.stringify([
+          r.speakerName,
+          r.teamName,
+          r.institution,
+          r.rank,
+          r.totalScore,
+          r.roundScores.map((s) => s.score),
+        ]),
         role: 'speaker' as const,
         affiliation: affiliation(r.teamName, r.institution),
         institution: loose(r.institution),
@@ -770,10 +864,18 @@ function sourcesOf(lists: ParsedLists): Source[] {
       ownRounds: null,
     }));
   if (lists.participantRows) {
-    sources.push({ source: 'participants', entries: fromParticipants(lists.participantRows), mergedByName: true });
+    sources.push({
+      source: 'participants',
+      entries: fromParticipants(lists.participantRows),
+      mergedByName: true,
+    });
   }
   if (lists.apiParticipantRows) {
-    sources.push({ source: 'api participants', entries: fromParticipants(lists.apiParticipantRows), mergedByName: true });
+    sources.push({
+      source: 'api participants',
+      entries: fromParticipants(lists.apiParticipantRows),
+      mergedByName: true,
+    });
   }
   return sources;
 }
@@ -821,13 +923,17 @@ function speakerTabIndex(rows: SpeakerTabRow[] | undefined): Evidence['speakerTa
 export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
   const lost = new Set<string>();
   const shared = new Map<string, SharedKey>();
-  const ev: Evidence = { rounds: indexRounds(lists.rounds), speakerTab: speakerTabIndex(lists.speakerRows) };
+  const ev: Evidence = {
+    rounds: indexRounds(lists.rounds),
+    speakerTab: speakerTabIndex(lists.speakerRows),
+  };
   for (const { source, entries, mergedByName } of sourcesOf(lists)) {
     for (const [key, g] of groupByKey(entries, lost)) {
       if (g.rows.size < 2) continue;
       const rows = [...g.rows.values()];
       const v = classify(rows, { key, ev });
-      const dropped = mergedByName && g.lastRole !== 'adjudicator' && rows.some((r) => r.role === 'adjudicator');
+      const dropped =
+        mergedByName && g.lastRole !== 'adjudicator' && rows.some((r) => r.role === 'adjudicator');
       const inst = institutionMatch(rows);
       const s: SharedKey = shared.get(key) ?? {
         key,
@@ -851,7 +957,10 @@ export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
       }
       s.crossRole ||= v.crossRole;
       s.judgeRoleDropped ||= dropped;
-      if (inst && (s.crossRoleInstitution === null || MATCH_RANK[inst] > MATCH_RANK[s.crossRoleInstitution])) {
+      if (
+        inst &&
+        (s.crossRoleInstitution === null || MATCH_RANK[inst] > MATCH_RANK[s.crossRoleInstitution])
+      ) {
         s.crossRoleInstitution = inst;
       }
       shared.set(key, s);
@@ -897,7 +1006,9 @@ function isJudgeRoleLost(s: SharedKey): boolean {
  * duplicate groups do not count here; see isAffectedIfUnknownCounted.
  */
 export function isAffected(r: TournamentReport): boolean {
-  return r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.some((s) => s.class === 'overlap');
+  return (
+    r.findings.emptyKeyNames.length > 0 || r.findings.sharedKeys.some((s) => s.class === 'overlap')
+  );
 }
 
 /** The upper bound: as isAffected, with every 'unknown' group taken as two people. */
@@ -968,7 +1079,9 @@ export function toCsv(reports: TournamentReport[]): string {
     const f = r.findings;
     // Overlaps first, so the five examples show what matters; the evidence
     // column follows the same order, one entry per example.
-    const examples = [...f.sharedKeys].sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class]).slice(0, MAX_EXAMPLES);
+    const examples = [...f.sharedKeys]
+      .sort((a, b) => CLASS_RANK[b.class] - CLASS_RANK[a.class])
+      .slice(0, MAX_EXAMPLES);
     lines.push(
       [
         r.base,
@@ -984,12 +1097,18 @@ export function toCsv(reports: TournamentReport[]): string {
         ofClass(r, 'disjoint').filter((s) => !s.crossRole).length,
         ofClass(r, 'unknown').length,
         ofClass(r, 'duplicate').length,
-        f.sharedKeys.filter((s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same').length,
+        f.sharedKeys.filter((s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same')
+          .length,
         f.sharedKeys.filter((s) => s.judgeRoleDropped).length,
         f.sharedKeys.filter(isJudgeRoleLost).length,
         f.resultsPages ?? 0,
         f.emptyKeyNames.slice(0, MAX_EXAMPLES).join(' | '),
-        examples.map((s) => `${s.names.join(' / ')} (x${s.entries}, ${exampleLabel(s)}, ${s.sources.join('+')})`).join(' | '),
+        examples
+          .map(
+            (s) =>
+              `${s.names.join(' / ')} (x${s.entries}, ${exampleLabel(s)}, ${s.sources.join('+')})`,
+          )
+          .join(' | '),
         examples.map((s) => s.evidence).join(' | '),
         r.pagesRead.join(' '),
         r.error ?? null,
@@ -1036,7 +1155,10 @@ export type Summary = {
 
 function tally(reports: TournamentReport[], pick: (s: SharedKey) => boolean): Tally {
   const counts = reports.map((r) => r.findings.sharedKeys.filter(pick).length);
-  return { tournaments: counts.filter((n) => n > 0).length, groups: counts.reduce((a, b) => a + b, 0) };
+  return {
+    tournaments: counts.filter((n) => n > 0).length,
+    groups: counts.reduce((a, b) => a + b, 0),
+  };
 }
 
 export function summarise(reports: TournamentReport[]): Summary {
@@ -1054,7 +1176,10 @@ export function summarise(reports: TournamentReport[]): Summary {
     disjointSameRole: tally(reports, (s) => s.class === 'disjoint' && !s.crossRole),
     unknown: tally(reports, (s) => s.class === 'unknown'),
     duplicate: tally(reports, (s) => s.class === 'duplicate'),
-    crossRoleSameInstitution: tally(reports, (s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same'),
+    crossRoleSameInstitution: tally(
+      reports,
+      (s) => s.class !== 'duplicate' && s.crossRoleInstitution === 'same',
+    ),
     judgeRoleDropped: tally(reports, (s) => s.judgeRoleDropped),
     judgeRoleLostByOnePerson: tally(reports, isJudgeRoleLost),
     withoutResultsPages: reports.filter((r) => !r.findings.resultsPages).length,
@@ -1090,8 +1215,13 @@ export type ExportUrlStats = {
  * case-insensitively and on either scheme (findTournamentByHostSlug); the
  * export is keyed by URL. The folded count applies the same folding.
  */
-export function exportUrlStats(entries: IndexEntry[], tournaments: TournamentDocuments[]): ExportUrlStats {
-  const folded = new Set(tournaments.map((t) => `${t.host.toLowerCase()}/${(t.slug ?? '').toLowerCase()}`));
+export function exportUrlStats(
+  entries: IndexEntry[],
+  tournaments: TournamentDocuments[],
+): ExportUrlStats {
+  const folded = new Set(
+    tournaments.map((t) => `${t.host.toLowerCase()}/${(t.slug ?? '').toLowerCase()}`),
+  );
   const rootHosts = new Set(tournaments.filter((t) => t.slug === null).map((t) => t.host));
   const apiOnly = new Set(
     tournaments

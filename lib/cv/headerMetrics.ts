@@ -74,7 +74,9 @@ export function pickHeaderMetrics(input: {
       // The break count carries its depth: how far the best run went is
       // the strength of the break, and it is a team fact (outround reached).
       const hint = [
-        totalTournaments > 0 ? `${Math.round((breaks / totalTournaments) * 100)}% of entries` : null,
+        totalTournaments > 0
+          ? `${Math.round((breaks / totalTournaments) * 100)}% of entries`
+          : null,
         deepestBreak ? `deepest ${deepestBreak}` : null,
       ]
         .filter(Boolean)
@@ -116,4 +118,3 @@ export function pickHeaderMetrics(input: {
 
   return candidates.slice(0, 4);
 }
-

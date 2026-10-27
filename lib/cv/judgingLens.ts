@@ -21,7 +21,13 @@ import { bracketOf } from '@/lib/cv/outroundFunnel';
 
 export type JudgeLensRow = Pick<
   CvJudgeRow,
-  'year' | 'judgeTypeTag' | 'inroundsJudged' | 'inroundsChaired' | 'lastOutroundChaired' | 'lastOutroundJudged' | 'broke'
+  | 'year'
+  | 'judgeTypeTag'
+  | 'inroundsJudged'
+  | 'inroundsChaired'
+  | 'lastOutroundChaired'
+  | 'lastOutroundJudged'
+  | 'broke'
 >;
 
 export type ChairFigures = {
@@ -190,15 +196,16 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
   // which is why the secondary-bracket count sits beside every bucket.
   const buckets = new Map<DepthKey, DepthBucket & { rank: number }>();
   const bump = (key: DepthKey, rank: number, secondary: boolean) => {
-    const b =
-      buckets.get(key) ??
-      {
-        key,
-        label: key in STAGE_LABEL ? STAGE_LABEL[key as OutroundStage] : TAIL_LABEL[key as keyof typeof TAIL_LABEL],
-        tournaments: 0,
-        secondaryBracket: 0,
-        rank,
-      };
+    const b = buckets.get(key) ?? {
+      key,
+      label:
+        key in STAGE_LABEL
+          ? STAGE_LABEL[key as OutroundStage]
+          : TAIL_LABEL[key as keyof typeof TAIL_LABEL],
+      tournaments: 0,
+      secondaryBracket: 0,
+      rank,
+    };
     b.tournaments += 1;
     if (secondary) b.secondaryBracket += 1;
     buckets.set(key, b);
@@ -228,8 +235,15 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
   for (const r of rows) {
     const tag = r.judgeTypeTag?.toLowerCase();
     const key: AppointmentKey =
-      tag === 'core' || tag === 'invited' || tag === 'subsidized' || tag === 'normal' ? tag : 'unstated';
-    const a = appointments.get(key) ?? { key, label: APPOINTMENT_LABEL[key], tournaments: 0, broke: 0 };
+      tag === 'core' || tag === 'invited' || tag === 'subsidized' || tag === 'normal'
+        ? tag
+        : 'unstated';
+    const a = appointments.get(key) ?? {
+      key,
+      label: APPOINTMENT_LABEL[key],
+      tournaments: 0,
+      broke: 0,
+    };
     a.tournaments += 1;
     if (brokeOpen(r)) a.broke += 1;
     appointments.set(key, a);
@@ -251,7 +265,10 @@ export function judgingLens(rows: JudgeLensRow[]): JudgingLens {
       undated: rows.filter((r) => r.year == null).length,
       unmeasured: noCount.length,
       inconsistent: rows.filter(
-        (r) => r.inroundsJudged != null && r.inroundsJudged > 0 && (r.inroundsChaired ?? 0) > r.inroundsJudged,
+        (r) =>
+          r.inroundsJudged != null &&
+          r.inroundsJudged > 0 &&
+          (r.inroundsChaired ?? 0) > r.inroundsJudged,
       ).length,
       chairedWithoutCount: {
         tournaments: withChairsOnly.length,
@@ -387,8 +404,11 @@ export function speakingVsJudging(
   const always = counted.length > 0 && runStart === 0;
   const turned = runLength > 0 && !always;
 
-  const readFrom =
-    turned ? counted[runStart - 1]!.year : !always && counted.length > 0 ? counted[counted.length - 1]!.year : -Infinity;
+  const readFrom = turned
+    ? counted[runStart - 1]!.year
+    : !always && counted.length > 0
+      ? counted[counted.length - 1]!.year
+      : -Infinity;
   const unsettledYears = seasons
     .filter((s) => s.year >= readFrom && !settled(s, undatedSpoken, undatedJudged))
     .map((s) => s.year);

@@ -66,8 +66,50 @@ function pick(list) {
 const round1 = (n) => Math.round(n * 2) / 2; // speech scores land on halves
 
 // ── Name pool for the field ───────────────────────────────────────────────
-const FIRST = ['Ada', 'Kofi', 'Mei', 'Rohan', 'Sofia', 'Tomas', 'Yuki', 'Ines', 'Omar', 'Lena', 'Nkechi', 'Bram', 'Priya', 'Diego', 'Hana', 'Ivan', 'Zara', 'Noor', 'Finn', 'Alba'];
-const LAST = ['Achebe', 'Bauer', 'Costa', 'Duarte', 'Eriksen', 'Farrell', 'Gupta', 'Haddad', 'Ibrahim', 'Jansen', 'Kimura', 'Lindqvist', 'Moreau', 'Nowak', 'Okafor', 'Petrov', 'Quintero', 'Rossi', 'Silva', 'Tanaka'];
+const FIRST = [
+  'Ada',
+  'Kofi',
+  'Mei',
+  'Rohan',
+  'Sofia',
+  'Tomas',
+  'Yuki',
+  'Ines',
+  'Omar',
+  'Lena',
+  'Nkechi',
+  'Bram',
+  'Priya',
+  'Diego',
+  'Hana',
+  'Ivan',
+  'Zara',
+  'Noor',
+  'Finn',
+  'Alba',
+];
+const LAST = [
+  'Achebe',
+  'Bauer',
+  'Costa',
+  'Duarte',
+  'Eriksen',
+  'Farrell',
+  'Gupta',
+  'Haddad',
+  'Ibrahim',
+  'Jansen',
+  'Kimura',
+  'Lindqvist',
+  'Moreau',
+  'Nowak',
+  'Okafor',
+  'Petrov',
+  'Quintero',
+  'Rossi',
+  'Silva',
+  'Tanaka',
+];
 let nameCounter = 0;
 function fieldName() {
   nameCounter += 1;
@@ -79,22 +121,42 @@ const normalize = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 const MOTIONS = [
   ['THW abolish selective state schooling.', 'THW', 'Education'],
   ['THBT the feminist movement should abandon the language of choice.', 'THBT', 'Social Movements'],
-  ['THS the rise of regional trade blocs at the expense of global institutions.', 'THS', 'Economics & Business'],
+  [
+    'THS the rise of regional trade blocs at the expense of global institutions.',
+    'THS',
+    'Economics & Business',
+  ],
   ['THW require all political advertising to be state-funded.', 'THW', 'Politics'],
   ['THR the narrative of the self-made founder.', 'THR', 'Economics & Business'],
-  ['THBT developing states should nationalise their critical mineral reserves.', 'THBT', 'Development'],
+  [
+    'THBT developing states should nationalise their critical mineral reserves.',
+    'THBT',
+    'Development',
+  ],
   ['THW ban private security contractors from conflict zones.', 'THW', 'International Relations'],
   ['THP a world where religious institutions play no role in education.', 'THP', 'Religion'],
   ['THBT environmental movements should abandon civil disobedience.', 'THBT', 'Environment'],
-  ['THW allow terminally ill patients unrestricted access to experimental treatment.', 'THW', 'Science & Medicine'],
-  ['THBT the international criminal court has done more harm than good.', 'THBT', 'International Relations'],
+  [
+    'THW allow terminally ill patients unrestricted access to experimental treatment.',
+    'THW',
+    'Science & Medicine',
+  ],
+  [
+    'THBT the international criminal court has done more harm than good.',
+    'THBT',
+    'International Relations',
+  ],
   ['THW break up the major technology platforms.', 'THW', 'Technology'],
   ['THS the decline of the traditional political party.', 'THS', 'Politics'],
   ['THBT states should pay reparations for historical colonial extraction.', 'THBT', 'Development'],
   ['THW abolish tenure in universities.', 'THW', 'Education'],
   ['THBT sports bodies should exclude states with poor human rights records.', 'THBT', 'Sport'],
   ['THW require social media platforms to verify user identity.', 'THW', 'Technology'],
-  ['THR the pursuit of economic growth as the primary goal of the state.', 'THR', 'Economics & Business'],
+  [
+    'THR the pursuit of economic growth as the primary goal of the state.',
+    'THR',
+    'Economics & Business',
+  ],
 ];
 let motionCursor = 0;
 function nextMotion() {
@@ -113,100 +175,205 @@ const POSITIONS = ['OG', 'OO', 'CG', 'CO'];
 const TOURNAMENTS = [
   {
     name: 'World Universities Debating Championship 2024',
-    year: 2024, format: 'British Parliamentary', region: 'International',
-    totalTeams: 206, speakers: 412, prelims: 9, host: 'wudc2024',
-    me: { skill: 0.9, teamName: 'Maya A', partner: 'Lena Fischer', broke: true,
-          outround: 'Octofinals', eslRank: 14, dualBreak: true },
+    year: 2024,
+    format: 'British Parliamentary',
+    region: 'International',
+    totalTeams: 206,
+    speakers: 412,
+    prelims: 9,
+    host: 'wudc2024',
+    me: {
+      skill: 0.9,
+      teamName: 'Maya A',
+      partner: 'Lena Fischer',
+      broke: true,
+      outround: 'Octofinals',
+      eslRank: 14,
+      dualBreak: true,
+    },
   },
   {
     name: 'Australs 2024',
-    year: 2024, format: 'British Parliamentary', region: 'Oceania',
-    totalTeams: 94, speakers: 188, prelims: 8, host: 'australs2024',
-    me: { skill: 0.85, teamName: 'Maya B', partner: 'Anika Sharma', broke: true,
-          outround: 'Quarterfinals' },
+    year: 2024,
+    format: 'British Parliamentary',
+    region: 'Oceania',
+    totalTeams: 94,
+    speakers: 188,
+    prelims: 8,
+    host: 'australs2024',
+    me: {
+      skill: 0.85,
+      teamName: 'Maya B',
+      partner: 'Anika Sharma',
+      broke: true,
+      outround: 'Quarterfinals',
+    },
   },
   {
     name: 'Hart House IV 2023',
-    year: 2023, format: 'British Parliamentary', region: 'North America',
-    totalTeams: 48, speakers: 96, prelims: 6, host: 'harthouse2023',
+    year: 2023,
+    format: 'British Parliamentary',
+    region: 'North America',
+    totalTeams: 48,
+    speakers: 96,
+    prelims: 6,
+    host: 'harthouse2023',
     // Champion: won the Grand Final.
-    me: { skill: 0.95, teamName: 'Maya C', partner: 'Lena Fischer', broke: true,
-          outround: 'Grand Final', wonFinal: true },
+    me: {
+      skill: 0.95,
+      teamName: 'Maya C',
+      partner: 'Lena Fischer',
+      broke: true,
+      outround: 'Grand Final',
+      wonFinal: true,
+    },
   },
   {
     name: 'Cambridge IV 2023',
-    year: 2023, format: 'British Parliamentary', region: 'Europe',
-    totalTeams: 120, speakers: 240, prelims: 6, host: 'cambridge2023',
+    year: 2023,
+    format: 'British Parliamentary',
+    region: 'Europe',
+    totalTeams: 120,
+    speakers: 240,
+    prelims: 6,
+    host: 'cambridge2023',
     // EDGE CASE: judged only. Motions were released; the user has no
     // speaker row. /cv/motions must decide what to do with these.
     judgeOnly: { chaired: 5, lastOutroundChaired: 'Semifinals', judgeTypeTag: 'chair' },
   },
   {
     name: 'University Novice Championship 2022',
-    year: 2022, format: 'British Parliamentary', region: 'Europe',
-    totalTeams: 37, speakers: 74, prelims: 5, host: 'novice2022',
-    me: { skill: 0.8, teamName: 'Maya D', partner: 'Sam Okonjo', broke: true,
-          outround: 'Grand Final', wonFinal: false },
+    year: 2022,
+    format: 'British Parliamentary',
+    region: 'Europe',
+    totalTeams: 37,
+    speakers: 74,
+    prelims: 5,
+    host: 'novice2022',
+    me: {
+      skill: 0.8,
+      teamName: 'Maya D',
+      partner: 'Sam Okonjo',
+      broke: true,
+      outround: 'Grand Final',
+      wonFinal: false,
+    },
   },
   {
     name: 'Oxford IV 2022',
-    year: 2022, format: 'British Parliamentary', region: 'Europe',
-    totalTeams: 60, speakers: 120, prelims: 6, host: 'oxford2022',
+    year: 2022,
+    format: 'British Parliamentary',
+    region: 'Europe',
+    totalTeams: 60,
+    speakers: 120,
+    prelims: 6,
+    host: 'oxford2022',
     me: { skill: 0.55, teamName: 'Maya E', partner: 'Sam Okonjo', broke: false },
   },
   {
     name: 'Delhi Open 2025',
-    year: 2025, format: 'Asian Parliamentary', region: 'South Asia',
-    totalTeams: 30, speakers: 90, prelims: 5, host: 'delhi2025',
-    me: { skill: 0.88, teamName: 'Maya F', partner: 'Priya Raman', broke: true,
-          outround: 'Semifinals' },
+    year: 2025,
+    format: 'Asian Parliamentary',
+    region: 'South Asia',
+    totalTeams: 30,
+    speakers: 90,
+    prelims: 5,
+    host: 'delhi2025',
+    me: {
+      skill: 0.88,
+      teamName: 'Maya F',
+      partner: 'Priya Raman',
+      broke: true,
+      outround: 'Semifinals',
+    },
   },
   {
     name: 'Bangalore Invitational 2025',
-    year: 2025, format: 'British Parliamentary', region: 'South Asia',
-    totalTeams: 24, speakers: 48, prelims: 5, host: 'bangalore2025',
+    year: 2025,
+    format: 'British Parliamentary',
+    region: 'South Asia',
+    totalTeams: 24,
+    speakers: 48,
+    prelims: 5,
+    host: 'bangalore2025',
     me: { skill: 0.7, teamName: 'Maya G', partner: 'Priya Raman', broke: false },
   },
   {
     name: 'Riverside Autumn Open',
     // EDGE CASE: no year. Exercises chronological ordering and streaks.
-    year: null, format: 'British Parliamentary', region: null,
-    totalTeams: 20, speakers: 40, prelims: 5, host: 'riverside',
+    year: null,
+    format: 'British Parliamentary',
+    region: null,
+    totalTeams: 20,
+    speakers: 40,
+    prelims: 5,
+    host: 'riverside',
     me: { skill: 0.65, teamName: 'Maya H', partner: 'Sam Okonjo', broke: false },
   },
   {
     name: 'Metro Pro-Am 2021',
-    year: 2021, format: 'British Parliamentary', region: 'North America',
-    totalTeams: 18, speakers: 36, prelims: 4, host: 'metro2021',
+    year: 2021,
+    format: 'British Parliamentary',
+    region: 'North America',
+    totalTeams: 18,
+    speakers: 36,
+    prelims: 4,
+    host: 'metro2021',
     me: { skill: 0.5, teamName: 'Maya I', partner: 'Tomas Lindqvist', broke: false },
   },
   {
     name: 'Harbour Cup 2023',
-    year: 2023, format: 'British Parliamentary', region: null,
-    totalTeams: 32, speakers: 64, prelims: 6, host: 'harbour2023',
+    year: 2023,
+    format: 'British Parliamentary',
+    region: null,
+    totalTeams: 32,
+    speakers: 64,
+    prelims: 6,
+    host: 'harbour2023',
     // EDGE CASE: the tournament ran six prelims, but the tab never
     // published a round count and no per-round team rows survived — so
     // `Tournament.prelimRoundCount` is null and MAX(TeamResult.roundNumber)
     // has nothing to fall back to. Score-unit field figures cannot be
     // derived; only the rank-based placement should render.
     noRoundData: true,
-    me: { skill: 0.75, teamName: 'Maya J', partner: 'Ada Achebe 1', broke: true,
-          outround: 'Quarterfinals' },
+    me: {
+      skill: 0.75,
+      teamName: 'Maya J',
+      partner: 'Ada Achebe 1',
+      broke: true,
+      outround: 'Quarterfinals',
+    },
   },
   {
     name: 'Continental Championship 2024',
-    year: 2024, format: 'British Parliamentary', region: 'Africa',
-    totalTeams: 44, speakers: 88, prelims: 7, host: 'continental2024',
+    year: 2024,
+    format: 'British Parliamentary',
+    region: 'Africa',
+    totalTeams: 44,
+    speakers: 88,
+    prelims: 7,
+    host: 'continental2024',
     // EDGE CASE: the tab published an Average column computed over only the
     // rounds actually spoken (the user missed R4), so total ÷ prelims and
     // the published average disagree. The field summary uses the former.
-    me: { skill: 0.82, teamName: 'Maya K', partner: 'Nkechi Okafor 2', broke: true,
-          outround: 'Semifinals', missedRound: 4 },
+    me: {
+      skill: 0.82,
+      teamName: 'Maya K',
+      partner: 'Nkechi Okafor 2',
+      broke: true,
+      outround: 'Semifinals',
+      missedRound: 4,
+    },
   },
   {
     name: 'Lakeside Novice 2021',
-    year: 2021, format: 'British Parliamentary', region: null,
-    totalTeams: 16, speakers: 32, prelims: 4, host: 'lakeside2021',
+    year: 2021,
+    format: 'British Parliamentary',
+    region: null,
+    totalTeams: 16,
+    speakers: 32,
+    prelims: 4,
+    host: 'lakeside2021',
     // EDGE CASE: speaker tab published ranks but no score totals, so this
     // tournament contributes nothing to field context.
     noScoreTotals: true,
@@ -214,8 +381,13 @@ const TOURNAMENTS = [
   },
   {
     name: 'Northern Regionals 2022',
-    year: 2022, format: 'British Parliamentary', region: 'Europe',
-    totalTeams: 28, speakers: 56, prelims: 6, host: 'northern2022',
+    year: 2022,
+    format: 'British Parliamentary',
+    region: 'Europe',
+    totalTeams: 28,
+    speakers: 56,
+    prelims: 6,
+    host: 'northern2022',
     // Judged, and on the adjudication core — a distinct credential.
     judgeOnly: { chaired: 6, lastOutroundChaired: 'Grand Final', judgeTypeTag: 'core' },
   },
@@ -286,9 +458,11 @@ async function main() {
     const key = normalize(name);
     if (personCache.has(key)) return personCache.get(key);
     const existing = await prisma.person.findUnique({ where: { normalizedName: key } });
-    const p = existing ?? (await prisma.person.create({
-      data: { displayName: name, normalizedName: key },
-    }));
+    const p =
+      existing ??
+      (await prisma.person.create({
+        data: { displayName: name, normalizedName: key },
+      }));
     personCache.set(key, p.id);
     return p.id;
   }
@@ -352,7 +526,10 @@ async function main() {
               roundLabel: `Round ${r}`,
               seq,
               text,
-              infoSlide: r === 5 ? 'The Overton window describes the range of policies politically acceptable to the mainstream population at a given time.' : null,
+              infoSlide:
+                r === 5
+                  ? 'The Overton window describes the range of policies politically acceptable to the mainstream population at a given time.'
+                  : null,
               motionType: tagged ? type : null,
               topic: tagged ? topic : null,
             },
@@ -454,9 +631,7 @@ async function main() {
     });
     const fieldPersonByName = new Map(fieldPersons.map((p) => [p.normalizedName, p.id]));
 
-    const ranked = fieldTotals
-      .map((total, i) => ({ total, i }))
-      .sort((a, b) => b.total - a.total);
+    const ranked = fieldTotals.map((total, i) => ({ total, i })).sort((a, b) => b.total - a.total);
     const rankByIndex = new Map();
     ranked.forEach((entry, idx) => {
       // The user occupies myPlacement, so field speakers above it keep
@@ -559,7 +734,9 @@ async function main() {
           tournamentId: tournament.id,
           teamName: me.teamName,
           roundNumber: 0,
-          rank: me.broke ? Math.max(1, Math.round(t.totalTeams * 0.12)) : Math.round(t.totalTeams * 0.55),
+          rank: me.broke
+            ? Math.max(1, Math.round(t.totalTeams * 0.12))
+            : Math.round(t.totalTeams * 0.55),
           wins: wins.filter((w) => w >= 2).length,
           points: wins.reduce((a, b) => a + b, 0),
         },

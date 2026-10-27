@@ -56,12 +56,18 @@ describe('resolvePage', () => {
 
 describe('failedTileHint (caption under the Failed tile)', () => {
   it('never contradicts a zero: dead links are named as a separate, unretried bucket', () => {
-    expect(failedTileHint(0, 34)).toBe('Nothing to retry. 34 links no longer load (dead, not retried)');
-    expect(failedTileHint(0, 1)).toBe('Nothing to retry. 1 link no longer loads (dead, not retried)');
+    expect(failedTileHint(0, 34)).toBe(
+      'Nothing to retry. 34 links no longer load (dead, not retried)',
+    );
+    expect(failedTileHint(0, 1)).toBe(
+      'Nothing to retry. 1 link no longer loads (dead, not retried)',
+    );
   });
   it('points at the Failed filter only when something can be retried', () => {
     expect(failedTileHint(3, 0)).toBe('open Failed to retry');
-    expect(failedTileHint(3, 2)).toBe('open Failed to retry. 2 links no longer load (dead, not retried)');
+    expect(failedTileHint(3, 2)).toBe(
+      'open Failed to retry. 2 links no longer load (dead, not retried)',
+    );
     expect(failedTileHint(0, 0)).toBe('nothing to retry');
   });
   it('no longer uses the old "dead links" caption', () => {

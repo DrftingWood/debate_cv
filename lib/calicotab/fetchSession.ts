@@ -68,7 +68,10 @@ export class IngestDeadlineError extends Error {
 }
 
 export function isIngestDeadlineError(err: unknown): err is IngestDeadlineError {
-  return err instanceof IngestDeadlineError || (err instanceof Error && err.name === 'IngestDeadlineError');
+  return (
+    err instanceof IngestDeadlineError ||
+    (err instanceof Error && err.name === 'IngestDeadlineError')
+  );
 }
 
 export class FetchSession {
@@ -197,7 +200,10 @@ export class FetchSession {
     })();
     // Catch the chain so a rejected slot doesn't poison subsequent waiters.
     // Individual callers still see the original rejection via their own await.
-    this.chainByHost.set(host, slot.catch(() => {}));
+    this.chainByHost.set(
+      host,
+      slot.catch(() => {}),
+    );
     return slot;
   }
 }

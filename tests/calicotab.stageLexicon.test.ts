@@ -75,7 +75,10 @@ describe('splitStageLabel — the tournament supplies its own categories', () =>
   // whatever is left over IS the category.
   test('separates a known category from the stage', () => {
     expect(splitStageLabel('ESL Grand Final')).toEqual({ category: 'ESL', stage: 'grand_final' });
-    expect(splitStageLabel('Novice Octofinals')).toEqual({ category: 'Novice', stage: 'octofinal' });
+    expect(splitStageLabel('Novice Octofinals')).toEqual({
+      category: 'Novice',
+      stage: 'octofinal',
+    });
     expect(splitStageLabel('esl final')).toEqual({ category: 'ESL', stage: 'final' });
   });
 
@@ -83,7 +86,10 @@ describe('splitStageLabel — the tournament supplies its own categories', () =>
     expect(splitStageLabel('Gold Final')).toEqual({ category: 'Gold', stage: 'final' });
     expect(splitStageLabel('Bronze Finals')).toEqual({ category: 'Bronze', stage: 'final' });
     expect(splitStageLabel('HS Grand Finals')).toEqual({ category: 'HS', stage: 'grand_final' });
-    expect(splitStageLabel('College Semifinals')).toEqual({ category: 'College', stage: 'semifinal' });
+    expect(splitStageLabel('College Semifinals')).toEqual({
+      category: 'College',
+      stage: 'semifinal',
+    });
     expect(splitStageLabel('Elementary Quarterfinals')).toEqual({
       category: 'Elementary',
       stage: 'quarterfinal',
@@ -101,7 +107,10 @@ describe('splitStageLabel — the tournament supplies its own categories', () =>
       category: 'Iniciados',
       stage: 'semifinal',
     });
-    expect(splitStageLabel('Semifinais Novice')).toEqual({ category: 'Novice', stage: 'semifinal' });
+    expect(splitStageLabel('Semifinais Novice')).toEqual({
+      category: 'Novice',
+      stage: 'semifinal',
+    });
   });
 
   test('a bare stage has no category', () => {

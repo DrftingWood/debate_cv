@@ -131,7 +131,8 @@ export function TrendChart({
   const [lo, hi] = domain ?? [min - range * 0.2, max + range * 0.2];
 
   const plotW = W - padL - padR;
-  const x = (i: number) => (points.length === 1 ? plotW / 2 + padL : padL + (i * plotW) / (points.length - 1));
+  const x = (i: number) =>
+    points.length === 1 ? plotW / 2 + padL : padL + (i * plotW) / (points.length - 1);
   const y = (v: number) => padTop + (H - padTop - padBottom) * (1 - (v - lo) / (hi - lo));
 
   const line = points
@@ -164,15 +165,20 @@ export function TrendChart({
     ),
   );
   const stride = Math.max(1, Math.ceil((widest * CHAR_W + 8) / slot));
-  const showLabel = (i: number) => i === 0 || i === last || (i % stride === 0 && last - i >= stride);
+  const showLabel = (i: number) =>
+    i === 0 || i === last || (i % stride === 0 && last - i >= stride);
 
   const titleId = `${id}-title`;
   const descId = `${id}-desc`;
   const hasSub = points.some((p) => p.sub);
   const desc =
-    points.map((p) => `${p.label}: ${formatValue(p.value)}${p.sub ? ` (${p.sub})` : ''}`).join('; ') +
+    points
+      .map((p) => `${p.label}: ${formatValue(p.value)}${p.sub ? ` (${p.sub})` : ''}`)
+      .join('; ') +
     '.' +
-    (baseline != null && baselineLabel ? ` Dashed line: ${baselineLabel}, ${formatValue(baseline)}.` : '');
+    (baseline != null && baselineLabel
+      ? ` Dashed line: ${baselineLabel}, ${formatValue(baseline)}.`
+      : '');
 
   return (
     <div className={cn('text-ink', className)}>
@@ -196,8 +202,22 @@ export function TrendChart({
 
           {gridValues.map((v, i) => (
             <g key={i}>
-              <line x1={padL} y1={y(v)} x2={W - padR} y2={y(v)} stroke="currentColor" strokeOpacity={0.08} />
-              <text x={padL - 6} y={y(v) + 4} textAnchor="end" fontSize={12} fill={muted} className="num">
+              <line
+                x1={padL}
+                y1={y(v)}
+                x2={W - padR}
+                y2={y(v)}
+                stroke="currentColor"
+                strokeOpacity={0.08}
+              />
+              <text
+                x={padL - 6}
+                y={y(v) + 4}
+                textAnchor="end"
+                fontSize={12}
+                fill={muted}
+                className="num"
+              >
                 {formatValue(v)}
               </text>
             </g>
@@ -224,7 +244,8 @@ export function TrendChart({
                     // series that starts near the baseline.
                     const first = points[0].value;
                     const lastValue = points[last].value;
-                    const atStart = Math.abs(y(first) - y(baseline)) >= Math.abs(y(lastValue) - y(baseline));
+                    const atStart =
+                      Math.abs(y(first) - y(baseline)) >= Math.abs(y(lastValue) - y(baseline));
                     const anchorValue = atStart ? first : lastValue;
                     // Point above the line → label below it, and vice versa.
                     const dy = y(anchorValue) < y(baseline) ? 14 : -6;
@@ -249,7 +270,14 @@ export function TrendChart({
 
           {points.map((p, i) => (
             <g key={`${p.label}-${i}`}>
-              <circle cx={x(i)} cy={y(p.value)} r={3} fill="hsl(var(--card))" stroke={stroke} strokeWidth={1.75} />
+              <circle
+                cx={x(i)}
+                cy={y(p.value)}
+                r={3}
+                fill="hsl(var(--card))"
+                stroke={stroke}
+                strokeWidth={1.75}
+              />
               {showValues && showLabel(i) ? (
                 // Anchor the end points inward. A centred label on the first
                 // point overhangs into the axis gutter and collides with the
@@ -267,11 +295,24 @@ export function TrendChart({
               ) : null}
               {showLabel(i) ? (
                 <>
-                  <text x={x(i)} y={H - padBottom + 15} textAnchor="middle" fontSize={12} fill={muted} className="num">
+                  <text
+                    x={x(i)}
+                    y={H - padBottom + 15}
+                    textAnchor="middle"
+                    fontSize={12}
+                    fill={muted}
+                    className="num"
+                  >
                     {p.label}
                   </text>
                   {p.sub ? (
-                    <text x={x(i)} y={H - padBottom + 29} textAnchor="middle" fontSize={12} fill={muted}>
+                    <text
+                      x={x(i)}
+                      y={H - padBottom + 29}
+                      textAnchor="middle"
+                      fontSize={12}
+                      fill={muted}
+                    >
                       {p.sub}
                     </text>
                   ) : null}
@@ -345,7 +386,9 @@ export function Sparkline({
   const pad = 2;
   const x = (i: number) => pad + (i * (width - pad * 2)) / (values.length - 1);
   const y = (v: number) => pad + (height - pad * 2) * (1 - (v - min) / range);
-  const d = values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  const d = values
+    .map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+    .join(' ');
 
   return (
     <svg
@@ -355,7 +398,14 @@ export function Sparkline({
       className={cn('overflow-visible', className)}
       aria-hidden
     >
-      <path d={d} fill="none" stroke={stroke} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+      <path
+        d={d}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
       <circle cx={x(values.length - 1)} cy={y(values[values.length - 1])} r={1.9} fill={stroke} />
     </svg>
   );

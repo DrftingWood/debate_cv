@@ -6,9 +6,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const drainQueue = vi.fn();
 vi.mock('@/lib/queueDrain', () => ({ drainQueue, DRAIN_CONCURRENCY: 2 }));
 vi.mock('@/lib/queue', () => ({ resetStuckRunning: vi.fn(async () => {}) }));
-vi.mock('@/lib/calicotab/provenance', () => ({ pruneIngestArtifacts: vi.fn(), prunePlaceholderPersons: vi.fn() }));
+vi.mock('@/lib/calicotab/provenance', () => ({
+  pruneIngestArtifacts: vi.fn(),
+  prunePlaceholderPersons: vi.fn(),
+}));
 vi.mock('@/lib/rateLimit', () => ({ pruneRateLimits: vi.fn() }));
-vi.mock('@/lib/calicotab/ingest', () => ({ ingestPrivateUrl: vi.fn(async () => ({})), isDeadlockError: () => false }));
+vi.mock('@/lib/calicotab/ingest', () => ({
+  ingestPrivateUrl: vi.fn(async () => ({})),
+  isDeadlockError: () => false,
+}));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 // The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
 const scanDueMailboxes = vi.fn();
@@ -34,9 +40,21 @@ const req = (query = '') =>
 beforeEach(() => {
   process.env.CRON_SECRET = 's3cret';
   drainQueue.mockReset();
-  drainQueue.mockResolvedValue({ processed: 0, results: [], stoppedForBudget: false, peakInFlight: 0, elapsedMs: 1 });
+  drainQueue.mockResolvedValue({
+    processed: 0,
+    results: [],
+    stoppedForBudget: false,
+    peakInFlight: 0,
+    elapsedMs: 1,
+  });
   scanDueMailboxes.mockReset();
-  scanDueMailboxes.mockResolvedValue({ scanned: 1, urlsFound: 2, grantsCleared: 0, failed: 0, stoppedForBudget: false });
+  scanDueMailboxes.mockResolvedValue({
+    scanned: 1,
+    urlsFound: 2,
+    grantsCleared: 0,
+    failed: 0,
+    stoppedForBudget: false,
+  });
   delete process.env.BACKGROUND_GMAIL_SCAN;
   delete process.env.BACKGROUND_SCAN_INTERVAL_MIN;
   afterCallbacks.length = 0;
@@ -68,7 +86,9 @@ describe('POST /api/cron/process-queue', () => {
   });
 
   it('still refuses an unauthorised caller, early or not', async () => {
-    const res = await POST(new Request('https://app.test/api/cron/process-queue?respond=early', { method: 'POST' }));
+    const res = await POST(
+      new Request('https://app.test/api/cron/process-queue?respond=early', { method: 'POST' }),
+    );
     expect(res.status).toBe(401);
     expect(afterCallbacks).toHaveLength(0);
   });
@@ -80,7 +100,9 @@ describe('POST /api/cron/process-queue', () => {
       isDeadlineError: (e: unknown) => boolean;
     };
     await deps.ingest('https://a.calicotab.com/t/privateurls/x', 'u1', { deadline: 123 });
-    expect(ingestPrivateUrl).toHaveBeenCalledWith('https://a.calicotab.com/t/privateurls/x', 'u1', { deadline: 123 });
+    expect(ingestPrivateUrl).toHaveBeenCalledWith('https://a.calicotab.com/t/privateurls/x', 'u1', {
+      deadline: 123,
+    });
     const { IngestDeadlineError } = await import('@/lib/calicotab/fetchSession');
     expect(deps.isDeadlineError(new IngestDeadlineError())).toBe(true);
     expect(deps.isDeadlineError(new Error('x'))).toBe(false);
@@ -105,7 +127,11 @@ describe('background Gmail scan in the tick', () => {
 
   it('uses a 30 minute interval by default, two users a tick, and a short budget', async () => {
     await POST(req());
-    expect(scanDueMailboxes.mock.calls[0][1]).toEqual({ intervalMs: 30 * 60_000, maxUsers: 2, budgetMs: 12_000 });
+    expect(scanDueMailboxes.mock.calls[0][1]).toEqual({
+      intervalMs: 30 * 60_000,
+      maxUsers: 2,
+      budgetMs: 12_000,
+    });
   });
 
   it('takes the interval from the environment but never below five minutes', async () => {

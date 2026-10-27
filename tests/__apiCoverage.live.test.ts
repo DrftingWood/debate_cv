@@ -24,14 +24,20 @@ describe.runIf(process.env.RUN_API_COVERAGE === '1')('tabbycat API coverage', ()
   it(
     'surveys',
     async () => {
-      const urls = readFileSync(process.env.API_COVERAGE_URLS!, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const urls = readFileSync(process.env.API_COVERAGE_URLS!, 'utf8')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const report: unknown[] = [];
       for (const base of urls) {
         let requests = 0;
         const fetcher = async (u: string) => {
           await sleep(1_500);
           requests++;
-          return fetch(u, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) });
+          return fetch(u, {
+            headers: { 'User-Agent': UA, Accept: 'application/json' },
+            signal: AbortSignal.timeout(20_000),
+          });
         };
         try {
           const landing = await fetcher(base).then((r) => (r.ok ? r.text() : null));
@@ -48,14 +54,21 @@ describe.runIf(process.env.RUN_API_COVERAGE === '1')('tabbycat API coverage', ()
           const reasons = (xs: Iterable<{ source: string; reason?: string }>) => {
             const m: Record<string, number> = {};
             for (const x of xs) {
-              const k = x.source === 'api' ? 'api' : `${x.source}: ${(x.reason ?? '').replace(/round \d+|\d+ drawn/g, 'N')}`;
+              const k =
+                x.source === 'api'
+                  ? 'api'
+                  : `${x.source}: ${(x.reason ?? '').replace(/round \d+|\d+ drawn/g, 'N')}`;
               m[k] = (m[k] ?? 0) + 1;
             }
             return m;
           };
           report.push({
             base,
-            nav: { rounds: nav.resultsRounds.length, breaks: nav.breakTabs.length, participants: !!nav.participants },
+            nav: {
+              rounds: nav.resultsRounds.length,
+              breaks: nav.breakTabs.length,
+              participants: !!nav.participants,
+            },
             tabs: { teams: tabs.teams.source, speakers: tabs.speakers.source },
             rounds: reasons(rest.rounds.values()),
             breaks: reasons(rest.breaks.values()),

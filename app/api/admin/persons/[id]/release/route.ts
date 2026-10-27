@@ -23,10 +23,7 @@ export const dynamic = 'force-dynamic';
  * The previous holder is notified. Silently removing something from
  * someone's CV would be worse than the original problem.
  */
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
   } catch (err) {
@@ -65,8 +62,7 @@ export async function POST(
     userId: previousHolder,
     kind: 'identity_released',
     title: `"${person.displayName}" was removed from your record`,
-    body:
-      'An admin released this identity claim following a dispute. If you believe this was a mistake, reply to the report thread in Settings → Reports.',
+    body: 'An admin released this identity claim following a dispute. If you believe this was a mistake, reply to the report thread in Settings → Reports.',
     href: '/cv/verify',
   }).catch(() => {
     // A notification failure must not roll back the release itself.

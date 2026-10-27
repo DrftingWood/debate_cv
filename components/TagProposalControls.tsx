@@ -67,12 +67,8 @@ export function TagProposalControls({
   // matches the approved value (re-proposing an approved tag is a no-op),
   // or matches the live pending proposal (duplicate submission), or nothing
   // is selected yet.
-  const livePendingValue =
-    myProposal?.status === 'pending' ? myProposal.value : null;
-  const isUnchanged =
-    !selected ||
-    selected === approvedValue ||
-    selected === livePendingValue;
+  const livePendingValue = myProposal?.status === 'pending' ? myProposal.value : null;
+  const isUnchanged = !selected || selected === approvedValue || selected === livePendingValue;
 
   const handlePropose = () => {
     startTransition(async () => {

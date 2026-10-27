@@ -56,9 +56,7 @@ export async function POST(req: Request) {
     if (!norm) continue;
     if (!unique.has(norm)) unique.set(norm, display);
   }
-  const sorted = [...unique.entries()].sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  );
+  const sorted = [...unique.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
   let claimed = 0;
   for (const [norm, display] of sorted) {

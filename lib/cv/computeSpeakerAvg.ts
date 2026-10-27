@@ -30,11 +30,7 @@ export function computeSpeakerAvg(args: {
   if (averageCellScore != null && Number.isFinite(averageCellScore)) {
     return averageCellScore.toFixed(1);
   }
-  if (
-    prelimsSpoken > 0 &&
-    speakerScoreTotal != null &&
-    Number.isFinite(speakerScoreTotal)
-  ) {
+  if (prelimsSpoken > 0 && speakerScoreTotal != null && Number.isFinite(speakerScoreTotal)) {
     return (speakerScoreTotal / prelimsSpoken).toFixed(1);
   }
   if (prelimsSpoken > 0) {

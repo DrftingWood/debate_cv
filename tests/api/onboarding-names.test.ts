@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { authMock, prismaMock, resetPrismaMock, fakeSession, expectUnauthorized, readJson } from '../setup/api-test-utils';
+import {
+  authMock,
+  prismaMock,
+  resetPrismaMock,
+  fakeSession,
+  expectUnauthorized,
+  readJson,
+} from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 
 const { GET } = await import('@/app/api/onboarding/names/route');
 
@@ -40,7 +49,9 @@ describe('GET /api/onboarding/names', () => {
 
   it('says unknown, not different, when there is no Google name and nothing claimed', async () => {
     authMock.mockResolvedValue(fakeSession('user-1', { name: null }));
-    prismaMock.discoveredUrl.findMany.mockResolvedValue([{ registrationName: 'Priya Nair', registrationPersonId: 3n }]);
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([
+      { registrationName: 'Priya Nair', registrationPersonId: 3n },
+    ]);
     prismaMock.person.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const data = await readJson<{ names: Row[] }>(await GET());
     expect(data.names[0].proximity).toBe('unknown');

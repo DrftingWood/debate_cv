@@ -78,7 +78,10 @@ describe('placeholder names', () => {
 
   test('the cleanup migration uses exactly this pattern', () => {
     const sql = readFileSync(
-      join(process.cwd(), 'prisma/migrations/20260915000000_remove_placeholder_persons/migration.sql'),
+      join(
+        process.cwd(),
+        'prisma/migrations/20260915000000_remove_placeholder_persons/migration.sql',
+      ),
       'utf-8',
     );
     expect(sql).toContain(`'${PLACEHOLDER_NAME_PATTERN}'`);

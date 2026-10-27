@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { formatStageForDisplay, formatBaseStageForDisplay, championTitle, titleCategory } from '@/lib/cv/formatStage';
+import {
+  formatStageForDisplay,
+  formatBaseStageForDisplay,
+  championTitle,
+  titleCategory,
+} from '@/lib/cv/formatStage';
 
 describe('formatStageForDisplay', () => {
   test('"Open Finals", "Grand Final", and "Final" all collapse to "Final"', () => {

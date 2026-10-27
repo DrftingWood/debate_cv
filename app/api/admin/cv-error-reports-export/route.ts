@@ -19,8 +19,9 @@ export async function GET() {
     include: { user: { select: { name: true, email: true } } },
   });
 
-  const tournamentIds = [...new Set(reports.flatMap((report) => report.tournamentIds))]
-    .filter((id) => /^\d+$/.test(id));
+  const tournamentIds = [...new Set(reports.flatMap((report) => report.tournamentIds))].filter(
+    (id) => /^\d+$/.test(id),
+  );
   const tournaments = tournamentIds.length
     ? await prisma.tournament.findMany({
         where: { id: { in: tournamentIds.map((id) => BigInt(id)) } },

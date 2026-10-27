@@ -151,8 +151,7 @@ export default async function Dashboard({
     const d = detailById.get(u.id);
     return d ? [{ u: { ...u, ...d }, job, status }] : [];
   });
-  const pageHref = (n: number) =>
-    `/dashboard?filter=${activeFilter}${n > 1 ? `&page=${n}` : ''}`;
+  const pageHref = (n: number) => `/dashboard?filter=${activeFilter}${n > 1 ? `&page=${n}` : ''}`;
 
   // With Gmail disconnected the Scan button is disabled, so the empty state
   // must not tell the user to click it. It carries the action itself (NV-26).
@@ -182,7 +181,10 @@ export default async function Dashboard({
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
           <UploadCsvButton />
-          <FullScanButton disconnected={!gmailToken} availableAt={fullScanAt?.toISOString() ?? null} />
+          <FullScanButton
+            disconnected={!gmailToken}
+            availableAt={fullScanAt?.toISOString() ?? null}
+          />
           <ScanButton disconnected={!gmailToken} />
         </div>
       </header>

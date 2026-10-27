@@ -34,14 +34,21 @@ describe.runIf(enabled)('B9 C2: pre-scraped tournaments are matched by private U
     async () => {
       const { prisma } = await import('@/lib/db');
       const { prescrapeTournament, ingestPrivateUrl } = await import('@/lib/calicotab/ingest');
-      const urls = readFileSync(process.env.PRESCRAPE_MATCH_URLS!, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const urls = readFileSync(process.env.PRESCRAPE_MATCH_URLS!, 'utf8')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const user = await prisma.user.upsert({
         where: { email: 'b9proof@local.test' },
         update: {},
         create: { email: 'b9proof@local.test', name: 'B9 Proof' },
       });
       const report: Array<Record<string, unknown>> = [];
-      const save = () => writeFileSync(process.env.PRESCRAPE_MATCH_REPORT!, JSON.stringify(report, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 1));
+      const save = () =>
+        writeFileSync(
+          process.env.PRESCRAPE_MATCH_REPORT!,
+          JSON.stringify(report, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 1),
+        );
       const failures: string[] = [];
 
       for (const [i, privateUrl] of urls.entries()) {
@@ -50,17 +57,32 @@ describe.runIf(enabled)('B9 C2: pre-scraped tournaments are matched by private U
         const site = `https://${u.host}/${slug}/`;
         const entry: Record<string, unknown> = { site };
         const rowsForSite = () =>
-          prisma.tournament.count({ where: { sourceUrlRaw: { startsWith: site, mode: 'insensitive' } } });
+          prisma.tournament.count({
+            where: { sourceUrlRaw: { startsWith: site, mode: 'insensitive' } },
+          });
         try {
           const pre = await prescrapeTournament(site, { force: true });
-          entry.prescrape = { status: pre.status, name: pre.name, teams: pre.totalTeams, participants: pre.totalParticipants, judgeRows: pre.judgesWritten };
+          entry.prescrape = {
+            status: pre.status,
+            name: pre.name,
+            teams: pre.totalTeams,
+            participants: pre.totalParticipants,
+            judgeRows: pre.judgesWritten,
+          };
           entry.rowsAfterPrescrape = await rowsForSite();
 
-          if ((process.env.PRESCRAPE_MATCH_BREAK === '1' || (i === 0 && process.env.PRESCRAPE_MATCH_BREAK !== '0')) && pre.tournamentId != null) {
+          if (
+            (process.env.PRESCRAPE_MATCH_BREAK === '1' ||
+              (i === 0 && process.env.PRESCRAPE_MATCH_BREAK !== '0')) &&
+            pre.tournamentId != null
+          ) {
             // Simulate a title that reads differently on the private page: a
             // different (still hex — it keys an advisory lock) fingerprint.
             const flipped = [...pre.fingerprint].reverse().join('');
-            await prisma.tournament.update({ where: { id: pre.tournamentId }, data: { fingerprint: flipped } });
+            await prisma.tournament.update({
+              where: { id: pre.tournamentId },
+              data: { fingerprint: flipped },
+            });
             entry.fingerprintBroken = true;
           }
 
@@ -88,21 +110,31 @@ describe.runIf(enabled)('B9 C2: pre-scraped tournaments are matched by private U
           };
           entry.rowsAfterMatch = await rowsForSite();
           if (!r.cached) failures.push(`${site}: not served from storage`);
-          if (r.tournamentId !== pre.tournamentId) failures.push(`${site}: matched a different tournament row`);
-          if (entry.rowsAfterMatch !== 1) failures.push(`${site}: ${entry.rowsAfterMatch} tournament rows for one site`);
-          if (discovered?.registrationPersonId == null) failures.push(`${site}: registration person not linked`);
+          if (r.tournamentId !== pre.tournamentId)
+            failures.push(`${site}: matched a different tournament row`);
+          if (entry.rowsAfterMatch !== 1)
+            failures.push(`${site}: ${entry.rowsAfterMatch} tournament rows for one site`);
+          if (discovered?.registrationPersonId == null)
+            failures.push(`${site}: registration person not linked`);
 
           // Point 2: a full re-ingest by one user keeps other judges' rows.
           const others = (ownerId: bigint | null) =>
             prisma.judgeAssignment.count({
-              where: { tournamentId: r.tournamentId, source: 'round_results', ...(ownerId ? { NOT: { personId: ownerId } } : {}) },
+              where: {
+                tournamentId: r.tournamentId,
+                source: 'round_results',
+                ...(ownerId ? { NOT: { personId: ownerId } } : {}),
+              },
             });
           const owner = discovered?.registrationPersonId ?? null;
           const before = await others(owner);
           await ingestPrivateUrl(privateUrl, user.id, { force: true });
           const after = await others(owner);
           entry.otherJudgeRows = { before, after };
-          if (after < before) failures.push(`${site}: full re-ingest dropped other judges' rows ${before} → ${after}`);
+          if (after < before)
+            failures.push(
+              `${site}: full re-ingest dropped other judges' rows ${before} → ${after}`,
+            );
         } catch (err) {
           entry.error = (err as Error).message.slice(0, 300);
           failures.push(`${site}: ${entry.error}`);

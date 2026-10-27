@@ -23,7 +23,9 @@ describe('publicTournamentBase', () => {
   });
 
   it('refuses a private URL: the pre-scrape reads public pages only', () => {
-    expect(() => publicTournamentBase('https://wudc2024.calicotab.com/wudc/privateurls/abc123/')).toThrow(/private URL/);
+    expect(() =>
+      publicTournamentBase('https://wudc2024.calicotab.com/wudc/privateurls/abc123/'),
+    ).toThrow(/private URL/);
   });
 
   it('refuses a root-hosted URL with no slug', () => {
@@ -40,7 +42,9 @@ describe('publicTournamentBase', () => {
 
   it('refuses hosts outside the tab allowlist, and non-https', () => {
     expect(() => publicTournamentBase('https://example.com/t/')).toThrow(/allowed tab host/);
-    expect(() => publicTournamentBase('http://wudc2024.calicotab.com/wudc/')).toThrow(/allowed tab host/);
+    expect(() => publicTournamentBase('http://wudc2024.calicotab.com/wudc/')).toThrow(
+      /allowed tab host/,
+    );
   });
 });
 
@@ -62,16 +66,25 @@ describe('storedTournamentFresh', () => {
 
 describe('releasedTabMissing', () => {
   it('is false when every linked tab is stored', () => {
-    expect(releasedTabMissing(['teamTab', 'speakerTab', 'resultsRounds'], { hasTeamTab: true, hasSpeakerTab: true })).toBe(false);
+    expect(
+      releasedTabMissing(['teamTab', 'speakerTab', 'resultsRounds'], {
+        hasTeamTab: true,
+        hasSpeakerTab: true,
+      }),
+    ).toBe(false);
   });
 
   it('is true when a linked tab is not stored', () => {
-    expect(releasedTabMissing(['teamTab', 'speakerTab'], { hasTeamTab: true, hasSpeakerTab: false })).toBe(true);
+    expect(
+      releasedTabMissing(['teamTab', 'speakerTab'], { hasTeamTab: true, hasSpeakerTab: false }),
+    ).toBe(true);
     expect(releasedTabMissing(['teamTab'], { hasTeamTab: false, hasSpeakerTab: true })).toBe(true);
   });
 
   it('ignores a tab the landing page does not link (a constructed URL is not a release)', () => {
-    expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(false);
+    expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(
+      false,
+    );
   });
 });
 
@@ -87,12 +100,20 @@ describe('judgeHitsFromRounds', () => {
 
   it('reads chair, panel and trainee seats, prelim rounds numbered, outrounds not', () => {
     const rounds = [
-      round({ judgeAssignments: [{ personName: 'Ann', panelRole: 'chair' }, { personName: 'Bo', panelRole: 'panel' }] }),
+      round({
+        judgeAssignments: [
+          { personName: 'Ann', panelRole: 'chair' },
+          { personName: 'Bo', panelRole: 'panel' },
+        ],
+      }),
       round({
         roundLabel: 'Grand Final',
         isOutround: true,
         roundNumber: 10,
-        judgeAssignments: [{ personName: 'Ann', panelRole: 'panel' }, { personName: 'Cy', panelRole: 'trainee' }],
+        judgeAssignments: [
+          { personName: 'Ann', panelRole: 'panel' },
+          { personName: 'Cy', panelRole: 'trainee' },
+        ],
       }),
     ];
     const ann = judgeHitsFromRounds(rounds, (n) => n === 'Ann');
@@ -133,7 +154,9 @@ describe('shardOf: splitting the load so no site is hit from two shards at once'
     .filter(Boolean) as string[];
 
   it('puts every tournament of one host in the same shard', () => {
-    expect(shardOf('https://edudrift.calicotab.com/apdc2024/', 4)).toBe(shardOf('https://EDUDRIFT.calicotab.com/uadc2026/', 4));
+    expect(shardOf('https://edudrift.calicotab.com/apdc2024/', 4)).toBe(
+      shardOf('https://EDUDRIFT.calicotab.com/uadc2026/', 4),
+    );
   });
 
   it('is stable, and always inside 0..total-1', () => {

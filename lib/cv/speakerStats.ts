@@ -1,9 +1,4 @@
-import type {
-  CvSpeakerRow,
-  CvJudgeRow,
-  CvTaggedMotion,
-  CvFieldStat,
-} from '@/lib/cv/buildCvData';
+import type { CvSpeakerRow, CvJudgeRow, CvTaggedMotion, CvFieldStat } from '@/lib/cv/buildCvData';
 import { outroundRank } from '@/lib/calicotab/judgeStats';
 import {
   isFourTeam,
@@ -857,7 +852,8 @@ export function computeSpeakerStats(input: {
     // With no prelim count there is nothing to cut at, so outround points
     // could be summed or counted as rounds; leave straights unjudged then.
     const isBp =
-      isFourTeam(row.format) || row.teamRoundResults.some((tr) => isFourTeam(row.format, tr.position));
+      isFourTeam(row.format) ||
+      row.teamRoundResults.some((tr) => isFourTeam(row.format, tr.position));
     if (isBp && prelimCount != null) {
       const prelimResults = row.teamRoundResults.filter(
         (tr) => tr.points != null && tr.roundNumber <= prelimCount,
@@ -889,7 +885,9 @@ export function computeSpeakerStats(input: {
 
       if (won != null) {
         decidedRounds += 1;
-        outcomeFormats.add(result && isFourTeam(row.format, result.position) ? BP_FORMAT : row.format);
+        outcomeFormats.add(
+          result && isFourTeam(row.format, result.position) ? BP_FORMAT : row.format,
+        );
         if (won) wins += 1;
       }
       if (result && isFourTeam(row.format, result.position)) {
@@ -924,8 +922,13 @@ export function computeSpeakerStats(input: {
       .map((r) => ({ ...r, won: roundHit(row.format, r) }))
       .filter((r) => r.won != null);
     for (const partner of row.teammates) {
-      const agg =
-        partnerAggs.get(partner) ?? { tournaments: 0, breaks: 0, scores: [], decided: 0, wins: 0 };
+      const agg = partnerAggs.get(partner) ?? {
+        tournaments: 0,
+        breaks: 0,
+        scores: [],
+        decided: 0,
+        wins: 0,
+      };
       agg.tournaments += 1;
       if (row.broke) agg.breaks += 1;
       agg.scores.push(...tournamentScores);
@@ -1386,7 +1389,11 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
 
   // Straights — the BP headline. Firsts are named separately (a strong sign of
   // breaking) and are never described as wins.
-  if (results.bp && results.bp.tournaments >= MIN_QUIRK_TOURNAMENTS && results.bp.straightsRate != null) {
+  if (
+    results.bp &&
+    results.bp.tournaments >= MIN_QUIRK_TOURNAMENTS &&
+    results.bp.straightsRate != null
+  ) {
     quirks.push({
       id: 'straights',
       text: `You went straights (averaging 2nd or better) at ${pct(results.bp.straightsRate * 100)} of your BP tournaments.`,

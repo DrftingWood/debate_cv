@@ -31,7 +31,10 @@ export async function POST() {
     const limited = await enforceRateLimit('ingest:gmail', userId);
     if (limited) return limited;
 
-    const token = await prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } });
+    const token = await prisma.gmailToken.findUnique({
+      where: { userId },
+      select: { userId: true },
+    });
     if (!token) {
       return NextResponse.json(
         { error: 'no_gmail_token', hint: 'Re-sign in with Google to grant Gmail access.' },

@@ -50,8 +50,12 @@ export function pickPrelimRoundCount(args: {
  * — never more than half of it — so the prelims are the leading run of rounds
  * holding more than half the largest round's teams.
  */
-export function prelimMaxFromRoundCounts(rounds: Array<{ roundNumber: number; teams: number }>): number | null {
-  const sorted = rounds.filter((r) => r.roundNumber > 0).sort((a, b) => a.roundNumber - b.roundNumber);
+export function prelimMaxFromRoundCounts(
+  rounds: Array<{ roundNumber: number; teams: number }>,
+): number | null {
+  const sorted = rounds
+    .filter((r) => r.roundNumber > 0)
+    .sort((a, b) => a.roundNumber - b.roundNumber);
   if (sorted.length === 0) return null;
   const largest = Math.max(...sorted.map((r) => r.teams));
   let last: number | null = null;

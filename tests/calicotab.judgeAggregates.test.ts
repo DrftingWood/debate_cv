@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  computeJudgeAggregates,
-  type JudgeRound,
-} from '@/lib/calicotab/judgeAggregates';
+import { computeJudgeAggregates, type JudgeRound } from '@/lib/calicotab/judgeAggregates';
 
 describe('computeJudgeAggregates', () => {
   test('returns zeros and nulls for empty rounds', () => {

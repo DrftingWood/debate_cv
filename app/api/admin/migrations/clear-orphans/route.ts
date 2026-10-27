@@ -74,7 +74,8 @@ export async function POST(req: Request) {
 
   let deleted = 0;
   for (const name of valid) {
-    deleted += await prisma.$executeRaw`DELETE FROM _prisma_migrations WHERE migration_name = ${name}`;
+    deleted +=
+      await prisma.$executeRaw`DELETE FROM _prisma_migrations WHERE migration_name = ${name}`;
   }
 
   return NextResponse.json({

@@ -24,13 +24,19 @@ const EMPTY_HTML = `<html><body><p>Hello world</p></body></html>`;
 
 describe('collectRegistrationWarnings', () => {
   test('no warnings on a complete landing page', () => {
-    const snapshot = parsePrivateUrlPage(COMPLETE_HTML, 'https://x.calicotab.com/eo2026/privateurls/a/');
+    const snapshot = parsePrivateUrlPage(
+      COMPLETE_HTML,
+      'https://x.calicotab.com/eo2026/privateurls/a/',
+    );
     const warnings = collectRegistrationWarnings(snapshot);
     expect(warnings).toEqual([]);
   });
 
   test('emits warnings for every missing field on an empty page', () => {
-    const snapshot = parsePrivateUrlPage(EMPTY_HTML, 'https://x.calicotab.com/eo2026/privateurls/a/');
+    const snapshot = parsePrivateUrlPage(
+      EMPTY_HTML,
+      'https://x.calicotab.com/eo2026/privateurls/a/',
+    );
     const warnings = collectRegistrationWarnings(snapshot);
     expect(warnings).toContain('missing: tournamentName');
     expect(warnings).toContain('missing: registration.personName');
@@ -49,7 +55,10 @@ describe('collectRegistrationWarnings', () => {
   });
 
   test('adds "likely finished" timing warning when private URL email is older than 30 days', () => {
-    const snapshot = parsePrivateUrlPage(EMPTY_HTML, 'https://x.calicotab.com/eo2026/privateurls/a/');
+    const snapshot = parsePrivateUrlPage(
+      EMPTY_HTML,
+      'https://x.calicotab.com/eo2026/privateurls/a/',
+    );
     const warnings = collectRegistrationWarnings(snapshot, {
       privateUrlSentAt: new Date('2026-01-01T00:00:00Z'),
       now: new Date('2026-02-15T00:00:00Z'),

@@ -50,8 +50,12 @@ describe.skipIf(!process.env.RUN_DERIVE)('derive ingest-computed fields', () => 
     const field = byTournament(bundle.field);
     const squads = byTournament(bundle.squads);
     const judging = byTournament(bundle.judging);
-    const speakerByT = new Map<number, Row>((bundle.speaker as Row[]).map((r) => [r.tournament_id, r]));
-    const partByT = new Map<number, Row>((bundle.participation as Row[]).map((r) => [r.tournament_id, r]));
+    const speakerByT = new Map<number, Row>(
+      (bundle.speaker as Row[]).map((r) => [r.tournament_id, r]),
+    );
+    const partByT = new Map<number, Row>(
+      (bundle.participation as Row[]).map((r) => [r.tournament_id, r]),
+    );
 
     const derived: Record<string, unknown> = {};
     const tally = { formats: new Map<string, number>(), reachedOutround: 0, chairedOutround: 0 };
@@ -62,9 +66,15 @@ describe.skipIf(!process.env.RUN_DERIVE)('derive ingest-computed fields', () => 
       const format = inferTournamentFormat({
         tournamentName: t.name ?? '',
         teamRows: (rosters.get(t.id) ?? [])
-          .map((r) => ({ speakers: String(r.speakers ?? '').split(' | ').filter(Boolean) }))
+          .map((r) => ({
+            speakers: String(r.speakers ?? '')
+              .split(' | ')
+              .filter(Boolean),
+          }))
           .filter((r) => r.speakers.length > 0),
-        speakerRows: (field.get(t.id) ?? []).map((r) => ({ teamName: (r.team_name as string) ?? null })),
+        speakerRows: (field.get(t.id) ?? []).map((r) => ({
+          teamName: (r.team_name as string) ?? null,
+        })),
         participantRows: (squads.get(t.id) ?? []).map((r) => ({
           role: 'speaker',
           teamName: (r.team_name as string) ?? null,
@@ -79,11 +89,14 @@ describe.skipIf(!process.env.RUN_DERIVE)('derive ingest-computed fields', () => 
         (partByT.get(t.id)?.team_name as string | undefined) ??
         null;
       const deepest = team
-        ? rows
+        ? (rows
             .filter((r) => r.is_outround && r.team_name === team)
-            .map((r) => ({ label: r.round_label as string, rank: outroundRankStrict(r.round_label as string) }))
+            .map((r) => ({
+              label: r.round_label as string,
+              rank: outroundRankStrict(r.round_label as string),
+            }))
             .filter((x): x is { label: string; rank: number } => x.rank != null)
-            .sort((a, b) => b.rank - a.rank)[0]?.label ?? null
+            .sort((a, b) => b.rank - a.rank)[0]?.label ?? null)
         : null;
 
       const agg = computeJudgeAggregates(

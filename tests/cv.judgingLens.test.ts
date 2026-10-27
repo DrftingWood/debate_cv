@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  judgingLens,
-  speakingVsJudging,
-  type JudgeLensRow,
-} from '@/lib/cv/judgingLens';
+import { judgingLens, speakingVsJudging, type JudgeLensRow } from '@/lib/cv/judgingLens';
 
 const judge = (o: Partial<JudgeLensRow>): JudgeLensRow => ({
   year: 2023,
@@ -32,13 +28,25 @@ describe('judgingLens — chair rate by season', () => {
 
   test('one row per dated season, oldest first, with its sample', () => {
     expect(lens.chair.seasons).toEqual([
-      { year: 2022, tournaments: 2, measured: 2, roundsJudged: 9, roundsChaired: 7, chairRate: 7 / 9 },
+      {
+        year: 2022,
+        tournaments: 2,
+        measured: 2,
+        roundsJudged: 9,
+        roundsChaired: 7,
+        chairRate: 7 / 9,
+      },
       { year: 2023, tournaments: 4, measured: 1, roundsJudged: 4, roundsChaired: 0, chairRate: 0 },
     ]);
   });
 
   test('overall includes undated tournaments, and every exclusion is counted', () => {
-    expect(lens.chair.overall).toEqual({ measured: 4, roundsJudged: 19, roundsChaired: 13, chairRate: 13 / 19 });
+    expect(lens.chair.overall).toEqual({
+      measured: 4,
+      roundsJudged: 19,
+      roundsChaired: 13,
+      chairRate: 13 / 19,
+    });
     expect(lens.chair.undated).toBe(1);
     expect(lens.chair.unmeasured).toBe(2);
     expect(lens.chair.inconsistent).toBe(1);
@@ -48,7 +56,14 @@ describe('judgingLens — chair rate by season', () => {
   test('a season with no measurable tournament has no rate rather than 0 %', () => {
     const only = judgingLens([judge({ year: 2020, inroundsJudged: null, inroundsChaired: null })]);
     expect(only.chair.seasons).toEqual([
-      { year: 2020, tournaments: 1, measured: 0, roundsJudged: 0, roundsChaired: 0, chairRate: null },
+      {
+        year: 2020,
+        tournaments: 1,
+        measured: 0,
+        roundsJudged: 0,
+        roundsChaired: 0,
+        chairRate: null,
+      },
     ]);
     expect(only.chair.overall.chairRate).toBeNull();
   });
@@ -60,7 +75,11 @@ describe('judgingLens — outround depth', () => {
     judge({ lastOutroundJudged: 'Octofinals', broke: true }),
     judge({ lastOutroundJudged: 'Grand Final', lastOutroundChaired: 'Grand Final', broke: true }),
     judge({ lastOutroundJudged: 'Novice Grand Final', broke: true }),
-    judge({ lastOutroundJudged: 'Open Quarter Finals', lastOutroundChaired: 'Open Quarter Finals', broke: true }),
+    judge({
+      lastOutroundJudged: 'Open Quarter Finals',
+      lastOutroundChaired: 'Open Quarter Finals',
+      broke: true,
+    }),
     judge({ lastOutroundJudged: 'Pre-Semi Finals', broke: true }),
     judge({ lastOutroundJudged: 'Showcase Debate', broke: true }),
     // Broke per the break page, but no outround stage stored.
@@ -175,14 +194,14 @@ describe('speakingVsJudging', () => {
   test('a season needs three tournaments on the leading side to count either way', () => {
     // 2025 is one spoken against two judged: thin, so it neither makes a turn nor breaks one.
     const out = speakingVsJudging([...at(2024, 4), ...at(2025)], [...at(2024), ...at(2025, 2)]);
-    expect(out.seasons.map((x) => [x.year, x.thin])).toEqual([[2024, false], [2025, true]]);
+    expect(out.seasons.map((x) => [x.year, x.thin])).toEqual([
+      [2024, false],
+      [2025, true],
+    ]);
     expect(out.turnedIn).toBeNull();
     expect(out.judgedMoreSeasons).toBe(0);
 
-    const kept = speakingVsJudging(
-      [...at(2022, 3), ...at(2024)],
-      [...at(2023, 3), ...at(2024, 2)],
-    );
+    const kept = speakingVsJudging([...at(2022, 3), ...at(2024)], [...at(2023, 3), ...at(2024, 2)]);
     // The thin 2024 is skipped like an absent year: the 2023 turn still reaches the latest counted season.
     expect(kept.turnedIn).toBe(2023);
     expect(kept.turnedSeasons).toBe(1);
@@ -200,7 +219,9 @@ describe('speakingVsJudging', () => {
   });
 
   test('an even season breaks the run; a latest season spoken means no turn', () => {
-    expect(speakingVsJudging([...at(2020), ...at(2021, 3)], [...at(2020, 3), ...at(2021, 3)]).turnedIn).toBeNull();
+    expect(
+      speakingVsJudging([...at(2020), ...at(2021, 3)], [...at(2020, 3), ...at(2021, 3)]).turnedIn,
+    ).toBeNull();
     expect(speakingVsJudging([...at(2021, 3)], [...at(2020, 3)]).turnedIn).toBeNull();
   });
 
@@ -222,8 +243,24 @@ describe('speakingVsJudging', () => {
 
   test('the record the red team read: no 2025 turn, earlier judged-more seasons kept', () => {
     const out = speakingVsJudging(
-      [...at(2020, 2), ...at(2021, 10), ...at(2022, 5), ...at(2023, 9), ...at(2024, 3), ...at(2025), ...at(null, 7)],
-      [...at(2020), ...at(2021, 11), ...at(2022, 10), ...at(2023, 7), ...at(2024, 2), ...at(2025, 2), ...at(null, 3)],
+      [
+        ...at(2020, 2),
+        ...at(2021, 10),
+        ...at(2022, 5),
+        ...at(2023, 9),
+        ...at(2024, 3),
+        ...at(2025),
+        ...at(null, 7),
+      ],
+      [
+        ...at(2020),
+        ...at(2021, 11),
+        ...at(2022, 10),
+        ...at(2023, 7),
+        ...at(2024, 2),
+        ...at(2025, 2),
+        ...at(null, 3),
+      ],
     );
     expect(out.turnedIn).toBeNull();
     expect(out.undecided).toBe(true);

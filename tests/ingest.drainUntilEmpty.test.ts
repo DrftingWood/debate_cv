@@ -6,7 +6,11 @@ const ok = (processed: number, remaining: number): ApiResult<DrainResponse> => (
   ok: true,
   data: { processed, remaining },
 });
-const fail = (status: number, error = 'boom'): ApiResult<DrainResponse> => ({ ok: false, status, error });
+const fail = (status: number, error = 'boom'): ApiResult<DrainResponse> => ({
+  ok: false,
+  status,
+  error,
+});
 
 /** Queue up scripted responses; `sleep` is stubbed so backoffs are instant. */
 function harness(responses: Array<ApiResult<DrainResponse>>) {
@@ -61,10 +65,16 @@ describe('drainUntilEmpty', () => {
     // 5xx is the Vercel-504 case this tolerance exists for; status 0 is
     // postJson's marker for a network error / offline browser.
     const gateway = harness([fail(504), ok(1, 0)]);
-    await expect(drainUntilEmpty(() => {}, gateway)).resolves.toMatchObject({ processed: 1, failed: true });
+    await expect(drainUntilEmpty(() => {}, gateway)).resolves.toMatchObject({
+      processed: 1,
+      failed: true,
+    });
 
     const offline = harness([fail(0, 'Network error'), ok(1, 0)]);
-    await expect(drainUntilEmpty(() => {}, offline)).resolves.toMatchObject({ processed: 1, failed: true });
+    await expect(drainUntilEmpty(() => {}, offline)).resolves.toMatchObject({
+      processed: 1,
+      failed: true,
+    });
   });
 
   test('retries a rate-limited drain rather than failing the batch', async () => {
@@ -72,7 +82,10 @@ describe('drainUntilEmpty', () => {
     // That's a wait-and-come-back signal, not a permanent failure, so it
     // belongs with the 5xx/offline cases even though it's a 4xx.
     const h = harness([fail(429, 'rate_limited'), ok(2, 0)]);
-    await expect(drainUntilEmpty(() => {}, h)).resolves.toMatchObject({ processed: 2, failed: true });
+    await expect(drainUntilEmpty(() => {}, h)).resolves.toMatchObject({
+      processed: 2,
+      failed: true,
+    });
     expect(h.calls()).toBe(2);
   });
 

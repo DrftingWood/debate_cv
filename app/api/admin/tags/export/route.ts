@@ -33,7 +33,14 @@ export async function GET() {
   const [motions, tournaments] = await Promise.all([
     prisma.motion.findMany({
       where: MOTIONS_TODO,
-      select: { id: true, tournamentId: true, text: true, infoSlide: true, motionType: true, topic: true },
+      select: {
+        id: true,
+        tournamentId: true,
+        text: true,
+        infoSlide: true,
+        motionType: true,
+        topic: true,
+      },
       orderBy: { id: 'asc' },
       take: MAX_ROWS,
     }),

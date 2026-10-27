@@ -9,7 +9,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 
 const { POST } = await import('@/app/api/persons/[id]/claim/route');
 
@@ -37,8 +39,7 @@ beforeEach(() => {
 });
 
 describe('POST /api/persons/[id]/claim', () => {
-  it('returns 401 when unauthenticated', () =>
-    expectUnauthorized(() => POST(req(), { params })));
+  it('returns 401 when unauthenticated', () => expectUnauthorized(() => POST(req(), { params })));
 
   it('rejects a Person at a tournament the caller never ingested', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));

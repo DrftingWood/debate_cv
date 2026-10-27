@@ -13,9 +13,9 @@ describe('isDeadlockError', () => {
   });
 
   test('matches Prisma P2034 (write conflict)', () => {
-    expect(
-      isDeadlockError(Object.assign(new Error('write conflict'), { code: 'P2034' })),
-    ).toBe(true);
+    expect(isDeadlockError(Object.assign(new Error('write conflict'), { code: 'P2034' }))).toBe(
+      true,
+    );
   });
 
   test('matches Postgres 40001 serialization_failure (treated as same class)', () => {
@@ -25,7 +25,9 @@ describe('isDeadlockError', () => {
   });
 
   test('matches the post-exhaustion "withDeadlockRetry: exhausted" throw', () => {
-    expect(isDeadlockError(new Error('withDeadlockRetry: exhausted, last error: deadlock'))).toBe(true);
+    expect(isDeadlockError(new Error('withDeadlockRetry: exhausted, last error: deadlock'))).toBe(
+      true,
+    );
   });
 
   test('rejects unrelated errors', () => {

@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  findPersonId,
-  buildPersonIndex,
-  personNameMatches,
-} from '@/lib/calicotab/personMatch';
+import { findPersonId, buildPersonIndex, personNameMatches } from '@/lib/calicotab/personMatch';
 
 function makeIndex(rows: Array<[string, bigint]>): Map<string, bigint> {
   return new Map(rows);
@@ -129,7 +125,8 @@ describe('personNameMatches', () => {
 
   it('is symmetric', () => {
     expect(personNameMatches('A B', 'B A')).toBe(personNameMatches('B A', 'A B'));
-    expect(personNameMatches('Abhishek K Acharya', 'Abhishek Acharya'))
-      .toBe(personNameMatches('Abhishek Acharya', 'Abhishek K Acharya'));
+    expect(personNameMatches('Abhishek K Acharya', 'Abhishek Acharya')).toBe(
+      personNameMatches('Abhishek Acharya', 'Abhishek K Acharya'),
+    );
   });
 });

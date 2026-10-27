@@ -10,12 +10,9 @@ describe('classifyRoundLabel', () => {
     expect(classifyRoundLabel(s)).toBe('inround');
   });
 
-  test.each(['Round 1', 'Round 6', 'round 12', 'ROUND 4'])(
-    '"Round N" form %s → inround',
-    (s) => {
-      expect(classifyRoundLabel(s)).toBe('inround');
-    },
-  );
+  test.each(['Round 1', 'Round 6', 'round 12', 'ROUND 4'])('"Round N" form %s → inround', (s) => {
+    expect(classifyRoundLabel(s)).toBe('inround');
+  });
 
   test.each(['QF', 'SF', 'F', 'GF', 'qf', 'gf'])('abbreviation %s → outround', (s) => {
     expect(classifyRoundLabel(s)).toBe('outround');
@@ -113,7 +110,6 @@ describe('getInroundsChairedCount', () => {
     ];
     expect(getInroundsChairedCount(data)).toBe(2);
   });
-
 });
 
 describe('normalizeStageLabel', () => {

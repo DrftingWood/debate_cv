@@ -2,11 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { buildPrimaryTeamMap } from '@/lib/calicotab/primaryTeam';
 import type { SpeakerTabRow } from '@/lib/calicotab/parseTabs';
 
-function row(
-  teamName: string | null,
-  scoredRounds: number,
-  speakerName = 'X',
-): SpeakerTabRow {
+function row(teamName: string | null, scoredRounds: number, speakerName = 'X'): SpeakerTabRow {
   return {
     rank: null,
     rankEsl: null,
@@ -26,9 +22,7 @@ function row(
 
 describe('buildPrimaryTeamMap (audit #14 resort-stable iron-man team)', () => {
   test('non-iron-man speaker keeps their single team', () => {
-    const map = buildPrimaryTeamMap([
-      { row: row('Alpha', 5), lookupId: BigInt(1) },
-    ]);
+    const map = buildPrimaryTeamMap([{ row: row('Alpha', 5), lookupId: BigInt(1) }]);
     expect(map.get(BigInt(1))).toBe('Alpha');
   });
 
@@ -70,18 +64,14 @@ describe('buildPrimaryTeamMap (audit #14 resort-stable iron-man team)', () => {
   });
 
   test('handles null teamName entries (e.g., participant with no recorded team)', () => {
-    const map = buildPrimaryTeamMap([
-      { row: row(null, 3), lookupId: BigInt(1) },
-    ]);
+    const map = buildPrimaryTeamMap([{ row: row(null, 3), lookupId: BigInt(1) }]);
     expect(map.get(BigInt(1))).toBeNull();
   });
 
   test('zero-scored-round rows still contribute the team if it is the only one', () => {
     // A speaker with no parsed scored rounds (e.g., only reply or
     // average-only tab) still resolves to their team rather than null.
-    const map = buildPrimaryTeamMap([
-      { row: row('Alpha', 0), lookupId: BigInt(1) },
-    ]);
+    const map = buildPrimaryTeamMap([{ row: row('Alpha', 0), lookupId: BigInt(1) }]);
     expect(map.get(BigInt(1))).toBe('Alpha');
   });
 });

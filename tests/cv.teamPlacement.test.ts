@@ -52,7 +52,9 @@ describe('teamTabPlacement', () => {
 describe('breakDepth and break strength', () => {
   test('depth is the furthest outround, across every bracket the team broke in', () => {
     expect(breakDepth(makeSpeakerRow({ eliminationReached: null }))).toBeNull();
-    expect(breakDepth(makeSpeakerRow({ eliminationReached: 'Semifinals' }))?.stage).toBe('Semifinals');
+    expect(breakDepth(makeSpeakerRow({ eliminationReached: 'Semifinals' }))?.stage).toBe(
+      'Semifinals',
+    );
     const eudc = makeSpeakerRow({
       eliminationReached: 'Octofinals',
       eliminationReachedByCategory: [
@@ -80,55 +82,127 @@ describe('breakDepth and break strength', () => {
       teamBreakRank: 8,
       teamRank: 8,
     });
-    expect([quarters, semis].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['S', 'Q']);
+    expect([quarters, semis].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
+      'S',
+      'Q',
+    ]);
   });
 
   test('at equal depth: Open before category, then a won final, then seed', () => {
-    const eslFinal = makeSpeakerRow({ tournamentName: 'E', broke: true, eliminationReached: 'ESL Grand Final' });
-    const openFinal = makeSpeakerRow({ tournamentName: 'O', broke: true, eliminationReached: 'Grand Final' });
-    const wonFinal = makeSpeakerRow({ tournamentName: 'W', broke: true, eliminationReached: 'Grand Final', wonTournament: true });
-    expect([eslFinal, openFinal, wonFinal].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
-      'W',
-      'O',
-      'E',
+    const eslFinal = makeSpeakerRow({
+      tournamentName: 'E',
+      broke: true,
+      eliminationReached: 'ESL Grand Final',
+    });
+    const openFinal = makeSpeakerRow({
+      tournamentName: 'O',
+      broke: true,
+      eliminationReached: 'Grand Final',
+    });
+    const wonFinal = makeSpeakerRow({
+      tournamentName: 'W',
+      broke: true,
+      eliminationReached: 'Grand Final',
+      wonTournament: true,
+    });
+    expect(
+      [eslFinal, openFinal, wonFinal].sort(compareBreakStrength).map((r) => r.tournamentName),
+    ).toEqual(['W', 'O', 'E']);
+    const seed2 = makeSpeakerRow({
+      tournamentName: '2',
+      eliminationReached: 'Octofinals',
+      teamBreakRank: 2,
+    });
+    const seed9 = makeSpeakerRow({
+      tournamentName: '9',
+      eliminationReached: 'Octofinals',
+      teamBreakRank: 9,
+    });
+    expect([seed9, seed2].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
+      '2',
+      '9',
     ]);
-    const seed2 = makeSpeakerRow({ tournamentName: '2', eliminationReached: 'Octofinals', teamBreakRank: 2 });
-    const seed9 = makeSpeakerRow({ tournamentName: '9', eliminationReached: 'Octofinals', teamBreakRank: 9 });
-    expect([seed9, seed2].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['2', '9']);
   });
 
   test('Final and Grand Final tie on depth, so Open-first now applies between them (C8)', () => {
-    const eslGf = makeSpeakerRow({ tournamentName: 'ESL GF', broke: true, eliminationReached: 'ESL Grand Final' });
-    const openFinal = makeSpeakerRow({ tournamentName: 'Open F', broke: true, eliminationReached: 'Final' });
-    expect([eslGf, openFinal].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['Open F', 'ESL GF']);
+    const eslGf = makeSpeakerRow({
+      tournamentName: 'ESL GF',
+      broke: true,
+      eliminationReached: 'ESL Grand Final',
+    });
+    const openFinal = makeSpeakerRow({
+      tournamentName: 'Open F',
+      broke: true,
+      eliminationReached: 'Final',
+    });
+    expect([eslGf, openFinal].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
+      'Open F',
+      'ESL GF',
+    ]);
   });
 
   test('Pre-Semis counts as a quarterfinal: it ties a full quarterfinal on depth (C11)', () => {
-    const pre = makeSpeakerRow({ tournamentName: 'pre', broke: true, eliminationReached: 'Pre-Semifinals', teamBreakRank: 1 });
-    const full = makeSpeakerRow({ tournamentName: 'full', broke: true, eliminationReached: 'Quarterfinals', teamBreakRank: 5 });
+    const pre = makeSpeakerRow({
+      tournamentName: 'pre',
+      broke: true,
+      eliminationReached: 'Pre-Semifinals',
+      teamBreakRank: 1,
+    });
+    const full = makeSpeakerRow({
+      tournamentName: 'full',
+      broke: true,
+      eliminationReached: 'Quarterfinals',
+      teamBreakRank: 5,
+    });
     expect(breakDepth(pre)?.rank).toBe(breakDepth(full)?.rank);
     // Equal depth falls through to seed, so the better seed wins rather than the "full" label.
-    expect([full, pre].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['pre', 'full']);
+    expect([full, pre].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
+      'pre',
+      'full',
+    ]);
   });
 
   test('Gold, Silver and Bronze finals are final-level breaks ranked gold > silver > bronze', () => {
     const rows = ['Bronze', 'Gold', 'Silver'].map((tier) =>
       makeSpeakerRow({ tournamentName: tier, broke: true, eliminationReached: `${tier} Final` }),
     );
-    expect(rows.sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['Gold', 'Silver', 'Bronze']);
+    expect(rows.sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual([
+      'Gold',
+      'Silver',
+      'Bronze',
+    ]);
     expect(breakDepth(rows[0]!)?.rank).toBe(95);
     // A tier final is final-level, so it still outranks an Open semifinal.
-    const semi = makeSpeakerRow({ tournamentName: 'Semi', broke: true, eliminationReached: 'Semifinals' });
-    expect([semi, ...rows].sort(compareBreakStrength).map((r) => r.tournamentName).at(-1)).toBe('Semi');
+    const semi = makeSpeakerRow({
+      tournamentName: 'Semi',
+      broke: true,
+      eliminationReached: 'Semifinals',
+    });
+    expect(
+      [semi, ...rows]
+        .sort(compareBreakStrength)
+        .map((r) => r.tournamentName)
+        .at(-1),
+    ).toBe('Semi');
   });
 
   test('break seed quotes the break size only when the team is on the Open break', () => {
     expect(breakSeed(makeSpeakerRow({ teamBreakRank: null }))).toBeNull();
     expect(
-      breakSeed(makeSpeakerRow({ teamBreakRank: 3, openBreak: { teams: 16, userOnBreak: true, linePoints: 14, lineWins: null } })),
+      breakSeed(
+        makeSpeakerRow({
+          teamBreakRank: 3,
+          openBreak: { teams: 16, userOnBreak: true, linePoints: 14, lineWins: null },
+        }),
+      ),
     ).toEqual({ rank: 3, of: 16 });
     expect(
-      breakSeed(makeSpeakerRow({ teamBreakRank: 3, openBreak: { teams: 16, userOnBreak: false, linePoints: 14, lineWins: null } })),
+      breakSeed(
+        makeSpeakerRow({
+          teamBreakRank: 3,
+          openBreak: { teams: 16, userOnBreak: false, linePoints: 14, lineWins: null },
+        }),
+      ),
     ).toEqual({ rank: 3, of: null });
   });
 });
@@ -137,33 +211,71 @@ describe('placementHighlights', () => {
   test('Top 10 speaker is speaker rank <= 10 at any field size; team rank no longer counts (C3)', () => {
     const rows = [
       // Speaker #3 of a 40-team tab: a Top 10 speaker though the team finished 20th.
-      makeSpeakerRow({ tournamentName: 'Speaker star', broke: true, speakerRankOpen: 3, teamRank: 20, totalTeams: 40 }),
+      makeSpeakerRow({
+        tournamentName: 'Speaker star',
+        broke: true,
+        speakerRankOpen: 3,
+        teamRank: 20,
+        totalTeams: 40,
+      }),
       // Team 4th of 40 with a middling speaker rank: no longer a highlight.
-      makeSpeakerRow({ tournamentName: 'Team star', teamRank: 4, totalTeams: 40, speakerRankOpen: 30 }),
+      makeSpeakerRow({
+        tournamentName: 'Team star',
+        teamRank: 4,
+        totalTeams: 40,
+        speakerRankOpen: 30,
+      }),
       // #10 of 400 teams qualifies; #11 does not.
-      makeSpeakerRow({ tournamentName: 'Tenth', teamRank: 90, totalTeams: 400, speakerRankOpen: 10 }),
-      makeSpeakerRow({ tournamentName: 'Eleventh', teamRank: 2, totalTeams: 15, speakerRankOpen: 11 }),
+      makeSpeakerRow({
+        tournamentName: 'Tenth',
+        teamRank: 90,
+        totalTeams: 400,
+        speakerRankOpen: 10,
+      }),
+      makeSpeakerRow({
+        tournamentName: 'Eleventh',
+        teamRank: 2,
+        totalTeams: 15,
+        speakerRankOpen: 11,
+      }),
     ];
     const h = placementHighlights(rows);
     expect(h.topSpeakerFinishes).toEqual([
       { tournamentName: 'Speaker star', year: 2025, rank: 3, totalTeams: 40 },
       { tournamentName: 'Tenth', year: 2025, rank: 10, totalTeams: 400 },
     ]);
-    expect(h.bestTeamFinish).toMatchObject({ tournamentName: 'Team star', rank: 4, totalTeams: 40, topPercent: 10 });
+    expect(h.bestTeamFinish).toMatchObject({
+      tournamentName: 'Team star',
+      rank: 4,
+      totalTeams: 40,
+      topPercent: 10,
+    });
   });
 
   test('deepest breaks are ordered by outround reached', () => {
     const rows = [
-      makeSpeakerRow({ tournamentName: 'Octos', broke: true, eliminationReached: 'Octofinals', speakerRankOpen: 1 }),
-      makeSpeakerRow({ tournamentName: 'Final', broke: true, eliminationReached: 'Grand Final', speakerRankOpen: 60 }),
+      makeSpeakerRow({
+        tournamentName: 'Octos',
+        broke: true,
+        eliminationReached: 'Octofinals',
+        speakerRankOpen: 1,
+      }),
+      makeSpeakerRow({
+        tournamentName: 'Final',
+        broke: true,
+        eliminationReached: 'Grand Final',
+        speakerRankOpen: 60,
+      }),
       makeSpeakerRow({ tournamentName: 'No break', broke: false }),
       makeSpeakerRow({ tournamentName: 'Broke, no draw', broke: true, eliminationReached: null }),
     ];
-    expect(placementHighlights(rows).deepestBreaks.map((b) => [b.tournamentName, b.stage])).toEqual([
-      ['Final', 'Grand Final'],
-      ['Octos', 'Octofinals'],
-      ['Broke, no draw', null],
-    ]);
+    expect(placementHighlights(rows).deepestBreaks.map((b) => [b.tournamentName, b.stage])).toEqual(
+      [
+        ['Final', 'Grand Final'],
+        ['Octos', 'Octofinals'],
+        ['Broke, no draw', null],
+      ],
+    );
   });
 
   test('best team finish prefers the better share, then the bigger field', () => {
@@ -184,8 +296,23 @@ describe('placementHighlights', () => {
 
 describe('statistics: team context', () => {
   const rows = [
-    makeSpeakerRow({ tournamentId: 1n, tournamentName: 'A', teamRank: 2, totalTeams: 40, speakerRankOpen: 70 }),
-    makeSpeakerRow({ tournamentId: 2n, tournamentName: 'B', teamRank: 10, totalTeams: 50, eliminationReached: 'Quarterfinals', broke: true, teamBreakRank: 5, openBreak: { teams: 16, userOnBreak: true, linePoints: 12, lineWins: null } }),
+    makeSpeakerRow({
+      tournamentId: 1n,
+      tournamentName: 'A',
+      teamRank: 2,
+      totalTeams: 40,
+      speakerRankOpen: 70,
+    }),
+    makeSpeakerRow({
+      tournamentId: 2n,
+      tournamentName: 'B',
+      teamRank: 10,
+      totalTeams: 50,
+      eliminationReached: 'Quarterfinals',
+      broke: true,
+      teamBreakRank: 5,
+      openBreak: { teams: 16, userOnBreak: true, linePoints: 12, lineWins: null },
+    }),
     makeSpeakerRow({ tournamentId: 3n, tournamentName: 'C', teamRank: 6, totalTeams: 20 }),
     makeSpeakerRow({ tournamentId: 4n, tournamentName: 'No rank', teamRank: null, totalTeams: 30 }),
   ];
@@ -205,7 +332,9 @@ describe('statistics: team context', () => {
   test('the placement finding names the team tab and its sample', () => {
     const s = computeSpeakerStats({ speakerRows: rows, judgeRows: [] });
     const q = s.quirks.find((x) => x.id === 'team-percentile');
-    expect(q?.text).toBe('Across your tournaments your team finishes in the top 18% of the team tab on average.');
+    expect(q?.text).toBe(
+      'Across your tournaments your team finishes in the top 18% of the team tab on average.',
+    );
     expect(q?.basis).toBe('3 tournaments · 110 teams ranked against');
   });
 });
@@ -225,7 +354,12 @@ describe('surfaces', () => {
       deepestBreak: 'Semifinals',
       bestTeamFinish: { rank: 3, totalTeams: 120, topPercent: 2.5 },
     });
-    expect(tiles.map((t) => t.label)).toEqual(['Tournaments', 'Breaks', 'Best team finish', 'Best speaker avg']);
+    expect(tiles.map((t) => t.label)).toEqual([
+      'Tournaments',
+      'Breaks',
+      'Best team finish',
+      'Best speaker avg',
+    ]);
     expect(tiles[1].hint).toBe('40% of entries · deepest Semifinals');
     expect(tiles[2]).toMatchObject({ value: '#3', hint: 'of 120 teams · top 3%' });
   });
@@ -275,7 +409,13 @@ describe('surfaces', () => {
     const doc = buildJsonResume(
       makeCvData({
         speakerRows: [
-          makeSpeakerRow({ broke: true, eliminationReached: 'Semifinals', teamName: 'Test A', teamRank: 3, totalTeams: 40 }),
+          makeSpeakerRow({
+            broke: true,
+            eliminationReached: 'Semifinals',
+            teamName: 'Test A',
+            teamRank: 3,
+            totalTeams: 40,
+          }),
         ],
       }),
       { now: new Date('2026-01-01T00:00:00Z') },
@@ -289,7 +429,12 @@ describe('surfaces', () => {
 
 describe('championshipHighlights', () => {
   const row = (name: string, stage: string) =>
-    makeSpeakerRow({ tournamentName: name, year: 2025, wonTournament: true, eliminationReached: stage });
+    makeSpeakerRow({
+      tournamentName: name,
+      year: 2025,
+      wonTournament: true,
+      eliminationReached: stage,
+    });
 
   test('Plate and Consolation wins are not championships; a Grand Final and an ESL Final are', () => {
     const out = championshipHighlights([

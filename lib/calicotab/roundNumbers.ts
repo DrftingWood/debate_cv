@@ -42,7 +42,9 @@ export function isPrelimRoundLabel(label: string | null | undefined): boolean {
 }
 
 /** The prelim rounds the nav lists, in sequence order. */
-export function prelimRoundsFromNav(labelsByUrl: Record<string, string> | null | undefined): PrelimRound[] {
+export function prelimRoundsFromNav(
+  labelsByUrl: Record<string, string> | null | undefined,
+): PrelimRound[] {
   const byNumber = new Map<number, string>();
   for (const [url, label] of Object.entries(labelsByUrl ?? {})) {
     const m = url.match(/\/results\/round\/(\d+)/);
@@ -152,7 +154,8 @@ export function assignMotionRounds(
   prelims: readonly PrelimRound[],
 ): Array<number | null> {
   const byLabel = new Map<string, number[]>();
-  for (const p of prelims) byLabel.set(fold(p.label), [...(byLabel.get(fold(p.label)) ?? []), p.number]);
+  for (const p of prelims)
+    byLabel.set(fold(p.label), [...(byLabel.get(fold(p.label)) ?? []), p.number]);
   const keys = byRoundKey(prelims);
   const digitsSafe = labelDigitsAreSequence(prelims);
   const headingsByLabel = new Map<string, number[]>();

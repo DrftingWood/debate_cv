@@ -107,6 +107,8 @@ for (const key of Object.keys(BASELINE)) {
   if (verbose || over) for (const h of hits[key]) console.log(`    ${h}`);
 }
 if (failed) {
-  console.error('\nRatchet failed: a new escape hatch was added. Remove it, or explain why in the PR and raise the baseline.');
+  console.error(
+    '\nRatchet failed: a new escape hatch was added. Remove it, or explain why in the PR and raise the baseline.',
+  );
   process.exit(1);
 }

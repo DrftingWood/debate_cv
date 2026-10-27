@@ -22,8 +22,7 @@ const FULL_SCAN_PREFIX = 'ingest:gmail:full:';
 const keyFor = (userId: string) => `${FULL_SCAN_PREFIX}${userId}`;
 
 export type FullScanGate =
-  | { allowed: true }
-  | { allowed: false; availableAt: Date; retryAfterSec: number };
+  { allowed: true } | { allowed: false; availableAt: Date; retryAfterSec: number };
 
 const blocked = (since: Date, now: number): FullScanGate => {
   const availableAt = new Date(since.getTime() + FULL_SCAN_WINDOW_MS);

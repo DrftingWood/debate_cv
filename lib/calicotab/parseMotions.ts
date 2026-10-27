@@ -64,9 +64,7 @@ function cleanText(s: string): string {
  * "THW prefer 1 < 2 and 3 > 2" became "THW prefer 1 2".
  */
 function readableText(s: string): string {
-  return cleanText(
-    decodeHtmlEntities(s).replace(/<\/?[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/gi, ' '),
-  );
+  return cleanText(decodeHtmlEntities(s).replace(/<\/?[a-z][a-z0-9-]*(?:\s[^<>]*)?\/?>/gi, ' '));
 }
 
 // ── Vue path ─────────────────────────────────────────────────────────────────
@@ -112,8 +110,7 @@ function motionsFromVue(tables: VueTable[]): MotionRow[] | null {
     const tableTitleLabel = cleanText(table.title ?? '');
 
     for (const row of table.data) {
-      const cellText = (idx: number): string =>
-        cleanText(String(row[idx]?.text ?? ''));
+      const cellText = (idx: number): string => cleanText(String(row[idx]?.text ?? ''));
 
       const rawLabel = roundCol >= 0 ? cellText(roundCol) : tableTitleLabel;
       const motionText = cellText(motionCol);

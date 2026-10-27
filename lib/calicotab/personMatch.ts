@@ -103,8 +103,5 @@ export function personNameMatches(a: string, b: string): boolean {
 
   const setA = new Set(tokensA);
   const setB = new Set(tokensB);
-  return (
-    tokensB.every((t) => setA.has(t)) ||
-    tokensA.every((t) => setB.has(t))
-  );
+  return tokensB.every((t) => setA.has(t)) || tokensA.every((t) => setB.has(t));
 }

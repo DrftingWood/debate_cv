@@ -15,7 +15,12 @@
  */
 
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { MIN_LEADING_SIDE, judgingLens, speakingVsJudging, type JudgeLensRow } from '@/lib/cv/judgingLens';
+import {
+  MIN_LEADING_SIDE,
+  judgingLens,
+  speakingVsJudging,
+  type JudgeLensRow,
+} from '@/lib/cv/judgingLens';
 import { SectionHeader } from '@/components/ui/Card';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { BarList } from '@/components/ui/BarList';
@@ -47,7 +52,11 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
       <SectionHeader label="Judging" title="From the adjudication room" meta={NOT_FILTERABLE} />
 
       <StatRow columns={4}>
-        <StatTile label="Tournaments judged" value={lens.tournaments} hint="every judged tournament on record" />
+        <StatTile
+          label="Tournaments judged"
+          value={lens.tournaments}
+          hint="every judged tournament on record"
+        />
         {chair.overall.chairRate != null ? (
           <StatTile
             label="Chair rate"
@@ -59,7 +68,9 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
           // divide by; a per-tournament chair count is the most the rows say.
           <StatTile
             label="Prelims chaired per tournament"
-            value={(chair.chairedWithoutCount.rounds / chair.chairedWithoutCount.tournaments).toFixed(1)}
+            value={(
+              chair.chairedWithoutCount.rounds / chair.chairedWithoutCount.tournaments
+            ).toFixed(1)}
             hint={`${chair.chairedWithoutCount.rounds} chaired over ${plural(chair.chairedWithoutCount.tournaments, 'tournament')}; prelims judged not recorded`}
           />
         ) : (
@@ -89,7 +100,10 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
               <thead>
                 <tr>
                   <Th className="pl-4">Season</Th>
-                  <Th numeric title="Tournaments with a count of prelims judged, of those judged that season">
+                  <Th
+                    numeric
+                    title="Tournaments with a count of prelims judged, of those judged that season"
+                  >
                     Events counted
                   </Th>
                   <Th numeric>Prelims judged</Th>
@@ -107,13 +121,23 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
                       {s.measured === s.tournaments ? (
                         s.tournaments
                       ) : (
-                        <span title={`${s.measured} of ${s.tournaments} carry a count of prelims judged`}>
+                        <span
+                          title={`${s.measured} of ${s.tournaments} carry a count of prelims judged`}
+                        >
                           {s.measured} of {s.tournaments}
                         </span>
                       )}
                     </Td>
-                    <Td numeric>{s.measured > 0 ? s.roundsJudged : <Nil title="No count of prelims judged" />}</Td>
-                    <Td numeric>{s.measured > 0 ? s.roundsChaired : <Nil title="No count of prelims judged" />}</Td>
+                    <Td numeric>
+                      {s.measured > 0 ? s.roundsJudged : <Nil title="No count of prelims judged" />}
+                    </Td>
+                    <Td numeric>
+                      {s.measured > 0 ? (
+                        s.roundsChaired
+                      ) : (
+                        <Nil title="No count of prelims judged" />
+                      )}
+                    </Td>
                     <Td numeric className="pr-4">
                       {pct(s.chairRate) ?? <Nil title="No count of prelims judged" />}
                     </Td>
@@ -124,9 +148,9 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
           </TableScroll>
           <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
             Prelims chaired over prelims judged, where both are recorded. Chairs come from the tab's
-            chaired-rounds field, which some tabs leave blank or incomplete, so the rate may under-report
-            chairing. A missing chair count beside a judged-round count is read as none chaired, because that
-            is also how a zero is stored.
+            chaired-rounds field, which some tabs leave blank or incomplete, so the rate may
+            under-report chairing. A missing chair count beside a judged-round count is read as none
+            chaired, because that is also how a zero is stored.
             {chairExclusions.length > 0 ? ` Left out: ${chairExclusions.join('; ')}.` : ''}
             {chair.undated > 0
               ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
@@ -142,12 +166,15 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
               label: b.label,
               value: b.tournaments,
               display: String(b.tournaments),
-              detail: b.secondaryBracket > 0 ? `· ${b.secondaryBracket} in a secondary bracket` : undefined,
+              detail:
+                b.secondaryBracket > 0
+                  ? `· ${b.secondaryBracket} in a secondary bracket`
+                  : undefined,
             }))}
           />
           <p className="mt-3 text-caption text-ink-soft">
-            {plural(lens.tournaments, 'judged tournament')}, each counted once at the deepest round judged,
-            chair or panel.
+            {plural(lens.tournaments, 'judged tournament')}, each counted once at the deepest round
+            judged, chair or panel.
             {depth.secondaryBracket > 0
               ? ` ${depth.secondaryBracket} of those rounds ran in a secondary bracket (novice, ESL, junior and the like), which can rank above an open-bracket round judged at the same event.`
               : ''}
@@ -169,7 +196,9 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
               <tr>
                 <Th className="pl-4">Appointed as</Th>
                 <Th numeric>Tournaments</Th>
-                <Th numeric title="Broke to the open bracket">Broke</Th>
+                <Th numeric title="Broke to the open bracket">
+                  Broke
+                </Th>
                 <Th numeric className="pr-4">
                   Break rate
                 </Th>
@@ -192,8 +221,8 @@ export function JudgingLensSection({ judgeRows }: { judgeRows: JudgeLensRow[] })
           </Table>
         </TableScroll>
         <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-          As the tab's participant list records it. Broke means the open break: a tournament whose deepest
-          round judged was a novice, junior, ESL or consolation outround is not counted
+          As the tab's participant list records it. Broke means the open break: a tournament whose
+          deepest round judged was a novice, junior, ESL or consolation outround is not counted
           {appointments.some((a) => a.key === 'unstated')
             ? '. "Not stated" covers tournaments whose list gave no appointment, including ones known only from the round pages.'
             : '.'}
@@ -260,8 +289,16 @@ export function SpeakingVsJudgingSection({
   ].filter(Boolean);
 
   return (
-    <section id="speaking-judging" aria-label="Speaking vs judging over time" className="scroll-mt-24 space-y-3">
-      <SectionHeader label="Speaking vs judging" title="When the balance turned" meta={NOT_FILTERABLE} />
+    <section
+      id="speaking-judging"
+      aria-label="Speaking vs judging over time"
+      className="scroll-mt-24 space-y-3"
+    >
+      <SectionHeader
+        label="Speaking vs judging"
+        title="When the balance turned"
+        meta={NOT_FILTERABLE}
+      />
       <p className="text-body text-ink">{headline}</p>
 
       <div className="panel overflow-hidden">
@@ -284,11 +321,16 @@ export function SpeakingVsJudgingSection({
                   <Td className="pr-4">
                     {LEAN_LABEL[s.lean]}
                     {s.thin ? (
-                      <span className="ml-1.5 text-ink-soft" title={`Fewer than ${MIN_LEADING_SIDE} tournaments on the leading side`}>
+                      <span
+                        className="ml-1.5 text-ink-soft"
+                        title={`Fewer than ${MIN_LEADING_SIDE} tournaments on the leading side`}
+                      >
                         · too few to call
                       </span>
                     ) : null}
-                    {balance.turnedIn === s.year ? <span className="ml-1.5 text-ink-soft">· turn</span> : null}
+                    {balance.turnedIn === s.year ? (
+                      <span className="ml-1.5 text-ink-soft">· turn</span>
+                    ) : null}
                   </Td>
                 </Tr>
               ))}
@@ -297,11 +339,12 @@ export function SpeakingVsJudgingSection({
         </TableScroll>
       </div>
       <p className="text-caption text-ink-soft">
-        Tournaments per season on each side; one you both spoke and judged at counts on both. A season is
-        called only when the side ahead has at least {MIN_LEADING_SIDE} tournaments. The turn is the first
-        season of the unbroken run, to the latest called season, in which judging outnumbered speaking;
-        years with no tournaments, or too few to call, neither break nor extend it. No turn is called when
-        undated tournaments, placed in the right seasons, could change the answer.
+        Tournaments per season on each side; one you both spoke and judged at counts on both. A
+        season is called only when the side ahead has at least {MIN_LEADING_SIDE} tournaments. The
+        turn is the first season of the unbroken run, to the latest called season, in which judging
+        outnumbered speaking; years with no tournaments, or too few to call, neither break nor
+        extend it. No turn is called when undated tournaments, placed in the right seasons, could
+        change the answer.
         {undated.length > 0 ? ` Undated and left out: ${undated.join(' and ')}.` : ''}
       </p>
     </section>

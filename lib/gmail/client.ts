@@ -6,10 +6,7 @@ import { decryptValue, encryptValue } from '@/lib/crypto';
 export type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 
 function makeOAuthClient(): OAuth2Client {
-  return new google.auth.OAuth2(
-    process.env.AUTH_GOOGLE_ID,
-    process.env.AUTH_GOOGLE_SECRET,
-  );
+  return new google.auth.OAuth2(process.env.AUTH_GOOGLE_ID, process.env.AUTH_GOOGLE_SECRET);
 }
 
 type ExistingGmailToken = {
@@ -33,9 +30,7 @@ export function buildGmailTokenUpdate(
   scope: string | null | undefined;
   encryptionVersion: string | null;
 } {
-  const expiresAtMs =
-    tokens.expiry_date ??
-    (tokens.expires_at ? tokens.expires_at * 1000 : null);
+  const expiresAtMs = tokens.expiry_date ?? (tokens.expires_at ? tokens.expires_at * 1000 : null);
   const encAccess = encryptValue(tokens.access_token);
 
   let refreshToken: string | null | undefined;
@@ -141,8 +136,8 @@ export async function persistTokensFromAccount(
   tokens: {
     access_token?: string | null;
     refresh_token?: string | null;
-    expires_at?: number | null;   // seconds since epoch (NextAuth Account)
-    expiry_date?: number | null;  // ms since epoch (googleapis)
+    expires_at?: number | null; // seconds since epoch (NextAuth Account)
+    expiry_date?: number | null; // ms since epoch (googleapis)
     scope?: string | null;
   },
 ): Promise<void> {
@@ -151,10 +146,7 @@ export async function persistTokensFromAccount(
     where: { userId },
     select: { refreshToken: true, encryptionVersion: true },
   });
-  const update = buildGmailTokenUpdate(
-    { ...tokens, access_token: tokens.access_token },
-    existing,
-  );
+  const update = buildGmailTokenUpdate({ ...tokens, access_token: tokens.access_token }, existing);
   const refreshTokenUpdate =
     update.refreshToken !== undefined ? { refreshToken: update.refreshToken } : {};
 

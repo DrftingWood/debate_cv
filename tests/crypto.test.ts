@@ -53,9 +53,7 @@ describe('token encryption', () => {
   test('no key + encrypted value => explicit throw (fails closed)', () => {
     const { value, version } = encryptValue('secret');
     delete process.env.TOKEN_ENCRYPTION_KEY;
-    expect(() => decryptValue(value, version)).toThrow(
-      /TOKEN_ENCRYPTION_KEY is required/i,
-    );
+    expect(() => decryptValue(value, version)).toThrow(/TOKEN_ENCRYPTION_KEY is required/i);
   });
 
   test('no key + null version => returns value as-is (dev plaintext)', () => {

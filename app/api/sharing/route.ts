@@ -4,11 +4,7 @@ import { Prisma } from '@prisma/client';
 import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
-import {
-  generateRandomSlug,
-  validateCustomSlug,
-  type CustomSlugError,
-} from '@/lib/sharing/slug';
+import { generateRandomSlug, validateCustomSlug, type CustomSlugError } from '@/lib/sharing/slug';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

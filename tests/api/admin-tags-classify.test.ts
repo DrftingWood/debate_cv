@@ -106,7 +106,11 @@ describe('POST /api/admin/tags/classify', () => {
 
     const res = await POST(emptyRequest());
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { classified: number; proposalsFiled: number; remaining: number };
+    const body = (await res.json()) as {
+      classified: number;
+      proposalsFiled: number;
+      remaining: number;
+    };
     expect(body.classified).toBe(2);
     // Motion 11: type + topic. Motion 12: type only (topic already canonical).
     expect(body.proposalsFiled).toBe(3);
@@ -117,8 +121,17 @@ describe('POST /api/admin/tags/classify', () => {
     );
     expect(created).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'motion_type', motionId: 11n, value: 'THW', userId: 'admin-user' }),
-        expect.objectContaining({ kind: 'motion_topic', motionId: 11n, value: 'Economics & Business' }),
+        expect.objectContaining({
+          kind: 'motion_type',
+          motionId: 11n,
+          value: 'THW',
+          userId: 'admin-user',
+        }),
+        expect.objectContaining({
+          kind: 'motion_topic',
+          motionId: 11n,
+          value: 'Economics & Business',
+        }),
         expect.objectContaining({ kind: 'motion_type', motionId: 12n, value: 'THR' }),
       ]),
     );
@@ -127,12 +140,17 @@ describe('POST /api/admin/tags/classify', () => {
 
   it('refreshes the admin’s existing proposal instead of stacking a duplicate', async () => {
     prismaMock.motion.findMany.mockResolvedValue([
-      { id: 11n, tournamentId: 1n, text: 'THW ban X', infoSlide: null, motionType: null, topic: 'Education' },
+      {
+        id: 11n,
+        tournamentId: 1n,
+        text: 'THW ban X',
+        infoSlide: null,
+        motionType: null,
+        topic: 'Education',
+      },
     ]);
     prismaMock.motion.count.mockResolvedValue(1);
-    classifyMock.mockResolvedValue([
-      { id: 11n, motionType: 'THW', topic: 'Economics & Business' },
-    ]);
+    classifyMock.mockResolvedValue([{ id: 11n, motionType: 'THW', topic: 'Economics & Business' }]);
     prismaMock.tagProposal.findFirst.mockResolvedValue({ id: 'existing-prop' });
     prismaMock.tagProposal.update.mockResolvedValue({ id: 'existing-prop' });
 
@@ -147,7 +165,14 @@ describe('POST /api/admin/tags/classify', () => {
 
   it('reports the backlog remaining beyond this batch', async () => {
     prismaMock.motion.findMany.mockResolvedValue([
-      { id: 11n, tournamentId: 1n, text: 'THW ban X', infoSlide: null, motionType: null, topic: null },
+      {
+        id: 11n,
+        tournamentId: 1n,
+        text: 'THW ban X',
+        infoSlide: null,
+        motionType: null,
+        topic: null,
+      },
     ]);
     // Remaining is what is left AFTER this batch's last id, so it is the
     // count query that answers it.
@@ -182,7 +207,13 @@ describe('POST /api/admin/tags/classify', () => {
     prismaMock.motion.findMany.mockResolvedValue([]);
     prismaMock.motion.count.mockResolvedValue(0);
     prismaMock.tournament.findMany.mockResolvedValue([
-      { id: 5n, name: 'WUDC Belgrade 2022', format: 'British Parliamentary', year: 2022, sourceUrlRaw: 'https://wudc2022.calicotab.com/wudc/' },
+      {
+        id: 5n,
+        name: 'WUDC Belgrade 2022',
+        format: 'British Parliamentary',
+        year: 2022,
+        sourceUrlRaw: 'https://wudc2022.calicotab.com/wudc/',
+      },
     ]);
     prismaMock.tournament.count.mockResolvedValue(0);
     regionsMock.mockResolvedValue([{ id: 5n, region: 'Europe' }]);
@@ -195,7 +226,12 @@ describe('POST /api/admin/tags/classify', () => {
     expect(body.regionsFiled).toBe(1);
     expect(body.regionsRemaining).toBe(0);
     expect(prismaMock.tagProposal.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ kind: 'region', tournamentId: 5n, value: 'Europe', userId: 'admin-user' }),
+      data: expect.objectContaining({
+        kind: 'region',
+        tournamentId: 5n,
+        value: 'Europe',
+        userId: 'admin-user',
+      }),
     });
     // The tournament query skips ones that already carry a region suggestion.
     const where = (prismaMock.tournament.findMany.mock.calls[0][0] as { where: unknown }).where;
@@ -215,10 +251,14 @@ describe('POST /api/admin/tags/classify', () => {
         body: JSON.stringify({ motionAfter: '40', tournamentAfter: '12' }),
       }),
     );
-    expect((prismaMock.motion.findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where).toMatchObject({
+    expect(
+      (prismaMock.motion.findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where,
+    ).toMatchObject({
       id: { gt: 40n },
     });
-    expect((prismaMock.tournament.findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where).toMatchObject({
+    expect(
+      (prismaMock.tournament.findMany.mock.calls[0][0] as { where: Record<string, unknown> }).where,
+    ).toMatchObject({
       id: { gt: 12n },
     });
   });

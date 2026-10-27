@@ -32,10 +32,7 @@ export const dynamic = 'force-dynamic';
  * Genuine mismatches (a nickname on the tab, a changed legal name) go
  * through the dispute route rather than being silently allowed.
  */
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

@@ -11,7 +11,9 @@ import {
 // requireAdmin calls auth() internally; we swap @/lib/auth to control the
 // session and then mock @/lib/admin to either resolve (admin) or throw 403.
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 
 const requireAdminMock = vi.fn();
 vi.mock('@/lib/admin', () => ({ requireAdmin: requireAdminMock }));
@@ -51,9 +53,7 @@ describe('GET /api/admin/tag-proposals — status filter', () => {
   beforeEach(() => asAdmin());
 
   it('rejects an invalid status query param', async () => {
-    const res = await GET(
-      new Request('http://test/api/admin/tag-proposals?status=bogus'),
-    );
+    const res = await GET(new Request('http://test/api/admin/tag-proposals?status=bogus'));
     expect(res.status).toBe(400);
     const data = await readJson<{ error: string }>(res);
     expect(data.error).toBe('bad_request');
@@ -201,9 +201,12 @@ describe('GET /api/admin/tag-proposals — response shape', () => {
 describe('POST /api/admin/tag-proposals/[id] — gating', () => {
   it('returns 403 for non-admin users', async () => {
     asForbidden();
-    const res = await POST(jsonRequest('/api/admin/tag-proposals/prop-1', { body: { action: 'reject' } }), {
-      params: Promise.resolve({ id: 'prop-1' }),
-    });
+    const res = await POST(
+      jsonRequest('/api/admin/tag-proposals/prop-1', { body: { action: 'reject' } }),
+      {
+        params: Promise.resolve({ id: 'prop-1' }),
+      },
+    );
     expect(res.status).toBe(403);
   });
 });
@@ -357,10 +360,9 @@ describe('POST /api/admin/tag-proposals/[id] — approve: writes canonical value
       status: 'pending',
     });
 
-    await POST(
-      jsonRequest('/api/admin/tag-proposals/prop-mt', { body: { action: 'approve' } }),
-      { params: Promise.resolve({ id: 'prop-mt' }) },
-    );
+    await POST(jsonRequest('/api/admin/tag-proposals/prop-mt', { body: { action: 'approve' } }), {
+      params: Promise.resolve({ id: 'prop-mt' }),
+    });
 
     expect(prismaMock.motion.update).toHaveBeenCalledWith({
       where: { id: BigInt(7) },

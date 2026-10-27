@@ -11,7 +11,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 vi.mock('@/lib/calicotab/ingest', async () => {
   const actual: typeof import('@/lib/calicotab/ingest') =
     await vi.importActual('@/lib/calicotab/ingest');
@@ -115,9 +117,15 @@ describe('POST /api/ingest/url — SSRF gate', () => {
   // substring, and the server then fetched the attacker's host. Each must
   // be rejected before ingestPrivateUrl is reached.
   it.each([
-    ['cloud metadata', 'http://169.254.169.254/latest/meta-data/?x=https://a.calicotab.com/t/privateurls/abc'],
+    [
+      'cloud metadata',
+      'http://169.254.169.254/latest/meta-data/?x=https://a.calicotab.com/t/privateurls/abc',
+    ],
     ['loopback service', 'http://localhost:5432/?u=https://a.calicotab.com/t/privateurls/abc'],
-    ['arbitrary external host', 'https://attacker.example/collect?next=https://a.calicotab.com/t/privateurls/abc'],
+    [
+      'arbitrary external host',
+      'https://attacker.example/collect?next=https://a.calicotab.com/t/privateurls/abc',
+    ],
     ['lookalike domain', 'https://a.calicotab.com.evil.example/t/privateurls/abc'],
     ['embedded credentials', 'https://user:pw@x.calicotab.com/t/privateurls/abc'],
     ['explicit port', 'https://x.calicotab.com:8080/t/privateurls/abc'],

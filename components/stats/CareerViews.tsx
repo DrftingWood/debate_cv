@@ -73,8 +73,14 @@ export function OutroundFunnelSection({ tournaments }: { tournaments: Tournament
                 <Th className="w-40">
                   <span className="sr-only">Share of tournaments, drawn as a bar</span>
                 </Th>
-                <Th numeric title="Tournaments whose run ended at this stage">Went out here</Th>
-                <Th numeric className="pr-4" title="Only where every tournament at the stage above had to play for this one">
+                <Th numeric title="Tournaments whose run ended at this stage">
+                  Went out here
+                </Th>
+                <Th
+                  numeric
+                  className="pr-4"
+                  title="Only where every tournament at the stage above had to play for this one"
+                >
                   Rate
                 </Th>
               </tr>
@@ -91,7 +97,10 @@ export function OutroundFunnelSection({ tournaments }: { tournaments: Tournament
                     <Td className="pl-4 font-medium">{ROW_LABEL[r.key]}</Td>
                     <Td numeric>{r.count}</Td>
                     <Td>
-                      <div aria-hidden="true" className="h-2 w-40 overflow-hidden rounded-full bg-surface-3">
+                      <div
+                        aria-hidden="true"
+                        className="h-2 w-40 overflow-hidden rounded-full bg-surface-3"
+                      >
                         <div
                           className="h-full rounded-full bg-break-gold"
                           style={{ width: `${(r.count / spoken.count) * 100}%` }}
@@ -145,14 +154,15 @@ export function OutroundFunnelSection({ tournaments }: { tournaments: Tournament
         </p>
       ) : null}
       <p className="text-caption text-ink-soft">
-        Each open stage counts tournaments that went at least that deep in the open bracket; "went out here"
-        counts those whose run ended there. The tab records the deepest round a team reached, not where its
-        bracket began, so a small break that started at semifinals is counted at quarterfinals too — which is
-        why only two rates are shown: breaking, where every tournament had a break to make, and winning the
-        final, which every finalist played. A partial round is its stage run with byes, so a team out in a
-        partial quarterfinal (a "pre-semifinal") played the quarterfinal round. Only one deepest round is kept
-        per tournament, so a team that broke in both the open and a category bracket is counted in whichever
-        went deeper. A title counts as a final even where the stage label is missing.
+        Each open stage counts tournaments that went at least that deep in the open bracket; "went
+        out here" counts those whose run ended there. The tab records the deepest round a team
+        reached, not where its bracket began, so a small break that started at semifinals is counted
+        at quarterfinals too — which is why only two rates are shown: breaking, where every
+        tournament had a break to make, and winning the final, which every finalist played. A
+        partial round is its stage run with byes, so a team out in a partial quarterfinal (a
+        "pre-semifinal") played the quarterfinal round. Only one deepest round is kept per
+        tournament, so a team that broke in both the open and a category bracket is counted in
+        whichever went deeper. A title counts as a final even where the stage label is missing.
         {funnel.unknownDepth > 0
           ? ` ${plural(funnel.unknownDepth, 'break')} with no readable stage ${funnel.unknownDepth === 1 ? 'counts' : 'count'} as broke but ${funnel.unknownDepth === 1 ? 'is' : 'are'} left out of the stages below.`
           : ''}
@@ -196,7 +206,8 @@ function FirstTile({
       : 'None among these tournaments'
     : first.undated > 0
       ? `earliest dated season; ${first.undated} undated could be earlier`
-      : (first.tournament ?? `${first.count} tournaments that season — order within it isn't recorded`);
+      : (first.tournament ??
+        `${first.count} tournaments that season — order within it isn't recorded`);
   const hint = also ? `${base} · ${also}` : base;
   return <StatTile size="sm" label={label} value={first ? first.year : '—'} hint={hint} />;
 }
@@ -221,19 +232,31 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
       />
 
       <StatRow columns={4}>
-        <FirstTile label="First tournament" first={m.firstTournament} undated={m.undatedFirsts.tournament} />
+        <FirstTile
+          label="First tournament"
+          first={m.firstTournament}
+          undated={m.undatedFirsts.tournament}
+        />
         <FirstTile label="First break" first={m.firstBreak} undated={m.undatedFirsts.break} />
         <FirstTile
           label="First open final"
           first={m.firstFinal}
           undated={m.undatedFirsts.final}
-          also={other.finals > 0 ? `also ${plural(other.finals, 'final')} in ${otherBrackets}` : undefined}
+          also={
+            other.finals > 0
+              ? `also ${plural(other.finals, 'final')} in ${otherBrackets}`
+              : undefined
+          }
         />
         <FirstTile
           label="First open title"
           first={m.firstTitle}
           undated={m.undatedFirsts.title}
-          also={other.titles > 0 ? `also ${plural(other.titles, 'title')} in ${otherBrackets}` : undefined}
+          also={
+            other.titles > 0
+              ? `also ${plural(other.titles, 'title')} in ${otherBrackets}`
+              : undefined
+          }
         />
       </StatRow>
 
@@ -245,12 +268,16 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Th className="pl-4">Record</Th>
                 <Th numeric>Figure</Th>
                 <Th>Where</Th>
-                <Th numeric className="pr-4">Out of</Th>
+                <Th numeric className="pr-4">
+                  Out of
+                </Th>
               </tr>
             </thead>
             <tbody>
               <Tr>
-                <Td rowHeader className="pl-4 font-medium">Best speech</Td>
+                <Td rowHeader className="pl-4 font-medium">
+                  Best speech
+                </Td>
                 <Td numeric>{m.bestSpeech ? score(m.bestSpeech.score) : <Nil />}</Td>
                 <Td>
                   {m.bestSpeech ? (
@@ -261,10 +288,18 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                     <Nil title="No scored prelim speeches" />
                   )}
                 </Td>
-                <Td numeric className="pr-4">{m.bestSpeech ? plural(m.bestSpeech.speeches, 'prelim speech', 'prelim speeches') : <Nil />}</Td>
+                <Td numeric className="pr-4">
+                  {m.bestSpeech ? (
+                    plural(m.bestSpeech.speeches, 'prelim speech', 'prelim speeches')
+                  ) : (
+                    <Nil />
+                  )}
+                </Td>
               </Tr>
               <Tr>
-                <Td rowHeader className="pl-4 font-medium">Best team-tab rank</Td>
+                <Td rowHeader className="pl-4 font-medium">
+                  Best team-tab rank
+                </Td>
                 <Td numeric>{m.bestTeamRank ? `#${m.bestTeamRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestTeamRank ? (
@@ -275,10 +310,14 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                     <Nil title="No published team tab" />
                   )}
                 </Td>
-                <Td numeric className="pr-4">{m.bestTeamRank ? plural(m.bestTeamRank.of, 'team tab') : <Nil />}</Td>
+                <Td numeric className="pr-4">
+                  {m.bestTeamRank ? plural(m.bestTeamRank.of, 'team tab') : <Nil />}
+                </Td>
               </Tr>
               <Tr>
-                <Td rowHeader className="pl-4 font-medium">Best speaker-tab rank</Td>
+                <Td rowHeader className="pl-4 font-medium">
+                  Best speaker-tab rank
+                </Td>
                 <Td numeric>{m.bestSpeakerRank ? `#${m.bestSpeakerRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestSpeakerRank ? (
@@ -289,10 +328,14 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                     <Nil />
                   )}
                 </Td>
-                <Td numeric className="pr-4">{m.bestSpeakerRank ? plural(m.bestSpeakerRank.of, 'ranked tab') : <Nil />}</Td>
+                <Td numeric className="pr-4">
+                  {m.bestSpeakerRank ? plural(m.bestSpeakerRank.of, 'ranked tab') : <Nil />}
+                </Td>
               </Tr>
               <Tr>
-                <Td rowHeader className="pl-4 font-medium">Best open break rank</Td>
+                <Td rowHeader className="pl-4 font-medium">
+                  Best open break rank
+                </Td>
                 <Td numeric>{m.bestBreakRank ? `#${m.bestBreakRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestBreakRank ? (
@@ -303,29 +346,37 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                     <Nil title="No open break with a published break rank" />
                   )}
                 </Td>
-                <Td numeric className="pr-4">{m.bestBreakRank ? plural(m.bestBreakRank.of, 'ranked open break') : <Nil />}</Td>
+                <Td numeric className="pr-4">
+                  {m.bestBreakRank ? plural(m.bestBreakRank.of, 'ranked open break') : <Nil />}
+                </Td>
               </Tr>
               {otherRank ? (
                 <Tr>
-                  <Td rowHeader className="pl-4 font-medium">Best category break rank</Td>
+                  <Td rowHeader className="pl-4 font-medium">
+                    Best category break rank
+                  </Td>
                   <Td numeric>#{otherRank.rank}</Td>
                   <Td>
-                    <span className="block max-w-[22rem] break-words">
-                      {holders(otherRank.at)}
-                    </span>
+                    <span className="block max-w-[22rem] break-words">{holders(otherRank.at)}</span>
                   </Td>
-                  <Td numeric className="pr-4">{plural(otherRank.of, 'ranked category break')}</Td>
+                  <Td numeric className="pr-4">
+                    {plural(otherRank.of, 'ranked category break')}
+                  </Td>
                 </Tr>
               ) : null}
               <Tr>
-                <Td rowHeader className="pl-4 font-medium">Longest break run</Td>
+                <Td rowHeader className="pl-4 font-medium">
+                  Longest break run
+                </Td>
                 <Td numeric>
                   {!run ? (
                     <Nil title="No dated breaks" />
                   ) : run.certain === run.possible ? (
                     run.certain
                   ) : (
-                    <span title={`At least ${run.certain} in a row under any order within a season; ${run.possible} if the order was favourable`}>
+                    <span
+                      title={`At least ${run.certain} in a row under any order within a season; ${run.possible} if the order was favourable`}
+                    >
                       {run.certain}–{run.possible}
                     </span>
                   )}
@@ -339,7 +390,9 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                     `among dated tournaments: at least ${run.certain} under any order, up to ${run.possible}`
                   )}
                 </Td>
-                <Td numeric className="pr-4">{run ? plural(run.dated, 'dated tournament') : <Nil />}</Td>
+                <Td numeric className="pr-4">
+                  {run ? plural(run.dated, 'dated tournament') : <Nil />}
+                </Td>
               </Tr>
             </tbody>
           </Table>
@@ -347,13 +400,13 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
       </div>
 
       <p className="text-caption text-ink-soft">
-        Tournaments are ordered by season only — the tab doesn't say which tournament in a season came
-        first. So a first is named only when it was the only one that season and no undated tournament
-        qualifies too, and the break run shows a range when the order inside a season could change it: the
-        run every possible order guarantees, and the longest any order allows. Finals, titles and the break
-        rank are the open bracket; category brackets (ESL, novice and the like) are noted beside them, and
-        consolation brackets (silver, plate) are not counted as breaks. Best speech counts scored prelim
-        speeches; the speaker-tab rank is the open tab.
+        Tournaments are ordered by season only — the tab doesn't say which tournament in a season
+        came first. So a first is named only when it was the only one that season and no undated
+        tournament qualifies too, and the break run shows a range when the order inside a season
+        could change it: the run every possible order guarantees, and the longest any order allows.
+        Finals, titles and the break rank are the open bracket; category brackets (ESL, novice and
+        the like) are noted beside them, and consolation brackets (silver, plate) are not counted as
+        breaks. Best speech counts scored prelim speeches; the speaker-tab rank is the open tab.
         {m.bestSpeech && m.bestSpeech.unbounded > 0
           ? ` ${plural(m.bestSpeech.unbounded, 'speech', 'speeches')} ${m.bestSpeech.unbounded === 1 ? 'comes' : 'come'} from tabs with no prelim count or team points, where an outround score could not be told apart.`
           : ''}

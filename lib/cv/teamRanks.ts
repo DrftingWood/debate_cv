@@ -34,18 +34,16 @@ export function buildTeamRankLookup(rows: TeamRankSignal[]): Map<string, number>
   }
 
   for (const group of byTournament.values()) {
-    const sorted = group
-      .filter((row) => row.teamName && hasStandingSignal(row));
+    const sorted = group.filter((row) => row.teamName && hasStandingSignal(row));
     if (sorted.length < 2) continue;
 
-    sorted
-      .sort((a, b) => {
-        const winsDelta = (b.wins ?? Number.NEGATIVE_INFINITY) - (a.wins ?? Number.NEGATIVE_INFINITY);
-        if (winsDelta !== 0) return winsDelta;
-        const pointsDelta = numericPoints(b.points) - numericPoints(a.points);
-        if (pointsDelta !== 0) return pointsDelta;
-        return (a.teamName ?? '').localeCompare(b.teamName ?? '');
-      });
+    sorted.sort((a, b) => {
+      const winsDelta = (b.wins ?? Number.NEGATIVE_INFINITY) - (a.wins ?? Number.NEGATIVE_INFINITY);
+      if (winsDelta !== 0) return winsDelta;
+      const pointsDelta = numericPoints(b.points) - numericPoints(a.points);
+      if (pointsDelta !== 0) return pointsDelta;
+      return (a.teamName ?? '').localeCompare(b.teamName ?? '');
+    });
 
     let previousWins: number | null = null;
     let previousPoints: number | null = null;
@@ -59,9 +57,7 @@ export function buildTeamRankLookup(rows: TeamRankSignal[]): Map<string, number>
       const wins = row.wins ?? Number.NEGATIVE_INFINITY;
       const points = numericPoints(row.points);
       const rank =
-        index > 0 && wins === previousWins && points === previousPoints
-          ? previousRank
-          : index + 1;
+        index > 0 && wins === previousWins && points === previousPoints ? previousRank : index + 1;
 
       ranks.set(key, rank);
       previousWins = wins;

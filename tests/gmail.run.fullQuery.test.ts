@@ -30,6 +30,8 @@ describe('extractAllFromGmail bounds', () => {
     list.mockResolvedValue({ data: { messages: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] } });
     get.mockResolvedValue({ data: { id: 'x', payload: {} } });
     expect((await extractAllFromGmail({} as never, { maxFetch: 2 })).truncated).toBe(true);
-    expect((await extractAllFromGmail({} as never, { deadline: Date.now() - 1 })).truncated).toBe(true);
+    expect((await extractAllFromGmail({} as never, { deadline: Date.now() - 1 })).truncated).toBe(
+      true,
+    );
   });
 });

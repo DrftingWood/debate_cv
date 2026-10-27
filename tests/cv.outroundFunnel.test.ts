@@ -4,11 +4,22 @@ import type { TournamentFact } from '@/lib/cv/statsFacts';
 
 let id = 0;
 const t = (o: Partial<TournamentFact>): TournamentFact => ({
-  tournamentId: String(++id), name: `T${id}`, year: 2024, format: 'British Parliamentary',
-  partners: [], partnerGap: null, proAm: null, broke: false, breakRank: null,
-  deepestOutround: null, won: null, speakerRank: null, ...o,
+  tournamentId: String(++id),
+  name: `T${id}`,
+  year: 2024,
+  format: 'British Parliamentary',
+  partners: [],
+  partnerGap: null,
+  proAm: null,
+  broke: false,
+  breakRank: null,
+  deepestOutround: null,
+  won: null,
+  speakerRank: null,
+  ...o,
 });
-const rung = (f: ReturnType<typeof outroundFunnel>, key: string) => f!.rungs.find((r) => r.key === key)!;
+const rung = (f: ReturnType<typeof outroundFunnel>, key: string) =>
+  f!.rungs.find((r) => r.key === key)!;
 
 describe('bracketOf', () => {
   test('bare and "Open" labels are the open bracket; a missing label has no category either', () => {
@@ -51,7 +62,12 @@ describe('outroundFunnel', () => {
       t({ broke: true, deepestOutround: 'Grand Final', won: true }),
     ]);
     expect(f!.rungs.map((r) => [r.key, r.count])).toEqual([
-      ['spoken', 6], ['broke', 5], ['quarterfinal', 4], ['semifinal', 3], ['final', 2], ['won', 1],
+      ['spoken', 6],
+      ['broke', 5],
+      ['quarterfinal', 4],
+      ['semifinal', 3],
+      ['final', 2],
+      ['won', 1],
     ]);
     expect(rung(f, 'won')).toMatchObject({ from: 2, of: 1 });
     expect(rung(f, 'spoken').from).toBeNull();
@@ -69,7 +85,12 @@ describe('outroundFunnel', () => {
       t({ broke: true, deepestOutround: 'Grand Final', won: true }),
     ]);
     expect(f!.rungs.map((r) => [r.key, r.wentOut])).toEqual([
-      ['spoken', 1], ['broke', 1], ['quarterfinal', 2], ['semifinal', 1], ['final', 1], ['won', null],
+      ['spoken', 1],
+      ['broke', 1],
+      ['quarterfinal', 2],
+      ['semifinal', 1],
+      ['final', 1],
+      ['won', null],
     ]);
     // Every tournament ends somewhere: out at a rung, champion, or a final with no result.
     const out = f!.rungs.reduce((s, r) => s + (r.wentOut ?? 0), 0);

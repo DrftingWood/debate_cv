@@ -95,14 +95,18 @@ const breakingTeamSchema = z.object({ team: z.string(), rank: z.number().nullabl
 const teamSchema = z.object({
   url: z.string(),
   short_name: z.string(),
-  speakers: z.array(z.object({ url: z.string(), name: z.string().nullable(), anonymous: z.boolean() })),
+  speakers: z.array(
+    z.object({ url: z.string(), name: z.string().nullable(), anonymous: z.boolean() }),
+  ),
 });
 
 // A metric value is a number on most installs and a numeric string on some
 // (Australs 2025's third metric); only `points` is read, through metricNumber.
 const teamStandingSchema = z.object({
   team: z.string(),
-  metrics: z.array(z.object({ metric: z.string(), value: z.union([z.number(), z.string()]).nullable() })),
+  metrics: z.array(
+    z.object({ metric: z.string(), value: z.union([z.number(), z.string()]).nullable() }),
+  ),
 });
 
 function metricNumber(metrics: ApiTeamStandingLite['metrics'], key: string): number | null {
@@ -153,13 +157,20 @@ export function sidePositionLabel(side: string | null, sideNames: string | null)
   if (!pair) return null;
   const [first, second] = pair;
   switch (side) {
-    case 'og': return `Opening ${first}`;
-    case 'oo': return `Opening ${second}`;
-    case 'cg': return `Closing ${first}`;
-    case 'co': return `Closing ${second}`;
-    case 'aff': return first;
-    case 'neg': return second;
-    default: return null;
+    case 'og':
+      return `Opening ${first}`;
+    case 'oo':
+      return `Opening ${second}`;
+    case 'cg':
+      return `Closing ${first}`;
+    case 'co':
+      return `Closing ${second}`;
+    case 'aff':
+      return first;
+    case 'neg':
+      return second;
+    default:
+      return null;
   }
 }
 
@@ -210,7 +221,9 @@ export function mapRoundResults(input: {
   const BP_SIDES = new Set(['og', 'oo', 'cg', 'co']);
   const isBp =
     input.teamsInDebate === 4 ||
-    input.roundStandings.some((st) => st.rounds.some((r) => seqFromUrl(r.round) === input.seq && BP_SIDES.has(r.side ?? '')));
+    input.roundStandings.some((st) =>
+      st.rounds.some((r) => seqFromUrl(r.round) === input.seq && BP_SIDES.has(r.side ?? '')),
+    );
 
   const teamResults: RoundDebate['teamResults'] = [];
   for (const st of input.roundStandings) {
@@ -282,10 +295,19 @@ export function mapBreakPage(input: {
       .filter((a) => a.breaking)
       .map((a) => listedAdjName(a))
       .filter((n): n is string => !!n)
-      .map((entityName) => ({ rank: null, entityType: 'adjudicator', entityName, institution: null, score: null, stage }));
+      .map((entityName) => ({
+        rank: null,
+        entityType: 'adjudicator',
+        entityName,
+        institution: null,
+        score: null,
+        stage,
+      }));
   }
   const teamByUrl = new Map(input.teams.map((t) => [t.url, t]));
-  const pointsByTeam = new Map(input.teamStandings.map((s) => [s.team, metricNumber(s.metrics, 'points')]));
+  const pointsByTeam = new Map(
+    input.teamStandings.map((s) => [s.team, metricNumber(s.metrics, 'points')]),
+  );
   const rows: BreakRow[] = [];
   for (const b of input.breakingTeams ?? []) {
     const team = teamByUrl.get(b.team);
@@ -327,7 +349,10 @@ export function breakRanksConsistent(ranks: Array<number | null>): boolean {
  * path). Opted-out participants are listed under API_REDACTED_NAME, as the
  * HTML list shows them.
  */
-export function mapParticipants(input: { teams: ApiRoundsTeam[]; adjudicators: ApiAdjudicator[] }): ParticipantsRow[] {
+export function mapParticipants(input: {
+  teams: ApiRoundsTeam[];
+  adjudicators: ApiAdjudicator[];
+}): ParticipantsRow[] {
   const rows: ParticipantsRow[] = [];
   for (const team of input.teams) {
     for (const s of team.speakers) {
@@ -362,7 +387,9 @@ export function mapParticipants(input: { teams: ApiRoundsTeam[]; adjudicators: A
  * two-team, and mapRoundResults still recognises BP from the sides.
  */
 export function bpFromPreference(value: unknown): boolean {
-  return value === 4 || value === '4' || (typeof value === 'string' && value.toLowerCase() === 'bp');
+  return (
+    value === 4 || value === '4' || (typeof value === 'string' && value.toLowerCase() === 'bp')
+  );
 }
 
 // ── Fetching ────────────────────────────────────────────────────────────────
@@ -422,19 +449,29 @@ export async function fetchRestFromApi(
   // an install this was not checked against.
   const open = (key: string) => pref(key) === true;
   const teamsInDebate = bpFromPreference(pref('debate_rules__teams_in_debate')) ? 4 : 2;
-  const sideNames = typeof pref('debate_rules__side_names') === 'string' ? (pref('debate_rules__side_names') as string) : null;
+  const sideNames =
+    typeof pref('debate_rules__side_names') === 'string'
+      ? (pref('debate_rules__side_names') as string)
+      : null;
 
   const result: ApiRestResult = allHtml(nav, 'not attempted');
   const wantRounds = nav.resultsRounds.length > 0 && open('public_features__public_results');
-  const wantTeamBreak = nav.breakTabs.some((u) => !breakPageKind(u).isAdj) && open('public_features__public_breaking_teams');
-  const wantAdjBreak = nav.breakTabs.some((u) => breakPageKind(u).isAdj) && open('public_features__public_breaking_adjs');
+  const wantTeamBreak =
+    nav.breakTabs.some((u) => !breakPageKind(u).isAdj) &&
+    open('public_features__public_breaking_teams');
+  const wantAdjBreak =
+    nav.breakTabs.some((u) => breakPageKind(u).isAdj) &&
+    open('public_features__public_breaking_adjs');
   const wantParticipants = !!nav.participants && open('public_features__public_participants');
-  for (const u of nav.resultsRounds) if (!wantRounds) result.rounds.set(u, { source: 'html', reason: 'public_results not set' });
+  for (const u of nav.resultsRounds)
+    if (!wantRounds) result.rounds.set(u, { source: 'html', reason: 'public_results not set' });
   for (const u of nav.breakTabs) {
     const adj = breakPageKind(u).isAdj;
-    if (adj ? !wantAdjBreak : !wantTeamBreak) result.breaks.set(u, { source: 'html', reason: 'public break not set' });
+    if (adj ? !wantAdjBreak : !wantTeamBreak)
+      result.breaks.set(u, { source: 'html', reason: 'public break not set' });
   }
-  if (nav.participants && !wantParticipants) result.participants = { source: 'html', reason: 'public_participants not set' };
+  if (nav.participants && !wantParticipants)
+    result.participants = { source: 'html', reason: 'public_participants not set' };
   if (!wantRounds && !wantTeamBreak && !wantAdjBreak && !wantParticipants) return result;
 
   const teams = await getApiList(fetcher, base, 'teams', teamSchema);
@@ -452,7 +489,8 @@ export async function fetchRestFromApi(
   // institution link as a backstop for installs without them. Round results
   // never show institutions and are unaffected.
   const adjInstitutionsShown =
-    pref('ui_options__show_adjudicator_institutions') !== false || adjudicators.rows.some((a) => !!a.institution);
+    pref('ui_options__show_adjudicator_institutions') !== false ||
+    adjudicators.rows.some((a) => !!a.institution);
   const teamInstitutionsShown = pref('ui_options__show_team_institutions') !== false;
   const institutionReason = 'institutions are shown, and the API cannot name them';
   if (wantParticipants && nav.participants && (adjInstitutionsShown || teamInstitutionsShown)) {
@@ -507,11 +545,18 @@ export async function fetchRestFromApi(
         // cover only part of the draw, and a missing row reads downstream as
         // "did not debate" — not as unknown — so the page goes to HTML.
         const covered = new Set(
-          standings.rows.filter((st) => st.rounds.some((r) => seqFromUrl(r.round) === seq)).map((st) => st.team),
+          standings.rows
+            .filter((st) => st.rounds.some((r) => seqFromUrl(r.round) === seq))
+            .map((st) => st.team),
         );
-        const uncovered = pairings.rows.flatMap((p) => p.teams).filter((t) => !covered.has(t.team)).length;
+        const uncovered = pairings.rows
+          .flatMap((p) => p.teams)
+          .filter((t) => !covered.has(t.team)).length;
         if (uncovered > 0) {
-          result.rounds.set(u, { source: 'html', reason: `round ${seq}: ${uncovered} drawn teams have no result entry` });
+          result.rounds.set(u, {
+            source: 'html',
+            reason: `round ${seq}: ${uncovered} drawn teams have no result entry`,
+          });
           continue;
         }
         const debate = mapRoundResults({
@@ -537,14 +582,26 @@ export async function fetchRestFromApi(
   }
 
   if (readTeamBreak || readAdjBreak) {
-    const teamStandings = readTeamBreak && !pushedBack ? await get('teams/standings', teamStandingSchema) : null;
-    const categories = readTeamBreak && !pushedBack ? await get('break-categories', breakCategorySchema) : null;
+    const teamStandings =
+      readTeamBreak && !pushedBack ? await get('teams/standings', teamStandingSchema) : null;
+    const categories =
+      readTeamBreak && !pushedBack ? await get('break-categories', breakCategorySchema) : null;
     for (const u of nav.breakTabs) {
       const kind = breakPageKind(u);
       if (kind.isAdj) {
         if (!readAdjBreak) continue;
-        const rows = mapBreakPage({ sourceUrl: u, teams: teams.rows, teamStandings: [], adjudicators: adjudicators.rows });
-        result.breaks.set(u, rows.length > 0 ? { source: 'api', value: rows } : { source: 'html', reason: 'no breaking adjudicators' });
+        const rows = mapBreakPage({
+          sourceUrl: u,
+          teams: teams.rows,
+          teamStandings: [],
+          adjudicators: adjudicators.rows,
+        });
+        result.breaks.set(
+          u,
+          rows.length > 0
+            ? { source: 'api', value: rows }
+            : { source: 'html', reason: 'no breaking adjudicators' },
+        );
         continue;
       }
       if (!readTeamBreak) continue;
@@ -568,7 +625,10 @@ export async function fetchRestFromApi(
       // url must cost this tab its API read, not throw out of the ingest.
       const categoryId = category.url.match(/\/break-categories\/(\d+)\/?$/)?.[1];
       if (!categoryId) {
-        result.breaks.set(u, { source: 'html', reason: `break category ${kind.slug}: unreadable url` });
+        result.breaks.set(u, {
+          source: 'html',
+          reason: `break category ${kind.slug}: unreadable url`,
+        });
         continue;
       }
       const breaking = await get(`break-categories/${categoryId}/break`, breakingTeamSchema);
@@ -587,13 +647,21 @@ export async function fetchRestFromApi(
         teamStandings: teamStandings.rows,
         adjudicators: adjudicators.rows,
       });
-      result.breaks.set(u, rows.length > 0 ? { source: 'api', value: rows } : { source: 'html', reason: `break ${kind.slug}: no rows` });
+      result.breaks.set(
+        u,
+        rows.length > 0
+          ? { source: 'api', value: rows }
+          : { source: 'html', reason: `break ${kind.slug}: no rows` },
+      );
     }
   }
 
   if (readParticipants) {
     const rows = mapParticipants({ teams: teams.rows, adjudicators: adjudicators.rows });
-    result.participants = rows.length > 0 ? { source: 'api', value: rows } : { source: 'html', reason: 'participants: no rows' };
+    result.participants =
+      rows.length > 0
+        ? { source: 'api', value: rows }
+        : { source: 'html', reason: 'participants: no rows' };
   }
   return result;
 }

@@ -49,9 +49,7 @@ describe('extractUrlsFromText', () => {
   });
 
   test('canonicalizes matched URLs with a trailing slash', () => {
-    const urls = extractUrlsFromText(
-      'Link: https://test.calicotab.com/test/privateurls/TOK12345)',
-    );
+    const urls = extractUrlsFromText('Link: https://test.calicotab.com/test/privateurls/TOK12345)');
     expect(urls).toEqual(['https://test.calicotab.com/test/privateurls/TOK12345/']);
   });
 
@@ -60,9 +58,7 @@ describe('extractUrlsFromText', () => {
     // QP decoding, the URL never matches the regex.
     const text = 'Your link: https://wudc2024.calicotab.com/wudc=\n2024/privateurls/abc12345/.';
     const urls = extractUrlsFromText(text);
-    expect(urls).toEqual([
-      'https://wudc2024.calicotab.com/wudc2024/privateurls/abc12345/',
-    ]);
+    expect(urls).toEqual(['https://wudc2024.calicotab.com/wudc2024/privateurls/abc12345/']);
   });
 
   test('dedupes URLs present in both raw and QP-decoded forms', () => {
@@ -151,8 +147,24 @@ describe('extractFromMessage', () => {
 describe('dedupeByUrl', () => {
   test('keeps the earliest messageDate', () => {
     const r = dedupeByUrl([
-      { url: 'https://a.calicotab.com/t/privateurls/X/', host: 'a.calicotab.com', tournamentSlug: 't', token: 'X', messageId: 'a', messageDate: '2024-02-01T00:00:00Z', subject: null },
-      { url: 'https://a.calicotab.com/t/privateurls/X/', host: 'a.calicotab.com', tournamentSlug: 't', token: 'X', messageId: 'b', messageDate: '2024-01-01T00:00:00Z', subject: null },
+      {
+        url: 'https://a.calicotab.com/t/privateurls/X/',
+        host: 'a.calicotab.com',
+        tournamentSlug: 't',
+        token: 'X',
+        messageId: 'a',
+        messageDate: '2024-02-01T00:00:00Z',
+        subject: null,
+      },
+      {
+        url: 'https://a.calicotab.com/t/privateurls/X/',
+        host: 'a.calicotab.com',
+        tournamentSlug: 't',
+        token: 'X',
+        messageId: 'b',
+        messageDate: '2024-01-01T00:00:00Z',
+        subject: null,
+      },
     ]);
     expect(r).toHaveLength(1);
     expect(r[0]!.messageDate).toBe('2024-01-01T00:00:00Z');
@@ -164,7 +176,9 @@ describe('isPrivateUrl — the gate that decides whether the server will fetch',
     expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123')).toBe(true);
     expect(isPrivateUrl('https://foo.calicotab.com/mytourn/privateurls/abc123/')).toBe(true);
     expect(isPrivateUrl('https://cnlupd.yellowtabs.com/cnlupd26/privateurls/abc123/')).toBe(true);
-    expect(isPrivateUrl('http://169.254.169.254/?x=https://a.yellowtabs.com/t/privateurls/abc')).toBe(false);
+    expect(
+      isPrivateUrl('http://169.254.169.254/?x=https://a.yellowtabs.com/t/privateurls/abc'),
+    ).toBe(false);
     expect(isPrivateUrl('https://yellowtabs.com.evil.example/t/privateurls/abc')).toBe(false);
     expect(isPrivateUrl('http://tab.herokuapp.com/slug/privateurls/tok')).toBe(true);
   });

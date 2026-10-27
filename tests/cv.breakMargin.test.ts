@@ -2,7 +2,11 @@ import { describe, expect, test } from 'vitest';
 import { breakMargin, deriveOpenBreak, type CvOpenBreak } from '@/lib/cv/breakMargin';
 import { makeSpeakerRow } from './setup/cv-fixtures';
 
-const st = (teamName: string, points: number | null, wins: number | null = null) => ({ teamName, points, wins });
+const st = (teamName: string, points: number | null, wins: number | null = null) => ({
+  teamName,
+  points,
+  wins,
+});
 
 describe('deriveOpenBreak', () => {
   test('no Open break tab stored: nothing to derive', () => {
@@ -39,7 +43,11 @@ describe('deriveOpenBreak', () => {
 });
 
 const ob = (o: Partial<CvOpenBreak>): CvOpenBreak => ({
-  teams: 16, userOnBreak: false, linePoints: 10, lineWins: 4, ...o,
+  teams: 16,
+  userOnBreak: false,
+  linePoints: 10,
+  lineWins: 4,
+  ...o,
 });
 let id = 0;
 const row = (o: Parameters<typeof makeSpeakerRow>[0]) =>
@@ -52,8 +60,19 @@ describe('breakMargin', () => {
 
   test('BP margins are in team points; two-team margins are in wins', () => {
     const m = breakMargin([
-      row({ format: 'British Parliamentary', teamPoints: '14', teamWins: 99, openBreak: ob({ userOnBreak: true }) }),
-      row({ format: 'Asian Parliamentary', teamPoints: '99', teamWins: 5, broke: true, openBreak: ob({ userOnBreak: true, lineWins: 4 }) }),
+      row({
+        format: 'British Parliamentary',
+        teamPoints: '14',
+        teamWins: 99,
+        openBreak: ob({ userOnBreak: true }),
+      }),
+      row({
+        format: 'Asian Parliamentary',
+        teamPoints: '99',
+        teamWins: 5,
+        broke: true,
+        openBreak: ob({ userOnBreak: true, lineWins: 4 }),
+      }),
     ])!;
     const bp = m.formats.find((f) => f.format === 'British Parliamentary')!;
     const ap = m.formats.find((f) => f.format === 'Asian Parliamentary')!;
@@ -87,7 +106,14 @@ describe('breakMargin', () => {
       [-1, 'missed-by-one'],
       [-4, 'missed'],
     ]);
-    expect(m.formats[0]).toMatchObject({ tournaments: 4, cleared: 0, onTheLine: 1, missedOnSpeaks: 1, missedByOne: 1, missed: 1 });
+    expect(m.formats[0]).toMatchObject({
+      tournaments: 4,
+      cleared: 0,
+      onTheLine: 1,
+      missedOnSpeaks: 1,
+      missedByOne: 1,
+      missed: 1,
+    });
   });
 
   test('median margin per format', () => {
@@ -102,8 +128,14 @@ describe('breakMargin', () => {
   });
 
   test('a break in another category is kept, flagged, and still measured against the Open line', () => {
-    const m = breakMargin([row({ teamPoints: '9', broke: true, teamBreakRank: 14, openBreak: ob({}) })])!;
-    expect(m.formats[0].entries[0]).toMatchObject({ margin: -1, outcome: 'missed-by-one', brokeElsewhere: true });
+    const m = breakMargin([
+      row({ teamPoints: '9', broke: true, teamBreakRank: 14, openBreak: ob({}) }),
+    ])!;
+    expect(m.formats[0].entries[0]).toMatchObject({
+      margin: -1,
+      outcome: 'missed-by-one',
+      brokeElsewhere: true,
+    });
   });
 
   test('exclusions carry a reason', () => {
@@ -128,7 +160,11 @@ describe('breakMargin', () => {
       'no-team-standing',
     ]);
     expect(m.excludedByReason).toMatchObject({
-      'no-open-break': 1, 'no-team-standing': 2, 'line-incomplete': 1, 'above-line-not-on-break': 1, 'unknown-format': 1,
+      'no-open-break': 1,
+      'no-team-standing': 2,
+      'line-incomplete': 1,
+      'above-line-not-on-break': 1,
+      'unknown-format': 1,
     });
   });
 

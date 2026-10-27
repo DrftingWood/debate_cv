@@ -35,7 +35,9 @@ export async function enqueueUrl(userId: string, url: string): Promise<void> {
  * (killed mid-run, deploy cycled, time budget exceeded). Belt-and-suspenders
  * recovery that runs at the start of every drain + cron invocation.
  */
-export async function resetStuckRunning(params: { userId?: string; olderThanMinutes?: number } = {}) {
+export async function resetStuckRunning(
+  params: { userId?: string; olderThanMinutes?: number } = {},
+) {
   // Multiply an int-cast parameter by a constant INTERVAL instead of calling
   // make_interval(). Prisma serializes JS numbers as BIGINT, which make_interval
   // rejects with "function make_interval(mins => bigint) does not exist".
@@ -101,14 +103,14 @@ const JOB_HOST_SQL = Prisma.sql`split_part(split_part("url", '//', 2), '/', 1)`;
 export async function claimOnePending(
   params: { userId?: string; excludeHosts?: string[] } = {},
 ): Promise<{ id: string; userId: string; url: string; attempts: number } | null> {
-  const whereUser = params.userId
-    ? Prisma.sql`AND "userId" = ${params.userId}`
-    : Prisma.sql``;
+  const whereUser = params.userId ? Prisma.sql`AND "userId" = ${params.userId}` : Prisma.sql``;
   const busy = params.excludeHosts?.filter((h) => h.length > 0) ?? [];
   const whereHost = busy.length
     ? Prisma.sql`AND ${JOB_HOST_SQL} NOT IN (${Prisma.join(busy)})`
     : Prisma.sql``;
-  const rows = await prisma.$queryRaw<Array<{ id: string; userId: string; url: string; attempts: number }>>(
+  const rows = await prisma.$queryRaw<
+    Array<{ id: string; userId: string; url: string; attempts: number }>
+  >(
     Prisma.sql`
       UPDATE "IngestJob"
       SET "status" = 'running', "attempts" = "attempts" + 1, "startedAt" = NOW(), "updatedAt" = NOW()

@@ -35,7 +35,10 @@ export async function POST() {
 
   if (!getEncryptionKey()) {
     return NextResponse.json(
-      { error: 'TOKEN_ENCRYPTION_KEY_not_set', hint: 'Set TOKEN_ENCRYPTION_KEY in Vercel and redeploy before running this.' },
+      {
+        error: 'TOKEN_ENCRYPTION_KEY_not_set',
+        hint: 'Set TOKEN_ENCRYPTION_KEY in Vercel and redeploy before running this.',
+      },
       { status: 409 },
     );
   }
@@ -53,7 +56,11 @@ export async function POST() {
       const refresh = encryptValue(decryptValue(row.refreshToken, null));
       await prisma.gmailToken.update({
         where: { userId: row.userId },
-        data: { accessToken: access.value ?? '', refreshToken: refresh.value, encryptionVersion: access.version },
+        data: {
+          accessToken: access.value ?? '',
+          refreshToken: refresh.value,
+          encryptionVersion: access.version,
+        },
       });
       encrypted += 1;
     } catch {
@@ -63,8 +70,22 @@ export async function POST() {
 
   // 2. Clear the plain tokens in Account once an encrypted GmailToken exists.
   const rows = await prisma.account.findMany({
-    where: { OR: [{ access_token: { not: null } }, { refresh_token: { not: null } }, { id_token: { not: null } }] },
-    select: { id: true, userId: true, provider: true, access_token: true, refresh_token: true, expires_at: true, scope: true },
+    where: {
+      OR: [
+        { access_token: { not: null } },
+        { refresh_token: { not: null } },
+        { id_token: { not: null } },
+      ],
+    },
+    select: {
+      id: true,
+      userId: true,
+      provider: true,
+      access_token: true,
+      refresh_token: true,
+      expires_at: true,
+      scope: true,
+    },
   });
 
   let scrubbed = 0;
@@ -72,7 +93,10 @@ export async function POST() {
   for (const row of rows) {
     try {
       if (row.provider === 'google' && row.access_token) {
-        const existing = await prisma.gmailToken.findUnique({ where: { userId: row.userId }, select: { userId: true } });
+        const existing = await prisma.gmailToken.findUnique({
+          where: { userId: row.userId },
+          select: { userId: true },
+        });
         // An existing encrypted copy is the same grant (or a newer one): keep it.
         if (!existing) {
           await persistTokensFromAccount(row.userId, {

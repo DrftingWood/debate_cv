@@ -137,7 +137,9 @@ describe('drainQueue — budget and failure handling', () => {
   it('fails a job that has already blown the attempt ceiling, without running it', async () => {
     // attempts 4 after the claim's increment — only reachable by being
     // killed mid-ingest, which never runs the catch that would retire it.
-    fakeQueue([{ id: 'runaway', userId: 'u1', url: 'https://a.calicotab.com/t/privateurls/x', attempts: 4 }]);
+    fakeQueue([
+      { id: 'runaway', userId: 'u1', url: 'https://a.calicotab.com/t/privateurls/x', attempts: 4 },
+    ]);
     const ingest = vi.fn(async () => {});
     const onTerminal = vi.fn();
 
@@ -148,7 +150,11 @@ describe('drainQueue — budget and failure handling', () => {
 
     expect(ingest).not.toHaveBeenCalled();
     expect(report.results[0]!.status).toBe('failed');
-    expect(onTerminal).toHaveBeenCalledWith('ingest-budget-exhausted', expect.anything(), expect.anything());
+    expect(onTerminal).toHaveBeenCalledWith(
+      'ingest-budget-exhausted',
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('keeps draining other hosts when one job throws', async () => {
@@ -221,7 +227,9 @@ describe('drainQueue — per-job deadline', () => {
   });
 
   it('a job that had the whole budget and still ran out spends its attempt', async () => {
-    fakeQueue([{ id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 0 }]);
+    fakeQueue([
+      { id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 0 },
+    ]);
     const report = await drainQueue(
       {
         ingest: async () => {
@@ -236,7 +244,9 @@ describe('drainQueue — per-job deadline', () => {
   });
 
   it('…and on its last attempt is failed with a clear reason, not cycled forever', async () => {
-    fakeQueue([{ id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 2 }]);
+    fakeQueue([
+      { id: 'big', userId: 'u1', url: 'https://big.calicotab.com/t/privateurls/x', attempts: 2 },
+    ]);
     const onTerminal = vi.fn();
     const report = await drainQueue(
       {
@@ -251,6 +261,10 @@ describe('drainQueue — per-job deadline', () => {
     );
     expect(report.results[0]!.status).toBe('failed');
     expect(report.results[0]!.error).toMatch(/does not fit/i);
-    expect(onTerminal).toHaveBeenCalledWith('ingest-budget-exhausted', expect.anything(), expect.anything());
+    expect(onTerminal).toHaveBeenCalledWith(
+      'ingest-budget-exhausted',
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });

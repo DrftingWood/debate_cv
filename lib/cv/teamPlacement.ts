@@ -101,9 +101,17 @@ export function breakDepth(
 ): BreakDepth | null {
   const labels: { stage: string; category: string | null }[] = [
     ...(row.eliminationReached
-      ? [{ stage: row.eliminationReached, category: splitOutroundStage(row.eliminationReached).category }]
+      ? [
+          {
+            stage: row.eliminationReached,
+            category: splitOutroundStage(row.eliminationReached).category,
+          },
+        ]
       : []),
-    ...(row.eliminationReachedByCategory ?? []).map((e) => ({ stage: e.stage, category: e.category })),
+    ...(row.eliminationReachedByCategory ?? []).map((e) => ({
+      stage: e.stage,
+      category: e.category,
+    })),
   ];
   let best: BreakDepth | null = null;
   for (const { stage, category } of labels) {
@@ -252,7 +260,9 @@ export function formatTopPercent(topPercent: number): string {
  * but not a championship (milestones already exclude it), so it is left out.
  */
 export function championshipHighlights(
-  rows: Array<Pick<CvSpeakerRow, 'wonTournament' | 'eliminationReached' | 'tournamentName' | 'year'>>,
+  rows: Array<
+    Pick<CvSpeakerRow, 'wonTournament' | 'eliminationReached' | 'tournamentName' | 'year'>
+  >,
 ): CvHighlights['championships'] {
   return rows
     .filter((r) => r.wonTournament === true && bracketOf(r.eliminationReached) !== 'consolation')

@@ -61,10 +61,7 @@ function tokenContainmentBonus(qTokens: string[], cTokens: string[]): number {
   return matched / qTokens.length;
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -106,10 +103,7 @@ export async function GET(
     where: {
       tournamentId,
       person: { suppressedAt: null },
-      OR: [
-        { person: { claimedByUserId: null } },
-        { person: { claimedByUserId: session.user.id } },
-      ],
+      OR: [{ person: { claimedByUserId: null } }, { person: { claimedByUserId: session.user.id } }],
     },
     select: {
       teamName: true,
@@ -147,8 +141,7 @@ export async function GET(
     // "Abhishek Acharya" matching "Abhishek Lalatendu Acharya".
     const score = Math.max(jw, 0.3 * jw + 0.7 * containment);
     if (score < MIN_SIMILARITY) continue;
-    const isJudge =
-      p.roles.some((r) => r.role === 'judge') || !!p.judgeTypeTag;
+    const isJudge = p.roles.some((r) => r.role === 'judge') || !!p.judgeTypeTag;
     const role = isJudge ? 'Judge' : p.roles.length ? 'Speaker' : '—';
     scored.push({
       personId: p.person.id.toString(),

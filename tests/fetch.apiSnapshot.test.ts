@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 // stay in the re-derivation archive. The prisma upsert is the observable
 // effect; the DB itself is not under test.
 const upsert = vi.fn(async ({ create }) => ({ id: 'doc-1', ...create }));
-vi.mock('@/lib/db', () => ({ prisma: { sourceDocument: { upsert: (a: unknown) => upsert(a as never) } } }));
+vi.mock('@/lib/db', () => ({
+  prisma: { sourceDocument: { upsert: (a: unknown) => upsert(a as never) } },
+}));
 
 const URL_TEAMS = 'https://wudc2024.calicotab.com/api/v1/tournaments/wudc/teams';
 
@@ -147,8 +149,9 @@ describe('withApiSnapshots', () => {
     );
     expect(result.teams.source).toBe('private');
     expect(upsert).toHaveBeenCalledTimes(1);
-    const url = (upsert.mock.calls[0][0] as unknown as { where: { url_contentHash: { url: string } } }).where
-      .url_contentHash.url;
+    const url = (
+      upsert.mock.calls[0][0] as unknown as { where: { url_contentHash: { url: string } } }
+    ).where.url_contentHash.url;
     expect(url).toBe('https://wudc2024.calicotab.com/api/v1/tournaments/wudc/preferences');
   });
 });

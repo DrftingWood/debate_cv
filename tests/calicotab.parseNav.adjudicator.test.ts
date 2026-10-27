@@ -104,7 +104,7 @@ describe('extractAdjudicatorRounds', () => {
     expect(rounds.map((r) => r.roundNumber)).toEqual([1, 2, 3, 4, 5, 6, null]);
   });
 
-  test('reads role from the URL owner\'s <strong> wrapper — Ⓒ marks chair', () => {
+  test("reads role from the URL owner's <strong> wrapper — Ⓒ marks chair", () => {
     expect(rounds.slice(0, 6).every((r) => r.role === 'chair')).toBe(true);
   });
 
@@ -344,86 +344,103 @@ describe('extractAdjudicatorRounds — abbreviation-only round labels (no data-o
 
   test('preserves chair / panellist roles across the abbreviation form', () => {
     // R1, R2, R3 chair via <strong>...Ⓒ; QF panellist (Ⓒ on Beauty Ariel); SF chair.
-    expect(rows.map((r) => r.role)).toEqual([
-      'chair',
-      'chair',
-      'chair',
-      'panellist',
-      'chair',
-    ]);
+    expect(rows.map((r) => r.role)).toEqual(['chair', 'chair', 'chair', 'panellist', 'chair']);
   });
 });
 
 const VUE_SIDO_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
-  tablesData: [{
-    title: 'Debates',
-    head: [
-      { key: 'round', tooltip: 'Round' },
-      { key: 'OG', title: 'OG' },
-      { key: 'OO', title: 'OO' },
-      { key: 'CG', title: 'CG' },
-      { key: 'CO', title: 'CO' },
-      { key: 'adjudicators', title: 'Adjudicators' },
-    ],
-    data: [
-      [
-        { text: 'R1', tooltip: 'Round 1' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>, <span class="d-inline">Bea Legaspi</span>' },
+  tablesData: [
+    {
+      title: 'Debates',
+      head: [
+        { key: 'round', tooltip: 'Round' },
+        { key: 'OG', title: 'OG' },
+        { key: 'OO', title: 'OO' },
+        { key: 'CG', title: 'CG' },
+        { key: 'CO', title: 'CO' },
+        { key: 'adjudicators', title: 'Adjudicators' },
       ],
-      [
-        { text: 'R2', tooltip: 'Round 2' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
+      data: [
+        [
+          { text: 'R1', tooltip: 'Round 1' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>, <span class="d-inline">Bea Legaspi</span>',
+          },
+        ],
+        [
+          { text: 'R2', tooltip: 'Round 2' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>',
+          },
+        ],
+        [
+          { text: 'R3', tooltip: 'Round 3' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>',
+          },
+        ],
+        [
+          { text: 'R4', tooltip: 'Round 4' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>',
+          },
+        ],
+        [
+          { text: 'R5', tooltip: 'Round 5' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>',
+          },
+        ],
+        [
+          { text: 'R6', tooltip: 'Round 6' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>',
+          },
+        ],
+        [
+          { text: 'QF', tooltip: 'Quarterfinals' },
+          { text: 'A', class: 'team-name' },
+          { text: 'B', class: 'team-name' },
+          { text: 'C', class: 'team-name' },
+          { text: 'D', class: 'team-name' },
+          {
+            class: 'adjudicator-name',
+            text: '<span class="d-inline">Beauty Ariel<i class="adj-symbol">\u24b8</i></span>, <strong><span class="d-inline">Abhishek Acharya</span></strong>, <span class="d-inline">Udai Kamath</span>',
+          },
+        ],
       ],
-      [
-        { text: 'R3', tooltip: 'Round 3' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
-      ],
-      [
-        { text: 'R4', tooltip: 'Round 4' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
-      ],
-      [
-        { text: 'R5', tooltip: 'Round 5' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
-      ],
-      [
-        { text: 'R6', tooltip: 'Round 6' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<strong><span class="d-inline">Abhishek Acharya<i class="adj-symbol">\u24b8</i></span></strong>' },
-      ],
-      [
-        { text: 'QF', tooltip: 'Quarterfinals' },
-        { text: 'A', class: 'team-name' },
-        { text: 'B', class: 'team-name' },
-        { text: 'C', class: 'team-name' },
-        { text: 'D', class: 'team-name' },
-        { class: 'adjudicator-name', text: '<span class="d-inline">Beauty Ariel<i class="adj-symbol">\u24b8</i></span>, <strong><span class="d-inline">Abhishek Acharya</span></strong>, <span class="d-inline">Udai Kamath</span>' },
-      ],
-    ],
-  }],
+    },
+  ],
 })}</script>`;
 
 describe('extractAdjudicatorRounds - Vue tablesData private URL page', () => {
@@ -452,9 +469,9 @@ describe('extractAdjudicatorRounds - Vue tablesData private URL page', () => {
   });
 
   test('aggregates Vue SIDO data as six chaired inrounds', () => {
-    expect(
-      getInroundsChairedCount(rows.map((r) => ({ stage: r.stage, panelRole: r.role }))),
-    ).toBe(6);
+    expect(getInroundsChairedCount(rows.map((r) => ({ stage: r.stage, panelRole: r.role })))).toBe(
+      6,
+    );
   });
 });
 
@@ -512,35 +529,37 @@ describe('extractSpeakerRounds — bolded team name', () => {
 });
 
 const VUE_SPEAKER_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
-  tablesData: [{
-    title: 'Debates',
-    head: [
-      { key: 'round', tooltip: 'Round' },
-      { key: 'OG', title: 'OG' },
-      { key: 'OO', title: 'OO' },
-      { key: 'CG', title: 'CG' },
-      { key: 'CO', title: 'CO' },
-      { key: 'adjudicators', title: 'Adjudicators' },
-    ],
-    data: [
-      [
-        { text: 'R1', tooltip: 'Round 1' },
-        { text: '<strong>Team A 1</strong>', class: 'team-name' },
-        { text: 'Team B 1', class: 'team-name' },
-        { text: 'Team C 1', class: 'team-name' },
-        { text: 'Team D 1', class: 'team-name' },
-        { class: 'adjudicator-name', text: 'Some Judge' },
+  tablesData: [
+    {
+      title: 'Debates',
+      head: [
+        { key: 'round', tooltip: 'Round' },
+        { key: 'OG', title: 'OG' },
+        { key: 'OO', title: 'OO' },
+        { key: 'CG', title: 'CG' },
+        { key: 'CO', title: 'CO' },
+        { key: 'adjudicators', title: 'Adjudicators' },
       ],
-      [
-        { text: 'QF', tooltip: 'Quarterfinals' },
-        { text: 'Team E 1', class: 'team-name' },
-        { text: 'Team F 1', class: 'team-name' },
-        { text: 'Team A 1', class: 'team-name' },
-        { text: 'Team G 1', class: 'team-name' },
-        { class: 'adjudicator-name', text: 'Other Judge' },
+      data: [
+        [
+          { text: 'R1', tooltip: 'Round 1' },
+          { text: '<strong>Team A 1</strong>', class: 'team-name' },
+          { text: 'Team B 1', class: 'team-name' },
+          { text: 'Team C 1', class: 'team-name' },
+          { text: 'Team D 1', class: 'team-name' },
+          { class: 'adjudicator-name', text: 'Some Judge' },
+        ],
+        [
+          { text: 'QF', tooltip: 'Quarterfinals' },
+          { text: 'Team E 1', class: 'team-name' },
+          { text: 'Team F 1', class: 'team-name' },
+          { text: 'Team A 1', class: 'team-name' },
+          { text: 'Team G 1', class: 'team-name' },
+          { class: 'adjudicator-name', text: 'Other Judge' },
+        ],
       ],
-    ],
-  }],
+    },
+  ],
 })}</script>`;
 
 describe('extractSpeakerRounds - Vue tablesData private URL page', () => {
@@ -555,61 +574,63 @@ describe('extractSpeakerRounds - Vue tablesData private URL page', () => {
 // found by matching the registered team name passed in by the caller. This
 // is the path used when Tabbycat themes drop the bold marker.
 const VUE_AP_SPEAKER_PRIVATE_DEBATES_FRAGMENT = `<script>window.vueData = ${JSON.stringify({
-  tablesData: [{
-    title: 'Debates',
-    head: [
-      { key: 'round', tooltip: 'Round' },
-      { key: 'result', tooltip: 'Result' },
-      { key: 'cumulative', tooltip: 'Wins after this debate' },
-      { key: 'speaks', tooltip: 'Speaker scores<br>(in speaking order)', text: 'Speaks' },
-      { key: 'side', title: 'Side' },
-      { key: 'adjudicators', title: 'Adjudicators' },
-      { key: 'motion', title: 'Motion' },
-      { key: 'ballot', tooltip: 'The confirmed ballot' },
-    ],
-    data: [
-      [
-        { text: 'R1', tooltip: 'Round 1' },
-        { text: 'vs Team One' },
-        { text: '1' },
-        { text: '74.0, 75.0, 76.0' },
-        { text: 'Aff' },
-        { text: 'Judge A' },
-        { text: 'Motion' },
-        { text: 'View Ballot', link: '/nlsd25/results/round/1/speaker/z2kqpxl7/' },
+  tablesData: [
+    {
+      title: 'Debates',
+      head: [
+        { key: 'round', tooltip: 'Round' },
+        { key: 'result', tooltip: 'Result' },
+        { key: 'cumulative', tooltip: 'Wins after this debate' },
+        { key: 'speaks', tooltip: 'Speaker scores<br>(in speaking order)', text: 'Speaks' },
+        { key: 'side', title: 'Side' },
+        { key: 'adjudicators', title: 'Adjudicators' },
+        { key: 'motion', title: 'Motion' },
+        { key: 'ballot', tooltip: 'The confirmed ballot' },
       ],
-      [
-        { text: 'OQF', tooltip: 'Open Quarterfinals' },
-        { text: 'vs Team Two' },
-        { text: '' },
-        { text: 'No scores' },
-        { text: 'Neg' },
-        { text: 'Judge B' },
-        { text: 'Motion' },
-        { text: 'No scores' },
+      data: [
+        [
+          { text: 'R1', tooltip: 'Round 1' },
+          { text: 'vs Team One' },
+          { text: '1' },
+          { text: '74.0, 75.0, 76.0' },
+          { text: 'Aff' },
+          { text: 'Judge A' },
+          { text: 'Motion' },
+          { text: 'View Ballot', link: '/nlsd25/results/round/1/speaker/z2kqpxl7/' },
+        ],
+        [
+          { text: 'OQF', tooltip: 'Open Quarterfinals' },
+          { text: 'vs Team Two' },
+          { text: '' },
+          { text: 'No scores' },
+          { text: 'Neg' },
+          { text: 'Judge B' },
+          { text: 'Motion' },
+          { text: 'No scores' },
+        ],
+        [
+          { text: 'OSF', tooltip: 'Open Semifinals' },
+          { text: 'vs Team Three' },
+          { text: '' },
+          { text: 'No scores' },
+          { text: 'Aff' },
+          { text: 'Judge C' },
+          { text: 'Motion' },
+          { text: 'No scores' },
+        ],
+        [
+          { text: 'OGF', tooltip: 'Open Grand Final' },
+          { text: 'vs Team Four' },
+          { text: '' },
+          { text: 'No scores' },
+          { text: 'Neg' },
+          { text: 'Judge D' },
+          { text: 'Motion' },
+          { text: 'No scores' },
+        ],
       ],
-      [
-        { text: 'OSF', tooltip: 'Open Semifinals' },
-        { text: 'vs Team Three' },
-        { text: '' },
-        { text: 'No scores' },
-        { text: 'Aff' },
-        { text: 'Judge C' },
-        { text: 'Motion' },
-        { text: 'No scores' },
-      ],
-      [
-        { text: 'OGF', tooltip: 'Open Grand Final' },
-        { text: 'vs Team Four' },
-        { text: '' },
-        { text: 'No scores' },
-        { text: 'Neg' },
-        { text: 'Judge D' },
-        { text: 'Motion' },
-        { text: 'No scores' },
-      ],
-    ],
-  }],
+    },
+  ],
 })}</script>`;
 
 describe('extractSpeakerRounds - AP-style Vue private URL page', () => {
@@ -668,9 +689,7 @@ describe('extractSpeakerRounds — plain team name (string match fallback)', () 
   });
 
   test('returns empty when the provided team name appears in no row', () => {
-    expect(
-      extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Nonexistent Team'),
-    ).toEqual([]);
+    expect(extractSpeakerRounds(SPEAKER_DEBATES_FRAGMENT_PLAIN, 'Nonexistent Team')).toEqual([]);
   });
 
   test('match is case-insensitive on whitespace-collapsed cell text', () => {

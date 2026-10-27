@@ -38,7 +38,6 @@ function asSplit(r: RoundSplit, key = r.key): Split {
   };
 }
 
-
 /**
  * Which words the round outcome gets on this page: "win" for two-team rounds,
  * "2nd or better" for BP (never "win"), both when the record has both. Read
@@ -55,7 +54,13 @@ function outcomeOf(facts: StatsFacts): OutcomeKind {
 
 // ── Positions ─────────────────────────────────────────────────────────────
 
-export function PositionsSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+export function PositionsSection({
+  facts,
+  baseline,
+}: {
+  facts: StatsFacts;
+  baseline: RoundFact[];
+}) {
   const bySeat = splitRounds(facts.rounds, (r) => r.seat, baseline);
   if (bySeat.length === 0) return null;
 
@@ -86,10 +91,13 @@ export function PositionsSection({ facts, baseline }: { facts: StatsFacts; basel
       {ordered.map(({ group, seats, rounds }) => (
         <div key={group} className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="font-display text-h4 font-medium text-ink">{FORMAT_NAME[group] ?? group}</h3>
+            <h3 className="font-display text-h4 font-medium text-ink">
+              {FORMAT_NAME[group] ?? group}
+            </h3>
             <span className="data-label">{rounds} prelim rounds</span>
           </div>
-          <StatsSplitTable outcome={group === 'BP' ? 'top-two' : 'win'}
+          <StatsSplitTable
+            outcome={group === 'BP' ? 'top-two' : 'win'}
             splits={seats.map((s) => asSplit(s, s.key.split(':')[1]))}
             dimensionLabel="Seat"
             thinBelow={MIN_SPLIT_ROUNDS}
@@ -99,9 +107,9 @@ export function PositionsSection({ facts, baseline }: { facts: StatsFacts; basel
         </div>
       ))}
       <p className="text-caption text-ink-soft">
-        British Parliamentary rounds are never counted as wins: the rate there is the share of rounds
-        finished 2nd or better (2 points or more). Two-team formats count a win. Seats are only
-        compared within a format.
+        British Parliamentary rounds are never counted as wins: the rate there is the share of
+        rounds finished 2nd or better (2 points or more). Two-team formats count a win. Seats are
+        only compared within a format.
       </p>
     </section>
   );
@@ -116,7 +124,13 @@ const PAIRING_TITLE = { pro: 'As the pro', am: 'As the am', peers: 'With peers' 
  * seat filter slices, so they are left out — the same rule the headline,
  * Field and Seasons sections follow.
  */
-export function TeammatesSection({ facts, perRoundOnly = false }: { facts: StatsFacts; perRoundOnly?: boolean }) {
+export function TeammatesSection({
+  facts,
+  perRoundOnly = false,
+}: {
+  facts: StatsFacts;
+  perRoundOnly?: boolean;
+}) {
   const { partners, pairings } = teammateStats(facts);
   const outcome = outcomeOf(facts);
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -153,9 +167,9 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
         </StatRow>
       ) : null}
       <p className="text-caption text-ink-soft">
-        A pairing is pro-am when your speaker average and your partners' differ by more than 1.5 at that
-        tournament, measured from scored speeches. Without them the pairing is left unlabelled rather
-        than estimated.
+        A pairing is pro-am when your speaker average and your partners' differ by more than 1.5 at
+        that tournament, measured from scored speeches. Without them the pairing is left unlabelled
+        rather than estimated.
       </p>
 
       <div className="panel overflow-hidden">
@@ -166,12 +180,17 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                 <Th className="pl-4">Partner</Th>
                 <Th numeric>Tournaments</Th>
                 <Th>Pairing</Th>
-                <Th numeric title="Your average minus your partners', averaged over tournaments where both were scored">
+                <Th
+                  numeric
+                  title="Your average minus your partners', averaged over tournaments where both were scored"
+                >
                   Gap
                 </Th>
                 {perRoundOnly ? null : <Th numeric>Breaks</Th>}
                 <Th numeric>Your avg</Th>
-                <Th numeric className="pr-4">Round {OUTCOME_COPY[outcome].rate.toLowerCase()}</Th>
+                <Th numeric className="pr-4">
+                  Round {OUTCOME_COPY[outcome].rate.toLowerCase()}
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -186,9 +205,13 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                   <Td className="whitespace-nowrap">
                     <span className="inline-flex gap-1">
                       {/* Neutral, not gold: gold means a break (Ledger rule 3). */}
-                      {p.pairings.pro ? <Badge variant="neutral">Pro ×{p.pairings.pro}</Badge> : null}
+                      {p.pairings.pro ? (
+                        <Badge variant="neutral">Pro ×{p.pairings.pro}</Badge>
+                      ) : null}
                       {p.pairings.am ? <Badge>Am ×{p.pairings.am}</Badge> : null}
-                      {p.pairings.peers ? <Badge variant="neutral">Peers ×{p.pairings.peers}</Badge> : null}
+                      {p.pairings.peers ? (
+                        <Badge variant="neutral">Peers ×{p.pairings.peers}</Badge>
+                      ) : null}
                       {p.tournaments === p.pairings.unlabelled ? <Nil /> : null}
                     </span>
                   </Td>
@@ -223,7 +246,13 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
 
 // ── Motion types ──────────────────────────────────────────────────────────
 
-export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+export function MotionTypesSection({
+  facts,
+  baseline,
+}: {
+  facts: StatsFacts;
+  baseline: RoundFact[];
+}) {
   const byType = splitRounds(facts.rounds, (r) => r.motionType, baseline).sort(
     (a, b) => MOTION_ORDER.indexOf(a.key) - MOTION_ORDER.indexOf(b.key),
   );
@@ -235,8 +264,16 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
   // typed or not: a choice round where every option had a slide was a slide
   // round whichever the room picked.
   const withMotion = facts.rounds.filter((r) => !r.isOutround && r.hasMotion);
-  const byInfo = splitRounds(withMotion, (r) => (r.infoSlide ? 'With an info slide' : 'No info slide'), baseline);
-  const byFraming = splitRounds(withMotion, (r) => (r.contextLed ? 'Context-led' : 'Direct'), baseline);
+  const byInfo = splitRounds(
+    withMotion,
+    (r) => (r.infoSlide ? 'With an info slide' : 'No info slide'),
+    baseline,
+  );
+  const byFraming = splitRounds(
+    withMotion,
+    (r) => (r.contextLed ? 'Context-led' : 'Direct'),
+    baseline,
+  );
 
   return (
     <section id="motion-types" aria-label="Motion types" className="scroll-mt-24 space-y-6">
@@ -245,18 +282,19 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
         title="What each kind of motion asks of you"
         meta={`${typed.length} of ${prelims} prelim rounds typed`}
       />
-      <StatsSplitTable outcome={outcomeOf(facts)}
+      <StatsSplitTable
+        outcome={outcomeOf(facts)}
         splits={byType.map((s) => asSplit(s))}
         dimensionLabel="Type"
         thinBelow={MIN_SPLIT_ROUNDS}
         baselineLabel="your whole record in each round's format"
       />
       <p className="text-caption text-ink-soft">
-        Types come from the wording: Policy (THW), Actor (TH, as X, would), Belief (THBT), Stance (THS /
-        THO), Regret (THR), Preference (THP). A round that offered a choice of motions is typed only when
-        every option shares a type — the tab does not say which one a room chose. Info slides and
-        framing below cover all {withMotion.length} prelim rounds with a known motion; a choice round
-        counts when every option had the slide or the framing.
+        Types come from the wording: Policy (THW), Actor (TH, as X, would), Belief (THBT), Stance
+        (THS / THO), Regret (THR), Preference (THP). A round that offered a choice of motions is
+        typed only when every option shares a type — the tab does not say which one a room chose.
+        Info slides and framing below cover all {withMotion.length} prelim rounds with a known
+        motion; a choice round counts when every option had the slide or the framing.
       </p>
 
       {byInfo.length > 1 || byFraming.length > 1 ? (
@@ -270,13 +308,25 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
           {byInfo.length > 1 ? (
             <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Info slides</h3>
-              <StatsSplitTable outcome={outcomeOf(facts)} splits={byInfo.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
+              <StatsSplitTable
+                outcome={outcomeOf(facts)}
+                splits={byInfo.map((s) => asSplit(s))}
+                dimensionLabel="Motion"
+                thinBelow={MIN_SPLIT_ROUNDS}
+                baselineLabel="your whole record in each round's format"
+              />
             </div>
           ) : null}
           {byFraming.length > 1 ? (
             <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Framing</h3>
-              <StatsSplitTable outcome={outcomeOf(facts)} splits={byFraming.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
+              <StatsSplitTable
+                outcome={outcomeOf(facts)}
+                splits={byFraming.map((s) => asSplit(s))}
+                dimensionLabel="Motion"
+                thinBelow={MIN_SPLIT_ROUNDS}
+                baselineLabel="your whole record in each round's format"
+              />
             </div>
           ) : null}
         </div>
@@ -287,7 +337,13 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
 
 // ── Round by round ────────────────────────────────────────────────────────
 
-export function RoundCurveSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+export function RoundCurveSection({
+  facts,
+  baseline,
+}: {
+  facts: StatsFacts;
+  baseline: RoundFact[];
+}) {
   const curve = roundCurve(facts.rounds, baseline);
   if (curve.length < 2) return null;
 
@@ -298,16 +354,17 @@ export function RoundCurveSection({ facts, baseline }: { facts: StatsFacts; base
         title="Early rounds and late ones"
         meta="Deltas compare with your whole record in the same format"
       />
-      <StatsSplitTable outcome={outcomeOf(facts)}
+      <StatsSplitTable
+        outcome={outcomeOf(facts)}
         splits={curve.map((p) => asSplit(p, `Round ${p.roundNumber}`))}
         dimensionLabel="Round"
         thinBelow={MIN_SPLIT_ROUNDS}
         baselineLabel="your whole record in each round's format"
       />
       <p className="text-caption text-ink-soft">
-        Prelim rounds grouped by their number, so this stays meaningful under a seat filter. Late round
-        numbers exist only at longer tournaments, and power-pairing puts you in stronger rooms as a
-        tournament goes on — a dip in round 8 can be the draw, not the debater.
+        Prelim rounds grouped by their number, so this stays meaningful under a seat filter. Late
+        round numbers exist only at longer tournaments, and power-pairing puts you in stronger rooms
+        as a tournament goes on — a dip in round 8 can be the draw, not the debater.
       </p>
     </section>
   );
@@ -349,23 +406,36 @@ export function CarrySection({
       />
       {thin ? (
         <div className="panel-inset p-4 text-table text-ink-soft">
-          Only {c.rounds} round{c.rounds === 1 ? '' : 's'} with both your speech and a partner's scored —
-          too few to read as a pattern (n = {c.rounds}).
+          Only {c.rounds} round{c.rounds === 1 ? '' : 's'} with both your speech and a partner's
+          scored — too few to read as a pattern (n = {c.rounds}).
         </div>
       ) : (
-      <StatRow columns={4}>
-        <StatTile
-          label="Average carry"
-          value={signed(c.meanCarry) ?? '—'}
-          hint="Your speech minus your partners' mean, in speaker points"
-        />
-        <StatTile label="Out-spoke" value={pct(c.outSpoke)} hint={`${c.outSpoke} rounds by more than ${CARRY_LEVEL_BAND}`} />
-        <StatTile label="Level" value={pct(c.level)} hint={`${c.level} rounds within ±${CARRY_LEVEL_BAND}`} />
-        <StatTile label="Out-spoken" value={pct(c.outSpoken)} hint={`${c.outSpoken} rounds by more than ${CARRY_LEVEL_BAND}`} />
-      </StatRow>
+        <StatRow columns={4}>
+          <StatTile
+            label="Average carry"
+            value={signed(c.meanCarry) ?? '—'}
+            hint="Your speech minus your partners' mean, in speaker points"
+          />
+          <StatTile
+            label="Out-spoke"
+            value={pct(c.outSpoke)}
+            hint={`${c.outSpoke} rounds by more than ${CARRY_LEVEL_BAND}`}
+          />
+          <StatTile
+            label="Level"
+            value={pct(c.level)}
+            hint={`${c.level} rounds within ±${CARRY_LEVEL_BAND}`}
+          />
+          <StatTile
+            label="Out-spoken"
+            value={pct(c.outSpoken)}
+            hint={`${c.outSpoken} rounds by more than ${CARRY_LEVEL_BAND}`}
+          />
+        </StatRow>
       )}
       {!thin && c.results.length > 1 ? (
-        <StatsSplitTable outcome={outcomeOf(facts)}
+        <StatsSplitTable
+          outcome={outcomeOf(facts)}
           splits={c.results.map((s) => asSplit(s, CARRY_LABEL[s.key] ?? s.key))}
           dimensionLabel="Carry"
           thinBelow={MIN_SPLIT_ROUNDS}
@@ -402,23 +472,32 @@ export function MomentumSection({ facts, baseline }: { facts: StatsFacts; baseli
   const outcome = outcomeOf(facts);
 
   return (
-    <section id="momentum" aria-label="After a good round or a bad one" className="scroll-mt-24 space-y-3">
+    <section
+      id="momentum"
+      aria-label="After a good round or a bad one"
+      className="scroll-mt-24 space-y-3"
+    >
       <SectionHeader
         label="Momentum"
-        title={outcome === 'win' ? 'The round after a win, and after a loss' : 'The round after a good round, and after a bad one'}
+        title={
+          outcome === 'win'
+            ? 'The round after a win, and after a loss'
+            : 'The round after a good round, and after a bad one'
+        }
         meta={`${rows.reduce((n, r) => n + r.rounds, 0)} paired prelim rounds`}
       />
-      <StatsSplitTable outcome={outcomeOf(facts)}
+      <StatsSplitTable
+        outcome={outcomeOf(facts)}
         splits={rows.map((r) => asSplit(r, MOMENTUM_LABEL[outcome][r.key] ?? r.key))}
         dimensionLabel="Next round"
         thinBelow={MIN_SPLIT_ROUNDS}
         baselineLabel="your whole record in each round's format"
       />
       <p className="text-caption text-ink-soft">
-        Each row is the next prelim at the same tournament, paired only when the round before it has a
-        recorded result. Tabs power-pair, so a good round sends you into a stronger room and a bad one
-        into a weaker one: the rate after a good round falls for almost everyone. The speaker average is the fairer
-        read of whether a result carries into the next speech.
+        Each row is the next prelim at the same tournament, paired only when the round before it has
+        a recorded result. Tabs power-pair, so a good round sends you into a stronger room and a bad
+        one into a weaker one: the rate after a good round falls for almost everyone. The speaker
+        average is the fairer read of whether a result carries into the next speech.
       </p>
     </section>
   );

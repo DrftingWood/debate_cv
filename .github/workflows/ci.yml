@@ -55,9 +55,15 @@ jobs:
       # which needs the schema but no database.
       - run: npm ci
 
+      # Fails fast and cheaply. `npm run format` fixes it; see NC-2 in
+      # docs/CODING_STANDARDS.md.
+      - name: Format (Prettier)
+        run: npm run format:check
+
       # `if: !cancelled()` on the later steps runs every check even after one
       # fails, so a PR sees all of its problems in one pass. The job still fails.
       - name: Typecheck
+        if: ${{ !cancelled() }}
         run: npm run typecheck
 
       - name: Lint
@@ -133,7 +139,7 @@ jobs:
       - name: prettier --check
         continue-on-error: true
         run: |
-          npx prettier --list-different "**/*.{ts,tsx,js,mjs,cjs,json,css}" > .reports/prettier.txt || true
+          npx prettier --list-different "**/*.{ts,tsx,js,mjs,cjs,json,css,yml}" > .reports/prettier.txt || true
           echo "$(grep -c . .reports/prettier.txt || true) files differ from Prettier's output"
 
       - name: npm audit

@@ -3,9 +3,23 @@ import { carryIndex, CARRY_LEVEL_BAND, roundCurve } from '@/lib/cv/roundViews';
 import type { RoundFact } from '@/lib/cv/statsFacts';
 
 const round = (o: Partial<RoundFact>): RoundFact => ({
-  tournamentId: '1', year: 2024, format: 'British Parliamentary', round: 1, isOutround: false,
-  seat: 'BP:OG', partners: ['Ann'], partnerGap: 0, proAm: 'peers', motionType: 'Policy',
-  hasMotion: true, contextLed: false, infoSlide: false, score: 75, partnerScores: [75], points: 2, won: false,
+  tournamentId: '1',
+  year: 2024,
+  format: 'British Parliamentary',
+  round: 1,
+  isOutround: false,
+  seat: 'BP:OG',
+  partners: ['Ann'],
+  partnerGap: 0,
+  proAm: 'peers',
+  motionType: 'Policy',
+  hasMotion: true,
+  contextLed: false,
+  infoSlide: false,
+  score: 75,
+  partnerScores: [75],
+  points: 2,
+  won: false,
   ...o,
 });
 
@@ -59,14 +73,21 @@ describe('carryIndex', () => {
   test('a carry on the band after averaging three-a-side partners stays level', () => {
     // 70.7 − mean(70.1, 70.3) is 0.5000000000000142 and 70.3 − mean(70.4, 71.2)
     // is −0.5000000000000142 in floating point; both are exactly the band.
-    const c = carryIndex([round({ score: 70.7, partnerScores: [70.1, 70.3] }), round({ round: 2, score: 70.3, partnerScores: [70.4, 71.2] })]);
+    const c = carryIndex([
+      round({ score: 70.7, partnerScores: [70.1, 70.3] }),
+      round({ round: 2, score: 70.3, partnerScores: [70.4, 71.2] }),
+    ]);
     expect(c.level).toBe(2);
   });
 
   test('results by bucket carry per-format deltas against the baseline', () => {
     const rounds = [
-      ...Array.from({ length: 6 }, (_, i) => round({ round: i + 1, score: 78, partnerScores: [75], won: true })),
-      ...Array.from({ length: 6 }, (_, i) => round({ round: i + 10, score: 72, partnerScores: [75], won: false })),
+      ...Array.from({ length: 6 }, (_, i) =>
+        round({ round: i + 1, score: 78, partnerScores: [75], won: true }),
+      ),
+      ...Array.from({ length: 6 }, (_, i) =>
+        round({ round: i + 10, score: 72, partnerScores: [75], won: false }),
+      ),
     ];
     const c = carryIndex(rounds);
     const out = c.results.find((r) => r.key === 'out-spoke')!;
@@ -77,6 +98,10 @@ describe('carryIndex', () => {
   });
 
   test('nothing comparable, nothing to say', () => {
-    expect(carryIndex([round({ partnerScores: [] })])).toMatchObject({ rounds: 0, meanCarry: null, results: [] });
+    expect(carryIndex([round({ partnerScores: [] })])).toMatchObject({
+      rounds: 0,
+      meanCarry: null,
+      results: [],
+    });
   });
 });

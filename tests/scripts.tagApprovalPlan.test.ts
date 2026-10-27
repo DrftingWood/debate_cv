@@ -13,7 +13,9 @@ import {
 } from '../scripts/lib/tag-approval-plan.mjs';
 import { directConnectionString } from '../scripts/lib/neon-connection.mjs';
 
-const row = (r: Partial<PendingGroupRow> & Pick<PendingGroupRow, 'kind' | 'value'>): PendingGroupRow => ({
+const row = (
+  r: Partial<PendingGroupRow> & Pick<PendingGroupRow, 'kind' | 'value'>,
+): PendingGroupRow => ({
   tournamentId: '1',
   motionId: null,
   n: 1,
@@ -26,7 +28,13 @@ describe('classifyPending', () => {
   it('approves a target whose pending proposals agree, counting duplicates', () => {
     const plan = classifyPending([row({ kind: 'region', value: 'Europe', n: 3 })]);
     expect(plan.agreed).toEqual([
-      expect.objectContaining({ kind: 'region', tournamentId: '1', motionId: null, value: 'Europe', proposals: 3 }),
+      expect.objectContaining({
+        kind: 'region',
+        tournamentId: '1',
+        motionId: null,
+        value: 'Europe',
+        proposals: 3,
+      }),
     ]);
     expect(plan.conflicts).toEqual([]);
   });
@@ -109,16 +117,23 @@ describe('summarisePlan', () => {
 
 describe('parseArgs', () => {
   it('defaults to a dry run over all kinds', () => {
-    expect(parseArgs([])).toEqual({ apply: false, kind: null, out: './tag-approval-output', batch: 2000 });
+    expect(parseArgs([])).toEqual({
+      apply: false,
+      kind: null,
+      out: './tag-approval-output',
+      batch: 2000,
+    });
   });
 
   it('reads --apply, --kind, --out and --batch', () => {
-    expect(parseArgs(['--apply', '--kind', 'motion_type', '--out', 'x', '--batch', '500'])).toEqual({
-      apply: true,
-      kind: 'motion_type',
-      out: 'x',
-      batch: 500,
-    });
+    expect(parseArgs(['--apply', '--kind', 'motion_type', '--out', 'x', '--batch', '500'])).toEqual(
+      {
+        apply: true,
+        kind: 'motion_type',
+        out: 'x',
+        batch: 500,
+      },
+    );
   });
 
   it('rejects a mistyped kind or flag rather than falling back to all kinds', () => {
@@ -177,7 +192,9 @@ describe('batching and CSV', () => {
       row({ kind: 'region', tournamentId: '4', value: 'Asia' }),
       row({ kind: 'region', tournamentId: '5', value: 'Asia', current: 'Europe' }),
     ]);
-    expect(conflictCsv(plan).split('\n')[1]).toBe('region,4,"Worlds, 2026",,,Asia (1) | Europe (1),2,conflict');
+    expect(conflictCsv(plan).split('\n')[1]).toBe(
+      'region,4,"Worlds, 2026",,,Asia (1) | Europe (1),2,conflict',
+    );
     expect(beforeCsv(plan.agreed).split('\n')[1]).toBe('region,5,,Europe,Asia');
   });
 });
@@ -185,7 +202,7 @@ describe('batching and CSV', () => {
 describe('directConnectionString', () => {
   it('switches a pooled host to direct and drops channel_binding', () => {
     const out = directConnectionString(
-      'psql \'postgresql://u:p@ep-x-pooler.eu.aws.neon.tech/db?sslmode=require&channel_binding=require\'',
+      "psql 'postgresql://u:p@ep-x-pooler.eu.aws.neon.tech/db?sslmode=require&channel_binding=require'",
     );
     expect(out).toBe('postgresql://u:p@ep-x.eu.aws.neon.tech/db?sslmode=require');
   });

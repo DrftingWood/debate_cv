@@ -153,7 +153,9 @@ export function FullScanButton({
   const run = () =>
     startTransition(async () => {
       try {
-        const scan = await postJson<ScanResponse & { truncated?: boolean }>('/api/ingest/gmail/full');
+        const scan = await postJson<ScanResponse & { truncated?: boolean }>(
+          '/api/ingest/gmail/full',
+        );
         if (!scan.ok) {
           setConfirming(false);
           if (scan.status === 429 && scan.retryAfterSec) {
@@ -162,13 +164,21 @@ export function FullScanButton({
             return;
           }
           const notice = scanErrorMessage(scan);
-          toast.show({ kind: notice.kind === 'cooldown' ? 'info' : notice.kind, title: notice.title, description: notice.description });
+          toast.show({
+            kind: notice.kind === 'cooldown' ? 'info' : notice.kind,
+            title: notice.title,
+            description: notice.description,
+          });
           return;
         }
         setUntil(Date.now() + 86_400_000);
         setNow(Date.now());
         setConfirming(false);
-        const text = fullScanResultText(scan.data.found, scan.data.scanned, Boolean(scan.data.truncated));
+        const text = fullScanResultText(
+          scan.data.found,
+          scan.data.scanned,
+          Boolean(scan.data.truncated),
+        );
         router.refresh();
         if (scan.data.found > 0) {
           const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);

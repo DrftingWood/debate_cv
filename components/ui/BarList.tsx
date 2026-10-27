@@ -168,7 +168,9 @@ export function Histogram({
     `${title}: ${total} ${unit} in ${bins.length} bands. ` +
     bins.map((b) => `${b.from} to under ${b.to}: ${b.count}`).join('; ') +
     '.' +
-    (highlighted ? ` The band ${highlighted.from} to under ${highlighted.to} holds ${highlightLabel}.` : '');
+    (highlighted
+      ? ` The band ${highlighted.from} to under ${highlighted.to} holds ${highlightLabel}.`
+      : '');
 
   // Bars scale to 85% of the plot so the count printed above the tallest one
   // still fits inside it.

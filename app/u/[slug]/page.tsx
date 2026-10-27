@@ -61,11 +61,7 @@ export async function generateMetadata({
  * a reader who does not know the person needs the headline position before
  * the table, the same way a statement leads with the balance.
  */
-export default async function PublicCvPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function PublicCvPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await prisma.user.findUnique({
     where: { publicCvSlug: slug },
@@ -159,7 +155,9 @@ export default async function PublicCvPage({
           the page. A control that visibly does nothing is worse than no
           control; the forced-light decision is the one that stands.
         */}
-        <div className="data-label">Public debate record{updated ? ` · updated ${updated}` : ''}</div>
+        <div className="data-label">
+          Public debate record{updated ? ` · updated ${updated}` : ''}
+        </div>
         <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-4">
             {user.publicAvatarEnabled && user.image ? (
@@ -219,8 +217,8 @@ export default async function PublicCvPage({
       ) : null}
 
       <p className="border-t border-border pt-4 text-caption text-ink-soft">
-        Every row links to the tournament tab it was read from, at calicotab.com,
-        yellowtabs.com or herokuapp.com. Figures are as the tab published them.
+        Every row links to the tournament tab it was read from, at calicotab.com, yellowtabs.com or
+        herokuapp.com. Figures are as the tab published them.
       </p>
     </div>
   );
@@ -251,7 +249,9 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                 <Th numeric>Year</Th>
                 <Th>Format</Th>
                 <Th>Team</Th>
-                <Th numeric title="Where the team finished on the prelim team tab">Team rank</Th>
+                <Th numeric title="Where the team finished on the prelim team tab">
+                  Team rank
+                </Th>
                 <Th
                   numeric
                   title="Open speaker-tab rank — an individual figure, not the team's placement"
@@ -268,7 +268,9 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                   <Td className="pl-4">
                     <TableSourceLink href={r.sourceUrl} name={r.tournamentName} />
                   </Td>
-                  <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
+                  <Td numeric className="text-ink-soft">
+                    {r.year ?? <Nil />}
+                  </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
                   </Td>
@@ -291,7 +293,13 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                       <Nil />
                     )}
                   </Td>
-                  <Td numeric>{r.speakerRankOpen != null ? hashRank(r.speakerRankOpen, r.speakerRankTied) : <Nil />}</Td>
+                  <Td numeric>
+                    {r.speakerRankOpen != null ? (
+                      hashRank(r.speakerRankOpen, r.speakerRankTied)
+                    ) : (
+                      <Nil />
+                    )}
+                  </Td>
                   <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
                   <Td className="min-w-[8rem] pr-4">
                     {r.broke || fmtPublicLastOutround(r) ? (
@@ -320,8 +328,7 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
       */}
       <p className="text-caption text-ink-soft">
         Team rank is where the team finished on the prelim team tab, out of the teams on it.
-        Speaker-tab rank is an individual figure on the open speaker tab, not the team's
-        placement.
+        Speaker-tab rank is an individual figure on the open speaker tab, not the team's placement.
       </p>
     </section>
   );
@@ -354,7 +361,9 @@ function JudgingSection({ rows }: { rows: CvJudgeRow[] }) {
                   <Td className="pl-4">
                     <TableSourceLink href={r.sourceUrl} name={r.tournamentName} />
                   </Td>
-                  <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
+                  <Td numeric className="text-ink-soft">
+                    {r.year ?? <Nil />}
+                  </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
                   </Td>

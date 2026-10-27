@@ -12,7 +12,12 @@ beforeEach(() => resetPrismaMock());
 
 describe('findTournamentByHostSlug', () => {
   it('adopts the one stored tournament for the site, whatever its name', async () => {
-    const row = { id: 1n, name: 'Renamed Open', fingerprint: 'abc', sourceUrlRaw: 'https://t.calicotab.com/open/' };
+    const row = {
+      id: 1n,
+      name: 'Renamed Open',
+      fingerprint: 'abc',
+      sourceUrlRaw: 'https://t.calicotab.com/open/',
+    };
     prismaMock.tournament.findMany.mockResolvedValue([row]);
     await expect(findTournamentByHostSlug('t.calicotab.com', 'open')).resolves.toBe(row);
     expect(prismaMock.tournament.findMany).toHaveBeenCalledWith({
@@ -27,11 +32,25 @@ describe('findTournamentByHostSlug', () => {
   });
 
   it('finds a row first stored over http://, whose name differs', async () => {
-    const row = { id: 7n, name: '15th IITB Debate', fingerprint: 'f1', sourceUrlRaw: 'http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/privateurls/x/' };
+    const row = {
+      id: 7n,
+      name: '15th IITB Debate',
+      fingerprint: 'f1',
+      sourceUrlRaw:
+        'http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/privateurls/x/',
+    };
     // Emulate the database's prefix match over the OR.
-    prismaMock.tournament.findMany.mockImplementation((async (args: { where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> } }) =>
-      args.where.OR.some((c) => row.sourceUrlRaw.toLowerCase().startsWith(c.sourceUrlRaw.startsWith.toLowerCase())) ? [row] : []) as never);
-    await expect(findTournamentByHostSlug('15thiitbombaydebate.calicotab.com', '15thiitbombaydebate2023')).resolves.toBe(row);
+    prismaMock.tournament.findMany.mockImplementation((async (args: {
+      where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> };
+    }) =>
+      args.where.OR.some((c) =>
+        row.sourceUrlRaw.toLowerCase().startsWith(c.sourceUrlRaw.startsWith.toLowerCase()),
+      )
+        ? [row]
+        : []) as never);
+    await expect(
+      findTournamentByHostSlug('15thiitbombaydebate.calicotab.com', '15thiitbombaydebate2023'),
+    ).resolves.toBe(row);
   });
 
   it('adopts none when two rows claim the site: never guess', async () => {
@@ -50,14 +69,20 @@ describe('findTournamentByHostSlug', () => {
   it('the slug is a whole path segment: "open" never matches "open2"', async () => {
     prismaMock.tournament.findMany.mockResolvedValue([]);
     await findTournamentByHostSlug('t.calicotab.com', 'open');
-    const where = prismaMock.tournament.findMany.mock.calls[0]![0] as { where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> } };
+    const where = prismaMock.tournament.findMany.mock.calls[0]![0] as {
+      where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> };
+    };
     for (const c of where.where.OR) expect(c.sourceUrlRaw.startsWith.endsWith('/open/')).toBe(true);
   });
 });
 
 describe('fingerprints converge for a name with no year', () => {
   it("a private ingest whose year came from the email still tries the pre-scrape's null-year fingerprint", () => {
-    const parts = { host: 't.calicotab.com', tournamentSlug: 'open', tournamentName: 'Novice Open' };
+    const parts = {
+      host: 't.calicotab.com',
+      tournamentSlug: 'open',
+      tournamentName: 'Novice Open',
+    };
     const prescraped = candidateFingerprints({ ...parts, explicitYear: null, inferredYear: null });
     const fromPrivate = candidateFingerprints({ ...parts, explicitYear: null, inferredYear: 2024 });
     expect(prescraped).toHaveLength(1);

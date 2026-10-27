@@ -59,7 +59,15 @@ try {
       take: batch,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: { id: 'asc' },
-      select: { id: true, url: true, status: true, contentHash: true, contentLength: true, fetchedAt: true, bodyGzip: true },
+      select: {
+        id: true,
+        url: true,
+        status: true,
+        contentHash: true,
+        contentLength: true,
+        fetchedAt: true,
+        bodyGzip: true,
+      },
     });
     if (rows.length === 0) break;
     for (const r of rows) {

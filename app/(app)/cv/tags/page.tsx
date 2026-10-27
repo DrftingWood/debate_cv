@@ -3,7 +3,13 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
-import { REGIONS, MOTION_TYPES, MOTION_TYPE_LABELS, MOTION_TOPICS, inferMotionType } from '@/lib/tags/vocabulary';
+import {
+  REGIONS,
+  MOTION_TYPES,
+  MOTION_TYPE_LABELS,
+  MOTION_TOPICS,
+  inferMotionType,
+} from '@/lib/tags/vocabulary';
 import { TagProposalControls } from '@/components/TagProposalControls';
 import { CvSubNav } from '@/components/CvSubNav';
 
@@ -103,14 +109,12 @@ export default async function CvTagsPage() {
     <div className="space-y-10">
       <header className="space-y-4">
         <div className="kicker uppercase">Debate CV — Tags</div>
-        <h1 className="font-display text-h1 font-medium tracking-tight text-ink">
-          Tags
-        </h1>
+        <h1 className="font-display text-h1 font-medium tracking-tight text-ink">Tags</h1>
         <hr className="hairline" />
         <div className="byline">
-          Tags are shared community facts — a tournament region or a motion type appears
-          identically on every CV that includes that tournament. Proposals go live after
-          an admin approves them, and feed the splits on Statistics.
+          Tags are shared community facts — a tournament region or a motion type appears identically
+          on every CV that includes that tournament. Proposals go live after an admin approves them,
+          and feed the splits on Statistics.
         </div>
       </header>
 
@@ -118,8 +122,8 @@ export default async function CvTagsPage() {
 
       {tournaments.length === 0 ? (
         <p className="text-body text-ink-soft">
-          No ingested tournaments yet. Once tournaments are on your CV, you can propose
-          region and motion tags here.
+          No ingested tournaments yet. Once tournaments are on your CV, you can propose region and
+          motion tags here.
         </p>
       ) : (
         <div className="space-y-12">
@@ -166,10 +170,7 @@ export default async function CvTagsPage() {
                         const suggestedType = inferMotionType(m.text);
 
                         return (
-                          <div
-                            key={mIdStr}
-                            className="space-y-3 border-l-2 border-border pl-4"
-                          >
+                          <div key={mIdStr} className="space-y-3 border-l-2 border-border pl-4">
                             {/* Round label + motion text */}
                             <div>
                               <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">

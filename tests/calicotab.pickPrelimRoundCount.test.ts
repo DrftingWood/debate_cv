@@ -70,9 +70,14 @@ describe('prelimMaxFromRoundCounts', () => {
     // 5 prelims of 40 teams (one with byes), then quarters, semis, final.
     expect(
       prelimMaxFromRoundCounts([
-        { roundNumber: 1, teams: 40 }, { roundNumber: 2, teams: 40 }, { roundNumber: 3, teams: 36 },
-        { roundNumber: 4, teams: 40 }, { roundNumber: 5, teams: 40 }, { roundNumber: 6, teams: 8 },
-        { roundNumber: 7, teams: 4 }, { roundNumber: 8, teams: 2 },
+        { roundNumber: 1, teams: 40 },
+        { roundNumber: 2, teams: 40 },
+        { roundNumber: 3, teams: 36 },
+        { roundNumber: 4, teams: 40 },
+        { roundNumber: 5, teams: 40 },
+        { roundNumber: 6, teams: 8 },
+        { roundNumber: 7, teams: 4 },
+        { roundNumber: 8, teams: 2 },
       ]),
     ).toBe(5);
   });

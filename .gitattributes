@@ -1,0 +1,11 @@
+# Keep text files LF in the repository and in every checkout, so Prettier
+# (endOfLine: lf) and git agree on Windows too.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

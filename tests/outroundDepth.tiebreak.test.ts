@@ -33,6 +33,8 @@ describe('deepest outround is independent of order', () => {
   });
 
   test('a deeper category stage still beats a shallower Open one', () => {
-    expect(deepestOutroundAcrossRoles('Open Quarterfinals', 'ESL Semifinals')).toBe('ESL Semifinals');
+    expect(deepestOutroundAcrossRoles('Open Quarterfinals', 'ESL Semifinals')).toBe(
+      'ESL Semifinals',
+    );
   });
 });

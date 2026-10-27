@@ -35,7 +35,10 @@ export async function POST(req: Request) {
   if (limited) return limited;
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
-    return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'bad_request', details: parse.error.flatten() },
+      { status: 400 },
+    );
   }
   // isPrivateUrl, NOT PRIVATE_URL_RE.test — the regex is an unanchored
   // scanner for finding URLs inside email prose, so testing a whole string
@@ -59,9 +62,7 @@ export async function POST(req: Request) {
       data: {
         status: IngestJobStatus.done,
         finishedAt: new Date(),
-        lastError: result.warnings.length > 0
-          ? result.warnings.join('\n').slice(0, 2000)
-          : null,
+        lastError: result.warnings.length > 0 ? result.warnings.join('\n').slice(0, 2000) : null,
       },
     });
     // Count distinct tournaments now visible on this user's CV — every

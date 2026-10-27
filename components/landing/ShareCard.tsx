@@ -103,7 +103,9 @@ export function ShareCard({ person }: { person?: ShareCardPerson } = {}) {
           {person
             ? [
                 `${person.tournaments} tournament${person.tournaments === 1 ? '' : 's'}`,
-                person.breaks > 0 ? `${person.breaks} break${person.breaks === 1 ? '' : 's'}` : null,
+                person.breaks > 0
+                  ? `${person.breaks} break${person.breaks === 1 ? '' : 's'}`
+                  : null,
                 person.activeYears ?? null,
               ]
                 .filter(Boolean)

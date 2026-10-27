@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { isStraights, outcomeKind, roundFirst, roundHit, OUTCOME_COPY } from '@/lib/cv/roundOutcome';
+import {
+  isStraights,
+  outcomeKind,
+  roundFirst,
+  roundHit,
+  OUTCOME_COPY,
+} from '@/lib/cv/roundOutcome';
 
 const BP = 'British Parliamentary';
 const AP = 'Asian Parliamentary';

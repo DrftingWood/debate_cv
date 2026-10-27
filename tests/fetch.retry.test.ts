@@ -33,9 +33,9 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
   });
 
   test('single 200 → returns ok with html body', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response('<html><body>ok</body></html>', { status: 200 }),
-    );
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('<html><body>ok</body></html>', { status: 200 }));
     const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
     const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/tab/team/');
     await advance(5000);
@@ -65,14 +65,12 @@ describe('fetchHtmlWithProvenance retries on soft-fail statuses', () => {
   });
 
   test('persistent CDN 403 → returns {ok:false, status:403, bodyPreview}', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response('<!doctype html>Cloudflare blocked', {
-          status: 403,
-          headers: { 'cf-ray': '8f2a1b3c-LHR' },
-        }),
-      );
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response('<!doctype html>Cloudflare blocked', {
+        status: 403,
+        headers: { 'cf-ray': '8f2a1b3c-LHR' },
+      }),
+    );
     const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
     const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/tab/team/');
     await advance(10_000);
@@ -161,11 +159,12 @@ describe('fetchHtmlWithProvenance: network errors and who refused', () => {
   });
 
   test('a redirect off the allowlist is a refusal, never retried', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/latest/' } }),
-      );
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/' },
+      }),
+    );
     globalThis.fetch = mockFetch;
     const { fetchHtmlWithProvenance } = await import('@/lib/calicotab/fetch');
     const promise = fetchHtmlWithProvenance('https://example.calicotab.com/t/results/round/6/');
@@ -182,7 +181,9 @@ describe('fetchHtmlWithProvenance: network errors and who refused', () => {
     // Only a CDN 403 is a fault worth failing an ingest over.
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(new Response('Permission Denied', { status: 403, headers: { server: 'nginx' } }));
+      .mockResolvedValue(
+        new Response('Permission Denied', { status: 403, headers: { server: 'nginx' } }),
+      );
     let mod = await import('@/lib/calicotab/fetch');
     let p = mod.fetchHtmlWithProvenance('https://example.calicotab.com/t/participants/list/');
     await advance(10_000);
@@ -192,7 +193,9 @@ describe('fetchHtmlWithProvenance: network errors and who refused', () => {
     vi.resetModules();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(new Response('blocked', { status: 403, headers: { 'cf-ray': '8f2a1b3c-LHR' } }));
+      .mockResolvedValue(
+        new Response('blocked', { status: 403, headers: { 'cf-ray': '8f2a1b3c-LHR' } }),
+      );
     mod = await import('@/lib/calicotab/fetch');
     p = mod.fetchHtmlWithProvenance('https://example.calicotab.com/t/participants/list/');
     await advance(10_000);
