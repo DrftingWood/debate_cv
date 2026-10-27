@@ -36,7 +36,6 @@ export default async function Home() {
   );
 }
 
-
 function Hero() {
   return (
     <section className="grid items-center gap-10 pt-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:pt-12">
@@ -46,9 +45,9 @@ function Hero() {
           Your debate history, kept like an account
         </h1>
         <p className="mt-5 max-w-xl text-body leading-relaxed text-ink-soft">
-          Every tournament, every round, every motion — pulled from the tab pages you were
-          already sent, and laid out as a record you can read, measure and share. Speaker
-          scores get the context they never had: the field you were in.
+          Every tournament, every round, every motion — pulled from the tab pages you were already
+          sent, and laid out as a record you can read, measure and share. Speaker scores get the
+          context they never had: the field you were in.
         </p>
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -141,8 +140,8 @@ function StatisticsShowcase() {
           The questions you argue about after a tournament
         </h2>
         <p className="mt-3 text-body leading-relaxed text-ink-soft">
-          Answered from the tab pages themselves, with the sample size attached to every
-          figure. Nothing here guesses at your style or scores your personality.
+          Answered from the tab pages themselves, with the sample size attached to every figure.
+          Nothing here guesses at your style or scores your personality.
         </p>
       </div>
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -201,7 +200,10 @@ function HowItWorks() {
 function PrivacyProof() {
   const rows = [
     ['Gmail scope', 'gmail.readonly — used to find tournament links you were sent.'],
-    ['Stored', 'Matched private URLs, import jobs, claimed identities, and parsed tournament data.'],
+    [
+      'Stored',
+      'Matched private URLs, import jobs, claimed identities, and parsed tournament data.',
+    ],
     ['Not stored', 'Email bodies and unrelated message metadata.'],
     ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
     ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
@@ -310,7 +312,11 @@ function FinalCta() {
           <BuildCvButton />
           <Link
             href="/sample"
-            className={buttonClasses({ size: 'lg', variant: 'outline', className: 'border-paper/20 bg-transparent text-paper hover:bg-paper/10' })}
+            className={buttonClasses({
+              size: 'lg',
+              variant: 'outline',
+              className: 'border-paper/20 bg-transparent text-paper hover:bg-paper/10',
+            })}
           >
             View sample
           </Link>

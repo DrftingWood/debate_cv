@@ -156,19 +156,41 @@ export function breakMargin(rows: CvSpeakerRow[]): BreakMargin | null {
 
   for (const r of rows) {
     const b = r.openBreak;
-    if (!b) { exclude(r, 'no-open-break'); continue; }
-    if (!r.format) { exclude(r, 'unknown-format'); continue; }
+    if (!b) {
+      exclude(r, 'no-open-break');
+      continue;
+    }
+    if (!r.format) {
+      exclude(r, 'unknown-format');
+      continue;
+    }
     const unit = unitForFormat(r.format);
-    const raw = unit === 'points' ? (r.teamPoints == null ? null : Number(r.teamPoints)) : r.teamWins;
-    if (!r.teamName || raw == null || !Number.isFinite(raw)) { exclude(r, 'no-team-standing'); continue; }
+    const raw =
+      unit === 'points' ? (r.teamPoints == null ? null : Number(r.teamPoints)) : r.teamWins;
+    if (!r.teamName || raw == null || !Number.isFinite(raw)) {
+      exclude(r, 'no-team-standing');
+      continue;
+    }
     const line = unit === 'points' ? b.linePoints : b.lineWins;
-    if (line == null) { exclude(r, 'line-incomplete'); continue; }
+    if (line == null) {
+      exclude(r, 'line-incomplete');
+      continue;
+    }
     const margin = raw - line;
-    if (!b.userOnBreak && margin > 0) { exclude(r, 'above-line-not-on-break'); continue; }
+    if (!b.userOnBreak && margin > 0) {
+      exclude(r, 'above-line-not-on-break');
+      continue;
+    }
 
     const outcome: MarginOutcome = b.userOnBreak
-      ? margin === 0 ? 'on-the-line' : 'cleared'
-      : margin === 0 ? 'missed-on-speaks' : margin === -1 ? 'missed-by-one' : 'missed';
+      ? margin === 0
+        ? 'on-the-line'
+        : 'cleared'
+      : margin === 0
+        ? 'missed-on-speaks'
+        : margin === -1
+          ? 'missed-by-one'
+          : 'missed';
     const list = byFormat.get(r.format) ?? [];
     list.push({
       tournamentId: r.tournamentId,

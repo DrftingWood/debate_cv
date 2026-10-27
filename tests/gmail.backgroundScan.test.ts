@@ -32,7 +32,13 @@ describe('scanDueMailboxes', () => {
     const d = deps();
     const report = await scanDueMailboxes(d, OPTS);
     expect(d.scan.mock.calls.map((c) => c[0])).toEqual(['u1', 'u2']);
-    expect(report).toMatchObject({ scanned: 2, urlsFound: 6, grantsCleared: 0, failed: 0, stoppedForBudget: false });
+    expect(report).toMatchObject({
+      scanned: 2,
+      urlsFound: 6,
+      grantsCleared: 0,
+      failed: 0,
+      stoppedForBudget: false,
+    });
   });
 
   it('clears a revoked Google grant quietly and carries on with the next user', async () => {
@@ -97,6 +103,12 @@ describe('scanDueMailboxes', () => {
     const d = deps({ findDue: vi.fn(async () => []) });
     const report = await scanDueMailboxes(d, OPTS);
     expect(d.scan).not.toHaveBeenCalled();
-    expect(report).toEqual({ scanned: 0, urlsFound: 0, grantsCleared: 0, failed: 0, stoppedForBudget: false });
+    expect(report).toEqual({
+      scanned: 0,
+      urlsFound: 0,
+      grantsCleared: 0,
+      failed: 0,
+      stoppedForBudget: false,
+    });
   });
 });

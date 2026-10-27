@@ -7,9 +7,7 @@ describe('isJudgeParticipant', () => {
   });
 
   test('returns true when roles contains judge among other roles', () => {
-    expect(
-      isJudgeParticipant({ roles: [{ role: 'speaker' }, { role: 'judge' }] }),
-    ).toBe(true);
+    expect(isJudgeParticipant({ roles: [{ role: 'speaker' }, { role: 'judge' }] })).toBe(true);
   });
 
   test('returns false when roles is empty', () => {

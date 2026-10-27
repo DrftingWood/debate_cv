@@ -24,9 +24,30 @@ const metrics = [
 ];
 
 const rows = [
-  { name: 'World Universities', year: '2024', avg: '73.8', field: '9/206', result: 'Octofinals', broke: true },
-  { name: 'Australs', year: '2024', avg: '72.9', field: '15/94', result: 'Open break', broke: true },
-  { name: 'Hart House IV', year: '2023', avg: '74.2', field: '2/48', result: 'Champion', broke: true },
+  {
+    name: 'World Universities',
+    year: '2024',
+    avg: '73.8',
+    field: '9/206',
+    result: 'Octofinals',
+    broke: true,
+  },
+  {
+    name: 'Australs',
+    year: '2024',
+    avg: '72.9',
+    field: '15/94',
+    result: 'Open break',
+    broke: true,
+  },
+  {
+    name: 'Hart House IV',
+    year: '2023',
+    avg: '74.2',
+    field: '2/48',
+    result: 'Champion',
+    broke: true,
+  },
   { name: 'Cambridge IV', year: '2023', avg: '71.4', field: '38/120', result: '—', broke: false },
 ];
 
@@ -74,15 +95,22 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
       <TableScroll label="Sample speaking record">
         <table className="ledger text-caption">
           <caption className="sr-only">
-            Sample debate record: four tournaments with speaker average, team
-            placement and result
+            Sample debate record: four tournaments with speaker average, team placement and result
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="pl-4">Tournament</th>
-              <th scope="col" className="text-right">Avg</th>
-              <th scope="col" className="text-right">Team rank</th>
-              <th scope="col" className="pr-4">Result</th>
+              <th scope="col" className="pl-4">
+                Tournament
+              </th>
+              <th scope="col" className="text-right">
+                Avg
+              </th>
+              <th scope="col" className="text-right">
+                Team rank
+              </th>
+              <th scope="col" className="pr-4">
+                Result
+              </th>
             </tr>
           </thead>
           <tbody>

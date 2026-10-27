@@ -126,16 +126,25 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
 
     // --- URL-path matching (primary signal) ---
     if (/\/tab\/team(-standings)?\/?$/.test(pathname) || /\/tab\/overall\/?$/.test(pathname)) {
-      if (!nav.teamTab) { nav.teamTab = absolute; discovered.add('teamTab'); }
+      if (!nav.teamTab) {
+        nav.teamTab = absolute;
+        discovered.add('teamTab');
+      }
     } else if (/\/tab\/speaker(-standings)?\/?$/.test(pathname)) {
-      if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
+      if (!nav.speakerTab) {
+        nav.speakerTab = absolute;
+        discovered.add('speakerTab');
+      }
     } else if (/\/tab\/motions\/?$/.test(pathname) || /\/motions\/?$/.test(pathname)) {
       // Tabbycat moved the motions list from /tab/motions/ to /motions/:
       // across 625 live tournaments, NOT ONE still linked the old path, so
       // this branch never fired and the label-text fallback below picked up
       // whatever was labelled "Motions Tab" — usually /motions/statistics/,
       // a different page with no motions on it.
-      if (!nav.motionsTab) { nav.motionsTab = absolute; discovered.add('motionsTab'); }
+      if (!nav.motionsTab) {
+        nav.motionsTab = absolute;
+        discovered.add('motionsTab');
+      }
     } else if (/\/results\/round\/\d+\/?(?:by-team\/|by-debate\/)?$/.test(pathname)) {
       nav.resultsRounds.push(absolute);
       discovered.add('resultsRounds');
@@ -161,18 +170,30 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
         discovered.add('breakTabs');
       }
     } else if (/\/participants\/list\/?$/.test(pathname)) {
-      if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
+      if (!nav.participants) {
+        nav.participants = absolute;
+        discovered.add('participants');
+      }
     } else if (/\/participants\/institutions\/?$/.test(pathname)) {
-      if (!nav.institutions) { nav.institutions = absolute; discovered.add('institutions'); }
+      if (!nav.institutions) {
+        nav.institutions = absolute;
+        discovered.add('institutions');
+      }
     } else {
       // --- Label matching (fallback for non-conforming URLs) ---
       const label = cleanWhitespace($(el).text()).toLowerCase();
       if (!label) return;
       if (label === 'site home') nav.home = absolute;
       else if (label === 'team tab') {
-        if (!nav.teamTab) { nav.teamTab = absolute; discovered.add('teamTab'); }
+        if (!nav.teamTab) {
+          nav.teamTab = absolute;
+          discovered.add('teamTab');
+        }
       } else if (label === 'speaker tab') {
-        if (!nav.speakerTab) { nav.speakerTab = absolute; discovered.add('speakerTab'); }
+        if (!nav.speakerTab) {
+          nav.speakerTab = absolute;
+          discovered.add('speakerTab');
+        }
       } else if (label === 'motions tab') {
         // Only when it is not the statistics page, which carries the same
         // nav label but none of the motions.
@@ -181,9 +202,15 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
           discovered.add('motionsTab');
         }
       } else if (label === 'participants') {
-        if (!nav.participants) { nav.participants = absolute; discovered.add('participants'); }
+        if (!nav.participants) {
+          nav.participants = absolute;
+          discovered.add('participants');
+        }
       } else if (label === 'institutions') {
-        if (!nav.institutions) { nav.institutions = absolute; discovered.add('institutions'); }
+        if (!nav.institutions) {
+          nav.institutions = absolute;
+          discovered.add('institutions');
+        }
       }
     }
   });
@@ -196,15 +223,27 @@ export function extractNavigation(html: string, sourceUrl: string): NavigationSt
   // page didn't link to it. Tabbycat routes these paths consistently, so a
   // blank nav still yields a fetchable ingest.
   const constructed: string[] = [];
-  if (!nav.teamTab) { nav.teamTab = `${base}tab/team/`; constructed.push('teamTab'); }
-  if (!nav.speakerTab) { nav.speakerTab = `${base}tab/speaker/`; constructed.push('speakerTab'); }
-  if (!nav.participants) { nav.participants = `${base}participants/list/`; constructed.push('participants'); }
+  if (!nav.teamTab) {
+    nav.teamTab = `${base}tab/team/`;
+    constructed.push('teamTab');
+  }
+  if (!nav.speakerTab) {
+    nav.speakerTab = `${base}tab/speaker/`;
+    constructed.push('speakerTab');
+  }
+  if (!nav.participants) {
+    nav.participants = `${base}participants/list/`;
+    constructed.push('participants');
+  }
   // The motions list too. Some landing pages link only /motions/statistics/
   // (WUDC 2022 does), which is skipped above because it holds no motions;
   // without this the motions were never fetched and no warning said so. The
   // fetch is optional and a missing page is silent for a guessed URL, so a
   // tournament that publishes no motions costs one request, not a warning.
-  if (!nav.motionsTab) { nav.motionsTab = `${base}motions/`; constructed.push('motionsTab'); }
+  if (!nav.motionsTab) {
+    nav.motionsTab = `${base}motions/`;
+    constructed.push('motionsTab');
+  }
 
   nav.meta = {
     discovered: Array.from(discovered),
@@ -336,7 +375,9 @@ export type AdjudicatorRound = {
 import { normalizeStageLabel } from './judgeStats';
 export { normalizeStageLabel };
 
-function stageInfoFromLabel(raw: string | null | undefined): { stage: string; roundNumber: number | null } | null {
+function stageInfoFromLabel(
+  raw: string | null | undefined,
+): { stage: string; roundNumber: number | null } | null {
   const text = cleanWhitespace(raw ?? '');
   if (!text) return null;
   const stage = normalizeStageLabel(text);
@@ -350,8 +391,9 @@ function findDebatesVueTable(tables: VueTable[]): VueTable | null {
   // "My Debates", "Rounds", "Schedule", "Panel History", "Round
   // Assignments"). The regex covers the common variants.
   const titleMatch = tables.find((table) =>
-    /^(my\s+|your\s+)?debates?$|^(my\s+|your\s+)?rounds?$|^schedule$|^panel(s|\s+history)?$|round\s+assignments?/i
-      .test(cleanWhitespace(table.title ?? '')),
+    /^(my\s+|your\s+)?debates?$|^(my\s+|your\s+)?rounds?$|^schedule$|^panel(s|\s+history)?$|round\s+assignments?/i.test(
+      cleanWhitespace(table.title ?? ''),
+    ),
   );
   if (titleMatch) return titleMatch;
 
@@ -359,7 +401,9 @@ function findDebatesVueTable(tables: VueTable[]): VueTable | null {
   // 'judge' key. Captures themes that don't set a title at all.
   const headerMatch = tables.find((table) =>
     table.head?.some((h) =>
-      ['adjudicator', 'judge'].some((needle) => (h.key ?? h.title ?? '').toLowerCase().includes(needle)),
+      ['adjudicator', 'judge'].some((needle) =>
+        (h.key ?? h.title ?? '').toLowerCase().includes(needle),
+      ),
     ),
   );
   if (headerMatch) return headerMatch;
@@ -388,7 +432,9 @@ function vueColumn(table: VueTable, ...needles: string[]): number {
 }
 
 function vueCellText(cell: VueCell | undefined): string {
-  return String(cell?.text ?? '').replace(/\s+/g, ' ').trim();
+  return String(cell?.text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function extractOwnerRoleFromAdjHtml(
@@ -413,14 +459,7 @@ function extractOwnerRoleFromAdjHtml(
       const $el = $(el);
       const symbol = $el.find('.adj-symbol');
       const symbolText = cleanWhitespace(symbol.text());
-      const plainText = cleanWhitespace(
-        $el
-          .clone()
-          .find('.adj-symbol')
-          .remove()
-          .end()
-          .text(),
-      );
+      const plainText = cleanWhitespace($el.clone().find('.adj-symbol').remove().end().text());
       if (!plainText) continue;
 
       if (personNameMatches(plainText, knownPersonName)) {
@@ -432,10 +471,18 @@ function extractOwnerRoleFromAdjHtml(
   }
   if (ownerEl.length === 0) return null;
 
-  if (ownerSymbolText.includes('Ⓒ') || ownerSymbolText.includes('â’¸') || /chair/i.test(ownerSymbolText)) {
+  if (
+    ownerSymbolText.includes('Ⓒ') ||
+    ownerSymbolText.includes('â’¸') ||
+    /chair/i.test(ownerSymbolText)
+  ) {
     return 'chair';
   }
-  if (ownerSymbolText.includes('Ⓣ') || ownerSymbolText.includes('â“‰') || /trainee/i.test(ownerSymbolText)) {
+  if (
+    ownerSymbolText.includes('Ⓣ') ||
+    ownerSymbolText.includes('â“‰') ||
+    /trainee/i.test(ownerSymbolText)
+  ) {
     return 'trainee';
   }
   return 'panellist';
@@ -457,7 +504,9 @@ function extractAdjudicatorRoundsFromVue(
     // headers but always tags the adjudicator cell with class
     // 'adjudicator-name'. Find the column from the first row's cell classes.
     const firstRow = table.data[0] ?? [];
-    adjCol = firstRow.findIndex((cell) => (cell?.class ?? '').toLowerCase().includes('adjudicator-name'));
+    adjCol = firstRow.findIndex((cell) =>
+      (cell?.class ?? '').toLowerCase().includes('adjudicator-name'),
+    );
   }
   if (adjCol < 0) return null;
 
@@ -471,9 +520,8 @@ function extractAdjudicatorRoundsFromVue(
     // splits text from html — prefer cell.html when it has markup so both
     // sources surface the same structural markers.
     const adjCell = row[adjCol];
-    const adjMarkup = adjCell?.html && /<\w/.test(adjCell.html)
-      ? adjCell.html
-      : vueCellText(adjCell);
+    const adjMarkup =
+      adjCell?.html && /<\w/.test(adjCell.html) ? adjCell.html : vueCellText(adjCell);
     const role = extractOwnerRoleFromAdjHtml(adjMarkup, knownPersonName);
     if (!role) return;
     rows.push({
@@ -623,9 +671,7 @@ function teamCellMatches(cellText: string, wantedTeam: string): boolean {
   if (!cellText || !wantedTeam) return false;
   if (cellText === wantedTeam) return true;
   const [shorter, longer] =
-    cellText.length < wantedTeam.length
-      ? [cellText, wantedTeam]
-      : [wantedTeam, cellText];
+    cellText.length < wantedTeam.length ? [cellText, wantedTeam] : [wantedTeam, cellText];
   if (!longer.startsWith(shorter)) return false;
   // The trailing portion past the prefix must be exactly " <digits>" — the
   // team-number suffix. Anything else is a distinct team.
@@ -680,7 +726,8 @@ function extractSpeakerRoundsFromVue(
         if (cellIdx === roundCol || cellIdx === adjCol) return false;
         const cls = (cell?.class ?? '').toLowerCase();
         const header = (table.head[cellIdx]?.key ?? table.head[cellIdx]?.title ?? '').toLowerCase();
-        if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header)) return false;
+        if (!cls.includes('team-name') && !/^(og|oo|cg|co|prop|opp|aff|neg|team)/i.test(header))
+          return false;
         // For win detection we need the raw HTML (icon classes); native Vue
         // payloads pack HTML markup into cell.text, while the cheerio adapter
         // splits text from html. Prefer cell.html when it contains markup so
@@ -738,10 +785,7 @@ function extractSpeakerRoundsFromVue(
   return rows.length > 0 ? rows : null;
 }
 
-export function extractSpeakerRounds(
-  html: string,
-  knownTeamName?: string | null,
-): SpeakerRound[] {
+export function extractSpeakerRounds(html: string, knownTeamName?: string | null): SpeakerRound[] {
   const vue = extractVueData(html);
   if (vue) {
     const vueRows = extractSpeakerRoundsFromVue(vue, knownTeamName);

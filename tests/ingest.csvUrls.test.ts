@@ -27,7 +27,9 @@ describe('parseCsvUrls', () => {
   it('flags a line that is not a private tournament URL, with its line number', () => {
     const r = ok(`${url(1)}\nhttps://example.com/x\nhttp://169.254.169.254/?x=${url(2)}\n`);
     expect(r.urls).toEqual([url(1)]);
-    expect(r.rows.filter((x) => x.status === 'not_a_private_url').map((x) => x.line)).toEqual([2, 3]);
+    expect(r.rows.filter((x) => x.status === 'not_a_private_url').map((x) => x.line)).toEqual([
+      2, 3,
+    ]);
   });
 
   it('flags a repeated URL once and keeps the first', () => {

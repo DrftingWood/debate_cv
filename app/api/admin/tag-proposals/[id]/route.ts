@@ -27,10 +27,7 @@ const Body = z.object({
  * where N users all correctly tagged the same tournament — no need to force
  * the admin to click approve N times for identical values.
  */
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
   } catch (e: unknown) {

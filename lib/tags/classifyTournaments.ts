@@ -91,7 +91,12 @@ export async function classifyTournamentRegions(
         model: CLASSIFIER_MODEL,
         max_tokens: 2000,
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: `Assign a region to these ${batch.length} tournaments:\n\n${listing}` }],
+        messages: [
+          {
+            role: 'user',
+            content: `Assign a region to these ${batch.length} tournaments:\n\n${listing}`,
+          },
+        ],
         output_config: { format: outputFormat },
       });
       const textBlock = response.content.find((b) => b.type === 'text');

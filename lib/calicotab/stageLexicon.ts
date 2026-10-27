@@ -170,7 +170,10 @@ const RULES: Rule[] = [
     ),
   },
   // ── grand final ──
-  { stage: 'grand_final', re: /\bgrand[-\s]*final(?:e|s)?\b|\bgf\b|\bgran[-\s]*finals?(?:es)?\b|\bgrande[-\s]*finals?(?:is)?\b|总决赛|總決賽/i },
+  {
+    stage: 'grand_final',
+    re: /\bgrand[-\s]*final(?:e|s)?\b|\bgf\b|\bgran[-\s]*finals?(?:es)?\b|\bgrande[-\s]*finals?(?:is)?\b|总决赛|總決賽/i,
+  },
   // ── plain final: last resort, after every more specific phrase above ──
   { stage: 'final', re: /\bfinals?\b|\bfinales\b|\bfinais\b|决赛|決賽|決勝/i },
 ];
@@ -241,7 +244,8 @@ export function isPreRound(label: string | null | undefined): boolean {
  * "Double" is never reported as a break category the way "Gold" or "ESL"
  * would be.
  */
-const STAGE_MODIFIERS = /^(?:partial|parcial|parciales|parciais|double|doubles|doble|dobles|triple|triples)$/i;
+const STAGE_MODIFIERS =
+  /^(?:partial|parcial|parciales|parciais|double|doubles|doble|dobles|triple|triples)$/i;
 
 /** Words that join a category to a stage and belong to neither. */
 const CONNECTORS = /^(?:de|del|of|the|do|da|dos|das|por|para|da|e|y|and|-|–|—|:|,)$/i;
@@ -312,8 +316,6 @@ export function splitStageLabel(label: string | null | undefined): SplitStage {
   // Keep multi-word categories intact ("English as a Second Language"), but
   // normalise the casing of a single token.
   const category =
-    categoryWords.length === 1
-      ? normaliseCategory(categoryWords[0]!)
-      : categoryWords.join(' ');
+    categoryWords.length === 1 ? normaliseCategory(categoryWords[0]!) : categoryWords.join(' ');
   return { category, stage: m.stage };
 }

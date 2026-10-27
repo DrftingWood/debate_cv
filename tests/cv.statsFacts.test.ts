@@ -77,14 +77,23 @@ describe('buildStatsFacts — rounds', () => {
       mate('Bob', 228, scores([1, 76], [2, 76], [3, 76])),
     ],
     teammates: ['Ann', 'Bob'],
-    teamRoundResults: rounds([1, 'Government', true, null], [2, 'Opposition', false, null], [4, 'Government', true, null]),
+    teamRoundResults: rounds(
+      [1, 'Government', true, null],
+      [2, 'Opposition', false, null],
+      [4, 'Government', true, null],
+    ),
   });
 
   const facts = buildStatsFacts({
     speakerRows: [ap],
     taggedMotions: [
       makeMotion({ tournamentId: 1n, roundNumber: 1, text: 'THW ban zoos' }),
-      makeMotion({ tournamentId: 1n, roundNumber: 2, text: 'THBT zoos are bad', infoSlide: 'Zoos…' }),
+      makeMotion({
+        tournamentId: 1n,
+        roundNumber: 2,
+        text: 'THBT zoos are bad',
+        infoSlide: 'Zoos…',
+      }),
     ],
   });
 
@@ -110,11 +119,22 @@ describe('buildStatsFacts — rounds', () => {
       motionType: 'Policy',
       infoSlide: false,
     });
-    expect(facts.rounds[1]).toMatchObject({ seat: 'AP:Opp', won: false, motionType: 'Belief', infoSlide: true });
+    expect(facts.rounds[1]).toMatchObject({
+      seat: 'AP:Opp',
+      won: false,
+      motionType: 'Belief',
+      infoSlide: true,
+    });
   });
 
   test('a round with a score but no result still appears, with a null outcome', () => {
-    expect(facts.rounds[2]).toMatchObject({ round: 3, score: 80, won: null, seat: null, motionType: null });
+    expect(facts.rounds[2]).toMatchObject({
+      round: 3,
+      score: 80,
+      won: null,
+      seat: null,
+      motionType: null,
+    });
   });
 
   test('pairing label and gap come from round-score means at that tournament', () => {
@@ -246,7 +266,9 @@ describe('red-team regressions', () => {
     const f = buildStatsFacts({
       speakerRows: [
         makeSpeakerRow({
-          tournamentId: 5n, format: 'World Schools', prelimRoundCount: 2,
+          tournamentId: 5n,
+          format: 'World Schools',
+          prelimRoundCount: 2,
           roundScores: scores([1, 78], [2, 78]),
           teammateDetails: [mate('Ann', 150, scores([1, 75], [2, 75])), mate('Reserve', null)],
           teammates: ['Ann', 'Reserve'],
@@ -262,14 +284,24 @@ describe('red-team regressions', () => {
     const f = buildStatsFacts({
       speakerRows: [
         makeSpeakerRow({
-          tournamentId: 6n, format: 'British Parliamentary', prelimRoundCount: 2,
-          roundScores: scores([1, 75], [2, 75]), teammateDetails: [], teammates: [],
+          tournamentId: 6n,
+          format: 'British Parliamentary',
+          prelimRoundCount: 2,
+          roundScores: scores([1, 75], [2, 75]),
+          teammateDetails: [],
+          teammates: [],
           teamRoundResults: rounds([1, 'OG', true, 3], [2, 'OO', false, 0]),
         }),
       ],
       taggedMotions: [
         makeMotion({ tournamentId: 6n, roundNumber: 1, seq: 0, text: 'THW ban X', infoSlide: 'x' }),
-        makeMotion({ tournamentId: 6n, roundNumber: 1, seq: 1, text: 'THBT Y is bad', infoSlide: 'y' }),
+        makeMotion({
+          tournamentId: 6n,
+          roundNumber: 1,
+          seq: 1,
+          text: 'THBT Y is bad',
+          infoSlide: 'y',
+        }),
       ],
     });
     expect(f.rounds[0]).toMatchObject({ motionType: null, hasMotion: true, infoSlide: true });
@@ -277,15 +309,21 @@ describe('red-team regressions', () => {
   });
 
   test('two-team sides share one key whatever the tab calls them', () => {
-    expect(seatKey('Two-team Parliamentary', 'Government')).toBe(seatKey('Two-team Parliamentary', 'Proposition'));
+    expect(seatKey('Two-team Parliamentary', 'Government')).toBe(
+      seatKey('Two-team Parliamentary', 'Proposition'),
+    );
     expect(seatKey(null, 'Government')).toBe(seatKey(null, 'Proposition'));
-    expect(seatKey('British Parliamentary', 'Side A')).toBe(seatKey('British Parliamentary', 'side a'));
+    expect(seatKey('British Parliamentary', 'Side A')).toBe(
+      seatKey('British Parliamentary', 'side a'),
+    );
   });
 
   test('partners are keyed by person, so two people with one display name stay apart', () => {
     const row = (id: bigint, key: string) =>
       makeSpeakerRow({
-        tournamentId: id, format: 'British Parliamentary', prelimRoundCount: 1,
+        tournamentId: id,
+        format: 'British Parliamentary',
+        prelimRoundCount: 1,
         roundScores: scores([1, 75]),
         teammateDetails: [{ ...mate('[name withdrawn]', 75, scores([1, 75])), key }],
         teammates: ['[name withdrawn]'],

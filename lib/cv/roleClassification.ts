@@ -13,8 +13,6 @@
  * The dropped OR signals are still useful for CV display (chair counts,
  * deepest outrounds) — only their role in classification changes.
  */
-export function isJudgeParticipant(p: {
-  roles: ReadonlyArray<{ role: string }>;
-}): boolean {
+export function isJudgeParticipant(p: { roles: ReadonlyArray<{ role: string }> }): boolean {
   return p.roles.some((r) => r.role === 'judge');
 }

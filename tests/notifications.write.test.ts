@@ -36,8 +36,7 @@ describe('writeNotification', () => {
 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     const opts = prismaMock.$transaction.mock.calls[0]![1] as
-      | { isolationLevel?: string }
-      | undefined;
+      { isolationLevel?: string } | undefined;
     expect(opts?.isolationLevel).toBe('Serializable');
     expect(prismaMock.notification.findFirst).toHaveBeenCalledWith({
       where: expect.objectContaining({

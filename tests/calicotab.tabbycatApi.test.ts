@@ -18,9 +18,27 @@ import {
 
 const B = 'https://t.calicotab.com/api/v1/tournaments/open';
 
-const alice: ApiSpeaker = { url: `${B}/speakers/1`, name: 'Alice\tAdams', team: `${B}/teams/10`, categories: [`${B}/speaker-categories/7`, `${B}/speaker-categories/8`], anonymous: false };
-const anon: ApiSpeaker = { url: `${B}/speakers/2`, name: null, team: `${B}/teams/10`, categories: [], anonymous: true };
-const team: ApiTeam = { url: `${B}/teams/10`, reference: 'A', short_name: 'Oxford A', long_name: 'University of Oxford A', speakers: [alice, anon] };
+const alice: ApiSpeaker = {
+  url: `${B}/speakers/1`,
+  name: 'Alice\tAdams',
+  team: `${B}/teams/10`,
+  categories: [`${B}/speaker-categories/7`, `${B}/speaker-categories/8`],
+  anonymous: false,
+};
+const anon: ApiSpeaker = {
+  url: `${B}/speakers/2`,
+  name: null,
+  team: `${B}/teams/10`,
+  categories: [],
+  anonymous: true,
+};
+const team: ApiTeam = {
+  url: `${B}/teams/10`,
+  reference: 'A',
+  short_name: 'Oxford A',
+  long_name: 'University of Oxford A',
+  speakers: [alice, anon],
+};
 const rounds: ApiRound[] = [
   { url: `${B}/rounds/2`, seq: 2, abbreviation: 'R2', stage: 'P' },
   { url: `${B}/rounds/1`, seq: 1, abbreviation: 'R1', stage: 'P' },
@@ -49,12 +67,33 @@ describe('institutionFromTeam', () => {
 
 describe('mapTeamStandings', () => {
   it('reads BP metrics and keeps the redaction label for opted-out speakers', () => {
-    const rows = mapTeamStandings([team], [
-      { rank: 3, tied: false, team: team.url, metrics: [{ metric: 'points', value: 15 }, { metric: 'firsts', value: 2 }, { metric: 'seconds', value: 4 }] },
-      { rank: 4, tied: false, team: `${B}/teams/999`, metrics: [] },
-    ]);
+    const rows = mapTeamStandings(
+      [team],
+      [
+        {
+          rank: 3,
+          tied: false,
+          team: team.url,
+          metrics: [
+            { metric: 'points', value: 15 },
+            { metric: 'firsts', value: 2 },
+            { metric: 'seconds', value: 4 },
+          ],
+        },
+        { rank: 4, tied: false, team: `${B}/teams/999`, metrics: [] },
+      ],
+    );
     expect(rows).toEqual([
-      { rank: 3, teamName: 'Oxford A', institution: 'University of Oxford', speakers: ['Alice Adams', API_REDACTED_NAME], wins: null, totalPoints: 15, firsts: 2, seconds: 4 },
+      {
+        rank: 3,
+        teamName: 'Oxford A',
+        institution: 'University of Oxford',
+        speakers: ['Alice Adams', API_REDACTED_NAME],
+        wins: null,
+        totalPoints: 15,
+        firsts: 2,
+        seconds: 4,
+      },
     ]);
   });
 });
@@ -69,40 +108,77 @@ describe('mapSpeakerStandings', () => {
         { url: `${B}/speaker-categories/7`, name: 'ESL', public: true },
         { url: `${B}/speaker-categories/8`, name: 'Equity bracket', public: false },
       ],
-      standings: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 152 }] }],
-      roundStandings: [{
-        speaker: alice.url,
-        rounds: [
-          { round: `${B}/rounds/2`, speeches: [{ score: 74, position: 2, ghost: true }, { score: 75, position: 4, ghost: false }] },
-          { round: `${B}/rounds/1`, speeches: [{ score: 77, position: 1, ghost: false }] },
-        ],
-      }],
-    });
-    expect(rows).toEqual([{
-      rank: 1, rankEsl: null, rankEfl: null, categories: ['ESL'],
-      speakerName: 'Alice Adams', teamName: 'Oxford A', institution: 'University of Oxford', totalScore: 152,
-      roundScores: [
-        { roundLabel: 'R1', score: 77, positionLabel: null },
-        { roundLabel: 'R2', score: 75, positionLabel: null },
+      standings: [
+        { rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 152 }] },
       ],
-    }]);
+      roundStandings: [
+        {
+          speaker: alice.url,
+          rounds: [
+            {
+              round: `${B}/rounds/2`,
+              speeches: [
+                { score: 74, position: 2, ghost: true },
+                { score: 75, position: 4, ghost: false },
+              ],
+            },
+            { round: `${B}/rounds/1`, speeches: [{ score: 77, position: 1, ghost: false }] },
+          ],
+        },
+      ],
+    });
+    expect(rows).toEqual([
+      {
+        rank: 1,
+        rankEsl: null,
+        rankEfl: null,
+        categories: ['ESL'],
+        speakerName: 'Alice Adams',
+        teamName: 'Oxford A',
+        institution: 'University of Oxford',
+        totalScore: 152,
+        roundScores: [
+          { roundLabel: 'R1', score: 77, positionLabel: null },
+          { roundLabel: 'R2', score: 75, positionLabel: null },
+        ],
+      },
+    ]);
   });
 });
 
 describe('mapSpeakerStandings — columns and opted-out speakers', () => {
   const outround: ApiRound = { url: `${B}/rounds/9`, seq: 9, abbreviation: 'GF', stage: 'E' };
-  const hidden: ApiSpeaker = { url: `${B}/speakers/3`, name: null, team: `${B}/teams/10`, categories: [`${B}/speaker-categories/7`], anonymous: true };
+  const hidden: ApiSpeaker = {
+    url: `${B}/speakers/3`,
+    name: null,
+    team: `${B}/teams/10`,
+    categories: [`${B}/speaker-categories/7`],
+    anonymous: true,
+  };
 
   it('emits every prelim as a column, empty where unspoken, and no outrounds', () => {
     const [row] = mapSpeakerStandings({
-      speakers: [alice], teams: [team], rounds: [...rounds, outround], categories: [],
-      standings: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 75 }] }],
-      roundStandings: [{ speaker: alice.url, rounds: [
-        { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
-        { round: outround.url, speeches: [{ score: 80, position: 1, ghost: false }] },
-      ] }],
+      speakers: [alice],
+      teams: [team],
+      rounds: [...rounds, outround],
+      categories: [],
+      standings: [
+        { rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 75 }] },
+      ],
+      roundStandings: [
+        {
+          speaker: alice.url,
+          rounds: [
+            { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
+            { round: outround.url, speeches: [{ score: 80, position: 1, ghost: false }] },
+          ],
+        },
+      ],
     });
-    expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([['R1', null], ['R2', 75]]);
+    expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([
+      ['R1', null],
+      ['R2', 75],
+    ]);
   });
 
   // WUDC 2024, local re-ingest 2026-10-21: three speakers had a round whose
@@ -111,36 +187,78 @@ describe('mapSpeakerStandings — columns and opted-out speakers', () => {
   // taking speeches[0] put an uncounted score into the round ledger.
   it('leaves a round empty when every speech in it is a ghost', () => {
     const [row] = mapSpeakerStandings({
-      speakers: [alice], teams: [team], rounds, categories: [],
-      standings: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 75 }] }],
-      roundStandings: [{ speaker: alice.url, rounds: [
-        { round: `${B}/rounds/1`, speeches: [{ score: 69, position: 1, ghost: true }, { score: 68, position: 2, ghost: true }] },
-        { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
-      ] }],
+      speakers: [alice],
+      teams: [team],
+      rounds,
+      categories: [],
+      standings: [
+        { rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 75 }] },
+      ],
+      roundStandings: [
+        {
+          speaker: alice.url,
+          rounds: [
+            {
+              round: `${B}/rounds/1`,
+              speeches: [
+                { score: 69, position: 1, ghost: true },
+                { score: 68, position: 2, ghost: true },
+              ],
+            },
+            { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
+          ],
+        },
+      ],
     });
-    expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([['R1', null], ['R2', 75]]);
+    expect(row.roundScores.map((r) => [r.roundLabel, r.score])).toEqual([
+      ['R1', null],
+      ['R2', 75],
+    ]);
   });
 
   it('recovers an unlinked row by a unique score total, without its team', () => {
     const [row] = mapSpeakerStandings({
-      speakers: [hidden], teams: [team], rounds,
+      speakers: [hidden],
+      teams: [team],
+      rounds,
       categories: [{ url: `${B}/speaker-categories/7`, name: 'ESL', public: true }],
-      standings: [{ rank: 9, tied: false, speaker: null, metrics: [{ metric: 'total', value: 150 }] }],
-      roundStandings: [{ speaker: hidden.url, rounds: [
-        { round: `${B}/rounds/1`, speeches: [{ score: 76, position: 1, ghost: false }] },
-        { round: `${B}/rounds/2`, speeches: [{ score: 74, position: 1, ghost: false }] },
-      ] }],
+      standings: [
+        { rank: 9, tied: false, speaker: null, metrics: [{ metric: 'total', value: 150 }] },
+      ],
+      roundStandings: [
+        {
+          speaker: hidden.url,
+          rounds: [
+            { round: `${B}/rounds/1`, speeches: [{ score: 76, position: 1, ghost: false }] },
+            { round: `${B}/rounds/2`, speeches: [{ score: 74, position: 1, ghost: false }] },
+          ],
+        },
+      ],
     });
-    expect(row).toMatchObject({ speakerName: API_REDACTED_NAME, teamName: null, institution: null, categories: ['ESL'], totalScore: 150 });
+    expect(row).toMatchObject({
+      speakerName: API_REDACTED_NAME,
+      teamName: null,
+      institution: null,
+      categories: ['ESL'],
+      totalScore: 150,
+    });
     expect(row.roundScores.map((r) => r.score)).toEqual([76, 74]);
   });
 
   it('leaves scores empty when two hidden speakers share the total', () => {
     const twin: ApiSpeaker = { ...hidden, url: `${B}/speakers/4` };
-    const speech = (round: string, score: number) => ({ round, speeches: [{ score, position: 1, ghost: false }] });
+    const speech = (round: string, score: number) => ({
+      round,
+      speeches: [{ score, position: 1, ghost: false }],
+    });
     const [row] = mapSpeakerStandings({
-      speakers: [hidden, twin], teams: [team], rounds, categories: [],
-      standings: [{ rank: 9, tied: true, speaker: null, metrics: [{ metric: 'total', value: 150 }] }],
+      speakers: [hidden, twin],
+      teams: [team],
+      rounds,
+      categories: [],
+      standings: [
+        { rank: 9, tied: true, speaker: null, metrics: [{ metric: 'total', value: 150 }] },
+      ],
       roundStandings: [
         { speaker: hidden.url, rounds: [speech(`${B}/rounds/1`, 75), speech(`${B}/rounds/2`, 75)] },
         { speaker: twin.url, rounds: [speech(`${B}/rounds/1`, 76), speech(`${B}/rounds/2`, 74)] },
@@ -177,18 +295,26 @@ describe('tabbycatApiTabsEnabled', () => {
 // 404 on a host with no API).
 
 const PRIVATE_URL = 'https://t.calicotab.com/open/privateurls/abc123/';
-const NAV = { teamTab: 'https://t.calicotab.com/open/tab/team/', speakerTab: 'https://t.calicotab.com/open/tab/speaker/' };
+const NAV = {
+  teamTab: 'https://t.calicotab.com/open/tab/team/',
+  speakerTab: 'https://t.calicotab.com/open/tab/speaker/',
+};
 
 type Answer = { status: number; body?: unknown; notJson?: boolean };
 
-function released(team: boolean | undefined, speaker: boolean | undefined, limits: { team?: number; speaker?: number } = {}) {
+function released(
+  team: boolean | undefined,
+  speaker: boolean | undefined,
+  limits: { team?: number; speaker?: number } = {},
+) {
   const prefs: Array<{ identifier: string; value: unknown }> = [
     { identifier: 'public_features__public_results', value: true },
     { identifier: 'tab_release__team_tab_limit', value: limits.team ?? 0 },
     { identifier: 'tab_release__speaker_tab_limit', value: limits.speaker ?? 0 },
   ];
   if (team !== undefined) prefs.push({ identifier: 'tab_release__team_tab_released', value: team });
-  if (speaker !== undefined) prefs.push({ identifier: 'tab_release__speaker_tab_released', value: speaker });
+  if (speaker !== undefined)
+    prefs.push({ identifier: 'tab_release__speaker_tab_released', value: speaker });
   return prefs;
 }
 
@@ -196,17 +322,30 @@ function fullHost(overrides: Record<string, Answer> = {}): Record<string, Answer
   return {
     preferences: { status: 200, body: released(true, true) },
     teams: { status: 200, body: [team] },
-    'teams/standings': { status: 200, body: [{ rank: 1, tied: false, team: team.url, metrics: [{ metric: 'points', value: 6 }] }] },
+    'teams/standings': {
+      status: 200,
+      body: [{ rank: 1, tied: false, team: team.url, metrics: [{ metric: 'points', value: 6 }] }],
+    },
     speakers: { status: 200, body: [alice, anon] },
     rounds: { status: 200, body: rounds },
     'speaker-categories': { status: 200, body: [] },
-    'speakers/standings': { status: 200, body: [{ rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 152 }] }] },
+    'speakers/standings': {
+      status: 200,
+      body: [
+        { rank: 1, tied: false, speaker: alice.url, metrics: [{ metric: 'total', value: 152 }] },
+      ],
+    },
     'speakers/standings/rounds': {
       status: 200,
-      body: [{ speaker: alice.url, rounds: [
-        { round: `${B}/rounds/1`, speeches: [{ score: 77, position: 1, ghost: false }] },
-        { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
-      ] }],
+      body: [
+        {
+          speaker: alice.url,
+          rounds: [
+            { round: `${B}/rounds/1`, speeches: [{ score: 77, position: 1, ghost: false }] },
+            { round: `${B}/rounds/2`, speeches: [{ score: 75, position: 1, ghost: false }] },
+          ],
+        },
+      ],
     },
     ...overrides,
   };
@@ -233,7 +372,10 @@ describe('fetchTabsFromApi — API success', () => {
   it('maps both tabs from the API and skips both HTML pages', async () => {
     const { fetcher, seen } = mockHost(fullHost());
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
-    expect(res.teams).toEqual({ source: 'api', rows: [expect.objectContaining({ teamName: 'Oxford A', totalPoints: 6 })] });
+    expect(res.teams).toEqual({
+      source: 'api',
+      rows: [expect.objectContaining({ teamName: 'Oxford A', totalPoints: 6 })],
+    });
     expect(res.speakers.source).toBe('api');
     if (res.speakers.source !== 'api') return;
     expect(res.speakers.rows[0]).toMatchObject({ speakerName: 'Alice Adams', totalScore: 152 });
@@ -244,7 +386,14 @@ describe('fetchTabsFromApi — API success', () => {
   });
 
   it('carries on when preferences are hidden (401) and the standings answer', async () => {
-    const { fetcher } = mockHost(fullHost({ preferences: { status: 401, body: { detail: 'Authentication credentials were not provided.' } } }));
+    const { fetcher } = mockHost(
+      fullHost({
+        preferences: {
+          status: 401,
+          body: { detail: 'Authentication credentials were not provided.' },
+        },
+      }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.teams.source).toBe('api');
     expect(res.speakers.source).toBe('api');
@@ -266,40 +415,60 @@ describe('fetchTabsFromApi — API unavailable → HTML fallback', () => {
     expect(seen).toEqual(['preferences']);
   });
 
-  it.each([401, 403, 404])('falls back per tab when standings answer %i with no release setting to go on', async (status) => {
-    const { fetcher } = mockHost(fullHost({
-      preferences: { status: 403, body: { detail: 'Forbidden' } },
-      'speakers/standings': { status, body: { detail: 'nope' } },
-    }));
-    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
-    expect(res.teams.source).toBe('api');
-    expect(res.speakers).toEqual({ source: 'html', reason: `speakers/standings: HTTP ${status}` });
-    expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: NAV.speakerTab });
-  });
+  it.each([401, 403, 404])(
+    'falls back per tab when standings answer %i with no release setting to go on',
+    async (status) => {
+      const { fetcher } = mockHost(
+        fullHost({
+          preferences: { status: 403, body: { detail: 'Forbidden' } },
+          'speakers/standings': { status, body: { detail: 'nope' } },
+        }),
+      );
+      const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+      expect(res.teams.source).toBe('api');
+      expect(res.speakers).toEqual({
+        source: 'html',
+        reason: `speakers/standings: HTTP ${status}`,
+      });
+      expect(htmlTabsToFetch(res, NAV)).toEqual({ teamTab: null, speakerTab: NAV.speakerTab });
+    },
+  );
 
   it('falls back on a network error or timeout', async () => {
     const res = await fetchTabsFromApi(PRIVATE_URL, async () => {
       throw new Error('The operation was aborted due to timeout');
     });
-    expect(res.teams).toEqual({ source: 'html', reason: 'preferences: The operation was aborted due to timeout' });
+    expect(res.teams).toEqual({
+      source: 'html',
+      reason: 'preferences: The operation was aborted due to timeout',
+    });
     expect(res.speakers.source).toBe('html');
   });
 
-  it.each([429, 503])('stops asking the API after a %i and leaves both tabs to HTML', async (status) => {
-    const { fetcher, seen } = mockHost(fullHost({ 'teams/standings': { status, body: { detail: 'slow down' } } }));
-    const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
-    expect(res).toEqual(htmlOnly(`teams/standings: HTTP ${status}`));
-    expect(seen).toEqual(['preferences', 'teams', 'teams/standings']);
-  });
+  it.each([429, 503])(
+    'stops asking the API after a %i and leaves both tabs to HTML',
+    async (status) => {
+      const { fetcher, seen } = mockHost(
+        fullHost({ 'teams/standings': { status, body: { detail: 'slow down' } } }),
+      );
+      const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
+      expect(res).toEqual(htmlOnly(`teams/standings: HTTP ${status}`));
+      expect(seen).toEqual(['preferences', 'teams', 'teams/standings']);
+    },
+  );
 
   it('falls back without a request when the URL has no tournament slug', async () => {
     const { fetcher, seen } = mockHost(fullHost());
-    expect(await fetchTabsFromApi('https://t.calicotab.com/', fetcher)).toEqual(htmlOnly('no tournament slug in URL'));
+    expect(await fetchTabsFromApi('https://t.calicotab.com/', fetcher)).toEqual(
+      htmlOnly('no tournament slug in URL'),
+    );
     expect(seen).toEqual([]);
   });
 
   it('leaves a tab limited to the top N to the HTML page (the API returns every row)', async () => {
-    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(true, true, { speaker: 3 }) } }));
+    const { fetcher, seen } = mockHost(
+      fullHost({ preferences: { status: 200, body: released(true, true, { speaker: 3 }) } }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.teams.source).toBe('api');
     expect(res.speakers).toEqual({ source: 'html', reason: 'speaker tab released to top N only' });
@@ -313,7 +482,9 @@ describe('fetchTabsFromApi — API unavailable → HTML fallback', () => {
 
 describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () => {
   it('reads nothing past preferences when neither tab is released', async () => {
-    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(false, false) } }));
+    const { fetcher, seen } = mockHost(
+      fullHost({ preferences: { status: 200, body: released(false, false) } }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res).toEqual({
       teams: { source: 'private', reason: 'team tab not released' },
@@ -325,11 +496,15 @@ describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () =
   });
 
   it('names each unreleased tab in a warning that cannot fail the job', async () => {
-    const { fetcher } = mockHost(fullHost({ preferences: { status: 200, body: released(true, false) } }));
+    const { fetcher } = mockHost(
+      fullHost({ preferences: { status: 200, body: released(true, false) } }),
+    );
     const partial = await unreleasedTabWarnings(await fetchTabsFromApi(PRIVATE_URL, fetcher));
     expect(partial).toEqual(['tabs: speaker tab not released']);
 
-    const { fetcher: none } = mockHost(fullHost({ preferences: { status: 200, body: released(false, false) } }));
+    const { fetcher: none } = mockHost(
+      fullHost({ preferences: { status: 200, body: released(false, false) } }),
+    );
     const both = unreleasedTabWarnings(await fetchTabsFromApi(PRIVATE_URL, none));
     expect(both).toEqual(['tabs: team tab not released', 'tabs: speaker tab not released']);
     // `fetch:` is the only prefix ingest treats as a failed fetch.
@@ -343,7 +518,9 @@ describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () =
   });
 
   it('keeps a released tab and withholds the unreleased one', async () => {
-    const { fetcher, seen } = mockHost(fullHost({ preferences: { status: 200, body: released(true, false) } }));
+    const { fetcher, seen } = mockHost(
+      fullHost({ preferences: { status: 200, body: released(true, false) } }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.teams.source).toBe('api');
     expect(res.speakers).toEqual({ source: 'private', reason: 'speaker tab not released' });
@@ -354,10 +531,12 @@ describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () =
   });
 
   it('a private tab stays private even when the rest of the API fails', async () => {
-    const { fetcher } = mockHost(fullHost({
-      preferences: { status: 200, body: released(false, true) },
-      teams: { status: 500, body: {} },
-    }));
+    const { fetcher } = mockHost(
+      fullHost({
+        preferences: { status: 200, body: released(false, true) },
+        teams: { status: 500, body: {} },
+      }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.teams.source).toBe('private');
     expect(res.speakers).toEqual({ source: 'html', reason: 'teams: HTTP 500' });
@@ -367,17 +546,25 @@ describe('fetchTabsFromApi — private or unreleased tabs are not scraped', () =
 
 describe('fetchTabsFromApi — malformed API data', () => {
   it('falls back when a list arrives as an object (error envelope, pagination)', async () => {
-    const { fetcher } = mockHost(fullHost({ teams: { status: 200, body: { count: 1, next: null, results: [team] } } }));
+    const { fetcher } = mockHost(
+      fullHost({ teams: { status: 200, body: { count: 1, next: null, results: [team] } } }),
+    );
     expect(await fetchTabsFromApi(PRIVATE_URL, fetcher)).toEqual(htmlOnly('teams: not a list'));
   });
 
   it('falls back when a row has the wrong shape for a field the mapping reads', async () => {
-    const { fetcher } = mockHost(fullHost({
-      'teams/standings': { status: 200, body: [{ rank: 1, team: team.url, metrics: 'points=6' }] },
-    }));
+    const { fetcher } = mockHost(
+      fullHost({
+        'teams/standings': {
+          status: 200,
+          body: [{ rank: 1, team: team.url, metrics: 'points=6' }],
+        },
+      }),
+    );
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.teams.source).toBe('html');
-    if (res.teams.source === 'html') expect(res.teams.reason).toMatch(/^teams\/standings: malformed at \[0\.metrics\]/);
+    if (res.teams.source === 'html')
+      expect(res.teams.reason).toMatch(/^teams\/standings: malformed at \[0\.metrics\]/);
     expect(res.speakers.source).toBe('api');
   });
 
@@ -386,31 +573,57 @@ describe('fetchTabsFromApi — malformed API data', () => {
     const { fetcher } = mockHost(fullHost({ speakers: { status: 200, body: [noFlag] } }));
     const res = await fetchTabsFromApi(PRIVATE_URL, fetcher);
     expect(res.speakers.source).toBe('html');
-    if (res.speakers.source === 'html') expect(res.speakers.reason).toMatch(/^speakers: malformed at \[0\.anonymous\]/);
+    if (res.speakers.source === 'html')
+      expect(res.speakers.reason).toMatch(/^speakers: malformed at \[0\.anonymous\]/);
   });
 
   it('falls back when scores arrive as strings', async () => {
-    const { fetcher } = mockHost(fullHost({
-      'speakers/standings': { status: 200, body: [{ rank: 1, speaker: alice.url, metrics: [{ metric: 'total', value: '152' }] }] },
-    }));
+    const { fetcher } = mockHost(
+      fullHost({
+        'speakers/standings': {
+          status: 200,
+          body: [{ rank: 1, speaker: alice.url, metrics: [{ metric: 'total', value: '152' }] }],
+        },
+      }),
+    );
     expect((await fetchTabsFromApi(PRIVATE_URL, fetcher)).speakers.source).toBe('html');
   });
 
   it('falls back when standings point at teams the team list does not have', async () => {
-    const { fetcher } = mockHost(fullHost({
-      'teams/standings': { status: 200, body: [{ rank: 1, team: `${B}/teams/404`, metrics: [] }] },
-    }));
-    expect((await fetchTabsFromApi(PRIVATE_URL, fetcher)).teams).toEqual({ source: 'html', reason: 'teams/standings: no rows' });
+    const { fetcher } = mockHost(
+      fullHost({
+        'teams/standings': {
+          status: 200,
+          body: [{ rank: 1, team: `${B}/teams/404`, metrics: [] }],
+        },
+      }),
+    );
+    expect((await fetchTabsFromApi(PRIVATE_URL, fetcher)).teams).toEqual({
+      source: 'html',
+      reason: 'teams/standings: no rows',
+    });
   });
 });
 
 describe('tabReleaseFromPreferences', () => {
   it('reads released, private, limited and unknown', () => {
-    expect(tabReleaseFromPreferences(released(true, false))).toEqual({ teams: 'released', speakers: 'private' });
-    expect(tabReleaseFromPreferences(released(true, true, { team: 16 }))).toEqual({ teams: 'limited', speakers: 'released' });
-    expect(tabReleaseFromPreferences(released(undefined, undefined))).toEqual({ teams: 'unknown', speakers: 'unknown' });
+    expect(tabReleaseFromPreferences(released(true, false))).toEqual({
+      teams: 'released',
+      speakers: 'private',
+    });
+    expect(tabReleaseFromPreferences(released(true, true, { team: 16 }))).toEqual({
+      teams: 'limited',
+      speakers: 'released',
+    });
+    expect(tabReleaseFromPreferences(released(undefined, undefined))).toEqual({
+      teams: 'unknown',
+      speakers: 'unknown',
+    });
     // Only a literal false withholds; anything unexpected is "unknown", which
     // still goes through the API's own gate (unreleased standings answer 401).
-    expect(tabReleaseFromPreferences([{ identifier: 'tab_release__team_tab_released', value: 'yes' }]).teams).toBe('unknown');
+    expect(
+      tabReleaseFromPreferences([{ identifier: 'tab_release__team_tab_released', value: 'yes' }])
+        .teams,
+    ).toBe('unknown');
   });
 });

@@ -34,15 +34,9 @@ export async function GET() {
   });
 
   const totalUrls = urls.length;
-  const totalNamed = urls.filter(
-    (u) => (u.registrationName ?? '').trim().length > 0,
-  ).length;
-  const totalUnknown = urls.filter(
-    (u) => u.registrationName === null,
-  ).length;
-  const totalFailed = urls.filter(
-    (u) => u.registrationName === '',
-  ).length;
+  const totalNamed = urls.filter((u) => (u.registrationName ?? '').trim().length > 0).length;
+  const totalUnknown = urls.filter((u) => u.registrationName === null).length;
+  const totalFailed = urls.filter((u) => u.registrationName === '').length;
 
   // Group by exact display name (preserve first-seen casing). Normalize for
   // claim lookup so "Abhishek Acharya" and "abhishek acharya" share a Person.
@@ -96,7 +90,7 @@ export async function GET() {
       urls: totalUrls,
       named: totalNamed,
       unknown: totalUnknown, // preflight not yet run on these
-      failed: totalFailed,   // preflight tried but landing was unreachable
+      failed: totalFailed, // preflight tried but landing was unreachable
     },
   });
 }

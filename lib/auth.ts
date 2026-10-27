@@ -51,11 +51,18 @@ async function resolveUserId(args: {
  * fixed. Make the cause loud instead. Only the error and the userId are sent;
  * the token is never put in the log line or the Sentry event.
  */
-function reportTokenSaveFailure(area: 'auth.linkAccount' | 'auth.signIn', err: unknown, userId: string): void {
-  console.error(`[${area}] could not save the encrypted Gmail token; signed in without Gmail access`, {
-    userId,
-    message: err instanceof Error ? err.message : String(err),
-  });
+function reportTokenSaveFailure(
+  area: 'auth.linkAccount' | 'auth.signIn',
+  err: unknown,
+  userId: string,
+): void {
+  console.error(
+    `[${area}] could not save the encrypted Gmail token; signed in without Gmail access`,
+    {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    },
+  );
   Sentry.captureException(err, { tags: { area } });
 }
 
@@ -72,8 +79,7 @@ const next = NextAuth({
         params: {
           access_type: 'offline',
           prompt: 'consent',
-          scope:
-            'openid email profile https://www.googleapis.com/auth/gmail.readonly',
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
         },
       },
     }),

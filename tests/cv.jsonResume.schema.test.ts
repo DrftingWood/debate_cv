@@ -54,8 +54,21 @@ const fullRecord = makeCvData({
       speakerCategories: ['ESL'],
       eliminationReached: 'Grand Final',
     }),
-    makeSpeakerRow({ tournamentName: 'Broke', year: 2024, broke: true, wonTournament: false, eliminationReached: 'Semifinals', speakerRankOpen: 40 }),
-    makeSpeakerRow({ tournamentName: 'Tenth', year: 2023, speakerRankOpen: 10, teamName: null, teammates: [] }),
+    makeSpeakerRow({
+      tournamentName: 'Broke',
+      year: 2024,
+      broke: true,
+      wonTournament: false,
+      eliminationReached: 'Semifinals',
+      speakerRankOpen: 40,
+    }),
+    makeSpeakerRow({
+      tournamentName: 'Tenth',
+      year: 2023,
+      speakerRankOpen: 10,
+      teamName: null,
+      teammates: [],
+    }),
     makeSpeakerRow({ tournamentName: 'Undated', year: null, format: null, totalTeams: null }),
   ],
   judgeRows: [
@@ -73,8 +86,14 @@ const fullRecord = makeCvData({
 });
 
 const docs = {
-  'a full record': buildJsonResume(fullRecord, { now: NOW, canonical: 'https://debate-cv.vercel.app/cv.json' }),
-  'an empty record with no canonical URL': buildJsonResume(makeCvData({ speakerRows: [], judgeRows: [] }), { now: NOW }),
+  'a full record': buildJsonResume(fullRecord, {
+    now: NOW,
+    canonical: 'https://debate-cv.vercel.app/cv.json',
+  }),
+  'an empty record with no canonical URL': buildJsonResume(
+    makeCvData({ speakerRows: [], judgeRows: [] }),
+    { now: NOW },
+  ),
 };
 
 describe('JSON Resume export validates against the official schemas', () => {
@@ -109,6 +128,8 @@ describe('the debate extension', () => {
     const ext = docs['a full record'].meta[DEBATE_EXTENSION_KEY];
     expect(validateExtension({ ...ext, extra: true }).ok).toBe(false);
     expect(validateExtension({ ...ext, version: 2 }).ok).toBe(false);
-    expect(validateExtension({ ...ext, speaking: [{ ...ext.speaking[0], newField: 1 }] }).ok).toBe(false);
+    expect(validateExtension({ ...ext, speaking: [{ ...ext.speaking[0], newField: 1 }] }).ok).toBe(
+      false,
+    );
   });
 });

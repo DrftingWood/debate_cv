@@ -116,7 +116,10 @@ describe('consumeRateLimit', () => {
     expect(r).toEqual({ ok: true, retryAfterSec: 0, limit: 20, remaining: 20 });
     expect(err).toHaveBeenCalledWith(
       '[rateLimit] counter unavailable, allowing request',
-      expect.objectContaining({ name: 'ingest:url', message: 'relation "RateLimit" does not exist' }),
+      expect.objectContaining({
+        name: 'ingest:url',
+        message: 'relation "RateLimit" does not exist',
+      }),
     );
   });
 });
@@ -145,7 +148,10 @@ describe('enforceRateLimit', () => {
     const body = await res!.json();
     // 3000 s is 50 minutes. Was "50 minute(s)" before formatWait: the message
     // now pluralises properly and picks the unit (see the formatWait suite).
-    expect(body).toEqual({ error: 'rate_limited', reason: 'Too many requests. Try again in 50 minutes.' });
+    expect(body).toEqual({
+      error: 'rate_limited',
+      reason: 'Too many requests. Try again in 50 minutes.',
+    });
   });
 
   it('states sub-minute waits in seconds', async () => {
@@ -198,7 +204,10 @@ describe('formatWait', () => {
       const text = formatWait(s);
       const parts = [...text.matchAll(/(\d+) (second|minute|hour|day)/g)];
       const mult = { second: 1, minute: 60, hour: 3600, day: 86400 } as const;
-      const total = parts.reduce((acc, [, n, u]) => acc + Number(n) * mult[u as keyof typeof mult], 0);
+      const total = parts.reduce(
+        (acc, [, n, u]) => acc + Number(n) * mult[u as keyof typeof mult],
+        0,
+      );
       expect(total, `${s} -> ${text}`).toBeGreaterThanOrEqual(s);
     }
   });

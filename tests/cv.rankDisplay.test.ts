@@ -30,7 +30,12 @@ describe('tied ranks read "5=" (I17)', () => {
     const csv = buildExportCsv(
       makeCvData({
         speakerRows: [
-          makeSpeakerRow({ teamRank: 5, teamRankTied: true, speakerRankOpen: 7, speakerRankTied: true }),
+          makeSpeakerRow({
+            teamRank: 5,
+            teamRankTied: true,
+            speakerRankOpen: 7,
+            speakerRankTied: true,
+          }),
           makeSpeakerRow({ tournamentId: 9n, teamRank: 6, speakerRankOpen: 8 }),
         ],
         judgeRows: [],

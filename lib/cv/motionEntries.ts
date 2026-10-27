@@ -105,13 +105,14 @@ export function buildMotionEntries(
       debated: score != null || result != null,
       judgedOnly: !row,
       siblings:
-        motion.roundNumber == null ? 0 : (siblingCount.get(`${tid}:${motion.roundNumber}`) ?? 1) - 1,
+        motion.roundNumber == null
+          ? 0
+          : (siblingCount.get(`${tid}:${motion.roundNumber}`) ?? 1) - 1,
       score,
       position: result?.position ?? null,
       // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
       // An outround result is advancing, not a 2nd-or-better room.
-      won:
-        result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
+      won: result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
       fourTeam: result && row ? isFourTeam(row.format, result.position) : false,
       points: result?.points ?? null,
     });
@@ -136,7 +137,9 @@ function sat(judge: CvJudgeRow, motion: CvTaggedMotion): boolean {
   const stage = stageKey(motion.roundLabel);
   if (!stage) return false;
   const bracket = categoryKey(motion.roundLabel);
-  return judge.judgedOutroundStages.some((s) => stageKey(s) === stage && categoryKey(s) === bracket);
+  return judge.judgedOutroundStages.some(
+    (s) => stageKey(s) === stage && categoryKey(s) === bracket,
+  );
 }
 
 /**

@@ -24,10 +24,16 @@ export function Footer() {
             aria-label="Site links"
             className="-my-2 flex flex-wrap items-center gap-x-6 gap-y-1"
           >
-            <Link href="/privacy" className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start">
+            <Link
+              href="/privacy"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start"
+            >
               Privacy
             </Link>
-            <Link href="/terms" className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start">
+            <Link
+              href="/terms"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start"
+            >
               Terms
             </Link>
             <a

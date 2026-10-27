@@ -143,9 +143,7 @@ import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
  * bracket's last round with the category name. The bare-final regex
  * is deliberately not anchored at `^…$` so those still classify.
  */
-export function classifyOutroundStage(
-  label: string | null | undefined,
-): OutroundStage | null {
+export function classifyOutroundStage(label: string | null | undefined): OutroundStage | null {
   // Delegates to the lexicon so every caller sees the same vocabulary —
   // stock English, the Spanish/Portuguese variants, and any category prefix
   // a tournament invents. Ordering lives there: the bare "final" rule is
@@ -153,7 +151,6 @@ export function classifyOutroundStage(
   // stops "Cuartos de Final" (quarterfinals) reading as the final.
   return matchStage(label)?.stage ?? null;
 }
-
 
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   // "Final" and "Grand Final" are one round (owner decision, assumptions I8/C8),
@@ -212,7 +209,11 @@ export function outroundRankStrict(label: string | null | undefined): number | n
  *
  * Returns -1 when the round isn't an outround (callers should skip it).
  */
-export function outroundRank(round: { roundLabel: string | null; roundNumber: number | null; isOutround: boolean }): number {
+export function outroundRank(round: {
+  roundLabel: string | null;
+  roundNumber: number | null;
+  isOutround: boolean;
+}): number {
   if (!round.isOutround) return -1;
   const stage = classifyOutroundStage(round.roundLabel);
   if (stage) return JUDGE_STATS_RANK[stage];
@@ -271,4 +272,3 @@ export function deepestOutroundAcrossRoles(
     ? p
     : c;
 }
-

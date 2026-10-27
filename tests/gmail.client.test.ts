@@ -128,11 +128,19 @@ describe('syncGmailTokenFromAccount', () => {
     expect(prismaMock.gmailToken.upsert).toHaveBeenCalledTimes(1);
     const call = prismaMock.gmailToken.upsert.mock.calls[0][0] as {
       where: { userId: string };
-      create: { accessToken: string; refreshToken: string | null; encryptionVersion: string | null };
+      create: {
+        accessToken: string;
+        refreshToken: string | null;
+        encryptionVersion: string | null;
+      };
     };
     expect(call.where.userId).toBe('user-1');
     expect(call.create.encryptionVersion).toBe('v1');
-    expect(decryptValue(call.create.accessToken, call.create.encryptionVersion)).toBe('plain-access');
-    expect(decryptValue(call.create.refreshToken, call.create.encryptionVersion)).toBe('plain-refresh');
+    expect(decryptValue(call.create.accessToken, call.create.encryptionVersion)).toBe(
+      'plain-access',
+    );
+    expect(decryptValue(call.create.refreshToken, call.create.encryptionVersion)).toBe(
+      'plain-refresh',
+    );
   });
 });

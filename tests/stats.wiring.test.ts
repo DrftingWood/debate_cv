@@ -36,7 +36,11 @@ const row = (id: bigint, year: number, partner: string, base: number) =>
         key: `p-${partner}`,
         name: partner,
         speakerScoreTotal: null,
-        roundScores: Array.from({ length: 8 }, (_, i) => ({ roundNumber: i + 1, positionLabel: null, score: base })),
+        roundScores: Array.from({ length: 8 }, (_, i) => ({
+          roundNumber: i + 1,
+          positionLabel: null,
+          score: base,
+        })),
       },
     ],
     roundScores: Array.from({ length: 8 }, (_, i) => ({
@@ -56,7 +60,16 @@ const row = (id: bigint, year: number, partner: string, base: number) =>
 
 const data = {
   speakerRows: [row(1n, 2023, 'Ann', 75), row(2n, 2024, 'Bob', 76), row(3n, 2024, 'Ann', 75)],
-  judgeRows: [makeJudgeRow({ tournamentId: 9n, year: 2024, inroundsJudged: 5, inroundsChaired: 3, broke: true, lastOutroundJudged: 'Quarterfinals' })],
+  judgeRows: [
+    makeJudgeRow({
+      tournamentId: 9n,
+      year: 2024,
+      inroundsJudged: 5,
+      inroundsChaired: 3,
+      broke: true,
+      lastOutroundJudged: 'Quarterfinals',
+    }),
+  ],
   taggedMotions: [],
   fieldStats: [],
 };
@@ -72,7 +85,9 @@ const section = (html: string, id: string) => {
   return start < 0 ? null : html.slice(start, html.indexOf('</section>', start));
 };
 const rowText = (html: string, label: string) =>
-  html.match(new RegExp(`<tr[^>]*>(?:(?!</tr>).)*>${label}<(?:(?!</tr>).)*</tr>`, 's'))?.[0].replace(/<[^>]+>/g, '|') ?? null;
+  html
+    .match(new RegExp(`<tr[^>]*>(?:(?!</tr>).)*>${label}<(?:(?!</tr>).)*</tr>`, 's'))?.[0]
+    .replace(/<[^>]+>/g, '|') ?? null;
 
 describe('/cv/stats wiring', () => {
   test('every section id appears once, unfiltered and under a seat filter', () => {
@@ -85,7 +100,15 @@ describe('/cv/stats wiring', () => {
 
   test('a seat filter withholds tournament-level sections with a reason, keeping their ids', () => {
     const html = render('seat=BP:OG');
-    for (const id of ['field', 'dynamics', 'momentum', 'funnel', 'break-margin', 'seasons', 'milestones']) {
+    for (const id of [
+      'field',
+      'dynamics',
+      'momentum',
+      'funnel',
+      'break-margin',
+      'seasons',
+      'milestones',
+    ]) {
       const s = section(html, id);
       expect(s, id).not.toBeNull();
       expect(s!, id).toMatch(/filtering by seat|seat filter/);

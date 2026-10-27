@@ -127,7 +127,10 @@ function targetKey(r) {
   if (r.kind === 'region') {
     return r.motionId == null
       ? { key: `region|t:${r.tournamentId}`, reason: null }
-      : { key: `region|t:${r.tournamentId}|m:${r.motionId}`, reason: 'region proposal carries a motion id' };
+      : {
+          key: `region|t:${r.tournamentId}|m:${r.motionId}`,
+          reason: 'region proposal carries a motion id',
+        };
   }
   return r.motionId == null
     ? { key: `${r.kind}|t:${r.tournamentId}|no-motion`, reason: 'motion proposal has no motion id' }
@@ -141,7 +144,8 @@ function placeTarget(t, plan) {
     .sort((x, y) => y.n - x.n || x.value.localeCompare(y.value));
   const tournamentIds = [...t.tournamentIds].sort(compareIds);
   const reason =
-    t.reason ?? (tournamentIds.length > 1 ? 'proposals for this motion name different tournaments' : null);
+    t.reason ??
+    (tournamentIds.length > 1 ? 'proposals for this motion name different tournaments' : null);
   const base = {
     kind: t.kind,
     tournamentId: tournamentIds[0],
@@ -278,13 +282,40 @@ export function csvLine(fields) {
 
 /** Rows for the conflicts CSV: conflicts first, then targets the bulk path skipped as malformed. */
 export function conflictCsv(plan) {
-  let out = csvLine(['kind', 'tournament_id', 'tournament_name', 'motion_id', 'current_value', 'pending_values', 'pending_proposals', 'note']);
+  let out = csvLine([
+    'kind',
+    'tournament_id',
+    'tournament_name',
+    'motion_id',
+    'current_value',
+    'pending_values',
+    'pending_proposals',
+    'note',
+  ]);
   const fmt = (values) => values.map((v) => `${v.value} (${v.n})`).join(' | ');
   for (const c of plan.conflicts) {
-    out += csvLine([c.kind, c.tournamentId, c.tournamentName, c.motionId, c.current, fmt(c.values), c.proposals, 'conflict']);
+    out += csvLine([
+      c.kind,
+      c.tournamentId,
+      c.tournamentName,
+      c.motionId,
+      c.current,
+      fmt(c.values),
+      c.proposals,
+      'conflict',
+    ]);
   }
   for (const m of plan.malformed) {
-    out += csvLine([m.kind, m.tournamentIds.join(' | '), m.tournamentName, m.motionId, m.current, fmt(m.values), m.proposals, m.reason]);
+    out += csvLine([
+      m.kind,
+      m.tournamentIds.join(' | '),
+      m.tournamentName,
+      m.motionId,
+      m.current,
+      fmt(m.values),
+      m.proposals,
+      m.reason,
+    ]);
   }
   return out;
 }

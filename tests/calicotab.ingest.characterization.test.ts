@@ -52,7 +52,7 @@ vi.mock('@/lib/calicotab/fetch', () => ({
   isCdnRateLimit: () => false,
   isWithheldByTournament: (r: { status: number; cdnBlocked?: boolean }) =>
     r.status === 404 || (r.status === 403 && r.cdnBlocked === false),
-  withApiSnapshots: <T,>(f: T) => f,
+  withApiSnapshots: <T>(f: T) => f,
 }));
 
 const SNAPSHOT = {
@@ -119,52 +119,123 @@ const ROUNDS: Record<string, unknown> = {
 
 vi.mock('@/lib/calicotab/parseTabs', () => ({
   parseTeamTab: () => [
-    { rank: 1, teamName: 'Oxford A', institution: 'Oxford', speakers: ['Ada Lovelace', 'Grace Hopper'], wins: null, totalPoints: 5, firsts: 1, seconds: 1 },
-    { rank: 2, teamName: 'Cambridge A', institution: 'Cambridge', speakers: ['Alan Turing', 'Speaker 1'], wins: null, totalPoints: 1, firsts: 0, seconds: 0 },
-  ],
-  parseSpeakerTab: () => h.speakerTab ? structuredClone(h.speakerTab) : [
     {
-      rank: 1, rankEsl: null, rankEfl: null, categories: ['ESL'],
-      speakerName: 'Grace Hopper', teamName: 'Oxford A', institution: 'Oxford', totalScore: 160,
-      roundScores: [
-        { roundLabel: 'R1', score: 80, positionLabel: 'DPM' },
-        { roundLabel: 'R2', score: 80, positionLabel: 'MO' },
-      ],
+      rank: 1,
+      teamName: 'Oxford A',
+      institution: 'Oxford',
+      speakers: ['Ada Lovelace', 'Grace Hopper'],
+      wins: null,
+      totalPoints: 5,
+      firsts: 1,
+      seconds: 1,
     },
     {
-      rank: 2, rankEsl: null, rankEfl: null, categories: [],
-      speakerName: 'Ada Lovelace', teamName: 'Oxford A', institution: 'Oxford', totalScore: 155,
-      roundScores: [
-        { roundLabel: 'R1', score: 77, positionLabel: 'PM' },
-        { roundLabel: 'R2', score: 78, positionLabel: 'LO' },
-        { roundLabel: 'Avg', score: 77.5, positionLabel: 'average' },
-      ],
-    },
-    {
-      rank: 3, rankEsl: null, rankEfl: null, categories: [],
-      speakerName: 'Alan Turing', teamName: 'Cambridge A', institution: 'Cambridge', totalScore: 150,
-      roundScores: [
-        { roundLabel: 'R1', score: 75, positionLabel: 'LO' },
-        { roundLabel: 'R2', score: null, positionLabel: null },
-      ],
-    },
-    // A stand-in, not a person: never attributed.
-    {
-      rank: 4, rankEsl: null, rankEfl: null, categories: [],
-      speakerName: 'Speaker 1', teamName: 'Cambridge A', institution: null, totalScore: 140,
-      roundScores: [],
+      rank: 2,
+      teamName: 'Cambridge A',
+      institution: 'Cambridge',
+      speakers: ['Alan Turing', 'Speaker 1'],
+      wins: null,
+      totalPoints: 1,
+      firsts: 0,
+      seconds: 0,
     },
   ],
+  parseSpeakerTab: () =>
+    h.speakerTab
+      ? structuredClone(h.speakerTab)
+      : [
+          {
+            rank: 1,
+            rankEsl: null,
+            rankEfl: null,
+            categories: ['ESL'],
+            speakerName: 'Grace Hopper',
+            teamName: 'Oxford A',
+            institution: 'Oxford',
+            totalScore: 160,
+            roundScores: [
+              { roundLabel: 'R1', score: 80, positionLabel: 'DPM' },
+              { roundLabel: 'R2', score: 80, positionLabel: 'MO' },
+            ],
+          },
+          {
+            rank: 2,
+            rankEsl: null,
+            rankEfl: null,
+            categories: [],
+            speakerName: 'Ada Lovelace',
+            teamName: 'Oxford A',
+            institution: 'Oxford',
+            totalScore: 155,
+            roundScores: [
+              { roundLabel: 'R1', score: 77, positionLabel: 'PM' },
+              { roundLabel: 'R2', score: 78, positionLabel: 'LO' },
+              { roundLabel: 'Avg', score: 77.5, positionLabel: 'average' },
+            ],
+          },
+          {
+            rank: 3,
+            rankEsl: null,
+            rankEfl: null,
+            categories: [],
+            speakerName: 'Alan Turing',
+            teamName: 'Cambridge A',
+            institution: 'Cambridge',
+            totalScore: 150,
+            roundScores: [
+              { roundLabel: 'R1', score: 75, positionLabel: 'LO' },
+              { roundLabel: 'R2', score: null, positionLabel: null },
+            ],
+          },
+          // A stand-in, not a person: never attributed.
+          {
+            rank: 4,
+            rankEsl: null,
+            rankEfl: null,
+            categories: [],
+            speakerName: 'Speaker 1',
+            teamName: 'Cambridge A',
+            institution: null,
+            totalScore: 140,
+            roundScores: [],
+          },
+        ],
   parseRoundResults: (_html: string, url: string) => structuredClone(ROUNDS[url]),
   parseBreakPage: () => [
-    { rank: 1, entityType: 'team', entityName: 'Oxford A', institution: 'Oxford', score: 5, stage: 'Open' },
-    { rank: 2, entityType: 'team', entityName: 'Cambridge A', institution: 'Cambridge', score: 1, stage: 'Open' },
+    {
+      rank: 1,
+      entityType: 'team',
+      entityName: 'Oxford A',
+      institution: 'Oxford',
+      score: 5,
+      stage: 'Open',
+    },
+    {
+      rank: 2,
+      entityType: 'team',
+      entityName: 'Cambridge A',
+      institution: 'Cambridge',
+      score: 1,
+      stage: 'Open',
+    },
   ],
   parseParticipantsList: (html: string) =>
     html.includes('participants')
       ? [
-          { name: 'Ada Lovelace', role: 'speaker', judgeTag: null, teamName: 'Oxford A', institution: 'Oxford' },
-          { name: 'Judge Judy', role: 'adjudicator', judgeTag: 'invited', teamName: null, institution: null },
+          {
+            name: 'Ada Lovelace',
+            role: 'speaker',
+            judgeTag: null,
+            teamName: 'Oxford A',
+            institution: 'Oxford',
+          },
+          {
+            name: 'Judge Judy',
+            role: 'adjudicator',
+            judgeTag: 'invited',
+            teamName: null,
+            institution: null,
+          },
         ]
       : [],
   diagnoseVueData: () => 'diagnosis',
@@ -173,7 +244,13 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
 vi.mock('@/lib/calicotab/parseMotions', () => ({
   parseMotionsTab: () => [
     { roundNumber: 1, roundLabel: 'Round 1', text: 'THW ban zoos', infoSlide: null, seq: 0 },
-    { roundNumber: null, roundLabel: 'Grand Final', text: 'THR the rise of AI', infoSlide: 'Info', seq: 1 },
+    {
+      roundNumber: null,
+      roundLabel: 'Grand Final',
+      text: 'THR the rise of AI',
+      infoSlide: 'Info',
+      seq: 1,
+    },
   ],
 }));
 
@@ -239,11 +316,13 @@ function okPage(url: string) {
  * already holds for an existing tournament: how many distinct prelim rounds,
  * and whether the team / speaker tabs are on record.
  */
-function install(opts: {
-  existing?: Existing | null;
-  stored?: { rounds: number; teamTab: boolean; speakerTab: boolean };
-  claimed?: boolean;
-} = {}) {
+function install(
+  opts: {
+    existing?: Existing | null;
+    stored?: { rounds: number; teamTab: boolean; speakerTab: boolean };
+    claimed?: boolean;
+  } = {},
+) {
   const existing = opts.existing ?? null;
   const stored = opts.stored ?? { rounds: 3, teamTab: true, speakerTab: true };
   let participantId = 500n;
@@ -252,7 +331,9 @@ function install(opts: {
   h.fetchRound.mockImplementation(async (url: string) => okPage(url));
   h.recordParserRun.mockResolvedValue(undefined);
 
-  prismaMock.discoveredUrl.findFirst.mockResolvedValue({ messageDate: new Date('2025-02-01T00:00:00Z') });
+  prismaMock.discoveredUrl.findFirst.mockResolvedValue({
+    messageDate: new Date('2025-02-01T00:00:00Z'),
+  });
   prismaMock.discoveredUrl.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.tournament.findUnique.mockResolvedValue(existing);
   prismaMock.tournament.findMany.mockResolvedValue([]);
@@ -262,7 +343,9 @@ function install(opts: {
     Array.from({ length: stored.rounds }, (_, i) => ({ roundNumber: i + 1 })),
   );
   prismaMock.teamResult.findFirst.mockResolvedValue(stored.teamTab ? { id: 1n } : null);
-  prismaMock.tournamentParticipant.findFirst.mockResolvedValue(stored.speakerTab ? { id: 1n } : null);
+  prismaMock.tournamentParticipant.findFirst.mockResolvedValue(
+    stored.speakerTab ? { id: 1n } : null,
+  );
   prismaMock.tournamentParticipant.count.mockResolvedValue(0);
   prismaMock.tournamentParticipant.findMany.mockResolvedValue([]);
   prismaMock.tournamentParticipant.upsert.mockImplementation(async () => ({ id: participantId++ }));
@@ -271,24 +354,27 @@ function install(opts: {
   prismaMock.person.findFirst.mockResolvedValue(opts.claimed === false ? null : { id: 101n });
   prismaMock.parserRun.findFirst.mockResolvedValue({ parserVersion: PARSER_VERSION });
 
-  prismaMock.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const sql = strings.join('?');
-    if (sql.includes('"claimedByUserId")')) {
-      // linkRegistrationPerson's claim-aware upsert.
-      const claim = values[2] as string | null;
-      return [{ id: PERSON_IDS[values[1] as string] ?? 999n, claimedByUserId: claim }];
-    }
-    if (sql.includes('INSERT INTO "Person"')) {
-      // preCommitPersons
-      const id = PERSON_IDS[values[1] as string];
-      return id ? [{ id }] : [];
-    }
-    return [];
-  });
+  prismaMock.$queryRaw.mockImplementation(
+    async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const sql = strings.join('?');
+      if (sql.includes('"claimedByUserId")')) {
+        // linkRegistrationPerson's claim-aware upsert.
+        const claim = values[2] as string | null;
+        return [{ id: PERSON_IDS[values[1] as string] ?? 999n, claimedByUserId: claim }];
+      }
+      if (sql.includes('INSERT INTO "Person"')) {
+        // preCommitPersons
+        const id = PERSON_IDS[values[1] as string];
+        return id ? [{ id }] : [];
+      }
+      return [];
+    },
+  );
   prismaMock.$executeRaw.mockResolvedValue(0);
 }
 
-const callsOf = (fn: { mock: { calls: unknown[][] } }) => fn.mock.calls.map((c) => c[0] as Record<string, any>); // eslint-disable-line @typescript-eslint/no-explicit-any
+const callsOf = (fn: { mock: { calls: unknown[][] } }) =>
+  fn.mock.calls.map((c) => c[0] as Record<string, any>); // eslint-disable-line @typescript-eslint/no-explicit-any
 
 let savedApiTabs: string | undefined;
 let savedApiRounds: string | undefined;
@@ -381,9 +467,13 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
   it('takes the per-fingerprint advisory lock inside the transaction, with the live timeout', async () => {
     install();
     await ingestPrivateUrl(PRIVATE_URL, USER);
-    const lockCall = prismaMock.$executeRaw.mock.calls.find((c) => (c[0] as string[]).join('').includes('pg_advisory_xact_lock'));
+    const lockCall = prismaMock.$executeRaw.mock.calls.find((c) =>
+      (c[0] as string[]).join('').includes('pg_advisory_xact_lock'),
+    );
     expect(lockCall?.[1]).toBe(BigInt(`0x${FINGERPRINT.slice(0, 15)}`));
-    const txWithOptions = prismaMock.$transaction.mock.calls.find((c) => typeof c[0] === 'function' && c[1]);
+    const txWithOptions = prismaMock.$transaction.mock.calls.find(
+      (c) => typeof c[0] === 'function' && c[1],
+    );
     expect(txWithOptions?.[1]).toEqual({ maxWait: 10000, timeout: 45_000 });
   });
 
@@ -400,12 +490,58 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     await ingestPrivateUrl(PRIVATE_URL, USER);
     const rows = callsOf(prismaMock.teamResult.upsert).map((a) => a.create);
     expect(rows).toEqual([
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 0, rank: 1, wins: null, points: 5, firsts: 1, seconds: 1 },
-      { tournamentId: 1n, teamName: 'Cambridge A', roundNumber: 0, rank: 2, wins: null, points: 1, firsts: 0, seconds: 0 },
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 1, points: 3, wins: 1, position: 'OG' },
-      { tournamentId: 1n, teamName: 'Cambridge A', roundNumber: 1, points: 0, wins: 0, position: 'OO' },
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 2, points: 2, wins: null, position: 'CO' },
-      { tournamentId: 1n, teamName: 'Cambridge A', roundNumber: 2, points: 1, wins: null, position: 'CG' },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 0,
+        rank: 1,
+        wins: null,
+        points: 5,
+        firsts: 1,
+        seconds: 1,
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Cambridge A',
+        roundNumber: 0,
+        rank: 2,
+        wins: null,
+        points: 1,
+        firsts: 0,
+        seconds: 0,
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 1,
+        points: 3,
+        wins: 1,
+        position: 'OG',
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Cambridge A',
+        roundNumber: 1,
+        points: 0,
+        wins: 0,
+        position: 'OO',
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 2,
+        points: 2,
+        wins: null,
+        position: 'CO',
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Cambridge A',
+        roundNumber: 2,
+        points: 1,
+        wins: null,
+        position: 'CG',
+      },
     ]);
   });
 
@@ -414,8 +550,20 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     await ingestPrivateUrl(PRIVATE_URL, USER);
     const rows = callsOf(prismaMock.eliminationResult.upsert);
     expect(rows.map((a) => a.create)).toEqual([
-      { tournamentId: 1n, stage: 'Grand Final', entityType: 'team', entityName: 'Oxford A', result: 'won' },
-      { tournamentId: 1n, stage: 'Grand Final', entityType: 'team', entityName: 'Cambridge A', result: 'lost' },
+      {
+        tournamentId: 1n,
+        stage: 'Grand Final',
+        entityType: 'team',
+        entityName: 'Oxford A',
+        result: 'won',
+      },
+      {
+        tournamentId: 1n,
+        stage: 'Grand Final',
+        entityType: 'team',
+        entityName: 'Cambridge A',
+        result: 'lost',
+      },
       { tournamentId: 1n, stage: 'Open', entityType: 'team', entityName: 'Oxford A' },
       { tournamentId: 1n, stage: 'Open', entityType: 'team', entityName: 'Cambridge A' },
     ]);
@@ -428,13 +576,32 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     install();
     await ingestPrivateUrl(PRIVATE_URL, USER);
     expect(callsOf(prismaMock.motion.upsert).map((a) => a.create)).toEqual([
-      { tournamentId: 1n, roundNumber: 1, roundLabel: 'Round 1', seq: 0, text: 'THW ban zoos', infoSlide: null },
-      { tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 1, text: 'THR the rise of AI', infoSlide: 'Info' },
+      {
+        tournamentId: 1n,
+        roundNumber: 1,
+        roundLabel: 'Round 1',
+        seq: 0,
+        text: 'THW ban zoos',
+        infoSlide: null,
+      },
+      {
+        tournamentId: 1n,
+        roundNumber: null,
+        roundLabel: 'Grand Final',
+        seq: 1,
+        text: 'THR the rise of AI',
+        infoSlide: 'Info',
+      },
     ]);
     expect(prismaMock.motion.deleteMany).toHaveBeenCalledWith({
       where: {
         tournamentId: 1n,
-        NOT: { OR: [{ roundLabel: 'Round 1', seq: 0 }, { roundLabel: 'Grand Final', seq: 1 }] },
+        NOT: {
+          OR: [
+            { roundLabel: 'Round 1', seq: 0 },
+            { roundLabel: 'Grand Final', seq: 1 },
+          ],
+        },
       },
     });
   });
@@ -443,9 +610,15 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     install();
     await ingestPrivateUrl(PRIVATE_URL, USER);
     const precommitted = prismaMock.$queryRaw.mock.calls
-      .filter((c) => (c[0] as string[]).join('?').includes('INSERT INTO "Person"') && !(c[0] as string[]).join('?').includes('"claimedByUserId")'))
+      .filter(
+        (c) =>
+          (c[0] as string[]).join('?').includes('INSERT INTO "Person"') &&
+          !(c[0] as string[]).join('?').includes('"claimedByUserId")'),
+      )
       .map((c) => c[2]);
-    expect(precommitted).toEqual(['ada lovelace', 'alan turing', 'grace hopper', 'judge judy'].map(normalizePersonName));
+    expect(precommitted).toEqual(
+      ['ada lovelace', 'alan turing', 'grace hopper', 'judge judy'].map(normalizePersonName),
+    );
   });
 
   it('writes a participant per matched speaker and per adjudicator, with their roles', async () => {
@@ -453,9 +626,39 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     await ingestPrivateUrl(PRIVATE_URL, USER);
     const creates = callsOf(prismaMock.tournamentParticipant.upsert).map((a) => a.create);
     expect(creates).toEqual([
-      { tournamentId: 1n, personId: 103n, teamName: 'Oxford A', speakerScoreTotal: 160, speakerRankOpen: 1, speakerRankEsl: null, speakerRankEfl: null, speakerCategories: ['ESL'], teamBreakRank: 1 },
-      { tournamentId: 1n, personId: 101n, teamName: 'Oxford A', speakerScoreTotal: 155, speakerRankOpen: 2, speakerRankEsl: null, speakerRankEfl: null, speakerCategories: [], teamBreakRank: 1 },
-      { tournamentId: 1n, personId: 102n, teamName: 'Cambridge A', speakerScoreTotal: 150, speakerRankOpen: 3, speakerRankEsl: null, speakerRankEfl: null, speakerCategories: [], teamBreakRank: 2 },
+      {
+        tournamentId: 1n,
+        personId: 103n,
+        teamName: 'Oxford A',
+        speakerScoreTotal: 160,
+        speakerRankOpen: 1,
+        speakerRankEsl: null,
+        speakerRankEfl: null,
+        speakerCategories: ['ESL'],
+        teamBreakRank: 1,
+      },
+      {
+        tournamentId: 1n,
+        personId: 101n,
+        teamName: 'Oxford A',
+        speakerScoreTotal: 155,
+        speakerRankOpen: 2,
+        speakerRankEsl: null,
+        speakerRankEfl: null,
+        speakerCategories: [],
+        teamBreakRank: 1,
+      },
+      {
+        tournamentId: 1n,
+        personId: 102n,
+        teamName: 'Cambridge A',
+        speakerScoreTotal: 150,
+        speakerRankOpen: 3,
+        speakerRankEsl: null,
+        speakerRankEfl: null,
+        speakerCategories: [],
+        teamBreakRank: 2,
+      },
       // Adjudicator roster from the participants list.
       { tournamentId: 1n, personId: 104n, teamName: null, judgeTypeTag: 'invited' },
       // linkRegistrationPerson after the transaction.
@@ -469,7 +672,9 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
       { tournamentParticipantId: 503n, role: 'judge' },
     ]);
     // The derived-rank ROW_NUMBER update runs once, scoped to this tournament.
-    const derived = prismaMock.$executeRaw.mock.calls.filter((c) => (c[0] as string[]).join('').includes('speakerRankOpenDerived'));
+    const derived = prismaMock.$executeRaw.mock.calls.filter((c) =>
+      (c[0] as string[]).join('').includes('speakerRankOpenDerived'),
+    );
     expect(derived).toHaveLength(1);
     expect(derived[0]![1]).toBe(1n);
   });
@@ -507,8 +712,14 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     });
     const updates = callsOf(prismaMock.discoveredUrl.updateMany);
     expect(updates).toEqual([
-      { where: { userId: USER, url: { in: [PRIVATE_URL] } }, data: { registrationPersonId: 101n, registrationName: 'Ada Lovelace' } },
-      { where: { userId: USER, url: { in: [PRIVATE_URL] } }, data: { tournamentId: 1n, ingestedAt: expect.any(Date) } },
+      {
+        where: { userId: USER, url: { in: [PRIVATE_URL] } },
+        data: { registrationPersonId: 101n, registrationName: 'Ada Lovelace' },
+      },
+      {
+        where: { userId: USER, url: { in: [PRIVATE_URL] } },
+        data: { tournamentId: 1n, ingestedAt: expect.any(Date) },
+      },
     ]);
     // Speaker registration with no Debates-card outrounds: eliminationReached cleared.
     expect(prismaMock.tournamentParticipant.update).toHaveBeenCalledWith({
@@ -571,7 +782,9 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
       where: { userId: USER, url: { in: [PRIVATE_URL] } },
       data: { tournamentId: 7n, ingestedAt: expect.any(Date) },
     });
-    expect(h.recordParserRun).toHaveBeenCalledWith(expect.objectContaining({ parserName: 'parseNav', success: true }));
+    expect(h.recordParserRun).toHaveBeenCalledWith(
+      expect.objectContaining({ parserName: 'parseNav', success: true }),
+    );
   });
 
   it('a stored row with no parserVersion falls back to the landing document’s latest ParserRun', async () => {
@@ -589,12 +802,36 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
   // and (with a stored row) the scrape claim taken first.
   const misses: Array<[string, Parameters<typeof install>[0], { force?: boolean }]> = [
     ['force: true', { existing: existingTournament() }, { force: true }],
-    ['Re-ingest all’s epoch scrapedAt (storedTournamentFresh false)', { existing: existingTournament({ scrapedAt: new Date(0) }) }, {}],
-    ['an older parserVersion on the row', { existing: existingTournament({ parserVersion: '19990101.0' }) }, {}],
-    ['no parserVersion and an older latest ParserRun', { existing: existingTournament({ parserVersion: null }) }, {}],
-    ['nav lists more results rounds than are stored', { existing: existingTournament(), stored: { rounds: 2, teamTab: true, speakerTab: true } }, {}],
-    ['team tab linked but no round-0 standings stored (releasedTabMissing)', { existing: existingTournament(), stored: { rounds: 3, teamTab: false, speakerTab: true } }, {}],
-    ['speaker tab linked but no speaker totals stored (releasedTabMissing)', { existing: existingTournament(), stored: { rounds: 3, teamTab: true, speakerTab: false } }, {}],
+    [
+      'Re-ingest all’s epoch scrapedAt (storedTournamentFresh false)',
+      { existing: existingTournament({ scrapedAt: new Date(0) }) },
+      {},
+    ],
+    [
+      'an older parserVersion on the row',
+      { existing: existingTournament({ parserVersion: '19990101.0' }) },
+      {},
+    ],
+    [
+      'no parserVersion and an older latest ParserRun',
+      { existing: existingTournament({ parserVersion: null }) },
+      {},
+    ],
+    [
+      'nav lists more results rounds than are stored',
+      { existing: existingTournament(), stored: { rounds: 2, teamTab: true, speakerTab: true } },
+      {},
+    ],
+    [
+      'team tab linked but no round-0 standings stored (releasedTabMissing)',
+      { existing: existingTournament(), stored: { rounds: 3, teamTab: false, speakerTab: true } },
+      {},
+    ],
+    [
+      'speaker tab linked but no speaker totals stored (releasedTabMissing)',
+      { existing: existingTournament(), stored: { rounds: 3, teamTab: true, speakerTab: false } },
+      {},
+    ],
   ];
 
   it.each(misses)('re-scrapes on %s', async (label, scenario, options) => {
@@ -619,10 +856,16 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([{ id: 900n, personId: 101n }]);
     prismaMock.judgeAssignment.findMany.mockResolvedValue([{ personId: 104n }]);
     await ingestPrivateUrl(PRIVATE_URL, USER);
-    expect(prismaMock.eliminationResult.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 7n } });
+    expect(prismaMock.eliminationResult.deleteMany).toHaveBeenCalledWith({
+      where: { tournamentId: 7n },
+    });
     expect(prismaMock.teamResult.deleteMany).toHaveBeenCalledWith({ where: { tournamentId: 7n } });
-    expect(prismaMock.speakerRoundScore.deleteMany).toHaveBeenCalledWith({ where: { tournamentParticipantId: { in: [900n] } } });
-    expect(prismaMock.participantRole.deleteMany).toHaveBeenCalledWith({ where: { tournamentParticipantId: { in: [900n] } } });
+    expect(prismaMock.speakerRoundScore.deleteMany).toHaveBeenCalledWith({
+      where: { tournamentParticipantId: { in: [900n] } },
+    });
+    expect(prismaMock.participantRole.deleteMany).toHaveBeenCalledWith({
+      where: { tournamentParticipantId: { in: [900n] } },
+    });
     // Unclaimed participants go, except people with private judging history.
     expect(prismaMock.tournamentParticipant.deleteMany).toHaveBeenCalledWith({
       where: { tournamentId: 7n, person: { claimedByUserId: null }, personId: { notIn: [104n] } },
@@ -630,7 +873,13 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
   });
 
   it('the regression guard serves the stored row when a re-scrape would halve the teams', async () => {
-    install({ existing: existingTournament({ scrapedAt: new Date(0), totalTeams: 40, totalParticipants: 4 }) });
+    install({
+      existing: existingTournament({
+        scrapedAt: new Date(0),
+        totalTeams: 40,
+        totalParticipants: 4,
+      }),
+    });
     const result = await ingestPrivateUrl(PRIVATE_URL, USER);
     expect(result).toMatchObject({
       tournamentId: 7n,
@@ -675,7 +924,10 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
       data: { scrapeClaimedAt: null },
     });
     // The failure is still recorded on the landing ParserRun.
-    expect(h.recordParserRun.mock.calls[0]![0]).toMatchObject({ success: false, warnings: ['fetch: speakerTab HTTP 503'] });
+    expect(h.recordParserRun.mock.calls[0]![0]).toMatchObject({
+      success: false,
+      warnings: ['fetch: speakerTab HTTP 503'],
+    });
   });
 
   it('a withheld participants page is optional on a first ingest and does not abort', async () => {
@@ -687,14 +939,18 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     );
     const result = await ingestPrivateUrl(PRIVATE_URL, USER);
     expect(result.cached).toBe(false);
-    expect(result.warnings).toEqual(['optional: participants HTTP 403 (not public for this tournament)']);
+    expect(result.warnings).toEqual([
+      'optional: participants HTTP 403 (not public for this tournament)',
+    ]);
     // Without the participants list the count falls back to the speaker rows.
     expect(result.totalParticipants).toBe(4);
   });
 
   it('refuses a URL that is not a private URL before touching the network', async () => {
     install();
-    await expect(ingestPrivateUrl(`${BASE}tab/team/`, USER)).rejects.toThrow('refusing to fetch non-private URL');
+    await expect(ingestPrivateUrl(`${BASE}tab/team/`, USER)).rejects.toThrow(
+      'refusing to fetch non-private URL',
+    );
     expect(h.fetchHtml).not.toHaveBeenCalled();
   });
 });
@@ -719,7 +975,9 @@ describe('ingestPrivateUrl: regression guard compares like with like', () => {
   it('a stand-in somebody has claimed is written, so its rank does count', async () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     prismaMock.tournamentParticipant.count.mockResolvedValue(7);
-    prismaMock.person.findMany.mockResolvedValue([{ normalizedName: normalizePersonName('Speaker 1') }]);
+    prismaMock.person.findMany.mockResolvedValue([
+      { normalizedName: normalizePersonName('Speaker 1') },
+    ]);
     const result = await ingestPrivateUrl(PRIVATE_URL, USER);
     expect(result.cached).toBe(false);
     expect(h.captureMessage).not.toHaveBeenCalled();
@@ -729,11 +987,22 @@ describe('ingestPrivateUrl: regression guard compares like with like', () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     prismaMock.tournamentParticipant.count.mockResolvedValue(6);
     const row = (name: string, team: string, rank: number) => ({
-      rank, rankEsl: null, rankEfl: null, categories: [], speakerName: name, teamName: team,
-      institution: null, totalScore: 150, roundScores: [{ roundLabel: 'R1', score: 75, positionLabel: 'PM' }],
+      rank,
+      rankEsl: null,
+      rankEfl: null,
+      categories: [],
+      speakerName: name,
+      teamName: team,
+      institution: null,
+      totalScore: 150,
+      roundScores: [{ roundLabel: 'R1', score: 75, positionLabel: 'PM' }],
     });
     // Two people over three rows: 2 < 3, blocked. Counted per row it was 3 >= 3.
-    h.speakerTab = [row('Ada Lovelace', 'Oxford A', 1), row('Ada Lovelace', 'Cambridge A', 2), row('Grace Hopper', 'Oxford A', 3)];
+    h.speakerTab = [
+      row('Ada Lovelace', 'Oxford A', 1),
+      row('Ada Lovelace', 'Cambridge A', 2),
+      row('Grace Hopper', 'Oxford A', 3),
+    ];
     const result = await ingestPrivateUrl(PRIVATE_URL, USER);
     expect(result.cached).toBe(true);
     expect(h.captureMessage).toHaveBeenCalledWith(guardMsg('ranks 6→2'), expect.anything());
@@ -771,18 +1040,38 @@ describe('ingestPrivateUrl: an iron-man’s teamBreakRank', () => {
     // create used to take the row's own team (2) while teamName said Oxford A.
     h.speakerTab = [
       {
-        rank: 1, rankEsl: null, rankEfl: null, categories: [], speakerName: 'Grace Hopper', teamName: 'Cambridge A',
-        institution: null, totalScore: 80,
-        roundScores: [{ roundLabel: 'R1', score: 80, positionLabel: 'PM' }, { roundLabel: 'R2', score: null, positionLabel: null }],
+        rank: 1,
+        rankEsl: null,
+        rankEfl: null,
+        categories: [],
+        speakerName: 'Grace Hopper',
+        teamName: 'Cambridge A',
+        institution: null,
+        totalScore: 80,
+        roundScores: [
+          { roundLabel: 'R1', score: 80, positionLabel: 'PM' },
+          { roundLabel: 'R2', score: null, positionLabel: null },
+        ],
       },
       {
-        rank: 1, rankEsl: null, rankEfl: null, categories: [], speakerName: 'Grace Hopper', teamName: 'Oxford A',
-        institution: null, totalScore: 160,
-        roundScores: [{ roundLabel: 'R1', score: 80, positionLabel: 'PM' }, { roundLabel: 'R2', score: 80, positionLabel: 'MO' }],
+        rank: 1,
+        rankEsl: null,
+        rankEfl: null,
+        categories: [],
+        speakerName: 'Grace Hopper',
+        teamName: 'Oxford A',
+        institution: null,
+        totalScore: 160,
+        roundScores: [
+          { roundLabel: 'R1', score: 80, positionLabel: 'PM' },
+          { roundLabel: 'R2', score: 80, positionLabel: 'MO' },
+        ],
       },
     ];
     await ingestPrivateUrl(PRIVATE_URL, USER);
-    const grace = callsOf(prismaMock.tournamentParticipant.upsert).filter((a) => a.create.personId === 103n);
+    const grace = callsOf(prismaMock.tournamentParticipant.upsert).filter(
+      (a) => a.create.personId === 103n,
+    );
     expect(grace).toHaveLength(2);
     for (const call of grace) {
       expect(call.create).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });

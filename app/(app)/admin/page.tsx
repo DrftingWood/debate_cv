@@ -26,26 +26,27 @@ export default async function AdminPage() {
     redirect('/');
   }
 
-  const [tournaments, discoveredUrls, lockedUrls, pendingJobs, recentParserRuns, cvReports] = await Promise.all([
-    prisma.tournament.count(),
-    prisma.discoveredUrl.count(),
-    prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
-    prisma.ingestJob.count({ where: { status: 'pending' } }),
-    // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
-    // give a sense of warning frequency without scanning the whole table.
-    // Most-recent-first so frequencies reflect current parser version.
-    prisma.parserRun.findMany({
-      where: { warnings: { isEmpty: false } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
-    }),
-    prisma.cvErrorReport.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      include: { user: { select: { name: true, email: true } } },
-    }),
-  ]);
+  const [tournaments, discoveredUrls, lockedUrls, pendingJobs, recentParserRuns, cvReports] =
+    await Promise.all([
+      prisma.tournament.count(),
+      prisma.discoveredUrl.count(),
+      prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
+      prisma.ingestJob.count({ where: { status: 'pending' } }),
+      // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
+      // give a sense of warning frequency without scanning the whole table.
+      // Most-recent-first so frequencies reflect current parser version.
+      prisma.parserRun.findMany({
+        where: { warnings: { isEmpty: false } },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+        select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
+      }),
+      prisma.cvErrorReport.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: { user: { select: { name: true, email: true } } },
+      }),
+    ]);
 
   const cvReportTournamentIds = [
     ...new Set(cvReports.flatMap((report) => report.tournamentIds)),
@@ -125,8 +126,8 @@ export default async function AdminPage() {
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Tag proposals</h2>
         <p className="text-body text-ink-soft">
-          Review user-proposed region and motion tags. Approvals write directly to the
-          canonical Tournament / Motion columns.
+          Review user-proposed region and motion tags. Approvals write directly to the canonical
+          Tournament / Motion columns.
         </p>
         <Link href="/admin/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
           Review tag proposals →
@@ -141,7 +142,10 @@ export default async function AdminPage() {
               Beta reports users submitted from their CV page.
             </p>
           </div>
-          <a href="/api/admin/cv-error-reports-export" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+          <a
+            href="/api/admin/cv-error-reports-export"
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
             <Download className="h-3.5 w-3.5" aria-hidden /> Export CSV
           </a>
         </div>
@@ -155,9 +159,7 @@ export default async function AdminPage() {
                   <div className="text-ui font-medium text-ink">
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
-                  <div className="text-caption text-ink-soft">
-                    {formatDate(report.createdAt)}
-                  </div>
+                  <div className="text-caption text-ink-soft">{formatDate(report.createdAt)}</div>
                 </div>
                 {report.user.email ? (
                   <div className="text-caption text-ink-soft">{report.user.email}</div>
@@ -170,7 +172,9 @@ export default async function AdminPage() {
                         key={id}
                         className="rounded-full bg-surface-2 px-2 py-0.5 text-byline text-ink-soft"
                       >
-                        {tournament ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}` : `#${id}`}
+                        {tournament
+                          ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}`
+                          : `#${id}`}
                       </span>
                     );
                   })}
@@ -202,9 +206,9 @@ export default async function AdminPage() {
         <div>
           <h2 className="font-display text-h3 font-medium text-ink">Recent parser warnings</h2>
           <p className="text-body text-ink-soft mt-1">
-            Top warnings from the latest 200 parser runs, grouped by headline. High counts mean
-            many tournaments are hitting the same parsing issue — usually a structural change in
-            Tabbycat the parser hasn&rsquo;t caught up to yet.
+            Top warnings from the latest 200 parser runs, grouped by headline. High counts mean many
+            tournaments are hitting the same parsing issue — usually a structural change in Tabbycat
+            the parser hasn&rsquo;t caught up to yet.
           </p>
         </div>
         {sortedWarnings.length === 0 ? (
@@ -219,9 +223,7 @@ export default async function AdminPage() {
               <li key={key} className="px-3 py-2 space-y-1">
                 <div className="flex items-baseline justify-between gap-3">
                   <code className="font-mono text-caption text-ink break-all">{key}</code>
-                  <span className="shrink-0 text-caption font-mono text-ink-soft">
-                    ×{count}
-                  </span>
+                  <span className="shrink-0 text-caption font-mono text-ink-soft">×{count}</span>
                 </div>
                 <div className="text-byline text-ink-soft">
                   Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
@@ -249,10 +251,10 @@ export default async function AdminPage() {
         <div>
           <h2 className="font-display text-h3 font-medium text-ink">Full wipe (destructive)</h2>
           <p className="text-body text-ink-soft mt-1">
-            All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and
-            every PersonRejection across all users. User accounts and Gmail tokens are preserved
-            so users can re-run the Gmail scan from zero. Use only to test the discovery + claim
-            flow end-to-end.
+            All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and every
+            PersonRejection across all users. User accounts and Gmail tokens are preserved so users
+            can re-run the Gmail scan from zero. Use only to test the discovery + claim flow
+            end-to-end.
           </p>
           <p className="text-table text-destructive mt-2">
             Irreversible. Every user loses their claimed identities.

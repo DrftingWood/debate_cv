@@ -39,92 +39,80 @@ export default async function ReportsSettingsPage() {
     take: 100,
   });
 
-  const tournamentIds = [...new Set(reports.flatMap((r) => r.tournamentIds))]
-    .filter((id) => /^\d+$/.test(id));
+  const tournamentIds = [...new Set(reports.flatMap((r) => r.tournamentIds))].filter((id) =>
+    /^\d+$/.test(id),
+  );
   const tournaments = tournamentIds.length
     ? await prisma.tournament.findMany({
         where: { id: { in: tournamentIds.map((id) => BigInt(id)) } },
         select: { id: true, name: true, year: true },
       })
     : [];
-  const tournamentById = new Map(
-    tournaments.map((t) => [t.id.toString(), t] as const),
-  );
+  const tournamentById = new Map(tournaments.map((t) => [t.id.toString(), t] as const));
 
   return (
     <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">SETTINGS · REPORTS</div>
-        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Reports
-        </h1>
+        <h1 className="font-display text-h2 font-medium tracking-tight text-ink">Reports</h1>
         <p className="text-body text-ink-soft">Open and resolved reports.</p>
         <hr className="hairline" />
       </header>
 
       <Card>
-      <CardBody className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
-          <h2 className="font-display text-h3 font-medium text-ink">
-            Your reports
-          </h2>
-        </div>
+        <CardBody className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
+            <h2 className="font-display text-h3 font-medium text-ink">Your reports</h2>
+          </div>
 
-        {reports.length === 0 ? (
-          <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
-            You haven&apos;t reported any CV issues yet. The Report button on
-            each row of <strong>Record</strong> opens a quick form for telling
-            us when something looks wrong.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-card border border-border bg-card">
-            {reports.map((r) => {
-              const trainNames = r.tournamentIds
-                .map((id) => tournamentById.get(id))
-                .filter(Boolean)
-                .map((t) => `${t!.name}${t!.year ? ` (${t!.year})` : ''}`);
-              return (
-                <li key={r.id} className="space-y-2 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {trainNames.length > 0 ? (
-                      <span className="font-medium text-ink">
-                        {trainNames.join(', ')}
-                      </span>
-                    ) : (
-                      <span className="text-ink-soft">Unknown tournament</span>
-                    )}
-                    {statusBadge(r.status)}
-                    <span className="text-caption text-ink-soft">
-                      {formatDate(r.createdAt)}
-                    </span>
-                  </div>
-                  {r.categories.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.categories.map((c) => (
-                        <Badge key={c} variant="outline">
-                          {categoryLabel(c)}
-                        </Badge>
-                      ))}
+          {reports.length === 0 ? (
+            <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
+              You haven&apos;t reported any CV issues yet. The Report button on each row of{' '}
+              <strong>Record</strong> opens a quick form for telling us when something looks wrong.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border rounded-card border border-border bg-card">
+              {reports.map((r) => {
+                const trainNames = r.tournamentIds
+                  .map((id) => tournamentById.get(id))
+                  .filter(Boolean)
+                  .map((t) => `${t!.name}${t!.year ? ` (${t!.year})` : ''}`);
+                return (
+                  <li key={r.id} className="space-y-2 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {trainNames.length > 0 ? (
+                        <span className="font-medium text-ink">{trainNames.join(', ')}</span>
+                      ) : (
+                        <span className="text-ink-soft">Unknown tournament</span>
+                      )}
+                      {statusBadge(r.status)}
+                      <span className="text-caption text-ink-soft">{formatDate(r.createdAt)}</span>
                     </div>
-                  ) : null}
-                  {r.comment ? (
-                    <p className="whitespace-pre-wrap text-table text-ink-soft">
-                      {r.comment}
-                    </p>
-                  ) : null}
-                  {r.adminNote ? (
-                    <p className="rounded-md border border-border bg-paper p-2 text-caption text-ink">
-                      <span className="font-medium">Note from us:</span> {r.adminNote}
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardBody>
-    </Card>
+                    {r.categories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {r.categories.map((c) => (
+                          <Badge key={c} variant="outline">
+                            {categoryLabel(c)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    {r.comment ? (
+                      <p className="whitespace-pre-wrap text-table text-ink-soft">{r.comment}</p>
+                    ) : null}
+                    {r.adminNote ? (
+                      <p className="rounded-md border border-border bg-paper p-2 text-caption text-ink">
+                        <span className="font-medium">Note from us:</span> {r.adminNote}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

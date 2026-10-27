@@ -42,7 +42,11 @@ function editDistance(a: string, b: string, max: number): number {
     const cur = [i];
     let rowMin = i;
     for (let j = 1; j <= b.length; j++) {
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      const v = Math.min(
+        prev[j] + 1,
+        cur[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
       cur.push(v);
       if (v < rowMin) rowMin = v;
     }
@@ -75,17 +79,21 @@ export function nameProximity(registrationName: string, profileName: string): Na
   const ta = a.split(' ');
   const tb = b.split(' ');
   // Same words in another order ("Acharya Abhishek", "Acharya, Abhishek").
-  if (ta.length === tb.length && [...ta].sort().join(' ') === [...tb].sort().join(' ')) return 'match';
+  if (ta.length === tb.length && [...ta].sort().join(' ') === [...tb].sort().join(' '))
+    return 'match';
   // A single bare name is too ambiguous to be close to anything but itself.
   if (ta.length < 2 || tb.length < 2) return 'different';
   // Same first name and surname, a middle name dropped on either side.
   if (ta[0] === tb[0] && ta[ta.length - 1] === tb[tb.length - 1]) return 'match';
 
   // Surname is the last token, first name the first; middle names are ignored.
-  if (surnameAgrees(ta[ta.length - 1], tb[tb.length - 1]) && firstNameAgrees(ta[0], tb[0])) return 'close';
+  if (surnameAgrees(ta[ta.length - 1], tb[tb.length - 1]) && firstNameAgrees(ta[0], tb[0]))
+    return 'close';
   // Surname-first order ("Acharya A"): compare crosswise.
-  if (surnameAgrees(ta[0], tb[tb.length - 1]) && firstNameAgrees(ta[ta.length - 1], tb[0])) return 'close';
-  if (surnameAgrees(ta[ta.length - 1], tb[0]) && firstNameAgrees(ta[0], tb[tb.length - 1])) return 'close';
+  if (surnameAgrees(ta[0], tb[tb.length - 1]) && firstNameAgrees(ta[ta.length - 1], tb[0]))
+    return 'close';
+  if (surnameAgrees(ta[ta.length - 1], tb[0]) && firstNameAgrees(ta[0], tb[tb.length - 1]))
+    return 'close';
   return 'different';
 }
 
@@ -98,7 +106,10 @@ export type ProximityToYou = NameProximity | 'unknown';
  * plays under "Abhi A" and has claimed that name is not flagged for it. With
  * no reference name at all the answer is 'unknown', not 'different'.
  */
-export function proximityToYou(name: string, references: ReadonlyArray<string | null | undefined>): ProximityToYou {
+export function proximityToYou(
+  name: string,
+  references: ReadonlyArray<string | null | undefined>,
+): ProximityToYou {
   const refs = references.filter((r): r is string => typeof r === 'string' && r.trim() !== '');
   if (refs.length === 0) return 'unknown';
   let best: NameProximity = 'different';

@@ -8,7 +8,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 vi.mock('@/lib/rateLimit', () => ({ enforceRateLimit: vi.fn(async () => null) }));
 
 const { GET } = await import('@/app/api/account/export/route');
@@ -38,8 +40,14 @@ describe('GET /api/account/export', () => {
     expect(discovered.include.tournament).toMatchObject({ omit: { sourceUrlRaw: true } });
 
     const persons = prismaMock.person.findMany.mock.calls[0][0] as {
-      include: { participations: { include: { tournament: { omit?: { sourceUrlRaw?: boolean } } | boolean } } };
+      include: {
+        participations: {
+          include: { tournament: { omit?: { sourceUrlRaw?: boolean } } | boolean };
+        };
+      };
     };
-    expect(persons.include.participations.include.tournament).toMatchObject({ omit: { sourceUrlRaw: true } });
+    expect(persons.include.participations.include.tournament).toMatchObject({
+      omit: { sourceUrlRaw: true },
+    });
   });
 });

@@ -46,7 +46,10 @@ import {
   Splits,
 } from '@/components/stats/StatsSections';
 
-export type FilterableStatsData = Pick<CvData, 'speakerRows' | 'judgeRows' | 'taggedMotions' | 'fieldStats'>;
+export type FilterableStatsData = Pick<
+  CvData,
+  'speakerRows' | 'judgeRows' | 'taggedMotions' | 'fieldStats'
+>;
 
 /**
  * A section whose figures describe whole tournaments or their round order,
@@ -54,7 +57,17 @@ export type FilterableStatsData = Pick<CvData, 'speakerRows' | 'judgeRows' | 'ta
  * section's id so the jump rail still lands somewhere, and says why the
  * numbers are missing instead of leaving a gap.
  */
-function WithheldSection({ id, label, title, reason }: { id: string; label: string; title: string; reason: string }) {
+function WithheldSection({
+  id,
+  label,
+  title,
+  reason,
+}: {
+  id: string;
+  label: string;
+  title: string;
+  reason: string;
+}) {
   return (
     <section id={id} aria-label={title} className="scroll-mt-24 space-y-3">
       <SectionHeader label={label} title={title} />
@@ -103,21 +116,30 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   const active = isFilterActive(filter);
   const bySeat = filter.seats.length > 0;
 
-  const totalSpeeches = useMemo(() => facts.rounds.filter((r) => r.score != null && !r.isOutround).length, [facts]);
+  const totalSpeeches = useMemo(
+    () => facts.rounds.filter((r) => r.score != null && !r.isOutround).length,
+    [facts],
+  );
   // Name the active filters (STAT-7): the pressed chips are the only other
   // place they show, and a screen reader hears this sentence on every change.
   const filterNames = [
-    ...filter.partners.length > 2
+    ...(filter.partners.length > 2
       ? [`${filter.partners.length} partners`]
-      : filter.partners.map((k) => `partner ${facts.partnerNames[k] ?? 'unknown'}`),
-    ...filter.pairings.map((p) => `pairing ${p === 'pro' ? 'pro-am, you as pro' : p === 'am' ? 'pro-am, you as am' : 'peers'}`),
+      : filter.partners.map((k) => `partner ${facts.partnerNames[k] ?? 'unknown'}`)),
+    ...filter.pairings.map(
+      (p) =>
+        `pairing ${p === 'pro' ? 'pro-am, you as pro' : p === 'am' ? 'pro-am, you as am' : 'peers'}`,
+    ),
     ...filter.seats.map((s) => `seat ${s.replace(':', ' ')}`),
   ].join('; ');
   const summary = active
     ? `Showing ${stats.scoreProfile.speeches.toLocaleString()} of ${totalSpeeches.toLocaleString()} scored prelim speeches, from ${filtered.speakerRows.length} of ${data.speakerRows.length} tournaments, filtered by ${filterNames}.`
     : `All ${totalSpeeches.toLocaleString()} scored prelim speeches from ${data.speakerRows.length} tournaments. Narrow by partner, pairing or seat.`;
 
-  const quirkIds = visibleQuirkIds(stats.quirks.map((q) => q.id), filter);
+  const quirkIds = visibleQuirkIds(
+    stats.quirks.map((q) => q.id),
+    filter,
+  );
 
   const speaks = facts.rounds.length > 0;
 
@@ -129,12 +151,17 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
     const ids = STATS_SECTIONS.filter((s) => document.getElementById(s.id)).map((s) => s.id);
     setPresentIds((prev) => (prev.join() === ids.join() ? prev : ids));
   }, [filteredFacts, stats, speaks]);
-  const railTargets = useMemo(() => STATS_SECTIONS.filter((s) => presentIds.includes(s.id)), [presentIds]);
+  const railTargets = useMemo(
+    () => STATS_SECTIONS.filter((s) => presentIds.includes(s.id)),
+    [presentIds],
+  );
 
   return (
     <div className="space-y-8">
       {/* A judging-only record has nothing to filter: no partners, no seats. */}
-      {speaks ? <StatsFilterBar facts={facts} filter={filter} onChange={setFilter} summary={summary} /> : null}
+      {speaks ? (
+        <StatsFilterBar facts={facts} filter={filter} onChange={setFilter} summary={summary} />
+      ) : null}
 
       {active && filtered.speakerRows.length === 0 ? (
         <div className="space-y-10">
@@ -220,7 +247,11 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <TopicTypeSection facts={filteredFacts} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
-            <CarrySection facts={filteredFacts} baseline={facts.rounds} byPairing={filter.pairings.length > 0} />
+            <CarrySection
+              facts={filteredFacts}
+              baseline={facts.rounds}
+              byPairing={filter.pairings.length > 0}
+            />
             {bySeat ? (
               <WithheldSection
                 id="seasons"

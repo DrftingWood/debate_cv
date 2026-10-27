@@ -19,7 +19,10 @@ export async function POST(req: Request) {
 
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
-    return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'bad_request', details: parse.error.flatten() },
+      { status: 400 },
+    );
   }
   const selectedUrls = parse.data.urls?.length ? [...new Set(parse.data.urls)] : null;
 
@@ -39,9 +42,7 @@ export async function POST(req: Request) {
     select: { url: true, lastError: true },
   });
   const dead = new Set(
-    existingJobs
-      .filter((j) => j.lastError && /HTTP 404/.test(j.lastError))
-      .map((j) => j.url),
+    existingJobs.filter((j) => j.lastError && /HTTP 404/.test(j.lastError)).map((j) => j.url),
   );
 
   let queued = 0;

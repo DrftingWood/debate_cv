@@ -8,7 +8,10 @@ import type { MotionRow } from '@/lib/calicotab/parseMotions';
  * Build a minimal plain-HTML motions table (server-rendered, no Vue island).
  * Column order: Round | Motion | Info Slide (info slide column optional).
  */
-function plainTableHtml(rows: { round: string; motion: string; infoSlide?: string }[], includeInfoCol = false): string {
+function plainTableHtml(
+  rows: { round: string; motion: string; infoSlide?: string }[],
+  includeInfoCol = false,
+): string {
   const headerCells = includeInfoCol
     ? '<th>Round</th><th>Motion</th><th>Info Slide</th>'
     : '<th>Round</th><th>Motion</th>';
@@ -31,7 +34,10 @@ function plainTableHtml(rows: { round: string; motion: string; infoSlide?: strin
  * modern Tabbycat instances produce and that parseTabs.ts fixtures use.
  * Each `head` entry is `{ key, title }`; each data row is `{ text }[]`.
  */
-function vueMotionsHtml(head: { key: string; title: string }[], data: { text: string }[][]): string {
+function vueMotionsHtml(
+  head: { key: string; title: string }[],
+  data: { text: string }[][],
+): string {
   const payload = JSON.stringify([{ head, data }]);
   return `<!doctype html><html><body><script>window.vueData = ${payload}</script></body></html>`;
 }
@@ -114,9 +120,7 @@ describe('parseMotionsTab — plain HTML table', () => {
   test('"R3" abbreviated label normalizes roundNumber to 3', () => {
     // Some Tabbycat installs render "R1", "R2", ... in the round column
     // instead of the full "Round 1" form.
-    const html = plainTableHtml([
-      { round: 'R3', motion: 'THW give extra votes to the poor.' },
-    ]);
+    const html = plainTableHtml([{ round: 'R3', motion: 'THW give extra votes to the poor.' }]);
     const rows = parseMotionsTab(html);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.roundNumber).toBe(3);
@@ -171,8 +175,6 @@ describe('parseMotionsTab — Vue data island', () => {
     expect(rows[0]!.infoSlide).toBe('Turnout in the last election was 45%.');
   });
 
-
-
   test('Vue page using "text" key instead of "motion"', () => {
     // Some Tabbycat installs label the motion column "text" or "topic".
     const html = vueMotionsHtml(
@@ -180,9 +182,7 @@ describe('parseMotionsTab — Vue data island', () => {
         { key: 'round', title: 'Round' },
         { key: 'text', title: 'Text' },
       ],
-      [
-        [{ text: 'Round 5' }, { text: 'THW ban lobbying by corporations.' }],
-      ],
+      [[{ text: 'Round 5' }, { text: 'THW ban lobbying by corporations.' }]],
     );
     const rows = parseMotionsTab(html);
     expect(rows).toHaveLength(1);
@@ -246,7 +246,10 @@ describe('parseMotionsTab — empty and garbage input', () => {
       </table>
     `;
     const noMotionColumnVue = vueMotionsHtml(
-      [{ key: 'round', title: 'Round' }, { key: 'venue', title: 'Venue' }],
+      [
+        { key: 'round', title: 'Round' },
+        { key: 'venue', title: 'Venue' },
+      ],
       [[{ text: 'Round 1' }, { text: 'Hall A' }]],
     );
     const emptyVueTables = `<html><body><script>window.vueData = {"tablesData":[]}</script></body></html>`;
@@ -274,13 +277,13 @@ describe('parseMotionsTab — return-value shape', () => {
     const rows = parseMotionsTab(html);
     expect(rows).toHaveLength(1);
     const keys = Object.keys(rows[0]!) as (keyof MotionRow)[];
-    expect(keys).toEqual(expect.arrayContaining(['roundNumber', 'roundLabel', 'text', 'infoSlide', 'seq']));
+    expect(keys).toEqual(
+      expect.arrayContaining(['roundNumber', 'roundLabel', 'text', 'infoSlide', 'seq']),
+    );
   });
 
   test('info slide is null whether the column is absent or empty', () => {
-    const absent = plainTableHtml([
-      { round: 'Round 1', motion: 'THW allow civil disobedience.' },
-    ]);
+    const absent = plainTableHtml([{ round: 'Round 1', motion: 'THW allow civil disobedience.' }]);
     expect(parseMotionsTab(absent)[0]!.infoSlide).toBeNull();
 
     const empty = plainTableHtml(

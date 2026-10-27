@@ -22,8 +22,14 @@ const MAX_TOURNAMENTS_PER_RUN = 40;
 // proposal and so stays "to do"; without a cursor it would be picked first
 // on every pass and starve everything behind it.
 const Body = z.object({
-  motionAfter: z.string().regex(/^[0-9]+$/).optional(),
-  tournamentAfter: z.string().regex(/^[0-9]+$/).optional(),
+  motionAfter: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .optional(),
+  tournamentAfter: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .optional(),
 });
 
 // POST /api/admin/tags/classify — run the Haiku classifier over motions that
@@ -59,13 +65,19 @@ export async function POST(req: Request) {
 
   const cursors = Body.safeParse(await req.json().catch(() => ({})));
   if (!cursors.success) {
-    return NextResponse.json({ error: 'bad_request', details: cursors.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'bad_request', details: cursors.error.flatten() },
+      { status: 400 },
+    );
   }
-  const motionWhere = (after?: bigint) => (after === undefined ? MOTIONS_TODO : { ...MOTIONS_TODO, id: { gt: after } });
+  const motionWhere = (after?: bigint) =>
+    after === undefined ? MOTIONS_TODO : { ...MOTIONS_TODO, id: { gt: after } };
   const tournamentWhere = (after?: bigint) =>
     after === undefined ? TOURNAMENTS_TODO : { ...TOURNAMENTS_TODO, id: { gt: after } };
   const motionAfter = cursors.data.motionAfter ? BigInt(cursors.data.motionAfter) : undefined;
-  const tournamentAfter = cursors.data.tournamentAfter ? BigInt(cursors.data.tournamentAfter) : undefined;
+  const tournamentAfter = cursors.data.tournamentAfter
+    ? BigInt(cursors.data.tournamentAfter)
+    : undefined;
 
   const [motions, tournaments] = await Promise.all([
     prisma.motion.findMany({
@@ -105,7 +117,12 @@ export async function POST(req: Request) {
   // Same one-live-proposal-per-(user, kind, target) rule as
   // /api/tags/propose: if the admin already has a proposal for this target,
   // refresh it instead of stacking a duplicate.
-  const file = async (kind: string, tournamentId: bigint, motionId: bigint | null, value: string) => {
+  const file = async (
+    kind: string,
+    tournamentId: bigint,
+    motionId: bigint | null,
+    value: string,
+  ) => {
     const existing = await prisma.tagProposal.findFirst({
       where: { userId: adminUser.id, kind, tournamentId, motionId },
       select: { id: true },
@@ -171,7 +188,9 @@ export async function POST(req: Request) {
   const lastTournament = tournaments.length > 0 ? tournaments[tournaments.length - 1].id : null;
   const [remaining, regionsRemaining] = await Promise.all([
     lastMotion === null ? 0 : prisma.motion.count({ where: motionWhere(lastMotion) }),
-    lastTournament === null ? 0 : prisma.tournament.count({ where: tournamentWhere(lastTournament) }),
+    lastTournament === null
+      ? 0
+      : prisma.tournament.count({ where: tournamentWhere(lastTournament) }),
   ]);
 
   return NextResponse.json({

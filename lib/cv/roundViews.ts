@@ -27,7 +27,10 @@ export const CARRY_LEVEL_BAND = 0.5;
 
 export type RoundCurvePoint = RoundSplit & { roundNumber: number };
 
-export function roundCurve(rounds: RoundFact[], baselineRounds: RoundFact[] = rounds): RoundCurvePoint[] {
+export function roundCurve(
+  rounds: RoundFact[],
+  baselineRounds: RoundFact[] = rounds,
+): RoundCurvePoint[] {
   return splitRounds(rounds, (r) => String(r.round), baselineRounds)
     .map((s) => ({ ...s, roundNumber: Number(s.key) }))
     .sort((a, b) => a.roundNumber - b.roundNumber);
@@ -104,7 +107,10 @@ export type MomentumKey = 'after-win' | 'after-loss';
  * round and a loss in a weaker one. Win rate after a win is expected to fall
  * for everyone; the section says so rather than calling it tilt.
  */
-export function momentumAfter(rounds: RoundFact[], baselineRounds: RoundFact[] = rounds): RoundSplit[] {
+export function momentumAfter(
+  rounds: RoundFact[],
+  baselineRounds: RoundFact[] = rounds,
+): RoundSplit[] {
   const prelims = rounds.filter((r) => !r.isOutround);
   const byTournament = new Map<string, Map<number, RoundFact>>();
   for (const r of prelims) {

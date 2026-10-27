@@ -47,7 +47,9 @@ function getCookieHeader(host) {
 }
 
 function isCloudflareChallenge(html) {
-  return html.includes('__cf_chl_') || (html.includes('Just a moment') && html.includes('cloudflare'));
+  return (
+    html.includes('__cf_chl_') || (html.includes('Just a moment') && html.includes('cloudflare'))
+  );
 }
 
 async function fetchPage(url, referer) {
@@ -55,7 +57,7 @@ async function fetchPage(url, referer) {
   const cookie = getCookieHeader(host);
   const headers = {
     'User-Agent': DEFAULT_UA,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
@@ -73,7 +75,8 @@ async function fetchPage(url, referer) {
   const html = await res.text();
 
   if (!res.ok) return { ok: false, status: res.status, html, url };
-  if (isCloudflareChallenge(html)) return { ok: false, status: 503, html: '[Cloudflare JS challenge]', url };
+  if (isCloudflareChallenge(html))
+    return { ok: false, status: 503, html: '[Cloudflare JS challenge]', url };
   return { ok: true, status: res.status, html, url };
 }
 
@@ -84,15 +87,33 @@ function extractVueData(html) {
   const idx = html.indexOf(marker);
   if (idx < 0) return null;
   const rest = html.slice(idx + marker.length);
-  let depth = 0, inString = false, escaped = false, endIdx = -1;
+  let depth = 0,
+    inString = false,
+    escaped = false,
+    endIdx = -1;
   for (let i = 0; i < rest.length; i++) {
     const ch = rest[i];
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\' && inString) { escaped = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (ch === '{' || ch === '[') depth++;
-    else if (ch === '}' || ch === ']') { depth--; if (depth === 0) { endIdx = i + 1; break; } }
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) {
+        endIdx = i + 1;
+        break;
+      }
+    }
   }
   if (endIdx < 0) return null;
   try {
@@ -103,14 +124,16 @@ function extractVueData(html) {
 }
 
 function cellText(cell) {
-  return String(cell?.text ?? '').replace(/\s+/g, ' ').trim();
+  return String(cell?.text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function vueCol(heads, ...needles) {
-  return heads.findIndex(h => {
+  return heads.findIndex((h) => {
     const k = (h.key ?? '').toLowerCase();
     const t = (h.title ?? '').toLowerCase();
-    return needles.some(n => k.includes(n) || t.includes(n));
+    return needles.some((n) => k.includes(n) || t.includes(n));
   });
 }
 
@@ -125,14 +148,20 @@ function parseNum(s) {
 const cheerio = await import('cheerio');
 const load = cheerio.load ?? cheerio.default?.load;
 
-function cleanText(s) { return s.replace(/\s+/g, ' ').trim(); }
+function cleanText(s) {
+  return s.replace(/\s+/g, ' ').trim();
+}
 
 function findTableByHeader($, matcher) {
   let found = null;
   $('table').each((_, el) => {
     if (found) return;
-    const headers = $(el).find('thead tr').first().find('th')
-      .map((_, th) => cleanText($(th).text()).toLowerCase()).get();
+    const headers = $(el)
+      .find('thead tr')
+      .first()
+      .find('th')
+      .map((_, th) => cleanText($(th).text()).toLowerCase())
+      .get();
     if (headers.length && matcher(headers)) found = $(el);
   });
   return found;
@@ -163,22 +192,36 @@ function parseTeamTab(html) {
             totalPoints: ptsCol >= 0 ? parseNum(cellText(row[ptsCol])) : null,
           });
         }
-        if (rows.length > 0) return { rows, source: 'vueData', heads: heads.map(h => h.key ?? h.title ?? '?') };
+        if (rows.length > 0)
+          return { rows, source: 'vueData', heads: heads.map((h) => h.key ?? h.title ?? '?') };
       }
     }
   }
   const $ = load(html);
-  const table = findTableByHeader($, h => h.some(x => x.includes('team'))) ?? $('table').first();
-  const headers = table.find('thead th').map((_, th) => cleanText($(th).text()).toLowerCase()).get();
-  const idx = (...n) => headers.findIndex(h => n.some(x => h.includes(x)));
-  const teamCol = idx('team'), winsCol = idx('win', 'record'), pointsCol = idx('total', 'points');
+  const table =
+    findTableByHeader($, (h) => h.some((x) => x.includes('team'))) ?? $('table').first();
+  const headers = table
+    .find('thead th')
+    .map((_, th) => cleanText($(th).text()).toLowerCase())
+    .get();
+  const idx = (...n) => headers.findIndex((h) => n.some((x) => h.includes(x)));
+  const teamCol = idx('team'),
+    winsCol = idx('win', 'record'),
+    pointsCol = idx('total', 'points');
   const rows = [];
   table.find('tbody tr').each((_, tr) => {
-    const cells = $(tr).find('td').map((_, td) => cleanText($(td).text())).get();
+    const cells = $(tr)
+      .find('td')
+      .map((_, td) => cleanText($(td).text()))
+      .get();
     if (!cells.length) return;
     const teamName = teamCol >= 0 ? cells[teamCol] : cells[0];
     if (!teamName) return;
-    rows.push({ teamName, wins: winsCol >= 0 ? parseNum(cells[winsCol]) : null, totalPoints: pointsCol >= 0 ? parseNum(cells[pointsCol]) : null });
+    rows.push({
+      teamName,
+      wins: winsCol >= 0 ? parseNum(cells[winsCol]) : null,
+      totalPoints: pointsCol >= 0 ? parseNum(cells[pointsCol]) : null,
+    });
   });
   return { rows, source: 'cheerio', heads: headers };
 }
@@ -196,21 +239,33 @@ function parseSpeakerTab(html) {
         for (const row of table.data) {
           const name = cellText(row[nameCol]);
           if (!name) continue;
-          rows.push({ speakerName: name, totalScore: totalCol >= 0 ? parseNum(cellText(row[totalCol])) : null });
+          rows.push({
+            speakerName: name,
+            totalScore: totalCol >= 0 ? parseNum(cellText(row[totalCol])) : null,
+          });
         }
-        if (rows.length > 0) return { rows, source: 'vueData', heads: heads.map(h => h.key ?? h.title ?? '?') };
+        if (rows.length > 0)
+          return { rows, source: 'vueData', heads: heads.map((h) => h.key ?? h.title ?? '?') };
       }
     }
   }
   const $ = load(html);
-  const table = findTableByHeader($, h => h.some(x => x.includes('name') || x.includes('speaker'))) ?? $('table').first();
-  const headers = table.find('thead th').map((_, th) => cleanText($(th).text())).get();
-  const lowered = headers.map(h => h.toLowerCase());
-  const nameCol = lowered.findIndex(h => h.includes('name') || h.includes('speaker'));
-  const totalCol = lowered.findIndex(h => h.includes('total') || h.includes('score'));
+  const table =
+    findTableByHeader($, (h) => h.some((x) => x.includes('name') || x.includes('speaker'))) ??
+    $('table').first();
+  const headers = table
+    .find('thead th')
+    .map((_, th) => cleanText($(th).text()))
+    .get();
+  const lowered = headers.map((h) => h.toLowerCase());
+  const nameCol = lowered.findIndex((h) => h.includes('name') || h.includes('speaker'));
+  const totalCol = lowered.findIndex((h) => h.includes('total') || h.includes('score'));
   const rows = [];
   table.find('tbody tr').each((_, tr) => {
-    const cells = $(tr).find('td').map((_, td) => cleanText($(td).text())).get();
+    const cells = $(tr)
+      .find('td')
+      .map((_, td) => cleanText($(td).text()))
+      .get();
     const name = nameCol >= 0 ? cells[nameCol] : cells[0];
     if (!name) return;
     rows.push({ speakerName: name, totalScore: totalCol >= 0 ? parseNum(cells[totalCol]) : null });
@@ -236,22 +291,41 @@ function parseRoundResults(html, url) {
           const winText = winCol >= 0 ? cellText(row[winCol]).toLowerCase() : '';
           teamResults.push({ teamName, won: winCol >= 0 ? /won|win|✓|\b1\b/.test(winText) : null });
         }
-        if (teamResults.length > 0) return { roundNumber, teamResults, source: 'vueData', heads: heads.map(h => h.key ?? h.title ?? '?') };
+        if (teamResults.length > 0)
+          return {
+            roundNumber,
+            teamResults,
+            source: 'vueData',
+            heads: heads.map((h) => h.key ?? h.title ?? '?'),
+          };
       }
     }
   }
   const $ = load(html);
   const teamResults = [];
   $('table').each((_, table) => {
-    const headers = $(table).find('thead tr').first().find('th')
-      .map((_, th) => cleanText($(th).text()).toLowerCase()).get();
-    const teamCol = headers.findIndex(h => h.includes('team'));
-    const winCol = headers.findIndex(h => h === 'win' || h.includes('result'));
+    const headers = $(table)
+      .find('thead tr')
+      .first()
+      .find('th')
+      .map((_, th) => cleanText($(th).text()).toLowerCase())
+      .get();
+    const teamCol = headers.findIndex((h) => h.includes('team'));
+    const winCol = headers.findIndex((h) => h === 'win' || h.includes('result'));
     if (teamCol < 0) return;
-    $(table).find('tbody tr').each((_, tr) => {
-      const cells = $(tr).find('td').map((_, td) => cleanText($(td).text())).get();
-      if (cells[teamCol]) teamResults.push({ teamName: cells[teamCol], won: winCol >= 0 ? /won|win|✓|\b1\b/.test((cells[winCol] || '').toLowerCase()) : null });
-    });
+    $(table)
+      .find('tbody tr')
+      .each((_, tr) => {
+        const cells = $(tr)
+          .find('td')
+          .map((_, td) => cleanText($(td).text()))
+          .get();
+        if (cells[teamCol])
+          teamResults.push({
+            teamName: cells[teamCol],
+            won: winCol >= 0 ? /won|win|✓|\b1\b/.test((cells[winCol] || '').toLowerCase()) : null,
+          });
+      });
   });
   return { roundNumber, teamResults, source: 'cheerio' };
 }
@@ -269,19 +343,32 @@ function parseBreakPage(html, url) {
       for (const row of table.data) {
         const name = nameCol >= 0 ? cellText(row[nameCol]) : cellText(row[0]);
         if (!name) continue;
-        rows.push({ rank: rankCol >= 0 ? parseNum(cellText(row[rankCol])) : null, entityName: name, entityType: isAdj ? 'adjudicator' : 'team' });
+        rows.push({
+          rank: rankCol >= 0 ? parseNum(cellText(row[rankCol])) : null,
+          entityName: name,
+          entityType: isAdj ? 'adjudicator' : 'team',
+        });
       }
-      if (rows.length > 0) return { rows, source: 'vueData', heads: heads.map(h => h.key ?? h.title ?? '?') };
+      if (rows.length > 0)
+        return { rows, source: 'vueData', heads: heads.map((h) => h.key ?? h.title ?? '?') };
     }
   }
   const $ = load(html);
   const rows = [];
   const table = $('table').first();
-  const headers = table.find('thead th').map((_, th) => cleanText($(th).text()).toLowerCase()).get();
-  const nameCol = headers.findIndex(h => h.includes('team') || h.includes('adjudicator') || h.includes('name'));
-  const rankCol = headers.findIndex(h => h.includes('rank') || h === '#');
+  const headers = table
+    .find('thead th')
+    .map((_, th) => cleanText($(th).text()).toLowerCase())
+    .get();
+  const nameCol = headers.findIndex(
+    (h) => h.includes('team') || h.includes('adjudicator') || h.includes('name'),
+  );
+  const rankCol = headers.findIndex((h) => h.includes('rank') || h === '#');
   table.find('tbody tr').each((_, tr) => {
-    const cells = $(tr).find('td').map((_, td) => cleanText($(td).text())).get();
+    const cells = $(tr)
+      .find('td')
+      .map((_, td) => cleanText($(td).text()))
+      .get();
     const name = nameCol >= 0 ? cells[nameCol] : cells[0];
     if (!name) return;
     rows.push({ rank: rankCol >= 0 ? parseNum(cells[rankCol]) : null, entityName: name });
@@ -320,17 +407,30 @@ function parseParticipants(html) {
   const $ = load(html);
   const rows = [];
   $('table').each((_, table) => {
-    const headers = $(table).find('thead th').map((_, th) => cleanText($(th).text()).toLowerCase()).get();
-    const nameCol = headers.findIndex(h => h.includes('name'));
-    const roleCol = headers.findIndex(h => h.includes('role'));
+    const headers = $(table)
+      .find('thead th')
+      .map((_, th) => cleanText($(th).text()).toLowerCase())
+      .get();
+    const nameCol = headers.findIndex((h) => h.includes('name'));
+    const roleCol = headers.findIndex((h) => h.includes('role'));
     if (nameCol < 0) return;
-    $(table).find('tbody tr').each((_, tr) => {
-      const cells = $(tr).find('td').map((_, td) => cleanText($(td).text())).get();
-      const name = cells[nameCol]; if (!name) return;
-      const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
-      const role = /adjud|judge/.test(roleText) ? 'adjudicator' : /speak|debat/.test(roleText) ? 'speaker' : 'other';
-      rows.push({ name, role });
-    });
+    $(table)
+      .find('tbody tr')
+      .each((_, tr) => {
+        const cells = $(tr)
+          .find('td')
+          .map((_, td) => cleanText($(td).text()))
+          .get();
+        const name = cells[nameCol];
+        if (!name) return;
+        const roleText = roleCol >= 0 ? (cells[roleCol] || '').toLowerCase() : '';
+        const role = /adjud|judge/.test(roleText)
+          ? 'adjudicator'
+          : /speak|debat/.test(roleText)
+            ? 'speaker'
+            : 'other';
+        rows.push({ name, role });
+      });
   });
   return { rows, source: 'cheerio' };
 }
@@ -342,9 +442,16 @@ function extractNav(html, sourceUrl) {
     const parts = u.pathname.split('/').filter(Boolean);
     return `${u.protocol}//${u.host}/${parts[0]}/`;
   })();
-  const nav = { teamTab: null, speakerTab: null, participants: null, resultsRounds: [], breakTabs: [] };
+  const nav = {
+    teamTab: null,
+    speakerTab: null,
+    participants: null,
+    resultsRounds: [],
+    breakTabs: [],
+  };
   $('a').each((_, el) => {
-    const href = $(el).attr('href'); if (!href) return;
+    const href = $(el).attr('href');
+    if (!href) return;
     try {
       const abs = new URL(href, base).toString();
       const p = new URL(abs).pathname;
@@ -392,10 +499,14 @@ console.log(`     Tournament: ${tournamentName ?? '(not found)'}`);
 const nav = extractNav(landing.html, PRIVATE_URL);
 console.log(`     Team tab:    ${nav.teamTab}`);
 console.log(`     Speaker tab: ${nav.speakerTab}`);
-console.log(`     Rounds:      ${nav.resultsRounds.length} (${nav.resultsRounds.map(u => u.match(/\/round\/(\d+)/)?.[1]).join(', ')})`);
+console.log(
+  `     Rounds:      ${nav.resultsRounds.length} (${nav.resultsRounds.map((u) => u.match(/\/round\/(\d+)/)?.[1]).join(', ')})`,
+);
 console.log(`     Break tabs:  ${nav.breakTabs.length}`);
 console.log(`     Participants:${nav.participants}`);
-console.log(`     Cookies set: ${[...cookieStore.values()].flatMap(j => [...j.keys()]).join(', ') || 'none'}`);
+console.log(
+  `     Cookies set: ${[...cookieStore.values()].flatMap((j) => [...j.keys()]).join(', ') || 'none'}`,
+);
 
 // Step 2: Team tab
 process.stdout.write(`\n[2/6] Fetching team tab... `);
@@ -407,8 +518,15 @@ if (!teamRes.ok) {
   const { rows: teams, source, heads } = parseTeamTab(teamRes.html);
   console.log(`OK → ${teams.length} teams (source: ${source})`);
   if (teams.length > 0) {
-    console.log(`     Columns: ${(heads ?? []).slice(0, 8).join(', ')}${(heads ?? []).length > 8 ? '...' : ''}`);
-    console.log(`     First 3: ${teams.slice(0, 3).map(t => `${t.teamName} (${t.wins}W, ${t.totalPoints}pts)`).join(', ')}`);
+    console.log(
+      `     Columns: ${(heads ?? []).slice(0, 8).join(', ')}${(heads ?? []).length > 8 ? '...' : ''}`,
+    );
+    console.log(
+      `     First 3: ${teams
+        .slice(0, 3)
+        .map((t) => `${t.teamName} (${t.wins}W, ${t.totalPoints}pts)`)
+        .join(', ')}`,
+    );
   } else {
     console.log(`     ⚠ Zero teams — vueData present: ${!!extractVueData(teamRes.html)}`);
   }
@@ -423,7 +541,12 @@ if (!speakerRes.ok) {
   const { rows: speakers, source } = parseSpeakerTab(speakerRes.html);
   console.log(`OK → ${speakers.length} speakers (source: ${source})`);
   if (speakers.length > 0) {
-    console.log(`     Top 3: ${speakers.slice(0, 3).map(s => `${s.speakerName} (${s.totalScore})`).join(', ')}`);
+    console.log(
+      `     Top 3: ${speakers
+        .slice(0, 3)
+        .map((s) => `${s.speakerName} (${s.totalScore})`)
+        .join(', ')}`,
+    );
   } else {
     console.log(`     ⚠ Zero speakers — vueData present: ${!!extractVueData(speakerRes.html)}`);
   }
@@ -431,7 +554,7 @@ if (!speakerRes.ok) {
 
 // Step 4: Round 1 results
 process.stdout.write(`\n[4/6] Fetching round 1 results... `);
-const r1url = nav.resultsRounds.find(u => /\/round\/1\//.test(u));
+const r1url = nav.resultsRounds.find((u) => /\/round\/1\//.test(u));
 if (!r1url) {
   console.log('SKIP (no round 1 URL found)');
 } else {
@@ -440,9 +563,16 @@ if (!r1url) {
     console.log(`FAIL (HTTP ${r1.status})`);
   } else {
     const { roundNumber, teamResults, source } = parseRoundResults(r1.html, r1url);
-    console.log(`OK → round ${roundNumber}, ${teamResults.length} team results (source: ${source})`);
+    console.log(
+      `OK → round ${roundNumber}, ${teamResults.length} team results (source: ${source})`,
+    );
     if (teamResults.length > 0) {
-      console.log(`     Sample: ${teamResults.slice(0, 2).map(t => `${t.teamName}=${t.won ? 'W' : 'L'}`).join(', ')}`);
+      console.log(
+        `     Sample: ${teamResults
+          .slice(0, 2)
+          .map((t) => `${t.teamName}=${t.won ? 'W' : 'L'}`)
+          .join(', ')}`,
+      );
     } else {
       console.log(`     ⚠ Zero results — vueData present: ${!!extractVueData(r1.html)}`);
     }
@@ -451,7 +581,7 @@ if (!r1url) {
 
 // Step 5: Break page
 process.stdout.write(`\n[5/6] Fetching break page... `);
-const breakUrl = nav.breakTabs.find(u => /teams/.test(u)) ?? nav.breakTabs[0];
+const breakUrl = nav.breakTabs.find((u) => /teams/.test(u)) ?? nav.breakTabs[0];
 if (!breakUrl) {
   console.log('SKIP (no break tab URL found)');
 } else {
@@ -462,7 +592,12 @@ if (!breakUrl) {
     const { rows: breaking, source } = parseBreakPage(br.html, breakUrl);
     console.log(`OK → ${breaking.length} breaking teams (source: ${source})`);
     if (breaking.length > 0) {
-      console.log(`     Top 3: ${breaking.slice(0, 3).map(t => `#${t.rank} ${t.entityName}`).join(', ')}`);
+      console.log(
+        `     Top 3: ${breaking
+          .slice(0, 3)
+          .map((t) => `#${t.rank} ${t.entityName}`)
+          .join(', ')}`,
+      );
     } else {
       console.log(`     ⚠ Zero — vueData present: ${!!extractVueData(br.html)}`);
     }
@@ -476,9 +611,11 @@ if (!pRes.ok) {
   console.log(`FAIL (HTTP ${pRes.status})`);
 } else {
   const { rows: people, source } = parseParticipants(pRes.html);
-  const speakers = people.filter(p => p.role === 'speaker');
-  const judges = people.filter(p => p.role === 'adjudicator');
-  console.log(`OK → ${people.length} people: ${speakers.length} speakers, ${judges.length} judges (source: ${source})`);
+  const speakers = people.filter((p) => p.role === 'speaker');
+  const judges = people.filter((p) => p.role === 'adjudicator');
+  console.log(
+    `OK → ${people.length} people: ${speakers.length} speakers, ${judges.length} judges (source: ${source})`,
+  );
 }
 
 console.log(`\n${SEP}\n`);

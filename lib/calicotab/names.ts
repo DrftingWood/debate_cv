@@ -47,7 +47,8 @@ export function stripAttendanceTag(name: string): string {
  * run this exact pattern in Postgres, and a test holds them together. It is
  * written in the regex subset JavaScript and Postgres read identically.
  */
-const STAND_IN_WORD = 'speaker|orador|oradora|debater|member|participant|partner|judge|adjudicator|iron|swing';
+const STAND_IN_WORD =
+  'speaker|orador|oradora|debater|member|participant|partner|judge|adjudicator|iron|swing';
 const STAND_IN_ID = '(?:[0-9]+[a-z]?|[a-z][0-9]*|[ivx]+|one|two|three|four|five)';
 const REDACTED = '(?:em ?)?redacted(?: em)?(?: [0-9]+)?|anonymous(?: [0-9]+)?';
 

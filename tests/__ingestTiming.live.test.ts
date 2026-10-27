@@ -64,7 +64,9 @@ describe.runIf(enabled)('ingest wall time, TABBYCAT_API_ROUNDS off vs on', () =>
         teamResults: await prisma.teamResult.count({ where: { tournamentId } }),
         participants: await prisma.tournamentParticipant.count({ where: { tournamentId } }),
         eliminations: await prisma.eliminationResult.count({ where: { tournamentId } }),
-        speakerScores: await prisma.speakerRoundScore.count({ where: { participant: { tournamentId } } }),
+        speakerScores: await prisma.speakerRoundScore.count({
+          where: { participant: { tournamentId } },
+        }),
         judgeAssignments: await prisma.judgeAssignment.count({ where: { tournamentId } }),
       });
 
@@ -95,7 +97,11 @@ describe.runIf(enabled)('ingest wall time, TABBYCAT_API_ROUNDS off vs on', () =>
                 warnings: r.warnings.length,
               };
             } catch (err) {
-              entry[mode] = { ms: Date.now() - t0, requests: { ...counts }, error: (err as Error).message.slice(0, 200) };
+              entry[mode] = {
+                ms: Date.now() - t0,
+                requests: { ...counts },
+                error: (err as Error).message.slice(0, 200),
+              };
             }
             await new Promise((r) => setTimeout(r, 3_000));
           }

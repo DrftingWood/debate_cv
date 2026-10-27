@@ -1,15 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils/cn';
 
-type Variant =
-  | 'neutral'
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'info'
-  | 'outline'
-  | 'quiet'
-  | 'gold';
+type Variant = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'outline' | 'quiet' | 'gold';
 
 // Statement-register badges: squared-off, low-saturation fills, mono label.
 // A badge here is a data flag (BROKE / ESL / VERIFIED), not decoration, so

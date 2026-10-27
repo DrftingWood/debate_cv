@@ -4,15 +4,31 @@ import { MIN_SPLIT_ROUNDS } from '@/lib/cv/roundSplits';
 import type { RoundFact } from '@/lib/cv/statsFacts';
 
 const round = (o: Partial<RoundFact>): RoundFact => ({
-  tournamentId: '1', year: 2024, format: 'British Parliamentary', round: 1, isOutround: false,
-  seat: 'BP:OG', partners: ['Ann'], partnerGap: 0, proAm: 'peers', motionType: 'Policy',
-  hasMotion: true, contextLed: false, infoSlide: false, score: 75, partnerScores: [75], points: 2, won: false,
+  tournamentId: '1',
+  year: 2024,
+  format: 'British Parliamentary',
+  round: 1,
+  isOutround: false,
+  seat: 'BP:OG',
+  partners: ['Ann'],
+  partnerGap: 0,
+  proAm: 'peers',
+  motionType: 'Policy',
+  hasMotion: true,
+  contextLed: false,
+  infoSlide: false,
+  score: 75,
+  partnerScores: [75],
+  points: 2,
+  won: false,
   ...o,
 });
 
 /** n rounds with the given shape, spread over two tournaments so findings may use them. */
 const many = (n: number, o: Partial<RoundFact>, start = 1): RoundFact[] =>
-  Array.from({ length: n }, (_, i) => round({ round: start + i, tournamentId: String(1 + (i % 2)), ...o }));
+  Array.from({ length: n }, (_, i) =>
+    round({ round: start + i, tournamentId: String(1 + (i % 2)), ...o }),
+  );
 
 describe('crossTab', () => {
   test('crosses two dimensions over prelims, with rows and columns in a stable order', () => {
@@ -37,7 +53,10 @@ describe('crossTab', () => {
 
   test('a cell under the minimum sample is hidden and carries no figures', () => {
     const tab = crossTab(
-      [...many(MIN_SPLIT_ROUNDS - 1, { motionType: 'Regret', score: 90, won: true }), ...many(6, {}, 20)],
+      [
+        ...many(MIN_SPLIT_ROUNDS - 1, { motionType: 'Regret', score: 90, won: true }),
+        ...many(6, {}, 20),
+      ],
       'seat',
       'motionType',
     );
@@ -87,7 +106,16 @@ function grid(
   for (const row of dims.rows) {
     for (const col of dims.cols) {
       out.push(
-        ...many(6, { [dims.rowField]: row, motionType: col, score: cells[`${row}|${col}`], ...o } as Partial<RoundFact>, start),
+        ...many(
+          6,
+          {
+            [dims.rowField]: row,
+            motionType: col,
+            score: cells[`${row}|${col}`],
+            ...o,
+          } as Partial<RoundFact>,
+          start,
+        ),
       );
       start += 10;
     }
@@ -98,14 +126,24 @@ function grid(
 describe('crossTabFindings', () => {
   test('purely additive effects are not findings — each is already its own row or column', () => {
     // OG +1, OO −1, Belief +1, Policy −1, no interaction.
-    const rounds = grid({ 'BP:OG|Belief': 77, 'BP:OG|Policy': 75, 'BP:OO|Belief': 75, 'BP:OO|Policy': 73 });
+    const rounds = grid({
+      'BP:OG|Belief': 77,
+      'BP:OG|Policy': 75,
+      'BP:OO|Belief': 75,
+      'BP:OO|Policy': 73,
+    });
     expect(crossTabFindings([crossTab(rounds, 'seat', 'motionType')])).toEqual([]);
   });
 
   // Additive grid plus +2 on OG×Belief and −2 on OO×Belief. Row effects OG +2,
   // OO −2; column effects Belief +1, Policy −1. Interactions: OG×Belief +1,
   // OO×Policy +1, OG×Policy −1, OO×Belief −1.
-  const interacting = { 'BP:OG|Belief': 79, 'BP:OG|Policy': 75, 'BP:OO|Belief': 73, 'BP:OO|Policy': 73 };
+  const interacting = {
+    'BP:OG|Belief': 79,
+    'BP:OG|Policy': 75,
+    'BP:OO|Belief': 73,
+    'BP:OO|Policy': 73,
+  };
 
   test('a cell is a finding by how far it sits from what its row and column predict', () => {
     const tab = crossTab(grid(interacting), 'seat', 'motionType');
@@ -136,13 +174,20 @@ describe('crossTabFindings', () => {
   });
 
   test('hidden cells, single-tournament cells and small interactions are never findings', () => {
-    const small = grid({ 'BP:OG|Belief': 77.2, 'BP:OG|Policy': 74.8, 'BP:OO|Belief': 74.8, 'BP:OO|Policy': 73.2 });
+    const small = grid({
+      'BP:OG|Belief': 77.2,
+      'BP:OG|Policy': 74.8,
+      'BP:OO|Belief': 74.8,
+      'BP:OO|Policy': 73.2,
+    });
     expect(crossTabFindings([crossTab(small, 'seat', 'motionType')])).toEqual([]);
 
     const oneTournament = grid(interacting, { tournamentId: '7' });
     expect(crossTabFindings([crossTab(oneTournament, 'seat', 'motionType')])).toEqual([]);
 
-    const thin = grid(interacting).filter((r) => !(r.seat === 'BP:OG' && r.motionType === 'Belief' && r.round > 3));
+    const thin = grid(interacting).filter(
+      (r) => !(r.seat === 'BP:OG' && r.motionType === 'Belief' && r.round > 3),
+    );
     const ids = crossTabFindings([crossTab(thin, 'seat', 'motionType')]).map((f) => f.text);
     expect(ids.some((t) => t.includes('OG') && t.includes('Belief'))).toBe(false);
   });
@@ -171,10 +216,16 @@ describe('crossTabFindings', () => {
   });
 
   test('the format named is the one the seat names; a cell spanning formats says "each format"', () => {
-    const mislabelled = crossTabFindings([crossTab(grid(interacting, { format: 'Asian Parliamentary' }), 'seat', 'motionType')]);
+    const mislabelled = crossTabFindings([
+      crossTab(grid(interacting, { format: 'Asian Parliamentary' }), 'seat', 'motionType'),
+    ]);
     expect(mislabelled[0].text).toContain('British Parliamentary');
 
-    const pairingDims = { rows: ['pro', 'peers'] as [string, string], cols: ['Belief', 'Policy'] as [string, string], rowField: 'proAm' as const };
+    const pairingDims = {
+      rows: ['pro', 'peers'] as [string, string],
+      cols: ['Belief', 'Policy'] as [string, string],
+      rowField: 'proAm' as const,
+    };
     const cells = { 'pro|Belief': 79, 'pro|Policy': 75, 'peers|Belief': 73, 'peers|Policy': 73 };
     const bp = grid(cells, { format: 'British Parliamentary', seat: 'BP:OG' }, pairingDims);
     const ap = grid(

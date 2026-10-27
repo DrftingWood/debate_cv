@@ -112,11 +112,7 @@ export function DisconnectGoogleButton() {
 export function DownloadDataButton() {
   // The export is a plain GET, so it is a link (NV-29, UX-64).
   return (
-    <a
-      href="/api/account/export"
-      download
-      className={buttonClasses({ variant: 'secondary' })}
-    >
+    <a href="/api/account/export" download className={buttonClasses({ variant: 'secondary' })}>
       <Download className="h-4 w-4" aria-hidden />
       Download my data (JSON)
     </a>

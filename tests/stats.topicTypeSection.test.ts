@@ -33,9 +33,15 @@ function round(over: Partial<RoundFact>): RoundFact {
     ...over,
   };
 }
-const many = (count: number, over: Partial<RoundFact>) => Array.from({ length: count }, () => round(over));
-const factsOf = (rounds: RoundFact[]): StatsFacts => ({ rounds, tournaments: [], partnerNames: {} });
-const html = (rounds: RoundFact[]) => renderToStaticMarkup(createElement(TopicTypeSection, { facts: factsOf(rounds) }));
+const many = (count: number, over: Partial<RoundFact>) =>
+  Array.from({ length: count }, () => round(over));
+const factsOf = (rounds: RoundFact[]): StatsFacts => ({
+  rounds,
+  tournaments: [],
+  partnerNames: {},
+});
+const html = (rounds: RoundFact[]) =>
+  renderToStaticMarkup(createElement(TopicTypeSection, { facts: factsOf(rounds) }));
 
 describe('TopicTypeSection', () => {
   it('renders nothing until a cell clears the sample gate', () => {
@@ -56,7 +62,9 @@ describe('TopicTypeSection', () => {
   });
 
   it('shows the clubbed choice-of-motions bucket and keeps the section when only it clears the gate', () => {
-    const out = html(many(6, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }));
+    const out = html(
+      many(6, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }),
+    );
     expect(out).toContain('Choice of motions');
     expect(out).toContain('three');
   });

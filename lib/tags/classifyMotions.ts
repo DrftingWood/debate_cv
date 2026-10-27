@@ -1,11 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import {
-  MOTION_TYPES,
-  MOTION_TOPICS,
-  type MotionType,
-  type MotionTopic,
-} from './vocabulary';
+import { MOTION_TYPES, MOTION_TOPICS, type MotionType, type MotionTopic } from './vocabulary';
 
 /**
  * Claude-Haiku-backed motion classifier. Pre-fills TagProposal rows from

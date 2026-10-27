@@ -37,19 +37,27 @@ describe('link-preview card (COPY-2)', () => {
     const out = renderToStaticMarkup(React.createElement(ShareCard));
     expect(out).toContain('Your debate history, kept like an account');
     expect(out).toContain('#0D634F');
-    for (const retired of ['Georgia', 'italic', '#7A2528', 'compiled from your inbox', 'Sign in with Google']) {
+    for (const retired of [
+      'Georgia',
+      'italic',
+      '#7A2528',
+      'compiled from your inbox',
+      'Sign in with Google',
+    ]) {
       expect(out).not.toContain(retired);
     }
   });
 });
 
 describe('approveAllInPasses (ADM-1)', () => {
-  type Res = { ok: true; data: { approved: number } } | { ok: false; status: number; error: string };
+  type Res =
+    { ok: true; data: { approved: number } } | { ok: false; status: number; error: string };
   const ok = (approved: number): Res => ({ ok: true, data: { approved } });
 
   it('is complete only when the endpoint reports an empty queue', async () => {
     const { approveAllInPasses } = await import('@/components/AdminTagProposals');
-    const post = vi.fn<() => Promise<Res>>()
+    const post = vi
+      .fn<() => Promise<Res>>()
       .mockResolvedValueOnce(ok(50))
       .mockResolvedValueOnce(ok(7))
       .mockResolvedValueOnce(ok(0));
@@ -58,16 +66,25 @@ describe('approveAllInPasses (ADM-1)', () => {
 
   it('is not complete when a pass fails part-way, so the list is refetched, not cleared', async () => {
     const { approveAllInPasses } = await import('@/components/AdminTagProposals');
-    const post = vi.fn<() => Promise<Res>>()
+    const post = vi
+      .fn<() => Promise<Res>>()
       .mockResolvedValueOnce(ok(50))
       .mockResolvedValueOnce({ ok: false, status: 500, error: 'HTTP 500' });
-    expect(await approveAllInPasses(post)).toEqual({ approved: 50, complete: false, error: 'HTTP 500' });
+    expect(await approveAllInPasses(post)).toEqual({
+      approved: 50,
+      complete: false,
+      error: 'HTTP 500',
+    });
   });
 
   it('is not complete when the pass cap runs out with proposals left', async () => {
     const { approveAllInPasses } = await import('@/components/AdminTagProposals');
     const post = vi.fn<() => Promise<Res>>().mockResolvedValue(ok(10));
-    expect(await approveAllInPasses(post, 3)).toEqual({ approved: 30, complete: false, error: null });
+    expect(await approveAllInPasses(post, 3)).toEqual({
+      approved: 30,
+      complete: false,
+      error: null,
+    });
     expect(post).toHaveBeenCalledTimes(3);
   });
 });

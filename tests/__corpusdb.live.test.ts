@@ -84,7 +84,11 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
       let navLabels: Record<string, string> = {};
       if (home) {
         const h = html(home.file!);
-        name = h.match(/<title>([^<]*)<\/title>/i)?.[1]?.split('|')[0]?.trim() ?? null;
+        name =
+          h
+            .match(/<title>([^<]*)<\/title>/i)?.[1]
+            ?.split('|')[0]
+            ?.trim() ?? null;
         version = h.match(/runs on Tabbycat\s*([0-9.]+[a-z-]*)/i)?.[1] ?? null;
         try {
           const nav = extractNavigation(h, e.root);
@@ -109,8 +113,15 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
             for (const r of parseTeamTab(h)) {
               teams.push(
                 row([
-                  tid, r.rank, r.teamName, r.institution, r.wins, r.totalPoints,
-                  r.speakers.join(' | '), r.firsts, r.seconds,
+                  tid,
+                  r.rank,
+                  r.teamName,
+                  r.institution,
+                  r.wins,
+                  r.totalPoints,
+                  r.speakers.join(' | '),
+                  r.firsts,
+                  r.seconds,
                 ]),
               );
             }
@@ -118,24 +129,55 @@ describe.skipIf(!process.env.RUN_CORPUS_DB)('corpus → csv', () => {
             for (const r of parseSpeakerTab(h)) {
               sid += 1;
               speakers.push(
-                row([sid, tid, r.rank, r.rankEsl, r.rankEfl, r.speakerName, r.teamName, r.institution, r.totalScore]),
+                row([
+                  sid,
+                  tid,
+                  r.rank,
+                  r.rankEsl,
+                  r.rankEfl,
+                  r.speakerName,
+                  r.teamName,
+                  r.institution,
+                  r.totalScore,
+                ]),
               );
               for (const c of r.categories) speakerCategories.push(row([sid, tid, c]));
               for (const rs of r.roundScores) {
-                roundScores.push(row([sid, tid, r.speakerName, rs.roundLabel, rs.score, rs.positionLabel]));
+                roundScores.push(
+                  row([sid, tid, r.speakerName, rs.roundLabel, rs.score, rs.positionLabel]),
+                );
               }
             }
           } else if (p.kind === 'breakTab') {
             for (const r of parseBreakPage(h, p.url)) {
               breakRows.push(
-                row([tid, p.url, r.rank, r.entityType, r.entityName, r.institution, r.score, r.stage ?? null]),
+                row([
+                  tid,
+                  p.url,
+                  r.rank,
+                  r.entityType,
+                  r.entityName,
+                  r.institution,
+                  r.score,
+                  r.stage ?? null,
+                ]),
               );
             }
           } else if (p.kind === 'motionsTab') {
             for (const m of parseMotionsTab(h)) {
               const { category, stage } = splitStageLabel(m.roundLabel);
               motions.push(
-                row([tid, p.url, m.roundNumber, m.roundLabel, stage, category, m.seq, m.text, m.infoSlide]),
+                row([
+                  tid,
+                  p.url,
+                  m.roundNumber,
+                  m.roundLabel,
+                  stage,
+                  category,
+                  m.seq,
+                  m.text,
+                  m.infoSlide,
+                ]),
               );
             }
           } else if (p.kind === 'participants') {

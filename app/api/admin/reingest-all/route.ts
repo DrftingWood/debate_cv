@@ -43,7 +43,9 @@ export async function POST() {
   // reached any tournament already ingested. Marking them stale makes the
   // queued jobs do a real re-fetch (scrapedAt is reset by the ingest itself,
   // and nothing else reads it).
-  const tournamentIds = [...new Set(urls.map((u) => u.tournamentId).filter((id): id is bigint => id != null))];
+  const tournamentIds = [
+    ...new Set(urls.map((u) => u.tournamentId).filter((id): id is bigint => id != null)),
+  ];
   if (tournamentIds.length > 0) {
     await prisma.tournament.updateMany({
       where: { id: { in: tournamentIds } },

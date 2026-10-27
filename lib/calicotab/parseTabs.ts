@@ -85,9 +85,18 @@ function findBalancedJsRegion(text: string): number {
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\' && inString) { escaped = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') {
@@ -158,7 +167,9 @@ export function diagnoseVueData(html: string, colNeedles: string[]): string {
       const rest = html.slice(markerIdx + 'window.vueData = '.length);
       const endIdx = findBalancedJsRegion(rest);
       if (endIdx >= 0) {
-        try { JSON.parse(rest.slice(0, endIdx)); } catch (e) {
+        try {
+          JSON.parse(rest.slice(0, endIdx));
+        } catch (e) {
           const preview = rest.slice(0, endIdx).replace(/\s+/g, ' ').slice(0, 80);
           parseError = ` parseErr=${String(e).slice(0, 80)} near: ${preview}`;
         }
@@ -184,16 +195,15 @@ export function diagnoseVueData(html: string, colNeedles: string[]): string {
     return (
       `vueData: window.vueData not found (${html.length}b) ` +
       `marker:${hasMarker ? 'YES' : 'NO'} tablesData:${hasTablesData ? 'YES' : 'NO'} html-table:${hasTables ? 'YES' : 'NO'}` +
-      parseError + scripts
+      parseError +
+      scripts
     );
   }
   if (tables.length === 0) return 'vueData: tablesData is an empty array';
   const t = tables[0]!;
   const heads = (t.head ?? []).map((h) => h.key ?? h.title ?? '?');
   const rowCount = t.data?.length ?? 0;
-  const unmatched = colNeedles.filter(
-    (n) => !heads.some((h) => h.toLowerCase().includes(n)),
-  );
+  const unmatched = colNeedles.filter((n) => !heads.some((h) => h.toLowerCase().includes(n)));
   if (rowCount === 0) {
     return `vueData: columns=[${heads.join(',')}] but data[] is empty`;
   }
@@ -239,7 +249,9 @@ export function decodeHtmlEntities(input: string): string {
 }
 
 function cellText(cell: VueCell | undefined): string {
-  return decodeHtmlEntities(String(cell?.text ?? '')).replace(/\s+/g, ' ').trim();
+  return decodeHtmlEntities(String(cell?.text ?? ''))
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -319,9 +331,7 @@ export function isMarkupAdjudicatorCell(raw: string): boolean {
 
 export type AdjudicatorRole = 'chair' | 'panel' | 'trainee';
 
-export function parseAdjudicatorCell(
-  raw: string,
-): Array<{ name: string; role: AdjudicatorRole }> {
+export function parseAdjudicatorCell(raw: string): Array<{ name: string; role: AdjudicatorRole }> {
   if (!isMarkupAdjudicatorCell(raw)) return [];
   const $ = cheerio.load(`<div id="adjcell">${raw}</div>`);
   const out: Array<{ name: string; role: AdjudicatorRole }> = [];
@@ -391,7 +401,9 @@ export function parseBpPlacing(
  * team called "Lost Boys" reads as a loss. The title's first word is the
  * outcome whatever the opponent is called.
  */
-function outcomeFromPopoverTitle(cell: VueCell | undefined): { won: boolean; points: number | null } | null {
+function outcomeFromPopoverTitle(
+  cell: VueCell | undefined,
+): { won: boolean; points: number | null } | null {
   const title = (cell?.popover as { title?: unknown } | undefined)?.title;
   if (typeof title !== 'string') return null;
   const t = decodeHtmlEntities(title).trim();
@@ -446,14 +458,16 @@ function isRoundColumnHeader(label: string, key: string): boolean {
   return false;
 }
 
-
 // ── Cheerio helpers (fallback for server-rendered Tabbycat) ──────────────────
 
 function cleanText(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-function classifyParticipantRole(roleText: string): { role: ParticipantsRow['role']; judgeTag: ParticipantsRow['judgeTag'] } {
+function classifyParticipantRole(roleText: string): {
+  role: ParticipantsRow['role'];
+  judgeTag: ParticipantsRow['judgeTag'];
+} {
   const lowered = roleText.toLowerCase();
   // Core adjudicators (Tab Director / Chief Adjudicator / Deputy CA / Adj
   // Core) shape the tournament — different category from regular judges.
@@ -569,7 +583,12 @@ export type RoundDebate = {
   roundLabel: string | null;
   isOutround: boolean;
   roundNumber: number | null;
-  teamResults: Array<{ teamName: string; position: string | null; points: number | null; won: boolean | null }>;
+  teamResults: Array<{
+    teamName: string;
+    position: string | null;
+    points: number | null;
+    won: boolean | null;
+  }>;
   judgeAssignments: Array<{ personName: string; panelRole: AdjudicatorRole | null }>;
 };
 
@@ -614,7 +633,8 @@ export type ParticipantsRow = {
  * the roster is the only entry that is plain text.
  */
 function teamSpeakersFromCell(cell: VueCell | undefined): string[] {
-  const popover = cell?.popover as { content?: Array<{ text?: string; link?: string }> } | undefined;
+  const popover = cell?.popover as
+    { content?: Array<{ text?: string; link?: string }> } | undefined;
   const entries = popover?.content;
   if (!Array.isArray(entries)) return [];
   // More than one entry can lack a link. An anonymised tournament puts a
@@ -649,11 +669,15 @@ function teamTabFromVue(tables: VueTable[]): TeamTabRow[] | null {
   const winsCol = vueCol(heads, 'win');
   // Exact keys: a substring match on "1st" would also take a round column
   // headed "R1" on some installs, and "2nd" is a substring of nothing safe.
-  const firstsCol = heads.findIndex((h) =>
-    /^(?:1sts?|firsts?)$/i.test((h.key ?? '').trim()) || /^(?:1sts?|firsts?)$/i.test((h.title ?? '').trim()),
+  const firstsCol = heads.findIndex(
+    (h) =>
+      /^(?:1sts?|firsts?)$/i.test((h.key ?? '').trim()) ||
+      /^(?:1sts?|firsts?)$/i.test((h.title ?? '').trim()),
   );
-  const secondsCol = heads.findIndex((h) =>
-    /^(?:2nds?|seconds?)$/i.test((h.key ?? '').trim()) || /^(?:2nds?|seconds?)$/i.test((h.title ?? '').trim()),
+  const secondsCol = heads.findIndex(
+    (h) =>
+      /^(?:2nds?|seconds?)$/i.test((h.key ?? '').trim()) ||
+      /^(?:2nds?|seconds?)$/i.test((h.title ?? '').trim()),
   );
   // Prefer explicit "pts"/"points"/"total" col; fall back to speaker score
   let ptsCol = vueCol(heads, 'pts', 'point', 'total');
@@ -701,18 +725,19 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   const rankEslCol = heads.findIndex((h) => {
     const k = (h.key ?? '').toLowerCase();
     const t = (h.title ?? '').toLowerCase();
-    return (k.includes('esl') || t.includes('esl'));
+    return k.includes('esl') || t.includes('esl');
   });
   const rankEflCol = heads.findIndex((h) => {
     const k = (h.key ?? '').toLowerCase();
     const t = (h.title ?? '').toLowerCase();
-    return (k.includes('efl') || t.includes('efl'));
+    return k.includes('efl') || t.includes('efl');
   });
   // Matched on the exact key so it cannot collide with the ESL/EFL RANK
   // columns above, nor with a "category" substring in some other header.
-  const categoryCol = heads.findIndex((h) =>
-    /^categor(?:y|ies)$/i.test((h.key ?? '').trim()) ||
-    /^categor(?:y|ies)$/i.test((h.title ?? '').trim()),
+  const categoryCol = heads.findIndex(
+    (h) =>
+      /^categor(?:y|ies)$/i.test((h.key ?? '').trim()) ||
+      /^categor(?:y|ies)$/i.test((h.title ?? '').trim()),
   );
   const exclude = new Set([rankEslCol, rankEflCol, categoryCol].filter((i) => i >= 0));
   const rankCol = vueColExcluding(heads, exclude, 'rk', 'rank', '#');
@@ -739,7 +764,9 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
   );
 
   const nonRound = new Set(
-    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter((i) => i >= 0),
+    [rankCol, rankEslCol, rankEflCol, nameCol, teamCol, instCol, totalCol, avgCol].filter(
+      (i) => i >= 0,
+    ),
   );
   const roundCols: Array<{ idx: number; label: string }> = [];
   heads.forEach((h, i) => {
@@ -779,12 +806,7 @@ function speakerTabFromVue(tables: VueTable[]): SpeakerTabRow[] | null {
     // category rather than by total score, so guessing an open rank from
     // row position would produce wrong numbers.
     const noRankColumnsAtAll = rankCol < 0 && rankEslCol < 0 && rankEflCol < 0;
-    const rank =
-      rankCol >= 0
-        ? parseRank(row[rankCol])
-        : noRankColumnsAtAll
-          ? rowIdx
-          : null;
+    const rank = rankCol >= 0 ? parseRank(row[rankCol]) : noRankColumnsAtAll ? rowIdx : null;
     const categories =
       categoryCol >= 0
         ? cellText(row[categoryCol])
@@ -897,8 +919,7 @@ function roundResultsFromVue(
         teamResults.push({
           teamName,
           position: posCol >= 0 ? cellText(row[posCol]) || null : null,
-          points:
-            ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : (outcome?.points ?? null),
+          points: ptsCol >= 0 ? parseNumber(cellText(row[ptsCol])) : (outcome?.points ?? null),
           // null, not false, when the cell says nothing we recognise:
           // ingest treats a false as a recorded loss.
           won: outcome ? outcome.won : null,
@@ -932,7 +953,10 @@ function roundResultsFromVue(
         }
         continue;
       }
-      const tokens = raw.split(/[,;\n]|\s+\/\s+/).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const tokens = raw
+        .split(/[,;\n]|\s+\/\s+/)
+        .map((x) => x.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
       for (const token of tokens) {
         const lower = token.toLowerCase();
         const isChair = /\bchair\b|\bchief\b|\(c\)/.test(lower) || /chair|chief/.test(roleText);
@@ -981,18 +1005,14 @@ export function roundIdentity(
   const m = sourceUrl.match(/\/results\/round\/(\d+)/);
   const roundNumber = m ? Number(m[1]) : null;
   const roundLabelFallback = `Round ${roundNumber ?? '?'}`;
-  const isOutroundFromUrl =
-    /\/break\//i.test(sourceUrl) ||
-    /\/elim/i.test(sourceUrl);
+  const isOutroundFromUrl = /\/break\//i.test(sourceUrl) || /\/elim/i.test(sourceUrl);
   const headingLooksRoundRelated =
     /\bround\s+\d+\b|\bfinal|\bsemi|\bquarter|\bocto|\bgrand|\b(?:gf|sf|qf|of|dof|tof|r\d+)\b/i.test(
       headingLabel,
     );
   const trimmedNavLabel = (navLabel ?? '').trim();
   const roundLabel =
-    trimmedNavLabel ||
-    (headingLooksRoundRelated ? headingLabel : '') ||
-    roundLabelFallback;
+    trimmedNavLabel || (headingLooksRoundRelated ? headingLabel : '') || roundLabelFallback;
   // Ask the stage lexicon, not an English word list. The list missed "GF",
   // "Octavos" and "Cuartos", so those rounds read as prelims and ingest
   // skipped recording who won them — which is what the champion check reads.
@@ -1018,13 +1038,15 @@ export function parseRoundResults(
   if (cheerioTables.length === 0) {
     return { roundNumber, roundLabel, isOutround, teamResults: [], judgeAssignments: [] };
   }
-  return roundResultsFromVue(cheerioTables, roundNumber, roundLabel, isOutround) ?? {
-    roundNumber,
-    roundLabel,
-    isOutround,
-    teamResults: [],
-    judgeAssignments: [],
-  };
+  return (
+    roundResultsFromVue(cheerioTables, roundNumber, roundLabel, isOutround) ?? {
+      roundNumber,
+      roundLabel,
+      isOutround,
+      teamResults: [],
+      judgeAssignments: [],
+    }
+  );
 }
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
@@ -1097,9 +1119,9 @@ function normalizeBreakStage(fragment: string | null): string | null {
   // Title-case anything else: "novice" → "Novice", "pro-am" → "Pro-Am".
   return slug
     .split(/([\s-])/)
-    .map((part) => (part.length > 0 && /\w/.test(part)
-      ? part.charAt(0).toUpperCase() + part.slice(1)
-      : part))
+    .map((part) =>
+      part.length > 0 && /\w/.test(part) ? part.charAt(0).toUpperCase() + part.slice(1) : part,
+    )
     .join('');
 }
 
@@ -1108,7 +1130,11 @@ function normalizeBreakStage(fragment: string | null): string | null {
  * canonical stage label. Shared with the API path (tabbycatApiRounds.ts) so
  * both label a break the same way.
  */
-export function breakPageKind(sourceUrl: string): { isAdj: boolean; stage: string | null; slug: string | null } {
+export function breakPageKind(sourceUrl: string): {
+  isAdj: boolean;
+  stage: string | null;
+  slug: string | null;
+} {
   const isAdj = /\/break\/adjudicators\//.test(sourceUrl);
   const stageMatch = sourceUrl.match(/\/break\/(teams\/[^/]+|adjudicators)/);
   const slug = stageMatch?.[1]?.startsWith('teams/') ? stageMatch[1].slice('teams/'.length) : null;

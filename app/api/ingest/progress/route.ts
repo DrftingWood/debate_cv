@@ -39,40 +39,39 @@ async function buildScope(userId: string | null): Promise<IngestProgressScope> {
   const userWhere = userId ? { userId } : {};
   const windowStart = new Date(Date.now() - BATCH_WINDOW_MS);
 
-  const [pending, running, doneRecent, failedRecent, currentJob, recentDone] =
-    await Promise.all([
-      prisma.ingestJob.count({ where: { ...userWhere, status: 'pending' } }),
-      prisma.ingestJob.count({ where: { ...userWhere, status: 'running' } }),
-      prisma.ingestJob.count({
-        where: { ...userWhere, status: 'done', finishedAt: { gte: windowStart } },
-      }),
-      prisma.ingestJob.count({
-        where: {
-          ...userWhere,
-          status: { in: ['failed', 'abandoned'] },
-          finishedAt: { gte: windowStart },
-        },
-      }),
-      prisma.ingestJob.findFirst({
-        where: { ...userWhere, status: 'running' },
-        orderBy: { startedAt: 'asc' },
-        select: { url: true, startedAt: true },
-      }),
-      // Duration sample for the ETA. Includes cache-hit jobs (~2s) and
-      // full scrapes (~40s) alike, so the average self-calibrates to
-      // whatever mix the queue is actually processing right now.
-      prisma.ingestJob.findMany({
-        where: {
-          ...userWhere,
-          status: 'done',
-          startedAt: { not: null },
-          finishedAt: { not: null },
-        },
-        orderBy: { finishedAt: 'desc' },
-        take: 20,
-        select: { startedAt: true, finishedAt: true },
-      }),
-    ]);
+  const [pending, running, doneRecent, failedRecent, currentJob, recentDone] = await Promise.all([
+    prisma.ingestJob.count({ where: { ...userWhere, status: 'pending' } }),
+    prisma.ingestJob.count({ where: { ...userWhere, status: 'running' } }),
+    prisma.ingestJob.count({
+      where: { ...userWhere, status: 'done', finishedAt: { gte: windowStart } },
+    }),
+    prisma.ingestJob.count({
+      where: {
+        ...userWhere,
+        status: { in: ['failed', 'abandoned'] },
+        finishedAt: { gte: windowStart },
+      },
+    }),
+    prisma.ingestJob.findFirst({
+      where: { ...userWhere, status: 'running' },
+      orderBy: { startedAt: 'asc' },
+      select: { url: true, startedAt: true },
+    }),
+    // Duration sample for the ETA. Includes cache-hit jobs (~2s) and
+    // full scrapes (~40s) alike, so the average self-calibrates to
+    // whatever mix the queue is actually processing right now.
+    prisma.ingestJob.findMany({
+      where: {
+        ...userWhere,
+        status: 'done',
+        startedAt: { not: null },
+        finishedAt: { not: null },
+      },
+      orderBy: { finishedAt: 'desc' },
+      take: 20,
+      select: { startedAt: true, finishedAt: true },
+    }),
+  ]);
 
   const durations = recentDone
     .map((j) => (j.finishedAt!.getTime() - j.startedAt!.getTime()) / 1000)

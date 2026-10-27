@@ -5,7 +5,11 @@ import { ScrollText, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
-import { buildMotionEntries, judgedWithoutKnownRounds, type MotionEntry } from '@/lib/cv/motionEntries';
+import {
+  buildMotionEntries,
+  judgedWithoutKnownRounds,
+  type MotionEntry,
+} from '@/lib/cv/motionEntries';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -94,9 +98,9 @@ export default async function CvMotionsPage() {
         </p>
         {leftOut > 0 ? (
           <p className="mt-2 max-w-2xl text-caption text-ink-soft">
-            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'} not
-            listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded, so there is
-            no telling which rounds you sat on.
+            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'}{' '}
+            not listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded,
+            so there is no telling which rounds you sat on.
           </p>
         ) : null}
       </header>
@@ -123,9 +127,7 @@ export default async function CvMotionsPage() {
               hint={
                 <>
                   Across {debatedTournaments} tournament{debatedTournaments === 1 ? '' : 's'}
-                  {judgedEntries.length > 0
-                    ? ` · ${judgedEntries.length} more judged`
-                    : ''}
+                  {judgedEntries.length > 0 ? ` · ${judgedEntries.length} more judged` : ''}
                 </>
               }
             />
@@ -156,18 +158,18 @@ export default async function CvMotionsPage() {
               }
             />
             {isAdmin ? (
-            <StatTile
-              label="Tagged"
-              value={debated.length > 0 ? `${Math.round((tagged / debated.length) * 100)}%` : '—'}
-              hint={
-                <>
-                  {tagged} of {debated.length} carry an approved tag ·{' '}
-                  <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
-                    propose more
-                  </Link>
-                </>
-              }
-            />
+              <StatTile
+                label="Tagged"
+                value={debated.length > 0 ? `${Math.round((tagged / debated.length) * 100)}%` : '—'}
+                hint={
+                  <>
+                    {tagged} of {debated.length} carry an approved tag ·{' '}
+                    <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
+                      propose more
+                    </Link>
+                  </>
+                }
+              />
             ) : null}
           </StatRow>
 
@@ -237,8 +239,8 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
       </div>
       {entry.siblings > 0 ? (
         <p className="mt-1.5 text-caption text-ink-soft">
-          This round released more than one motion, so the round data below applies to the round, not necessarily to
-          this motion.
+          This round released more than one motion, so the round data below applies to the round,
+          not necessarily to this motion.
         </p>
       ) : null}
 

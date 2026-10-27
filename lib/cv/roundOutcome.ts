@@ -58,7 +58,10 @@ export function roundFirst(r: RoundLike): boolean | null {
  * Straights: the points total is at least 2 x the number of rounds. Null when
  * there are no rounds or no total to judge.
  */
-export function isStraights(pointsTotal: number | null | undefined, rounds: number | null | undefined): boolean | null {
+export function isStraights(
+  pointsTotal: number | null | undefined,
+  rounds: number | null | undefined,
+): boolean | null {
   if (pointsTotal == null || !Number.isFinite(pointsTotal)) return null;
   if (rounds == null || rounds < 1) return null;
   return pointsTotal >= STRAIGHTS_PER_ROUND * rounds;
@@ -79,7 +82,10 @@ export function outcomeKind(formats: Iterable<string | null | undefined>): Outco
 }
 
 /** Page copy per kind. Nothing here ever says a BP round was "won". */
-export const OUTCOME_COPY: Record<OutcomeKind, { rate: string; run: string; rounds: string; deltaNoun: string }> = {
+export const OUTCOME_COPY: Record<
+  OutcomeKind,
+  { rate: string; run: string; rounds: string; deltaNoun: string }
+> = {
   win: { rate: 'Win rate', run: 'Longest winning run', rounds: 'rounds won', deltaNoun: 'win' },
   'top-two': {
     rate: '2nd-or-better rate',

@@ -49,13 +49,16 @@ export function extractFromCheerio(html: string): VueTable[] {
     const $headerRow = hasExplicitThead
       ? $table.find('thead tr').first()
       : $table.find('tr').first();
-    const head: VueHead[] = $headerRow.find('th').map((_j, th) => {
-      const $th = $(th);
-      const visibleText = cleanText($th.text());
-      const tooltip = ($th.attr('data-original-title') ?? '').trim();
-      const key = (tooltip || visibleText).toLowerCase();
-      return { key, title: visibleText };
-    }).get();
+    const head: VueHead[] = $headerRow
+      .find('th')
+      .map((_j, th) => {
+        const $th = $(th);
+        const visibleText = cleanText($th.text());
+        const tooltip = ($th.attr('data-original-title') ?? '').trim();
+        const key = (tooltip || visibleText).toLowerCase();
+        return { key, title: visibleText };
+      })
+      .get();
 
     // Data rows: prefer <tbody tr>; fall back to all <tr> when there's no
     // <tbody>. When there was no explicit <thead>, drop the synthesized-or-loose
@@ -65,34 +68,38 @@ export function extractFromCheerio(html: string): VueTable[] {
     // empty and every <tr> is data.
     const headerEl = $headerRow.get(0);
     const headerHadTh = $headerRow.find('th').length > 0;
-    const dataRowEls = ($table.find('tbody tr').length
-      ? $table.find('tbody tr').toArray()
-      : $table.find('tr').toArray()
+    const dataRowEls = (
+      $table.find('tbody tr').length
+        ? $table.find('tbody tr').toArray()
+        : $table.find('tr').toArray()
     ).filter((tr) => hasExplicitThead || !headerHadTh || tr !== headerEl);
 
     const data: VueCell[][] = dataRowEls.map((tr) => {
       const $tr = $(tr);
-      return $tr.find('td').map((_j, td) => {
-        const $td = $(td);
-        const hidden = $td.find('span[hidden]').first().text();
-        const trigger = $td.find('.tooltip-trigger').first().text();
-        const text = cleanText(
-          (hidden && hidden.trim()) ? hidden :
-          (trigger && trigger.trim()) ? trigger :
-          $td.text(),
-        );
-        // Surface the first descendant `data-original-title` as cell.tooltip.
-        // Tabbycat embeds canonical stage labels here (e.g. data-original-title=
-        // "Round 1" on a wrapper div) — without this lift, parseNav consumers
-        // can't recover the full stage label from cheerio-adapted tables.
-        const tooltip = ($td.find('[data-original-title]').first().attr('data-original-title') ?? '').trim() || undefined;
-        return {
-          text,
-          html: $td.html() ?? '',
-          class: ($td.attr('class') ?? '').trim() || undefined,
-          ...(tooltip ? { tooltip } : {}),
-        };
-      }).get();
+      return $tr
+        .find('td')
+        .map((_j, td) => {
+          const $td = $(td);
+          const hidden = $td.find('span[hidden]').first().text();
+          const trigger = $td.find('.tooltip-trigger').first().text();
+          const text = cleanText(
+            hidden && hidden.trim() ? hidden : trigger && trigger.trim() ? trigger : $td.text(),
+          );
+          // Surface the first descendant `data-original-title` as cell.tooltip.
+          // Tabbycat embeds canonical stage labels here (e.g. data-original-title=
+          // "Round 1" on a wrapper div) — without this lift, parseNav consumers
+          // can't recover the full stage label from cheerio-adapted tables.
+          const tooltip =
+            ($td.find('[data-original-title]').first().attr('data-original-title') ?? '').trim() ||
+            undefined;
+          return {
+            text,
+            html: $td.html() ?? '',
+            class: ($td.attr('class') ?? '').trim() || undefined,
+            ...(tooltip ? { tooltip } : {}),
+          };
+        })
+        .get();
     });
 
     // Title: hoisted from a preceding .card-title heading inside the same

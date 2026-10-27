@@ -44,7 +44,12 @@ function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   const delta = cell.scoreDelta;
   return (
     <span className="inline-flex flex-col items-end leading-tight">
-      <span className={cn('num', delta == null || Math.abs(delta) < 0.3 ? 'text-ink' : delta > 0 ? 'val-pos' : 'val-neg')}>
+      <span
+        className={cn(
+          'num',
+          delta == null || Math.abs(delta) < 0.3 ? 'text-ink' : delta > 0 ? 'val-pos' : 'val-neg',
+        )}
+      >
         {delta == null ? '—' : signed(delta)}
       </span>
       <span className="num text-caption text-ink-soft">
@@ -72,7 +77,10 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
       />
       <div className="panel overflow-hidden">
         <TableScroll>
-          <Table className="min-w-max" label="Speaker score against your average, by motion topic and motion type">
+          <Table
+            className="min-w-max"
+            label="Speaker score against your average, by motion topic and motion type"
+          >
             <thead>
               <tr>
                 <Th className="pl-4">Topic</Th>
@@ -86,9 +94,15 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
             <tbody>
               {grid.topics.map((topic) => (
                 <Tr key={topic}>
-                  <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
+                  <Td rowHeader className="whitespace-nowrap pl-4 font-medium">
+                    {topic}
+                  </Td>
                   {grid.types.map((type, i) => (
-                    <Td key={type} numeric className={i === grid.types.length - 1 ? 'pr-4' : undefined}>
+                    <Td
+                      key={type}
+                      numeric
+                      className={i === grid.types.length - 1 ? 'pr-4' : undefined}
+                    >
                       <CellValue cell={cellAt.get(`${topic}\u0000${type}`)} />
                     </Td>
                   ))}
@@ -103,17 +117,18 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
           <div className="min-w-0">
             <div className="font-medium text-ink">Choice of motions</div>
             <div className="text-caption text-ink-soft">
-              Rounds that released several motions of different topics or types (Asian Parliamentary's three), clubbed
-              together because the motion debated is not recorded.
+              Rounds that released several motions of different topics or types (Asian
+              Parliamentary's three), clubbed together because the motion debated is not recorded.
             </div>
           </div>
           <CellValue cell={grid.mixed} />
         </div>
       ) : null}
       <p className="text-caption text-ink-soft">
-        Speaker-score difference from your mean over these rounds, prelims only. A cell with fewer than{' '}
-        {MIN_QUIRK_ROUNDS} rounds shows a dot and its round count instead of a figure. Topics are the community tags; rounds whose motion
-        is untagged, or whose options disagree on topic or type, are left out.
+        Speaker-score difference from your mean over these rounds, prelims only. A cell with fewer
+        than {MIN_QUIRK_ROUNDS} rounds shows a dot and its round count instead of a figure. Topics
+        are the community tags; rounds whose motion is untagged, or whose options disagree on topic
+        or type, are left out.
       </p>
     </section>
   );

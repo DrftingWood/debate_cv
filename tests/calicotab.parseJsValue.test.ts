@@ -160,7 +160,8 @@ describe('parseJsValue — rejects anything outside the literal allowlist', () =
 
 describe('parseJsValue — Tabbycat-shaped integration sanity', () => {
   it('parses a representative window.vueData shape with undefined field', () => {
-    const slice = '{ tablesData: [{ head: [{ key: "a" }], data: [[{ text: "x" }]] }], otherField: undefined }';
+    const slice =
+      '{ tablesData: [{ head: [{ key: "a" }], data: [[{ text: "x" }]] }], otherField: undefined }';
     expect(parseJsValue(slice)).toEqual({
       tablesData: [{ head: [{ key: 'a' }], data: [[{ text: 'x' }]] }],
       otherField: undefined,

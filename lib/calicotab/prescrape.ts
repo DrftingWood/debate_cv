@@ -24,7 +24,12 @@ export function publicTournamentBase(url: string): { base: string; host: string;
   } catch {
     throw new Error(`not a URL: ${url.slice(0, 120)}`);
   }
-  if (parsed.protocol !== 'https:' || !isAllowedTabHost(parsed.hostname) || parsed.port || parsed.username) {
+  if (
+    parsed.protocol !== 'https:' ||
+    !isAllowedTabHost(parsed.hostname) ||
+    parsed.port ||
+    parsed.username
+  ) {
     throw new Error(`not an allowed tab host: ${parsed.host}`);
   }
   const parts = parsed.pathname.split('/').filter(Boolean);
@@ -32,7 +37,10 @@ export function publicTournamentBase(url: string): { base: string; host: string;
     throw new Error('refusing a private URL: the pre-scrape reads public pages only');
   }
   const slug = parts[0];
-  if (!slug) throw new Error(`no tournament slug in ${parsed.host}: root-hosted tournaments are not pre-scraped`);
+  if (!slug)
+    throw new Error(
+      `no tournament slug in ${parsed.host}: root-hosted tournaments are not pre-scraped`,
+    );
   return { base: `https://${parsed.host}/${slug}/`, host: parsed.host, slug };
 }
 
@@ -89,7 +97,10 @@ export type JudgeHit = {
  * URL owner's round-results fallback and the pre-scrape's every-judge
  * writer, so both read panels identically.
  */
-export function judgeHitsFromRounds(rounds: RoundDebate[], matches: (judgeName: string) => boolean): JudgeHit[] {
+export function judgeHitsFromRounds(
+  rounds: RoundDebate[],
+  matches: (judgeName: string) => boolean,
+): JudgeHit[] {
   const hits: JudgeHit[] = [];
   for (const round of rounds) {
     if (!round) continue;
@@ -98,12 +109,15 @@ export function judgeHitsFromRounds(rounds: RoundDebate[], matches: (judgeName: 
       const stage = normalizeStageLabel(
         round.roundLabel ||
           (round.isOutround
-            ? round.roundNumber != null ? `Round ${round.roundNumber}` : 'Outround'
+            ? round.roundNumber != null
+              ? `Round ${round.roundNumber}`
+              : 'Outround'
             : `Round ${round.roundNumber ?? '?'}`),
       );
       hits.push({
         stage,
-        role: j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
+        role:
+          j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
         roundNumber: round.isOutround ? null : round.roundNumber,
       });
     }
@@ -127,8 +141,22 @@ export function dedupeJudgeHits(hits: JudgeHit[]): JudgeHit[] {
  * A root page links these on every install, alongside the tournaments.
  */
 const NON_TOURNAMENT_SEGMENTS = new Set([
-  'accounts', 'admin', 'api', 'database', 'static', 'jet', 'i18n', 'login', 'logout',
-  'notifications', 'style', 'archive', 'create', 'donate', 'blank', 'about',
+  'accounts',
+  'admin',
+  'api',
+  'database',
+  'static',
+  'jet',
+  'i18n',
+  'login',
+  'logout',
+  'notifications',
+  'style',
+  'archive',
+  'create',
+  'donate',
+  'blank',
+  'about',
 ]);
 
 /**
@@ -163,7 +191,9 @@ export function tournamentSlugsFromRootPage(html: string, host: string): string[
  */
 export function expandRootSlugs(slugs: string[], maxYear: number): string[] {
   return slugs.filter((slug) => {
-    const years = [...slug.matchAll(/(?:^|[^0-9])((?:19|20)[0-9]{2})(?![0-9])/g)].map((m) => Number(m[1]));
+    const years = [...slug.matchAll(/(?:^|[^0-9])((?:19|20)[0-9]{2})(?![0-9])/g)].map((m) =>
+      Number(m[1]),
+    );
     return years.length === 0 || Math.max(...years) <= maxYear;
   });
 }
@@ -179,7 +209,8 @@ export function expandRootSlugs(slugs: string[], maxYear: number): string[] {
  * shard re-run after a failure picks up exactly the same tournaments.
  */
 export function shardOf(url: string, total: number): number {
-  if (!Number.isInteger(total) || total < 1) throw new Error(`shard count must be a positive integer, got ${total}`);
+  if (!Number.isInteger(total) || total < 1)
+    throw new Error(`shard count must be a positive integer, got ${total}`);
   const host = new URL(url).hostname.toLowerCase();
   let h = 0;
   for (const ch of host) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
@@ -193,6 +224,7 @@ export function parseShard(spec: string | undefined): { index: number; total: nu
   if (!m) throw new Error(`PRESCRAPE_SHARD must look like "2/4", got "${spec}"`);
   const index = Number(m[1]);
   const total = Number(m[2]);
-  if (total < 1 || index >= total) throw new Error(`PRESCRAPE_SHARD index must be below the total, got "${spec}"`);
+  if (total < 1 || index >= total)
+    throw new Error(`PRESCRAPE_SHARD index must be below the total, got "${spec}"`);
   return { index, total };
 }

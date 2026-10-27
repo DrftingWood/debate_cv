@@ -13,15 +13,18 @@ describe('candidateFingerprints', () => {
     // "Oxford IV 2024" and "Oxford IV 2025" are different events — no
     // neighbouring-year probing allowed when the year is authoritative.
     const named = { ...base, tournamentName: 'Autumn Novice 2025' };
-    expect(
-      candidateFingerprints({ ...named, explicitYear: 2025, inferredYear: 2025 }),
-    ).toEqual([computeFingerprint({ ...named, year: 2025 })]);
+    expect(candidateFingerprints({ ...named, explicitYear: 2025, inferredYear: 2025 })).toEqual([
+      computeFingerprint({ ...named, year: 2025 }),
+    ]);
   });
 
   test('inferred year probes the inferred value, null, and both neighbours in order', () => {
-    expect(
-      candidateFingerprints({ ...base, explicitYear: null, inferredYear: 2025 }),
-    ).toEqual([fp(2025), fp(null), fp(2024), fp(2026)]);
+    expect(candidateFingerprints({ ...base, explicitYear: null, inferredYear: 2025 })).toEqual([
+      fp(2025),
+      fp(null),
+      fp(2024),
+      fp(2026),
+    ]);
   });
 
   test('the year-boundary case converges: Dec-2024 email finds the row a Jan-2025 email stored', () => {
@@ -34,8 +37,8 @@ describe('candidateFingerprints', () => {
   });
 
   test('no year information at all yields only the null-year fingerprint', () => {
-    expect(
-      candidateFingerprints({ ...base, explicitYear: null, inferredYear: null }),
-    ).toEqual([fp(null)]);
+    expect(candidateFingerprints({ ...base, explicitYear: null, inferredYear: null })).toEqual([
+      fp(null),
+    ]);
   });
 });

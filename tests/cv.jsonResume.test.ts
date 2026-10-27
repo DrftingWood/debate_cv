@@ -19,14 +19,22 @@ describe('buildJsonResume', () => {
     );
     expect(doc.$schema).toBe(JSON_RESUME_SCHEMA);
     // canonical is the document's own URL; the schema URL belongs in $schema only.
-    expect(doc.meta).toMatchObject({ canonical: 'https://cv.example/cv.json', version: 'v1.0.0', lastModified: NOW.toISOString() });
+    expect(doc.meta).toMatchObject({
+      canonical: 'https://cv.example/cv.json',
+      version: 'v1.0.0',
+      lastModified: NOW.toISOString(),
+    });
     expect(doc.basics).toEqual({ name: 'Test Person' });
     // v1.0.0 sets additionalProperties: false at the top level; only meta is open.
     expect(Object.keys(doc).sort()).toEqual(['$schema', 'awards', 'basics', 'meta']);
     expect(DEBATE_EXTENSION_KEY).toBe('x-debate-cv');
     expect(Object.keys(doc.meta)).toContain(DEBATE_EXTENSION_KEY);
     expect(doc.meta[DEBATE_EXTENSION_KEY].version).toBe(1);
-    expect(doc.meta[DEBATE_EXTENSION_KEY].speaking.map((s) => s.tournament)).toEqual(['New Open', 'Old IV', 'Undated']);
+    expect(doc.meta[DEBATE_EXTENSION_KEY].speaking.map((s) => s.tournament)).toEqual([
+      'New Open',
+      'Old IV',
+      'Undated',
+    ]);
   });
 
   it('omits meta.canonical when the serving URL is unknown', () => {
@@ -38,7 +46,14 @@ describe('buildJsonResume', () => {
     const doc = buildJsonResume(
       makeCvData({
         speakerRows: [
-          makeSpeakerRow({ tournamentName: 'ESL Cup', year: 2024, wonTournament: true, broke: true, eliminationReached: 'ESL Grand Final', speakerRankOpen: 40 }),
+          makeSpeakerRow({
+            tournamentName: 'ESL Cup',
+            year: 2024,
+            wonTournament: true,
+            broke: true,
+            eliminationReached: 'ESL Grand Final',
+            speakerRankOpen: 40,
+          }),
         ],
         judgeRows: [],
       }),
@@ -51,14 +66,52 @@ describe('buildJsonResume', () => {
     const doc = buildJsonResume(
       makeCvData({
         speakerRows: [
-          makeSpeakerRow({ tournamentName: 'Won It', year: 2025, wonTournament: true, broke: true, speakerRankOpen: 3, teamName: 'X A' }),
-          makeSpeakerRow({ tournamentName: 'Broke', year: 2024, broke: true, wonTournament: false, eliminationReached: 'Semifinals', speakerRankOpen: 40 }),
-          makeSpeakerRow({ tournamentName: 'Top Speaker', year: 2024, broke: false, wonTournament: null, speakerRankOpen: 11 }),
-          makeSpeakerRow({ tournamentName: 'Tenth', year: 2023, broke: false, wonTournament: null, speakerRankOpen: 10, teamName: null }),
-          makeSpeakerRow({ tournamentName: 'Nothing', year: 2023, broke: false, wonTournament: null, speakerRankOpen: 50 }),
+          makeSpeakerRow({
+            tournamentName: 'Won It',
+            year: 2025,
+            wonTournament: true,
+            broke: true,
+            speakerRankOpen: 3,
+            teamName: 'X A',
+          }),
+          makeSpeakerRow({
+            tournamentName: 'Broke',
+            year: 2024,
+            broke: true,
+            wonTournament: false,
+            eliminationReached: 'Semifinals',
+            speakerRankOpen: 40,
+          }),
+          makeSpeakerRow({
+            tournamentName: 'Top Speaker',
+            year: 2024,
+            broke: false,
+            wonTournament: null,
+            speakerRankOpen: 11,
+          }),
+          makeSpeakerRow({
+            tournamentName: 'Tenth',
+            year: 2023,
+            broke: false,
+            wonTournament: null,
+            speakerRankOpen: 10,
+            teamName: null,
+          }),
+          makeSpeakerRow({
+            tournamentName: 'Nothing',
+            year: 2023,
+            broke: false,
+            wonTournament: null,
+            speakerRankOpen: 50,
+          }),
         ],
         judgeRows: [
-          makeJudgeRow({ tournamentName: 'Judged Break', year: 2024, broke: true, lastOutroundChaired: 'Quarterfinals' }),
+          makeJudgeRow({
+            tournamentName: 'Judged Break',
+            year: 2024,
+            broke: true,
+            lastOutroundChaired: 'Quarterfinals',
+          }),
           makeJudgeRow({ tournamentName: 'Judged Only', year: 2024, broke: false }),
         ],
       }),

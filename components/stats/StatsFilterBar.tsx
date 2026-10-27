@@ -57,7 +57,9 @@ function useOptions(facts: StatsFacts) {
       pairings: (['pro', 'am', 'peers'] as const)
         .map((p) => ({ value: p, count: pairingCounts.get(p) ?? 0 }))
         .filter((p) => p.count > 0),
-      seatGroups: [...seatGroups].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])),
+      seatGroups: [...seatGroups].sort(
+        (a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]),
+      ),
     };
   }, [facts]);
 }
@@ -158,7 +160,9 @@ export function StatsFilterBar({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
         <div className="space-y-2">
-          <div className="data-label" id="stats-filter-partner">Partner</div>
+          <div className="data-label" id="stats-filter-partner">
+            Partner
+          </div>
           <details
             className="group relative"
             onKeyDown={(e) => {
@@ -183,7 +187,10 @@ export function StatsFilterBar({
                     ? (partnerLabel.get(filter.partners[0]) ?? 'One partner')
                     : `${filter.partners.length} partners`}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180" aria-hidden />
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180"
+                aria-hidden
+              />
             </summary>
             <fieldset className="panel-raised absolute z-20 mt-1 max-h-72 w-full min-w-[min(16rem,100%)] overflow-y-auto p-1">
               <legend className="sr-only">Partners</legend>
@@ -196,7 +203,9 @@ export function StatsFilterBar({
                     <input
                       type="checkbox"
                       checked={filter.partners.includes(p.key)}
-                      onChange={() => onChange({ ...filter, partners: toggle(filter.partners, p.key) })}
+                      onChange={() =>
+                        onChange({ ...filter, partners: toggle(filter.partners, p.key) })
+                      }
                       className="h-4 w-4 shrink-0 accent-primary"
                     />
                     <span className="break-words text-ink">{p.label}</span>
@@ -211,7 +220,11 @@ export function StatsFilterBar({
           </details>
 
           {options.pairings.length > 0 ? (
-            <div role="group" aria-label="Pairing" className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
+            <div
+              role="group"
+              aria-label="Pairing"
+              className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1"
+            >
               {options.pairings.map((p) => (
                 <Chip
                   key={p.value}
@@ -219,7 +232,9 @@ export function StatsFilterBar({
                   count={p.count}
                   unit="tournaments"
                   pressed={filter.pairings.includes(p.value)}
-                  onClick={() => onChange({ ...filter, pairings: toggle(filter.pairings, p.value) })}
+                  onClick={() =>
+                    onChange({ ...filter, pairings: toggle(filter.pairings, p.value) })
+                  }
                 />
               ))}
             </div>
@@ -230,7 +245,12 @@ export function StatsFilterBar({
           <div className="data-label">Seat</div>
           <div className="flex flex-wrap gap-3">
             {options.seatGroups.map(([group, seats]) => (
-              <div key={group} role="group" aria-label={`${group} seats`} className="flex items-center gap-2">
+              <div
+                key={group}
+                role="group"
+                aria-label={`${group} seats`}
+                className="flex items-center gap-2"
+              >
                 <span className="data-label w-9 shrink-0">{group}</span>
                 <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
                   {seats.map((s) => (

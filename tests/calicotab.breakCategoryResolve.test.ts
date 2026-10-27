@@ -171,10 +171,7 @@ describe('deepestOutroundsByCategory', () => {
   });
 
   test('Open is ordered before ESL even when input is shuffled', () => {
-    const result = deepestOutroundsByCategory(
-      ['ESL Final', 'Octofinals'],
-      rankStage,
-    );
+    const result = deepestOutroundsByCategory(['ESL Final', 'Octofinals'], rankStage);
     expect(result.map((e) => e.category)).toEqual(['Open', 'ESL']);
   });
 });

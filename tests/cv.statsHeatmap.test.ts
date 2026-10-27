@@ -28,19 +28,29 @@ function round(over: Partial<RoundFact>): RoundFact {
     ...over,
   };
 }
-const many = (count: number, over: Partial<RoundFact>) => Array.from({ length: count }, () => round(over));
+const many = (count: number, over: Partial<RoundFact>) =>
+  Array.from({ length: count }, () => round(over));
 
 describe('topicTypeHeatmap', () => {
   it('hides the figures of a cell below the sample gate but keeps its count', () => {
     const h = topicTypeHeatmap([...many(MIN_QUIRK_ROUNDS - 1, { score: 80 })]);
     expect(h.cells).toHaveLength(1);
-    expect(h.cells[0]).toMatchObject({ rounds: MIN_QUIRK_ROUNDS - 1, enough: false, avgScore: null, scoreDelta: null });
+    expect(h.cells[0]).toMatchObject({
+      rounds: MIN_QUIRK_ROUNDS - 1,
+      enough: false,
+      avgScore: null,
+      scoreDelta: null,
+    });
   });
 
   it('shows the mean and the delta against the grid baseline once the gate is met', () => {
     const h = topicTypeHeatmap([
       ...many(MIN_QUIRK_ROUNDS, { motionTopic: 'Education', motionType: 'Belief', score: 80 }),
-      ...many(MIN_QUIRK_ROUNDS, { motionTopic: 'Economics & Business', motionType: 'Policy', score: 70 }),
+      ...many(MIN_QUIRK_ROUNDS, {
+        motionTopic: 'Economics & Business',
+        motionType: 'Policy',
+        score: 70,
+      }),
     ]);
     expect(h.baseline).toBeCloseTo(75, 6);
     const edu = h.cells.find((c) => c.topic === 'Education')!;
@@ -85,7 +95,12 @@ describe('topicTypeHeatmap', () => {
 
   it('clubs rounds that offered several different motions into one bucket instead of dropping them', () => {
     const h = topicTypeHeatmap([
-      ...many(MIN_QUIRK_ROUNDS, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }),
+      ...many(MIN_QUIRK_ROUNDS, {
+        choiceRound: true,
+        motionType: null,
+        motionTopic: null,
+        score: 80,
+      }),
       ...many(MIN_QUIRK_ROUNDS, { motionTopic: 'Education', motionType: 'Belief', score: 70 }),
     ]);
     expect(h.mixed).toMatchObject({ rounds: MIN_QUIRK_ROUNDS, enough: true });

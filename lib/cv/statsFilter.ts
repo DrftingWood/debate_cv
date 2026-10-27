@@ -38,10 +38,19 @@ const PAIRINGS: readonly ProAm[] = ['pro', 'am', 'peers'];
 type FilterableData = Pick<CvData, 'speakerRows' | 'judgeRows' | 'taggedMotions' | 'fieldStats'>;
 
 export function parseStatsFilter(params: URLSearchParams): StatsFilter {
-  const values = (key: string) => [...new Set(params.getAll(key).map((v) => v.trim()).filter(Boolean))];
+  const values = (key: string) => [
+    ...new Set(
+      params
+        .getAll(key)
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
+  ];
   return {
     partners: values('partner'),
-    pairings: values('pairing').filter((v): v is ProAm => (PAIRINGS as readonly string[]).includes(v)),
+    pairings: values('pairing').filter((v): v is ProAm =>
+      (PAIRINGS as readonly string[]).includes(v),
+    ),
     seats: values('seat'),
   };
 }
@@ -58,7 +67,11 @@ export function isFilterActive(filter: StatsFilter): boolean {
   return filter.partners.length > 0 || filter.pairings.length > 0 || filter.seats.length > 0;
 }
 
-export function filterCvData<T extends FilterableData>(data: T, facts: StatsFacts, filter: StatsFilter): T {
+export function filterCvData<T extends FilterableData>(
+  data: T,
+  facts: StatsFacts,
+  filter: StatsFilter,
+): T {
   if (!isFilterActive(filter)) return data;
 
   const tournamentMatches = new Set(
@@ -110,7 +123,15 @@ export function filterCvData<T extends FilterableData>(data: T, facts: StatsFact
  * remaining rounds are a slice of each tournament, so these would still print
  * a confident number that no longer means anything — they are withheld.
  */
-const TOURNAMENT_LEVEL_QUIRKS = new Set(['momentum', 'streak', 'team-percentile', 'field-percentile', 'field-size', 'break-rate', 'straights']);
+const TOURNAMENT_LEVEL_QUIRKS = new Set([
+  'momentum',
+  'streak',
+  'team-percentile',
+  'field-percentile',
+  'field-size',
+  'break-rate',
+  'straights',
+]);
 
 /**
  * Findings the filterable page supersedes, whatever the filter. Both rest on
@@ -124,7 +145,8 @@ const SUPERSEDED_QUIRKS = new Set(['seat-spread', 'motion-type']);
 
 export function visibleQuirkIds(ids: string[], filter: StatsFilter): string[] {
   return ids.filter(
-    (id) => !SUPERSEDED_QUIRKS.has(id) && (filter.seats.length === 0 || !TOURNAMENT_LEVEL_QUIRKS.has(id)),
+    (id) =>
+      !SUPERSEDED_QUIRKS.has(id) && (filter.seats.length === 0 || !TOURNAMENT_LEVEL_QUIRKS.has(id)),
   );
 }
 
@@ -142,11 +164,14 @@ export function filterFacts(facts: StatsFacts, filter: StatsFilter): StatsFacts 
   const rounds = facts.rounds.filter(
     (r) =>
       tournamentIds.has(r.tournamentId) &&
-      (filter.seats.length === 0 || (!r.isOutround && r.seat != null && filter.seats.includes(r.seat))),
+      (filter.seats.length === 0 ||
+        (!r.isOutround && r.seat != null && filter.seats.includes(r.seat))),
   );
   const withRounds = new Set(rounds.map((r) => r.tournamentId));
   const tournaments = facts.tournaments.filter(
-    (t) => tournamentIds.has(t.tournamentId) && (filter.seats.length === 0 || withRounds.has(t.tournamentId)),
+    (t) =>
+      tournamentIds.has(t.tournamentId) &&
+      (filter.seats.length === 0 || withRounds.has(t.tournamentId)),
   );
   return { ...facts, rounds, tournaments };
 }

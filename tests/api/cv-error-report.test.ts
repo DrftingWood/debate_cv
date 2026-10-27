@@ -10,7 +10,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 
 const { POST } = await import('@/app/api/cv/error-report/route');
 
@@ -31,9 +33,7 @@ describe('POST /api/cv/error-report', () => {
 
   it('rejects an empty submission (no categories AND no comment)', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
-    const res = await POST(
-      jsonRequest('/api/cv/error-report', { body: { tournamentIds: ['1'] } }),
-    );
+    const res = await POST(jsonRequest('/api/cv/error-report', { body: { tournamentIds: ['1'] } }));
     expect(res.status).toBe(400);
     const data = await readJson<{ error: string }>(res);
     expect(data.error).toBe('bad_request');

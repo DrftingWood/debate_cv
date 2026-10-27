@@ -14,7 +14,9 @@ import { classifyMotion, type MotionClass } from '@/lib/motions/classify';
 describe.skipIf(!process.env.RUN_MOTION_CLASS)('motion classifier coverage', () => {
   it('classifies the corpus', () => {
     const bundle = JSON.parse(readFileSync(process.env.BUNDLE_IN!, 'utf-8'));
-    const motions = (bundle.motions as Array<{ text: string; info_slide: string | null }>).filter((m) => m.text);
+    const motions = (bundle.motions as Array<{ text: string; info_slide: string | null }>).filter(
+      (m) => m.text,
+    );
     const byType = new Map<MotionClass, string[]>();
     let context = 0;
     let info = 0;

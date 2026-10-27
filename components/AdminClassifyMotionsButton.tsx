@@ -69,7 +69,10 @@ export function AdminClassifyMotionsButton() {
       }
       toast.show({
         kind: 'success',
-        title: filed === 0 ? 'Nothing left to suggest' : `Filed ${filed} suggestion${filed === 1 ? '' : 's'}`,
+        title:
+          filed === 0
+            ? 'Nothing left to suggest'
+            : `Filed ${filed} suggestion${filed === 1 ? '' : 's'}`,
         description:
           filed === 0
             ? 'Every motion and tournament already has a tag or a suggestion.'

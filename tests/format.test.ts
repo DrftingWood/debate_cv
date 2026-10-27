@@ -65,11 +65,18 @@ describe('formatAbbrev', () => {
 
 // Room shapes and squad sizes taken from real tournaments in the 2026-09
 // corpus. The side vocabulary is what each tab's results pages actually print.
-const BP_ROOM = ['Opening Government', 'Opening Opposition', 'Closing Government', 'Closing Opposition'];
+const BP_ROOM = [
+  'Opening Government',
+  'Opening Opposition',
+  'Closing Government',
+  'Closing Opposition',
+];
 
 describe('inferFormatFromStructure', () => {
   test('four seats a room is British Parliamentary (WUDC 2024)', () => {
-    expect(inferFormatFromStructure({ positions: BP_ROOM, squadSize: 2 })).toBe('British Parliamentary');
+    expect(inferFormatFromStructure({ positions: BP_ROOM, squadSize: 2 })).toBe(
+      'British Parliamentary',
+    );
   });
 
   test('Government/Opposition with three a side is Asian Parliamentary (UADC 2021)', () => {
@@ -130,15 +137,21 @@ describe('inferFormatFromStructure', () => {
   });
 
   test('two-team with two a side is not British Parliamentary (Norams 2023)', () => {
-    expect(
-      inferFormatFromStructure({ positions: ['Affirmative', 'Negative'], squadSize: 2 }),
-    ).toBe('Two-team Parliamentary');
+    expect(inferFormatFromStructure({ positions: ['Affirmative', 'Negative'], squadSize: 2 })).toBe(
+      'Two-team Parliamentary',
+    );
   });
 
   test('two-team sides with an unknown squad size are not guessed', () => {
-    expect(inferFormatFromStructure({ positions: ['Government', 'Opposition'], squadSize: null })).toBeNull();
-    expect(inferFormatFromStructure({ positions: ['Affirmative', 'Negative'], squadSize: null })).toBeNull();
-    expect(inferFormatFromStructure({ positions: ['Proposition', 'Opposition'], squadSize: null })).toBeNull();
+    expect(
+      inferFormatFromStructure({ positions: ['Government', 'Opposition'], squadSize: null }),
+    ).toBeNull();
+    expect(
+      inferFormatFromStructure({ positions: ['Affirmative', 'Negative'], squadSize: null }),
+    ).toBeNull();
+    expect(
+      inferFormatFromStructure({ positions: ['Proposition', 'Opposition'], squadSize: null }),
+    ).toBeNull();
   });
 
   test('abbreviated seat names are read too', () => {
@@ -154,24 +167,44 @@ describe('inferFormatFromStructure', () => {
 });
 
 describe('inferTournamentFormat', () => {
-  const room = (...positions: string[]) => ({ teamResults: positions.map((position) => ({ position })) });
+  const room = (...positions: string[]) => ({
+    teamResults: positions.map((position) => ({ position })),
+  });
   const teams = (size: number, n = 6) =>
-    Array.from({ length: n }, (_, i) => ({ speakers: Array.from({ length: size }, (_, j) => `T${i} S${j}`) }));
-  const none = { teamRows: [], speakerRows: [], participantRows: [], registrationSpeakers: [], rounds: [] };
+    Array.from({ length: n }, (_, i) => ({
+      speakers: Array.from({ length: size }, (_, j) => `T${i} S${j}`),
+    }));
+  const none = {
+    teamRows: [],
+    speakerRows: [],
+    participantRows: [],
+    registrationSpeakers: [],
+    rounds: [],
+  };
 
   // ── Behaviour that must survive the change ──────────────────────────────
   test('an explicit format in the name is honoured when no rooms were read', () => {
-    expect(inferTournamentFormat({ ...none, tournamentName: 'ILNU BP 2023' })).toBe('British Parliamentary');
-    expect(inferTournamentFormat({ ...none, tournamentName: 'Penn WSDC 2025' })).toBe('World Schools');
+    expect(inferTournamentFormat({ ...none, tournamentName: 'ILNU BP 2023' })).toBe(
+      'British Parliamentary',
+    );
+    expect(inferTournamentFormat({ ...none, tournamentName: 'Penn WSDC 2025' })).toBe(
+      'World Schools',
+    );
   });
 
   test('a well-known BP championship is BP by name when no rooms were read', () => {
-    expect(inferTournamentFormat({ ...none, tournamentName: 'WUDC 2024' })).toBe('British Parliamentary');
+    expect(inferTournamentFormat({ ...none, tournamentName: 'WUDC 2024' })).toBe(
+      'British Parliamentary',
+    );
   });
 
   test('team size is still the last resort when no rooms were read', () => {
     expect(
-      inferTournamentFormat({ ...none, tournamentName: 'Some IV', registrationSpeakers: ['A', 'B', 'C'] }),
+      inferTournamentFormat({
+        ...none,
+        tournamentName: 'Some IV',
+        registrationSpeakers: ['A', 'B', 'C'],
+      }),
     ).toBe('Asian Parliamentary');
     expect(inferTournamentFormat({ ...none, tournamentName: 'Some IV', teamRows: teams(2) })).toBe(
       'British Parliamentary',
@@ -207,7 +240,10 @@ describe('inferTournamentFormat', () => {
   });
 
   test('World Schools squads are read from speaker-tab groups when the team tab is empty (Online DSDC 2021)', () => {
-    const speakerRows = Array.from({ length: 12 }, (_, i) => ({ teamName: `Team ${Math.floor(i / 3)}`, roundScores: [] }));
+    const speakerRows = Array.from({ length: 12 }, (_, i) => ({
+      teamName: `Team ${Math.floor(i / 3)}`,
+      roundScores: [],
+    }));
     expect(
       inferTournamentFormat({
         ...none,
@@ -235,9 +271,17 @@ describe('inferTournamentFormat', () => {
   });
 
   test('adjudicators on the participants page do not count towards a squad', () => {
-    const participantRows = Array.from({ length: 9 }, (_, i) => ({ role: 'adjudicator' as const, teamName: `Team ${i % 3}` }));
+    const participantRows = Array.from({ length: 9 }, (_, i) => ({
+      role: 'adjudicator' as const,
+      teamName: `Team ${i % 3}`,
+    }));
     expect(
-      inferTournamentFormat({ ...none, tournamentName: 'Some IV', participantRows, rounds: [room('Proposition', 'Opposition')] }),
+      inferTournamentFormat({
+        ...none,
+        tournamentName: 'Some IV',
+        participantRows,
+        rounds: [room('Proposition', 'Opposition')],
+      }),
     ).toBeNull();
   });
 
@@ -381,7 +425,11 @@ describe('inferTournamentFormat', () => {
         ...none,
         tournamentName: 'Some IV',
         teamRows: teams(3),
-        rounds: [room('Government', 'Opposition'), room('Government', 'Opposition'), room('OG', 'Opposition')],
+        rounds: [
+          room('Government', 'Opposition'),
+          room('Government', 'Opposition'),
+          room('OG', 'Opposition'),
+        ],
       }),
     ).toBe('Asian Parliamentary');
   });
@@ -392,7 +440,14 @@ describe('inferTournamentFormat', () => {
         ...none,
         tournamentName: 'Some IV',
         registrationSpeakers: ['A', 'B', 'C'],
-        rounds: [room('Opening Government', 'Opening Opposition', 'Closing Government', 'Closing Opposition')],
+        rounds: [
+          room(
+            'Opening Government',
+            'Opening Opposition',
+            'Closing Government',
+            'Closing Opposition',
+          ),
+        ],
       }),
     ).toBe('British Parliamentary');
   });

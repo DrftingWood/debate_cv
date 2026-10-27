@@ -28,13 +28,7 @@
  */
 
 export type MotionClass =
-  | 'Policy'
-  | 'Actor'
-  | 'Belief'
-  | 'Stance'
-  | 'Regret'
-  | 'Preference'
-  | 'Unclassified';
+  'Policy' | 'Actor' | 'Belief' | 'Stance' | 'Regret' | 'Preference' | 'Unclassified';
 
 export type MotionClassification = {
   type: MotionClass;
@@ -75,14 +69,39 @@ const COMPACT_TYPE: Record<string, StemClass> = {
 };
 
 const VERB = [
-  'believes that', 'believe that', 'believes', 'believe', 'bt',
-  'predicts that', 'predicts', 'predict',
-  'hopes that', 'hope that', 'hopes', 'hope',
-  'would', 'will', 'w',
-  'supports', 'support', 's', 'opposes', 'oppose', 'o', 'welcomes', 'welcome',
-  'rejects', 'reject', 'condemns', 'condemn',
-  'regrets', 'regret', 'r',
-  'prefers', 'prefer', 'p',
+  'believes that',
+  'believe that',
+  'believes',
+  'believe',
+  'bt',
+  'predicts that',
+  'predicts',
+  'predict',
+  'hopes that',
+  'hope that',
+  'hopes',
+  'hope',
+  'would',
+  'will',
+  'w',
+  'supports',
+  'support',
+  's',
+  'opposes',
+  'oppose',
+  'o',
+  'welcomes',
+  'welcome',
+  'rejects',
+  'reject',
+  'condemns',
+  'condemn',
+  'regrets',
+  'regret',
+  'r',
+  'prefers',
+  'prefer',
+  'p',
 ].join('|');
 
 /**
@@ -130,7 +149,8 @@ const LONG_STEM = new RegExp(
  */
 const TRAILING_ACTOR = new RegExp(String.raw`^\s*,\s*as\s+(?!${AS_IDIOM})[^;:]{1,160}?,`);
 
-const COMPACT_STEM = /(?:^|[\s,(])(thw|thbt|tbht|ths|tho|thc|thr|thpaw|thp|thb(?= th(?:at|e)\b))(?=[\s,.]|$)/;
+const COMPACT_STEM =
+  /(?:^|[\s,(])(thw|thbt|tbht|ths|tho|thc|thr|thpaw|thp|thb(?= th(?:at|e)\b))(?=[\s,.]|$)/;
 
 /**
  * Words that make a leading "As the …," clause a sentence rather than a
@@ -154,7 +174,8 @@ const CLAUSE_VERB = new RegExp(
 );
 
 /** Where a role's head noun phrase ends and its description begins. */
-const PHRASE_BREAK = /\b(?:who|whom|whose|which|that|of|in|on|at|for|with|from|by|to|under|living|working)\b/;
+const PHRASE_BREAK =
+  /\b(?:who|whom|whose|which|that|of|in|on|at|for|with|from|by|to|under|living|working)\b/;
 
 /**
  * "As a progressive voter, THW …" puts the actor before the stem. Limited to

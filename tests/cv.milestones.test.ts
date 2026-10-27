@@ -18,7 +18,11 @@ const row = (o: Partial<CvSpeakerRow>): CvSpeakerRow =>
     wonTournament: null,
     ...o,
   }) as CvSpeakerRow;
-const s = (roundNumber: number, score: number | null, positionLabel: string | null = '1'): CvSpeakerRoundScore => ({
+const s = (
+  roundNumber: number,
+  score: number | null,
+  positionLabel: string | null = '1',
+): CvSpeakerRoundScore => ({
   roundNumber,
   score,
   positionLabel,
@@ -52,7 +56,13 @@ describe('milestones — firsts', () => {
 
   test('undated tournaments never count as first, and are reported', () => {
     const m = milestones([
-      row({ tournamentName: 'Undated', year: null, broke: true, eliminationReached: 'Grand Final', wonTournament: true }),
+      row({
+        tournamentName: 'Undated',
+        year: null,
+        broke: true,
+        eliminationReached: 'Grand Final',
+        wonTournament: true,
+      }),
       row({ tournamentName: 'Dated', year: 2019 }),
     ])!;
     // An undated tournament could have come before it, so the season is the most that is known.
@@ -68,8 +78,20 @@ describe('milestones — firsts', () => {
     const m = milestones([
       row({ year: 2020, broke: true, eliminationReached: 'Quarterfinals' }),
       row({ year: 2020, broke: true, eliminationReached: 'Octofinals' }),
-      row({ tournamentName: 'GF', year: 2021, broke: true, eliminationReached: 'Grand Final', wonTournament: false }),
-      row({ tournamentName: 'Champ', year: 2022, broke: true, eliminationReached: null, wonTournament: true }),
+      row({
+        tournamentName: 'GF',
+        year: 2021,
+        broke: true,
+        eliminationReached: 'Grand Final',
+        wonTournament: false,
+      }),
+      row({
+        tournamentName: 'Champ',
+        year: 2022,
+        broke: true,
+        eliminationReached: null,
+        wonTournament: true,
+      }),
     ])!;
     expect(m.firstFinal).toMatchObject({ year: 2021, tournament: 'GF' });
     expect(m.firstTitle).toMatchObject({ year: 2022, tournament: 'Champ' });
@@ -77,9 +99,26 @@ describe('milestones — firsts', () => {
 
   test('a first is named only when no undated tournament qualifies too', () => {
     const m = milestones([
-      row({ tournamentName: 'NDO', year: 2021, broke: true, eliminationReached: 'Grand Final', wonTournament: false }),
-      row({ tournamentName: 'Undated GF', year: null, broke: true, eliminationReached: 'Grand Finals', wonTournament: false }),
-      row({ tournamentName: 'Dated break', year: 2020, broke: true, eliminationReached: 'Octofinals' }),
+      row({
+        tournamentName: 'NDO',
+        year: 2021,
+        broke: true,
+        eliminationReached: 'Grand Final',
+        wonTournament: false,
+      }),
+      row({
+        tournamentName: 'Undated GF',
+        year: null,
+        broke: true,
+        eliminationReached: 'Grand Finals',
+        wonTournament: false,
+      }),
+      row({
+        tournamentName: 'Dated break',
+        year: 2020,
+        broke: true,
+        eliminationReached: 'Octofinals',
+      }),
     ])!;
     expect(m.firstFinal).toEqual({ year: 2021, count: 1, tournament: null, undated: 1 });
     // The undated final is an undated break too, so the lone 2020 break goes unnamed as well.
@@ -88,23 +127,63 @@ describe('milestones — firsts', () => {
 
   test('first final and title are the open bracket; category finals are counted apart', () => {
     const m = milestones([
-      row({ tournamentName: 'ESL early', year: 2019, broke: true, eliminationReached: 'ESL Finals', wonTournament: true }),
-      row({ tournamentName: 'Novice', year: 2020, broke: true, eliminationReached: 'Novice Grand Final', wonTournament: false }),
-      row({ tournamentName: 'Open GF', year: 2021, broke: true, eliminationReached: 'Grand Final', wonTournament: false }),
-      row({ tournamentName: 'Undated ESL', year: null, broke: true, eliminationReached: 'ESL Final', wonTournament: true }),
+      row({
+        tournamentName: 'ESL early',
+        year: 2019,
+        broke: true,
+        eliminationReached: 'ESL Finals',
+        wonTournament: true,
+      }),
+      row({
+        tournamentName: 'Novice',
+        year: 2020,
+        broke: true,
+        eliminationReached: 'Novice Grand Final',
+        wonTournament: false,
+      }),
+      row({
+        tournamentName: 'Open GF',
+        year: 2021,
+        broke: true,
+        eliminationReached: 'Grand Final',
+        wonTournament: false,
+      }),
+      row({
+        tournamentName: 'Undated ESL',
+        year: null,
+        broke: true,
+        eliminationReached: 'ESL Final',
+        wonTournament: true,
+      }),
     ])!;
     expect(m.firstFinal).toMatchObject({ year: 2021, tournament: 'Open GF' });
     expect(m.firstTitle).toBeNull();
     expect(m.undatedFirsts).toMatchObject({ final: 0, title: 0 });
-    expect(m.otherBracket).toEqual({ finals: 3, titles: 2, firstFinalYear: 2019, brackets: ['ESL', 'Novice'] });
+    expect(m.otherBracket).toEqual({
+      finals: 3,
+      titles: 2,
+      firstFinalYear: 2019,
+      brackets: ['ESL', 'Novice'],
+    });
     // A category break is still a break.
     expect(m.firstBreak).toMatchObject({ year: 2019, count: 1, undated: 1 });
   });
 
   test('a consolation bracket is never a break, a final or a title', () => {
     const m = milestones([
-      row({ year: 2020, broke: true, eliminationReached: 'Consolation Final', wonTournament: true }),
-      row({ year: 2020, broke: true, eliminationReached: 'Plate Final', wonTournament: false, teamBreakRank: 1 }),
+      row({
+        year: 2020,
+        broke: true,
+        eliminationReached: 'Consolation Final',
+        wonTournament: true,
+      }),
+      row({
+        year: 2020,
+        broke: true,
+        eliminationReached: 'Plate Final',
+        wonTournament: false,
+        teamBreakRank: 1,
+      }),
       row({ year: 2021 }),
     ])!;
     expect(m.firstBreak).toBeNull();
@@ -135,7 +214,9 @@ describe('milestones — firsts', () => {
     ])!;
     expect(m.firstFinal).toMatchObject({ year: 2021, tournament: expect.any(String) });
     // ESL stays out
-    expect(milestones([row({ year: 2020, broke: true, eliminationReached: 'ESL Final' })])!.firstFinal).toBeNull();
+    expect(
+      milestones([row({ year: 2020, broke: true, eliminationReached: 'ESL Final' })])!.firstFinal,
+    ).toBeNull();
   });
 });
 
@@ -159,7 +240,12 @@ describe('milestones — records', () => {
 
   test('no prelim count: rounds past the last round with team points are outrounds', () => {
     const results = (n: number, outrounds: number[]) => [
-      ...Array.from({ length: n }, (_, i) => ({ roundNumber: i + 1, position: 'OG', won: true, points: 3 })),
+      ...Array.from({ length: n }, (_, i) => ({
+        roundNumber: i + 1,
+        position: 'OG',
+        won: true,
+        points: 3,
+      })),
       ...outrounds.map((r) => ({ roundNumber: r, position: 'OG', won: true, points: null })),
     ];
     const m = milestones([
@@ -170,7 +256,12 @@ describe('milestones — records', () => {
         roundScores: [s(2, 77), s(6, 85), s(7, 86)],
       }),
       // No team points at all: nothing separates prelims from outrounds, so the speech stays and is flagged.
-      row({ tournamentName: 'Blind', prelimRoundCount: null, teamRoundResults: [], roundScores: [s(3, 78)] }),
+      row({
+        tournamentName: 'Blind',
+        prelimRoundCount: null,
+        teamRoundResults: [],
+        roundScores: [s(3, 78)],
+      }),
     ])!;
     expect(m.bestSpeech).toEqual({
       score: 78,
@@ -195,7 +286,14 @@ describe('milestones — records', () => {
       row({ tournamentName: 'C', speakerRankOpen: 3 }),
       row({ tournamentName: 'D' }),
     ])!;
-    expect(m.bestSpeakerRank).toEqual({ rank: 3, of: 3, at: [{ tournament: 'B', year: 2024 }, { tournament: 'C', year: 2024 }] });
+    expect(m.bestSpeakerRank).toEqual({
+      rank: 3,
+      of: 3,
+      at: [
+        { tournament: 'B', year: 2024 },
+        { tournament: 'C', year: 2024 },
+      ],
+    });
     expect(m.bestBreakRank).toEqual({ rank: 1, of: 2, at: [{ tournament: 'B', year: 2024 }] });
     expect(m.bestBreakRankOtherBracket).toBeNull();
   });
@@ -210,17 +308,41 @@ describe('milestones — records', () => {
 
   test('best team break rank is the open bracket; a better category rank is noted beside it', () => {
     const m = milestones([
-      row({ tournamentName: 'Krabi', broke: true, eliminationReached: 'ESL Finals', teamBreakRank: 1 }),
-      row({ tournamentName: 'Open', broke: true, eliminationReached: 'Semifinals', teamBreakRank: 3 }),
+      row({
+        tournamentName: 'Krabi',
+        broke: true,
+        eliminationReached: 'ESL Finals',
+        teamBreakRank: 1,
+      }),
+      row({
+        tournamentName: 'Open',
+        broke: true,
+        eliminationReached: 'Semifinals',
+        teamBreakRank: 3,
+      }),
       row({ tournamentName: 'Unstaged', broke: true, eliminationReached: null, teamBreakRank: 4 }),
     ])!;
     expect(m.bestBreakRank).toEqual({ rank: 3, of: 2, at: [{ tournament: 'Open', year: 2024 }] });
-    expect(m.bestBreakRankOtherBracket).toEqual({ rank: 1, of: 1, at: [{ tournament: 'Krabi', year: 2024 }] });
+    expect(m.bestBreakRankOtherBracket).toEqual({
+      rank: 1,
+      of: 1,
+      at: [{ tournament: 'Krabi', year: 2024 }],
+    });
 
     // Not better than the open best: nothing to note.
     const tie = milestones([
-      row({ tournamentName: 'ESL', broke: true, eliminationReached: 'ESL Finals', teamBreakRank: 1 }),
-      row({ tournamentName: 'Open', broke: true, eliminationReached: 'Grand Final', teamBreakRank: 1 }),
+      row({
+        tournamentName: 'ESL',
+        broke: true,
+        eliminationReached: 'ESL Finals',
+        teamBreakRank: 1,
+      }),
+      row({
+        tournamentName: 'Open',
+        broke: true,
+        eliminationReached: 'Grand Final',
+        teamBreakRank: 1,
+      }),
     ])!;
     expect(tie.bestBreakRank!.at.map((a) => a.tournament)).toEqual(['Open']);
     expect(tie.bestBreakRankOtherBracket).toBeNull();
@@ -235,7 +357,12 @@ describe('milestones — records', () => {
 describe('breakRunBounds — order within a season is unknown', () => {
   // Each season is [breaks, misses].
   test('whole seasons broken chain into a certain run', () => {
-    expect(breakRunBounds([[3, 0], [2, 0]])).toEqual({ certain: 5, possible: 5 });
+    expect(
+      breakRunBounds([
+        [3, 0],
+        [2, 0],
+      ]),
+    ).toEqual({ certain: 5, possible: 5 });
   });
 
   test('a season with one miss: at least ceil(b/2), at most b', () => {
@@ -246,13 +373,24 @@ describe('breakRunBounds — order within a season is unknown', () => {
     // 2021 all broke (2); 2022 three breaks, one miss; 2023 all broke (1).
     // Possible: 2 + 3 = 5 (miss last in 2022) — or 3 + 1 = 4; best is 5.
     // Certain: the adversary ordering B M B B in 2022 caps runs at max(2+1, 2+1) = 3.
-    expect(breakRunBounds([[2, 0], [3, 1], [1, 0]])).toEqual({ certain: 3, possible: 5 });
+    expect(
+      breakRunBounds([
+        [2, 0],
+        [3, 1],
+        [1, 0],
+      ]),
+    ).toEqual({ certain: 3, possible: 5 });
   });
 
   test('two adjacent one-miss seasons still guarantee a cross-season pair', () => {
     // Four breaks, two misses: some run of two survives any order (B M B | M B B);
     // M B B | B B M lines up all four.
-    expect(breakRunBounds([[2, 1], [2, 1]])).toEqual({ certain: 2, possible: 4 });
+    expect(
+      breakRunBounds([
+        [2, 1],
+        [2, 1],
+      ]),
+    ).toEqual({ certain: 2, possible: 4 });
   });
 
   test('misses enough to separate every break', () => {
@@ -279,17 +417,41 @@ describe('breakRunBounds — order within a season is unknown', () => {
       return best;
     };
     const seasonsList: Array<Array<[number, number]>> = [
-      [[1, 1], [2, 2], [1, 0]],
-      [[3, 2], [0, 1], [2, 1]],
-      [[2, 1], [1, 0], [2, 1]],
-      [[4, 1], [1, 1]],
-      [[1, 2], [3, 0], [0, 0], [2, 2]],
+      [
+        [1, 1],
+        [2, 2],
+        [1, 0],
+      ],
+      [
+        [3, 2],
+        [0, 1],
+        [2, 1],
+      ],
+      [
+        [2, 1],
+        [1, 0],
+        [2, 1],
+      ],
+      [
+        [4, 1],
+        [1, 1],
+      ],
+      [
+        [1, 2],
+        [3, 0],
+        [0, 0],
+        [2, 2],
+      ],
     ];
     for (const seasons of seasonsList) {
       let orders: boolean[][] = [[]];
-      for (const [b, m] of seasons) orders = orders.flatMap((o) => perms(b, m).map((p) => [...o, ...p]));
+      for (const [b, m] of seasons)
+        orders = orders.flatMap((o) => perms(b, m).map((p) => [...o, ...p]));
       const runs = orders.map(longest);
-      expect(breakRunBounds(seasons)).toEqual({ certain: Math.min(...runs), possible: Math.max(...runs) });
+      expect(breakRunBounds(seasons)).toEqual({
+        certain: Math.min(...runs),
+        possible: Math.max(...runs),
+      });
     }
   });
 

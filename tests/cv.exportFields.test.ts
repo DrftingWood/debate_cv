@@ -119,7 +119,9 @@ describe('buildExportCsv', () => {
     // A category title carries its bracket so it never reads as the Open title.
     const esl = buildExportCsv(
       makeCvData({
-        speakerRows: [makeSpeakerRow({ broke: true, eliminationReached: 'ESL Final', wonTournament: true })],
+        speakerRows: [
+          makeSpeakerRow({ broke: true, eliminationReached: 'ESL Final', wonTournament: true }),
+        ],
         judgeRows: [],
       }),
       EXPORT_FIELDS,
@@ -228,7 +230,9 @@ describe('export context columns', () => {
 
   test('a tournament with no field summary exports blanks, not zeroes', () => {
     const { fields } = resolveExportFields(['field_placement', 'field_average', 'field_delta']);
-    const lines = buildExportCsv(makeCvData({ speakerRows: rows }), fields).trimEnd().split('\n');
+    const lines = buildExportCsv(makeCvData({ speakerRows: rows }), fields)
+      .trimEnd()
+      .split('\n');
     expect(lines[1]).toBe('speaker,,,');
   });
 
@@ -236,12 +240,40 @@ describe('export context columns', () => {
     const data = makeCvData({
       speakerRows: rows,
       taggedMotions: [
-        makeMotion({ tournamentId: 1n, roundNumber: 2, seq: 1, text: 'THW b', motionType: 'THW', topic: 'Law' }),
-        makeMotion({ tournamentId: 1n, roundNumber: 1, seq: 0, text: 'THW a', motionType: 'THW', topic: 'Economics' }),
+        makeMotion({
+          tournamentId: 1n,
+          roundNumber: 2,
+          seq: 1,
+          text: 'THW b',
+          motionType: 'THW',
+          topic: 'Law',
+        }),
+        makeMotion({
+          tournamentId: 1n,
+          roundNumber: 1,
+          seq: 0,
+          text: 'THW a',
+          motionType: 'THW',
+          topic: 'Economics',
+        }),
         // Round 4 was never debated by this user; round 9's motion belongs
         // to a different tournament entirely.
-        makeMotion({ tournamentId: 1n, roundNumber: 4, seq: 0, text: 'THO c', motionType: 'THO', topic: 'Health' }),
-        makeMotion({ tournamentId: 2n, roundNumber: 1, seq: 0, text: 'THR d', motionType: 'THR', topic: 'Health' }),
+        makeMotion({
+          tournamentId: 1n,
+          roundNumber: 4,
+          seq: 0,
+          text: 'THO c',
+          motionType: 'THO',
+          topic: 'Health',
+        }),
+        makeMotion({
+          tournamentId: 2n,
+          roundNumber: 1,
+          seq: 0,
+          text: 'THR d',
+          motionType: 'THR',
+          topic: 'Health',
+        }),
       ],
     });
     const { fields } = resolveExportFields(['motions', 'motion_types', 'motion_topics']);
@@ -261,7 +293,9 @@ describe('export context columns', () => {
   test('only placement columns force the expensive field-summary query', () => {
     expect(exportNeedsFieldStats(resolveExportFields(['field_placement']).fields)).toBe(true);
     expect(exportNeedsFieldStats(resolveExportFields(['field_delta']).fields)).toBe(true);
-    expect(exportNeedsFieldStats(resolveExportFields(['motions', 'tournament']).fields)).toBe(false);
+    expect(exportNeedsFieldStats(resolveExportFields(['motions', 'tournament']).fields)).toBe(
+      false,
+    );
     // A bare GET selects everything, so it does pay for it.
     expect(exportNeedsFieldStats(EXPORT_FIELDS)).toBe(true);
   });

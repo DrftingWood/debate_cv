@@ -9,7 +9,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 vi.mock('@/lib/queue', () => ({ enqueueUrl: vi.fn() }));
 vi.mock('@/lib/rateLimit', async () => {
   const actual: typeof import('@/lib/rateLimit') = await vi.importActual('@/lib/rateLimit');
@@ -36,10 +38,14 @@ describe('POST /api/ingest/csv', () => {
   it('queues each usable URL for the signed-in user and reports per line', async () => {
     authMock.mockResolvedValue(fakeSession('user-1'));
     const res = await POST(
-      jsonRequest('/api/ingest/csv', { body: { csv: `${url(1)}\nhttps://example.com/x\n${url(2)}\n${url(1)}\n` } }),
+      jsonRequest('/api/ingest/csv', {
+        body: { csv: `${url(1)}\nhttps://example.com/x\n${url(2)}\n${url(1)}\n` },
+      }),
     );
     expect(res.status).toBe(200);
-    const data = await readJson<{ queued: number; rows: Array<{ line: number; status: string }> }>(res);
+    const data = await readJson<{ queued: number; rows: Array<{ line: number; status: string }> }>(
+      res,
+    );
     expect(data.queued).toBe(2);
     expect(data.rows.map((r) => r.status)).toEqual(['ok', 'not_a_private_url', 'ok', 'duplicate']);
     expect(vi.mocked(enqueueUrl).mock.calls).toEqual([

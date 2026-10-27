@@ -22,17 +22,11 @@ export function CardBody({ className, ...rest }: DivProps) {
 
 export function CardFooter({ className, ...rest }: DivProps) {
   return (
-    <div
-      className={cn('rounded-b-card border-t bg-surface-2 px-5 py-3', className)}
-      {...rest}
-    />
+    <div className={cn('rounded-b-card border-t bg-surface-2 px-5 py-3', className)} {...rest} />
   );
 }
 
-export function CardTitle({
-  className,
-  ...rest
-}: React.HTMLAttributes<HTMLHeadingElement>) {
+export function CardTitle({ className, ...rest }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
       className={cn('text-h4 font-display font-medium tracking-tight text-ink', className)}
@@ -70,9 +64,7 @@ export function SectionHeader({
       <div className="min-w-0">
         {label ? <div className="data-label">{label}</div> : null}
         {title ? (
-          <h2 className="mt-1 text-h4 font-display font-medium tracking-tight text-ink">
-            {title}
-          </h2>
+          <h2 className="mt-1 text-h4 font-display font-medium tracking-tight text-ink">{title}</h2>
         ) : null}
       </div>
       {meta ? <div className="min-w-0 text-caption text-ink-soft sm:shrink-0">{meta}</div> : null}

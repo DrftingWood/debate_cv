@@ -39,9 +39,7 @@ export function findRedactedOwnerRow(
   const teamRows = speakerRows.filter((s) => s.teamName === ownerTeam);
   if (teamRows.length === 0) return null;
 
-  const ownerAlreadyMatched = teamRows.some(
-    (s) => lookupPersonId(s.speakerName) === ownerPersonId,
-  );
+  const ownerAlreadyMatched = teamRows.some((s) => lookupPersonId(s.speakerName) === ownerPersonId);
   if (ownerAlreadyMatched) return null;
 
   // An organiser's stand-in ("Speaker 1") is unmatched by design — it is

@@ -26,7 +26,11 @@ import {
   parseParticipantsList,
   parseRoundResults,
 } from '@/lib/calicotab/parseTabs';
-import { classifyOutroundStage, normalizeStageLabel, outroundRank } from '@/lib/calicotab/judgeStats';
+import {
+  classifyOutroundStage,
+  normalizeStageLabel,
+  outroundRank,
+} from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
 import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
@@ -51,7 +55,9 @@ const deep = live.filter((e) => e.pages.length > 1);
 function expectNoViolations(name: string, bad: string[], sampleSize = 12) {
   if (bad.length === 0) return;
   const sample = bad.slice(0, sampleSize).join('\n   ');
-  throw new Error(`${name}: ${bad.length} violation(s)\n   ${sample}${bad.length > sampleSize ? `\n   …and ${bad.length - sampleSize} more` : ''}`);
+  throw new Error(
+    `${name}: ${bad.length} violation(s)\n   ${sample}${bad.length > sampleSize ? `\n   …and ${bad.length - sampleSize} more` : ''}`,
+  );
 }
 
 describe.skipIf(!HAVE)('real-data corpus', () => {
@@ -78,7 +84,8 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
       } catch {
         continue;
       }
-      for (const l of Object.values(nav.resultsRoundLabels)) if (l?.trim()) roundLabels.add(l.trim());
+      for (const l of Object.values(nav.resultsRoundLabels))
+        if (l?.trim()) roundLabels.add(l.trim());
       for (const u of nav.breakTabs) {
         const m = u.match(/\/break\/(?:teams|bracket)\/([^/]+)\//i);
         if (m) breakCategories.add(m[1]!);
@@ -104,7 +111,8 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
       for (const l of roundLabels) {
         const once = formatStageForDisplay(l);
         const twice = formatStageForDisplay(once);
-        if (once !== twice) bad.push(`${JSON.stringify(l)} → ${JSON.stringify(once)} → ${JSON.stringify(twice)}`);
+        if (once !== twice)
+          bad.push(`${JSON.stringify(l)} → ${JSON.stringify(once)} → ${JSON.stringify(twice)}`);
       }
       expectNoViolations('not idempotent', bad);
     });
@@ -139,7 +147,9 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
         if (!category || /^open$/i.test(category)) continue;
         const out = formatStageForDisplay(l);
         if (!out.toLowerCase().includes(category.toLowerCase())) {
-          bad.push(`${JSON.stringify(l)} → ${JSON.stringify(out)}  (lost ${JSON.stringify(category)})`);
+          bad.push(
+            `${JSON.stringify(l)} → ${JSON.stringify(out)}  (lost ${JSON.stringify(category)})`,
+          );
         }
       }
       expectNoViolations('category dropped from display', bad, 25);
@@ -240,7 +250,8 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
       }
       for (const { p } of pagesOf('speakerTab')) {
         for (const r of parseSpeakerTab(html(p.file!))) {
-          if (suspect(r.speakerName)) bad.push(`speakerTab ${p.url} → ${JSON.stringify(r.speakerName)}`);
+          if (suspect(r.speakerName))
+            bad.push(`speakerTab ${p.url} → ${JSON.stringify(r.speakerName)}`);
         }
       }
       for (const { p } of pagesOf('participants')) {
@@ -302,7 +313,9 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
           if (scores.length !== r.roundScores.length) continue;
           const sum = scores.reduce((a, b) => a + b, 0);
           if (Math.abs(sum - r.totalScore) > 0.5) {
-            bad.push(`${p.url} → ${r.speakerName}: total=${r.totalScore} sum(${scores.length})=${sum}`);
+            bad.push(
+              `${p.url} → ${r.speakerName}: total=${r.totalScore} sum(${scores.length})=${sum}`,
+            );
           }
         }
       }
@@ -340,14 +353,19 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
         const teams = new Set(parseTeamTab(html(tt.file!)).map((r) => norm(r.teamName)));
         if (teams.size === 0) continue;
         for (const bt of bts) {
-          const rows = parseBreakPage(html(bt.file!), bt.url).filter((r) => r.entityType === 'team');
+          const rows = parseBreakPage(html(bt.file!), bt.url).filter(
+            (r) => r.entityType === 'team',
+          );
           if (rows.length === 0) continue;
           const missing = rows.filter((r) => !teams.has(norm(r.entityName)));
           // Allow a little slack: some tabs redact or rename late.
           if (missing.length > rows.length * 0.25) {
             bad.push(
               `${bt.url} → ${missing.length}/${rows.length} broken teams absent from team tab` +
-                ` (e.g. ${missing.slice(0, 2).map((m) => JSON.stringify(m.entityName)).join(', ')})`,
+                ` (e.g. ${missing
+                  .slice(0, 2)
+                  .map((m) => JSON.stringify(m.entityName))
+                  .join(', ')})`,
             );
           }
         }
@@ -393,12 +411,24 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
     it('no parser throws on truncated or malformed HTML', () => {
       const bad: string[] = [];
       const sample = [
-        ...pagesOf('teamTab').slice(0, 12).map((x) => ['teamTab', x] as const),
-        ...pagesOf('speakerTab').slice(0, 12).map((x) => ['speakerTab', x] as const),
-        ...pagesOf('breakTab').slice(0, 12).map((x) => ['breakTab', x] as const),
-        ...pagesOf('participants').slice(0, 12).map((x) => ['participants', x] as const),
-        ...pagesOf('roundResults').slice(0, 12).map((x) => ['roundResults', x] as const),
-        ...pagesOf('home').slice(0, 12).map((x) => ['home', x] as const),
+        ...pagesOf('teamTab')
+          .slice(0, 12)
+          .map((x) => ['teamTab', x] as const),
+        ...pagesOf('speakerTab')
+          .slice(0, 12)
+          .map((x) => ['speakerTab', x] as const),
+        ...pagesOf('breakTab')
+          .slice(0, 12)
+          .map((x) => ['breakTab', x] as const),
+        ...pagesOf('participants')
+          .slice(0, 12)
+          .map((x) => ['participants', x] as const),
+        ...pagesOf('roundResults')
+          .slice(0, 12)
+          .map((x) => ['roundResults', x] as const),
+        ...pagesOf('home')
+          .slice(0, 12)
+          .map((x) => ['home', x] as const),
       ];
       for (const [kind, { e, p }] of sample) {
         const original = html(p.file!);
@@ -406,16 +436,30 @@ describe.skipIf(!HAVE)('real-data corpus', () => {
           const h = mutate(original);
           try {
             switch (kind) {
-              case 'teamTab': parseTeamTab(h); break;
-              case 'speakerTab': parseSpeakerTab(h); break;
-              case 'breakTab': parseBreakPage(h, p.url); break;
-              case 'participants': parseParticipantsList(h); break;
-              case 'roundResults': parseRoundResults(h, p.url, null); break;
-              case 'home': extractNavigation(h, e.root); break;
+              case 'teamTab':
+                parseTeamTab(h);
+                break;
+              case 'speakerTab':
+                parseSpeakerTab(h);
+                break;
+              case 'breakTab':
+                parseBreakPage(h, p.url);
+                break;
+              case 'participants':
+                parseParticipantsList(h);
+                break;
+              case 'roundResults':
+                parseRoundResults(h, p.url, null);
+                break;
+              case 'home':
+                extractNavigation(h, e.root);
+                break;
             }
             extractVueData(h);
           } catch (err) {
-            bad.push(`${kind} [${label}] ${p.url} → ${err instanceof Error ? err.message.slice(0, 120) : String(err)}`);
+            bad.push(
+              `${kind} [${label}] ${p.url} → ${err instanceof Error ? err.message.slice(0, 120) : String(err)}`,
+            );
           }
         }
       }

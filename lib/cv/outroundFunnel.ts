@@ -205,9 +205,30 @@ export function outroundFunnel(tournaments: TournamentFact[]): OutroundFunnel | 
   }
 
   const rungs: FunnelRung[] = [
-    { key: 'spoken', label: 'Tournaments', count: tournaments.length, from: null, of: null, wentOut: tournaments.length - broke },
-    { key: 'broke', label: 'Broke', count: broke, from: tournaments.length, of: broke, wentOut: outBeforeQf },
-    { key: 'quarterfinal', label: 'Quarterfinal', count: qf, from: null, of: null, wentOut: outAtQf },
+    {
+      key: 'spoken',
+      label: 'Tournaments',
+      count: tournaments.length,
+      from: null,
+      of: null,
+      wentOut: tournaments.length - broke,
+    },
+    {
+      key: 'broke',
+      label: 'Broke',
+      count: broke,
+      from: tournaments.length,
+      of: broke,
+      wentOut: outBeforeQf,
+    },
+    {
+      key: 'quarterfinal',
+      label: 'Quarterfinal',
+      count: qf,
+      from: null,
+      of: null,
+      wentOut: outAtQf,
+    },
     { key: 'semifinal', label: 'Semifinal', count: sf, from: null, of: null, wentOut: outAtSf },
     { key: 'final', label: 'Final', count: finals, from: null, of: null, wentOut: finalsLost },
     { key: 'won', label: 'Won', count: won, from: finalsDecided, of: won, wentOut: null },

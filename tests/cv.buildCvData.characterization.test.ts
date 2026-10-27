@@ -36,8 +36,16 @@ import { normalizePersonName } from '@/lib/calicotab/fingerprint';
  */
 
 const USER = 'user-1';
-const ADA = { id: 10n, displayName: 'Ada Lovelace', normalizedName: normalizePersonName('Ada Lovelace') };
-const ADA_ALIAS = { id: 11n, displayName: 'Ada K. Lovelace', normalizedName: normalizePersonName('Ada K. Lovelace') };
+const ADA = {
+  id: 10n,
+  displayName: 'Ada Lovelace',
+  normalizedName: normalizePersonName('Ada Lovelace'),
+};
+const ADA_ALIAS = {
+  id: 11n,
+  displayName: 'Ada K. Lovelace',
+  normalizedName: normalizePersonName('Ada K. Lovelace'),
+};
 
 const T1 = {
   id: 1n,
@@ -153,24 +161,76 @@ const MY_PARTICIPATIONS = [
 ];
 
 const MOTIONS = [
-  { tournamentId: 1n, roundNumber: 1, roundLabel: 'Round 1', seq: 0, text: 'THW ban zoos', infoSlide: null, motionType: 'THW', topic: 'Environment' },
-  { tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 5, text: 'THR the rise of AI', infoSlide: 'Info', motionType: null, topic: null },
+  {
+    tournamentId: 1n,
+    roundNumber: 1,
+    roundLabel: 'Round 1',
+    seq: 0,
+    text: 'THW ban zoos',
+    infoSlide: null,
+    motionType: 'THW',
+    topic: 'Environment',
+  },
+  {
+    tournamentId: 1n,
+    roundNumber: null,
+    roundLabel: 'Grand Final',
+    seq: 5,
+    text: 'THR the rise of AI',
+    infoSlide: 'Info',
+    motionType: null,
+    topic: null,
+  },
 ];
 
 type Where = Record<string, unknown>;
-const argsWhere = (args: unknown): Where => ((args as { where?: Where })?.where ?? {});
+const argsWhere = (args: unknown): Where => (args as { where?: Where })?.where ?? {};
 
 function installFixture() {
-  prismaMock.user.findUnique.mockResolvedValue({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
+  prismaMock.user.findUnique.mockResolvedValue({
+    name: 'Ada (Google)',
+    email: 'ada@example.com',
+    image: null,
+  });
 
   prismaMock.discoveredUrl.findMany.mockResolvedValue([
     // Two URLs for T1: the later-sorting one carries the claimed name, the
     // earlier-dated one does not.
-    { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/bbb/', tournamentId: 1n, messageDate: new Date('2025-02-10T09:00:00Z'), registrationName: 'Ada Lovelace', tournament: T1 },
-    { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/aaa/', tournamentId: 1n, messageDate: new Date('2025-02-01T09:00:00Z'), registrationName: 'Someone Else', tournament: T1 },
-    { url: 'https://eudc2024.calicotab.com/eudc/privateurls/ccc/', tournamentId: 2n, messageDate: null, registrationName: '  Ada K. Lovelace  ', tournament: T2 },
-    { url: 'https://novice.calicotab.com/nc/privateurls/zzz/', tournamentId: 3n, messageDate: null, registrationName: null, tournament: T3 },
-    { url: 'https://unmatched.calicotab.com/uo/privateurls/qqq/', tournamentId: 4n, messageDate: new Date('2023-05-05T00:00:00Z'), registrationName: null, tournament: T4 },
+    {
+      url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/bbb/',
+      tournamentId: 1n,
+      messageDate: new Date('2025-02-10T09:00:00Z'),
+      registrationName: 'Ada Lovelace',
+      tournament: T1,
+    },
+    {
+      url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/aaa/',
+      tournamentId: 1n,
+      messageDate: new Date('2025-02-01T09:00:00Z'),
+      registrationName: 'Someone Else',
+      tournament: T1,
+    },
+    {
+      url: 'https://eudc2024.calicotab.com/eudc/privateurls/ccc/',
+      tournamentId: 2n,
+      messageDate: null,
+      registrationName: '  Ada K. Lovelace  ',
+      tournament: T2,
+    },
+    {
+      url: 'https://novice.calicotab.com/nc/privateurls/zzz/',
+      tournamentId: 3n,
+      messageDate: null,
+      registrationName: null,
+      tournament: T3,
+    },
+    {
+      url: 'https://unmatched.calicotab.com/uo/privateurls/qqq/',
+      tournamentId: 4n,
+      messageDate: new Date('2023-05-05T00:00:00Z'),
+      registrationName: null,
+      tournament: T4,
+    },
   ]);
 
   prismaMock.person.findMany.mockResolvedValue([ADA, ADA_ALIAS]);
@@ -182,8 +242,22 @@ function installFixture() {
       // Teammates of the user's own teams (T1 Oxford A): the user's own row
       // comes back too and must be filtered out as claimed.
       return [
-        { tournamentId: 1n, teamName: 'Oxford A', personId: ADA.id, person: { displayName: 'Ada Lovelace', suppressedAt: null }, speakerScoreTotal: 390, speakerRoundScores: [] },
-        { tournamentId: 1n, teamName: 'Oxford A', personId: 20n, person: { displayName: 'Grace Hopper', suppressedAt: null }, speakerScoreTotal: 400, speakerRoundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }] },
+        {
+          tournamentId: 1n,
+          teamName: 'Oxford A',
+          personId: ADA.id,
+          person: { displayName: 'Ada Lovelace', suppressedAt: null },
+          speakerScoreTotal: 390,
+          speakerRoundScores: [],
+        },
+        {
+          tournamentId: 1n,
+          teamName: 'Oxford A',
+          personId: 20n,
+          person: { displayName: 'Grace Hopper', suppressedAt: null },
+          speakerScoreTotal: 400,
+          speakerRoundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }],
+        },
       ];
     }
     if (w.speakerScoreTotal) {
@@ -201,11 +275,17 @@ function installFixture() {
     throw new Error(`unexpected tournamentParticipant.findMany: ${JSON.stringify(Object.keys(w))}`);
   });
 
-  prismaMock.tournament.findMany.mockResolvedValue([T1, T2, T3, T4].map((t) => ({ id: t.id, prelimRoundCount: t.prelimRoundCount })));
+  prismaMock.tournament.findMany.mockResolvedValue(
+    [T1, T2, T3, T4].map((t) => ({ id: t.id, prelimRoundCount: t.prelimRoundCount })),
+  );
 
   // T1: five full prelims and a small outround; nothing for the others.
   prismaMock.teamResult.groupBy.mockResolvedValue([
-    ...[1, 2, 3, 4, 5].map((roundNumber) => ({ tournamentId: 1n, roundNumber, _count: { _all: 20 } })),
+    ...[1, 2, 3, 4, 5].map((roundNumber) => ({
+      tournamentId: 1n,
+      roundNumber,
+      _count: { _all: 20 },
+    })),
     { tournamentId: 1n, roundNumber: 6, _count: { _all: 4 } },
   ]);
   // Last-resort prelim count from speaker round columns: only T3 needs it.
@@ -215,24 +295,99 @@ function installFixture() {
     const w = argsWhere(args);
     if (w.roundNumber === 0) {
       return [
-        { tournamentId: 1n, teamName: 'Oxford A', rank: null, wins: null, points: 12, firsts: 3, seconds: 1 },
-        { tournamentId: 1n, teamName: 'Cambridge A', rank: null, wins: null, points: 13, firsts: 4, seconds: 1 },
-        { tournamentId: 1n, teamName: 'Durham A', rank: null, wins: null, points: 9, firsts: 1, seconds: 2 },
+        {
+          tournamentId: 1n,
+          teamName: 'Oxford A',
+          rank: null,
+          wins: null,
+          points: 12,
+          firsts: 3,
+          seconds: 1,
+        },
+        {
+          tournamentId: 1n,
+          teamName: 'Cambridge A',
+          rank: null,
+          wins: null,
+          points: 13,
+          firsts: 4,
+          seconds: 1,
+        },
+        {
+          tournamentId: 1n,
+          teamName: 'Durham A',
+          rank: null,
+          wins: null,
+          points: 9,
+          firsts: 1,
+          seconds: 2,
+        },
       ];
     }
     return [
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 2, position: 'OG', wins: 1, points: 3 },
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 1, position: 'CO', wins: 0, points: 1 },
-      { tournamentId: 1n, teamName: 'Oxford A', roundNumber: 3, position: null, wins: null, points: null },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 2,
+        position: 'OG',
+        wins: 1,
+        points: 3,
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 1,
+        position: 'CO',
+        wins: 0,
+        points: 1,
+      },
+      {
+        tournamentId: 1n,
+        teamName: 'Oxford A',
+        roundNumber: 3,
+        position: null,
+        wins: null,
+        points: null,
+      },
     ];
   });
 
   prismaMock.judgeAssignment.findMany.mockResolvedValue([
-    { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 1', panelRole: 'chair', roundNumber: 1 },
-    { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: 2 },
-    { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: 2 },
-    { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 4', panelRole: 'chair', roundNumber: null },
-    { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Semifinals', panelRole: 'panellist', roundNumber: null },
+    {
+      tournamentId: 2n,
+      personId: ADA_ALIAS.id,
+      stage: 'Round 1',
+      panelRole: 'chair',
+      roundNumber: 1,
+    },
+    {
+      tournamentId: 2n,
+      personId: ADA_ALIAS.id,
+      stage: 'Round 2',
+      panelRole: 'panellist',
+      roundNumber: 2,
+    },
+    {
+      tournamentId: 2n,
+      personId: ADA_ALIAS.id,
+      stage: 'Round 2',
+      panelRole: 'panellist',
+      roundNumber: 2,
+    },
+    {
+      tournamentId: 2n,
+      personId: ADA_ALIAS.id,
+      stage: 'Round 4',
+      panelRole: 'chair',
+      roundNumber: null,
+    },
+    {
+      tournamentId: 2n,
+      personId: ADA_ALIAS.id,
+      stage: 'Semifinals',
+      panelRole: 'panellist',
+      roundNumber: null,
+    },
     // Someone else's seat on the same panel: never counted.
     { tournamentId: 2n, personId: 99n, stage: 'Round 3', panelRole: 'chair', roundNumber: 3 },
   ]);
@@ -272,7 +427,18 @@ describe('buildCvData characterization: top-level shape', () => {
   it('returns every top-level key with the summary for this record', async () => {
     const cv = await buildCvData(USER);
     expect(Object.keys(cv).sort()).toEqual(
-      ['fieldStats', 'highlights', 'judgeRows', 'lastIngestedAt', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
+      [
+        'fieldStats',
+        'highlights',
+        'judgeRows',
+        'lastIngestedAt',
+        'myDisplayName',
+        'speakerRows',
+        'summary',
+        'taggedMotions',
+        'unmatchedTournaments',
+        'user',
+      ].sort(),
     );
     expect(cv.user).toEqual({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
     // First claimed person's display name, ahead of the Google account name.
@@ -297,7 +463,13 @@ describe('buildCvData characterization: top-level shape', () => {
   it('lists a tournament with no participation of the user as unmatched, with a public URL', async () => {
     const cv = await buildCvData(USER);
     expect(cv.unmatchedTournaments).toEqual([
-      { id: 4n, name: 'Unmatched Open', year: 2023, format: null, sourceUrlRaw: 'https://unmatched.calicotab.com/uo/' },
+      {
+        id: 4n,
+        name: 'Unmatched Open',
+        year: 2023,
+        format: null,
+        sourceUrlRaw: 'https://unmatched.calicotab.com/uo/',
+      },
     ]);
   });
 });
@@ -323,7 +495,12 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
       myName: 'Ada Lovelace',
       teammates: ['Grace Hopper'],
       teammateDetails: [
-        { key: 'p20', name: 'Grace Hopper', speakerScoreTotal: 400, roundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }] },
+        {
+          key: 'p20',
+          name: 'Grace Hopper',
+          speakerScoreTotal: 400,
+          roundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }],
+        },
       ],
       teamName: 'Oxford A',
       // I17: tie flags are derived for the "5=" display. Nobody shares the
@@ -369,7 +546,8 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
   it('a lost Grand Final reads wonTournament false; a won Semifinal alone does not make a champion', async () => {
     prismaMock.eliminationResult.findMany.mockImplementation(async (args: unknown) => {
       const w = argsWhere(args);
-      if (w.result) return [{ tournamentId: 1n, entityName: 'Oxford A', stage: 'Grand Final', result: 'lost' }];
+      if (w.result)
+        return [{ tournamentId: 1n, entityName: 'Oxford A', stage: 'Grand Final', result: 'lost' }];
       return [];
     });
     let cv = await buildCvData(USER);
@@ -379,7 +557,9 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
     MY_PARTICIPATIONS[0]!.eliminationReached = 'Semifinals';
     try {
       prismaMock.eliminationResult.findMany.mockImplementation(async (args: unknown) =>
-        argsWhere(args).result ? [{ tournamentId: 1n, entityName: 'Oxford A', stage: 'Semifinals', result: 'won' }] : [],
+        argsWhere(args).result
+          ? [{ tournamentId: 1n, entityName: 'Oxford A', stage: 'Semifinals', result: 'won' }]
+          : [],
       );
       cv = await buildCvData(USER);
       // The thin alias row also says Semifinals, so the merged deepest is Semifinals.
@@ -395,7 +575,16 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
       const w = argsWhere(args);
       if (w.person) return MY_PARTICIPATIONS;
       if (w.OR) {
-        return [{ tournamentId: 1n, teamName: 'Oxford A', personId: 20n, person: { displayName: 'Grace Hopper', suppressedAt: new Date() }, speakerScoreTotal: 400, speakerRoundScores: [] }];
+        return [
+          {
+            tournamentId: 1n,
+            teamName: 'Oxford A',
+            personId: 20n,
+            person: { displayName: 'Grace Hopper', suppressedAt: new Date() },
+            speakerScoreTotal: 400,
+            speakerRoundScores: [],
+          },
+        ];
       }
       return [];
     });
@@ -552,7 +741,9 @@ describe('buildCvData characterization: queries', () => {
       where: { userId: USER, tournamentId: { not: null }, ingestedAt: { not: null } },
       include: { tournament: true },
     });
-    const mine = prismaMock.tournamentParticipant.findMany.mock.calls.find(([args]) => !!argsWhere(args).person)!;
+    const mine = prismaMock.tournamentParticipant.findMany.mock.calls.find(
+      ([args]) => !!argsWhere(args).person,
+    )!;
     expect(argsWhere(mine[0])).toEqual({
       tournamentId: { in: [1n, 2n, 3n, 4n] },
       person: { claimedByUserId: USER },
@@ -602,14 +793,48 @@ describe('buildCvData regressions: fixed behaviours', () => {
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       // The user's own link, claimed by person id (the name is a spelling
       // the alias set does not hold).
-      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/', tournamentId: 1n, messageDate: new Date('2025-02-10T09:00:00Z'), registrationPersonId: ADA.id, registrationName: 'A. Lovelace', tournament: T1 },
+      {
+        url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/',
+        tournamentId: 1n,
+        messageDate: new Date('2025-02-10T09:00:00Z'),
+        registrationPersonId: ADA.id,
+        registrationName: 'A. Lovelace',
+        tournament: T1,
+      },
       // A teammate's forwarded link: earlier, but registered to another person.
-      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/', tournamentId: 1n, messageDate: new Date('2025-01-05T09:00:00Z'), registrationPersonId: 20n, registrationName: 'Grace Hopper', tournament: T1 },
+      {
+        url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/',
+        tournamentId: 1n,
+        messageDate: new Date('2025-01-05T09:00:00Z'),
+        registrationPersonId: 20n,
+        registrationName: 'Grace Hopper',
+        tournament: T1,
+      },
       // Novice Cup: a link whose landing named nobody still dates the row...
-      { url: 'https://novice.calicotab.com/nc/privateurls/zzz/', tournamentId: 3n, messageDate: new Date('2024-03-03T09:00:00Z'), registrationPersonId: null, registrationName: '', tournament: T3 },
+      {
+        url: 'https://novice.calicotab.com/nc/privateurls/zzz/',
+        tournamentId: 3n,
+        messageDate: new Date('2024-03-03T09:00:00Z'),
+        registrationPersonId: null,
+        registrationName: '',
+        tournament: T3,
+      },
       // ...but a foreign link, even an earlier one, does not.
-      { url: 'https://novice.calicotab.com/nc/privateurls/yyy/', tournamentId: 3n, messageDate: new Date('2024-01-01T09:00:00Z'), registrationPersonId: null, registrationName: 'Grace Hopper', tournament: T3 },
-      { url: 'https://eudc2024.calicotab.com/eudc/privateurls/ccc/', tournamentId: 2n, messageDate: null, registrationName: 'Ada K. Lovelace', tournament: T2 },
+      {
+        url: 'https://novice.calicotab.com/nc/privateurls/yyy/',
+        tournamentId: 3n,
+        messageDate: new Date('2024-01-01T09:00:00Z'),
+        registrationPersonId: null,
+        registrationName: 'Grace Hopper',
+        tournament: T3,
+      },
+      {
+        url: 'https://eudc2024.calicotab.com/eudc/privateurls/ccc/',
+        tournamentId: 2n,
+        messageDate: null,
+        registrationName: 'Ada K. Lovelace',
+        tournament: T2,
+      },
     ]);
     const cv = await buildCvData(USER);
     const byName = new Map(cv.speakerRows.map((r) => [r.tournamentName, r.emailDate]));
@@ -619,8 +844,22 @@ describe('buildCvData regressions: fixed behaviours', () => {
 
   it('emailDate is null when the only dated URL for a tournament is someone else’s', async () => {
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
-      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/', tournamentId: 1n, messageDate: new Date('2025-01-05T09:00:00Z'), registrationPersonId: 20n, registrationName: 'Grace Hopper', tournament: T1 },
-      { url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/', tournamentId: 1n, messageDate: null, registrationPersonId: ADA.id, registrationName: 'Ada Lovelace', tournament: T1 },
+      {
+        url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/fwd/',
+        tournamentId: 1n,
+        messageDate: new Date('2025-01-05T09:00:00Z'),
+        registrationPersonId: 20n,
+        registrationName: 'Grace Hopper',
+        tournament: T1,
+      },
+      {
+        url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/own/',
+        tournamentId: 1n,
+        messageDate: null,
+        registrationPersonId: ADA.id,
+        registrationName: 'Ada Lovelace',
+        tournament: T1,
+      },
     ]);
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.emailDate).toBeNull();
@@ -628,12 +867,36 @@ describe('buildCvData regressions: fixed behaviours', () => {
 
   it('inroundsJudged counts a round once when it is stored with and without a round number', async () => {
     prismaMock.judgeAssignment.findMany.mockResolvedValue([
-      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 1', panelRole: 'chair', roundNumber: 1 },
+      {
+        tournamentId: 2n,
+        personId: ADA_ALIAS.id,
+        stage: 'Round 1',
+        panelRole: 'chair',
+        roundNumber: 1,
+      },
       // Round 2 three ways: numbered, label-only, and under the other claimed alias.
-      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: 2 },
-      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Round 2', panelRole: 'panellist', roundNumber: null },
+      {
+        tournamentId: 2n,
+        personId: ADA_ALIAS.id,
+        stage: 'Round 2',
+        panelRole: 'panellist',
+        roundNumber: 2,
+      },
+      {
+        tournamentId: 2n,
+        personId: ADA_ALIAS.id,
+        stage: 'Round 2',
+        panelRole: 'panellist',
+        roundNumber: null,
+      },
       { tournamentId: 2n, personId: ADA.id, stage: 'Round 2', panelRole: 'chair', roundNumber: 2 },
-      { tournamentId: 2n, personId: ADA_ALIAS.id, stage: 'Semifinals', panelRole: 'panellist', roundNumber: null },
+      {
+        tournamentId: 2n,
+        personId: ADA_ALIAS.id,
+        stage: 'Semifinals',
+        panelRole: 'panellist',
+        roundNumber: null,
+      },
     ]);
     const cv = await buildCvData(USER);
     const row = cv.judgeRows[0]!;
@@ -676,7 +939,13 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
     prismaMock.teamResult.findMany.mockImplementation(async (args: unknown) => {
       if (argsWhere(args).roundNumber === 0) {
         return Object.entries(ranks).map(([teamName, rank]) => ({
-          tournamentId: 1n, teamName, rank, wins: null, points: 10, firsts: 1, seconds: 1,
+          tournamentId: 1n,
+          teamName,
+          rank,
+          wins: null,
+          points: 10,
+          firsts: 1,
+          seconds: 1,
         }));
       }
       return base(args);
@@ -684,13 +953,21 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
   }
 
   /** The field's published rows, plus the user's own parser rank (null = derived only). */
-  function withFieldTotals(rows: Array<[number, number | null]>, userParserRank: number | null = null) {
+  function withFieldTotals(
+    rows: Array<[number, number | null]>,
+    userParserRank: number | null = null,
+  ) {
     const base = originalPartFind();
     prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
       const w = argsWhere(args);
-      if (w.person) return MY_PARTICIPATIONS.map((p) => ({ ...p, speakerRankOpen: userParserRank }));
+      if (w.person)
+        return MY_PARTICIPATIONS.map((p) => ({ ...p, speakerRankOpen: userParserRank }));
       if (w.speakerScoreTotal)
-        return rows.map(([speakerScoreTotal, speakerRankOpen]) => ({ tournamentId: 1n, speakerScoreTotal, speakerRankOpen }));
+        return rows.map(([speakerScoreTotal, speakerRankOpen]) => ({
+          tournamentId: 1n,
+          speakerScoreTotal,
+          speakerRankOpen,
+        }));
       return base(args);
     });
   }
@@ -712,31 +989,65 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
   });
 
   it('speakerRankTied is true when another speaker has the same total and the same parser rank', async () => {
-    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
+    withFieldTotals(
+      [
+        [390, 5],
+        [390, 5],
+        [350, 9],
+      ],
+      5,
+    );
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(true);
   });
 
   it('speakerRankTied is false for ROW_NUMBER-derived ranks on equal totals (7 and 8)', async () => {
-    withFieldTotals([[390, null], [390, null], [350, null]], null);
+    withFieldTotals(
+      [
+        [390, null],
+        [390, null],
+        [350, null],
+      ],
+      null,
+    );
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 
   it('speakerRankTied is false when the tab split equal totals into different ranks', async () => {
-    withFieldTotals([[390, 7], [390, 8]], 7);
+    withFieldTotals(
+      [
+        [390, 7],
+        [390, 8],
+      ],
+      7,
+    );
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 
   it('speakerRankTied is false when the total is unique in the field', async () => {
-    withFieldTotals([[390, 5], [400, 1], [350, 9]], 5);
+    withFieldTotals(
+      [
+        [390, 5],
+        [400, 1],
+        [350, 9],
+      ],
+      5,
+    );
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 
   it('speakerRankTied is false when field stats are not loaded, even if totals would tie', async () => {
-    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
+    withFieldTotals(
+      [
+        [390, 5],
+        [390, 5],
+        [350, 9],
+      ],
+      5,
+    );
     const cv = await buildCvData(USER, { includeFieldStats: false });
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });

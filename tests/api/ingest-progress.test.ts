@@ -104,7 +104,11 @@ describe('GET /api/ingest/progress', () => {
 
   it('includes the global scope for admins, scoped without a userId filter', async () => {
     requireAdminMock.mockResolvedValue('admin@example.com');
-    primeScope({ pending: 1, running: 1, currentJob: { url: 'https://x.calicotab.com/t/privateurls/abc/', startedAt: new Date() } });
+    primeScope({
+      pending: 1,
+      running: 1,
+      currentJob: { url: 'https://x.calicotab.com/t/privateurls/abc/', startedAt: new Date() },
+    });
     const res = await GET();
     const body = (await res.json()) as {
       user: { currentUrl: string | null };

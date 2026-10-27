@@ -11,9 +11,7 @@ import { makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 const scores = (pairs: [number, number | null][]) =>
   pairs.map(([roundNumber, score]) => ({ roundNumber, positionLabel: null, score }));
 
-const teamRounds = (
-  rows: [number, string | null, boolean | null, number | null][],
-) =>
+const teamRounds = (rows: [number, string | null, boolean | null, number | null][]) =>
   rows.map(([roundNumber, position, won, points]) => ({
     roundNumber,
     position,
@@ -61,7 +59,11 @@ describe('computeSpeakerStats — score profile', () => {
     expect(s.scoreProfile.q3).toBeCloseTo(78);
     expect(s.scoreProfile.iqr).toBeCloseTo(4);
     expect(s.scoreProfile.stdev).toBeCloseTo(4);
-    expect(s.scoreProfile.best).toMatchObject({ score: 82, roundNumber: 5, tournamentName: 'Alpha Open' });
+    expect(s.scoreProfile.best).toMatchObject({
+      score: 82,
+      roundNumber: 5,
+      tournamentName: 'Alpha Open',
+    });
     expect(s.scoreProfile.worst).toMatchObject({ score: 70, roundNumber: 1 });
   });
 
@@ -266,8 +268,21 @@ describe('computeSpeakerStats — round dynamics', () => {
   test('best/worst round numbers ignore rounds with a single sample', () => {
     const s = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, roundScores: scores([[1, 70], [2, 75]]) }),
-        makeSpeakerRow({ tournamentId: 2n, roundScores: scores([[1, 72], [2, 77], [9, 95]]) }),
+        makeSpeakerRow({
+          tournamentId: 1n,
+          roundScores: scores([
+            [1, 70],
+            [2, 75],
+          ]),
+        }),
+        makeSpeakerRow({
+          tournamentId: 2n,
+          roundScores: scores([
+            [1, 72],
+            [2, 77],
+            [9, 95],
+          ]),
+        }),
       ],
       judgeRows: [],
     });
@@ -426,7 +441,12 @@ describe('computeSpeakerStats — results', () => {
   test('break rate and championships come from the row flags', () => {
     const s = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, broke: true, eliminationReached: 'Grand Final', wonTournament: true }),
+        makeSpeakerRow({
+          tournamentId: 1n,
+          broke: true,
+          eliminationReached: 'Grand Final',
+          wonTournament: true,
+        }),
         makeSpeakerRow({ tournamentId: 2n, broke: true, eliminationReached: 'Quarterfinals' }),
         makeSpeakerRow({ tournamentId: 3n }),
         makeSpeakerRow({ tournamentId: 4n }),
@@ -510,7 +530,14 @@ describe('computeSpeakerStats — splits', () => {
 
   test('region splits exclude untagged tournaments', () => {
     const s = computeSpeakerStats({
-      speakerRows: [...rows, makeSpeakerRow({ tournamentId: 5n, region: null, teamRoundResults: teamRounds([[1, 'OG', true, 3]]) })],
+      speakerRows: [
+        ...rows,
+        makeSpeakerRow({
+          tournamentId: 5n,
+          region: null,
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]),
+        }),
+      ],
       judgeRows: [],
     });
     expect(s.splits.byRegion.map((r) => r.key)).toEqual(['South Asia']);
@@ -653,8 +680,20 @@ describe('computeSpeakerStats — seasons', () => {
   test('groups tournaments by year with break rate, mean of averages and best rank', () => {
     const stats = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, year: 2024, speakerAvgScore: '76.0', broke: true, speakerRankOpen: 12 }),
-        makeSpeakerRow({ tournamentId: 2n, year: 2024, speakerAvgScore: '78.0', broke: false, speakerRankOpen: 30 }),
+        makeSpeakerRow({
+          tournamentId: 1n,
+          year: 2024,
+          speakerAvgScore: '76.0',
+          broke: true,
+          speakerRankOpen: 12,
+        }),
+        makeSpeakerRow({
+          tournamentId: 2n,
+          year: 2024,
+          speakerAvgScore: '78.0',
+          broke: false,
+          speakerRankOpen: 30,
+        }),
         makeSpeakerRow({ tournamentId: 3n, year: 2025, speakerAvgScore: null, broke: true }),
       ],
       judgeRows: [],
@@ -702,8 +741,18 @@ describe('computeSpeakerStats — seasons', () => {
     const stats = computeSpeakerStats({
       speakerRows: [],
       judgeRows: [
-        makeJudgeRow({ tournamentId: 1n, year: 2025, inroundsChaired: 4, lastOutroundJudged: 'Semifinals' }),
-        makeJudgeRow({ tournamentId: 2n, year: 2025, inroundsChaired: 2, lastOutroundJudged: null }),
+        makeJudgeRow({
+          tournamentId: 1n,
+          year: 2025,
+          inroundsChaired: 4,
+          lastOutroundJudged: 'Semifinals',
+        }),
+        makeJudgeRow({
+          tournamentId: 2n,
+          year: 2025,
+          inroundsChaired: 2,
+          lastOutroundJudged: null,
+        }),
         makeJudgeRow({ tournamentId: 3n, year: 2023, inroundsChaired: null }),
       ],
     });
@@ -779,12 +828,27 @@ describe('computeSpeakerStats — order within a season', () => {
     // breaks the run; by email date the two wins are consecutive.
     const s = computeSpeakerStats({
       speakerRows: [
-        makeSpeakerRow({ tournamentId: 1n, tournamentName: 'Beta', year: 2024, emailDate: '2024-09-01',
-          teamRoundResults: teamRounds([[1, 'OG', false, 0]]) }),
-        makeSpeakerRow({ tournamentId: 2n, tournamentName: 'Alpha', year: 2024, emailDate: '2024-02-01',
-          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
-        makeSpeakerRow({ tournamentId: 3n, tournamentName: 'Gamma', year: 2024, emailDate: '2024-03-01',
-          teamRoundResults: teamRounds([[1, 'OG', true, 3]]) }),
+        makeSpeakerRow({
+          tournamentId: 1n,
+          tournamentName: 'Beta',
+          year: 2024,
+          emailDate: '2024-09-01',
+          teamRoundResults: teamRounds([[1, 'OG', false, 0]]),
+        }),
+        makeSpeakerRow({
+          tournamentId: 2n,
+          tournamentName: 'Alpha',
+          year: 2024,
+          emailDate: '2024-02-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]),
+        }),
+        makeSpeakerRow({
+          tournamentId: 3n,
+          tournamentName: 'Gamma',
+          year: 2024,
+          emailDate: '2024-03-01',
+          teamRoundResults: teamRounds([[1, 'OG', true, 3]]),
+        }),
       ],
       judgeRows: [],
     });

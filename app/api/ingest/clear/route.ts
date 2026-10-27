@@ -27,7 +27,10 @@ export async function POST(req: Request) {
 
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
-    return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'bad_request', details: parse.error.flatten() },
+      { status: 400 },
+    );
   }
   const { url } = parse.data;
   const urlVariants = privateUrlVariants(url);

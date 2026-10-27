@@ -42,7 +42,10 @@ for (const raw of sample) {
     const t0 = Date.now();
     let status;
     try {
-      const res = await fetch(target, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) });
+      const res = await fetch(target, {
+        headers: { 'User-Agent': UA },
+        signal: AbortSignal.timeout(20_000),
+      });
       status = res.status;
     } catch (e) {
       status = `error: ${e.name}`;
@@ -50,13 +53,17 @@ for (const raw of sample) {
     const bad = status === 403 || status === 429 || status === 503 || typeof status === 'string';
     if (bad) refused += 1;
     else ok += 1;
-    console.log(`${String(status).padEnd(14)} ${String(Date.now() - t0).padStart(5)} ms  ${target}`);
+    console.log(
+      `${String(status).padEnd(14)} ${String(Date.now() - t0).padStart(5)} ms  ${target}`,
+    );
     await new Promise((r) => setTimeout(r, 800));
   }
 }
 
 const total = ok + refused;
-console.log(`\n${ok} readable, ${refused} refused or failed, of ${total} requests to ${sample.length} sites`);
+console.log(
+  `\n${ok} readable, ${refused} refused or failed, of ${total} requests to ${sample.length} sites`,
+);
 if (refused * 2 >= total) {
   console.log('SMOKE FAILED: this network is being refused by the tournament sites.');
   process.exit(1);

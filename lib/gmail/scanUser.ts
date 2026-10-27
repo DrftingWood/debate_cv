@@ -39,7 +39,9 @@ export async function scanMailbox(userId: string): Promise<ScanSummary> {
     orderBy: { messageDate: 'desc' },
     select: { messageDate: true },
   });
-  const afterDate = lastUrl?.messageDate ? new Date(lastUrl.messageDate.getTime() - 86_400_000) : undefined;
+  const afterDate = lastUrl?.messageDate
+    ? new Date(lastUrl.messageDate.getTime() - 86_400_000)
+    : undefined;
 
   const summary = await extractAllFromGmail(oauth, { after: afterDate });
 

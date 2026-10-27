@@ -52,18 +52,31 @@ export type TopicTypeHeatmap = {
 export function topicTypeHeatmap(rounds: RoundFact[]): TopicTypeHeatmap {
   const scored = rounds.filter((r) => !r.isOutround && r.score != null);
   const choice = scored.filter((r) => r.choiceRound === true);
-  const covered = scored.filter((r) => r.choiceRound !== true && r.motionType != null && r.motionTopic != null);
+  const covered = scored.filter(
+    (r) => r.choiceRound !== true && r.motionType != null && r.motionTopic != null,
+  );
 
   // One baseline for the whole grid, choice rounds included, so every delta is comparable.
   const inGrid = [...covered, ...choice];
-  const baseline = inGrid.length === 0 ? null : inGrid.reduce((s, r) => s + (r.score as number), 0) / inGrid.length;
+  const baseline =
+    inGrid.length === 0
+      ? null
+      : inGrid.reduce((s, r) => s + (r.score as number), 0) / inGrid.length;
 
-  const buckets = new Map<string, { topic: string; type: string; scores: number[]; tournaments: Set<string> }>();
+  const buckets = new Map<
+    string,
+    { topic: string; type: string; scores: number[]; tournaments: Set<string> }
+  >();
   for (const r of covered) {
     const key = `${r.motionTopic}\u0000${r.motionType}`;
     let b = buckets.get(key);
     if (!b) {
-      b = { topic: r.motionTopic as string, type: r.motionType as string, scores: [], tournaments: new Set() };
+      b = {
+        topic: r.motionTopic as string,
+        type: r.motionType as string,
+        scores: [],
+        tournaments: new Set(),
+      };
       buckets.set(key, b);
     }
     b.scores.push(r.score as number);

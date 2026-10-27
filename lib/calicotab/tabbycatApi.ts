@@ -155,7 +155,9 @@ export function mapSpeakerStandings(input: {
   const roundsBySpeaker = new Map(input.roundStandings.map((r) => [r.speaker, r.rounds]));
   // Only categories the tournament publishes. A private category (an
   // equity-only "Novice" bracket, say) is tagging the public tab never shows.
-  const publicCategory = new Map(input.categories.filter((c) => c.public).map((c) => [c.url, c.name]));
+  const publicCategory = new Map(
+    input.categories.filter((c) => c.public).map((c) => [c.url, c.name]),
+  );
 
   // The HTML tab has one column per preliminary round, in order, with an
   // empty cell where the speaker did not speak; outrounds are not on it.
@@ -178,7 +180,11 @@ export function mapSpeakerStandings(input: {
       const speech = r.speeches.find((s) => !s.ghost);
       byRound.set(r.round, round2(speech?.score));
     }
-    return prelims.map((r) => ({ roundLabel: r.abbreviation, score: byRound.get(r.url) ?? null, positionLabel: null }));
+    return prelims.map((r) => ({
+      roundLabel: r.abbreviation,
+      score: byRound.get(r.url) ?? null,
+      positionLabel: null,
+    }));
   };
   const publicCategoriesOf = (s: ApiSpeaker) =>
     s.categories.map((c) => publicCategory.get(c)).filter((c): c is string => !!c);
@@ -189,14 +195,18 @@ export function mapSpeakerStandings(input: {
   // team, so recover the scores by the one anonymous speaker whose prelim
   // scores sum to the row's total — and only when exactly one does. The
   // team is never attached: that link is what the speaker opted out of.
-  const anonymous = input.speakers.filter((s) => s.anonymous).map((s) => ({ s, scores: scoresFor(s.url) }));
+  const anonymous = input.speakers
+    .filter((s) => s.anonymous)
+    .map((s) => ({ s, scores: scoresFor(s.url) }));
   const claimed = new Set<string>();
   const anonymousMatch = (total: number | null) => {
     if (total == null) return null;
     // Within 0.1, not exact: the per-round scores are rounded to two
     // decimals, and nine rounded thirds drift from the rounded total.
     const hits = anonymous.filter(
-      (a) => !claimed.has(a.s.url) && Math.abs(a.scores.reduce((sum, r) => sum + (r.score ?? 0), 0) - total) < 0.1,
+      (a) =>
+        !claimed.has(a.s.url) &&
+        Math.abs(a.scores.reduce((sum, r) => sum + (r.score ?? 0), 0) - total) < 0.1,
     );
     if (hits.length !== 1) return null;
     claimed.add(hits[0].s.url);
@@ -217,7 +227,9 @@ export function mapSpeakerStandings(input: {
         teamName: null,
         institution: null,
         totalScore,
-        roundScores: match ? match.scores : prelims.map((r) => ({ roundLabel: r.abbreviation, score: null, positionLabel: null })),
+        roundScores: match
+          ? match.scores
+          : prelims.map((r) => ({ roundLabel: r.abbreviation, score: null, positionLabel: null })),
       });
       continue;
     }
@@ -286,14 +298,29 @@ const apiSpeakerRoundStandingSchema = z.object({
   rounds: z.array(
     z.object({
       round: z.string(),
-      speeches: z.array(z.object({ score: z.number().nullable(), position: z.number().nullable().optional(), ghost: z.boolean() })),
+      speeches: z.array(
+        z.object({
+          score: z.number().nullable(),
+          position: z.number().nullable().optional(),
+          ghost: z.boolean(),
+        }),
+      ),
     }),
   ),
 });
 
-const apiRoundSchema = z.object({ url: z.string(), seq: z.number(), abbreviation: z.string(), stage: z.string() });
+const apiRoundSchema = z.object({
+  url: z.string(),
+  seq: z.number(),
+  abbreviation: z.string(),
+  stage: z.string(),
+});
 
-const apiSpeakerCategorySchema = z.object({ url: z.string(), name: z.string(), public: z.boolean() });
+const apiSpeakerCategorySchema = z.object({
+  url: z.string(),
+  name: z.string(),
+  public: z.boolean(),
+});
 
 const apiPreferenceSchema = z.object({ identifier: z.string(), value: z.unknown() });
 
@@ -434,7 +461,11 @@ export function isHostPushback(got: { status: number | null }): boolean {
 
 export type Got<T> = { ok: true; rows: T[] } | { ok: false; status: number | null; reason: string };
 
-async function getList<E extends Endpoint>(fetcher: Fetcher, base: string, path: E): Promise<Got<EndpointRow<E>>> {
+async function getList<E extends Endpoint>(
+  fetcher: Fetcher,
+  base: string,
+  path: E,
+): Promise<Got<EndpointRow<E>>> {
   return getApiList(fetcher, base, path, ENDPOINTS[path]) as Promise<Got<EndpointRow<E>>>;
 }
 
@@ -455,7 +486,8 @@ export async function getApiList<S extends z.ZodTypeAny>(
   } catch (err) {
     return { ok: false, status: null, reason: `${path}: ${(err as Error).message}` };
   }
-  if (res.status !== 200) return { ok: false, status: res.status, reason: `${path}: HTTP ${res.status}` };
+  if (res.status !== 200)
+    return { ok: false, status: res.status, reason: `${path}: HTTP ${res.status}` };
   let body: unknown;
   try {
     body = await res.json();
@@ -468,7 +500,11 @@ export async function getApiList<S extends z.ZodTypeAny>(
   const parsed = z.array(schema).safeParse(body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return { ok: false, status: 200, reason: `${path}: malformed at [${issue.path.join('.')}] — ${issue.message}` };
+    return {
+      ok: false,
+      status: 200,
+      reason: `${path}: malformed at [${issue.path.join('.')}] — ${issue.message}`,
+    };
   }
   return { ok: true, rows: parsed.data as z.infer<S>[] };
 }
@@ -486,7 +522,10 @@ export async function getApiList<S extends z.ZodTypeAny>(
  * answers 401, so even where preferences are unreadable the fallback can only
  * reach an HTML tab the nav links, which Tabbycat gates the same way.
  */
-export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher = defaultFetcher): Promise<ApiTabsResult> {
+export async function fetchTabsFromApi(
+  tournamentUrl: string,
+  fetcher: Fetcher = defaultFetcher,
+): Promise<ApiTabsResult> {
   const base = apiBaseFromTournamentUrl(tournamentUrl);
   if (!base) return htmlOnly('no tournament slug in URL');
 
@@ -495,10 +534,15 @@ export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher =
   // on this host" or "host not answering", not "preferences hidden": nothing
   // further will answer either, and each try can cost API_TIMEOUT_MS of the
   // function budget, so stop. A 401/403 only hides the preferences — go on.
-  if (!prefs.ok && (prefs.status === null || prefs.status === 404 || prefs.reason.endsWith('not JSON'))) {
+  if (
+    !prefs.ok &&
+    (prefs.status === null || prefs.status === 404 || prefs.reason.endsWith('not JSON'))
+  ) {
     return htmlOnly(prefs.reason);
   }
-  const release = prefs.ok ? tabReleaseFromPreferences(prefs.rows) : { teams: 'unknown' as const, speakers: 'unknown' as const };
+  const release = prefs.ok
+    ? tabReleaseFromPreferences(prefs.rows)
+    : { teams: 'unknown' as const, speakers: 'unknown' as const };
 
   const gate = (r: TabRelease, tab: string): TabOutcome<never> | null => {
     if (r === 'private') return { source: 'private', reason: `${tab} tab not released` };
@@ -511,7 +555,10 @@ export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher =
 
   const teamList = await getList(fetcher, base, 'teams');
   if (!teamList.ok) {
-    return { teams: teams ?? { source: 'html', reason: teamList.reason }, speakers: speakers ?? { source: 'html', reason: teamList.reason } };
+    return {
+      teams: teams ?? { source: 'html', reason: teamList.reason },
+      speakers: speakers ?? { source: 'html', reason: teamList.reason },
+    };
   }
 
   if (!teams) {
@@ -521,10 +568,14 @@ export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher =
       // The host is pushing back or not answering: the speaker tab would be
       // five more requests into the same wall. Leave both to the HTML path,
       // whose retries and learned backoff are built for exactly this.
-      if (isHostPushback(standings)) return { teams, speakers: speakers ?? { source: 'html', reason: standings.reason } };
+      if (isHostPushback(standings))
+        return { teams, speakers: speakers ?? { source: 'html', reason: standings.reason } };
     } else {
       const rows = mapTeamStandings(teamList.rows, standings.rows);
-      teams = rows.length > 0 ? { source: 'api', rows } : { source: 'html', reason: 'teams/standings: no rows' };
+      teams =
+        rows.length > 0
+          ? { source: 'api', rows }
+          : { source: 'html', reason: 'teams/standings: no rows' };
     }
   }
 
@@ -534,7 +585,11 @@ export async function fetchTabsFromApi(tournamentUrl: string, fetcher: Fetcher =
   return { teams, speakers };
 }
 
-async function fetchSpeakerTab(fetcher: Fetcher, base: string, teams: ApiTeam[]): Promise<TabOutcome<SpeakerTabRow>> {
+async function fetchSpeakerTab(
+  fetcher: Fetcher,
+  base: string,
+  teams: ApiTeam[],
+): Promise<TabOutcome<SpeakerTabRow>> {
   const speakerList = await getList(fetcher, base, 'speakers');
   if (!speakerList.ok) return { source: 'html', reason: speakerList.reason };
   const rounds = await getList(fetcher, base, 'rounds');
@@ -553,5 +608,7 @@ async function fetchSpeakerTab(fetcher: Fetcher, base: string, teams: ApiTeam[])
     rounds: rounds.rows,
     categories: categories.rows,
   });
-  return rows.length > 0 ? { source: 'api', rows } : { source: 'html', reason: 'speakers/standings: no rows' };
+  return rows.length > 0
+    ? { source: 'api', rows }
+    : { source: 'html', reason: 'speakers/standings: no rows' };
 }

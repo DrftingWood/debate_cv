@@ -8,14 +8,26 @@ describe('classifyMotion — type from the stem', () => {
   test.each([
     ['THW reinstate the FCC Fairness Doctrine', 'Policy'],
     ['This House Would create seats in Parliament/Congress for immigrants', 'Policy'],
-    ['THBT the supranational narratives of Pan-slavic Brotherhood have done more harm than good', 'Belief'],
+    [
+      'THBT the supranational narratives of Pan-slavic Brotherhood have done more harm than good',
+      'Belief',
+    ],
     ['This House Believes That developed countries should pay reparations', 'Belief'],
-    ['THS academic social science research taking explicit normative stances about politics', 'Stance'],
+    [
+      'THS academic social science research taking explicit normative stances about politics',
+      'Stance',
+    ],
     ['This House opposes the commodification of mindfulness', 'Stance'],
     ['TH regrets the trend of prominent businesswomen giving advice on how to succeed', 'Regret'],
     ['THR the rise of social media influencers in the medical industry.', 'Regret'],
-    ['THP a world where all major team sports undergo significant rule changes every five years', 'Preference'],
-    ['This House prefers a collegiate model of university governance over a centralised model.', 'Preference'],
+    [
+      'THP a world where all major team sports undergo significant rule changes every five years',
+      'Preference',
+    ],
+    [
+      'This House prefers a collegiate model of university governance over a centralised model.',
+      'Preference',
+    ],
   ])('%s → %s', (text, expected) => {
     expect(type(text)).toBe(expected);
   });
@@ -47,7 +59,10 @@ describe('classifyMotion — context-led motions', () => {
   });
 
   test.each([
-    ['In parliamentary systems, THBT governments should be formed through a union of parties', 'Belief'],
+    [
+      'In parliamentary systems, THBT governments should be formed through a union of parties',
+      'Belief',
+    ],
     ['Assuming feasibility, THP a world where individuals can foresee their future', 'Preference'],
   ])('%s → %s', (text, expected) => {
     expect(classifyMotion(text)).toMatchObject({ type: expected, contextLed: true });
@@ -61,7 +76,10 @@ describe('classifyMotion — context-led motions', () => {
 describe('classifyMotion — Australs "That …" motions take the type of the verb that follows', () => {
   test.each([
     ['A: That we support the CBAM.', 'Stance'],
-    ['C: That labour unions in the tertiary education sector should deprioritise strikes', 'Policy'],
+    [
+      'C: That labour unions in the tertiary education sector should deprioritise strikes',
+      'Policy',
+    ],
     ['That we, as this young person, would opt into calling out the abuser', 'Actor'],
     ['That we regret the rise of hustle culture', 'Regret'], // constructed
     ['That we prefer a world without organised religion', 'Preference'], // constructed
@@ -93,10 +111,22 @@ describe('classifyMotion — flags and fallbacks', () => {
 // Phrasings the first corpus run missed (97.2 %). All real motions.
 describe('classifyMotion — phrasings found by the corpus coverage run', () => {
   test.each([
-    ['That, as environmentalists, we would choose a strategy of working closely with corporations.', 'Actor'],
-    ['A: That, as the Houthi rebels, we would reject any negotiations with the Presidential Leadership Council', 'Actor'],
-    ['B: That, as the Australian Labor Party, we should aggressively compete with China to fund infrastructure', 'Actor'],
-    ['That, in countries where military service is mandatory only for men, as self-proclaimed feminist women, we would actively volunteer', 'Actor'],
+    [
+      'That, as environmentalists, we would choose a strategy of working closely with corporations.',
+      'Actor',
+    ],
+    [
+      'A: That, as the Houthi rebels, we would reject any negotiations with the Presidential Leadership Council',
+      'Actor',
+    ],
+    [
+      'B: That, as the Australian Labor Party, we should aggressively compete with China to fund infrastructure',
+      'Actor',
+    ],
+    [
+      'That, in countries where military service is mandatory only for men, as self-proclaimed feminist women, we would actively volunteer',
+      'Actor',
+    ],
   ])('Australs actor with a comma after "That": %s', (text, expected) => {
     expect(type(text)).toBe(expected);
   });
@@ -117,7 +147,10 @@ describe('classifyMotion — phrasings found by the corpus coverage run', () => 
   });
 
   test.each([
-    ['This house welcomes research that seeks to transfer human consciousness into simulations', 'Stance'],
+    [
+      'This house welcomes research that seeks to transfer human consciousness into simulations',
+      'Stance',
+    ],
     ['This House welcomes the end of work', 'Stance'],
     ['TH predicts Europe will be more stable in ten years than it is today', 'Belief'],
     ['TH hopes that the USA loses its status as a global superpower.', 'Preference'],
@@ -126,19 +159,29 @@ describe('classifyMotion — phrasings found by the corpus coverage run', () => 
   });
 
   test('an aside between subject and verb is not actor framing', () => {
-    expect(type('TH, regardless of relationship status, would submit their DNA for OTM')).toBe('Policy');
+    expect(type('TH, regardless of relationship status, would submit their DNA for OTM')).toBe(
+      'Policy',
+    );
   });
 
   test.each([
-    ['B: That, where a player of the national team is originally from a different country, nations should be required to pay compensation', 'Policy'],
-    ['C: Assuming the technology exists, that it is immoral to create simulated high-fidelity alternate universes.', 'Belief'],
+    [
+      'B: That, where a player of the national team is originally from a different country, nations should be required to pay compensation',
+      'Policy',
+    ],
+    [
+      'C: Assuming the technology exists, that it is immoral to create simulated high-fidelity alternate universes.',
+      'Belief',
+    ],
   ])('context inside an Australs motion: %s', (text, expected) => {
     expect(classifyMotion(text)).toMatchObject({ type: expected, contextLed: true });
   });
 
   test('a sentence with no stem at all stays Unclassified', () => {
     expect(
-      type('In the study of the history of Dalits scholars should emphasize the history of their contribution'),
+      type(
+        'In the study of the history of Dalits scholars should emphasize the history of their contribution',
+      ),
     ).toBe('Unclassified');
   });
 });
@@ -170,7 +213,9 @@ describe('classifyMotion — "as" that is not an actor', () => {
   });
 
   test('a leading context clause still marks the motion context-led', () => {
-    expect(classifyMotion('As the world warms, THBT developed nations should accept climate migrants')).toMatchObject({
+    expect(
+      classifyMotion('As the world warms, THBT developed nations should accept climate migrants'),
+    ).toMatchObject({
       type: 'Belief',
       contextLed: true,
     });
@@ -182,7 +227,9 @@ describe('classifyMotion — "as" that is not an actor', () => {
         'As an average, lower-socio economic class student who lives in a developing country, This House would choose a vocational career as opposed to a career that requires higher education qualification',
       ),
     ).toBe('Actor');
-    expect(type('As a person who has lost a child to gun violence, THW campaign for gun control')).toBe('Actor'); // constructed
+    expect(
+      type('As a person who has lost a child to gun violence, THW campaign for gun control'),
+    ).toBe('Actor'); // constructed
   });
 });
 
@@ -201,14 +248,29 @@ describe('classifyMotion — actor clauses the first pass could not read', () =>
 
 describe('classifyMotion — compact and less common stems', () => {
   test.each([
-    ['THPAW where religious beliefs and teachings are not codified into scripture or doctrine.', 'Preference'],
-    ['THPAW where the Jamaat-NCP Coalition won a parliamentary majority in the 2026 Bangladesh Elections.', 'Preference'],
-    ['THB that international pro-democracy organisations should provide material support to feminist groups', 'Belief'],
+    [
+      'THPAW where religious beliefs and teachings are not codified into scripture or doctrine.',
+      'Preference',
+    ],
+    [
+      'THPAW where the Jamaat-NCP Coalition won a parliamentary majority in the 2026 Bangladesh Elections.',
+      'Preference',
+    ],
+    [
+      'THB that international pro-democracy organisations should provide material support to feminist groups',
+      'Belief',
+    ],
     ['THB the mainstream media should have covered the Hunter Biden emails', 'Belief'],
-    ['TBHT education systems should heavily prioritise the teaching of local literature over the global canon', 'Belief'],
+    [
+      'TBHT education systems should heavily prioritise the teaching of local literature over the global canon',
+      'Belief',
+    ],
     ['THC the decline of the Academy Awards', 'Stance'],
     ['TH rejects the idea of a "just war"', 'Stance'],
-    ['TH, in a zombie apocalypse W choose to join the authoritarian society over the democracy.', 'Policy'],
+    [
+      'TH, in a zombie apocalypse W choose to join the authoritarian society over the democracy.',
+      'Policy',
+    ],
   ])('%s → %s', (text, expected) => {
     expect(type(text)).toBe(expected);
   });

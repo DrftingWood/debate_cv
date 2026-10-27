@@ -30,8 +30,7 @@ export type CsvRow = {
 };
 
 export type CsvParse =
-  | { ok: true; rows: CsvRow[]; urls: string[] }
-  | { ok: false; error: 'too_large' | 'empty' };
+  { ok: true; rows: CsvRow[]; urls: string[] } | { ok: false; error: 'too_large' | 'empty' };
 
 /** Split one CSV line into fields, honouring double quotes and doubled quotes inside them. */
 function splitLine(line: string): string[] {

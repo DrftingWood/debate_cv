@@ -15,7 +15,8 @@ import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 
 const DB = process.env.POSTGRES_PRISMA_URL ?? '';
 const enabled = process.env.RUN_MIGRATION_CHECK === '1';
-if (enabled && !/@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(DB)) throw new Error('refusing: not localhost');
+if (enabled && !/@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(DB))
+  throw new Error('refusing: not localhost');
 
 const SAMPLES = [
   'https://wudc2024.calicotab.com/wudc/privateurls/dvav5u9s/',
@@ -31,7 +32,10 @@ describe.runIf(enabled)('migration: Tournament.sourceUrlRaw → public address',
   it('matches publicTournamentUrl on every sample, and a second run changes nothing', async () => {
     const { prisma } = await import('@/lib/db');
     const sql = readFileSync(
-      join(process.cwd(), 'prisma/migrations/20261026000000_tournament_public_source_url/migration.sql'),
+      join(
+        process.cwd(),
+        'prisma/migrations/20261026000000_tournament_public_source_url/migration.sql',
+      ),
       'utf8',
     ).replace(/UPDATE "Tournament"/, 'UPDATE "TournamentMigrationCheck"');
     try {
@@ -42,10 +46,15 @@ describe.runIf(enabled)('migration: Tournament.sourceUrlRaw → public address',
           'CREATE TEMP TABLE "TournamentMigrationCheck" (id serial PRIMARY KEY, "sourceUrlRaw" text NOT NULL, "updatedAt" timestamp) ON COMMIT DROP',
         );
         for (const s of SAMPLES) {
-          await tx.$executeRawUnsafe('INSERT INTO "TournamentMigrationCheck" ("sourceUrlRaw") VALUES ($1)', s);
+          await tx.$executeRawUnsafe(
+            'INSERT INTO "TournamentMigrationCheck" ("sourceUrlRaw") VALUES ($1)',
+            s,
+          );
         }
         const read = () =>
-          tx.$queryRawUnsafe<Array<{ sourceUrlRaw: string }>>('SELECT "sourceUrlRaw" FROM "TournamentMigrationCheck" ORDER BY id');
+          tx.$queryRawUnsafe<Array<{ sourceUrlRaw: string }>>(
+            'SELECT "sourceUrlRaw" FROM "TournamentMigrationCheck" ORDER BY id',
+          );
         await tx.$executeRawUnsafe(sql);
         const first = await read();
         await tx.$executeRawUnsafe(sql);

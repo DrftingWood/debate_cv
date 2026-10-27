@@ -32,7 +32,12 @@ import { deltaTone, signed } from '@/components/stats/format';
 
 type Metric = 'score' | 'win' | 'points';
 
-const GRIDS: Array<{ id: string; label: string; rows: CrossTabDimension; cols: CrossTabDimension }> = [
+const GRIDS: Array<{
+  id: string;
+  label: string;
+  rows: CrossTabDimension;
+  cols: CrossTabDimension;
+}> = [
   { id: 'seat-type', label: 'Seat × motion type', rows: 'seat', cols: 'motionType' },
   { id: 'pairing-type', label: 'Pairing × motion type', rows: 'pairing', cols: 'motionType' },
   { id: 'seat-pairing', label: 'Seat × pairing', rows: 'seat', cols: 'pairing' },
@@ -45,7 +50,11 @@ const METRICS: Array<{ id: Metric; label: string }> = [
   { id: 'points', label: 'Team points' },
 ];
 
-const PAIRING_LABEL: Record<string, string> = { pro: 'As the pro', am: 'As the am', peers: 'With peers' };
+const PAIRING_LABEL: Record<string, string> = {
+  pro: 'As the pro',
+  am: 'As the am',
+  peers: 'With peers',
+};
 
 function keyLabel(dimension: CrossTabDimension, key: string, multiFormat: boolean) {
   if (dimension === 'pairing') return PAIRING_LABEL[key] ?? key;
@@ -96,7 +105,9 @@ function CellValue({ cell, metric }: { cell: CrossTabCell | undefined; metric: M
       <span
         className={cn(
           'num',
-          value == null || Math.abs(value) < flat ? 'text-ink' : deltaTone(value, metric === 'win' ? 0 : 1),
+          value == null || Math.abs(value) < flat
+            ? 'text-ink'
+            : deltaTone(value, metric === 'win' ? 0 : 1),
         )}
       >
         {text ?? '—'}
@@ -122,7 +133,13 @@ function Grid({ tab, metric, label }: { tab: CrossTab; metric: Metric; label: st
         <Table className="min-w-max" label={label}>
           <thead>
             <tr>
-              <Th className="pl-4">{tab.rowDimension === 'seat' ? 'Seat' : tab.rowDimension === 'pairing' ? 'Pairing' : 'Type'}</Th>
+              <Th className="pl-4">
+                {tab.rowDimension === 'seat'
+                  ? 'Seat'
+                  : tab.rowDimension === 'pairing'
+                    ? 'Pairing'
+                    : 'Type'}
+              </Th>
               {tab.cols.map((c, i) => (
                 <Th key={c} numeric className={i === tab.cols.length - 1 ? 'pr-4' : undefined}>
                   {keyLabel(tab.colDimension, c, colsMulti)}
@@ -133,7 +150,9 @@ function Grid({ tab, metric, label }: { tab: CrossTab; metric: Metric; label: st
           <tbody>
             {tab.rows.map((r) => (
               <Tr key={r}>
-                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{keyLabel(tab.rowDimension, r, rowsMulti)}</Td>
+                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">
+                  {keyLabel(tab.rowDimension, r, rowsMulti)}
+                </Td>
                 {tab.cols.map((c, i) => (
                   <Td key={c} numeric className={i === tab.cols.length - 1 ? 'pr-4' : undefined}>
                     <CellValue cell={cellAt.get(cellKey(r, c))} metric={metric} />
@@ -160,7 +179,11 @@ function Toggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1"
+    >
       {options.map((o) => (
         <button
           key={o.id}
@@ -182,11 +205,17 @@ function Toggle<T extends string>({
   );
 }
 
-export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
+export function CrossTabsSection({
+  facts,
+  baseline,
+}: {
+  facts: StatsFacts;
+  baseline: RoundFact[];
+}) {
   const tabs = useMemo(
     () =>
-      GRIDS.map((g) => ({ ...g, tab: crossTab(facts.rounds, g.rows, g.cols, baseline) })).filter((g) =>
-        g.tab.cells.some((c) => !c.hidden),
+      GRIDS.map((g) => ({ ...g, tab: crossTab(facts.rounds, g.rows, g.cols, baseline) })).filter(
+        (g) => g.tab.cells.some((c) => !c.hidden),
       ),
     [facts, baseline],
   );
@@ -213,7 +242,13 @@ export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; basel
           {findings.map((q) => (
             <article key={q.id} className="panel p-4">
               <div className="flex items-start gap-2.5">
-                <span aria-hidden className={cn('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', q.tone === 'pos' ? 'bg-pos' : 'bg-neg')} />
+                <span
+                  aria-hidden
+                  className={cn(
+                    'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                    q.tone === 'pos' ? 'bg-pos' : 'bg-neg',
+                  )}
+                />
                 <div className="min-w-0">
                   <p className="text-table text-ink">{q.text}</p>
                   <p className="mt-1.5 data-label">{q.basis}</p>
@@ -226,7 +261,12 @@ export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; basel
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {tabs.length > 1 ? (
-          <Toggle label="Grid" options={tabs.map((t) => ({ id: t.id, label: t.label }))} value={current.id} onChange={setGridId} />
+          <Toggle
+            label="Grid"
+            options={tabs.map((t) => ({ id: t.id, label: t.label }))}
+            value={current.id}
+            onChange={setGridId}
+          />
         ) : (
           <h3 className="font-display text-h4 font-medium text-ink">{current.label}</h3>
         )}
@@ -241,10 +281,11 @@ export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; basel
 
       <p className="text-caption text-ink-soft">
         Prelim rounds only. A cell with fewer than {MIN_SPLIT_ROUNDS} rounds, scored speeches or
-        decided rounds shows a dot and its round count instead of a figure. Findings are the cells furthest from what their row and column predict on their own
-        — at least 0.5 speaker points, across two or more tournaments — so a seat or a motion type
-        that is simply strong everywhere shows up in Positions and Motion types, not here.
-        Team points are British Parliamentary only.
+        decided rounds shows a dot and its round count instead of a figure. Findings are the cells
+        furthest from what their row and column predict on their own — at least 0.5 speaker points,
+        across two or more tournaments — so a seat or a motion type that is simply strong everywhere
+        shows up in Positions and Motion types, not here. Team points are British Parliamentary
+        only.
       </p>
     </section>
   );

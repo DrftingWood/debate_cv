@@ -24,8 +24,18 @@ describe('computeFingerprint', () => {
   });
 
   test('differs on different tournaments', () => {
-    const a = computeFingerprint({ host: 'a.calicotab.com', tournamentSlug: 'a', tournamentName: 'A', year: 2024 });
-    const b = computeFingerprint({ host: 'b.calicotab.com', tournamentSlug: 'b', tournamentName: 'B', year: 2024 });
+    const a = computeFingerprint({
+      host: 'a.calicotab.com',
+      tournamentSlug: 'a',
+      tournamentName: 'A',
+      year: 2024,
+    });
+    const b = computeFingerprint({
+      host: 'b.calicotab.com',
+      tournamentSlug: 'b',
+      tournamentName: 'B',
+      year: 2024,
+    });
     expect(a).not.toBe(b);
   });
 });

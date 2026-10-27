@@ -8,13 +8,7 @@
  * heavy tournament data for the one page of rows it renders.
  */
 
-export type ImportStatus =
-  | 'pending'
-  | 'running'
-  | 'failed'
-  | 'unavailable'
-  | 'done'
-  | 'unmatched';
+export type ImportStatus = 'pending' | 'running' | 'failed' | 'unavailable' | 'done' | 'unmatched';
 
 export type ImportFilterKey = 'all' | 'pending' | 'failed' | 'unmatched' | 'unavailable' | 'done';
 
@@ -42,9 +36,7 @@ export function matchesFilter(status: ImportStatus, filter: ImportFilterKey): bo
   return status === filter;
 }
 
-export function countByFilter(
-  statuses: readonly ImportStatus[],
-): Record<ImportFilterKey, number> {
+export function countByFilter(statuses: readonly ImportStatus[]): Record<ImportFilterKey, number> {
   const counts: Record<ImportFilterKey, number> = {
     all: statuses.length,
     pending: 0,

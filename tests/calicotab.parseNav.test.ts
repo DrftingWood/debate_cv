@@ -134,9 +134,7 @@ describe('parsePrivateUrlPage with inline-tag-wrapped registration', () => {
   });
 
   test('extracts institution when wrapped in <strong>', () => {
-    expect(snapshot.registration.institution).toBe(
-      'Indira Gandhi National Open University',
-    );
+    expect(snapshot.registration.institution).toBe('Indira Gandhi National Open University');
   });
 });
 
@@ -253,7 +251,10 @@ const FOR_PROSE_HTML = `
 `;
 
 describe('parsePrivateUrlPage <small>for Name</small> branch is conservative', () => {
-  const snapshot = parsePrivateUrlPage(FOR_PROSE_HTML, 'https://x.calicotab.com/t/privateurls/abc/');
+  const snapshot = parsePrivateUrlPage(
+    FOR_PROSE_HTML,
+    'https://x.calicotab.com/t/privateurls/abc/',
+  );
 
   test('only matches small whose entire text is "for X" — picks the small, not the p', () => {
     expect(snapshot.registration.personName).toBe('Abhishek Acharya');

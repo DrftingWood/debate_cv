@@ -28,7 +28,14 @@ export default function CvStatsLoading() {
 
       <div className="panel grid grid-cols-2 gap-px overflow-hidden bg-border md:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className={i === 4 ? 'col-span-2 space-y-2 bg-card px-4 py-4 md:col-span-1' : 'space-y-2 bg-card px-4 py-4'}>
+          <div
+            key={i}
+            className={
+              i === 4
+                ? 'col-span-2 space-y-2 bg-card px-4 py-4 md:col-span-1'
+                : 'space-y-2 bg-card px-4 py-4'
+            }
+          >
             <Skeleton className="h-3 w-20" />
             <Skeleton className="h-7 w-16" />
             <Skeleton className="h-3 w-24" />

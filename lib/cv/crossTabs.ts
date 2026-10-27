@@ -81,10 +81,16 @@ function keyOf(dimension: CrossTabDimension, r: RoundFact): string | null {
   return r.proAm;
 }
 
-function orderKeys(dimension: CrossTabDimension, keys: string[], rounds: Map<string, number>): string[] {
+function orderKeys(
+  dimension: CrossTabDimension,
+  keys: string[],
+  rounds: Map<string, number>,
+): string[] {
   const rank = (list: string[], k: string) => (list.includes(k) ? list.indexOf(k) : list.length);
-  if (dimension === 'motionType') return keys.sort((a, b) => rank(MOTION_ORDER, a) - rank(MOTION_ORDER, b) || a.localeCompare(b));
-  if (dimension === 'pairing') return keys.sort((a, b) => rank(PAIRING_ORDER, a) - rank(PAIRING_ORDER, b));
+  if (dimension === 'motionType')
+    return keys.sort((a, b) => rank(MOTION_ORDER, a) - rank(MOTION_ORDER, b) || a.localeCompare(b));
+  if (dimension === 'pairing')
+    return keys.sort((a, b) => rank(PAIRING_ORDER, a) - rank(PAIRING_ORDER, b));
   // Seats group by format, the format with most rounds first, then bench order.
   const byFormat = new Map<string, number>();
   for (const k of keys) {
@@ -111,24 +117,35 @@ export function crossTab(
   baselineRounds: RoundFact[] = rounds,
 ): CrossTab {
   const formats = new Map<string, Set<string>>();
-  const splits = splitRounds(rounds, (r) => {
-    const row = keyOf(rowDimension, r);
-    const col = keyOf(colDimension, r);
-    if (row == null || col == null) return null;
-    const key = cellKey(row, col);
-    const set = formats.get(key) ?? new Set<string>();
-    const f = formatKey(r);
-    if (f) set.add(f);
-    formats.set(key, set);
-    return key;
-  }, baselineRounds);
+  const splits = splitRounds(
+    rounds,
+    (r) => {
+      const row = keyOf(rowDimension, r);
+      const col = keyOf(colDimension, r);
+      if (row == null || col == null) return null;
+      const key = cellKey(row, col);
+      const set = formats.get(key) ?? new Set<string>();
+      const f = formatKey(r);
+      if (f) set.add(f);
+      formats.set(key, set);
+      return key;
+    },
+    baselineRounds,
+  );
 
   // Effects over the whole record, from rounds carrying both keys — the same
   // population the grid is drawn from, so a purely additive record has no
   // interactions at all.
-  const both = baselineRounds.filter((r) => keyOf(rowDimension, r) != null && keyOf(colDimension, r) != null);
+  const both = baselineRounds.filter(
+    (r) => keyOf(rowDimension, r) != null && keyOf(colDimension, r) != null,
+  );
   const effects = (dimension: CrossTabDimension) =>
-    new Map(splitRounds(both, (r) => keyOf(dimension, r), baselineRounds).map((s) => [s.key, s.scoreDelta]));
+    new Map(
+      splitRounds(both, (r) => keyOf(dimension, r), baselineRounds).map((s) => [
+        s.key,
+        s.scoreDelta,
+      ]),
+    );
   const rowEffect = effects(rowDimension);
   const colEffect = effects(colDimension);
 
@@ -152,7 +169,8 @@ export function crossTab(
       winRateDelta: hidden ? null : s.winRateDelta,
       avgPoints: hidden ? null : s.avgPoints,
       expected: hidden ? null : expected,
-      interaction: hidden || expected == null || s.scoreDelta == null ? null : s.scoreDelta - expected,
+      interaction:
+        hidden || expected == null || s.scoreDelta == null ? null : s.scoreDelta - expected,
     };
   });
 
@@ -175,8 +193,16 @@ export function crossTab(
 
 // ── Findings ──────────────────────────────────────────────────────────────
 
-const PAIRING_PHRASE: Record<string, string> = { pro: 'as the pro', am: 'as the am', peers: 'with peers' };
-const PAIRING_NOUN: Record<string, string> = { pro: 'being the pro', am: 'being the am', peers: 'pairing with peers' };
+const PAIRING_PHRASE: Record<string, string> = {
+  pro: 'as the pro',
+  am: 'as the am',
+  peers: 'with peers',
+};
+const PAIRING_NOUN: Record<string, string> = {
+  pro: 'being the pro',
+  am: 'being the am',
+  peers: 'pairing with peers',
+};
 
 /** "OG" from "BP:OG" — the format is named in the comparison instead. */
 export const seatName = (key: string) => key.split(':').slice(1).join(':') || key;
@@ -197,14 +223,22 @@ export function crossTabFindings(tabs: CrossTab[]): Quirk[] {
   for (const tab of tabs) {
     for (const cell of tab.cells) {
       if (cell.hidden || cell.scoreDelta == null || cell.interaction == null) continue;
-      if (cell.tournaments < MIN_FINDING_TOURNAMENTS || Math.abs(cell.interaction) < MIN_FINDING_DELTA) continue;
+      if (
+        cell.tournaments < MIN_FINDING_TOURNAMENTS ||
+        Math.abs(cell.interaction) < MIN_FINDING_DELTA
+      )
+        continue;
       const id = `crosstab:${tab.rowDimension}:${cell.row}×${tab.colDimension}:${cell.col}`;
       if (!seen.has(id)) seen.set(id, { tab, cell });
     }
   }
 
   const name = (dimension: CrossTabDimension, key: string) =>
-    dimension === 'seat' ? seatName(key) : dimension === 'motionType' ? `${key} motions` : (PAIRING_NOUN[key] ?? key);
+    dimension === 'seat'
+      ? seatName(key)
+      : dimension === 'motionType'
+        ? `${key} motions`
+        : (PAIRING_NOUN[key] ?? key);
 
   const toQuirk = (id: string, { tab, cell }: { tab: CrossTab; cell: CrossTabCell }): Quirk => {
     const where = `${phrase(tab.rowDimension, cell.row)} ${phrase(tab.colDimension, cell.col)}`;

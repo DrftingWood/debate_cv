@@ -46,7 +46,6 @@ const TIME_BUDGET_MS = 55_000;
  */
 const JOB_HEADROOM_MS = 30_000;
 
-
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
@@ -159,7 +158,9 @@ async function runOnce() {
     try {
       scan = await runBackgroundScan();
     } catch (err) {
-      Sentry.captureException(err, { tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' } });
+      Sentry.captureException(err, {
+        tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
+      });
     }
 
     const report = await drainQueue(
