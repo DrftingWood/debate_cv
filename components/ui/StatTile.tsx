@@ -81,9 +81,9 @@ export function StatTile({
 
   return (
     <div className={cn('min-w-0', className)}>
-      <div className="data-label truncate" title={label}>
-        {label}
-      </div>
+      {/* Wraps rather than truncating: a label cut to "Career speaker a…"
+          with the rest only in `title` cannot be read on a phone (SC 1.4.13). */}
+      <div className="data-label break-words">{label}</div>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span className={cn('figure', figureSize, accentClass)}>{value}</span>
         {delta ? <DeltaChip value={delta} trend={trend} /> : null}
@@ -122,7 +122,11 @@ export function StatRow({
   return (
     <div
       className={cn(
+        // An odd tile count left the last cell of the two-column phone grid
+        // empty, and the `bg-border` behind the hairlines showed through as a
+        // grey hole. The last tile spans both columns there instead.
         'panel grid grid-cols-2 gap-px overflow-hidden bg-border',
+        '[&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1',
         cols,
         className,
       )}

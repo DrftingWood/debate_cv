@@ -14,16 +14,22 @@ import { Skeleton } from '@/components/ui/Skeleton';
 export default function VerifyLoading() {
   return (
     <div className="space-y-6">
+      <p role="status" className="sr-only">
+        Loading the source data…
+      </p>
+      {/* Fluid widths with a cap, not w-64/w-72/w-96: a 384 px bar is wider
+          than a 390 px phone's content box and scrolled the page sideways
+          while it loaded (UX-25, UX-39). */}
       <div className="space-y-2">
-        <Skeleton className="h-7 w-64" />
-        <Skeleton className="h-4 w-96" />
+        <Skeleton className="h-7 w-full max-w-xs" />
+        <Skeleton className="h-4 w-full max-w-sm" />
       </div>
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} className="p-5">
-            <div className="flex items-baseline justify-between">
-              <Skeleton className="h-5 w-72" />
-              <Skeleton className="h-4 w-20" />
+            <div className="flex items-baseline justify-between gap-4">
+              <Skeleton className="h-5 w-full max-w-xs" />
+              <Skeleton className="h-4 w-20 shrink-0" />
             </div>
             <div className="mt-5 space-y-2">
               {Array.from({ length: 6 }).map((_, j) => (
