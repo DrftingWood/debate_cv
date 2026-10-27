@@ -120,7 +120,9 @@ export default function Privacy() {
         {contactEmail ? (
           <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
         ) : (
-          <a href="https://github.com/DrftingWood/debate_cv/issues">
+          <a
+            href="https://github.com/DrftingWood/debate_cv/issues"
+          >
             the project's issue tracker
           </a>
         )}{' '}

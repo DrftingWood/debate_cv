@@ -379,6 +379,7 @@ export default async function Dashboard({
                               className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-primary"
                             >
                               {u.url}
+                              <span className="sr-only">(opens in a new tab)</span>
                               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
                               <span className="sr-only"> (opens in new tab)</span>
                             </a>
@@ -436,6 +437,7 @@ export default async function Dashboard({
                               className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
                             >
                               <span className="truncate">{u.url}</span>
+                              <span className="sr-only">(opens in a new tab)</span>
                               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
                               <span className="sr-only"> (opens in new tab)</span>
                             </a>

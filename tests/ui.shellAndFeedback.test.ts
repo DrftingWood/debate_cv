@@ -155,8 +155,9 @@ describe('error boundaries (STATE-1)', () => {
     expect(out).not.toContain('boom');
   });
 
-  it('not-found has one main and no link wrapping a button', () => {
-    const out = html(h(NotFound));
+  it('not-found has one main and no link wrapping a button', async () => {
+    authMock.mockResolvedValue(null);
+    const out = html(await NotFound());
     expect(out.match(/<main\b/g)).toHaveLength(1);
     expect(out).not.toMatch(NESTED);
   });
