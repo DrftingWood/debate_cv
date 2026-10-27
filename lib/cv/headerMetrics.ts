@@ -9,6 +9,83 @@ import { formatTopPercent } from '@/lib/cv/teamPlacement';
  * Tiles that resolve to zero or null are dropped entirely rather than
  * rendered as a zero, and the strongest survivors fill the strip.
  */
+/**
+ * Breaks split by role (owner decision, assumptions C25/C26). A speaking
+ * break is a team break at a tournament the user spoke at; a judging break is
+ * a judged outround or adjudicator-break-list entry at a tournament the user
+ * judged. Judged outrounds are never folded into the speaking count, and each
+ * side is a count of distinct tournaments.
+ */
+export type BreakSummary = {
+  speaking: number;
+  judging: number;
+  /** Distinct tournaments the user spoke at: the speaking rate's denominator. */
+  tournamentsSpoken: number;
+  /** Distinct tournaments the user judged at: the judging rate's denominator. */
+  tournamentsJudged: number;
+};
+
+type RoleRow = { tournamentId: bigint; broke: boolean };
+
+export function summarizeBreaks(
+  speakerRows: readonly RoleRow[],
+  judgeRows: readonly RoleRow[],
+): BreakSummary {
+  const tally = (rows: readonly RoleRow[]) => {
+    const all = new Set<string>();
+    const broke = new Set<string>();
+    for (const r of rows) {
+      const id = r.tournamentId.toString();
+      all.add(id);
+      if (r.broke) broke.add(id);
+    }
+    return { all: all.size, broke: broke.size };
+  };
+  const s = tally(speakerRows);
+  const j = tally(judgeRows);
+  return {
+    speaking: s.broke,
+    judging: j.broke,
+    tournamentsSpoken: s.all,
+    tournamentsJudged: j.all,
+  };
+}
+
+/** "12 speaking, 8 judging"; a side with no breaks is left out. Null when neither side broke. */
+export function formatBreaks(b: Pick<BreakSummary, 'speaking' | 'judging'>): string | null {
+  const parts = [
+    b.speaking > 0 ? `${b.speaking} speaking` : null,
+    b.judging > 0 ? `${b.judging} judging` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+}
+
+/**
+ * Break rates, reported separately and never combined (C26): speaking breaks
+ * over tournaments spoken, judging breaks over tournaments judged. Null when
+ * the user has no tournaments in that role.
+ */
+export function breakRates(b: BreakSummary): { speaking: number | null; judging: number | null } {
+  return {
+    speaking: b.tournamentsSpoken > 0 ? b.speaking / b.tournamentsSpoken : null,
+    judging: b.tournamentsJudged > 0 ? b.judging / b.tournamentsJudged : null,
+  };
+}
+
+/** "50% of 12 spoken · 25% of 8 judged": one rate per role that has breaks, never a combined one. */
+export function formatBreakRates(b: BreakSummary): string | null {
+  const rates = breakRates(b);
+  const parts = [
+    b.speaking > 0 && rates.speaking != null
+      ? `${Math.round(rates.speaking * 100)}% of ${b.tournamentsSpoken} spoken`
+      : null,
+    b.judging > 0 && rates.judging != null
+      ? `${Math.round(rates.judging * 100)}% of ${b.tournamentsJudged} judged`
+      : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
 export type HeaderMetric = {
   label: string;
   value: number | string;
@@ -24,7 +101,7 @@ export type HeaderMetric = {
  */
 export function pickHeaderMetrics(input: {
   totalTournaments: number;
-  breaks: number;
+  breaks: BreakSummary;
   totalRoundsChaired: number;
   outroundsChaired: number;
   bestSpeakerRank: number | null;
@@ -53,6 +130,8 @@ export function pickHeaderMetrics(input: {
     bestTeamFinish = null,
   } = input;
 
+  const breakValue = formatBreaks(breaks);
+
   const speakerLeaning = judgeCount === 0 || speakerCount >= judgeCount * 3;
   const judgeLeaning = speakerCount === 0 || judgeCount >= speakerCount * 3;
 
@@ -69,19 +148,18 @@ export function pickHeaderMetrics(input: {
     });
   }
 
+  // Both sides of the break record, with each side's own rate and how deep
+  // the best run went (a team fact: the outround reached).
+  const breaksTile = (value: string): HeaderMetric => {
+    const hint = [formatBreakRates(breaks), deepestBreak ? `deepest ${deepestBreak}` : null]
+      .filter(Boolean)
+      .join(' · ');
+    return { label: 'Breaks', value, accent: 'gold', hint: hint || undefined };
+  };
+
   if (speakerLeaning) {
-    if (breaks > 0) {
-      // The break count carries its depth: how far the best run went is
-      // the strength of the break, and it is a team fact (outround reached).
-      const hint = [
-        totalTournaments > 0
-          ? `${Math.round((breaks / totalTournaments) * 100)}% of entries`
-          : null,
-        deepestBreak ? `deepest ${deepestBreak}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
-      candidates.push({ label: 'Breaks', value: breaks, accent: 'gold', hint: hint || undefined });
+    if (breakValue) {
+      candidates.push(breaksTile(breakValue));
     }
     // How high the user placed is a TEAM-tab question; it outranks the
     // speaker-tab figures below, which are individual statistics and are
@@ -100,6 +178,7 @@ export function pickHeaderMetrics(input: {
       candidates.push({ label: 'Best speaker-tab rank', value: `#${bestSpeakerRank}` });
     }
   } else if (judgeLeaning) {
+    if (breakValue) candidates.push(breaksTile(breakValue));
     if (totalRoundsChaired > 0) {
       candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired });
     }
@@ -107,7 +186,7 @@ export function pickHeaderMetrics(input: {
       candidates.push({ label: 'Outrounds chaired', value: outroundsChaired, accent: 'gold' });
     }
   } else {
-    if (breaks > 0) candidates.push({ label: 'Breaks', value: breaks, accent: 'gold' });
+    if (breakValue) candidates.push(breaksTile(breakValue));
     if (totalRoundsChaired > 0) {
       candidates.push({ label: 'Prelims chaired', value: totalRoundsChaired });
     }

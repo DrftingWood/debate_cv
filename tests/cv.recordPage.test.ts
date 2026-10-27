@@ -68,7 +68,14 @@ function record() {
       }),
     ],
     judgeRows: [makeJudgeRow({ tournamentId: 2n, tournamentName: 'Judged IV', broke: true })],
-    summary: { totalTournaments: 2, breaks: 1, totalRoundsChaired: 0 },
+    summary: {
+      totalTournaments: 2,
+      speakingBreaks: 1,
+      judgingBreaks: 0,
+      tournamentsSpoken: 2,
+      tournamentsJudged: 0,
+      totalRoundsChaired: 0,
+    },
   });
 }
 
@@ -114,7 +121,14 @@ describe('/cv speaking ledger (desktop)', () => {
     const out = await render(
       makeCvData({
         speakerRows: [row],
-        summary: { totalTournaments: 1, breaks: 0, totalRoundsChaired: 0 },
+        summary: {
+          totalTournaments: 1,
+          speakingBreaks: 0,
+          judgingBreaks: 0,
+          tournamentsSpoken: 1,
+          tournamentsJudged: 0,
+          totalRoundsChaired: 0,
+        },
       }),
     );
     expect(out).toContain(`colSpan="${speakingHeaders(out).length}"`);

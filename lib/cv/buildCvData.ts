@@ -10,6 +10,7 @@ import {
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import { summarizeBreaks } from '@/lib/cv/headerMetrics';
 import { championshipHighlights, placementHighlights } from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
@@ -369,7 +370,14 @@ export type CvData = {
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
     totalTournaments: number;
-    breaks: number;
+    /** Tournaments the user broke at as a speaker (team break). Judged outrounds are not counted here. */
+    speakingBreaks: number;
+    /** Tournaments the user broke at as a judge (judged an outround or on the adjudicator break). */
+    judgingBreaks: number;
+    /** Distinct tournaments spoken at: the speaking break rate's denominator. */
+    tournamentsSpoken: number;
+    /** Distinct tournaments judged at: the judging break rate's denominator. */
+    tournamentsJudged: number;
     totalRoundsChaired: number;
   };
   highlights: CvHighlights;
@@ -1329,15 +1337,10 @@ export async function buildCvData(
   }
 
   const totalTournaments = tournamentIds.length;
-  // Tournaments at which the user broke, in any role. Every surface reads
-  // this against totalTournaments (the /cv header's "N% of entries", the
-  // public page's "Breaks" tile, the JSON Resume summary), which counts each
-  // tournament once — so a tournament with a speaker break AND a judge break
-  // is one break here, not two. Summing the two row lists could push the
-  // rate past 100%.
-  const breaks = new Set(
-    [...speakerRows, ...judgeRows].filter((r) => r.broke).map((r) => r.tournamentId),
-  ).size;
+  // Breaks are reported per role (owner decision C25/C26): a judged outround
+  // is never folded into the speaking count, and each side's rate has its own
+  // denominator. A tournament counts once per role.
+  const breakSummary = summarizeBreaks(speakerRows, judgeRows);
   const totalRoundsChaired = judgeRows.reduce((s, r) => s + (r.inroundsChaired ?? 0), 0);
 
   // ── Highlights ───────────────────────────────────────────────────────
@@ -1410,7 +1413,14 @@ export async function buildCvData(
     teamOutroundResults,
     fieldStats,
     unmatchedTournaments,
-    summary: { totalTournaments, breaks, totalRoundsChaired },
+    summary: {
+      totalTournaments,
+      speakingBreaks: breakSummary.speaking,
+      judgingBreaks: breakSummary.judging,
+      tournamentsSpoken: breakSummary.tournamentsSpoken,
+      tournamentsJudged: breakSummary.tournamentsJudged,
+      totalRoundsChaired,
+    },
     highlights,
     lastIngestedAt: urls.reduce<Date | null>(
       (latest, u) => (u.ingestedAt && (!latest || u.ingestedAt > latest) ? u.ingestedAt : latest),

@@ -343,7 +343,7 @@ describe('surfaces', () => {
   test('header strip carries break depth and best team finish ahead of speaker figures', () => {
     const tiles = pickHeaderMetrics({
       totalTournaments: 10,
-      breaks: 4,
+      breaks: { speaking: 4, judging: 0, tournamentsSpoken: 10, tournamentsJudged: 0 },
       totalRoundsChaired: 0,
       outroundsChaired: 0,
       bestSpeakerRank: 2,
@@ -360,14 +360,14 @@ describe('surfaces', () => {
       'Best team finish',
       'Best speaker avg',
     ]);
-    expect(tiles[1].hint).toBe('40% of entries · deepest Semifinals');
+    expect(tiles[1].hint).toBe('40% of 10 spoken · deepest Semifinals');
     expect(tiles[2]).toMatchObject({ value: '#3', hint: 'of 120 teams · top 3%' });
   });
 
   test('a speaker-only header keeps the speaker-tab rank, labelled as such', () => {
     const tiles = pickHeaderMetrics({
       totalTournaments: 3,
-      breaks: 0,
+      breaks: { speaking: 0, judging: 0, tournamentsSpoken: 3, tournamentsJudged: 0 },
       totalRoundsChaired: 0,
       outroundsChaired: 0,
       bestSpeakerRank: 5,

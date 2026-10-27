@@ -74,7 +74,20 @@ export type DebateJudgingEntry = {
 
 export type DebateExtension = {
   version: typeof DEBATE_EXTENSION_VERSION;
-  summary: CvData['summary'];
+  /**
+   * `breaks` is the SPEAKING break count (kept under its original key for
+   * existing readers; judged outrounds are no longer folded in). The judging
+   * side and each side's denominator are alongside, so a reader can compute
+   * the two rates separately.
+   */
+  summary: {
+    totalTournaments: number;
+    breaks: number;
+    judgingBreaks: number;
+    tournamentsSpoken: number;
+    tournamentsJudged: number;
+    totalRoundsChaired: number;
+  };
   speaking: DebateSpeakingEntry[];
   judging: DebateJudgingEntry[];
 };
@@ -167,7 +180,14 @@ export function buildJsonResume(data: CvData, options: BuildJsonResumeOptions = 
       lastModified: now.toISOString(),
       [DEBATE_EXTENSION_KEY]: {
         version: DEBATE_EXTENSION_VERSION,
-        summary: data.summary,
+        summary: {
+          totalTournaments: data.summary.totalTournaments,
+          breaks: data.summary.speakingBreaks,
+          judgingBreaks: data.summary.judgingBreaks,
+          tournamentsSpoken: data.summary.tournamentsSpoken,
+          tournamentsJudged: data.summary.tournamentsJudged,
+          totalRoundsChaired: data.summary.totalRoundsChaired,
+        },
         speaking: speaking.map((r) => ({
           tournament: r.tournamentName,
           year: r.year,

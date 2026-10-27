@@ -16,10 +16,13 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["totalTournaments", "breaks", "totalRoundsChaired"],
+      "required": ["totalTournaments", "breaks", "judgingBreaks", "tournamentsSpoken", "tournamentsJudged", "totalRoundsChaired"],
       "properties": {
         "totalTournaments": { "type": "integer", "minimum": 0 },
-        "breaks": { "type": "integer", "minimum": 0 },
+        "breaks": { "type": "integer", "minimum": 0, "description": "Speaking breaks (tournaments where the team broke). Judged outrounds are not included." },
+        "judgingBreaks": { "type": "integer", "minimum": 0 },
+        "tournamentsSpoken": { "type": "integer", "minimum": 0 },
+        "tournamentsJudged": { "type": "integer", "minimum": 0 },
         "totalRoundsChaired": { "type": "integer", "minimum": 0 }
       }
     },

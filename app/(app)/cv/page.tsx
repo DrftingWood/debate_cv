@@ -99,7 +99,7 @@ export default async function CvPage() {
     summary,
     highlights,
   } = data;
-  const { totalTournaments, breaks, totalRoundsChaired } = summary;
+  const { totalTournaments, totalRoundsChaired } = summary;
 
   // Motions by tournament for the per-round ledger. Outround motions carry no
   // round number, so the ledger matches those by stage (ledgerMotions).
@@ -114,7 +114,12 @@ export default async function CvPage() {
 
   const headerMetrics = pickHeaderMetrics({
     totalTournaments,
-    breaks,
+    breaks: {
+      speaking: summary.speakingBreaks,
+      judging: summary.judgingBreaks,
+      tournamentsSpoken: summary.tournamentsSpoken,
+      tournamentsJudged: summary.tournamentsJudged,
+    },
     totalRoundsChaired,
     outroundsChaired: highlights.outroundsChaired,
     bestSpeakerRank: highlights.bestSpeakerRank?.rank ?? null,

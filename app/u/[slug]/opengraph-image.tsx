@@ -36,7 +36,8 @@ export default async function Image({ params }: { params: Promise<{ slug: string
       person = {
         name: user.name ?? 'Debater',
         tournaments: summary.totalTournaments,
-        breaks: summary.breaks,
+        speakingBreaks: summary.speakingBreaks,
+        judgingBreaks: summary.judgingBreaks,
         activeYears: y ? (y.from === y.to ? `${y.from}` : `${y.from}–${y.to}`) : null,
       };
     }

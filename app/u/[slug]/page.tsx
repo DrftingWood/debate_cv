@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { TournamentLink } from '@/components/TournamentCard';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
+import { formatBreaks, formatBreakRates } from '@/lib/cv/headerMetrics';
 import { hashRank } from '@/lib/cv/rankDisplay';
 import {
   PublicBreakMarker,
@@ -107,16 +108,30 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
       />,
     );
   }
-  if (summary.breaks > 0) {
+  const breakSummary = {
+    speaking: summary.speakingBreaks,
+    judging: summary.judgingBreaks,
+    tournamentsSpoken: summary.tournamentsSpoken,
+    tournamentsJudged: summary.tournamentsJudged,
+  };
+  const breaksValue = formatBreaks(breakSummary);
+  if (breaksValue) {
     // Break strength is the furthest outround reached, so the count carries it.
     const deepest = highlights.deepestBreaks[0]?.stage;
     summaryTiles.push(
       <StatTile
         key="b"
         label="Breaks"
-        value={summary.breaks}
+        value={breaksValue}
         accent="gold"
-        hint={deepest ? `Deepest: ${formatStageForDisplay(deepest)}` : undefined}
+        hint={
+          [
+            formatBreakRates(breakSummary),
+            deepest ? `Deepest: ${formatStageForDisplay(deepest)}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
       />,
     );
   }

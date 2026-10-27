@@ -448,7 +448,16 @@ describe('buildCvData characterization: top-level shape', () => {
     // breaks counts tournaments broken at (T1 as a speaker, T2 as a judge);
     // unchanged at 2 here because no tournament has both. See the
     // regression block at the end for the case that changed.
-    expect(cv.summary).toEqual({ totalTournaments: 4, breaks: 2, totalRoundsChaired: 3 });
+    // Changed by the owner decision C25/C26: breaks are split by role. T1 is a
+    // speaking break, T2 a judging break; the old combined `breaks: 2` is gone.
+    expect(cv.summary).toEqual({
+      totalTournaments: 4,
+      speakingBreaks: 1,
+      judgingBreaks: 1,
+      tournamentsSpoken: 2,
+      tournamentsJudged: 1,
+      totalRoundsChaired: 3,
+    });
   });
 
   it('orders speaker rows by year descending with undated rows last', async () => {
@@ -776,7 +785,14 @@ describe('buildCvData characterization: queries', () => {
       teamOutroundResults: [],
       fieldStats: [],
       unmatchedTournaments: [],
-      summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
+      summary: {
+        totalTournaments: 0,
+        speakingBreaks: 0,
+        judgingBreaks: 0,
+        tournamentsSpoken: 0,
+        tournamentsJudged: 0,
+        totalRoundsChaired: 0,
+      },
       lastIngestedAt: null,
       highlights: {
         championships: [],
@@ -918,7 +934,7 @@ describe('buildCvData regressions: fixed behaviours', () => {
     expect(row.judgedRoundNumbers).toEqual([1, 2]);
   });
 
-  it('summary.breaks counts a tournament once when both the speaker row and the judge row broke', async () => {
+  it('a tournament with a speaking break and a judging break counts once on each side, never combined', async () => {
     // A judge participation at Oxford IV as well, on the outround panels.
     const judgeAtT1 = participation({
       tournamentId: 1n,
@@ -934,9 +950,12 @@ describe('buildCvData regressions: fixed behaviours', () => {
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
     expect(cv.judgeRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
-    // T1 (speaker and judge) + T2 (judge). Was 3.
-    expect(cv.summary.breaks).toBe(2);
-    expect(cv.summary.breaks).toBeLessThanOrEqual(cv.summary.totalTournaments);
+    // T1 is both a speaking and a judging break; T2 is judging only. The two
+    // sides are no longer summed (was a combined 2, before that 3).
+    expect(cv.summary.speakingBreaks).toBe(1);
+    expect(cv.summary.judgingBreaks).toBe(2);
+    expect(cv.summary.speakingBreaks).toBeLessThanOrEqual(cv.summary.tournamentsSpoken);
+    expect(cv.summary.judgingBreaks).toBeLessThanOrEqual(cv.summary.tournamentsJudged);
   });
 });
 
