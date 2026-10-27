@@ -26,7 +26,7 @@ export function VerifyMineOnlyToggle({ mine }: { mine: boolean }) {
     if (mine) next.set('mine', '0');
     else next.delete('mine');
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [mine, params, pathname, router]);
 
   return (

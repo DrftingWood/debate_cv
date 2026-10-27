@@ -27,11 +27,19 @@ import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { Card, CardBody } from '@/components/ui/Card';
+import { buttonClasses } from '@/components/ui/Button';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, Th, Td, Tr } from '@/components/ui/DataTable';
 import { cn } from '@/lib/utils/cn';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
+import {
+  countByFilter,
+  matchesFilter,
+  resolvePage,
+  statusFor,
+  type ImportFilterKey,
+} from '@/lib/ingest/importRows';
 
 export const metadata: Metadata = {
   title: 'Imports',
@@ -41,7 +49,7 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-type FilterKey = 'all' | 'pending' | 'failed' | 'unmatched' | 'unavailable' | 'done';
+type FilterKey = ImportFilterKey;
 
 const FILTER_KEYS: FilterKey[] = ['all', 'pending', 'failed', 'unmatched', 'unavailable', 'done'];
 
@@ -52,7 +60,7 @@ function isFilterKey(value: string | undefined): value is FilterKey {
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; page?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
@@ -72,19 +80,21 @@ export default async function Dashboard({
   const browsing = isFilterKey(params.filter);
   const activeFilter: FilterKey = isFilterKey(params.filter) ? params.filter : 'all';
 
+  // Every URL and job is loaded, uncapped, as a light row: the tile counts
+  // and the filter must describe the whole set (NV-12; the old `take: 200`
+  // made a heavy user's counts silently wrong). Only the page of rows that
+  // is rendered gets the heavy tournament join, below.
   const [gmailToken, urls, jobs, claimedTournamentIds] = await Promise.all([
     prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } }),
     prisma.discoveredUrl.findMany({
       where: { userId },
       orderBy: { messageDate: 'desc' },
-      take: 200,
-      // Never load sourceUrlRaw here: it is the first ingester's private URL.
-      include: { tournament: { omit: { sourceUrlRaw: true } } },
+      select: { id: true, url: true, ingestedAt: true, tournamentId: true },
     }),
     prisma.ingestJob.findMany({
       where: { userId },
       orderBy: { scheduledAt: 'desc' },
-      take: 200,
+      select: { url: true, status: true, lastError: true },
     }),
     prisma.tournamentParticipant
       .findMany({
@@ -101,10 +111,10 @@ export default async function Dashboard({
   // ingested but the user has no TournamentParticipant in the resulting
   // tournament — they need to claim themselves manually via the inline
   // search expander below.
-  const rows = urls.map((u) => {
+  const allRows = urls.map((u) => {
     const job = jobByUrl.get(u.url);
     const baseStatus = statusFor(!!u.ingestedAt, job?.status, job?.lastError);
-    const tournamentIdStr = u.tournament?.id.toString();
+    const tournamentIdStr = u.tournamentId?.toString();
     const isUnmatched =
       baseStatus === 'done' && !!tournamentIdStr && !claimedTournamentIds.has(tournamentIdStr);
     const status: PillStatus = isUnmatched ? 'unmatched' : baseStatus;
@@ -120,26 +130,41 @@ export default async function Dashboard({
   // than relying on the derived PillStatus to avoid double-counting.
   const abandonedCount = jobs.filter((j) => j.status === 'abandoned').length;
 
-  const counts: Record<FilterKey, number> = {
-    all: rows.length,
-    pending: rows.filter((r) => r.status === 'pending' || r.status === 'running').length,
-    failed: rows.filter((r) => r.status === 'failed').length,
-    unmatched: rows.filter((r) => r.status === 'unmatched').length,
-    unavailable: rows.filter((r) => r.status === 'unavailable').length,
-    done: rows.filter((r) => r.status === 'done').length,
-  };
+  const counts = countByFilter(allRows.map((r) => r.status));
+  const rows = allRows;
 
-  const filtered = rows.filter((r) => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'pending') return r.status === 'pending' || r.status === 'running';
-    return r.status === activeFilter;
+  const filtered = allRows.filter((r) => matchesFilter(r.status, activeFilter));
+
+  // 50 rows per page, with the page in the URL (UX-81). Only these rows get
+  // the tournament join.
+  const pageInfo = resolvePage(params.page, filtered.length);
+  const pageIds = filtered.slice(pageInfo.start, pageInfo.end).map((r) => r.u.id);
+  const pageTournaments = pageIds.length
+    ? await prisma.discoveredUrl.findMany({
+        where: { id: { in: pageIds }, userId },
+        select: {
+          id: true,
+          reingestLocked: true,
+          messageDate: true,
+          // Never load sourceUrlRaw here: it is the first ingester's private URL.
+          tournament: { omit: { sourceUrlRaw: true } },
+        },
+      })
+    : [];
+  const detailById = new Map(pageTournaments.map((d) => [d.id, d] as const));
+  const pageRows = filtered.slice(pageInfo.start, pageInfo.end).flatMap(({ u, job, status }) => {
+    const d = detailById.get(u.id);
+    return d ? [{ u: { ...u, ...d }, job, status }] : [];
   });
+  const pageHref = (n: number) =>
+    `/dashboard?filter=${activeFilter}${n > 1 ? `&page=${n}` : ''}`;
 
   // With Gmail disconnected the Scan button is disabled, so the empty state
-  // must not tell the user to click it.
+  // must not tell the user to click it. It carries the action itself (NV-26).
   const emptyDescription = gmailToken
-    ? "Click Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
+    ? "Scan Gmail to find Tabbycat private URLs in your inbox. We'll auto-ingest them in the same click."
     : 'Reconnect Gmail above, or upload a CSV of private URLs.';
+  const emptyAction = gmailToken ? <ScanButton /> : <UploadCsvButton />;
 
   return (
     <div className="space-y-10">
@@ -233,6 +258,7 @@ export default async function Dashboard({
             icon={<Inbox className="h-5 w-5" aria-hidden />}
             title="No private URLs yet"
             description={emptyDescription}
+            action={emptyAction}
           />
         ) : (
           <p data-print-hide="true">
@@ -255,6 +281,9 @@ export default async function Dashboard({
                   {filtered.length === counts.all
                     ? `${counts.all} total · most recent first`
                     : `${filtered.length} of ${counts.all} · ${activeFilter}`}
+                  {pageInfo.pages > 1
+                    ? ` · showing ${pageInfo.start + 1}–${pageInfo.end} of ${filtered.length}`
+                    : ''}
                 </p>
               </div>
               <Link
@@ -309,18 +338,28 @@ export default async function Dashboard({
               icon={<Inbox className="h-5 w-5" aria-hidden />}
               title="No private URLs yet"
               description={emptyDescription}
+              action={emptyAction}
             />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={<Ban className="h-5 w-5" aria-hidden />}
               title={`No ${activeFilter} URLs`}
-              description="Pick another filter chip above to see different URLs."
+              description="Nothing matches this filter right now."
+              action={
+                <Link
+                  href="/dashboard?filter=all"
+                  scroll={false}
+                  className={buttonClasses({ variant: 'outline' })}
+                >
+                  Show all URLs
+                </Link>
+              }
             />
           ) : (
             <>
               {/* Mobile cards */}
               <ul className="space-y-2 md:hidden">
-                {filtered.map(({ u, job, status }) => (
+                {pageRows.map(({ u, job, status }) => (
                   <li key={u.id}>
                     <Card>
                       <CardBody className="space-y-2.5">
@@ -341,6 +380,7 @@ export default async function Dashboard({
                             >
                               {u.url}
                               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                              <span className="sr-only"> (opens in new tab)</span>
                             </a>
                           </div>
                           <StatusPill status={status} />
@@ -386,7 +426,7 @@ export default async function Dashboard({
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(({ u, job, status }) => (
+                      {pageRows.map(({ u, job, status }) => (
                         <Tr key={u.id} className="align-top">
                           <Td className="pl-4">
                             <a
@@ -397,6 +437,7 @@ export default async function Dashboard({
                             >
                               <span className="truncate">{u.url}</span>
                               <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                              <span className="sr-only"> (opens in new tab)</span>
                             </a>
                           </Td>
                           <Td className="text-ink">
@@ -433,6 +474,37 @@ export default async function Dashboard({
                   </Table>
                 </div>
               </div>
+              {pageInfo.pages > 1 ? (
+                <nav
+                  aria-label="Import pages"
+                  className="flex flex-wrap items-center justify-between gap-3 text-ui"
+                  data-print-hide="true"
+                >
+                  {pageInfo.page > 1 ? (
+                    <Link
+                      href={pageHref(pageInfo.page - 1)}
+                      className={buttonClasses({ variant: 'outline', size: 'sm' })}
+                    >
+                      ← Newer
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <span aria-current="page" className="text-caption text-ink-soft">
+                    Page {pageInfo.page} of {pageInfo.pages}
+                  </span>
+                  {pageInfo.page < pageInfo.pages ? (
+                    <Link
+                      href={pageHref(pageInfo.page + 1)}
+                      className={buttonClasses({ variant: 'outline', size: 'sm' })}
+                    >
+                      Older →
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                </nav>
+              ) : null}
             </>
           )}
         </section>
@@ -456,6 +528,9 @@ function FilterChip({
       // Always carry the filter param — a bare /dashboard is the summary
       // view, so "All" must say ?filter=all to keep the table open.
       href={`/dashboard?filter=${filter}`}
+      // The chips refine the table in place; re-scrolling to the top on
+      // every click lost the user's place (NV-24).
+      scroll={false}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'inline-flex items-center rounded-md border px-2.5 py-1 text-caption font-medium transition-colors coarse:min-h-[44px]',
@@ -482,17 +557,20 @@ function RowActions({
   status: PillStatus;
   locked: boolean;
 }) {
+  // The tournament name (or the URL's host) goes into every action's
+  // accessible name so the rows are told apart (NV-13).
+  const rowName = tournamentName ?? new URL(url).host;
   // Each status surfaces its primary action(s). Lock toggle stays on the
   // `done` and `unmatched` rows since those are the only states where
   // re-ingest is a meaningful concern.
   if (status === 'pending' || status === 'running') {
-    return <IngestButton url={url} alreadyDone={false} />;
+    return <IngestButton url={url} alreadyDone={false} name={rowName} />;
   }
   if (status === 'failed') {
     return (
       <div className="flex items-center justify-end gap-3">
-        <ClearButton url={url} />
-        <IngestButton url={url} alreadyDone={false} />
+        <ClearButton url={url} name={rowName} />
+        <IngestButton url={url} alreadyDone={false} name={rowName} />
       </div>
     );
   }
@@ -502,8 +580,8 @@ function RowActions({
   if (status === 'done') {
     return (
       <div className="flex items-center justify-end gap-3">
-        <LockUrlButton url={url} locked={locked} />
-        <IngestButton url={url} alreadyDone={true} />
+        <LockUrlButton url={url} locked={locked} name={rowName} />
+        <IngestButton url={url} alreadyDone={true} name={rowName} />
       </div>
     );
   }
@@ -599,22 +677,6 @@ function formatDate(d: Date): string {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function statusFor(
-  ingested: boolean,
-  jobStatus: string | undefined,
-  lastError: string | null | undefined,
-): PillStatus {
-  // `abandoned` is the canonical terminal status for permanently-dead URLs
-  // (HTTP 404 on landing). We also keep the legacy `lastError` check for
-  // any rows that slipped through before the migration ran.
-  if (jobStatus === 'abandoned') return 'unavailable';
-  if (lastError && /HTTP 404/.test(lastError)) return 'unavailable';
-  if (ingested) return 'done';
-  if (jobStatus === 'running') return 'running';
-  if (jobStatus === 'failed') return 'failed';
-  return 'pending';
 }
 
 function FilterTile({
