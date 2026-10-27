@@ -7,7 +7,9 @@
   "lib/cv/buildCvData.ts": {
     "lines": 1420,
     "date": "2026-10-27",
-    "note": "Split buildCvData (one ~760-line function) into per-section builders: rows, motions, field summary."
+    "note": "Split buildCvData (one ~760-line function) into per-section builders: rows, motions, field summary.",
+    "allowGrowth": true,
+    "growthReason": "Owner-decided CV display changes (C15/C16/C21/C25/C26): per-role break summary, speaker field size, majors list. The new logic lives in headerMetrics.ts, teamPlacement.ts and majors.ts; only wiring grew here."
   },
   "lib/cv/speakerStats.ts": {
     "lines": 1416,
@@ -32,7 +34,9 @@
   "tests/cv.buildCvData.characterization.test.ts": {
     "lines": 1066,
     "date": "2026-10-27",
-    "note": "Split by CV section when buildCvData.ts is split."
+    "note": "Split by CV section when buildCvData.ts is split.",
+    "allowGrowth": true,
+    "growthReason": "Deliberate characterization updates for the per-role break summary and speakerFieldSize (C16/C25/C26)."
   },
   "components/stats/StatsSections.tsx": {
     "lines": 998,
@@ -57,7 +61,9 @@
   "app/(app)/cv/page.tsx": {
     "lines": 856,
     "date": "2026-10-27",
-    "note": "Extract data loading and the section components into components/cv/; leave the page as composition."
+    "note": "Extract data loading and the section components into components/cv/; leave the page as composition.",
+    "allowGrowth": true,
+    "growthReason": "Wires the per-role break summary into the header tiles (C25/C26); no new logic."
   },
   "tests/calicotab.parseNav.adjudicator.test.ts": {
     "lines": 831,
