@@ -1,6 +1,6 @@
 import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { signIn } from '@/lib/auth';
-import { Button } from '@/components/ui/Button';
+import { PendingSubmit } from '@/components/PendingSubmit';
 
 /**
  * The sign-in form behind every "Build my CV" button on the signed-out pages
@@ -22,14 +22,13 @@ export async function BuildCvButton({
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <Button
-        type="submit"
+      <PendingSubmit
         size={size}
         variant="primary"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
         {label}
-      </Button>
+      </PendingSubmit>
     </form>
   );
 }

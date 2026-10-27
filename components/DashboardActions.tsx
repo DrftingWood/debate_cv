@@ -21,6 +21,7 @@ import { postJson } from '@/lib/utils/api';
 import { drainUntilEmpty, summariseDrain } from '@/lib/ingest/drainUntilEmpty';
 import { scanErrorMessage, formatCountdown } from '@/lib/ingest/scanErrorMessage';
 import { failureToast, thrownToast } from '@/lib/ingest/userMessage';
+import { useFocusAfterRender } from '@/components/useFocusAfterRender';
 import { ScanCooldownNotice, useScanCooldown, type ScanCooldown } from '@/components/ScanCooldown';
 
 type ScanResponse = { scanned: number; found: number };
@@ -86,6 +87,14 @@ export function ScanButton({ disconnected = false }: { disconnected?: boolean })
         {label}
       </Button>
       <ScanCooldownNotice cooldown={cooldown} id={noticeId} />
+      {/* The button label changes during the run; this line says it (DASH-9). */}
+      <p role="status" className="sr-only">
+        {phase === 'scanning'
+          ? 'Scanning Gmail.'
+          : phase === 'ingesting'
+            ? 'Scan done. Ingesting the URLs it found.'
+            : ''}
+      </p>
     </div>
   );
 }
@@ -113,18 +122,22 @@ function useScanRun(cooldown: ScanCooldown) {
             toast.show({ kind: notice.kind, title: notice.title, description: notice.description });
           return;
         }
-        toast.show({
-          kind: 'success',
-          title: 'Gmail scan complete',
-          description: `Found ${scan.data.found} private URLs in ${scan.data.scanned} messages.`,
-        });
+        const foundText = `Found ${scan.data.found} private URLs in ${scan.data.scanned} messages.`;
         router.refresh();
 
+        // One toast per click (DASH-2): the scan result and, when URLs were
+        // found, the import result that follows it, said together.
         if (scan.data.found > 0) {
           setPhase('ingesting');
-          const drain = await drainUntilEmpty(() => router.refresh());
-          toast.show(summariseDrain(drain, false));
+          const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);
+          toast.show({
+            ...drain,
+            title: drain.title === 'Done' ? 'Gmail scan complete' : drain.title,
+            description: `${foundText} ${drain.description}`,
+          });
           router.refresh();
+        } else {
+          toast.show({ kind: 'success', title: 'Gmail scan complete', description: foundText });
         }
         setPhase('idle');
       } catch (e) {
@@ -142,9 +155,24 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
   const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{ processed: number; remaining: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [stopping, setStopping] = useState(false);
+
+  // The label ticks on every batch, which a screen reader must not narrate;
+  // this line changes on start, every fifth URL, on Stop and at the end (DASH-9).
+  const total = progress ? progress.processed + progress.remaining : 0;
+  const statusLine = !isPending
+    ? ''
+    : stopping
+      ? 'Stopping after the current batch.'
+      : progress && progress.processed >= 5
+        ? `Ingested ${Math.floor(progress.processed / 5) * 5} of ${total}.`
+        : 'Ingesting the queued URLs.';
 
   return (
     <div className="flex items-center gap-2">
+      <p role="status" className="sr-only">
+        {statusLine}
+      </p>
       <Button
         type="button"
         variant="secondary"
@@ -152,6 +180,7 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
         leftIcon={!isPending ? <Play className="h-4 w-4" aria-hidden /> : undefined}
         onClick={() => {
           setProgress(null);
+          setStopping(false);
           const controller = new AbortController();
           abortRef.current = controller;
           startTransition(async () => {
@@ -185,7 +214,11 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
           variant="ghost"
           size="sm"
           leftIcon={<Square className="h-3.5 w-3.5" aria-hidden />}
-          onClick={() => abortRef.current?.abort()}
+          disabled={stopping}
+          onClick={() => {
+            setStopping(true);
+            abortRef.current?.abort();
+          }}
         >
           Stop
         </Button>
@@ -246,19 +279,26 @@ export function UploadCsvButton() {
                   `${lines.length} ${CSV_SKIP_REASON[status] ?? status} (line${lines.length === 1 ? '' : 's'} ${lines.slice(0, 5).join(', ')}${lines.length > 5 ? '…' : ''})`,
               )
               .join('; ');
-            toast.show({
-              kind: result.data.queued > 0 ? 'success' : 'error',
-              title:
-                result.data.queued > 0
-                  ? `Queued ${result.data.queued} tournament${result.data.queued === 1 ? '' : 's'}`
-                  : 'Nothing to queue',
-              description: detail || undefined,
-            });
+            // One toast per upload (DASH-2). "Nothing to queue" is a result,
+            // not a failure, so it is neutral and times out like any other.
             router.refresh();
             if (result.data.queued > 0) {
-              const drain = await drainUntilEmpty(() => router.refresh());
-              toast.show(summariseDrain(drain, false));
+              const queuedTitle = `Queued ${result.data.queued} tournament${result.data.queued === 1 ? '' : 's'}`;
+              const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);
+              toast.show({
+                ...drain,
+                title: drain.title === 'Done' ? queuedTitle : drain.title,
+                description: [detail ? `Skipped: ${detail}.` : '', drain.description]
+                  .filter(Boolean)
+                  .join(' '),
+              });
               router.refresh();
+            } else {
+              toast.show({
+                kind: 'info',
+                title: 'Nothing to queue',
+                description: detail || undefined,
+              });
             }
           });
         }}
@@ -343,28 +383,75 @@ export function ClearButton({ url }: { url: string }) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const focusAfterRender = useFocusAfterRender();
+
+  // Clear resets a URL's ingest, so it asks first (DASH-8, UX-17). The step is
+  // inline, with Cancel as the first control and the safe default for focus.
+  if (confirming) {
+    return (
+      <span
+        role="group"
+        aria-label="Confirm clearing this import"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1"
+      >
+        <span className="text-caption text-ink-soft">
+          Clear this import? The tournament stays on your record until you ingest it again.
+        </span>
+        <Button
+          ref={cancelRef}
+          type="button"
+          variant="link"
+          size="sm"
+          disabled={isPending}
+          onClick={() => {
+            setConfirming(false);
+            focusAfterRender(triggerRef);
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          loading={isPending}
+          leftIcon={!isPending ? <Trash2 className="h-3.5 w-3.5" aria-hidden /> : undefined}
+          onClick={() => {
+            startTransition(async () => {
+              const result = await postJson('/api/ingest/clear', { url });
+              if (!result.ok) {
+                toast.show(failureToast(result, 'Clear failed'));
+                return;
+              }
+              toast.show({
+                kind: 'success',
+                title: 'Cleared',
+                description: 'Ingestion reset — click Ingest to retry.',
+              });
+              router.refresh();
+              setConfirming(false);
+            });
+          }}
+        >
+          Clear
+        </Button>
+      </span>
+    );
+  }
 
   return (
     <Button
+      ref={triggerRef}
       type="button"
       variant="link"
       size="sm"
-      loading={isPending}
-      leftIcon={!isPending ? <Trash2 className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      leftIcon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}
       onClick={() => {
-        startTransition(async () => {
-          const result = await postJson('/api/ingest/clear', { url });
-          if (!result.ok) {
-            toast.show(failureToast(result, 'Clear failed'));
-            return;
-          }
-          toast.show({
-            kind: 'success',
-            title: 'Cleared',
-            description: 'Ingestion reset — click Ingest to retry.',
-          });
-          router.refresh();
-        });
+        setConfirming(true);
+        focusAfterRender(cancelRef);
       }}
     >
       Clear
@@ -421,23 +508,21 @@ export function ReingestMineButton() {
           const { queued: n, skipped } = result.data;
           const skipNote =
             skipped > 0 ? ` (${skipped} skipped — source page no longer exists)` : '';
+          const locked = result.data.skippedLocked;
+          const lockedNote =
+            locked > 0
+              ? ` ${locked} locked ${locked === 1 ? 'URL was' : 'URLs were'} left untouched.`
+              : '';
           toast.show({
             kind: 'success',
             title: 'Queued for re-ingest',
             description:
-              n > 0
+              (n > 0
                 ? `${n} ${n === 1 ? 'URL' : 'URLs'} queued — use "Ingest all" to process them.${skipNote}`
                 : skipped > 0
                   ? `Nothing to re-ingest — all ${skipped} URLs are permanently unavailable.`
-                  : 'Nothing to re-ingest yet.',
+                  : 'Nothing to re-ingest yet.') + lockedNote,
           });
-          if (result.data.skippedLocked > 0) {
-            toast.show({
-              kind: 'success',
-              title: 'Locked tournaments skipped',
-              description: `${result.data.skippedLocked} locked ${result.data.skippedLocked === 1 ? 'URL was' : 'URLs were'} left untouched.`,
-            });
-          }
           router.refresh();
         });
       }}
@@ -465,13 +550,14 @@ export function ReingestSelectedButton() {
       type="button"
       variant="outline"
       loading={isPending}
-      disabled={selectedCount === 0}
       leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {
+        // Left enabled so the reason can be given on press instead of hidden
+        // behind a disabled button (FORM-7, UX-16).
         const urls = selectedReingestUrls();
         if (urls.length === 0) {
           toast.show({
-            kind: 'error',
+            kind: 'info',
             title: 'Nothing selected',
             description: 'Select one or more unlocked tournament URLs first.',
           });

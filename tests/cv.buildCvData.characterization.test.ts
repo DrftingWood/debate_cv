@@ -272,7 +272,7 @@ describe('buildCvData characterization: top-level shape', () => {
   it('returns every top-level key with the summary for this record', async () => {
     const cv = await buildCvData(USER);
     expect(Object.keys(cv).sort()).toEqual(
-      ['fieldStats', 'highlights', 'judgeRows', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
+      ['fieldStats', 'highlights', 'judgeRows', 'lastIngestedAt', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
     );
     expect(cv.user).toEqual({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
     // First claimed person's display name, ahead of the Google account name.
@@ -570,6 +570,7 @@ describe('buildCvData characterization: queries', () => {
       fieldStats: [],
       unmatchedTournaments: [],
       summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
+      lastIngestedAt: null,
       highlights: {
         championships: [],
         deepestBreaks: [],

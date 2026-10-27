@@ -95,7 +95,7 @@ export function CvShareButton() {
           tabIndex={-1}
           role="dialog"
           aria-label="Share your CV"
-          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card outline-none border border-border bg-card p-4 shadow-lg"
         >
           {!state ? (
             <p role="status" className="text-caption text-ink-soft">

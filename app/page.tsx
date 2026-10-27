@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth, signIn } from '@/lib/auth';
 import { buttonClasses } from '@/components/ui/Button';
+import { PendingTextSubmit } from '@/components/PendingSubmit';
 import { Footer } from '@/components/Footer';
 import { BrandMark } from '@/components/BrandMark';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
@@ -44,12 +45,7 @@ async function SignInLink() {
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <button
-        type="submit"
-        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
-      >
-        Sign in
-      </button>
+      <PendingTextSubmit>Sign in</PendingTextSubmit>
     </form>
   );
 }
