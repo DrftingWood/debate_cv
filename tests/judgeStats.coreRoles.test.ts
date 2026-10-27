@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import {
   classifyCoreRole,
   coreJudgingBreak,
-  coreUsuallyJudges,
   isAdjudicationCoreRole,
 } from '@/lib/calicotab/judgeStats';
 import { parseParticipantsList } from '@/lib/calicotab/parseTabs';
@@ -32,15 +31,6 @@ describe('classifyCoreRole', () => {
     expect(classifyCoreRole('Cameron')).toBeNull();
     expect(isAdjudicationCoreRole('Cameron')).toBe(false);
     expect(isAdjudicationCoreRole('Chief Adjudicator')).toBe(true);
-  });
-});
-
-describe('coreUsuallyJudges', () => {
-  test('CAs and the adj core do; Tab Directors do not', () => {
-    expect(coreUsuallyJudges('chief_adjudicator')).toBe(true);
-    expect(coreUsuallyJudges('adj_core')).toBe(true);
-    expect(coreUsuallyJudges('tab_director')).toBe(false);
-    expect(coreUsuallyJudges(null)).toBe(false);
   });
 });
 

@@ -87,7 +87,12 @@ const SNAPSHOT = {
 vi.mock('@/lib/calicotab/parseNav', () => ({
   parsePrivateUrlPage: () => {
     const snap = structuredClone(SNAPSHOT);
-    if (h.ownerName) snap.registration = { ...snap.registration, personName: h.ownerName, teamName: null as unknown as string };
+    if (h.ownerName)
+      snap.registration = {
+        ...snap.registration,
+        personName: h.ownerName,
+        teamName: null as unknown as string,
+      };
     return snap;
   },
   extractAdjudicatorRounds: () => [],
@@ -1173,18 +1178,25 @@ describe('ingestPrivateUrl: an iron-man’s teamBreakRank', () => {
 describe('ingestPrivateUrl: a core judge who then judges keeps the core tag', () => {
   // A stateful stand-in for the TournamentParticipant table, so the order of
   // writes (roster first, judging rounds after) is exercised end to end.
+  type Row = Record<string, unknown>;
+  type Where = { tournamentId_personId: { tournamentId: bigint; personId: bigint } };
   function statefulParticipants() {
-    const rows = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const rows = new Map<string, Row>();
     let nextId = 500n;
-    const key = (w: any) => `${w.tournamentId_personId.tournamentId}:${w.tournamentId_personId.personId}`; // eslint-disable-line @typescript-eslint/no-explicit-any
-    prismaMock.tournamentParticipant.upsert.mockImplementation(async (a: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      const k = key(a.where);
-      const prior = rows.get(k);
-      const row = prior ? { ...prior, ...a.update } : { id: nextId++, ...a.create };
-      rows.set(k, row);
-      return row;
-    });
-    prismaMock.tournamentParticipant.findUnique.mockImplementation(async (a: any) => rows.get(key(a.where)) ?? null); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const key = (w: Where) =>
+      `${w.tournamentId_personId.tournamentId}:${w.tournamentId_personId.personId}`;
+    prismaMock.tournamentParticipant.upsert.mockImplementation(
+      async (a: { where: Where; update: Row; create: Row }) => {
+        const k = key(a.where);
+        const prior = rows.get(k);
+        const row = prior ? { ...prior, ...a.update } : { id: nextId++, ...a.create };
+        rows.set(k, row);
+        return row;
+      },
+    );
+    prismaMock.tournamentParticipant.findUnique.mockImplementation(
+      async (a: { where: Where }) => rows.get(key(a.where)) ?? null,
+    );
     return rows;
   }
 

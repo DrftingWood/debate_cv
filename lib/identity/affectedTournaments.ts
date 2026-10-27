@@ -93,10 +93,12 @@ import {
  * break category ("Novice Final" is not the "Open Final").
  *
  * Two owner rules sit on top (assumptions register, ingest Q4/Q10, 2026-10-27).
- * (1) Nobody is in both an Open final and a Novice final at one tournament:
- * entries that between them reach both are an overlap although the round keys
- * differ. EUDC alone runs Open and ESL outrounds side by side and lets one
- * person be in both, so ESL pairs are left disjoint. (2) HWS-style round
+ * (1) Nobody is in both an Open final and a Novice final at one tournament,
+ * and at every event but EUDC nobody is in both an Open outround and an ESL
+ * (or any other category's) outround: entries that between them reach both
+ * are an overlap although the round keys differ. EUDC alone runs Open and ESL
+ * outrounds side by side and lets one person be in both, so there those pairs
+ * are left disjoint (the event comes from the name, slug or host). (2) HWS-style round
  * robins put one debate before two judging panels (independent rankings and
  * speaks, aggregated). A results page that lists a team twice is read as that
  * format, and a judge repeated in such a round is not flagged as sitting on
@@ -651,6 +653,8 @@ function scoredRounds(r: SpeakerTabRow): Set<string> {
 
 /** Everything the pair checks look rounds up in. */
 type Evidence = {
+  /** The event is EUDC, where one person may be in both the Open and ESL outrounds. */
+  eudc: boolean;
   rounds: RoundIndex;
   /** v1 key → speaker-tab rows' (loose team, scored rounds). */
   speakerTab: Map<string, Array<{ team: string; rounds: Set<string> }>>;
@@ -698,7 +702,7 @@ type PairVerdict = {
   pair?: UndecidedPair;
 };
 
-function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
+function sideVerdict(a: Side, b: Side, crossRole: boolean, eudc: boolean): PairVerdict {
   const ra = a.rounds;
   const rb = b.rounds;
   if (!ra || !rb) {
@@ -716,14 +720,21 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
   // Owner rule (assumptions Q4/Q10): nobody is in both an Open final and a
   // Novice final at one tournament, so entries that between them reach both
   // are two people even though the two finals have different round keys.
-  // (EUDC is the one event where Open and ESL outrounds run side by side and
-  // one person may be in both; ESL is not covered by this rule.)
+  // The wider outround rule (any Open vs category pair) follows below.
   const crossFinal = crossBracketFinals(ra, rb) ?? crossBracketFinals(rb, ra);
   if (crossFinal) {
     return {
       cls: 'overlap',
       crossRole,
       evidence: `final: Open final and Novice final (${crossFinal.open} and ${crossFinal.novice})`,
+    };
+  }
+  const crossBracket = eudc ? null : crossBracketOutrounds(ra, rb);
+  if (crossBracket) {
+    return {
+      cls: 'overlap',
+      crossRole,
+      evidence: `outrounds: Open (${crossBracket.a}) and another bracket (${crossBracket.b})`,
     };
   }
   return {
@@ -733,13 +744,65 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
   };
 }
 
+/** What the offline checker is told about the event a list belongs to. */
+export type EventInfo = { name?: string | null; slug?: string | null; host?: string | null };
+
+/** EUDC, from the tournament's name, slug or host. */
+export function isEudc(event: EventInfo | undefined): boolean {
+  if (!event) return false;
+  return [event.name, event.slug, event.host].some((t) =>
+    /(?<![a-z])eudc(?![a-z])|european universities debating/i.test(t ?? ''),
+  );
+}
+
+const OUTROUND_KEY =
+  /^(?:grand_final|final|(?:partial_)?(?:semifinal|quarterfinal|(?:double_|triple_)?octofinal))(?: (.+))?$/;
+
+/** A category word that means the Open bracket, in the languages the lexicon reads. */
+const OPEN_CATEGORY = /^(?:open|abiert[oa]s?|abert[oa]s?|ouvert[es]?|offen)$/;
+const NOVICE_CATEGORY = /novice|novat[oa]s?|noviz|iniciad[oa]s?/;
+
+/**
+ * The bracket an outround's key belongs to: 'open' for a bare stage or an Open
+ * category (Gran Final Abierta), 'novice' for Novice/Novatos/Iniciados, else
+ * the category text (esl, gold, ...). null for a prelim or any other round.
+ */
+function outroundBracket(key: string): string | null {
+  const m = OUTROUND_KEY.exec(key);
+  if (!m) return null;
+  const category = (m[1] ?? '').trim().toLowerCase();
+  if (category === '' || OPEN_CATEGORY.test(category)) return 'open';
+  return NOVICE_CATEGORY.test(category) ? 'novice' : category;
+}
+
 /** The bracket a final's round key belongs to; null for any other round. */
 function finalBracket(key: string): 'open' | 'novice' | null {
-  const m = /^(?:grand_final|final)(?: (.+))?$/.exec(key);
-  if (!m) return null;
-  const category = (m[1] ?? '').trim();
-  if (category === '' || category === 'open') return 'open';
-  return /novice/.test(category) ? 'novice' : null;
+  if (!/^(?:grand_final|final)(?: |$)/.test(key)) return null;
+  const b = outroundBracket(key);
+  return b === 'open' || b === 'novice' ? b : null;
+}
+
+/**
+ * Owner rule 2: at every event but EUDC, Open outrounds and the outrounds of
+ * any other bracket (ESL, Novice, Gold, ...) belong to different people. One
+ * key reaching an Open outround and the other a non-Open one is an overlap.
+ */
+export function crossBracketOutrounds(
+  ra: Set<string>,
+  rb: Set<string>,
+): { a: string; b: string } | null {
+  for (const [x, y] of [
+    [ra, rb],
+    [rb, ra],
+  ] as const) {
+    const open = [...x].find((r) => outroundBracket(r) === 'open');
+    const other = [...y].find((r) => {
+      const b = outroundBracket(r);
+      return b != null && b !== 'open';
+    });
+    if (open && other) return { a: open, b: other };
+  }
+  return null;
 }
 
 /** `open` holds an Open final and `novice` holds a Novice final: which keys. */
@@ -786,7 +849,7 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
     rounds: ev.rounds.judgeNameRounds.get(name) ?? null,
     from: 'results',
   });
-  return sideVerdict(side(na), side(nb), false);
+  return sideVerdict(side(na), side(nb), false, ev.eudc);
 }
 
 /**
@@ -831,9 +894,14 @@ function basePairVerdict(a: Entry, b: Entry, ctx: KeyContext): PairVerdict {
   const roles = [a.role, b.role].sort().join('+');
   switch (roles) {
     case 'speaker+speaker':
-      return sideVerdict(speakerSide(a, ctx), speakerSide(b, ctx), false);
+      return sideVerdict(speakerSide(a, ctx), speakerSide(b, ctx), false, ctx.ev.eudc);
     case 'adjudicator+speaker':
-      return sideVerdict(speakerSide(a.role === 'speaker' ? a : b, ctx), judgeSide(ctx), true);
+      return sideVerdict(
+        speakerSide(a.role === 'speaker' ? a : b, ctx),
+        judgeSide(ctx),
+        true,
+        ctx.ev.eudc,
+      );
     case 'adjudicator+adjudicator':
       return judgePairVerdict(a, b, ctx);
     default:
@@ -999,10 +1067,11 @@ function speakerTabIndex(rows: SpeakerTabRow[] | undefined): Evidence['speakerTa
   return out;
 }
 
-export function findIdentityIssues(lists: ParsedLists): TournamentFindings {
+export function findIdentityIssues(lists: ParsedLists, event?: EventInfo): TournamentFindings {
   const lost = new Set<string>();
   const shared = new Map<string, SharedKey>();
   const ev: Evidence = {
+    eudc: isEudc(event),
     rounds: indexRounds(lists.rounds),
     speakerTab: speakerTabIndex(lists.speakerRows),
   };

@@ -90,16 +90,17 @@ try {
       ...(t.landing ? ['landing'] : []),
       `results:${t.results.length}`,
     ];
+    const name = unknown.tournamentNameOf(t.landing, read);
     let findings = { emptyKeyNames: [], sharedKeys: [], resultsPages: 0 };
     let error;
     try {
       findings = m.findIdentityIssues(
         m.parseTournamentDocuments(t.docs, read, { landing: t.landing, results: t.results }),
+        { name, slug: t.slug, host: t.host },
       );
     } catch (e) {
       error = e instanceof Error ? e.message.slice(0, 200) : String(e);
     }
-    const name = unknown.tournamentNameOf(t.landing, read);
     reports.push({ base: t.base, host: t.host, slug: t.slug, pagesRead, findings, error, name });
     done += 1;
     if (done % 25 === 0)

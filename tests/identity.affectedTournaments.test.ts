@@ -11,6 +11,8 @@ import {
   findIdentityIssues,
   groupByTournament,
   isLostName,
+  crossBracketOutrounds,
+  isEudc,
   roundKey,
   parseTournamentDocuments,
   summarise,
@@ -360,7 +362,7 @@ describe('roundKey', () => {
 });
 
 describe('owner rules: Open and Novice finals, double panels', () => {
-  const namesakes = (cols: [string, string]) =>
+  const namesakes = (cols: [string, string], event?: { name?: string }) =>
     findIdentityIssues(
       parseTournamentDocuments({ speakerTab: doc('s') }, () =>
         vuePage([
@@ -378,6 +380,7 @@ describe('owner rules: Open and Novice finals, double panels', () => {
           },
         ]),
       ),
+      event,
     ).sharedKeys[0];
 
   test('an Open final and a Novice final at one tournament are two people', () => {
@@ -389,9 +392,50 @@ describe('owner rules: Open and Novice finals, double panels', () => {
     expect(namesakes(['Novice Final', 'Final'])).toMatchObject({ class: 'overlap' });
   });
 
-  test('other pairs of different outrounds stay disjoint (a semi in one, a final in the other)', () => {
-    expect(namesakes(['Open Semifinal', 'Novice Final'])).toMatchObject({ class: 'disjoint' });
-    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'disjoint' });
+  // Owner rule 2 (completed): at every event but EUDC, Open outrounds and
+  // ESL (or any other category) outrounds belong to different people, at any
+  // stage. EUDC is the one event where one person may be in both.
+  test('at a non-EUDC event an Open outround and an ESL or other category outround are two people', () => {
+    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Semifinal', 'Novice Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Quarterfinal', 'Gold Semifinal'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Final', 'Gold Final'], { name: 'Some Open 2025' })).toMatchObject({
+      class: 'overlap',
+    });
+  });
+
+  test('an Open final and an ESL final are two people unless the event is EUDC', () => {
+    // The speaker tab files ESL as a category column, so the bracket rule is
+    // checked directly on the round keys it compares.
+    expect(crossBracketOutrounds(new Set(['final open']), new Set(['final esl']))).not.toBeNull();
+    expect(crossBracketOutrounds(new Set(['final']), new Set(['semifinal esl']))).not.toBeNull();
+    expect(crossBracketOutrounds(new Set(['final esl']), new Set(['final efl']))).toBeNull();
+    expect(crossBracketOutrounds(new Set(['final open']), new Set(['semifinal']))).toBeNull();
+    expect(isEudc({ name: 'EUDC 2025' })).toBe(true);
+    expect(isEudc({ name: 'Open 2025', slug: 'eudc25' })).toBe(true);
+    expect(isEudc({ name: 'Euro Open' })).toBe(false);
+    expect(isEudc(undefined)).toBe(false);
+  });
+
+  test('EUDC may have one person in both the Open and the ESL outrounds', () => {
+    expect(namesakes(['Open Final', 'Gold Final'], { name: 'EUDC 2025' })).toMatchObject({
+      class: 'disjoint',
+    });
+    expect(namesakes(['Open Semifinal', 'Gold Final'], { name: 'EUDC 2025' })).toMatchObject({
+      class: 'disjoint',
+    });
+  });
+
+  test('the same bracket at two stages is still one person', () => {
+    expect(namesakes(['Open Semifinal', 'Open Final'])).toMatchObject({ class: 'disjoint' });
+  });
+
+  test('Spanish bracket names are read: Gran Final Abierta and Final Novatos', () => {
+    expect(namesakes(['Gran Final Abierta', 'Final Novatos'])).toMatchObject({
+      class: 'overlap',
+      evidence: expect.stringContaining('Open final and Novice final'),
+    });
   });
 
   test('a team listed twice on one results page is a double-panel debate: no panel overlap', () => {

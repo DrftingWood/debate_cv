@@ -151,13 +151,9 @@ export function isAdjudicationCoreRole(roleText: string | null | undefined): boo
 /**
  * Owner rule (assumptions I20, 2026-10-27): Chief Adjudicators usually judge
  * the competition; Tab Directors usually do not. So a core row from the roster
- * is no evidence that its holder judged; only judging rounds are.
- */
-export function coreUsuallyJudges(kind: CoreRoleKind | null): boolean {
-  return kind === 'chief_adjudicator' || kind === 'adj_core';
-}
-
-/**
+ * is no evidence that its holder judged; only judging rounds are (see
+ * coreJudgingBreak below).
+ *
  * Owner rule: if a Tab Director does judge, that counts as a judging break
  * for them; technically it does for a judging CA too. So any core member who
  * sat on a round has a judging break; one who never judged does not, and nor
