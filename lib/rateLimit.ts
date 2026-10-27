@@ -35,6 +35,9 @@ export const RATE_LIMITS = {
   // Each call triggers a full tournament scrape: ~16 outbound fetches, up
   // to 60s of function time, and `force: true` skips the cache entirely.
   'ingest:url': { limit: 20, windowSec: 3600 },
+  // Owner decision D (C85): the hourly limit alone allowed 480 pastes a day.
+  // 100 a day matches the CSV day (5 uploads x 20 URLs).
+  'ingest:url:daily': { limit: 100, windowSec: 86400 },
   // Gmail scan already has a 5-minute cooldown of its own; this bounds the
   // day rather than the minute.
   'ingest:gmail': { limit: 12, windowSec: 3600 },

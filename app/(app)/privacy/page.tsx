@@ -35,10 +35,10 @@ export default function Privacy() {
           <code>/privateurls/</code> path.
         </p>
         <p>
-          The search runs when you press Scan Gmail, when you open your CV, and automatically in the
-          background about every 30 minutes while your Gmail is connected. It only looks for those
-          links; it does not read or keep anything else from your mail. Disconnect Gmail in Settings
-          to stop it.
+          The search runs when you press Scan Gmail, when you open your CV, and also in the
+          background on a best-effort basis, with no fixed schedule, while your Gmail is connected.
+          It only looks for those links; it does not read or keep anything else from your mail.
+          Disconnect Gmail in Settings to stop it.
         </p>
 
         <h2>What we store</h2>
