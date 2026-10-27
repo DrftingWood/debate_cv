@@ -132,7 +132,7 @@ function Grid({ tab, metric, label }: { tab: CrossTab; metric: Metric; label: st
           <tbody>
             {tab.rows.map((r) => (
               <Tr key={r}>
-                <Td className="whitespace-nowrap pl-4 font-medium">{keyLabel(tab.rowDimension, r, rowsMulti)}</Td>
+                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{keyLabel(tab.rowDimension, r, rowsMulti)}</Td>
                 {tab.cols.map((c, i) => (
                   <Td key={c} numeric className={i === tab.cols.length - 1 ? 'pr-4' : undefined}>
                     <CellValue cell={cellAt.get(cellKey(r, c))} metric={metric} />
@@ -159,12 +159,13 @@ function Toggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
-          aria-pressed={o.id === value}
+          role="radio"
+          aria-checked={o.id === value}
           onClick={() => onChange(o.id)}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',

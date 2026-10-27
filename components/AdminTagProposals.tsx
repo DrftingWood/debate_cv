@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Nil, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { useToast } from '@/components/ui/Toast';
-import { TableScroll } from '@/components/ui/DataTable';
 import { postJson, type ApiResult } from '@/lib/utils/api';
 
 type ProposalRow = {
@@ -205,7 +205,7 @@ export function AdminTagProposals() {
               'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
                 ? 'border-ink/30 bg-ink text-paper'
-                : 'border-border bg-paper text-ink hover:bg-surface-2')
+                : 'border-input bg-paper text-ink hover:bg-surface-2')
             }
           >
             {STATUS_LABELS[s]}
@@ -243,63 +243,49 @@ export function AdminTagProposals() {
       ) : null}
 
       {loading ? (
-        <p className="text-body text-ink-soft italic">Loading…</p>
+        <p role="status" className="text-body text-ink-soft">Loading…</p>
       ) : error ? (
         <p className="text-body text-destructive">{error}</p>
       ) : !proposals || proposals.length === 0 ? (
-        <p className="text-body text-ink-soft italic">
-          No {filter} proposals.
-        </p>
+        <p className="text-body text-ink-soft">No {filter} proposals.</p>
       ) : (
-        <TableScroll label="Tag proposals">
-          <table className="min-w-max text-table">
-            <thead>
-              <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                <th className="whitespace-nowrap px-4 py-2.5 font-medium">Kind</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposed value</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Current value</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournament</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Motion</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposer</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Date</th>
-                {filter === 'pending' ? (
-                  <th className="whitespace-nowrap px-3 py-2.5 font-medium">Actions</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {proposals.map((p) => (
-                <tr key={p.id} className="align-top border-b border-border hover:bg-surface-2">
-                  <td className="whitespace-nowrap px-4 py-2.5">{kindLabel(p.kind)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-ink">{p.value}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {p.currentValue ?? <span className="italic">none</span>}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className="block max-w-[14rem] truncate" title={p.tournamentName}>
-                      {p.tournamentName}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {p.motionText ? (
-                      <span
-                        className="block max-w-[18rem] truncate text-ink-soft"
-                        title={p.motionText}
-                      >
-                        {p.motionText}
-                      </span>
-                    ) : (
-                      <span className="text-ink-soft italic">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {p.userEmail ?? '—'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {formatDate(p.createdAt)}
-                  </td>
-                  {filter === 'pending' ? (
-                    <td className="px-3 py-2.5">
+        <div className="panel overflow-hidden">
+          <TableScroll>
+            <Table className="min-w-max" label={`${STATUS_LABELS[filter]} tag proposals`}>
+              <thead>
+                <tr>
+                  <Th className="pl-4">Kind</Th>
+                  <Th>Proposed value</Th>
+                  <Th>Current value</Th>
+                  <Th>Tournament</Th>
+                  <Th>Motion</Th>
+                  <Th>Proposer</Th>
+                  <Th>Date</Th>
+                  {filter === 'pending' ? <Th className="pr-4">Actions</Th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {proposals.map((p) => (
+                  <Tr key={p.id} className="align-top">
+                    <Td rowHeader className="whitespace-nowrap pl-4 font-normal">{kindLabel(p.kind)}</Td>
+                    <Td className="whitespace-nowrap font-medium text-ink">{p.value}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft">
+                      {p.currentValue ?? <span className="text-ink-soft">none</span>}
+                    </Td>
+                    <Td>
+                      <span className="block max-w-[14rem] break-words">{p.tournamentName}</span>
+                    </Td>
+                    <Td>
+                      {p.motionText ? (
+                        <span className="block max-w-[18rem] break-words text-ink-soft">{p.motionText}</span>
+                      ) : (
+                        <Nil title="No motion attached" />
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-ink-soft">{p.userEmail ?? <Nil />}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft">{formatDate(p.createdAt)}</Td>
+                    {filter === 'pending' ? (
+                      <Td className="pr-4">
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2">
                           <Button
@@ -335,19 +321,20 @@ export function AdminTagProposals() {
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           className={
-                            'h-7 w-48 rounded border border-border bg-paper px-2 text-caption ' +
+                            'h-7 w-48 rounded border border-input bg-paper px-2 text-caption ' +
                             'text-ink placeholder:text-ink-soft focus:outline-none ' +
                             'focus:ring-1 focus:ring-ring'
                           }
                         />
                       </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+                      </Td>
+                    ) : null}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableScroll>
+        </div>
       )}
     </div>
   );

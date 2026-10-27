@@ -172,7 +172,7 @@ export function StatsFilterBar({
             <summary
               aria-labelledby="stats-filter-partner stats-filter-partner-value"
               className={cn(
-                'flex cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-table text-ink coarse:min-h-[44px]',
+                'flex cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-2 text-table text-ink coarse:min-h-[44px]',
                 '[&::-webkit-details-marker]:hidden',
               )}
             >
@@ -199,7 +199,7 @@ export function StatsFilterBar({
                       onChange={() => onChange({ ...filter, partners: toggle(filter.partners, p.key) })}
                       className="h-4 w-4 shrink-0 accent-primary"
                     />
-                    <span className="truncate text-ink" title={p.label}>{p.label}</span>
+                    <span className="break-words text-ink">{p.label}</span>
                   </span>
                   <span className="num text-caption text-ink-soft">
                     {p.count}
