@@ -201,9 +201,12 @@ describe('onboarding flow render (FORM-1, FORM-4, FORM-10, COPY-4)', () => {
     const out = flow('preflight');
     expect(out).toContain('Reading your tournament links');
     expect(out).toContain('role="status"');
-    // The only live region is the toast host's; the counters are not live.
-    expect(out.match(/aria-live/g)).toHaveLength(1);
-    expect(out).toMatch(/aria-live="polite"[^>]*class="pointer-events-none fixed/);
+    // Live regions are the toast host's role="alert"/role="status" pair (T1,
+    // no aria-live attribute) plus the progress line: two statuses, one alert;
+    // the counters themselves are not live.
+    expect(out).not.toContain('aria-live');
+    expect(out.match(/role="status"/g)).toHaveLength(2);
+    expect(out.match(/role="alert"/g)).toHaveLength(1);
   });
 
   it('shows loading, not "no names", before the names arrive (FORM-10)', () => {

@@ -186,7 +186,7 @@ export function OnboardingFlow({
     startScan(async () => {
       const res = await postJson<ScanResponse>('/api/ingest/gmail');
       if (!res.ok) {
-        setScanError(scanErrorMessage(res.status, res.error));
+        setScanError(scanErrorMessage(res).description);
         return;
       }
       const found = res.data.found ?? 0;
