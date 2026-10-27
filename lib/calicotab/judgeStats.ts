@@ -121,6 +121,55 @@ export function getInroundsChairedCount(
   return count;
 }
 
+// ── Adjudication core ───────────────────────────────────────────────────────
+
+/**
+ * What kind of adjudication-core member a role text names. The stored tag
+ * stays 'core' for all of them (no data-shape change); the kind only decides
+ * how much we assume about judging.
+ */
+export type CoreRoleKind = 'tab_director' | 'chief_adjudicator' | 'adj_core';
+
+/**
+ * Read a participant's role text. `\bd?ca\b` is a standalone word so a name
+ * such as "Cameron" does not match. Someone who is both Tab Director and CA is
+ * read as the CA, who judges. Returns null for anyone not on the core.
+ */
+export function classifyCoreRole(roleText: string | null | undefined): CoreRoleKind | null {
+  const t = (roleText ?? '').toLowerCase();
+  if (/\b(?:chief|deputy)\s+(?:chief\s+)?adjudicator\b/.test(t) || /\bd?ca\b/.test(t))
+    return 'chief_adjudicator';
+  if (/\b(?:adj[\s-]?core|core\s+adjudicator)\b/.test(t)) return 'adj_core';
+  if (/\btab[\s-]?director\b/.test(t)) return 'tab_director';
+  return null;
+}
+
+export function isAdjudicationCoreRole(roleText: string | null | undefined): boolean {
+  return classifyCoreRole(roleText) != null;
+}
+
+/**
+ * Owner rule (assumptions I20, 2026-10-27): Chief Adjudicators usually judge
+ * the competition; Tab Directors usually do not. So a core row from the roster
+ * is no evidence that its holder judged; only judging rounds are.
+ */
+export function coreUsuallyJudges(kind: CoreRoleKind | null): boolean {
+  return kind === 'chief_adjudicator' || kind === 'adj_core';
+}
+
+/**
+ * Owner rule: if a Tab Director does judge, that counts as a judging break
+ * for them; technically it does for a judging CA too. So any core member who
+ * sat on a round has a judging break; one who never judged does not, and nor
+ * does an ordinary judge (who breaks only by judging an outround).
+ */
+export function coreJudgingBreak(
+  judgeTypeTag: string | null | undefined,
+  judgedAnyRound: boolean,
+): boolean {
+  return judgeTypeTag?.toLowerCase() === 'core' && judgedAnyRound;
+}
+
 export type { OutroundStage } from '@/lib/calicotab/stageLexicon';
 import type { OutroundStage } from '@/lib/calicotab/stageLexicon';
 import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';

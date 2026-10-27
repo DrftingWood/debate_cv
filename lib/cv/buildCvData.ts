@@ -4,6 +4,7 @@ import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import {
   classifyRoundLabel,
+  coreJudgingBreak,
   deepestOutroundAcrossRoles,
   outroundRank,
 } from '@/lib/calicotab/judgeStats';
@@ -1212,7 +1213,18 @@ export async function buildCvData(
       judgedOutroundStages: [...(judgedStagesByTournament.get(tid) ?? [])],
       lastOutroundChaired: p.lastOutroundChaired ?? null,
       lastOutroundJudged,
-      broke: !!lastOutroundJudged || judgeBrokeTournaments.has(tid),
+      // A core member (Tab Director, CA) who judged any round has a judging
+      // break (owner rule, I20). A Tab Director who only appears on the roster
+      // does not: they usually do not judge.
+      broke:
+        !!lastOutroundJudged ||
+        judgeBrokeTournaments.has(tid) ||
+        coreJudgingBreak(
+          p.judgeTypeTag,
+          (stats?.size ?? 0) > 0 ||
+            (judgedRoundsByTournament.get(tid)?.size ?? 0) > 0 ||
+            (judgedStagesByTournament.get(tid)?.size ?? 0) > 0,
+        ),
       hasOpenReport: reportedTournamentIds.has(tid.toString()),
     });
   }

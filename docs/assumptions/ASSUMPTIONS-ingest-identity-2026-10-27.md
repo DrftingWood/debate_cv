@@ -182,7 +182,7 @@ Where: `parseTabs.ts:456-483`.
 Kind D/T. Source: documentation (PR #104).
 If false: an "Equity Officer" or "Convenor" listed as an adjudicator is a normal judge. A role in another language ("Juez", "Adjudicador") becomes `other`, with no judge role written. "Tab Director" counts as adjudication core; you may not agree.
 Check: Q13.
-Status: unverified.
+Status: unverified. **Owner rule implemented (2026-10-27):** the core classification moved to `judgeStats.ts` (`classifyCoreRole`: tab director, chief adjudicator, adj core). Chief Adjudicators usually judge, Tab Directors usually do not (`coreUsuallyJudges`). The stored shape is unchanged: every kind is still role `adjudicator`, tag `core`, so the credential is kept. What changed: a judge row's `broke` in `buildCvData` is now also true when a `core` member judged any round (`coreJudgingBreak`), so a judging TD, and technically a judging CA, has a judging break. A TD who only appears on the roster gets none. Known limit: `writeJudgeParticipantRole` overwrites `judgeTypeTag` with `Adjudicator` on the landing path, so the core tag survives only where the roster write runs last; this PR does not touch that.
 
 **I21. On a registration card, a single unlabelled bullet means an adjudicator.**
 Where: `parseTabs.ts:1257-1262`.
