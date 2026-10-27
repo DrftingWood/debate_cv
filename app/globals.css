@@ -724,3 +724,12 @@
     box-shadow: none !important;
   }
 }
+
+/* UX-74 / SC 2.4.11: the desktop header is sticky (about 60px), so a control
+   focused by Shift+Tab, or an anchor jump, must not land underneath it. Below
+   md the header scrolls away and needs no offset. */
+@media (min-width: 768px) {
+  html {
+    scroll-padding-top: 4.5rem;
+  }
+}
