@@ -52,6 +52,10 @@ export const RATE_LIMITS = {
   'tags:propose': { limit: 120, windowSec: 3600 },
   'cv:errorReport': { limit: 20, windowSec: 3600 },
   'sharing:update': { limit: 60, windowSec: 3600 },
+  // Found tab "This is me" / "Not me" / undo. Counted per decision, not per
+  // request (a bulk confirm of 6 rows costs 6), so the owner's 50-a-day cap
+  // means 50 decisions. A real career is a few dozen tournaments.
+  'discovery:decide': { limit: 50, windowSec: 86400 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
@@ -71,23 +75,29 @@ export type RateLimitResult = {
  * rate limiter that takes the whole site down when its table is unavailable
  * has done more damage than the abuse it was meant to stop. The failure is
  * logged so it is visible rather than silent.
+ *
+ * `cost` lets one request consume several units (a bulk decision on the
+ * Found tab costs one per row). Default 1, so every existing caller is
+ * unchanged.
  */
 export async function consumeRateLimit(
   name: RateLimitName,
   subject: string,
+  cost = 1,
 ): Promise<RateLimitResult> {
   const { limit, windowSec } = RATE_LIMITS[name];
   const key = `${name}:${subject}`;
+  const units = Math.max(1, Math.floor(cost));
 
   try {
     const rows = await prisma.$queryRaw<{ count: number; windowStart: Date }[]>`
       INSERT INTO "RateLimit" ("key", "count", "windowStart")
-      VALUES (${key}, 1, NOW())
+      VALUES (${key}, ${units}, NOW())
       ON CONFLICT ("key") DO UPDATE SET
         "count" = CASE
           WHEN "RateLimit"."windowStart" < NOW() - ${`${windowSec} seconds`}::interval
-          THEN 1
-          ELSE "RateLimit"."count" + 1
+          THEN ${units}
+          ELSE "RateLimit"."count" + ${units}
         END,
         "windowStart" = CASE
           WHEN "RateLimit"."windowStart" < NOW() - ${`${windowSec} seconds`}::interval
@@ -155,8 +165,9 @@ export function formatWait(seconds: number): string {
 export async function enforceRateLimit(
   name: RateLimitName,
   subject: string,
+  cost = 1,
 ): Promise<NextResponse | null> {
-  const result = await consumeRateLimit(name, subject);
+  const result = await consumeRateLimit(name, subject, cost);
   if (result.ok) return null;
   return NextResponse.json(
     {

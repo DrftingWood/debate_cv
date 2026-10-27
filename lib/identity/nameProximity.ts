@@ -27,9 +27,11 @@ export type NameProximity = 'match' | 'close' | 'different';
 
 /**
  * Drop a parenthetical, fold accents ("José" → "jose") and normalise. The
- * app's normaliser alone would drop an accented letter outright.
+ * app's normaliser alone would drop an accented letter outright. Exported
+ * for the Found tab's matcher (lib/discovery), which must agree with this
+ * file on what counts as the same name.
  */
-function fold(name: string): string {
+export function fold(name: string): string {
   const withoutParens = name.replace(/\([^)]*\)/g, ' ');
   return normalizePersonName(withoutParens.normalize('NFD').replace(/[̀-ͯ]/g, ''));
 }
