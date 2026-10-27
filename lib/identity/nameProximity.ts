@@ -72,7 +72,72 @@ function firstNameAgrees(a: string, b: string): boolean {
   return short.length >= 4 && editDistance(a, b, 1) <= 1; // one typo
 }
 
+/**
+ * Owner rule (assumptions I38): a one-word name or a double surname is never
+ * trusted on shape alone. "Maria Garcia Lopez" may be Maria with the surname
+ * "Garcia Lopez" or a middle name; "Abhishek" alone says almost nothing. Both
+ * always go to the user to decide. Three or more words count as ambiguous
+ * unless every middle word is an initial ("Abhishek K Acharya"). A hyphenated
+ * surname and a surname particle ("de la Cruz", "van Dijk") also count.
+ */
+const SURNAME_PARTICLES = new Set([
+  'de',
+  'del',
+  'della',
+  'la',
+  'las',
+  'los',
+  'da',
+  'das',
+  'do',
+  'dos',
+  'di',
+  'van',
+  'von',
+  'der',
+  'den',
+  'bin',
+  'binti',
+  'al',
+  'el',
+  'le',
+  'st',
+]);
+
+export function isAmbiguousNameShape(name: string): boolean {
+  const raw = name.replace(/\([^)]*\)/g, ' ').trim();
+  if (/\p{L}-\p{L}/u.test(raw.split(/[\s,]+/).slice(-1)[0] ?? '')) return true;
+  // Words as typed: a hyphenated first name ("Jean-Paul") stays one word.
+  let tokens = raw
+    .split(/[\s,]+/)
+    .map((t) => fold(t))
+    .filter(Boolean);
+  if (tokens.length < 2) return true; // a one-word name
+  // A leading particle is a family name written first ("Do Thanh Tung", "Le Van
+  // Minh"), not a surname prefix: drop it, the rest decides.
+  if (tokens.length >= 3 && SURNAME_PARTICLES.has(tokens[0] ?? '')) tokens = tokens.slice(1);
+  // A particle counts only when a word follows it ("de la Cruz", "van Dijk"):
+  // as the last word it is the surname itself ("Li Bin", "Wang Di", "Minh Do").
+  if (tokens.slice(1, -1).some((t) => SURNAME_PARTICLES.has(t))) return true;
+  return tokens.length >= 3 && tokens.slice(1, -1).some((t) => t.length > 1);
+}
+
+/**
+ * The answer, capped for the owner rule: an ambiguous shape on either side can
+ * be at most 'close', and 'close' is never pre-ticked or linked on its own.
+ */
 export function nameProximity(registrationName: string, profileName: string): NameProximity {
+  const p = rawProximity(registrationName, profileName);
+  if (
+    p === 'match' &&
+    (isAmbiguousNameShape(registrationName) || isAmbiguousNameShape(profileName))
+  ) {
+    return 'close';
+  }
+  return p;
+}
+
+function rawProximity(registrationName: string, profileName: string): NameProximity {
   const a = fold(registrationName);
   const b = fold(profileName);
   if (!a || !b) return 'different';

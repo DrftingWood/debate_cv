@@ -37,6 +37,12 @@ const h = vi.hoisted(() => ({
   captureMessage: vi.fn(),
   // Per-test replacement for the speaker tab parse (null: the default rows).
   speakerTab: null as unknown[] | null,
+  // Per-test override of who the private URL's owner is (null: Ada Lovelace).
+  ownerName: null as string | null,
+  // Per-test override of Judge Judy's participants-list tag (null: 'invited').
+  judyTag: null as string | null,
+  // Per-test replacement for the motions page parse (null: the default two).
+  motions: null as unknown[] | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -79,7 +85,16 @@ const SNAPSHOT = {
 };
 
 vi.mock('@/lib/calicotab/parseNav', () => ({
-  parsePrivateUrlPage: () => structuredClone(SNAPSHOT),
+  parsePrivateUrlPage: () => {
+    const snap = structuredClone(SNAPSHOT);
+    if (h.ownerName)
+      snap.registration = {
+        ...snap.registration,
+        personName: h.ownerName,
+        teamName: null as unknown as string,
+      };
+    return snap;
+  },
   extractAdjudicatorRounds: () => [],
   extractSpeakerRounds: () => [],
 }));
@@ -232,7 +247,7 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
           {
             name: 'Judge Judy',
             role: 'adjudicator',
-            judgeTag: 'invited',
+            judgeTag: h.judyTag ?? 'invited',
             teamName: null,
             institution: null,
           },
@@ -242,22 +257,25 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
 }));
 
 vi.mock('@/lib/calicotab/parseMotions', () => ({
-  parseMotionsTab: () => [
-    { roundNumber: 1, roundLabel: 'Round 1', text: 'THW ban zoos', infoSlide: null, seq: 0 },
-    {
-      roundNumber: null,
-      roundLabel: 'Grand Final',
-      text: 'THR the rise of AI',
-      infoSlide: 'Info',
-      seq: 1,
-    },
-  ],
+  parseMotionsTab: () =>
+    h.motions ?? [
+      { roundNumber: 1, roundLabel: 'Round 1', text: 'THW ban zoos', infoSlide: null, seq: 0 },
+      {
+        roundNumber: null,
+        roundLabel: 'Grand Final',
+        text: 'THR the rise of AI',
+        infoSlide: 'Info',
+        seq: 1,
+      },
+    ],
 }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
+import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
+import { IngestDeadlineError } from '@/lib/calicotab/fetchSession';
 
 const USER = 'user-1';
 const FINGERPRINT = computeFingerprint({
@@ -397,6 +415,10 @@ beforeEach(() => {
   h.recordParserRun.mockReset();
   h.captureMessage.mockReset();
   h.speakerTab = null;
+  h.ownerName = null;
+  h.judyTag = null;
+  h.motions = null;
+  resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -851,6 +873,102 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     });
   });
 
+  // Owner rule (assumptions I49): motions released after the last round re-scrape.
+  // Owner rule (I49): motions released after the last round re-scrape the
+  // tournament, and so does any LATER release (outround motions). The check is
+  // one request for the motions page, compared with the stored count; an empty
+  // or unchanged page is served from the cache.
+  describe('a linked motions page', () => {
+    const withMotionsLinked = async (fn: () => Promise<void>) => {
+      const discovered = SNAPSHOT.navigation.meta.discovered;
+      SNAPSHOT.navigation.meta.discovered = [...discovered, 'motionsTab'];
+      try {
+        await fn();
+      } finally {
+        SNAPSHOT.navigation.meta.discovered = discovered;
+      }
+    };
+    const motionsFetches = () => h.fetchHtml.mock.calls.filter((c) => c[0] === MOTIONS_TAB).length;
+
+    it('with no motions stored and some now listed re-scrapes', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(false);
+      });
+    });
+
+    it('with every listed motion already stored is served from the cache', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(2);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('that is still empty is served from the cache, with one cheap request then none', async () => {
+      await withMotionsLinked(async () => {
+        h.motions = [];
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        // Second load of the same tournament: cached again, no refetch.
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('that gains a later release (outround motions) triggers a re-scrape', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(1);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(false);
+      });
+    });
+
+    it('that lists fewer motions than are stored does not re-scrape', async () => {
+      await withMotionsLinked(async () => {
+        h.motions = [{ roundLabel: 'Round 1', seq: 1 }];
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(3);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('an ingest deadline hit during the motions fetch still serves the cache hit', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        h.fetchHtml.mockImplementation(async (url: string) => {
+          if (url === MOTIONS_TAB)
+            throw new IngestDeadlineError('ingest stopped: deadline reached');
+          return okPage(url);
+        });
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('that is blocked does not loop: served from the cache', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        h.fetchHtml.mockImplementation(async (url: string) =>
+          url === MOTIONS_TAB
+            ? { ok: false, url, status: 403, cdnBlocked: true, elapsedMs: 1 }
+            : okPage(url),
+        );
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   it('a re-scrape of a stored tournament with no fetch warnings runs the tournament-wide refresh', async () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([{ id: 900n, personId: 101n }]);
@@ -1077,5 +1195,55 @@ describe('ingestPrivateUrl: an iron-man’s teamBreakRank', () => {
       expect(call.create).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
       expect(call.update).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
     }
+  });
+});
+
+// ─── Core judging break survives the judging writes (review fix) ────────────
+
+describe('ingestPrivateUrl: a core judge who then judges keeps the core tag', () => {
+  // A stateful stand-in for the TournamentParticipant table, so the order of
+  // writes (roster first, judging rounds after) is exercised end to end.
+  type Row = Record<string, unknown>;
+  type Where = { tournamentId_personId: { tournamentId: bigint; personId: bigint } };
+  function statefulParticipants() {
+    const rows = new Map<string, Row>();
+    let nextId = 500n;
+    const key = (w: Where) =>
+      `${w.tournamentId_personId.tournamentId}:${w.tournamentId_personId.personId}`;
+    prismaMock.tournamentParticipant.upsert.mockImplementation(
+      async (a: { where: Where; update: Row; create: Row }) => {
+        const k = key(a.where);
+        const prior = rows.get(k);
+        const row = prior ? { ...prior, ...a.update } : { id: nextId++, ...a.create };
+        rows.set(k, row);
+        return row;
+      },
+    );
+    prismaMock.tournamentParticipant.findUnique.mockImplementation(
+      async (a: { where: Where }) => rows.get(key(a.where)) ?? null,
+    );
+    return rows;
+  }
+
+  it('Tab Director tagged core who chairs rounds still ends core (a judging break)', async () => {
+    install();
+    const rows = statefulParticipants();
+    h.ownerName = 'Judge Judy';
+    h.judyTag = 'core';
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const judy = [...rows.values()].find((r) => r.personId === 104n)!;
+    expect(judy.judgeTypeTag).toBe('core');
+    expect(judy.chairedPrelimRounds).toBe(2);
+  });
+
+  it('a plain adjudicator is unaffected: still tagged Adjudicator after judging', async () => {
+    install();
+    const rows = statefulParticipants();
+    h.ownerName = 'Judge Judy';
+    h.judyTag = 'normal';
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const judy = [...rows.values()].find((r) => r.personId === 104n)!;
+    expect(judy.judgeTypeTag).toBe('Adjudicator');
+    expect(judy.chairedPrelimRounds).toBe(2);
   });
 });

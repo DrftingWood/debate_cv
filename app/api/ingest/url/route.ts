@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
 import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
@@ -40,6 +41,20 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: 'bad_request', details: parse.error.flatten() },
       { status: 400 },
+    );
+  }
+  // Only an admin may force a re-scrape (owner rule, assumptions I53). A forced
+  // scrape ignores the freshness cache and the regression guard, so a user's
+  // forced paste during a Cloudflare block could overwrite a shared
+  // tournament's good data for everyone. Everyone else's re-ingest still runs,
+  // unforced: it re-scrapes by itself when rounds, tabs or motions are new.
+  if (parse.data.force && !isAdminEmail(session.user.email)) {
+    return NextResponse.json(
+      {
+        error: 'force_admin_only',
+        hint: 'Only an admin can force a re-scrape. Your tournaments refresh by themselves when new rounds, tabs or motions are released.',
+      },
+      { status: 403 },
     );
   }
   // isPrivateUrl, NOT PRIVATE_URL_RE.test — the regex is an unanchored

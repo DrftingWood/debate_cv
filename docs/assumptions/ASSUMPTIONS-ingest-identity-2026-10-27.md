@@ -126,14 +126,14 @@ Where: `affectedTournaments.ts:340-348` (`roundKey` uses only the number).
 Kind D. Source: documentation.
 If false: a person who speaks in R1A and judges R1B (halves run one after the other) is counted as two people sharing a name, an "overlap", when your rule would allow one person.
 Check: Q4.
-Status: unverified.
+Status: unverified. **Owner rule implemented in the offline checker only (2026-10-27):** a results page that lists one team twice is read as an HWS-style double-panel round (two panels, independent rankings and speaks, aggregated). A judge repeated in such a round is no longer counted as an overlap (the pair is reported `unknown`). Speaker/judge overlaps in that round are still flagged. Live ingest is unchanged.
 
 **I13. Two finals in different brackets are different rounds.**
 Where: `affectedTournaments.ts:344` (stage + category).
 Kind D. Source: documentation.
 If false: if Open and Novice finals run at the same time, one person cannot be in both. The checker would call such a pair "disjoint" (plausibly one person) when it is really two.
 Check: Q4.
-Status: unverified.
+Status: unverified. **Owner rule implemented in the offline checker only (2026-10-27):** two entries sharing a name where one reaches an Open final (or Grand Final) and the other a Novice final are an `overlap` (two people). ESL/other brackets are unchanged: EUDC is the only event where one person may be in both Open and ESL outrounds, and the checker does not know the event. Live ingest merging is NOT changed (too risky): it still keys on the normalised name and the round-overlap test is not applied there.
 
 **I14. The tournament format is inferred from room shape, then team size, then name: 4 teams a room means BP; 2 a side means two-team; 3 a side means AP unless the seats say Proposition/Opposition (WSDC) or Affirmative/Negative with an Australs-circuit name.**
 Where: `format.ts:59-66`, `:84-97`, `:131-160`, `:186-260`.
@@ -182,7 +182,7 @@ Where: `parseTabs.ts:456-483`.
 Kind D/T. Source: documentation (PR #104).
 If false: an "Equity Officer" or "Convenor" listed as an adjudicator is a normal judge. A role in another language ("Juez", "Adjudicador") becomes `other`, with no judge role written. "Tab Director" counts as adjudication core; you may not agree.
 Check: Q13.
-Status: unverified.
+Status: unverified. **Owner rule implemented (2026-10-27):** the core classification moved to `judgeStats.ts` (`classifyCoreRole`: tab director, chief adjudicator, adj core). Chief Adjudicators usually judge, Tab Directors usually do not (`coreUsuallyJudges`). The stored shape is unchanged: every kind is still role `adjudicator`, tag `core`, so the credential is kept. What changed: a judge row's `broke` in `buildCvData` is now also true when a `core` member judged any round (`coreJudgingBreak`), so a judging TD, and technically a judging CA, has a judging break. A TD who only appears on the roster gets none. Known limit: `writeJudgeParticipantRole` overwrites `judgeTypeTag` with `Adjudicator` on the landing path, so the core tag survives only where the roster write runs last; this PR does not touch that.
 
 **I21. On a registration card, a single unlabelled bullet means an adjudicator.**
 Where: `parseTabs.ts:1257-1262`.
@@ -221,7 +221,7 @@ Where: `stageLexicon.ts:104-176`; `parseTabs.ts:996-999`.
 Kind T/D. Source: documentation (PR #114).
 If false: "Viertelfinale" (German), "Demi-finale" (French) or "Perempat Final" (Malay/Indonesian) are not outrounds. Their winners are not recorded, and they may count as prelims. "Perempat Final" contains "Final" and so reads as THE final.
 Check: Q14. Query: `SELECT DISTINCT stage FROM "EliminationResult"` and `"JudgeAssignment"` for labels outside the lexicon.
-Status: unverified.
+Status: unverified. **Owner answer implemented (2026-10-27):** English is the default and at least one Spanish-language competition exists. The Spanish stage names are now covered and tested (`tests/calicotab.stageLexiconSpanish.test.ts`): Final, Gran Final, Semifinal(es), Semis, Cuartos (de final), Octavos (de final), Dieciseisavos (de final, the round of 32), Treintaidosavos (de final, the round of 64) and the pre-rounds Prefinal, Pre-semifinales, Precuartos, Preoctavos, Predieciseisavos. "Debate-off" stays the only tie-break name; "Desempate" is deliberately not added. `PARSER_VERSION` is not bumped, so stored rows with these labels are re-read only when something else triggers a re-scrape (see I50).
 
 **I26. Results pages live at `/results/round/<N>/`, the number is the round's order in the tournament, and outrounds are numbered after the prelims.**
 Where: `parseTabs.ts:976-1001`; `parseNav.ts:139-149`.
@@ -316,7 +316,7 @@ Where: `nameProximity.ts:55-89`.
 Kind N. Source: owner decision A (threshold set by an agent, "tested rather than tuned").
 If false: the ordering fails for names whose family name is not first or last as expected. Spanish double surnames: "Ana García López" vs "Ana García" share first and first-surname but the last word differs, so the result is "different". Mononyms and single-word profile names always give "different". Siblings ("A. Acharya" vs "Abhishek Acharya") give "close".
 Check: Q2.
-Status: unverified (thresholds).
+Status: unverified (thresholds). **Owner rule implemented (2026-10-27):** a one-word name, a hyphenated or particle surname ("de la Cruz", "van Dijk"), and any name of three or more words whose middle words are not initials is "ambiguous" (`isAmbiguousNameShape`). If either side is ambiguous, `nameProximity` returns at most `close`. Onboarding pre-ticks only `isMine` or `match` rows, so `close` (and every ambiguous name) always needs the user's own tick. The claim route uses the separate `personNameMatches` and is unchanged.
 
 **I39. A pasted or CSV-uploaded private URL belongs to whoever pasted it, and needs no DiscoveredUrl row.**
 Where: `app/api/ingest/url/route.ts`, `app/api/ingest/csv/route.ts:41` (`enqueueUrl` only). The only `DiscoveredUrl` writer is `lib/gmail/scanUser.ts:52`.
@@ -397,14 +397,14 @@ Where: `prescrape.ts:59-68`; `ingest.ts:714-716`.
 Kind D/L. Source: owner statement (rule 3, as implemented in #143/#144).
 If false: motions often go public after the final, and some events publish the break or speaker tab days later. Motions released after the stored scrape are never fetched, because no check looks at them.
 Check: Q15. Query: tournaments with `"Motion"` count 0 whose landing nav now links `/motions/`.
-Status: confirmed by owner for rounds; motions not covered by the rule.
+Status: confirmed by owner for rounds; **owner (2026-10-27): a later motions release triggers a re-scrape. Implemented:** `releasedTabMissing` now also returns true when the landing nav links the motions page (`motionsTab` in `meta.discovered`) and no `Motion` row is stored, and `checkCacheFreshness` looks the motions up (`prisma.motion.findFirst`). Known limit: a tournament that links an empty or unparseable motions page re-scrapes on every load until a motion is stored, the same shape as I47/I48; watch for it.
 
 **I50. A PARSER_VERSION bump re-scrapes every stored tournament on its next load.**
 Where: `ingest.ts:697-699`, `:736`; `version.ts:59`; prescrape `ingest.ts:308`.
 Kind L. Source: documentation (CLAUDE.md).
 If false (owner rule 2 says only missing rounds/tabs or force): a bump is a code-side force for everyone. Today that is the only way parser fixes reach old data.
 Check: Q16.
-Status: unverified against rule 2.
+Status: **owner (2026-10-27): a parser-version bump is an acceptable re-scrape trigger.** Documented in `prescrape.ts` (`releasedTabMissing` lists every trigger) and here. Bumps remain a deliberate act: do not bump `PARSER_VERSION` casually, it invalidates every user's cached parses. The Spanish stage lexicon change (I25) did not bump it.
 
 **I51. The pre-scrape treats a stored row as current on parser version alone; it does not check rounds or tabs.**
 Where: `ingest.ts:308-310`.
@@ -425,7 +425,7 @@ Where: `app/api/ingest/url/route.ts:20`; `ingest.ts:1118`, `:1343-1345`.
 Kind L. Source: UNVERIFIED (no owner decision found).
 If false: during a Cloudflare block, one user's forced paste can overwrite a shared tournament's good data with a degraded parse for everyone. It is rate-limited.
 Check: Q17.
-Status: unverified.
+Status: **owner (2026-10-27): only admins can force a re-scrape. Implemented:** `POST /api/ingest/url` answers `403 force_admin_only` (with a hint sentence, mapped in `lib/ingest/userMessage.ts` to a neutral "Refresh is automatic" toast) when `force: true` comes from an account that is not in `ADMIN_EMAIL` (`isAdminEmail`, `lib/admin.ts`). The dashboard "Re-ingest" button sends `force` only for admins; for everyone else it is an unforced re-ingest, which still re-scrapes when rounds, tabs or motions are new. `/cv/verify` (the other `force: true` caller) was already admin-only. The queue and `reingest-mine` never force.
 
 **I54. A re-scrape that would drop teams, participants or ranks below half (when there were more than 5) is a degraded page and is refused.**
 Where: `ingest.ts:1120-1159`.

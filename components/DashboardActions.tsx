@@ -481,11 +481,14 @@ export function IngestButton({
   url,
   alreadyDone,
   name,
+  canForce = false,
 }: {
   url: string;
   alreadyDone: boolean;
   /** Tournament name or host, so the accessible name says which row (NV-13). */
   name?: string;
+  /** Admins only: re-ingest forces a fresh scrape instead of using the cache. */
+  canForce?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -508,7 +511,10 @@ export function IngestButton({
         startTransition(async () => {
           const result = await postJson<IngestUrlResponse>('/api/ingest/url', {
             url,
-            force: alreadyDone,
+            // Only an admin may force a re-scrape (owner rule, I53). Everyone
+            // else re-ingests unforced, which re-scrapes by itself when
+            // rounds, tabs or motions are new and otherwise says "cached".
+            force: alreadyDone && canForce,
           });
           if (!result.ok) {
             toast.show(failureToast(result, `${label} failed`));

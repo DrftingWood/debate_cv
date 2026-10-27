@@ -119,6 +119,56 @@ describe('POST /api/ingest/url', () => {
   });
 });
 
+// Owner rule (assumptions I53, ingest Q17, 2026-10-27): only admins can force a
+// re-scrape. A forced scrape also skips the regression guard, so one user's
+// forced paste during a block could overwrite a shared tournament for everyone.
+describe('POST /api/ingest/url — forced re-scrape is admin-only', () => {
+  const OK_RESULT = {
+    tournamentId: 7n,
+    fingerprint: 'fp',
+    cached: false,
+    claimedPersonId: null,
+    claimedPersonName: null,
+    totalTeams: 1,
+    totalParticipants: 1,
+    warnings: [],
+  } as unknown as Awaited<ReturnType<typeof ingestPrivateUrl>>;
+
+  beforeEach(() => {
+    process.env.ADMIN_EMAIL = 'boss@example.com';
+    prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.tournamentParticipant.findMany.mockResolvedValue([]);
+    vi.mocked(ingestPrivateUrl).mockResolvedValue(OK_RESULT);
+  });
+
+  it('refuses force from a signed-in non-admin, with an explanation, without scraping', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1', 'someone@example.com'));
+    const res = await POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK, force: true } }));
+    expect(res.status).toBe(403);
+    const data = await readJson<{ error: string; hint: string }>(res);
+    expect(data.error).toBe('force_admin_only');
+    expect(data.hint).toMatch(/only an admin/i);
+    expect(vi.mocked(ingestPrivateUrl)).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin force', async () => {
+    authMock.mockResolvedValue(fakeSession('admin-1', 'boss@example.com'));
+    const res = await POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK, force: true } }));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(ingestPrivateUrl).mock.calls[0]![2]).toMatchObject({ force: true });
+  });
+
+  it('leaves an ordinary, unforced import open to everyone', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1', 'someone@example.com'));
+    const res = await POST(jsonRequest('/api/ingest/url', { body: { url: URL_OK } }));
+    expect(res.status).toBe(200);
+    const res2 = await POST(
+      jsonRequest('/api/ingest/url', { body: { url: URL_OK, force: false } }),
+    );
+    expect(res2.status).toBe(200);
+  });
+});
+
 describe('POST /api/ingest/url — SSRF gate', () => {
   beforeEach(() => authMock.mockResolvedValue(fakeSession('user-1')));
 

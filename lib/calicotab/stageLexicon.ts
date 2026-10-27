@@ -107,15 +107,24 @@ const RULES: Rule[] = [
   // otherwise be read as the round it merely feeds.
   {
     stage: 'partial_triple_octofinal',
-    re: new RegExp(String.raw`\bpr[eé][-\s]*double[-\s]*octo(?:s|[-\s]*${FINALS})?\b`, 'i'),
+    re: new RegExp(
+      String.raw`\bpr[eé][-\s]*double[-\s]*octo(?:s|[-\s]*${FINALS})?\b|\bpr[eé][-\s]*dieciseisavos${CONNECTED_FINAL}`,
+      'i',
+    ),
   },
   {
     stage: 'partial_double_octofinal',
-    re: new RegExp(String.raw`\bpr[eé][-\s]*octo(?:s|[-\s]*${FINALS})?\b`, 'i'),
+    re: new RegExp(
+      String.raw`\bpr[eé][-\s]*octo(?:s|[-\s]*${FINALS})?\b|\bpr[eé][-\s]*octavos${CONNECTED_FINAL}`,
+      'i',
+    ),
   },
   {
     stage: 'partial_octofinal',
-    re: new RegExp(String.raw`\bpr[eé][-\s]*qua(?:r)?ter(?:s|[-\s]*${FINALS})?\b`, 'i'),
+    re: new RegExp(
+      String.raw`\bpr[eé][-\s]*qua(?:r)?ter(?:s|[-\s]*${FINALS})?\b|\bpr[eé][-\s]*cuartos${CONNECTED_FINAL}`,
+      'i',
+    ),
   },
   {
     stage: 'partial_quarterfinal',
@@ -129,7 +138,7 @@ const RULES: Rule[] = [
   {
     stage: 'triple_octofinal',
     re: new RegExp(
-      String.raw`\btriples?[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\btriples\b|\btriples[-\s]*octavos${CONNECTED_FINAL}`,
+      String.raw`\btriples?[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\btriples\b|\btriples[-\s]*octavos${CONNECTED_FINAL}|\btreinta[-\s]*y?[-\s]*dosavos${CONNECTED_FINAL}|\btreintaidosavos${CONNECTED_FINAL}`,
       'i',
     ),
   },
@@ -140,7 +149,7 @@ const RULES: Rule[] = [
   {
     stage: 'double_octofinal',
     re: new RegExp(
-      String.raw`\bdouble[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdobles?[-\s]*octavos${CONNECTED_FINAL}|\bdobles?[-\s]*oitavas${CONNECTED_FINAL}|三十二强赛?|三十二強賽?`,
+      String.raw`\bdouble[-\s]*oct[ao](?:s|[-\s]*finals?)?\b|\bdoubles\b|\bround\s*of\s*32\b|\bdobles?[-\s]*octavos${CONNECTED_FINAL}|\bdobles?[-\s]*oitavas${CONNECTED_FINAL}|\bdieciseisavos${CONNECTED_FINAL}|三十二强赛?|三十二強賽?`,
       'i',
     ),
   },

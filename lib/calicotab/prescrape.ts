@@ -73,6 +73,20 @@ export function storedTournamentFresh(existing: { scrapedAt: Date; year: number 
  * merely constructed a URL for does not count). The team tab is stored as the
  * roundNumber=0 TeamResult rows, the speaker tab as speaker score totals on
  * the participants.
+ *
+ * The motions page is deliberately NOT judged here. Tabbycat can link
+ * /motions/ before any motion is released, and a blocked or unparseable page
+ * leaves zero rows, so "linked and none stored" would re-scrape the whole
+ * tournament on every load. It is judged by motionsGained below instead.
+ *
+ * Re-scrape triggers, all told (rule 2 of the ingest freshness rules):
+ *   1. the landing page advertises more result rounds than are stored;
+ *   2. this function: a linked team tab or speaker tab is not stored; or
+ *      motionsGained: the motions page lists more motions than are stored
+ *      (owner rule I49: a later release, e.g. outround motions, re-scrapes);
+ *   3. a PARSER_VERSION bump (owner-accepted, I50), or Re-ingest all's epoch scrapedAt;
+ *   4. an admin forces it (I53; app/api/ingest/url and lib/admin.ts).
+ * Age alone never triggers one.
  */
 export function releasedTabMissing(
   discovered: readonly string[],
@@ -81,6 +95,41 @@ export function releasedTabMissing(
   if (discovered.includes('teamTab') && !stored.hasTeamTab) return true;
   if (discovered.includes('speakerTab') && !stored.hasSpeakerTab) return true;
   return false;
+}
+
+/**
+ * Does the motions page list more motions than are stored? Counted as they
+ * are stored, one per (round label, seq), so a page that repeats a motion does
+ * not look like a release. An empty page, or one that lists no more than we
+ * hold, never re-scrapes: that is what keeps a withheld, blocked or
+ * unparseable page from looping.
+ */
+export function motionsGained(
+  storedCount: number,
+  parsed: ReadonlyArray<{ roundLabel: string; seq: number }>,
+): boolean {
+  const distinct = new Set(parsed.map((m) => `${m.roundLabel}|${m.seq}`));
+  return distinct.size > storedCount;
+}
+
+/**
+ * In-memory guard so repeated loads of one tournament in the same server
+ * instance do not each fetch the motions page. Per-instance on purpose: the
+ * worst case on a cold instance is one cheap request, and no schema is needed.
+ */
+const MOTIONS_CHECK_WINDOW_MS = 10 * 60_000;
+const motionsCheckedAt = new Map<bigint, number>();
+
+/** True (and starts the window) when this tournament's motions page may be fetched now. */
+export function motionsCheckDue(tournamentId: bigint, now: number = Date.now()): boolean {
+  const last = motionsCheckedAt.get(tournamentId);
+  if (last !== undefined && now - last < MOTIONS_CHECK_WINDOW_MS) return false;
+  motionsCheckedAt.set(tournamentId, now);
+  return true;
+}
+
+export function resetMotionsChecks(): void {
+  motionsCheckedAt.clear();
 }
 
 export type JudgeHit = {
