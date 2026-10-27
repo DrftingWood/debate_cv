@@ -25,7 +25,49 @@ export type MotionEntry = {
   /** The round was in a four-team (BP) room, where `won` means 2nd or better. */
   fourTeam: boolean;
   points: number | null;
+  /**
+   * A knockout motion joined to the user's team's result in that stage:
+   * `won` is true when the team advanced (or, in a final, won it). Null for
+   * prelim motions and for a stage the team has no recorded result in.
+   * Outround speaker scores are not published, so this is the whole record.
+   */
+  knockout: { won: boolean; final: boolean } | null;
 };
+
+/**
+ * Do two labels name the same knockout round? The stage is read by the
+ * stage lexicon ("Final" = "Grand Final") and the break category must agree
+ * ("ESL Semifinals" is not "Semifinals", "Novice Final" is not "Grand
+ * Final") — the same keys the judge join below and the CV ledger use, since
+ * the motions tab and the round-results nav spell a stage independently.
+ */
+export function sameKnockoutStage(a: string | null | undefined, b: string | null | undefined): boolean {
+  const stage = stageKey(a);
+  return stage != null && stage === stageKey(b) && categoryKey(a) === categoryKey(b);
+}
+
+const normLabel = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * The user's team's result in the knockout round a label names, or null.
+ *
+ * Results come from two writers (the round-results pages and the private
+ * URL's Debates card) that may spell one stage differently, so several rows
+ * can name it. Every matching row must agree; rows that disagree give null
+ * rather than a guess (the stats page drops the same stage the same way).
+ */
+export function knockoutResultFor(
+  label: string,
+  results: ReadonlyArray<{ stage: string; won: boolean }>,
+): boolean | null {
+  const matches = results.filter((r) => sameKnockoutStage(r.stage, label));
+  if (matches.length === 0) return null;
+  const won = matches[0].won;
+  return matches.every((r) => r.won === won) ? won : null;
+}
+
+/** A knockout label names the tournament's last round. */
+export const isFinalStage = (label: string | null | undefined) => stageKey(label) === 'final';
 
 /**
  * Join motions to the user's rounds for the motion archive.
@@ -46,7 +88,10 @@ export type MotionEntry = {
  *     result and are marked `judgedOnly` so summary figures don't count
  *     them as debated.
  *  2. **Outround motions have no round number** and therefore never join
- *     to round data — they still appear, with nothing attached.
+ *     to round data. They join instead, by stage and break category, to the
+ *     user's team's outround result (`knockout`: advanced, won or
+ *     eliminated) in attachKnockoutResults below; a stage the team has
+ *     no result in still appears, with nothing attached.
  *  3. **A round can release several motions.** Every one of them gets the
  *     same round data and a `siblings` count, because without per-room
  *     draw data there is no way to know which was in the user's room.
@@ -65,19 +110,20 @@ export function buildMotionEntries(
   const speakerByTournament = new Map(speakerRows.map((r) => [r.tournamentId.toString(), r]));
   const judgeByTournament = new Map(judgeRows.map((r) => [r.tournamentId.toString(), r]));
 
+  // A round is its number for prelims and its label for knockouts, which is
+  // all an outround motion carries; AP's three-motion outrounds share one.
+  const roundOf = (m: CvTaggedMotion) =>
+    m.roundNumber != null ? `${m.tournamentId}:#${m.roundNumber}` : `${m.tournamentId}:${normLabel(m.roundLabel)}`;
   const siblingCount = new Map<string, number>();
-  for (const m of motions) {
-    if (m.roundNumber == null) continue;
-    const key = `${m.tournamentId}:${m.roundNumber}`;
-    siblingCount.set(key, (siblingCount.get(key) ?? 0) + 1);
-  }
+  for (const m of motions) siblingCount.set(roundOf(m), (siblingCount.get(roundOf(m)) ?? 0) + 1);
 
   const entries: MotionEntry[] = [];
   for (const motion of motions) {
     const tid = motion.tournamentId.toString();
     const row = speakerByTournament.get(tid);
     const judgeRow = judgeByTournament.get(tid);
-    if (!row && !judgeRow) continue;
+    const source = row ?? judgeRow;
+    if (!source) continue;
     if (!row && judgeRow && !sat(judgeRow, motion)) continue;
 
     const score =
@@ -99,13 +145,12 @@ export function buildMotionEntries(
 
     entries.push({
       tournamentKey: tid,
-      tournamentName: (row ?? judgeRow)!.tournamentName,
-      year: (row ?? judgeRow)!.year,
+      tournamentName: source.tournamentName,
+      year: source.year,
       motion,
       debated: score != null || result != null,
       judgedOnly: !row,
-      siblings:
-        motion.roundNumber == null ? 0 : (siblingCount.get(`${tid}:${motion.roundNumber}`) ?? 1) - 1,
+      siblings: (siblingCount.get(roundOf(motion)) ?? 1) - 1,
       score,
       position: result?.position ?? null,
       // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
@@ -114,6 +159,7 @@ export function buildMotionEntries(
         result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
       fourTeam: result && row ? isFourTeam(row.format, result.position) : false,
       points: result?.points ?? null,
+      knockout: null,
     });
   }
 
@@ -129,14 +175,37 @@ export function buildMotionEntries(
   return entries;
 }
 
+/**
+ * Join each knockout motion the user SPOKE at to their team's result in that
+ * stage (rule 2 above). A separate step so the archive join keeps its three
+ * inputs; the page passes `CvData.teamOutroundResults`.
+ *
+ * Judged-only entries never take a result: the user was on the panel, not
+ * on a team. An entry with a result counts as debated — the team was in the
+ * room — but carries no score, because outround ballots are not published.
+ */
+export function attachKnockoutResults(
+  entries: MotionEntry[],
+  results: ReadonlyArray<{ tournamentId: bigint; stage: string; won: boolean }>,
+): MotionEntry[] {
+  const byTournament = new Map<string, Array<{ stage: string; won: boolean }>>();
+  for (const r of results) {
+    const key = r.tournamentId.toString();
+    byTournament.set(key, [...(byTournament.get(key) ?? []), r]);
+  }
+  return entries.map((e) => {
+    if (e.judgedOnly || e.motion.roundNumber != null) return e;
+    const won = knockoutResultFor(e.motion.roundLabel, byTournament.get(e.tournamentKey) ?? []);
+    if (won == null) return e;
+    return { ...e, debated: true, knockout: { won, final: isFinalStage(e.motion.roundLabel) } };
+  });
+}
+
 /** Did this judge sit on a panel for the round this motion was released for? */
 function sat(judge: CvJudgeRow, motion: CvTaggedMotion): boolean {
   if (motion.roundNumber != null) return judge.judgedRoundNumbers.includes(motion.roundNumber);
   // Outround motions carry only a label: match the stage, within the same bracket.
-  const stage = stageKey(motion.roundLabel);
-  if (!stage) return false;
-  const bracket = categoryKey(motion.roundLabel);
-  return judge.judgedOutroundStages.some((s) => stageKey(s) === stage && categoryKey(s) === bracket);
+  return judge.judgedOutroundStages.some((s) => sameKnockoutStage(s, motion.roundLabel));
 }
 
 /**

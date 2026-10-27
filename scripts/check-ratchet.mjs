@@ -29,8 +29,9 @@ const BASELINE = {
   // first candidates when this number next falls.
   // 76 -> 73 (2026-10-27): those three are gone (the round-overlap rework of
   // affectedTournaments.ts).
-  // 73 -> 72 (2026-10-27): t4 stats-charts UX work removed one more.
-  nonNull: 72,
+  // 72 -> 69 (2026-10-27, after main 73 -> 72): the knockout-motion PR removed two in
+  // lib/cv/motionEntries.ts and one in app/(app)/cv/motions/page.tsx.
+  nonNull: 69,
   eslintDisableUnexplained: 2,
 };
 
