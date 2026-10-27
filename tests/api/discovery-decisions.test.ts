@@ -33,22 +33,17 @@ function row(over: Partial<FoundRow> = {}): FoundRow {
     region: null,
     publicUrl: '',
     listedName: 'Abhishek Acharya',
+    alias: 'Abhishek Acharya',
+    matchKind: 'exact',
     roles: ['speaker'],
     teamName: 'Ashoka A',
-    claimedBy: null,
+    mine: false,
     slots: [],
     eudc: false,
     teammates: [],
-    busiestYear: null,
     key: `${over.tournamentId ?? '10'}:${over.personId ?? '100'}`,
-    anchor: 'Abhishek Acharya',
-    proximity: 'match',
-    tier: 'strong',
-    score: 70,
     evidence: ['Same name'],
     warnings: [],
-    blockReason: null,
-    blockText: null,
     decision: null,
     ...over,
   };
@@ -122,7 +117,7 @@ describe('daily limit (50 decisions per user per day)', () => {
     loadFoundMock.mockResolvedValue({
       rows: [row({ tournamentId: '1' }), row({ tournamentId: '2' }), row({ tournamentId: '3' })],
     });
-    await call([item('confirm', '1'), item('confirm', '2'), item('confirm', '3')]);
+    await call([item('reject', '1'), item('reject', '2'), item('reject', '3')]);
     const values = prismaMock.$queryRaw.mock.calls[0].slice(1);
     expect(values[0]).toBe('discovery:decide:user-1');
     expect(values.filter((v) => v === 3)).toHaveLength(3);
@@ -147,7 +142,7 @@ describe('daily limit (50 decisions per user per day)', () => {
     loadFoundMock.mockResolvedValue({
       rows: [row({ tournamentId: '1' }), row({ tournamentId: '2' })],
     });
-    expect((await call([item('confirm', '1'), item('confirm', '2')])).status).toBe(429);
+    expect((await call([item('reject', '1'), item('reject', '2')])).status).toBe(429);
   });
 });
 
@@ -158,24 +153,25 @@ describe('validation against the current list', () => {
     expect(await readJson<{ error: string }>(res)).toMatchObject({ error: 'not_a_candidate' });
   });
 
-  it('409 when marking a blocked row as you; hiding it is fine', async () => {
-    loadFoundMock.mockResolvedValue({ rows: [row({ tier: 'blocked' })] });
-    expect((await call([item('confirm')])).status).toBe(409);
-    expect((await call([item('reject')])).status).toBe(200);
-  });
-
-  it('bulk "This is me" is for Strong rows only', async () => {
+  it('"This is me" is one row at a time: no bulk confirm', async () => {
     loadFoundMock.mockResolvedValue({
-      rows: [row({ tournamentId: '1' }), row({ tournamentId: '2', tier: 'possible' })],
+      rows: [row({ tournamentId: '1' }), row({ tournamentId: '2' })],
     });
     const res = await call([item('confirm', '1'), item('confirm', '2')]);
     expect(res.status).toBe(409);
-    expect(await readJson<{ error: string }>(res)).toMatchObject({ error: 'bulk_strong_only' });
+    expect(await readJson<{ error: string }>(res)).toMatchObject({ error: 'one_at_a_time' });
+    expect((await call([item('confirm', '1')])).status).toBe(200);
   });
 
-  it('a single Possible row can be marked on its own', async () => {
-    loadFoundMock.mockResolvedValue({ rows: [row({ tier: 'possible', proximity: 'close' })] });
+  it('a row with a same-round warning can still be answered either way', async () => {
+    loadFoundMock.mockResolvedValue({ rows: [row({ warnings: ['Two people may share'] })] });
     expect((await call([item('confirm')])).status).toBe(200);
+    expect((await call([item('reject')])).status).toBe(200);
+  });
+
+  it('loads the list for the signed-in user only', async () => {
+    await call([item('reject')]);
+    expect(loadFoundMock).toHaveBeenCalledWith('user-1');
   });
 
   it('restore needs a recorded decision', async () => {
@@ -194,9 +190,11 @@ describe('writes', () => {
     });
     expect(arg.create).toMatchObject({
       status: 'confirmed',
-      proximity: 'match',
+      proximity: 'exact',
+      score: 0,
       evidence: ['Same name', 'Check this'],
-      matcherVersion: 1,
+      blockReason: null,
+      matcherVersion: 2,
     });
     expect(arg.create.decidedAt).toBeInstanceOf(Date);
   });

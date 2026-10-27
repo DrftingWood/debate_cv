@@ -48,17 +48,11 @@ function validate(
     if (!row && !(item.decision === 'reject' && stored.has(key))) {
       return refuse('not_a_candidate', 'That tournament is no longer in your list.');
     }
-    if (item.decision === 'confirm' && row?.tier === 'blocked') {
-      return refuse('blocked', 'That row clashes with one you marked as you, so it cannot be you.');
-    }
   }
-  // Bulk "This is me" is for Strong matches only; everything else needs a
-  // look at each row (owner's rule: close names always need the user's tick).
+  // Every "This is me" is the user's own answer to one row: an exact name
+  // can still be someone else's, so there is no bulk confirm.
   if (confirms.length > 1) {
-    const weak = confirms.some(
-      (i) => rows.get(appearanceKey(i.tournamentId, i.personId))?.tier !== 'strong',
-    );
-    if (weak) return refuse('bulk_strong_only', 'Only strong matches can be marked together.');
+    return refuse('one_at_a_time', 'Mark each tournament as you one at a time.');
   }
   return null;
 }
@@ -85,13 +79,15 @@ function writeOne(
   const decidedAt = item.decision === 'restore' ? null : now;
   const row = rows.get(appearanceKey(item.tournamentId, item.personId));
   if (!row) return prisma.appearanceCandidate.update({ where, data: { status, decidedAt } });
+  // Proximity is how the name matched ('exact' or 'contains'), and the score
+  // column (required) holds the teammate evidence count, the one graded fact left.
   const facts = {
     status,
     decidedAt,
-    proximity: row.proximity,
-    score: row.score,
+    proximity: row.matchKind,
+    score: row.teammates.length,
     evidence: [...row.evidence, ...row.warnings],
-    blockReason: row.blockReason,
+    blockReason: null,
     matcherVersion: MATCHER_VERSION,
   };
   return prisma.appearanceCandidate.upsert({
@@ -135,7 +131,7 @@ export async function POST(req: Request) {
   if (limited) return limited;
 
   const [{ rows }, existing] = await Promise.all([
-    loadFound(userId, session.user?.name ?? null),
+    loadFound(userId),
     prisma.appearanceCandidate.findMany({
       where: {
         userId,

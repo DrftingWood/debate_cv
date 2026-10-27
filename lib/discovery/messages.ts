@@ -21,10 +21,8 @@ export function decisionError(status: number, code: string | undefined, reason?:
       return `You have reached today's limit of 50 decisions. ${reason ?? 'Try again tomorrow.'}`;
     case 'not_a_candidate':
       return 'That tournament is no longer in your list. Reload the page to see the current list.';
-    case 'blocked':
-      return 'That row clashes with one you marked as you, so it cannot be you. You can still hide it.';
-    case 'bulk_strong_only':
-      return 'Only strong matches can be marked together. Mark the others one at a time.';
+    case 'one_at_a_time':
+      return 'Mark each tournament as you one at a time.';
     case 'nothing_to_restore':
       return 'There was nothing to undo. Reload the page to see the current list.';
     case 'unauthorized':

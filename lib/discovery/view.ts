@@ -1,10 +1,10 @@
 /**
- * Shapes the matcher's rows and the stored decisions into what /cv/found
+ * Shapes the loader's rows and the stored decisions into what /cv/found
  * renders. Pure and serialisable (plain strings and numbers), because the
  * list is handed to a client component.
  */
 
-import type { Decision, FoundRow, Tier } from '@/lib/discovery/match';
+import type { Decision, FoundRow } from '@/lib/discovery/match';
 
 /** One row as the page renders it. */
 export type RowView = {
@@ -21,8 +21,6 @@ export type RowView = {
   /** The "Why this match" line. */
   evidence: string;
   warnings: string[];
-  blockText: string | null;
-  tier: Tier | null;
   decision: Decision | null;
 };
 
@@ -38,8 +36,11 @@ export type StoredDecision = {
   evidence: string[];
 };
 
+/** A name whose exact matches passed the per-name cap. */
+export type CappedAlias = { name: string; total: number; shown: number };
+
 export type FoundState =
-  /** No registration name on an ingested private URL: nothing to search with. */
+  /** No claimed name to search with. */
   | 'no_anchors'
   /** Names exist, but every one is in a script the stored keys cannot hold yet. */
   | 'unsearchable'
@@ -51,23 +52,21 @@ export type FoundState =
 
 export type FoundView = {
   state: FoundState;
-  strong: RowView[];
-  possible: RowView[];
-  ambiguous: RowView[];
-  blocked: RowView[];
+  /** Undecided rows. */
+  candidates: RowView[];
   confirmed: RowView[];
   hidden: RowView[];
-  /** Anchors held back for an admin check (shown to admins only). */
-  heldBack: number;
-  /** The name lookup hit its cap, so the list may be incomplete. */
-  truncated: boolean;
+  /** Names whose matches were cut at the per-name cap ("showing the first N"). */
+  capped: CappedAlias[];
+  /** Names past the alias limit, not searched this time. */
+  overLimit: number;
 };
 
 export type FoundInput = {
-  anchorCount: number;
+  aliasCount: number;
   unsearchable: number;
-  heldBack: number;
-  truncated: boolean;
+  overLimit: number;
+  capped: readonly CappedAlias[];
   rows: readonly FoundRow[];
   stored: readonly StoredDecision[];
 };
@@ -103,15 +102,13 @@ function fromRow(row: FoundRow): RowView {
     team: row.teamName,
     evidence: row.evidence.join(EVIDENCE_SEPARATOR),
     warnings: row.warnings,
-    blockText: row.blockText,
-    tier: row.tier,
     decision: row.decision,
   };
 }
 
 /**
- * A decision whose appearance the matcher no longer returns (the anchor
- * changed, or a later scrape renamed the row) still shows, from what was
+ * A decision whose appearance the loader no longer returns (the name was
+ * unclaimed, or a later scrape renamed the row) still shows, from what was
  * stored when it was made, so a "Not me" can always be restored.
  */
 function fromStored(d: StoredDecision): RowView {
@@ -127,8 +124,6 @@ function fromStored(d: StoredDecision): RowView {
     team: null,
     evidence: d.evidence.join(EVIDENCE_SEPARATOR),
     warnings: [],
-    blockText: null,
-    tier: null,
     decision: d.status,
   };
 }
@@ -136,14 +131,11 @@ function fromStored(d: StoredDecision): RowView {
 export function shapeFoundView(input: FoundInput): FoundView {
   const view: FoundView = {
     state: 'list',
-    strong: [],
-    possible: [],
-    ambiguous: [],
-    blocked: [],
+    candidates: [],
     confirmed: [],
     hidden: [],
-    heldBack: input.heldBack,
-    truncated: input.truncated,
+    capped: [...input.capped],
+    overLimit: input.overLimit,
   };
   const seen = new Set<string>();
   for (const row of input.rows) {
@@ -151,7 +143,7 @@ export function shapeFoundView(input: FoundInput): FoundView {
     const v = fromRow(row);
     if (row.decision === 'confirmed') view.confirmed.push(v);
     else if (row.decision === 'rejected') view.hidden.push(v);
-    else view[row.tier].push(v);
+    else view.candidates.push(v);
   }
   for (const d of input.stored) {
     const v = fromStored(d);
@@ -160,12 +152,10 @@ export function shapeFoundView(input: FoundInput): FoundView {
     else view.hidden.push(v);
   }
 
-  const undecided =
-    view.strong.length + view.possible.length + view.ambiguous.length + view.blocked.length;
   const decided = view.confirmed.length + view.hidden.length;
-  if (input.anchorCount === 0 && decided === 0) {
+  if (input.aliasCount === 0 && decided === 0) {
     view.state = input.unsearchable > 0 ? 'unsearchable' : 'no_anchors';
-  } else if (undecided === 0) {
+  } else if (view.candidates.length === 0) {
     view.state = decided === 0 ? 'zero' : 'all_reviewed';
   }
   return view;
