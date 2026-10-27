@@ -9,11 +9,15 @@ import { FieldError, describedBy, fieldInputClass } from '@/components/FieldErro
 import { postJson } from '@/lib/utils/api';
 import { userMessage } from '@/lib/ingest/userMessage';
 import { cn } from '@/lib/utils/cn';
+import { PublicTournamentVisibility, type SharableTournament } from './PublicTournamentVisibility';
 
 type SharingState = {
   enabled: boolean;
   slug: string | null;
   avatarEnabled: boolean;
+  hiddenTournamentIds: string[];
+  /** Only the GET carries the picker list; POST responses omit it. */
+  tournaments?: SharableTournament[];
 };
 
 const SLUG_CODES = new Set(['too_short', 'too_long', 'invalid_chars', 'reserved', 'slug_taken']);
@@ -59,6 +63,7 @@ export function SharingManager() {
   const [pendingToggle, startToggle] = useTransition();
   const [pendingSlug, startSlug] = useTransition();
   const [pendingAvatar, startAvatar] = useTransition();
+  const [pendingHidden, startHidden] = useTransition();
 
   const load = async () => {
     setLoadError(false);
@@ -89,7 +94,7 @@ export function SharingManager() {
         });
         return;
       }
-      setState(res.data);
+      setState((s) => ({ ...res.data, tournaments: s?.tournaments }));
       setCustomSlugInput(res.data.slug ?? '');
       setSlugError(null);
       toast.show({
@@ -111,7 +116,30 @@ export function SharingManager() {
         });
         return;
       }
-      setState(res.data);
+      setState((s) => ({ ...res.data, tournaments: s?.tournaments }));
+      router.refresh();
+    });
+  };
+
+  const setTournamentShown = (id: string, shown: boolean) => {
+    if (!state) return;
+    const hidden = new Set(state.hiddenTournamentIds);
+    if (shown) hidden.delete(id);
+    else hidden.add(id);
+    startHidden(async () => {
+      const res = await postJson<SharingState>('/api/sharing', {
+        hiddenTournamentIds: Array.from(hidden),
+      });
+      if (!res.ok) {
+        toast.show({
+          kind: 'error',
+          title: 'Tournament visibility not changed',
+          description: userMessage(res).description,
+        });
+        return;
+      }
+      // Keep the picker list, which POST responses do not repeat.
+      setState({ ...res.data, tournaments: state.tournaments });
       router.refresh();
     });
   };
@@ -134,7 +162,7 @@ export function SharingManager() {
         return;
       }
       setSlugError(null);
-      setState(res.data);
+      setState((s) => ({ ...res.data, tournaments: s?.tournaments }));
       setCustomSlugInput(res.data.slug ?? '');
       toast.show({ kind: 'success', title: 'Address saved' });
       router.refresh();
@@ -259,6 +287,12 @@ export function SharingManager() {
               describedBy="share-avatar-hint"
             />
           </div>
+          <PublicTournamentVisibility
+            tournaments={state.tournaments ?? []}
+            hiddenIds={state.hiddenTournamentIds}
+            onToggle={setTournamentShown}
+            disabled={pendingHidden}
+          />
         </div>
       ) : null}
     </div>

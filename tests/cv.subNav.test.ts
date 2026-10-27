@@ -19,6 +19,35 @@ async function html(email: string | null) {
 beforeEach(() => {
   authMock.mockReset();
   process.env.ADMIN_EMAIL = 'boss@example.com';
+  delete process.env.DISCOVERY_LIST;
+  delete process.env.DISCOVERY_LIST_EMAILS;
+});
+
+describe('CvSubNav: the flagged Found tab', () => {
+  it('is offered to the owner (admin allowlist), after Motions', async () => {
+    const out = await html('boss@example.com');
+    expect(out).toContain('href="/cv/found"');
+    expect(out.indexOf('/cv/motions')).toBeLessThan(out.indexOf('/cv/found'));
+  });
+
+  it('is not offered to a participant without the flag', async () => {
+    expect(await html('participant@example.com')).not.toContain('/cv/found');
+  });
+
+  it('is offered to an opted-in tester, and to nobody under the kill switch', async () => {
+    process.env.DISCOVERY_LIST_EMAILS = 'participant@example.com';
+    expect(await html('participant@example.com')).toContain('/cv/found');
+    process.env.DISCOVERY_LIST = 'off';
+    expect(await html('participant@example.com')).not.toContain('/cv/found');
+    expect(await html('boss@example.com')).not.toContain('/cv/found');
+  });
+
+  it('marks Found as the current page when active', async () => {
+    authMock.mockResolvedValue({ user: { id: 'u1', email: 'boss@example.com' } });
+    const out = renderToStaticMarkup(await CvSubNav({ active: 'found' }));
+    expect(out).toMatch(/aria-current="page"[^>]*href="\/cv\/found"/);
+    expect(out.match(/aria-current="page"/g)).toHaveLength(1);
+  });
 });
 
 describe('CvSubNav', () => {

@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
+import { isDiscoveryEnabled } from '@/lib/discovery/flag';
 import { ScrollCurrentNav } from '@/components/ScrollCurrentNav';
 import { cn } from '@/lib/utils/cn';
 
 const TABS = [
-  { key: 'record', label: 'Record', href: '/cv', adminOnly: false },
-  { key: 'stats', label: 'Statistics', href: '/cv/stats', adminOnly: false },
-  { key: 'motions', label: 'Motions', href: '/cv/motions', adminOnly: false },
+  { key: 'record', label: 'Record', href: '/cv', adminOnly: false, discovery: false },
+  { key: 'stats', label: 'Statistics', href: '/cv/stats', adminOnly: false, discovery: false },
+  { key: 'motions', label: 'Motions', href: '/cv/motions', adminOnly: false, discovery: false },
+  // Behind the discovery flag (lib/discovery/flag.ts): a user without it
+  // gets a 404 at /cv/found, so the bar must not offer the link either.
+  { key: 'found', label: 'Found', href: '/cv/found', adminOnly: false, discovery: true },
   // Operator tools, not participant features: the pages redirect a
   // non-admin away, and the bar does not offer them.
-  { key: 'tags', label: 'Tags', href: '/cv/tags', adminOnly: true },
-  { key: 'verify', label: 'Verify', href: '/cv/verify', adminOnly: true },
+  { key: 'tags', label: 'Tags', href: '/cv/tags', adminOnly: true, discovery: false },
+  { key: 'verify', label: 'Verify', href: '/cv/verify', adminOnly: true, discovery: false },
 ] as const;
 
 export type CvTab = (typeof TABS)[number]['key'];
@@ -28,7 +32,10 @@ export type CvTab = (typeof TABS)[number]['key'];
  */
 export async function CvSubNav({ active }: { active: CvTab }) {
   const session = await auth();
-  const tabs = isAdminEmail(session?.user?.email) ? TABS : TABS.filter((tab) => !tab.adminOnly);
+  const email = session?.user?.email;
+  const admin = isAdminEmail(email);
+  const discovery = isDiscoveryEnabled(email);
+  const tabs = TABS.filter((tab) => (admin || !tab.adminOnly) && (discovery || !tab.discovery));
   return (
     <ScrollCurrentNav
       aria-label="CV sections"

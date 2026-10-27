@@ -37,6 +37,11 @@ model User {
   publicCvEnabled       Boolean @default(false)
   publicCvSlug          String? @unique
   publicAvatarEnabled   Boolean @default(false)
+  /// Tournaments the owner hid from the public CV and its share image
+  /// (C101). Plain id list, not a join table: it is read only with the
+  /// user row, written only by the owner, and a stale id for a deleted
+  /// tournament matches nothing. Empty means everything is shown.
+  publicHiddenTournamentIds BigInt[] @default([])
 
   accounts          Account[]
   sessions          Session[]
@@ -48,6 +53,7 @@ model User {
   cvErrorReports    CvErrorReport[]
   notifications     Notification[]
   tagProposals      TagProposal[]
+  appearanceCandidates AppearanceCandidate[]
 }
 
 /// In-app activity feed surfaced via the notification bell in the header.
@@ -264,6 +270,7 @@ model Tournament {
   discoveredUrls       DiscoveredUrl[]
   motions              Motion[]
   tagProposals         TagProposal[]
+  appearanceCandidates AppearanceCandidate[]
 
   @@index([year])
   @@index([format])
@@ -294,6 +301,7 @@ model Person {
   judgeAssignments  JudgeAssignment[]
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
   rejections        PersonRejection[]
+  appearanceCandidates AppearanceCandidate[]
 
   @@index([claimedByUserId])
   // Created by migration 20260725162000_person_suppression but never
@@ -313,6 +321,55 @@ model PersonRejection {
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([userId, personId])
+  @@index([personId])
+}
+
+/// A user's decision about one appearance the Found tab showed them: a
+/// public-tab participation (at a tournament they have no private URL for)
+/// whose name matches a registration name on one of their own private URLs.
+/// Design: docs/superpowers/specs/2026-10-27-discovery-tab-design.md.
+///
+/// Keyed on (tournamentId, personId), not the participation id, because a
+/// refresh deletes and rewrites unclaimed participations, so a "Not me"
+/// keyed on the participation would vanish on the next re-scrape.
+///
+/// Phase 1 is read-only: this table is read by nothing but /cv/found and
+/// its decision route. A "confirmed" row adds nothing to the CV; phase 3
+/// re-validates it (does not trust it) when it turns decisions into claims.
+/// Only decided rows are written (confirmed or rejected, or candidate again
+/// after an undo); undecided matches are computed on each visit.
+model AppearanceCandidate {
+  id             BigInt    @id @default(autoincrement())
+  userId         String
+  tournamentId   BigInt
+  personId       BigInt
+  /// candidate | confirmed | rejected | blocked | withdrawn. String, not an
+  /// enum (Notification.kind precedent), so later phases add states freely.
+  status         String
+  /// conflict_same_round | claimed_by_other | suppressed | merged_namesake
+  blockReason    String?
+  /// match | close | ambiguous (one-word name, double surname)
+  proximity      String
+  /// Ranking only; never a gate on its own.
+  score          Int
+  /// The "Why this match" lines shown when the decision was made.
+  evidence       Json
+  /// Option B's UserNameAlias id once it exists; null in phase 1.
+  aliasId        String?
+  matcherVersion Int
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tournamentId, personId])
+  @@index([userId, status])
+  // Cascades from Tournament and Person deletes (admin wipe, stand-in
+  // prune) would otherwise scan this table, as JudgeAssignment's did.
+  @@index([tournamentId])
   @@index([personId])
 }
 
