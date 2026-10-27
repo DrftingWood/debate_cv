@@ -487,7 +487,7 @@ export function isDoublePanelPage(teams: ReadonlyArray<{ teamName: string }>): b
   const counts = new Map<string, number>();
   for (const t of teams) {
     const name = cleanName(t.teamName);
-    if (!name || /^swing/i.test(name) || isPlaceholderPersonName(name)) continue;
+    if (!name || /^swing\b/i.test(name) || isPlaceholderPersonName(name)) continue;
     const team = loose(name);
     counts.set(team, (counts.get(team) ?? 0) + 1);
   }

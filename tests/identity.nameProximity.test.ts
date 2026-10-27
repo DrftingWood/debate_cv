@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nameProximity } from '@/lib/identity/nameProximity';
+import { isAmbiguousNameShape, nameProximity } from '@/lib/identity/nameProximity';
 
 describe('nameProximity', () => {
   it('matches the same name however it is written', () => {
@@ -58,6 +58,34 @@ describe('owner rule (I38): double surnames and one-word names never auto-pass',
     expect(nameProximity('Maria Garcia-Lopez', 'Maria Garcia-Lopez')).toBe('close');
     expect(nameProximity('Ana de la Cruz', 'Ana de la Cruz')).toBe('close');
     expect(nameProximity('Maria Garcia Lopez', 'Maria Lopez')).toBe('close');
+  });
+
+  it('does not read a surname that is also a particle as a particle (Li Bin, Wang Di)', () => {
+    for (const n of ['Li Bin', 'Wang Di', 'Zhang Le', 'Tran Le', 'Minh Do']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+      expect(nameProximity(n, n)).toBe('match');
+    }
+  });
+
+  it('counts a particle only when a word follows it', () => {
+    for (const n of ['Ana de la Cruz', 'Jan van Dijk', 'van Dijk', 'Omar al Sayed']) {
+      expect(isAmbiguousNameShape(n)).toBe(true);
+      expect(nameProximity(n, n)).toBe('close');
+    }
+  });
+
+  it('treats a hyphenated first name as one word', () => {
+    for (const n of ['Jean-Paul Sartre', 'Anne-Marie Lee']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+      expect(nameProximity(n, n)).toBe('match');
+    }
+  });
+
+  it('keeps one-word names, hyphenated surnames and 3+ word names capped at close', () => {
+    expect(isAmbiguousNameShape('Abhishek')).toBe(true);
+    expect(isAmbiguousNameShape('Maria Garcia-Lopez')).toBe(true);
+    expect(isAmbiguousNameShape('Maria Garcia Lopez')).toBe(true);
+    expect(isAmbiguousNameShape('Jean-Paul Garcia Lopez')).toBe(true);
   });
 
   it('still lets a middle initial through as a match', () => {

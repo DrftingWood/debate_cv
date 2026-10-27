@@ -105,9 +105,15 @@ const SURNAME_PARTICLES = new Set([
 export function isAmbiguousNameShape(name: string): boolean {
   const raw = name.replace(/\([^)]*\)/g, ' ').trim();
   if (/\p{L}-\p{L}/u.test(raw.split(/[\s,]+/).slice(-1)[0] ?? '')) return true;
-  const tokens = fold(name).split(' ').filter(Boolean);
+  // Words as typed: a hyphenated first name ("Jean-Paul") stays one word.
+  const tokens = raw
+    .split(/[\s,]+/)
+    .map((t) => fold(t))
+    .filter(Boolean);
   if (tokens.length < 2) return true; // a one-word name
-  if (tokens.slice(1).some((t) => SURNAME_PARTICLES.has(t))) return true;
+  // A particle counts only when a word follows it ("de la Cruz", "van Dijk"):
+  // as the last word it is the surname itself ("Li Bin", "Wang Di", "Minh Do").
+  if (tokens.slice(0, -1).some((t) => SURNAME_PARTICLES.has(t))) return true;
   return tokens.length >= 3 && tokens.slice(1, -1).some((t) => t.length > 1);
 }
 
