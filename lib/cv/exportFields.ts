@@ -108,7 +108,8 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'my_name', label: 'My name', speaker: (r) => r.myName, judge: (r) => r.myName },
   { id: 'teammates', label: 'Teammates', speaker: (r) => r.teammates.join(' | ') },
   { id: 'team', label: 'Team', speaker: (r) => r.teamName },
-  { id: 'team_rank', label: 'Team rank', speaker: (r) => (r.teamRank != null ? hashRank(r.teamRank, r.teamRankTied) : '') },
+  { id: 'team_rank', label: 'Team rank', // Machine-clean: never the "=" tie marker, which is display-only (owner).
+  speaker: (r) => (r.teamRank != null ? `#${r.teamRank}` : '') },
   {
     id: 'team_points',
     label: 'Team points',

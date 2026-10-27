@@ -37,7 +37,9 @@ describe('tied ranks read "5=" (I17)', () => {
       }),
       EXPORT_FIELDS,
     );
-    expect(csv).toContain('#5=');
+    // Owner: the export's team_rank is machine-clean, the "=" is display-only.
+    expect(csv).toContain(',#5,');
+    expect(csv).not.toContain(',#5=,');
     expect(csv).toContain('#7= Open');
     expect(csv).toContain('#6');
     expect(csv).not.toContain('#6=');
