@@ -12,8 +12,13 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border) / 0.16)',  // hairline default
-        input: 'hsl(var(--input) / 0.22)',
+        border: 'hsl(var(--border) / 0.16)', // hairline default
+        // Form-control edge, distinct from the `border` hairline. It was the
+        // same 40%-lightness ink at 22% alpha, about 1.4:1, so a text box
+        // had no visible boundary (SC 1.4.11, UX-18). The token is now an
+        // opaque grey per theme, ≥3:1 against both card and canvas (see
+        // --input in globals.css). Table rules stay on `border-border`.
+        input: 'hsl(var(--input) / <alpha-value>)',
         ring: 'hsl(var(--ring) / <alpha-value>)',
         background: 'hsl(var(--background) / <alpha-value>)',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
@@ -151,12 +156,24 @@ const config: Config = {
         // md and keep working.
         h3: ['clamp(19px, 1rem + 0.6vw, 21px)', { lineHeight: '1.3', letterSpacing: '-0.012em' }],
         stat: ['clamp(22px, 1rem + 1.6vw, 26px)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-        'figure-sm': ['clamp(18px, 1rem + 0.7vw, 20px)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-        'figure-md': ['clamp(23px, 1rem + 2vw, 28px)', { lineHeight: '1.05', letterSpacing: '-0.025em' }],
-        'figure-lg': ['clamp(30px, 1rem + 4vw, 40px)', { lineHeight: '1', letterSpacing: '-0.03em' }],
+        'figure-sm': [
+          'clamp(18px, 1rem + 0.7vw, 20px)',
+          { lineHeight: '1.1', letterSpacing: '-0.02em' },
+        ],
+        'figure-md': [
+          'clamp(23px, 1rem + 2vw, 28px)',
+          { lineHeight: '1.05', letterSpacing: '-0.025em' },
+        ],
+        'figure-lg': [
+          'clamp(30px, 1rem + 4vw, 40px)',
+          { lineHeight: '1', letterSpacing: '-0.03em' },
+        ],
         h2: ['clamp(24px, 1rem + 2.6vw, 32px)', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
         h1: ['clamp(30px, 1rem + 4.6vw, 44px)', { lineHeight: '1.08', letterSpacing: '-0.024em' }],
-        display: ['clamp(34px, 1rem + 7vw, 60px)', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
+        display: [
+          'clamp(34px, 1rem + 7vw, 60px)',
+          { lineHeight: '1.02', letterSpacing: '-0.03em' },
+        ],
       },
       borderRadius: {
         lg: 'var(--radius)',

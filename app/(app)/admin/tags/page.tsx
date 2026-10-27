@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/admin';
 import { AdminTagProposals } from '@/components/AdminTagProposals';
 import { AdminClassifyMotionsButton } from '@/components/AdminClassifyMotionsButton';
 import { AdminTagPreprocess } from '@/components/AdminTagPreprocess';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Admin — Tag proposals',
@@ -42,10 +42,8 @@ export default async function AdminTagsPage() {
           <span className="flex items-center gap-2">
             <AdminTagPreprocess />
             <AdminClassifyMotionsButton />
-            <Link href="/admin">
-              <Button variant="outline" size="sm">
-                ← Admin
-              </Button>
+            <Link href="/admin" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+              ← Admin
             </Link>
           </span>
         </div>
