@@ -14,7 +14,13 @@ type ScanResponse = {
  * Fire-and-forget auto-scan on page load. Removes the "user has to remember
  * to click Scan Gmail" failure mode from the dashboard / CV without adding
  * any new infrastructure: hits the same /api/ingest/gmail endpoint as the
- * manual button, relies on the existing 5-minute cooldown to throttle.
+ * manual button, relies on the server's 2-minute scan cooldown to throttle.
+ *
+ * That cooldown is shared: a scan started here stamps the same
+ * `lastScannedAt` the dashboard's Scan Gmail button checks, so a deliberate
+ * click within two minutes of opening the Record is refused. The button
+ * shows that as a neutral countdown (lib/ingest/scanErrorMessage.ts), not a
+ * failure.
  *
  * Runs once per mount. Cooldown rejection (HTTP 429) is treated as a
  * silent no-op — no toast, no log noise — since it's the expected path on
@@ -35,8 +41,8 @@ export function AutoScanOnVisit() {
     ranRef.current = true;
 
     // Only run once per session per origin to avoid re-firing on every soft
-    // navigation. The 5-min server-side cooldown is the real guardrail; this
-    // is just a polite client-side dedup.
+    // navigation. The server's 2-minute cooldown is the real guardrail; this
+    // longer client-side window is just a polite dedup that saves the request.
     const SESSION_KEY = 'autoScanOnVisit:lastTriggeredAt';
     const COOLDOWN_MS = 5 * 60 * 1000;
     try {
