@@ -149,7 +149,7 @@ export function TagProposalControls({
           </span>
         </p>
       ) : myProposal?.status === 'rejected' ? (
-        <p className="text-caption text-oxblood">
+        <p className="text-caption text-destructive">
           Rejected
           {myProposal.adminNote ? ` — ${myProposal.adminNote}` : ''}
         </p>
