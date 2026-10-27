@@ -17,6 +17,9 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import { compareToBaseline, countByRule, presetRuleIds } from './ratchet-type-aware.mjs';
 
 const BASELINE = {
   any: 0,
@@ -33,6 +36,30 @@ const BASELINE = {
   // lib/cv/motionEntries.ts and one in app/(app)/cv/motions/page.tsx.
   nonNull: 69,
   eslintDisableUnexplained: 2,
+};
+
+// Type-aware lint warnings per rule (typescript-eslint strict-type-checked,
+// warning mode; eslint.config.mjs scopes it to lib/ and app/api/). Measured
+// 2026-10-27 (Q1 phase 2). Same contract as above: a PR that lowers a count
+// lowers the number here; raising one needs a reason in the PR body. A rule
+// missing from this list has baseline 0. Skip this (slow, ~2 minutes) part
+// with `npm run ratchet -- --skip-type-aware`.
+const TYPE_AWARE_BASELINE = {
+  '@typescript-eslint/no-base-to-string': 3,
+  '@typescript-eslint/no-confusing-void-expression': 3,
+  '@typescript-eslint/no-unnecessary-condition': 95,
+  '@typescript-eslint/no-unnecessary-type-assertion': 43,
+  '@typescript-eslint/no-unnecessary-type-conversion': 6,
+  '@typescript-eslint/no-unsafe-argument': 3,
+  '@typescript-eslint/no-unsafe-assignment': 2,
+  '@typescript-eslint/no-unsafe-call': 3,
+  '@typescript-eslint/no-unsafe-enum-comparison': 1,
+  '@typescript-eslint/no-unsafe-member-access': 5,
+  '@typescript-eslint/prefer-promise-reject-errors': 1,
+  '@typescript-eslint/require-await': 1,
+  '@typescript-eslint/restrict-plus-operands': 1,
+  '@typescript-eslint/restrict-template-expressions': 1,
+  '@typescript-eslint/use-unknown-in-catch-callback-variable': 1,
 };
 
 const ROOT = process.cwd();
@@ -106,9 +133,41 @@ for (const key of Object.keys(BASELINE)) {
   console.log(`${key.padEnd(26)} ${String(counts[key]).padStart(4)} / ${BASELINE[key]}${note}`);
   if (verbose || over) for (const h of hits[key]) console.log(`    ${h}`);
 }
+if (!process.argv.includes('--skip-type-aware')) {
+  const ruleIds = presetRuleIds(tsPlugin.configs['flat/strict-type-checked-only']);
+  let json;
+  try {
+    json = execFileSync(
+      process.execPath,
+      [join(ROOT, 'node_modules/eslint/bin/eslint.js'), 'lib', 'app/api', '-f', 'json'],
+      { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 },
+    );
+  } catch (e) {
+    // ESLint exits 1 when it reports errors, but still prints the JSON.
+    json = e.stdout;
+    if (!json) throw e;
+  }
+  const result = compareToBaseline(countByRule(JSON.parse(json), ruleIds), TYPE_AWARE_BASELINE);
+  console.log('\ntype-aware lint warnings (lib/, app/api/):');
+  for (const r of result.rows) {
+    const note =
+      r.status === 'over'
+        ? '  FAIL: above baseline'
+        : r.status === 'under'
+          ? '  (below baseline: lower it)'
+          : '';
+    if (r.status !== 'ok' || verbose) {
+      console.log(`  ${r.rule.padEnd(54)} ${String(r.count).padStart(4)} / ${r.baseline}${note}`);
+    }
+  }
+  console.log(
+    `  total                                                  ${String(result.total).padStart(4)} / ${result.baselineTotal}`,
+  );
+  if (result.failed) failed = true;
+}
 if (failed) {
   console.error(
-    '\nRatchet failed: a new escape hatch was added. Remove it, or explain why in the PR and raise the baseline.',
+    '\nRatchet failed: a new escape hatch or type-aware lint warning was added. Remove it, or explain why in the PR and raise the baseline.',
   );
   process.exit(1);
 }

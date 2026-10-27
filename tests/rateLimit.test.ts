@@ -54,6 +54,8 @@ describe('RATE_LIMITS policy table', () => {
 
   it('pins the ingest limits (the routes that trigger outbound scrapes)', () => {
     expect(RATE_LIMITS['ingest:url']).toEqual({ limit: 20, windowSec: 3600 });
+    // C85: pasted URLs also have a daily cap, equal to the CSV day's 5 x 20.
+    expect(RATE_LIMITS['ingest:url:daily']).toEqual({ limit: 100, windowSec: 86400 });
     expect(RATE_LIMITS['ingest:gmail']).toEqual({ limit: 12, windowSec: 3600 });
     expect(RATE_LIMITS['ingest:csv']).toEqual({ limit: 5, windowSec: 86400 });
   });
