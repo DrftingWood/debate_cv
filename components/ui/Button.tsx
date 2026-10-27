@@ -29,15 +29,16 @@ const variants: Record<Variant, string> = {
     'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-surface-3 disabled:text-ink-soft',
   // secondary is a deprecated alias of outline — kept identical so callers
   // don't need to change and the visual result stays consistent.
-  secondary:
-    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
-  outline:
-    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  secondary: 'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  outline: 'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
   ghost: 'bg-transparent text-ink hover:bg-surface-2 disabled:opacity-50',
   danger:
     'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/60',
-  link:
-    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto disabled:opacity-50',
+  // min-h-6: `link` skips the size scale, so the dashboard's per-row
+  // "Ingest" / "Clear" / "Lock" measured 20px tall, under the 24px floor
+  // (SC 2.5.8). They passed axe only on its spacing exception. A coarse
+  // pointer already gets 44px from the global `button` rule in globals.css.
+  link: 'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto min-h-6 disabled:opacity-50',
 };
 
 /*
@@ -62,6 +63,24 @@ const sizes: Record<Size, string> = {
   lg: 'text-body h-11 px-5 coarse:h-auto coarse:min-h-[48px]',
 };
 
+/**
+ * The button look without the <button>. For a navigation that should read
+ * as a call to action: `<Link href="/dashboard" className={buttonClasses()}>`.
+ *
+ * It exists because the alternative, `<Link><Button/></Link>`, is a button
+ * inside a link: invalid HTML, two tab stops for one action, announced as
+ * "link, button" (UX-9). The 2026-10-27 audit counted twelve of them,
+ * including the landing page's primary "View sample CV". A link that only
+ * navigates should be a link; this lets it keep the shape of a button.
+ */
+export function buttonClasses({
+  variant = 'primary',
+  size = 'md',
+  className,
+}: { variant?: Variant; size?: Size; className?: string } = {}): string {
+  return cn(base, variants[variant], variant === 'link' ? '' : sizes[size], className);
+}
+
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
@@ -72,22 +91,27 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant = 'primary', size = 'md', loading, disabled, leftIcon, rightIcon, children, ...rest },
+    {
+      className,
+      variant = 'primary',
+      size = 'md',
+      loading,
+      disabled,
+      leftIcon,
+      rightIcon,
+      children,
+      ...rest
+    },
     ref,
   ) => {
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={cn(
-          base,
-          variants[variant],
-          variant === 'link' ? '' : sizes[size],
-          className,
-        )}
+        className={buttonClasses({ variant, size, className })}
         {...rest}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : leftIcon ?? null}
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : (leftIcon ?? null)}
         {children}
         {!loading && rightIcon ? rightIcon : null}
       </button>

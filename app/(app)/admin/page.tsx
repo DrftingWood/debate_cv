@@ -8,7 +8,7 @@ import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components
 import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -97,7 +97,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
-        <dl className="grid grid-cols-4 gap-4 text-table">
+        <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
           <div>
             <dt className="text-ink-soft">Tournaments</dt>
             <dd className="text-stat font-semibold mt-1">{tournaments}</dd>
@@ -126,8 +126,8 @@ export default async function AdminPage() {
           Review user-proposed region and motion tags. Approvals write directly to the
           canonical Tournament / Motion columns.
         </p>
-        <Link href="/admin/tags">
-          <Button variant="outline" size="sm">Review tag proposals →</Button>
+        <Link href="/admin/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+          Review tag proposals →
         </Link>
       </section>
 
@@ -139,10 +139,8 @@ export default async function AdminPage() {
               Beta reports users submitted from their CV page.
             </p>
           </div>
-          <a href="/api/admin/cv-error-reports-export">
-            <Button variant="outline" size="sm" leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}>
-              Export CSV
-            </Button>
+          <a href="/api/admin/cv-error-reports-export" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            <Download className="h-3.5 w-3.5" aria-hidden /> Export CSV
           </a>
         </div>
         {cvReports.length === 0 ? (

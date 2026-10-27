@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import { buildMotionEntries, judgedWithoutKnownRounds, type MotionEntry } from '@/lib/cv/motionEntries';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
@@ -104,8 +104,8 @@ export default async function CvMotionsPage() {
           title="No motions on record yet"
           description="Motions appear once a tournament on your record has published its motions tab. Older tournaments may need re-ingesting before their motions are captured."
           action={
-            <Link href="/dashboard">
-              <Button variant="primary">Open imports</Button>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              Open imports
             </Link>
           }
         />

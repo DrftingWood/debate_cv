@@ -27,13 +27,7 @@ export type JumpTarget = { id: string; label: string };
  * scroll listener so it costs nothing while idle. `scroll-mt` on each
  * target keeps the sticky header from covering the heading it jumped to.
  */
-export function PageJumpNav({
-  targets,
-  className,
-}: {
-  targets: JumpTarget[];
-  className?: string;
-}) {
+export function PageJumpNav({ targets, className }: { targets: JumpTarget[]; className?: string }) {
   const [active, setActive] = useState<string | null>(targets[0]?.id ?? null);
   const [showTop, setShowTop] = useState(false);
 
@@ -74,10 +68,7 @@ export function PageJumpNav({
       <nav
         aria-label="On this page"
         data-print-hide="true"
-        className={cn(
-          '-mx-4 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0',
-          className,
-        )}
+        className={cn('-mx-4 overflow-x-auto px-4 lg:mx-0 lg:overflow-visible lg:px-0', className)}
       >
         <div className="inline-flex gap-1 lg:sticky lg:top-24 lg:flex-col lg:gap-0.5">
           <span className="data-label hidden pb-1 lg:block">On this page</span>
@@ -99,9 +90,25 @@ export function PageJumpNav({
         </div>
       </nav>
 
+      {/*
+        Out of the tab order and the accessibility tree while invisible:
+        opacity-0 hid it from the eye only, so a keyboard user tabbed onto a
+        control they could not see (SC 2.4.7). The smooth scroll respects
+        reduced motion itself, because the globals.css guard covers CSS
+        scroll-behavior, not a scrollTo() option.
+      */}
       <button
         type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={() =>
+          window.scrollTo({
+            top: 0,
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+              ? 'auto'
+              : 'smooth',
+          })
+        }
+        tabIndex={showTop ? 0 : -1}
+        aria-hidden={!showTop}
         aria-label="Back to top"
         data-print-hide="true"
         className={cn(

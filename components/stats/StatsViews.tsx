@@ -17,6 +17,7 @@ import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Badge } from '@/components/ui/Badge';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
+import { signedOrNull as signed } from '@/components/stats/format';
 
 import { FORMAT_NAME, MOTION_ORDER, SEAT_ORDER } from '@/lib/cv/crossTabs';
 
@@ -36,11 +37,6 @@ function asSplit(r: RoundSplit, key = r.key): Split {
   };
 }
 
-const signed = (n: number | null, digits = 1) => {
-  if (n == null) return null;
-  const rounded = Number(n.toFixed(digits));
-  return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toFixed(digits)}`;
-};
 
 // ── Positions ─────────────────────────────────────────────────────────────
 
@@ -172,7 +168,8 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                   <Td numeric>{p.tournaments}</Td>
                   <Td className="whitespace-nowrap">
                     <span className="inline-flex gap-1">
-                      {p.pairings.pro ? <Badge variant="gold">Pro ×{p.pairings.pro}</Badge> : null}
+                      {/* Neutral, not gold: gold means a break (Ledger rule 3). */}
+                      {p.pairings.pro ? <Badge variant="neutral">Pro ×{p.pairings.pro}</Badge> : null}
                       {p.pairings.am ? <Badge>Am ×{p.pairings.am}</Badge> : null}
                       {p.pairings.peers ? <Badge variant="neutral">Peers ×{p.pairings.peers}</Badge> : null}
                       {p.tournaments === p.pairings.unlabelled ? <Nil /> : null}
@@ -246,15 +243,21 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
       </p>
 
       {byInfo.length > 1 || byFraming.length > 1 ? (
+        // `min-w-0` on each grid item is what keeps the page from scrolling
+        // sideways on a phone. A grid item's minimum width defaults to its
+        // content's, and the content here is a `min-w-max` table about 664 px
+        // wide, so without it each item grew to the table and dragged the
+        // whole document to 770 px at a 390 px viewport. With it, the item
+        // takes the column's width and the table scrolls inside its panel.
         <div className="grid gap-6 lg:grid-cols-2">
           {byInfo.length > 1 ? (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Info slides</h3>
               <StatsSplitTable splits={byInfo.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
             </div>
           ) : null}
           {byFraming.length > 1 ? (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Framing</h3>
               <StatsSplitTable splits={byFraming.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
             </div>

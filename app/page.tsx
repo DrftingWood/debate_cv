@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
 import { Footer } from '@/components/Footer';
 import { BrandMark } from '@/components/BrandMark';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
@@ -21,7 +21,7 @@ export default async function Home() {
       */}
       <div className="mx-auto w-full max-w-6xl flex-1 px-5">
         <LandingMasthead />
-        <div className="space-y-20 pb-16 md:space-y-24">
+        <main id="main" className="space-y-20 pb-16 md:space-y-24">
           <Hero />
           <ValueStrip />
           <StatisticsShowcase />
@@ -29,7 +29,7 @@ export default async function Home() {
           <PrivacyProof />
           <Faq />
           <FinalCta />
-        </div>
+        </main>
       </div>
       <Footer />
     </>
@@ -117,10 +117,8 @@ function Hero() {
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
           <BuildCvButton />
-          <Link href="/sample">
-            <Button type="button" size="lg" variant="outline">
-              View sample CV
-            </Button>
+          <Link href="/sample" className={buttonClasses({ size: 'lg', variant: 'outline' })}>
+            View sample CV
           </Link>
         </div>
 
@@ -281,7 +279,7 @@ function PrivacyProof() {
     ['Not stored', 'Email bodies and unrelated message metadata.'],
     ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
     ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
-    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM; legacy rows re-encrypt on next access.'],
+    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM.'],
   ];
 
   return (
@@ -384,15 +382,11 @@ function FinalCta() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
           <BuildCvButton />
-          <Link href="/sample">
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              className="border-paper/20 bg-transparent text-paper hover:bg-paper/10"
-            >
-              View sample
-            </Button>
+          <Link
+            href="/sample"
+            className={buttonClasses({ size: 'lg', variant: 'outline', className: 'border-paper/20 bg-transparent text-paper hover:bg-paper/10' })}
+          >
+            View sample
           </Link>
         </div>
       </div>

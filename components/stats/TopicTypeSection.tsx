@@ -26,7 +26,7 @@ const signed = (n: number) => {
 function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   if (!cell)
     return (
-      <span className="text-ink-soft/50">
+      <span className="text-ink-soft">
         <span aria-hidden>–</span>
         <span className="sr-only">No rounds</span>
       </span>
@@ -34,7 +34,7 @@ function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   if (!cell.enough) {
     return (
       <span
-        className="text-ink-soft/60"
+        className="text-ink-soft"
         title={`${cell.rounds} round${cell.rounds === 1 ? '' : 's'} — too few to show`}
       >
         <span aria-hidden>·</span>

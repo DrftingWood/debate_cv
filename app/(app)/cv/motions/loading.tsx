@@ -10,11 +10,11 @@ export default function CvMotionsLoading() {
     <div className="space-y-8">
       <div className="border-b border-border pb-6">
         <Skeleton className="h-3 w-16" />
-        <Skeleton className="mt-3 h-9 w-80" />
+        <Skeleton className="mt-3 h-9 w-full max-w-xs" />
         <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
       </div>
 
-      <Skeleton className="h-9 w-96 rounded-lg" />
+      <Skeleton className="h-9 w-full max-w-sm rounded-lg" />
 
       <div className="panel grid grid-cols-2 gap-px overflow-hidden bg-border md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (

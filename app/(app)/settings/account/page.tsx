@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Shield, Mail, Database } from 'lucide-react';
 import { auth } from '@/lib/auth';
@@ -13,6 +14,8 @@ import {
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Account settings' };
 
 const gmailTokenSelect = {
   encryptionVersion: true,
@@ -65,16 +68,11 @@ export default async function AccountSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-display text-h3 font-medium text-ink">
-              Gmail connection
-            </h2>
+            <h2 className="font-display text-h3 font-medium text-ink">Gmail connection</h2>
           </div>
           <div className="text-body text-ink-soft">
             Signed in as{' '}
-            <span className="font-medium text-ink">
-              {user?.email ?? user?.name ?? 'Unknown'}
-            </span>
-            .
+            <span className="font-medium text-ink">{user?.email ?? user?.name ?? 'Unknown'}</span>.
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={gmailToken ? 'success' : 'neutral'}>
@@ -82,12 +80,19 @@ export default async function AccountSettingsPage() {
             </Badge>
             {gmailToken ? (
               <Badge variant={tokenEncrypted ? 'success' : 'warning'}>
-                {tokenEncrypted ? 'Token encrypted at rest (AES-256-GCM)' : 'Token stored in plaintext'}
+                {tokenEncrypted
+                  ? 'Token encrypted at rest (AES-256-GCM)'
+                  : 'Token stored in plaintext'}
               </Badge>
             ) : null}
             {gmailToken?.updatedAt ? (
               <span className="text-caption text-ink-soft">
-                Last refreshed {new Date(gmailToken.updatedAt).toLocaleDateString()}
+                Last refreshed{' '}
+                {new Date(gmailToken.updatedAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
               </span>
             ) : null}
           </div>
@@ -108,21 +113,21 @@ export default async function AccountSettingsPage() {
             <Database className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Your data</h2>
           </div>
-          <dl className="grid grid-cols-3 gap-3 text-ui">
+          <dl className="grid grid-cols-1 gap-3 text-ui sm:grid-cols-3">
             <DataStat
-              label="Private URLs"
+              label="Tournament links"
               value={counts.urls}
-              hint="Tabbycat private-URL links extracted from your Gmail."
+              hint="Private Tabbycat links found in your Gmail."
             />
             <DataStat
-              label="Ingest jobs"
+              label="Imports"
               value={counts.jobs}
-              hint="Per-URL parsing tasks. Most are 'done' once the queue drains."
+              hint="One per tournament link. Most finish within minutes of a scan."
             />
             <DataStat
-              label="Claimed identities"
+              label="Names you claimed"
               value={counts.claimed}
-              hint="Person rows on tournaments you've confirmed as you (handles name aliases)."
+              hint="Each spelling of your name you confirmed as you, across tournaments."
             />
           </dl>
           <div className="pt-1">
@@ -139,8 +144,9 @@ export default async function AccountSettingsPage() {
             <h2 className="font-display text-h3 font-medium text-ink">Delete account</h2>
           </div>
           <p className="text-body text-ink-soft">
-            Removes your user record, Gmail tokens, discovered URLs, ingest jobs, and identity
-            claims. Tournament rows shared across users stay — they&apos;re public tab data.
+            Removes your account, your Gmail connection, your tournament links, imports and claimed
+            names. Tournament results shared with other users stay, because they are public tab
+            data.
           </p>
           <DeleteAccountButton userEmail={user?.email ?? null} />
         </CardBody>
@@ -149,24 +155,14 @@ export default async function AccountSettingsPage() {
   );
 }
 
-function DataStat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: number;
-  hint?: string;
-}) {
+function DataStat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="rounded-md border border-border bg-paper px-3.5 py-3">
-      <dt className="text-caption text-ink-soft" title={hint}>
-        {label}
-      </dt>
-      <dd className="mt-0.5 font-display text-stat font-semibold text-ink">{value}</dd>
-      {hint ? (
-        <div className="mt-1 text-byline leading-snug text-ink-soft">{hint}</div>
-      ) : null}
+      <dt className="text-caption text-ink-soft">{label}</dt>
+      <dd className="figure mt-0.5 text-stat text-ink">{value}</dd>
+      {/* A second <dd>, not a <div>: a dl group may hold only dt and dd
+          (axe definition-list, SET-15). */}
+      {hint ? <dd className="mt-1 text-byline leading-snug text-ink-soft">{hint}</dd> : null}
     </div>
   );
 }

@@ -13,15 +13,47 @@ import { cn } from '@/lib/utils/cn';
 export function TableScroll({
   children,
   className,
+  label,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** Name for the scroll region. Defaults to the `label` of the `Table` inside. */
+  label?: string;
 }) {
   // No negative margins here. Every caller wraps this in a `.panel` with
   // `overflow-hidden`, which clips a bleed-out — the old `-mx-4 px-4` cost
   // the first 1rem of the table on narrow screens instead of buying edge
   // bleed. Plain overflow keeps the table inside its sheet.
-  return <div className={cn('w-full overflow-x-auto', className)}>{children}</div>;
+  //
+  // A named, focusable region (UX-29). A scroll box that holds no link
+  // cannot be scrolled from the keyboard unless the box itself takes focus
+  // (axe scrollable-region-focusable, SC 2.1.1: 19 of them on /cv/stats at
+  // 390px), and a focusable box needs a role and a name to be announced as
+  // anything. `.table-scroll` paints the edge shadows that say a column is
+  // off-screen — the public CV hid its Result column behind an unmarked
+  // scroll for months.
+  const name = label ?? tableLabel(children);
+  return (
+    <div
+      role={name ? 'region' : undefined}
+      aria-label={name}
+      tabIndex={0}
+      className={cn('table-scroll w-full overflow-x-auto', className)}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The `label` prop of the first `Table` among `children`, if there is one. */
+function tableLabel(children: React.ReactNode): string | undefined {
+  let found: string | undefined;
+  React.Children.forEach(children, (child) => {
+    if (found || !React.isValidElement(child)) return;
+    const l = (child.props as { label?: unknown }).label;
+    if (typeof l === 'string') found = l;
+  });
+  return found;
 }
 
 /**
@@ -53,11 +85,7 @@ export function Th({
   ...rest
 }: React.ThHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean }) {
   return (
-    <th
-      scope="col"
-      className={cn(numeric && 'text-right', className)}
-      {...rest}
-    >
+    <th scope="col" className={cn(numeric && 'text-right', className)} {...rest}>
       {children}
     </th>
   );
@@ -81,11 +109,7 @@ export function Td({
  * hairline rules already carry the eye — but they do respond to the pointer
  * so a wide row stays trackable across the screen.
  */
-export function Tr({
-  children,
-  className,
-  ...rest
-}: React.HTMLAttributes<HTMLTableRowElement>) {
+export function Tr({ children, className, ...rest }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr className={cn('transition-colors hover:bg-surface-2', className)} {...rest}>
       {children}
