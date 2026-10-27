@@ -272,7 +272,8 @@ describe('buildCvData characterization: top-level shape', () => {
   it('returns every top-level key with the summary for this record', async () => {
     const cv = await buildCvData(USER);
     expect(Object.keys(cv).sort()).toEqual(
-      ['fieldStats', 'highlights', 'judgeRows', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
+      // teamOutroundResults added for the knockout motion join (behaviour change, not a refactor).
+      ['fieldStats', 'highlights', 'judgeRows', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'teamOutroundResults', 'unmatchedTournaments', 'user'].sort(),
     );
     expect(cv.user).toEqual({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
     // First claimed person's display name, ahead of the Google account name.
@@ -292,6 +293,15 @@ describe('buildCvData characterization: top-level shape', () => {
   it('passes motions through unchanged', async () => {
     const cv = await buildCvData(USER);
     expect(cv.taggedMotions).toEqual(MOTIONS);
+  });
+
+  it("carries only the user's own team's outround results", async () => {
+    const cv = await buildCvData(USER);
+    // Cambridge A's Grand Final loss is in the same query and must not leak.
+    expect(cv.teamOutroundResults).toEqual([
+      { tournamentId: 1n, stage: 'Grand Final', won: true },
+      { tournamentId: 1n, stage: 'Semifinals', won: true },
+    ]);
   });
 
   it('lists a tournament with no participation of the user as unmatched, with a public URL', async () => {
@@ -567,6 +577,7 @@ describe('buildCvData characterization: queries', () => {
       speakerRows: [],
       judgeRows: [],
       taggedMotions: [],
+      teamOutroundResults: [],
       fieldStats: [],
       unmatchedTournaments: [],
       summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
