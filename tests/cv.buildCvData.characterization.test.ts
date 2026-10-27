@@ -682,10 +682,14 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
     });
   }
 
-  function withFieldTotals(totals: number[]) {
+  /** The field's published rows, plus the user's own parser rank (null = derived only). */
+  function withFieldTotals(rows: Array<[number, number | null]>, userParserRank: number | null = null) {
     const base = originalPartFind();
     prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
-      if (argsWhere(args).speakerScoreTotal) return totals.map((speakerScoreTotal) => ({ tournamentId: 1n, speakerScoreTotal }));
+      const w = argsWhere(args);
+      if (w.person) return MY_PARTICIPATIONS.map((p) => ({ ...p, speakerRankOpen: userParserRank }));
+      if (w.speakerScoreTotal)
+        return rows.map(([speakerScoreTotal, speakerRankOpen]) => ({ tournamentId: 1n, speakerScoreTotal, speakerRankOpen }));
       return base(args);
     });
   }
@@ -706,20 +710,32 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
     expect(row.teamRankTied).toBe(false);
   });
 
-  it('speakerRankTied is true when another speaker has the same total', async () => {
-    withFieldTotals([390, 390, 350]);
+  it('speakerRankTied is true when another speaker has the same total and the same parser rank', async () => {
+    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(true);
   });
 
+  it('speakerRankTied is false for ROW_NUMBER-derived ranks on equal totals (7 and 8)', async () => {
+    withFieldTotals([[390, null], [390, null], [350, null]], null);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is false when the tab split equal totals into different ranks', async () => {
+    withFieldTotals([[390, 7], [390, 8]], 7);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
   it('speakerRankTied is false when the total is unique in the field', async () => {
-    withFieldTotals([390, 400, 350]);
+    withFieldTotals([[390, 5], [400, 1], [350, 9]], 5);
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 
   it('speakerRankTied is false when field stats are not loaded, even if totals would tie', async () => {
-    withFieldTotals([390, 390, 350]);
+    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
     const cv = await buildCvData(USER, { includeFieldStats: false });
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });

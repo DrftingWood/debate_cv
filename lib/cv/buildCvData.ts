@@ -763,11 +763,12 @@ export async function buildCvData(
             speakerScoreTotal: { not: null },
             roles: { some: { role: 'speaker' } },
           },
-          select: { tournamentId: true, speakerScoreTotal: true },
+          select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
           speakerScoreTotal: { toString(): string } | null;
+          speakerRankOpen?: number | null;
         }>),
 
     // The Open break tab's team names, for the break line. Ingest stores each
@@ -929,10 +930,13 @@ export async function buildCvData(
     const k = `${tournamentPart}#${rank}`;
     teamRankHolders.set(k, (teamRankHolders.get(k) ?? 0) + 1);
   }
+  // A speaker tie needs the parser's own rank: the derived ROW_NUMBER rank
+  // gives equal totals different numbers, and a tab that split them itself
+  // (or gave the other speaker no rank) is not a tie to show.
   const speakersOnTotal = new Map<string, number>();
   for (const row of fieldRows) {
-    if (row.speakerScoreTotal == null) continue;
-    const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}`;
+    if (row.speakerScoreTotal == null || row.speakerRankOpen == null) continue;
+    const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}#${row.speakerRankOpen}`;
     speakersOnTotal.set(k, (speakersOnTotal.get(k) ?? 0) + 1);
   }
 
@@ -1042,7 +1046,8 @@ export async function buildCvData(
       speakerRankOpen: p.speakerRankOpen ?? p.speakerRankOpenDerived ?? null,
       speakerRankTied:
         p.speakerScoreTotal != null &&
-        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}`) ?? 0) > 1,
+        p.speakerRankOpen != null &&
+        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}#${p.speakerRankOpen}`) ?? 0) > 1,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
       speakerCategories: p.speakerCategories ?? [],
