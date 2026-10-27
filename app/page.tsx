@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { auth, signIn } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { buttonClasses } from '@/components/ui/Button';
-import { PendingTextSubmit } from '@/components/PendingSubmit';
 import { Footer } from '@/components/Footer';
-import { BrandMark } from '@/components/BrandMark';
+import { PublicHeader } from '@/components/landing/PublicHeader';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
 import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 
@@ -21,7 +20,7 @@ export default async function Home() {
         leaves a screen reader with no unambiguous "skip to content" target.
       */}
       <div className="mx-auto w-full max-w-6xl flex-1 px-5">
-        <LandingMasthead />
+        <PublicHeader />
         <main id="main" className="space-y-20 pb-16 md:space-y-24">
           <Hero />
           <ValueStrip />
@@ -37,45 +36,6 @@ export default async function Home() {
   );
 }
 
-async function SignInLink() {
-  return (
-    <form
-      action={async () => {
-        'use server';
-        await signIn('google', { redirectTo: '/cv' });
-      }}
-    >
-      <PendingTextSubmit>Sign in</PendingTextSubmit>
-    </form>
-  );
-}
-
-function LandingMasthead() {
-  return (
-    <header className="flex items-center justify-between gap-3 py-5 md:py-6">
-      <Link href="/" aria-label="debate cv home">
-        <BrandMark />
-      </Link>
-      {/*
-        The nav used to be three marketing anchors with no way back in. Every
-        route into the product was the hero's "Build my debate CV" — copy
-        aimed at someone who has never used it, shown to a returning user who
-        just wants their record. Sign in is now where a returning user looks
-        for it, and it is the same Google flow the hero button runs.
-      */}
-      <nav className="flex items-center gap-3 whitespace-nowrap text-table font-medium text-ink-soft sm:gap-6">
-        {/* Below sm there is room for Privacy + Sign in and nothing else;
-            the sample has its own full-width button in the hero, and the
-            anchors are reachable by scrolling. Crammed in, all four wrapped
-            onto two lines each at 320px. */}
-        <Link href="/sample" className="hidden py-2 hover:text-ink sm:inline">Sample CV</Link>
-        <a href="#stats" className="hidden py-2 hover:text-ink sm:inline">Statistics</a>
-        <a href="#privacy" className="py-2 hover:text-ink">Privacy</a>
-        <SignInLink />
-      </nav>
-    </header>
-  );
-}
 
 function Hero() {
   return (

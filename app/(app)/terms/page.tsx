@@ -39,7 +39,7 @@ export default function Terms() {
 
       <p>
         For questions, deletion requests, or reports, open an issue on{' '}
-        <a href="https://github.com/DrftingWood/debate_cv" target="_blank" rel="noopener noreferrer">
+        <a href="https://github.com/DrftingWood/debate_cv">
           GitHub
         </a>
         .

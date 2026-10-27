@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Lock, Share2 } from 'lucide-react';
 import { TableScroll } from '@/components/ui/DataTable';
 import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 import { Badge } from '@/components/ui/Badge';
-import { BrandMark } from '@/components/BrandMark';
+import { PublicHeader } from '@/components/landing/PublicHeader';
 import { Footer } from '@/components/Footer';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
@@ -62,12 +61,7 @@ export default function SamplePage() {
   return (
     <>
     <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-5 md:py-6">
-      <header className="flex items-center justify-between gap-4">
-        <Link href="/" aria-label="debate cv home">
-          <BrandMark />
-        </Link>
-        <BuildCvButton size="md" label="Build my CV" />
-      </header>
+      <PublicHeader />
 
       <main id="main" className="space-y-10 py-10 md:py-12">
         {/* grid-cols-[minmax(0,1fr)] on the BASE breakpoint, not just md.
