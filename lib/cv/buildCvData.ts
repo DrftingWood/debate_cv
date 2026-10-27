@@ -10,6 +10,7 @@ import {
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
+import { isMajor } from '@/lib/cv/majors';
 import { summarizeBreaks } from '@/lib/cv/headerMetrics';
 import {
   bestSpeakerRankHighlight,
@@ -274,7 +275,7 @@ export type CvHighlights = {
    * rather than hiding the role inside a generic judge count.
    */
   adjCoreCount: number;
-  /** Detected major-circuit events the user has attended (WUDC / EUDC / Australs / Worlds). */
+  /** Detected major-circuit events the user has attended (the list in lib/cv/majors.ts). */
   majorEvents: { tournamentName: string; year: number | null }[];
   /** Earliest and latest year with at least one row. */
   activeYears: { from: number; to: number } | null;
@@ -1360,9 +1361,6 @@ export async function buildCvData(
   // ── Highlights ───────────────────────────────────────────────────────
   // Auto-derived achievements surfaced above the tables on /cv. Pure
   // functions of the rows we already computed; no extra DB hits.
-  const MAJOR_PATTERN =
-    /\b(?:wudc|world(?: university)? debating|eudc|european debating|australs|asian debating|naudc|north american debating)\b/i;
-
   const championships = championshipHighlights(speakerRows);
 
   const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
@@ -1395,7 +1393,7 @@ export async function buildCvData(
   const adjCoreCount = judgeRows.filter((r) => r.judgeTypeTag === 'core').length;
 
   const majorEvents = [...speakerRows, ...judgeRows]
-    .filter((r) => MAJOR_PATTERN.test(r.tournamentName))
+    .filter((r) => isMajor(r.tournamentName))
     .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
     // Dedup by name+year so a user with both a speaker and judge row at the
     // same major doesn't double-count.
