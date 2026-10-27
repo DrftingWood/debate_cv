@@ -2,6 +2,8 @@
 
 Written 2026-10-27; extended the same day with sections 11-14 (UX-44 to UX-87: navigation, tabs, buttons and actions, and wayfinding). This file is the single UI/UX standard for the product; add new rules here rather than starting another file. Forty-three testable rules (UX-1 to UX-43) for every screen in the product, each with a reason, a good and a bad example in this app's own idiom (the "Ledger" system in `docs/DESIGN_INSTRUCTIONS.md` §6), and how it is enforced. A rule with neither a mechanical check nor a reviewer question was cut; the cut list is at the end. The audit that measured the app against these rules is `docs/UI_UX_AUDIT-2026-10-27.md`.
 
+The audit against the navigation, tabs, buttons and wayfinding rules (UX-44 to UX-87) is `docs/UI_UX_AUDIT_NAVIGATION-2026-10-27.md` (findings NV-1 to NV-31).
+
 The owner mentioned a deep-research document on UI/UX standards that was not attached and is not in the repository. These rules were researched from the primary sources listed at the end, read on 2026-10-27. If that document turns up, reconcile it with this one rule by rule rather than replacing either.
 
 These rules apply to **new and changed UI**. They are not a licence to rewrite working screens for style (`CLAUDE.md`, "Out of scope"). They sit beside the code rules in `docs/CODING_STANDARDS.md`; AX-1 to AX-3 there are kept, and the rules below make them specific.
