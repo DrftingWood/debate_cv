@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-27 - SAFETY: preview builds no longer run migrations (owner action needed)
+
+- **Incident.** The Vercel Preview build log for PR #201 showed `prisma migrate deploy` applying migration `20261027120000_appearance_candidate` to a real database (`neondb`). `scripts/migrate-if-configured.mjs` assumed previews have no database attached, but the Preview environment had the Postgres URL, so an unmerged migration (one that changes existing user data) ran from a PR build.
+- **Now.** Migrations run only for production deployments (`VERCEL_ENV=production`) and for local builds with the URL set. Other Vercel builds skip with a log line. Force with `ALLOW_PREVIEW_MIGRATIONS=1`, only for a preview with its own isolated database. Logic: `scripts/lib/migrate-gate.mjs`; tests: `tests/migrateGate.test.ts`.
+- **Owner: check Vercel Settings > Environment Variables.** See whether `POSTGRES_URL_NON_POOLING` and `POSTGRES_PRISMA_URL` are enabled for the Preview environment. If Preview points at the production database, give Preview its own database (a Neon branch) or remove the variables from Preview. Previews reading the production database is still a risk even with migrations gated.
+- Also check whether the PR #201 migration was already applied to the production database and whether that was intended.
+
+---
+
 ## 2026-10-27 - Stats changes (owner-approved): no re-ingest needed
 
 - **BP uses straights, not wins.** A straight is points >= 2 x rounds; firsts are tracked separately as a break indicator; the BP "2nd-or-better" rate replaces win rate in the BP views.

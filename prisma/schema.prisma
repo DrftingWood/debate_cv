@@ -32,10 +32,11 @@ model User {
   /// replaced with a user-chosen vanity slug). publicAvatarEnabled lets
   /// a user opt out of showing their Google profile photo on the public
   /// view (per Q10 user-toggle). Defaults: disabled, random slug
-  /// generated lazily on first enable, avatar shown.
+  /// generated lazily on first enable, avatar hidden until the owner opts in
+  /// (C100).
   publicCvEnabled       Boolean @default(false)
   publicCvSlug          String? @unique
-  publicAvatarEnabled   Boolean @default(true)
+  publicAvatarEnabled   Boolean @default(false)
 
   accounts          Account[]
   sessions          Session[]
