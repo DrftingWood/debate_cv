@@ -133,7 +133,7 @@ jobs:
       - name: prettier --check
         continue-on-error: true
         run: |
-          npx prettier --list-different "**/*.{ts,tsx,js,mjs,cjs,json,css}" > .reports/prettier.txt || true
+          npx prettier --list-different "**/*.{ts,tsx,js,mjs,cjs,json,css,yml}" > .reports/prettier.txt || true
           echo "$(grep -c . .reports/prettier.txt || true) files differ from Prettier's output"
 
       - name: npm audit
