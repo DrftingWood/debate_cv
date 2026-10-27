@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { isAdminEmail } from '@/lib/admin';
 import {
   ScanButton,
   UploadCsvButton,
@@ -65,6 +66,8 @@ export default async function Dashboard({
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
+  // Only an admin may force a re-scrape (assumptions I53); see /api/ingest/url.
+  const canForce = isAdminEmail(session.user.email);
 
   const claimedCount = await prisma.person.count({
     where: { claimedByUserId: userId },
@@ -393,6 +396,7 @@ export default async function Dashboard({
                             tournamentName={u.tournament?.name ?? null}
                             status={status}
                             locked={u.reingestLocked}
+                            canForce={canForce}
                           />
                         </div>
                         <ImportProblem lastError={job?.lastError} status={status} />
@@ -467,6 +471,7 @@ export default async function Dashboard({
                               tournamentName={u.tournament?.name ?? null}
                               status={status}
                               locked={u.reingestLocked}
+                              canForce={canForce}
                             />
                           </Td>
                         </Tr>
@@ -551,12 +556,14 @@ function RowActions({
   tournamentName,
   status,
   locked,
+  canForce,
 }: {
   url: string;
   tournamentId: string | null;
   tournamentName: string | null;
   status: PillStatus;
   locked: boolean;
+  canForce: boolean;
 }) {
   // The tournament name (or the URL's host) goes into every action's
   // accessible name so the rows are told apart (NV-13).
@@ -582,7 +589,7 @@ function RowActions({
     return (
       <div className="flex items-center justify-end gap-3">
         <LockUrlButton url={url} locked={locked} name={rowName} />
-        <IngestButton url={url} alreadyDone={true} name={rowName} />
+        <IngestButton url={url} alreadyDone={true} name={rowName} canForce={canForce} />
       </div>
     );
   }

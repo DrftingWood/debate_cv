@@ -425,7 +425,7 @@ Where: `app/api/ingest/url/route.ts:20`; `ingest.ts:1118`, `:1343-1345`.
 Kind L. Source: UNVERIFIED (no owner decision found).
 If false: during a Cloudflare block, one user's forced paste can overwrite a shared tournament's good data with a degraded parse for everyone. It is rate-limited.
 Check: Q17.
-Status: unverified.
+Status: **owner (2026-10-27): only admins can force a re-scrape. Implemented:** `POST /api/ingest/url` answers `403 force_admin_only` (with a hint sentence, mapped in `lib/ingest/userMessage.ts` to a neutral "Refresh is automatic" toast) when `force: true` comes from an account that is not in `ADMIN_EMAIL` (`isAdminEmail`, `lib/admin.ts`). The dashboard "Re-ingest" button sends `force` only for admins; for everyone else it is an unforced re-ingest, which still re-scrapes when rounds, tabs or motions are new. `/cv/verify` (the other `force: true` caller) was already admin-only. The queue and `reingest-mine` never force.
 
 **I54. A re-scrape that would drop teams, participants or ranks below half (when there were more than 5) is a degraded page and is refused.**
 Where: `ingest.ts:1120-1159`.
