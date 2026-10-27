@@ -15,6 +15,7 @@ import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
+import { deltaTone, signed, signedOrNull } from '@/components/stats/format';
 
 // ── Headline ──────────────────────────────────────────────────────────────
 
@@ -174,10 +175,13 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
           <Histogram
             bins={p.bins}
             highlightIndex={p.meanBinIndex}
-            formatBin={(from, to) => (to - from > 1 ? `${from}` : `${from}`)}
+            formatBin={(from) => `${from}`}
+            title="Your speaker scores by band"
+            unit="scored speeches"
           />
           <p className="mt-3 text-caption text-ink-soft">
-            Each column is a score band; the highlighted one contains your average.
+            Each column is a one-band slice of your scores, labelled by where the band starts; the
+            figure above a column is how many speeches fell in it.
           </p>
         </div>
 
@@ -363,6 +367,8 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
             domain={[0, 100]}
             baseline={50}
             baselineLabel="median team"
+            title="Team-tab percentile by year"
+            valueLabel="Percentile"
           />
         </div>
       ) : null}
@@ -371,6 +377,9 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
 }
 
 // ── Field standing ────────────────────────────────────────────────────────
+
+/** A delta's tone as a StatTile accent; a figure that rounds to 0 stays ink. */
+const TILE_ACCENT = { 'val-pos': 'pos', 'val-neg': 'neg', 'val-flat': undefined } as const;
 
 export function FieldStanding({ stats }: { stats: SpeakerStats }) {
   const f = stats.fieldContext;
@@ -416,19 +425,15 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
               <StatTile
                 label="Avg vs field"
                 size="sm"
-                value={
-                  f.meanDelta == null
-                    ? '—'
-                    : `${f.meanDelta > 0 ? '+' : '−'}${Math.abs(f.meanDelta).toFixed(1)}`
-                }
-                accent={f.meanDelta == null ? undefined : f.meanDelta > 0 ? 'pos' : 'neg'}
-                hint="Points above the field mean"
+                value={signedOrNull(f.meanDelta) ?? '—'}
+                accent={f.meanDelta == null ? undefined : TILE_ACCENT[deltaTone(f.meanDelta)]}
+                hint="Speaker points against the field mean"
               />
               <StatTile
                 label="Standard deviations"
                 size="sm"
-                value={f.meanZ == null ? '—' : `${f.meanZ > 0 ? '+' : '−'}${Math.abs(f.meanZ).toFixed(2)}σ`}
-                hint="Above the field mean"
+                value={f.meanZ == null ? '—' : `${signed(f.meanZ, 2)}σ`}
+                hint="Against the field mean, in standard deviations"
               />
             </div>
           </div>
@@ -443,8 +448,12 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                   <Th numeric>Year</Th>
                   <Th numeric>Your avg</Th>
                   <Th numeric>Field avg</Th>
-                  <Th numeric>Δ</Th>
-                  <Th numeric>z</Th>
+                  <Th numeric title="Your average minus the field average, in speaker points">
+                    vs field (pts)
+                  </Th>
+                  <Th numeric title="The same gap in standard deviations of the field">
+                    z-score
+                  </Th>
                   <Th numeric className="pr-4" title="Your place among every speaker on the speaker tab">
                     Spk tab
                   </Th>
@@ -475,14 +484,11 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                       {p.delta == null ? (
                         <Nil />
                       ) : (
-                        <span className={p.delta >= 0 ? 'val-pos' : 'val-neg'}>
-                          {p.delta > 0 ? '+' : '−'}
-                          {Math.abs(p.delta).toFixed(1)}
-                        </span>
+                        <span className={deltaTone(p.delta)}>{signed(p.delta)}</span>
                       )}
                     </Td>
                     <Td numeric className="text-ink-soft">
-                      {p.z == null ? <Nil /> : `${p.z > 0 ? '+' : '−'}${Math.abs(p.z).toFixed(2)}`}
+                      {p.z == null ? <Nil /> : signed(p.z, 2)}
                     </Td>
                     <Td numeric className="pr-4">
                       {p.placement != null ? (
@@ -513,6 +519,8 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
             domain={[0, 100]}
             baseline={50}
             baselineLabel="median speaker"
+            title="Speaker-tab percentile by year"
+            valueLabel="Percentile"
           />
         </div>
       ) : null}
@@ -560,6 +568,8 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
             points={points}
             baseline={stats.scoreProfile.mean}
             baselineLabel="your average"
+            title="Speaker average by round number, with the number of speeches behind each"
+            valueLabel="Speaker avg"
           />
         </div>
         <div className="panel divide-y divide-border">
@@ -571,26 +581,20 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
           <StatLine label="Last three rounds" value={d.closingAvg?.toFixed(1)} />
           <StatLine
             label="Momentum"
-            value={
-              d.momentum == null
-                ? null
-                : `${d.momentum > 0 ? '+' : '−'}${Math.abs(d.momentum).toFixed(2)}`
-            }
+            value={signedOrNull(d.momentum, 2)}
             hint={
               d.momentum == null
                 ? undefined
-                : d.momentum > 0
+                : signed(d.momentum, 2).startsWith('+')
                   ? 'You finish above where you start'
-                  : 'You start above where you finish'
+                  : signed(d.momentum, 2).startsWith('−')
+                    ? 'You start above where you finish'
+                    : 'You finish level with where you start'
             }
           />
           <StatLine
             label="Trend per round"
-            value={
-              d.slopePerRound == null
-                ? null
-                : `${d.slopePerRound > 0 ? '+' : '−'}${Math.abs(d.slopePerRound).toFixed(2)}`
-            }
+            value={signedOrNull(d.slopePerRound, 2)}
             hint="Mean least-squares slope of score against round number"
           />
           <StatLine
@@ -838,7 +842,11 @@ export function SeasonTrends({
         {avgTrend.length > 0 ? (
           <div className="panel p-4">
             <div className="data-label mb-2">Speaker average by season</div>
-            <TrendChart points={avgTrend} />
+            <TrendChart
+              points={avgTrend}
+              title="Speaker average by season, with the number of tournaments behind each"
+              valueLabel="Speaker avg"
+            />
           </div>
         ) : null}
         {breakBars.length > 0 ? (

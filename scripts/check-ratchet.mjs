@@ -29,7 +29,8 @@ const BASELINE = {
   // first candidates when this number next falls.
   // 76 -> 73 (2026-10-27): those three are gone (the round-overlap rework of
   // affectedTournaments.ts).
-  nonNull: 73,
+  // 73 -> 72 (2026-10-27): t4 stats-charts UX work removed one more.
+  nonNull: 72,
   eslintDisableUnexplained: 4,
 };
 
