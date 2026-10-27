@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import { UserCheck } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { IdentityManager } from '@/components/IdentityManager';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Profile settings' };
 
 export default function ProfileSettingsPage() {
   return (
@@ -19,9 +22,7 @@ export default function ProfileSettingsPage() {
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-ink-soft" aria-hidden />
-            <h2 className="font-display text-h3 font-medium text-ink">
-              Your identities
-            </h2>
+            <h2 className="font-display text-h3 font-medium text-ink">Your identities</h2>
           </div>
           <IdentityManager />
         </CardBody>

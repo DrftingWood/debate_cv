@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useFormStatus } from 'react-dom';
 import { RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -26,25 +26,43 @@ export function ReconnectGmailButton({
   variant?: 'primary' | 'secondary';
   label?: string;
 }) {
-  const [isPending, startTransition] = useTransition();
   return (
     <form
       action={async () => {
         const { reconnectGmail } = await import('@/lib/auth/reconnectGmail');
-        startTransition(async () => {
-          await reconnectGmail(redirectTo);
-        });
+        await reconnectGmail(redirectTo);
       }}
     >
-      <Button
-        type="submit"
-        size={size}
-        variant={variant}
-        leftIcon={<RotateCcw className="h-4 w-4" aria-hidden />}
-        loading={isPending}
-      >
-        {label}
-      </Button>
+      <SubmitButton size={size} variant={variant} label={label} />
     </form>
+  );
+}
+
+/**
+ * `useFormStatus` is pending from the moment the form is submitted, which
+ * covers the dynamic import as well as the server action. The previous
+ * `useTransition` only started after the import resolved, so a second tap in
+ * that gap began a second OAuth round trip (FORM-13).
+ */
+function SubmitButton({
+  size,
+  variant,
+  label,
+}: {
+  size: 'sm' | 'md';
+  variant: 'primary' | 'secondary';
+  label: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="submit"
+      size={size}
+      variant={variant}
+      leftIcon={<RotateCcw className="h-4 w-4" aria-hidden />}
+      loading={pending}
+    >
+      {label}
+    </Button>
   );
 }

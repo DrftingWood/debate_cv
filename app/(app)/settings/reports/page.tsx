@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Flag } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -8,6 +9,8 @@ import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import type { CvReportStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Report history' };
 
 function statusBadge(status: CvReportStatus) {
   switch (status) {
