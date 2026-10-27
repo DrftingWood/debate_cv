@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast';
 import { FieldError, describedBy, fieldInputClass } from '@/components/FieldError';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
 import { postJson } from '@/lib/utils/api';
+import { userMessage } from '@/lib/ingest/userMessage';
 import {
   DELETE_PHRASE,
   deleteConfirmationTarget,
@@ -60,7 +61,7 @@ export function DisconnectGoogleButton() {
       </p>
       {error ? (
         <p role="alert" className="text-caption font-medium text-destructive">
-          Gmail is still connected: {error}. Try again.
+          Gmail is still connected. {error}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
@@ -74,7 +75,7 @@ export function DisconnectGoogleButton() {
             startTransition(async () => {
               const res = await postJson('/api/account/disconnect');
               if (!res.ok) {
-                setError(res.error);
+                setError(userMessage(res).description);
                 return;
               }
               toast.show({
@@ -173,7 +174,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
         setError(
           res.error === 'email_mismatch'
             ? `That does not match. Type ${target} exactly`
-            : `Your account was not deleted: ${res.error}. Try again`,
+            : `Your account was not deleted. ${userMessage(res).description}`,
         );
         inputRef.current?.focus();
         return;

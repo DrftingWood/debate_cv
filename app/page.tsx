@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
-import { Button, buttonClasses } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
+import { PendingSubmit, PendingTextSubmit } from '@/components/PendingSubmit';
 import { Footer } from '@/components/Footer';
 import { BrandMark } from '@/components/BrandMark';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
@@ -44,14 +45,13 @@ async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <Button
-        type="submit"
+      <PendingSubmit
         size={size}
         variant="primary"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
         Build my debate CV
-      </Button>
+      </PendingSubmit>
     </form>
   );
 }
@@ -64,12 +64,7 @@ async function SignInLink() {
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <button
-        type="submit"
-        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
-      >
-        Sign in
-      </button>
+      <PendingTextSubmit>Sign in</PendingTextSubmit>
     </form>
   );
 }

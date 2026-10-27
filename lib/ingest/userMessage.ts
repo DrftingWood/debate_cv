@@ -64,6 +64,10 @@ const BY_CODE: Record<string, UserMessage> = {
     description:
       'Another account claimed that name a moment ago. Search again to see the current list.',
   },
+  email_mismatch: {
+    kind: 'error',
+    description: 'That does not match the email address on your account. Check it and try again.',
+  },
   deferred: {
     kind: 'info',
     title: 'Queued instead',
