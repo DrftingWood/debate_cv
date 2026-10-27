@@ -122,7 +122,7 @@ export default async function CvPage() {
     },
     totalRoundsChaired,
     outroundsChaired: highlights.outroundsChaired,
-    bestSpeakerRank: highlights.bestSpeakerRank?.rank ?? null,
+    bestSpeakerRank: highlights.bestSpeakerRank,
     bestSpeakerAverage: highlights.bestSpeakerAverage?.score ?? null,
     speakerCount: speakerRows.length,
     judgeCount: judgeRows.length,

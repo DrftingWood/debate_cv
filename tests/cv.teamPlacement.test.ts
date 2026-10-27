@@ -6,6 +6,7 @@ import {
   compareBreakStrength,
   formatTopPercent,
   isTopSpeaker,
+  bestSpeakerRankHighlight,
   placementHighlights,
   teamTabPlacement,
 } from '@/lib/cv/teamPlacement';
@@ -294,6 +295,97 @@ describe('placementHighlights', () => {
   });
 });
 
+describe('bestSpeakerRankHighlight (C16): raw rank with field size and percentile', () => {
+  test('smallest raw rank wins; field size and percentile ride along', () => {
+    const best = bestSpeakerRankHighlight([
+      makeSpeakerRow({
+        tournamentName: 'Novice',
+        year: 2023,
+        speakerRankOpen: 3,
+        speakerFieldSize: 20,
+      }),
+      makeSpeakerRow({
+        tournamentName: 'Major',
+        year: 2024,
+        speakerRankOpen: 5,
+        speakerFieldSize: 400,
+      }),
+    ]);
+    // Raw rank decides (owner: raw rank), not share of field.
+    expect(best).toEqual({
+      tournamentName: 'Novice',
+      year: 2023,
+      rank: 3,
+      totalSpeakers: 20,
+      topPercent: 15,
+    });
+  });
+
+  test('at an equal rank the bigger field is the better finish', () => {
+    const best = bestSpeakerRankHighlight([
+      makeSpeakerRow({ tournamentName: 'Small', speakerRankOpen: 2, speakerFieldSize: 30 }),
+      makeSpeakerRow({ tournamentName: 'Big', speakerRankOpen: 2, speakerFieldSize: 300 }),
+      makeSpeakerRow({ tournamentName: 'Unknown', speakerRankOpen: 2 }),
+    ]);
+    expect(best?.tournamentName).toBe('Big');
+  });
+
+  test('an unknown or inconsistent field gives the rank with no percentile', () => {
+    expect(bestSpeakerRankHighlight([makeSpeakerRow({ speakerRankOpen: 4 })])).toMatchObject({
+      rank: 4,
+      totalSpeakers: null,
+      topPercent: null,
+    });
+    expect(
+      bestSpeakerRankHighlight([makeSpeakerRow({ speakerRankOpen: 9, speakerFieldSize: 5 })]),
+    ).toMatchObject({ totalSpeakers: null, topPercent: null });
+    expect(bestSpeakerRankHighlight([makeSpeakerRow({ speakerRankOpen: null })])).toBeNull();
+  });
+});
+
+describe('header tiles show rank with field size (C15, C16)', () => {
+  const base = {
+    totalTournaments: 5,
+    breaks: { speaking: 0, judging: 0, tournamentsSpoken: 5, tournamentsJudged: 0 },
+    totalRoundsChaired: 0,
+    outroundsChaired: 0,
+    bestSpeakerAverage: null,
+    speakerCount: 5,
+    judgeCount: 0,
+    activeYears: null,
+  };
+
+  test('best team finish reads "3rd of 120" with the percentile as the hint', () => {
+    const tiles = pickHeaderMetrics({
+      ...base,
+      bestSpeakerRank: null,
+      bestTeamFinish: { rank: 3, totalTeams: 120, topPercent: 2.5 },
+    });
+    expect(tiles.find((t) => t.label === 'Best team finish')).toMatchObject({
+      value: '3rd of 120',
+      hint: 'top 3%',
+    });
+  });
+
+  test('best speaker-tab rank reads "5th of 400" with a percentile, or just the rank when the field is unknown', () => {
+    const withField = pickHeaderMetrics({
+      ...base,
+      bestSpeakerRank: { rank: 5, totalSpeakers: 400, topPercent: 1.25 },
+    });
+    expect(withField.find((t) => t.label === 'Best speaker-tab rank')).toMatchObject({
+      value: '5th of 400',
+      hint: 'top 1%',
+    });
+    const noField = pickHeaderMetrics({
+      ...base,
+      bestSpeakerRank: { rank: 5, totalSpeakers: null, topPercent: null },
+    });
+    expect(noField.find((t) => t.label === 'Best speaker-tab rank')).toMatchObject({
+      value: '5th',
+    });
+  });
+});
+
 describe('statistics: team context', () => {
   const rows = [
     makeSpeakerRow({
@@ -346,7 +438,7 @@ describe('surfaces', () => {
       breaks: { speaking: 4, judging: 0, tournamentsSpoken: 10, tournamentsJudged: 0 },
       totalRoundsChaired: 0,
       outroundsChaired: 0,
-      bestSpeakerRank: 2,
+      bestSpeakerRank: { rank: 2, totalSpeakers: 300, topPercent: 0.7 },
       bestSpeakerAverage: 78.1,
       speakerCount: 10,
       judgeCount: 0,
@@ -361,7 +453,7 @@ describe('surfaces', () => {
       'Best speaker avg',
     ]);
     expect(tiles[1].hint).toBe('40% of 10 spoken · deepest Semifinals');
-    expect(tiles[2]).toMatchObject({ value: '#3', hint: 'of 120 teams · top 3%' });
+    expect(tiles[2]).toMatchObject({ value: '3rd of 120', hint: 'top 3%' });
   });
 
   test('a speaker-only header keeps the speaker-tab rank, labelled as such', () => {
@@ -370,7 +462,7 @@ describe('surfaces', () => {
       breaks: { speaking: 0, judging: 0, tournamentsSpoken: 3, tournamentsJudged: 0 },
       totalRoundsChaired: 0,
       outroundsChaired: 0,
-      bestSpeakerRank: 5,
+      bestSpeakerRank: { rank: 5, totalSpeakers: null, topPercent: null },
       bestSpeakerAverage: null,
       speakerCount: 3,
       judgeCount: 0,

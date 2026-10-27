@@ -2,6 +2,8 @@ import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe, Users } from 'lucide-r
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
 import { SectionHeader } from '@/components/ui/Card';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { rankOfField } from '@/lib/cv/rankDisplay';
+import { formatTopPercent } from '@/lib/cv/teamPlacement';
 
 /** "Semifinals", or "ESL Final (won)" when the team took that bracket's final. */
 function breakLabel(stage: string, won: boolean): string {
@@ -86,8 +88,13 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   if (bestSpeakerRank) {
     tiles.push({
       label: 'Best speaker-tab rank',
-      title: `#${bestSpeakerRank.rank}`,
-      items: [withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year)],
+      title: rankOfField(bestSpeakerRank.rank, bestSpeakerRank.totalSpeakers),
+      items: [
+        withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year) +
+          (bestSpeakerRank.topPercent != null
+            ? ` · top ${formatTopPercent(bestSpeakerRank.topPercent)}`
+            : ''),
+      ],
       icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
   }

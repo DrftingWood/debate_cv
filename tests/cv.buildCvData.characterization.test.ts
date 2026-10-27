@@ -527,6 +527,8 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
       // team rank or the speaker total in this fixture.
       teamRankTied: false,
       speakerRankTied: false,
+      // Added with C16: the speakers on the tab, so the rank reads "Nth of 4".
+      speakerFieldSize: 4,
       teamPoints: '12',
       teamWins: null,
       teamFirsts: 3,

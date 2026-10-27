@@ -259,7 +259,7 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 8,
       speakerCount: 8,
       breaks: { speaking: 3, judging: 0, tournamentsSpoken: 8, tournamentsJudged: 0 },
-      bestSpeakerRank: 6,
+      bestSpeakerRank: { rank: 6, totalSpeakers: 90, topPercent: 6.7 },
       bestSpeakerAverage: 77.2,
     });
     const labels = tiles.map((t) => t.label);
@@ -322,7 +322,7 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 20,
       speakerCount: 20,
       breaks: { speaking: 9, judging: 0, tournamentsSpoken: 20, tournamentsJudged: 0 },
-      bestSpeakerRank: 3,
+      bestSpeakerRank: { rank: 3, totalSpeakers: 90, topPercent: 3.3 },
       bestSpeakerAverage: 78.1,
       totalRoundsChaired: 5,
       outroundsChaired: 2,

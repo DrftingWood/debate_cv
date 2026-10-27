@@ -1,4 +1,5 @@
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
+import { rankOfField } from '@/lib/cv/rankDisplay';
 
 /**
  * Which summary tiles the /cv account header shows.
@@ -104,7 +105,8 @@ export function pickHeaderMetrics(input: {
   breaks: BreakSummary;
   totalRoundsChaired: number;
   outroundsChaired: number;
-  bestSpeakerRank: number | null;
+  /** Raw best speaker-tab rank with its field (null fields when unknown). */
+  bestSpeakerRank: { rank: number; totalSpeakers: number | null; topPercent: number | null } | null;
   bestSpeakerAverage: number | null;
   speakerCount: number;
   judgeCount: number;
@@ -167,15 +169,22 @@ export function pickHeaderMetrics(input: {
     if (bestTeamFinish) {
       candidates.push({
         label: 'Best team finish',
-        value: `#${bestTeamFinish.rank}`,
-        hint: `of ${bestTeamFinish.totalTeams} teams · top ${formatTopPercent(bestTeamFinish.topPercent)}`,
+        value: rankOfField(bestTeamFinish.rank, bestTeamFinish.totalTeams),
+        hint: `top ${formatTopPercent(bestTeamFinish.topPercent)}`,
       });
     }
     if (bestSpeakerAverage != null) {
       candidates.push({ label: 'Best speaker avg', value: bestSpeakerAverage.toFixed(1) });
     }
     if (bestSpeakerRank != null) {
-      candidates.push({ label: 'Best speaker-tab rank', value: `#${bestSpeakerRank}` });
+      candidates.push({
+        label: 'Best speaker-tab rank',
+        value: rankOfField(bestSpeakerRank.rank, bestSpeakerRank.totalSpeakers),
+        hint:
+          bestSpeakerRank.topPercent != null
+            ? `top ${formatTopPercent(bestSpeakerRank.topPercent)}`
+            : undefined,
+      });
     }
   } else if (judgeLeaning) {
     if (breakValue) candidates.push(breaksTile(breakValue));

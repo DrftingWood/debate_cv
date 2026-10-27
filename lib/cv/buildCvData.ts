@@ -11,7 +11,11 @@ import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { summarizeBreaks } from '@/lib/cv/headerMetrics';
-import { championshipHighlights, placementHighlights } from '@/lib/cv/teamPlacement';
+import {
+  bestSpeakerRankHighlight,
+  championshipHighlights,
+  placementHighlights,
+} from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -110,6 +114,8 @@ export type CvSpeakerRow = {
    */
   prelimRoundCount: number | null;
   speakerRankOpen: number | null;
+  /** Speakers on the tab with a score total (the field the rank is against); absent when the field was not loaded. */
+  speakerFieldSize?: number | null;
   /** Another speaker has the same total, so the rank reads "7=". False when the field was not loaded. */
   speakerRankTied?: boolean;
   speakerRankEsl: number | null;
@@ -244,7 +250,15 @@ export type CvHighlights = {
    * statistic: every surface labels it as the speaker tab, and nothing uses
    * it as the measure of how high the user placed.
    */
-  bestSpeakerRank: { tournamentName: string; year: number | null; rank: number } | null;
+  bestSpeakerRank: {
+    tournamentName: string;
+    year: number | null;
+    rank: number;
+    /** Speakers on that tab; null when unknown. */
+    totalSpeakers: number | null;
+    /** rank / totalSpeakers as a percentage ("top N%"); null with the field. */
+    topPercent: number | null;
+  } | null;
   /** Single highest speaker average across all tournaments. */
   bestSpeakerAverage: {
     tournamentName: string;
@@ -1353,13 +1367,19 @@ export async function buildCvData(
 
   const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
-  const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
-    if (r.speakerRankOpen == null) return best;
-    if (!best || r.speakerRankOpen < best.rank) {
-      return { tournamentName: r.tournamentName, year: r.year, rank: r.speakerRankOpen };
-    }
-    return best;
-  }, null);
+  // Speaker field size per tournament, so the best rank can read "3rd of 400".
+  // Empty when the field was not loaded (includeFieldStats: false).
+  const speakerFieldByTournament = new Map<bigint, number>();
+  for (const f of fieldRows) {
+    if (f.speakerScoreTotal == null) continue;
+    speakerFieldByTournament.set(
+      f.tournamentId,
+      (speakerFieldByTournament.get(f.tournamentId) ?? 0) + 1,
+    );
+  }
+  for (const r of speakerRows)
+    r.speakerFieldSize = speakerFieldByTournament.get(r.tournamentId) ?? null;
+  const bestSpeakerRank = bestSpeakerRankHighlight(speakerRows);
 
   const bestSpeakerAverage = speakerRows.reduce<CvHighlights['bestSpeakerAverage']>((best, r) => {
     if (!r.speakerAvgScore) return best;
