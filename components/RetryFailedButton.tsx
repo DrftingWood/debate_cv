@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import { failureToast } from '@/lib/ingest/userMessage';
 
 type RetryResponse = { retried: number; skipped: number };
 
@@ -32,7 +33,7 @@ export function RetryFailedButton({ count }: { count: number }) {
         startTransition(async () => {
           const res = await postJson<RetryResponse>('/api/ingest/retry-failed');
           if (!res.ok) {
-            toast.show({ kind: 'error', title: 'Retry failed', description: res.error });
+            toast.show(failureToast(res, 'Retry failed'));
             return;
           }
           const { retried, skipped } = res.data;

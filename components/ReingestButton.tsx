@@ -6,6 +6,7 @@ import { RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import { failureToast } from '@/lib/ingest/userMessage';
 
 /**
  * Force a fresh ingest for a single tournament URL. Bypasses the 30-day
@@ -29,7 +30,7 @@ export function ReingestButton({ url }: { url: string }) {
         startTransition(async () => {
           const res = await postJson('/api/ingest/url', { url, force: true });
           if (!res.ok) {
-            toast.show({ kind: 'error', title: 'Re-ingest failed', description: res.error });
+            toast.show(failureToast(res, 'Re-ingest failed'));
             return;
           }
           toast.show({

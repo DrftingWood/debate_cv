@@ -58,7 +58,9 @@ function shortUrl(url: string): string {
 export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
   const router = useRouter();
   const [data, setData] = useState<ProgressScope | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   const wasActiveRef = useRef(false);
+  const seenRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poll = useCallback(async () => {
@@ -79,10 +81,17 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
       // component (dashboard rows, CV banners) picks up the results
       // without the user reloading.
       if (wasActiveRef.current && !active) router.refresh();
+      // Speak only when the queue starts or finishes. The first poll sets
+      // the baseline silently: a page load is not news, and announcing the
+      // counts on every 5-second poll talked over whatever the user was
+      // doing (the whole section used to be aria-live).
+      if (seenRef.current && active !== wasActiveRef.current) {
+        setAnnouncement(progressAnnouncement(next, active));
+      }
+      seenRef.current = true;
       wasActiveRef.current = active;
     }
-    const interval =
-      next && next.pending + next.running > 0 ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    const interval = next && next.pending + next.running > 0 ? ACTIVE_POLL_MS : IDLE_POLL_MS;
     timerRef.current = setTimeout(() => void poll(), interval);
   }, [router, scope]);
 
@@ -93,64 +102,83 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
     };
   }, [poll]);
 
-  if (!data || data.batchTotal === 0) return null;
+  // The status region renders on every path, including the empty one, so
+  // it is in the page before its first message (a live region inserted
+  // together with its text is often not read).
+  const status = (
+    <p role="status" className="sr-only">
+      {announcement}
+    </p>
+  );
+
+  if (!data || data.batchTotal === 0) return status;
 
   const active = data.pending + data.running;
   const completed = data.doneRecent + data.failedRecent;
   const fraction = data.batchTotal > 0 ? completed / data.batchTotal : 0;
 
   return (
-    <section
-      aria-label="Ingestion progress"
-      aria-live="polite"
-      className="space-y-2 border-y border-border py-3"
-      data-print-hide="true"
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="kicker">
-          {scope === 'global' ? 'INGESTION — ALL USERS' : 'INGESTION'}
-          {active > 0 ? ' · LIVE' : ' · DONE'}
-        </span>
-        <span className="num text-caption text-ink-soft">
-          {active > 0 && data.etaSeconds != null
-            ? formatEta(data.etaSeconds)
-            : 'queue empty'}
-        </span>
-      </div>
-
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={data.batchTotal}
-        aria-valuenow={completed}
-        className="h-1.5 overflow-hidden rounded-sm bg-ink/[0.08]"
+    <>
+      {status}
+      <section
+        aria-label="Ingestion progress"
+        className="space-y-2 border-y border-border py-3"
+        data-print-hide="true"
       >
-        <div
-          className={
-            'h-full rounded-sm transition-[width] duration-700 ease-soft ' +
-            (active > 0 ? 'bg-oxblood' : 'bg-ink/60')
-          }
-          style={{ width: `${Math.round(fraction * 100)}%` }}
-        />
-      </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="kicker">
+            {scope === 'global' ? 'INGESTION — ALL USERS' : 'INGESTION'}
+            {active > 0 ? ' · LIVE' : ' · DONE'}
+          </span>
+          <span className="num text-caption text-ink-soft">
+            {active > 0 && data.etaSeconds != null ? formatEta(data.etaSeconds) : 'queue empty'}
+          </span>
+        </div>
 
-      <p className="text-caption text-ink-soft">
-        <span className="num text-ink">{completed}</span> of{' '}
-        <span className="num text-ink">{data.batchTotal}</span> processed
-        {data.failedRecent > 0 ? (
-          <> ({data.failedRecent} failed)</>
-        ) : null}
-        {data.running > 0 && data.currentUrl ? (
-          <>
-            {' '}
-            · now scraping{' '}
-            <span className="font-mono text-byline">{shortUrl(data.currentUrl)}</span>
-          </>
-        ) : null}
-        {data.running === 0 && data.pending > 0 ? (
-          <> · {data.pending} queued — next background run starts within ~15 min, or use Ingest all</>
-        ) : null}
-      </p>
-    </section>
+        <div
+          role="progressbar"
+          aria-label="Import progress"
+          aria-valuetext={`${completed} of ${data.batchTotal} processed`}
+          aria-valuemin={0}
+          aria-valuemax={data.batchTotal}
+          aria-valuenow={completed}
+          className="h-1.5 overflow-hidden rounded-sm bg-ink/[0.08]"
+        >
+          <div
+            className={
+              'h-full rounded-sm transition-[width] duration-700 ease-soft ' +
+              (active > 0 ? 'bg-oxblood' : 'bg-ink/60')
+            }
+            style={{ width: `${Math.round(fraction * 100)}%` }}
+          />
+        </div>
+
+        <p className="text-caption text-ink-soft">
+          <span className="num text-ink">{completed}</span> of{' '}
+          <span className="num text-ink">{data.batchTotal}</span> processed
+          {data.failedRecent > 0 ? <> ({data.failedRecent} failed)</> : null}
+          {data.running > 0 && data.currentUrl ? (
+            <>
+              {' '}
+              · now scraping{' '}
+              <span className="font-mono text-byline">{shortUrl(data.currentUrl)}</span>
+            </>
+          ) : null}
+          {data.running === 0 && data.pending > 0 ? (
+            <>
+              {' '}
+              · {data.pending} queued — next background run starts within ~15 min, or use Ingest all
+            </>
+          ) : null}
+        </p>
+      </section>
+    </>
   );
+}
+
+function progressAnnouncement(scope: ProgressScope, active: boolean): string {
+  const completed = scope.doneRecent + scope.failedRecent;
+  if (active) return `Importing: ${completed} of ${scope.batchTotal} processed.`;
+  const failed = scope.failedRecent > 0 ? `, ${scope.failedRecent} failed` : '';
+  return `Imports finished: ${completed} processed${failed}.`;
 }

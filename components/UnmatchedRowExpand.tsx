@@ -42,6 +42,7 @@ export function UnmatchedRowExpand({
           <ParticipantSearch
             tournamentId={tournamentId}
             tournamentName={tournamentName}
+            autoFocus
           />
         </div>
       ) : null}
