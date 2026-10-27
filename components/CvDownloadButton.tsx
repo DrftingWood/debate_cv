@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { usePopover } from '@/components/ui/usePopover';
 import { EXPORT_FIELDS, EXPORT_FIELD_IDS } from '@/lib/cv/exportFields';
 
 type ExportFormat = 'csv' | 'xlsx';
@@ -45,10 +46,9 @@ function loadPrefs(): StoredPrefs | null {
  * Content-Disposition, so no blob handling here.
  */
 export function CvDownloadButton() {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
   const [format, setFormat] = useState<ExportFormat>('csv');
   const [selected, setSelected] = useState<Set<string>>(new Set(EXPORT_FIELD_IDS));
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const prefs = loadPrefs();
@@ -56,23 +56,6 @@ export function CvDownloadButton() {
     setFormat(prefs.format);
     if (prefs.fields.length > 0) setSelected(new Set(prefs.fields));
   }, []);
-
-  // Close on outside click + Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKeydown);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKeydown);
-    };
-  }, [open]);
 
   const persist = (nextFormat: ExportFormat, nextSelected: Set<string>) => {
     try {
@@ -143,6 +126,7 @@ export function CvDownloadButton() {
   return (
     <div ref={containerRef} className="relative" data-print-hide="true">
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="outline"
@@ -155,6 +139,8 @@ export function CvDownloadButton() {
       </Button>
       {open ? (
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
           aria-label="Download your CV"
           className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-border bg-card p-4 shadow-lg"

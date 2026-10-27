@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LEGAL_PROSE } from '../privacy/legalProse';
+import { LEGAL_LAST_UPDATED } from '@/lib/utils/date';
 
 export const metadata: Metadata = {
   title: 'Terms',
@@ -19,7 +20,7 @@ export default function Terms() {
 
       <article className={LEGAL_PROSE}>
       <p className="lead">
-        debate cv is provided as-is for personal use. Last updated: 2026.
+        debate cv is provided as-is for personal use. Last updated: {LEGAL_LAST_UPDATED}.
       </p>
 
       <p>

@@ -12,6 +12,7 @@ import {
   DeleteAccountButton,
 } from '@/components/AccountActions';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
+import { formatDate } from '@/lib/utils/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,11 +89,7 @@ export default async function AccountSettingsPage() {
             {gmailToken?.updatedAt ? (
               <span className="text-caption text-ink-soft">
                 Last refreshed{' '}
-                {new Date(gmailToken.updatedAt).toLocaleDateString('en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
+                {formatDate(gmailToken.updatedAt)}
               </span>
             ) : null}
           </div>
