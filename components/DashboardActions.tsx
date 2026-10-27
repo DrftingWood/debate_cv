@@ -14,6 +14,7 @@ import {
   Square,
   Upload,
   Clock,
+  Inbox,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
@@ -21,6 +22,13 @@ import { postJson } from '@/lib/utils/api';
 import { drainUntilEmpty, summariseDrain } from '@/lib/ingest/drainUntilEmpty';
 import { scanErrorMessage, formatCountdown } from '@/lib/ingest/scanErrorMessage';
 import { failureToast, thrownToast } from '@/lib/ingest/userMessage';
+import {
+  FULL_SCAN_CONFIRM_ACTION,
+  FULL_SCAN_CONFIRM_TEXT,
+  FULL_SCAN_LABEL,
+  fullScanResultText,
+  fullScanUnavailableText,
+} from '@/lib/ingest/fullScanCopy';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
 import { ScanCooldownNotice, useScanCooldown, type ScanCooldown } from '@/components/ScanCooldown';
 
@@ -95,6 +103,156 @@ export function ScanButton({ disconnected = false }: { disconnected?: boolean })
             ? 'Scan done. Ingesting the URLs it found.'
             : ''}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Secondary action beside Scan Gmail: re-read the whole mailbox, for mail that
+ * arrived or was forwarded later than the newest URL already found. Allowed
+ * once per 24 hours; the server enforces it (POST /api/ingest/gmail/full) and
+ * the page passes `availableAt` so the button is already unavailable on load.
+ * While unavailable it is aria-disabled (stays focusable) with the reason
+ * and time written beside it, not only greyed out. A short inline confirm
+ * comes first because the scan is slow and uses the day's one go.
+ */
+export function FullScanButton({
+  disconnected = false,
+  availableAt = null,
+}: {
+  disconnected?: boolean;
+  /** ISO time the next full scan is allowed; null when allowed now. */
+  availableAt?: string | null;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const [until, setUntil] = useState<number | null>(availableAt ? Date.parse(availableAt) : null);
+  // null until mounted, so server and first client render agree.
+  const [now, setNow] = useState<number | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const focusAfterRender = useFocusAfterRender();
+  const reasonId = useId();
+
+  useEffect(() => {
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const locked = until !== null && (now === null || until > now);
+  const reason = disconnected
+    ? 'Reconnect Gmail before scanning.'
+    : until !== null && locked
+      ? fullScanUnavailableText(until, now ?? until - 86_400_000)
+      : null;
+  const blocked = disconnected || locked;
+
+  const run = () =>
+    startTransition(async () => {
+      try {
+        const scan = await postJson<ScanResponse & { truncated?: boolean }>(
+          '/api/ingest/gmail/full',
+        );
+        if (!scan.ok) {
+          setConfirming(false);
+          if (scan.status === 429 && scan.retryAfterSec) {
+            setUntil(Date.now() + scan.retryAfterSec * 1000);
+            setNow(Date.now());
+            return;
+          }
+          const notice = scanErrorMessage(scan);
+          toast.show({
+            kind: notice.kind === 'cooldown' ? 'info' : notice.kind,
+            title: notice.title,
+            description: notice.description,
+          });
+          return;
+        }
+        setUntil(Date.now() + 86_400_000);
+        setNow(Date.now());
+        setConfirming(false);
+        const text = fullScanResultText(
+          scan.data.found,
+          scan.data.scanned,
+          Boolean(scan.data.truncated),
+        );
+        router.refresh();
+        if (scan.data.found > 0) {
+          const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);
+          toast.show({
+            ...drain,
+            title: drain.title === 'Done' ? 'Full scan complete' : drain.title,
+            description: `${text} ${drain.description}`,
+          });
+          router.refresh();
+        } else {
+          toast.show({ kind: 'success', title: 'Full scan complete', description: text });
+        }
+      } catch (e) {
+        setConfirming(false);
+        toast.show(thrownToast(e, 'Full scan did not finish'));
+      }
+    });
+
+  if (confirming && !blocked) {
+    return (
+      <div
+        role="group"
+        aria-label="Confirm scanning the whole mailbox"
+        className="flex max-w-sm flex-col gap-2 rounded-md border border-border bg-surface p-3 sm:items-end"
+      >
+        <p className="text-caption text-ink-soft">{FULL_SCAN_CONFIRM_TEXT}</p>
+        <div className="flex items-center gap-2">
+          <Button
+            ref={cancelRef}
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isPending}
+            onClick={() => {
+              setConfirming(false);
+              focusAfterRender(triggerRef);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type="button" variant="outline" size="sm" loading={isPending} onClick={run}>
+            {isPending ? 'Scanning whole mailbox…' : FULL_SCAN_CONFIRM_ACTION}
+          </Button>
+        </div>
+        <p role="status" className="sr-only">
+          {isPending ? 'Scanning the whole mailbox. This may take a while.' : ''}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex max-w-xs flex-col sm:items-end">
+      <Button
+        ref={triggerRef}
+        type="button"
+        variant="outline"
+        aria-disabled={blocked ? true : undefined}
+        aria-describedby={reason ? reasonId : undefined}
+        className={blocked ? 'cursor-not-allowed opacity-60' : undefined}
+        leftIcon={<Inbox className="h-4 w-4" aria-hidden />}
+        onClick={() => {
+          if (blocked) return;
+          setConfirming(true);
+          focusAfterRender(cancelRef);
+        }}
+      >
+        {FULL_SCAN_LABEL}
+      </Button>
+      {reason ? (
+        <p id={reasonId} className="mt-1.5 text-caption text-ink-soft sm:text-right">
+          {reason}
+        </p>
+      ) : null}
     </div>
   );
 }
