@@ -11,6 +11,7 @@ import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
+import { TournamentLink } from '@/components/TournamentCard';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank } from '@/lib/cv/rankDisplay';
 import {
@@ -83,11 +84,15 @@ export default async function PublicCvPage({
   const { speakerRows, judgeRows, summary, highlights } = data;
   const stats = computeSpeakerStats(data);
 
-  const compiled = new Date().toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  // The newest ingest, not the render date (CV-10).
+  const updated = data.lastIngestedAt
+    ? data.lastIngestedAt.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    : null;
 
   const summaryTiles: React.ReactNode[] = [];
   if (summary.totalTournaments > 0) {
@@ -152,7 +157,7 @@ export default async function PublicCvPage({
           the page. A control that visibly does nothing is worse than no
           control; the forced-light decision is the one that stands.
         */}
-        <div className="data-label">Public debate record · compiled {compiled}</div>
+        <div className="data-label">Public debate record{updated ? ` · updated ${updated}` : ''}</div>
         <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-4">
             {user.publicAvatarEnabled && user.image ? (
@@ -174,6 +179,7 @@ export default async function PublicCvPage({
             )}
             <div>
               <h1 className="font-display text-h1 font-medium tracking-tight text-ink">
+                <span className="sr-only">Debate record of </span>
                 {user.name ?? 'Debater'}
               </h1>
               {/*
@@ -286,7 +292,11 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                   <Td numeric>{r.speakerRankOpen != null ? hashRank(r.speakerRankOpen, r.speakerRankTied) : <Nil />}</Td>
                   <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
                   <Td className="min-w-[8rem] pr-4">
-                    {r.broke || fmtPublicLastOutround(r) ? <PublicBreakMarker r={r} /> : <Nil />}
+                    {r.broke || fmtPublicLastOutround(r) ? (
+                      <PublicBreakMarker r={r} />
+                    ) : (
+                      <span className="text-ink-soft">Did not break</span>
+                    )}
                   </Td>
                 </Tr>
               ))}
@@ -366,19 +376,9 @@ function JudgingSection({ rows }: { rows: CvJudgeRow[] }) {
   );
 }
 
-/** Wraps rather than truncating: a `title` tooltip is the only way to read a clipped name. */
+/** The shared link, same as /cv: wraps, shows the external-link icon, says it opens a new tab. */
 function TableSourceLink({ href, name }: { href: string; name: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex min-h-[44px] items-center break-words font-medium text-ink hover:text-primary"
-    >
-      {name}
-      <span className="sr-only"> (opens in new tab)</span>
-    </a>
-  );
+  return <TournamentLink name={name} href={href} className="coarse:min-h-[44px]" />;
 }
 
 function teamPlacementTitle(r: CvSpeakerRow): string | undefined {

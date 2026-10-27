@@ -176,7 +176,7 @@ export function CvRowReportButton({
               <button
                 type="button"
                 onClick={close}
-                className="rounded-md p-1 text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" aria-hidden />

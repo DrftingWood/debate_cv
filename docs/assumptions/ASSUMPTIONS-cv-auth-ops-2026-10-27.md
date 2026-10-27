@@ -951,22 +951,42 @@ Next in line: C105 (the privacy page says links are removed on deletion, but the
 ## Questions for the owner (20)
 
 1. Is a Silver, Plate or other consolation-bracket run ever a "break"? (C9, C24)
+   - **Owner (2026-10-27): contradicted by owner.** Gold/Silver/Bronze finals are valid open finals and count as breaks; rank gold > silver > bronze.
 2. Does winning an ESL, EFL or Novice final count as a "title" or "Champion" on the CV? (C10)
+   - **Owner (2026-10-27): contradicted by owner.** ESL/EFL/Novice final wins are titles, labelled by category.
 3. Are "Final" and "Grand Final" ever two different rounds at one tournament? If not, should they rank the same? (C8)
+   - **Owner (2026-10-27): contradicted by owner.** Final = Grand Final, same rank.
 4. Is losing a partial quarterfinal ("Pre-Semis") the same depth as losing a full quarterfinal? (C11)
+   - **Owner (2026-10-27): contradicted by owner.** partial quarters / pre-semis = quarterfinals.
 5. Top 10%: round up (rank 2 of 15 counts), or strictly rank / teams <= 10%? (C3)
+   - **Owner (2026-10-27): contradicted by owner.** drop top 10% of break; use absolute "Top 10 speaker".
 6. Should "Breaks" in the /cv header count outrounds the user judged? (C25)
+   - **Owner (2026-10-27): contradicted by owner.** header shows both speaking and judging breaks.
 7. Break rate: divide by tournaments spoken, or by all tournaments? (C26)
+   - **Owner (2026-10-27): contradicted by owner.** separate break rates for speaking and judging.
 8. Is a season the calendar year, or an academic season? If academic, which month starts it? (C37)
+   - **Owner (2026-10-27): confirmed by owner.** season = calendar year.
 9. In BP, is only a 1st a "win" for streaks and win rate, and should every win-rate finding be per format? (C40, C41)
+   - **Owner (2026-10-27): contradicted by owner.** BP uses "straights"; firsts tracked separately.
 10. Which tournaments are "majors"? (C21)
+   - **Owner (2026-10-27): contradicted by owner.** majors: WUDC, ABP, EUDC, Australs, UADC, PAUDC, USUDC, NAUDC; editable later.
 11. Best team rank and best speaker rank: the raw rank, or rank as a share of the field? (C15, C16)
+   - **Owner (2026-10-27): contradicted by owner.** raw rank with field size plus percentile.
 12. Is a pro-am gap of 1.5 speaker points right? (C49)
+   - **Owner (2026-10-27): contradicted by owner.** no automatic pro-am; users mark teammates in a new Partners section.
 13. Should a tab director or CA count as having judged the tournament, and their outrounds as a judge break? (C28)
+   - **Owner (2026-10-27): contradicted by owner.** CAs usually judge, TDs usually do not; a judging TD counts as a break.
 14. "Only speaker stats": should the judging sections on /cv/stats stay? (C60)
+   - **Owner (2026-10-27): confirmed by owner.** keep judging sections on /cv/stats.
 15. Apart from EUDC, which tournaments let one team run in both Open and a category bracket? (C22)
+   - **Owner (2026-10-27): confirmed by owner.** only EUDC.
 16. Decision B: implement private-URL deletion now (the design doc is ready)? (C88)
+   - **Owner (2026-10-27): contradicted by owner.** delete private URL after ingest, but later (backlog).
 17. Should a single paste also have a daily cap, and is 5 CSV uploads a day (100 URLs) the cap you meant? (C85, C86)
+   - **Owner (2026-10-27): contradicted by owner.** add a daily cap on pastes; keep 20 per paste.
 18. Is "about every 30 minutes" a promise? If yes, scan more users per cron call. (C78)
+   - **Owner (2026-10-27): contradicted by owner.** "about every 30 minutes" is not a promise; soften the wording.
 19. On the public CV, should the photo be off by default, and should users be able to hide single tournaments? (C100, C101)
+   - **Owner (2026-10-27): contradicted by owner.** public photo off by default; per-tournament hide.
 20. Should a failed ingest post a bell notification, and should "Your CV is ready" wait for at least one success? (C106)
+   - **Owner (2026-10-27): contradicted by owner.** failed ingest posts a bell notification; "CV ready" waits for a success.

@@ -246,7 +246,8 @@
      * version used `a[href]:not(:where(p, li) a)` here, which silently
      * dropped the button and select rules with it.
      */
-    button,
+    /* Switches are 24px tracks with their own 44px hit area (SET-7). */
+    button:not([role='switch']),
     [role='button'] {
       min-height: 44px;
       min-width: 44px;
@@ -581,6 +582,15 @@
     vertical-align: middle;
   }
   .ledger tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  /* A row header (<Td rowHeader> -> th scope="row") looks like a body cell. */
+  .ledger tbody th[scope='row'] {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.1);
+    vertical-align: middle;
+  }
+  .ledger tbody tr:last-child th[scope='row'] {
     border-bottom: 0;
   }
   /*

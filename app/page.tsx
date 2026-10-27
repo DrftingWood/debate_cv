@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { auth, signIn } from '@/lib/auth';
-import { Button, buttonClasses } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
+import { PendingTextSubmit } from '@/components/PendingSubmit';
 import { Footer } from '@/components/Footer';
 import { BrandMark } from '@/components/BrandMark';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
+import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 
 export default async function Home() {
   const session = await auth();
@@ -36,26 +37,6 @@ export default async function Home() {
   );
 }
 
-async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
-  return (
-    <form
-      action={async () => {
-        'use server';
-        await signIn('google', { redirectTo: '/cv' });
-      }}
-    >
-      <Button
-        type="submit"
-        size={size}
-        variant="primary"
-        rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
-      >
-        Build my debate CV
-      </Button>
-    </form>
-  );
-}
-
 async function SignInLink() {
   return (
     <form
@@ -64,12 +45,7 @@ async function SignInLink() {
         await signIn('google', { redirectTo: '/cv' });
       }}
     >
-      <button
-        type="submit"
-        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
-      >
-        Sign in
-      </button>
+      <PendingTextSubmit>Sign in</PendingTextSubmit>
     </form>
   );
 }
@@ -122,17 +98,7 @@ function Hero() {
           </Link>
         </div>
 
-        <div className="mt-5 grid gap-2 text-caption text-ink-soft sm:grid-cols-3 sm:gap-3">
-          <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> read-only Gmail
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary" aria-hidden /> private until shared
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
-          </span>
-        </div>
+        <TrustRow />
       </div>
 
       <SampleCvPreview />

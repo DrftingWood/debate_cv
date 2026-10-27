@@ -46,7 +46,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
-  title: 'My CV',
+  title: 'Record',
   description: 'Your debate tournament history, compiled from your Gmail.',
   robots: { index: false, follow: false },
 };
@@ -124,11 +124,16 @@ export default async function CvPage() {
     bestTeamFinish: highlights.bestTeamFinish,
   });
 
-  const compiled = new Date().toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  // The data's date, not today's: "compiled" used to change on every visit
+  // and read as a fact about the record (CV-10).
+  const updated = data.lastIngestedAt
+    ? data.lastIngestedAt.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    : null;
 
   return (
     <div className="space-y-8">
@@ -157,7 +162,7 @@ export default async function CvPage() {
           right, exactly where a banking dashboard puts them. */}
       <header className="flex flex-col gap-5 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <div className="data-label">Debate record · compiled {compiled}</div>
+          <div className="data-label">Debate record{updated ? ` · updated ${updated}` : ''}</div>
           <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
             <span className="sr-only">Debate record of </span>
             {user?.name ?? 'Debater'}
@@ -394,7 +399,7 @@ function RoundLedger({
         Round ledger — {roundNumbers.length} round{roundNumbers.length === 1 ? '' : 's'}
         {anyMotion ? ' with motions' : ''}
       </summary>
-      <div className="panel-inset mb-3 overflow-x-auto p-3">
+      <div className="panel-inset mb-3 p-3"><TableScroll>
         <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
           <thead>
             <tr>
@@ -477,7 +482,7 @@ function RoundLedger({
               );
             })}
           </tbody>
-        </Table>
+        </Table></TableScroll>
       </div>
     </details>
   );
@@ -806,7 +811,6 @@ function speakerCardFields(
   if (r.teamPoints) out.push({ label: 'Team points', value: r.teamPoints, mono: true });
   if (ranks) out.push({ label: 'Speaker-tab rank', value: ranks });
   if (r.format) out.push({ label: 'Format', value: r.format });
-  if (r.totalTeams != null) out.push({ label: 'Teams', value: String(r.totalTeams), mono: true });
   if (r.teamName) out.push({ label: 'Team', value: r.teamName });
   if (r.teammates.length) out.push({ label: 'Partner', value: r.teammates.join(', ') });
   return out;

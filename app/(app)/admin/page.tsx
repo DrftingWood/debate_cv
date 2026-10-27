@@ -9,6 +9,8 @@ import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import { buttonClasses } from '@/components/ui/Button';
+import { formatDate } from '@/lib/utils/date';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -144,7 +146,7 @@ export default async function AdminPage() {
           </a>
         </div>
         {cvReports.length === 0 ? (
-          <p className="text-body text-ink-soft italic">No CV reports yet.</p>
+          <EmptyState title="No CV reports yet" headingLevel={3} />
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {cvReports.map((report) => (
@@ -154,7 +156,7 @@ export default async function AdminPage() {
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
                   <div className="text-caption text-ink-soft">
-                    {report.createdAt.toLocaleString()}
+                    {formatDate(report.createdAt)}
                   </div>
                 </div>
                 {report.user.email ? (
@@ -206,9 +208,11 @@ export default async function AdminPage() {
           </p>
         </div>
         {sortedWarnings.length === 0 ? (
-          <p className="text-body text-ink-soft italic">
-            No warnings recorded in the last 200 parser runs. Parsers are clean.
-          </p>
+          <EmptyState
+            title="No parser warnings"
+            description="Nothing recorded in the last 200 parser runs. Parsers are clean."
+            headingLevel={3}
+          />
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {sortedWarnings.map(([key, { count, sample, latest }]) => (
@@ -220,7 +224,7 @@ export default async function AdminPage() {
                   </span>
                 </div>
                 <div className="text-byline text-ink-soft">
-                  Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
+                  Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
                   {sample.length > 200 ? '…' : ''}
                 </div>
               </li>

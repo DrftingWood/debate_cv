@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FieldError, describedBy, fieldInputClass } from '@/components/FieldError';
 import { postJson } from '@/lib/utils/api';
+import { userMessage } from '@/lib/ingest/userMessage';
 import { cn } from '@/lib/utils/cn';
 
 type SharingState = {
@@ -14,6 +15,8 @@ type SharingState = {
   slug: string | null;
   avatarEnabled: boolean;
 };
+
+const SLUG_CODES = new Set(['too_short', 'too_long', 'invalid_chars', 'reserved', 'slug_taken']);
 
 /**
  * What to say under the address field for each refusal from /api/sharing.
@@ -33,7 +36,7 @@ export function slugErrorMessage(code: string, attempted: string): string {
     case 'slug_taken':
       return `That address is taken. Try ${attempted.toLowerCase()}-2 or another variation`;
     default:
-      return `Your address was not saved: ${code}. Try again`;
+      return 'Your address was not saved. Try again';
   }
 }
 
@@ -79,7 +82,7 @@ export function SharingManager() {
     startToggle(async () => {
       const res = await postJson<SharingState>('/api/sharing', { enabled: next });
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Sharing not changed', description: res.error });
+        toast.show({ kind: 'error', title: 'Sharing not changed', description: userMessage(res).description });
         return;
       }
       setState(res.data);
@@ -97,7 +100,7 @@ export function SharingManager() {
     startAvatar(async () => {
       const res = await postJson<SharingState>('/api/sharing', { avatarEnabled: next });
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Photo setting not changed', description: res.error });
+        toast.show({ kind: 'error', title: 'Photo setting not changed', description: userMessage(res).description });
         return;
       }
       setState(res.data);
@@ -113,7 +116,12 @@ export function SharingManager() {
         customSlug: trimmed.length > 0 ? trimmed : null,
       });
       if (!res.ok) {
-        setSlugError(slugErrorMessage(res.error, trimmed));
+        const slugCode = SLUG_CODES.has(res.error);
+        setSlugError(
+          slugCode
+            ? slugErrorMessage(res.error, trimmed)
+            : `Your address was not saved. ${userMessage(res).description}`,
+        );
         slugInputRef.current?.focus();
         return;
       }
@@ -196,7 +204,14 @@ export function SharingManager() {
                 if (!fullUrl) return;
                 void navigator.clipboard
                   .writeText(fullUrl)
-                  .then(() => toast.show({ kind: 'success', title: 'Link copied' }));
+                  .then(() => toast.show({ kind: 'success', title: 'Link copied' }))
+                  .catch(() =>
+                    toast.show({
+                      kind: 'info',
+                      title: 'Could not copy',
+                      description: 'Select the link and press Ctrl+C to copy it.',
+                    }),
+                  );
               }}
             >
               Copy
@@ -332,7 +347,7 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors disabled:opacity-50 coarse:min-h-0',
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors disabled:opacity-50 before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-[""]',
         checked ? 'border-primary bg-primary' : 'border-ink-soft bg-ink-soft/40',
       )}
     >

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
 import { postJson } from '@/lib/utils/api';
+import { userMessage } from '@/lib/ingest/userMessage';
 
 type NameOption = {
   displayName: string;
@@ -57,6 +58,7 @@ export function IdentityManager() {
   const [isSaving, startSave] = useTransition();
   const saveRef = useRef<HTMLButtonElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
+  const savedRef = useRef<HTMLParagraphElement>(null);
   const focusAfterRender = useFocusAfterRender();
 
   // `quiet` refetches after a save without swapping the list for a spinner,
@@ -113,7 +115,7 @@ export function IdentityManager() {
         { names: picked.map((n) => n.displayName) },
       );
       if (!res.ok) {
-        setSaveError(`Your names were not saved: ${res.error}. Try again.`);
+        setSaveError(`Your names were not saved. ${userMessage(res).description}`);
         focusAfterRender(saveRef);
         return;
       }
@@ -126,7 +128,10 @@ export function IdentityManager() {
       // the panel so initialSelected matches the new server state.
       router.refresh();
       await load({ quiet: true });
-      focusAfterRender(saveRef);
+      // Save is disabled again now that nothing is unsaved, and a disabled
+      // button cannot take focus (it would fall to <body>). The saved line
+      // is the next thing to read.
+      focusAfterRender(savedRef);
     });
   };
 
@@ -255,7 +260,12 @@ export function IdentityManager() {
           {isSaving ? 'Saving…' : 'Save changes'}
         </Button>
       </div>
-      <p role="status" className="text-caption text-ink-soft">
+      <p
+        ref={savedRef}
+        tabIndex={-1}
+        role="status"
+        className="text-caption text-ink-soft outline-none"
+      >
         {savedMessage ?? ''}
       </p>
     </div>

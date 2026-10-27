@@ -1315,12 +1315,13 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
   if (motionTypes.length > 0) {
     const strongest = motionTypes.reduce((a, b) => (b.winRateDelta! > a.winRateDelta! ? b : a));
     if (strongest.winRateDelta! >= 10) {
+      const points = Math.round(strongest.winRateDelta!);
       quirks.push({
         id: 'motion-type',
         text:
           results.outcome === 'win'
-            ? `You win ${Math.round(strongest.winRateDelta!)} points more often on ${strongest.key} motions than your overall rate.`
-            : `Your ${OUTCOME_COPY[results.outcome].rate.toLowerCase()} is ${Math.round(strongest.winRateDelta!)} points higher on ${strongest.key} motions than your overall rate.`,
+            ? `You win ${points} percentage points more often on ${strongest.key} motions than your overall rate.`
+            : `Your ${OUTCOME_COPY[results.outcome].rate.toLowerCase()} is ${points} percentage points higher on ${strongest.key} motions than your overall rate.`,
         basis: `${strongest.decidedRounds} decided rounds on ${strongest.key}`,
         tone: 'pos',
       });

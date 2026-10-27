@@ -1,13 +1,16 @@
 import { Skeleton } from '@/components/ui/Skeleton';
 
 /**
- * Motion archive skeleton — header, summary strip, then a run of motion
- * cards. Same reason as /cv/stats: the route is force-dynamic and was
+ * Motion archive skeleton — header, summary strip (three tiles: the fourth,
+ * "Tagged", is admin-only), then a run of motion cards. Same reason as /cv/stats: the route is force-dynamic and was
  * showing a blank frame while buildCvData ran.
  */
 export default function CvMotionsLoading() {
   return (
     <div className="space-y-8">
+      <p role="status" className="sr-only">
+        Loading the motion archive…
+      </p>
       <div className="border-b border-border pb-6">
         <Skeleton className="h-3 w-16" />
         <Skeleton className="mt-3 h-9 w-full max-w-xs" />
@@ -16,8 +19,8 @@ export default function CvMotionsLoading() {
 
       <Skeleton className="h-9 w-full max-w-sm rounded-lg" />
 
-      <div className="panel grid grid-cols-2 gap-px overflow-hidden bg-border md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="panel grid grid-cols-2 gap-px overflow-hidden bg-border md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="space-y-2 bg-card px-4 py-4">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-7 w-14" />

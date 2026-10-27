@@ -64,8 +64,8 @@ function EntryRow({ e, unit }: { e: MarginEntry; unit: MarginUnit }) {
   const sentence = `${e.tournamentName}: ${num(e.value)} ${unitWord(unit, e.value)} against a line of ${num(e.line)}, ${signed(e.margin)}`;
   return (
     <Tr>
-      <Td className="pl-4">
-        <span className="block max-w-[22rem] truncate" title={e.tournamentName}>
+      <Td rowHeader className="pl-4">
+        <span className="block max-w-[22rem] break-words">
           {e.tournamentName}
           {e.year != null && !e.tournamentName.includes(String(e.year)) ? ` (${e.year})` : ''}
         </span>

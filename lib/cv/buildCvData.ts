@@ -350,6 +350,12 @@ export type CvData = {
     totalRoundsChaired: number;
   };
   highlights: CvHighlights;
+  /**
+   * When the newest tournament on this record finished ingesting. The "as of"
+   * date the CV headers show; the render date said "compiled today" on every
+   * visit, which is not a fact about the data (CV-10).
+   */
+  lastIngestedAt?: Date | null;
 };
 
 export type BuildCvDataOptions = {
@@ -1351,5 +1357,9 @@ export async function buildCvData(
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
     highlights,
+    lastIngestedAt: urls.reduce<Date | null>(
+      (latest, u) => (u.ingestedAt && (!latest || u.ingestedAt > latest) ? u.ingestedAt : latest),
+      null,
+    ),
   };
 }

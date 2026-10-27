@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Lock, Share2 } from 'lucide-react';
-import { buttonClasses } from '@/components/ui/Button';
+import { Lock, Share2 } from 'lucide-react';
+import { TableScroll } from '@/components/ui/DataTable';
+import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 import { Badge } from '@/components/ui/Badge';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
@@ -65,9 +66,7 @@ export default function SamplePage() {
         <Link href="/" aria-label="debate cv home">
           <BrandMark />
         </Link>
-        <Link href="/" className={buttonClasses({ variant: 'primary' })}>
-          Build my CV <ArrowRight className="h-4 w-4" aria-hidden />
-        </Link>
+        <BuildCvButton size="md" label="Build my CV" />
       </header>
 
       <main id="main" className="space-y-10 py-10 md:py-12">
@@ -107,7 +106,7 @@ export default function SamplePage() {
             }
           />
           <div className="panel min-w-0 overflow-hidden">
-            <div className="w-full overflow-x-auto">
+            <TableScroll label="Sample speaking record by tournament">
               <table className="ledger min-w-[820px] text-table">
                 <caption className="sr-only">Sample speaking record by tournament</caption>
                 <thead>
@@ -146,7 +145,7 @@ export default function SamplePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </div>
         </section>
 
@@ -158,7 +157,7 @@ export default function SamplePage() {
             meta="Motions come from the tournament's own motions tab"
           />
           <div className="panel min-w-0 overflow-hidden">
-            <div className="w-full overflow-x-auto">
+            <TableScroll label="Sample round-by-round ledger with motions">
               <table className="ledger min-w-[720px] text-table">
                 <caption className="sr-only">Sample round-by-round ledger with motions</caption>
                 <thead>
@@ -186,7 +185,7 @@ export default function SamplePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </div>
         </section>
 
@@ -244,10 +243,9 @@ export default function SamplePage() {
             until you switch it on, and switching it off takes the link down.
           </p>
           <div className="mt-5">
-            <Link href="/" className={buttonClasses({ variant: 'primary' })}>
-              Build my debate CV <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+            <BuildCvButton />
           </div>
+          <TrustRow />
         </section>
       </main>
     </div>

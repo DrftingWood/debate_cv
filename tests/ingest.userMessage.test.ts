@@ -183,3 +183,15 @@ describe('postJson failure parsing', () => {
     expect(f).not.toHaveProperty('retryAfterSec');
   });
 });
+
+describe('codes from settings, sharing and onboarding routes', () => {
+  it('turns the account and onboarding codes into sentences', () => {
+    for (const error of ['email_mismatch', 'unauthorized', 'not_found']) {
+      const m = userMessage({ status: 400, error });
+      expect(m.description).not.toMatch(RAW_CODE);
+    }
+    expect(userMessage({ status: 500, error: 'Prisma exploded: P2002' }).description).not.toContain(
+      'P2002',
+    );
+  });
+});

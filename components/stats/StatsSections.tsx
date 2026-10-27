@@ -255,7 +255,7 @@ export function StatLine({
       </div>
       {hint ? <div className="mt-0.5 text-caption text-ink-soft">{hint}</div> : null}
       {note ? (
-        <div className="mt-1 line-clamp-2 text-caption italic text-ink-soft" title={note}>
+        <div className="mt-1 break-words text-caption italic text-ink-soft">
           “{note}”
         </div>
       ) : null}
@@ -333,8 +333,8 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
               <tbody>
                 {t.placements.map((p) => (
                   <Tr key={p.tournamentId}>
-                    <Td className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block truncate" title={p.tournamentName}>
+                    <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block break-words">
                         {p.tournamentName}
                       </span>
                     </Td>
@@ -475,8 +475,8 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
               <tbody>
                 {rows.map((p) => (
                   <Tr key={p.tournamentId} className={p.incompleteDraw ? 'text-ink-soft' : undefined}>
-                    <Td className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block truncate" title={p.tournamentName}>
+                    <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block break-words">
                         {p.tournamentName}
                       </span>
                       {p.incompleteDraw ? (

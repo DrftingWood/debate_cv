@@ -89,6 +89,14 @@ export function buildMotionEntries(
         ? (row.teamRoundResults.find((t) => t.roundNumber === motion.roundNumber) ?? null)
         : null;
 
+    const isOutroundFourTeam =
+      row != null &&
+      result != null &&
+      motion.roundNumber != null &&
+      row.prelimRoundCount != null &&
+      motion.roundNumber > row.prelimRoundCount &&
+      isFourTeam(row.format, result.position);
+
     entries.push({
       tournamentKey: tid,
       tournamentName: (row ?? judgeRow)!.tournamentName,
@@ -103,10 +111,8 @@ export function buildMotionEntries(
       // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
       // An outround result is advancing, not a 2nd-or-better room.
       won:
-        result && !(isFourTeam(row!.format, result.position) && row!.prelimRoundCount != null && motion.roundNumber! > row!.prelimRoundCount)
-          ? roundHit(row!.format, result)
-          : null,
-      fourTeam: result ? isFourTeam(row!.format, result.position) : false,
+        result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
+      fourTeam: result && row ? isFourTeam(row.format, result.position) : false,
       points: result?.points ?? null,
     });
   }

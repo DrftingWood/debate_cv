@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { LEGAL_PROSE } from './legalProse';
 import { getPrivacyContactEmail } from '@/lib/utils/site';
+import { LEGAL_LAST_UPDATED } from '@/lib/utils/date';
 
 export const metadata: Metadata = {
   title: 'Privacy',
@@ -22,7 +23,7 @@ export default function Privacy() {
       <article className={LEGAL_PROSE}>
       <p className="lead">
         debate cv is a personal-use tool for debaters. We try to collect and retain as little as
-        possible. Last updated: 2026.
+        possible. Last updated: {LEGAL_LAST_UPDATED}.
       </p>
 
       <h2>What we access</h2>

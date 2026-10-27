@@ -102,7 +102,7 @@ export default async function CvTagsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-4">
-        <div className="kicker">DEBATE CV — TAGS</div>
+        <div className="kicker uppercase">Debate CV — Tags</div>
         <h1 className="font-display text-h1 font-medium tracking-tight text-ink">
           Tags
         </h1>
@@ -117,7 +117,7 @@ export default async function CvTagsPage() {
       <CvSubNav active="tags" />
 
       {tournaments.length === 0 ? (
-        <p className="text-body text-ink-soft italic">
+        <p className="text-body text-ink-soft">
           No ingested tournaments yet. Once tournaments are on your CV, you can propose
           region and motion tags here.
         </p>
@@ -131,10 +131,10 @@ export default async function CvTagsPage() {
               <section key={tIdStr} className="space-y-6">
                 {/* Tournament header — name + year as a kicker/heading pair */}
                 <header>
-                  <div className="kicker">
+                  <h2 className="kicker uppercase">
                     {t.year ? `${t.year} · ` : ''}
-                    {t.name.toUpperCase()}
-                  </div>
+                    {t.name}
+                  </h2>
                   <hr className="hairline mt-2" />
                 </header>
 
@@ -143,6 +143,7 @@ export default async function CvTagsPage() {
                   <div className="text-table font-medium text-ink">Region</div>
                   <TagProposalControls
                     kind="region"
+                    contextLabel={t.name}
                     tournamentId={tIdStr}
                     options={[...REGIONS]}
                     approvedValue={t.region}
@@ -153,7 +154,7 @@ export default async function CvTagsPage() {
                 {/* Motion list — only rendered when the tournament has motions */}
                 {t.motions.length > 0 ? (
                   <div className="space-y-4">
-                    <div className="kicker">MOTIONS</div>
+                    <div className="kicker uppercase">Motions</div>
                     <div className="space-y-6">
                       {t.motions.map((m) => {
                         const mIdStr = m.id.toString();
@@ -187,6 +188,7 @@ export default async function CvTagsPage() {
                                 </div>
                                 <TagProposalControls
                                   kind="motion_type"
+                                  contextLabel={`${m.roundLabel}, ${t.name}`}
                                   tournamentId={tIdStr}
                                   motionId={mIdStr}
                                   options={[...MOTION_TYPES]}
@@ -202,6 +204,7 @@ export default async function CvTagsPage() {
                                 </div>
                                 <TagProposalControls
                                   kind="motion_topic"
+                                  contextLabel={`${m.roundLabel}, ${t.name}`}
                                   tournamentId={tIdStr}
                                   motionId={mIdStr}
                                   options={[...MOTION_TOPICS]}

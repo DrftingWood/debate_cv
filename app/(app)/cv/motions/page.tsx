@@ -190,7 +190,7 @@ export default async function CvMotionsPage() {
                       <span className="data-label block">
                         {first.year ? `${first.year}` : 'Undated'}
                       </span>
-                      <span className="mt-1 block truncate font-display text-h4 font-medium text-ink">
+                      <span className="mt-1 block break-words font-display text-h4 font-medium text-ink">
                         {first.tournamentName}
                       </span>
                     </span>
@@ -227,12 +227,7 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
         {motion.motionType ? <Badge variant="info">{motion.motionType}</Badge> : null}
         {motion.topic ? <Badge variant="outline">{motion.topic}</Badge> : null}
         {entry.siblings > 0 ? (
-          <Badge
-            variant="neutral"
-            title="This round released more than one motion; the round data shown applies to the round, not necessarily to this motion."
-          >
-            1 of {entry.siblings + 1} this round
-          </Badge>
+          <Badge variant="neutral">1 of {entry.siblings + 1} this round</Badge>
         ) : null}
         {entry.judgedOnly ? (
           <Badge variant="neutral" title="You judged at this tournament rather than speaking.">
@@ -240,6 +235,12 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
           </Badge>
         ) : null}
       </div>
+      {entry.siblings > 0 ? (
+        <p className="mt-1.5 text-caption text-ink-soft">
+          This round released more than one motion, so the round data below applies to the round, not necessarily to
+          this motion.
+        </p>
+      ) : null}
 
       <p className="mt-2 text-body leading-relaxed text-ink">{motion.text}</p>
 

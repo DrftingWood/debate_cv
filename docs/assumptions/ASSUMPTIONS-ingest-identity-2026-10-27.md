@@ -557,27 +557,27 @@ Status: confirmed by owner (in data).
 
 ## Questions for the owner (20)
 
-| Q | Question | Entries |
-|---|---|---|
-| Q1 | Should a Gmail-found URL whose registration name is `close` link automatically (decision A), or still need your tick? And should a `different` one be held? | I36, I37 |
-| Q2 | Is "close" right for Spanish/Portuguese double surnames and one-word names, or should those always go to the user? | I38 |
-| Q3 | Should a pasted or CSV URL be treated exactly like a Gmail one (appear on /onboarding for claiming)? | I39 |
-| Q4 | Are R1A and R1B one round (nobody can be in both), and can someone sit in an Open final and a Novice final at one tournament? | I12, I13, I42 |
-| Q5 | When an organiser fills several swing teams, should they get any speaking credit at all? | I41, I45 |
-| Q6 | Should the CV show "5=" for tied ranks? | I17 |
-| Q7 | Is a real person ever entered under a stand-in-looking name ("Swing 1") that should count as theirs? | I45 |
-| Q8 | Is "Grand Final" the same rung as "Final" (equal rank)? | I8 |
-| Q9 | What do tournaments call their main bracket besides "Open", and should it outrank ESL/EFL the same way? | I5, I6 |
-| Q10 | Which events besides EUDC run two brackets' outrounds side by side? | I7 |
-| Q11 | In BP, is a prelim "win" only first place? | I1 |
-| Q12 | Other names for a tie-break round besides "Debate-off"? | I11 |
-| Q13 | Is a Tab Director "adjudication core"? Should Equity/Convenor roles count as judging? | I20 |
-| Q14 | Have you seen tournaments whose Tabbycat interface (not just round names) is not in English, or round names in German/French/Malay? | I23, I25 |
-| Q15 | Should a later motions release trigger a re-scrape? | I49 |
-| Q16 | Is a parser-version bump an acceptable re-scrape trigger under rule 2? | I50 |
-| Q17 | Should only admins be able to force a re-scrape? | I53 |
-| Q18 | Do organisers reuse one Tabbycat site and slug across years? | I57 |
-| Q19 | Delete the stored private URL once the ingest succeeds and the person is linked (retention question B)? | I58 |
-| Q20 | Are there tournaments on hosts other than calicotab / herokuapp / yellowtabs that you want covered, and should herokuapp stay trusted? | I59 |
+| Q | Question | Entries | Owner answer |
+|---|---|---|---|
+| Q1 | Should a Gmail-found URL whose registration name is `close` link automatically (decision A), or still need your tick? And should a `different` one be held? | I36, I37 | **Owner (2026-10-27): contradicted by owner.** a close name always needs the user's tick; no auto-link (decision A dropped). |
+| Q2 | Is "close" right for Spanish/Portuguese double surnames and one-word names, or should those always go to the user? | I38 | **Owner (2026-10-27): contradicted by owner.** double surnames and one-word names always go to the user. |
+| Q3 | Should a pasted or CSV URL be treated exactly like a Gmail one (appear on /onboarding for claiming)? | I39 | **Owner (2026-10-27): confirmed by owner.** pasted/CSV URLs use the same /onboarding claim flow. |
+| Q4 | Are R1A and R1B one round (nobody can be in both), and can someone sit in an Open final and a Novice final at one tournament? | I12, I13, I42 | **Owner (2026-10-27): contradicted by owner.** HWS-style double-panel round robins are an exception; nobody can be in both an Open and a Novice final. |
+| Q5 | When an organiser fills several swing teams, should they get any speaking credit at all? | I41, I45 | **Owner (2026-10-27): confirmed by owner.** swing credited only if clearly 1-2 real people over many rounds; keep dropping swings. |
+| Q6 | Should the CV show "5=" for tied ranks? | I17 | **Owner (2026-10-27): contradicted by owner.** show "5=" for tied ranks. |
+| Q7 | Is a real person ever entered under a stand-in-looking name ("Swing 1") that should count as theirs? | I45 | **Owner (2026-10-27): confirmed by owner.** stand-in names are not normally a real person. |
+| Q8 | Is "Grand Final" the same rung as "Final" (equal rank)? | I8 | **Owner (2026-10-27): contradicted by owner.** Grand Final is the same rung as Final (same rank). |
+| Q9 | What do tournaments call their main bracket besides "Open", and should it outrank ESL/EFL the same way? | I5, I6 | **Owner (2026-10-27): confirmed by owner.** only "Open" is the main bracket. |
+| Q10 | Which events besides EUDC run two brackets' outrounds side by side? | I7 | **Owner (2026-10-27): confirmed by owner.** only EUDC runs Open and ESL outrounds side by side. |
+| Q11 | In BP, is a prelim "win" only first place? | I1 | **Owner (2026-10-27): contradicted by owner.** do not say "win" in BP; use straights (points >= 2 x rounds), firsts tracked separately. |
+| Q12 | Other names for a tie-break round besides "Debate-off"? | I11 | **Owner (2026-10-27): confirmed by owner.** "Debate-off" is the only tie-break round name. |
+| Q13 | Is a Tab Director "adjudication core"? Should Equity/Convenor roles count as judging? | I20 | **Owner (2026-10-27): contradicted by owner.** CAs usually judge, TDs usually do not; a judging TD counts as a break. |
+| Q14 | Have you seen tournaments whose Tabbycat interface (not just round names) is not in English, or round names in German/French/Malay? | I23, I25 | **Owner (2026-10-27): contradicted by owner.** English default; at least one Spanish-language comp, so add a Spanish stage lexicon. |
+| Q15 | Should a later motions release trigger a re-scrape? | I49 | **Owner (2026-10-27): contradicted by owner.** a later motions release triggers a re-scrape. |
+| Q16 | Is a parser-version bump an acceptable re-scrape trigger under rule 2? | I50 | **Owner (2026-10-27): confirmed by owner.** a parser-version bump is an acceptable re-scrape trigger. |
+| Q17 | Should only admins be able to force a re-scrape? | I53 | **Owner (2026-10-27): contradicted by owner.** only admins can force a re-scrape. |
+| Q18 | Do organisers reuse one Tabbycat site and slug across years? | I57 | **Owner (2026-10-27): confirmed by owner.** many tournaments share a site; slugs believed unique (keep host+slug, monitor). |
+| Q19 | Delete the stored private URL once the ingest succeeds and the person is linked (retention question B)? | I58 | **Owner (2026-10-27): contradicted by owner.** delete the stored private URL after ingest, but later (backlog). |
+| Q20 | Are there tournaments on hosts other than calicotab / herokuapp / yellowtabs that you want covered, and should herokuapp stay trusted? | I59 | **Owner (2026-10-27): confirmed by owner.** keep hosts as is; herokuapp stays trusted. |
 
 Sources: [Tabbycat User Guide, v2.5.7 (Breaks and Break Rounds; Standings Rules)](https://tabbycat.readthedocs.io/en/v2.5.7/index.html); [Tabbycat User Guide, v2.1.3](https://tabbycat.readthedocs.io/en/v2.1.3/).
