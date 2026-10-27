@@ -33,7 +33,9 @@ export async function generateMetadata({
     select: { publicCvEnabled: true, name: true },
   });
   if (!user || !user.publicCvEnabled) {
-    return { title: 'CV not found', robots: { index: false, follow: false } };
+    // Throw here, before the shell streams, so the response is a real 404
+    // rather than a 200 carrying a not-found body (NV-2).
+    notFound();
   }
   return {
     // Just the name — the root layout's metadata template is '%s · debate cv'

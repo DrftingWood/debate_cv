@@ -33,6 +33,14 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
           >
             Build your own →
           </Link>
+          <nav aria-label="Legal" className="flex gap-4">
+            <Link href="/privacy" className="underline-offset-2 hover:underline">
+              Privacy
+            </Link>
+            <Link href="/terms" className="underline-offset-2 hover:underline">
+              Terms
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
