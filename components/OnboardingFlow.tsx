@@ -1,20 +1,27 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
-import {
-  Search,
-  Mail,
-  UserCheck,
-  Loader2,
-  CheckCircle2,
-  AlertTriangle,
-} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, Mail, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { useFocusAfterRender } from '@/components/useFocusAfterRender';
+import {
+  FailureWarning,
+  NamePicker,
+  PrivacyFacts,
+  ProgressSteps,
+  RetryButton,
+  ScanEmpty,
+  StepError,
+  preflightProgressText,
+  type NameRow,
+  type Phase,
+} from '@/components/OnboardingSteps';
+import { scanErrorMessage } from '@/lib/ingest/scanErrorMessage';
 import { postJson } from '@/lib/utils/api';
 
 type ScanResponse = { scanned: number; found: number };
@@ -26,18 +33,13 @@ type PreflightResponse = {
   errors: { url: string; error: string }[];
 };
 type NamesResponse = {
-  names: {
-    displayName: string;
-    normalizedName: string;
-    urlCount: number;
-    isMine: boolean;
-    /** How close the name is to the user's Google name or a name they already claimed. */
-    proximity: 'match' | 'close' | 'different' | 'unknown';
-  }[];
+  names: NameRow[];
   totals: { urls: number; named: number; unknown: number; failed: number };
 };
 
-type Phase = 'scan' | 'preflight' | 'pick' | 'done';
+// The read step's live line changes at most this often, so a screen reader
+// hears progress without a stream of numbers (FORM-4).
+const ANNOUNCE_EVERY_MS = 4000;
 
 /**
  * First-time onboarding wizard. Strictly forward: scan → preflight → pick →
@@ -46,6 +48,11 @@ type Phase = 'scan' | 'preflight' | 'pick' | 'done';
  * /settings/profile. Failures during preflight are summarized with a
  * threshold banner; per-URL retry is not exposed here, since permanent
  * failures route to the dashboard's `Failed` filter for triage.
+ *
+ * Every step change moves focus to the new step's heading (FORM-1): the
+ * button that was pressed unmounts with its card, and focus would otherwise
+ * fall to <body>. Every failure is shown in the card with a way forward, not
+ * only as a toast (FORM-2, FORM-3, FORM-10).
  */
 export function OnboardingFlow({
   initialPhase,
@@ -64,7 +71,14 @@ export function OnboardingFlow({
     extracted: 0,
     failed: 0,
   });
-  const [names, setNames] = useState<NamesResponse['names']>([]);
+  const [preflightRun, setPreflightRun] = useState(0);
+  const [preflightError, setPreflightError] = useState<string | null>(null);
+  const [announced, setAnnounced] = useState('');
+  const lastAnnounceAt = useRef(0);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [emptyScan, setEmptyScan] = useState<{ scanned: number } | null>(null);
+  const [names, setNames] = useState<NameRow[]>([]);
+  const [namesState, setNamesState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [totals, setTotals] = useState<NamesResponse['totals']>({
     urls: initialUrlCount,
     named: 0,
@@ -72,27 +86,37 @@ export function OnboardingFlow({
     failed: 0,
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pickError, setPickError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [isScanning, startScan] = useTransition();
   const [isConfirming, startConfirm] = useTransition();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const firstCheckboxRef = useRef<HTMLInputElement>(null);
+  const focusAfterRender = useFocusAfterRender();
+
+  const goTo = (next: Phase) => {
+    focusAfterRender(headingRef);
+    setPhase(next);
+  };
 
   // ── Phase 2: preflight loop ─────────────────────────────────────────────
   // Polls /api/onboarding/preflight in batches of 10 until remaining hits 0.
   // Allow a few consecutive zero-progress responses (typically a hung fetch
   // on one URL) before giving up — the endpoint is idempotent so retrying
-  // is safe.
+  // is safe, which is also why "Try again" can simply re-run this loop.
   useEffect(() => {
-    if (phase !== 'preflight') return;
+    if (phase !== 'preflight' || preflightError) return;
     let cancelled = false;
     (async () => {
       const MAX_ZERO_PROGRESS_IN_A_ROW = 3;
       let zeroProgressStreak = 0;
       while (!cancelled) {
         const res = await postJson<PreflightResponse>('/api/onboarding/preflight');
+        if (cancelled) return;
         if (!res.ok) {
-          toast.show({ kind: 'error', title: 'Preflight failed', description: res.error });
+          setPreflightError(res.error);
           return;
         }
-        if (cancelled) return;
         setPreflight((p) => ({
           remaining: res.data.remaining,
           extracted: p.extracted + res.data.extracted,
@@ -106,68 +130,78 @@ export function OnboardingFlow({
           zeroProgressStreak = 0;
         }
       }
-      if (cancelled) return;
-      await refreshNames();
-      setPhase('pick');
+      if (!cancelled) goTo('pick');
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+    // The loop reads only setters and the stable focus helper; it restarts
+    // on entering the step and on "Try again" (preflightRun), never per batch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only on step entry or retry
+  }, [phase, preflightRun, preflightError]);
 
-  // ── Phase 3 entry: load names ──────────────────────────────────────────
-  const refreshNames = async () => {
+  // Throttled live line for the read step (FORM-4). The counters themselves
+  // are not live: a region that changes every batch is noise.
+  useEffect(() => {
+    if (phase !== 'preflight') return;
+    const now = Date.now();
+    if (preflight.remaining > 0 && now - lastAnnounceAt.current < ANNOUNCE_EVERY_MS) return;
+    lastAnnounceAt.current = now;
+    setAnnounced(preflightProgressText(preflight));
+  }, [phase, preflight]);
+
+  // ── Phase 3 entry: load names (once per entry; FORM-10) ────────────────
+  const loadNames = async () => {
+    setNamesState('loading');
     try {
-      const res = await fetch('/api/onboarding/names').then((r) => r.json());
-      setNames(res.names ?? []);
-      setTotals(res.totals ?? totals);
+      const r = await fetch('/api/onboarding/names');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const res: NamesResponse = await r.json();
+      const rows = res.names ?? [];
+      setNames(rows);
+      if (res.totals) setTotals(res.totals);
       setSelected(
         new Set(
-          (res.names ?? [])
+          rows
             // Already mine, or a name that looks like the user's Google name.
             // A name that does not is never pre-ticked.
-            .filter((n: { isMine: boolean; proximity: string }) => n.isMine || n.proximity === 'match' || n.proximity === 'close')
-            .map((n: { normalizedName: string }) => n.normalizedName),
+            .filter((n) => n.isMine || n.proximity === 'match' || n.proximity === 'close')
+            .map((n) => n.normalizedName),
         ),
       );
-    } catch (e) {
-      toast.show({
-        kind: 'error',
-        title: 'Could not load names',
-        description: e instanceof Error ? e.message : 'unknown',
-      });
+      setNamesState('ready');
+    } catch {
+      setNamesState('error');
     }
   };
 
   useEffect(() => {
-    if (phase === 'pick') void refreshNames();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (phase === 'pick') void loadNames();
   }, [phase]);
 
   // ── Phase 1: Gmail scan ─────────────────────────────────────────────────
   const onScan = () => {
+    setScanError(null);
+    setEmptyScan(null);
     startScan(async () => {
       const res = await postJson<ScanResponse>('/api/ingest/gmail');
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Scan failed', description: res.error });
+        setScanError(scanErrorMessage(res.status, res.error));
         return;
       }
       const found = res.data.found ?? 0;
-      toast.show({
-        kind: 'success',
-        title: 'Gmail scan complete',
-        description: `Found ${found} private URLs in ${res.data.scanned} messages.`,
-      });
       if (found > 0) {
         setPreflight({ remaining: found, extracted: 0, failed: 0 });
-        setPhase('preflight');
+        goTo('preflight');
+      } else {
+        setEmptyScan({ scanned: res.data.scanned ?? 0 });
       }
     });
   };
 
   // ── Phase 3: confirm picks ──────────────────────────────────────────────
   const toggle = (norm: string) => {
+    setPickError(null);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(norm)) next.delete(norm);
@@ -177,14 +211,14 @@ export function OnboardingFlow({
   };
 
   const onConfirm = () => {
+    // Validate on press rather than disabling the button (UX-16): the
+    // message below the list says what to do, and focus goes to the list.
     if (selected.size === 0) {
-      toast.show({
-        kind: 'info',
-        title: 'No names selected',
-        description: 'Pick at least one name that\'s you.',
-      });
+      setPickError('Tick at least one name that is you');
+      firstCheckboxRef.current?.focus();
       return;
     }
+    setConfirmError(null);
     const picked = names.filter((n) => selected.has(n.normalizedName));
     startConfirm(async () => {
       const res = await postJson<{ claimed: number; unclaimed: number }>(
@@ -192,21 +226,16 @@ export function OnboardingFlow({
         { names: picked.map((n) => n.displayName) },
       );
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Confirm failed', description: res.error });
+        setConfirmError(`Your names were not saved: ${res.error}. Try again.`);
         return;
       }
-      const { claimed, unclaimed } = res.data;
-      const parts: string[] = [];
-      parts.push(`${claimed} ${claimed === 1 ? 'name' : 'names'} claimed`);
-      if (unclaimed > 0) {
-        parts.push(`${unclaimed} ${unclaimed === 1 ? 'name' : 'names'} removed`);
-      }
+      const { claimed } = res.data;
       toast.show({
         kind: 'success',
-        title: 'Identity confirmed',
-        description: `${parts.join(', ')}. Building your CV…`,
+        title: 'Names confirmed',
+        description: `${claimed} ${claimed === 1 ? 'name' : 'names'} added. Building your Record…`,
       });
-      setPhase('done');
+      goTo('done');
       // Land on /cv so the user immediately sees their CV taking shape.
       // The "Ingesting X tournaments" banner on /cv reassures them while
       // the queue drains in the background.
@@ -219,43 +248,51 @@ export function OnboardingFlow({
   // missing, Cloudflare blocking everything). Below this rate we trust the
   // queue and stay quiet.
   const totalProcessed = preflight.extracted + preflight.failed;
-  const showFailureWarning =
-    totalProcessed > 5 && preflight.failed / totalProcessed > 0.5;
+  const showFailureWarning = totalProcessed > 5 && preflight.failed / totalProcessed > 0.5;
+
+  const heading = (text: string) => (
+    <h2 ref={headingRef} tabIndex={-1} className="font-display text-h3 font-medium text-ink">
+      {text}
+    </h2>
+  );
 
   return (
     <div className="space-y-6">
-      <ProgressBar phase={phase} />
+      <ProgressSteps phase={phase} />
 
       {phase === 'scan' && (
         <Card>
           <CardBody className="space-y-4 p-6 md:p-8">
-            <div className="flex items-start gap-4">
-              <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                <Mail className="h-5 w-5" aria-hidden />
+            <StepIntro icon={<Mail className="h-5 w-5" aria-hidden />}>
+              {heading('Scan your Gmail for tournament links')}
+              <p className="text-ui text-ink-soft">
+                We&apos;ll search your inbox for Tabbycat invitation emails and collect the private
+                tournament links sent to you. Nothing is imported yet — the next step asks which
+                names on those links are you.
+              </p>
+              <PrivacyFacts />
+            </StepIntro>
+            {scanError ? (
+              <StepError title="The scan did not run" detail={scanError}>
+                <RetryButton onClick={onScan}>Try again</RetryButton>
+              </StepError>
+            ) : null}
+            {emptyScan ? (
+              <ScanEmpty scanned={emptyScan.scanned} scanning={isScanning} onScanAgain={onScan} />
+            ) : (
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  loading={isScanning}
+                  leftIcon={!isScanning ? <Search className="h-4 w-4" aria-hidden /> : undefined}
+                  onClick={onScan}
+                >
+                  {isScanning ? 'Scanning Gmail…' : 'Scan Gmail'}
+                </Button>
               </div>
-              <div className="space-y-2">
-                <h2 className="font-display text-h3 font-medium text-ink">
-                  Scan your Gmail for private URLs
-                </h2>
-                <p className="text-ui text-ink-soft">
-                  We&apos;ll search your inbox for Tabbycat invitation emails (read-only) and
-                  pull every private URL that was sent to you. Nothing is ingested yet —
-                  the next step asks which names on those URLs are you.
-                </p>
-              </div>
-            </div>
-            <div className="pt-2">
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                loading={isScanning}
-                leftIcon={!isScanning ? <Search className="h-4 w-4" aria-hidden /> : undefined}
-                onClick={onScan}
-              >
-                {isScanning ? 'Scanning Gmail…' : 'Scan Gmail'}
-              </Button>
-            </div>
+            )}
           </CardBody>
         </Card>
       )}
@@ -263,27 +300,50 @@ export function OnboardingFlow({
       {phase === 'preflight' && (
         <Card>
           <CardBody className="space-y-4 p-6 md:p-8">
-            <div className="flex items-start gap-4">
-              <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            <StepIntro
+              icon={
+                preflightError ? (
+                  <Mail className="h-5 w-5" aria-hidden />
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                )
+              }
+            >
+              {heading('Reading your tournament links')}
+              <p className="text-ui text-ink-soft">
+                Opening each link to read the name it was sent to. This happens once, and no
+                tournament results are saved yet.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Badge variant="info">{preflight.extracted} read</Badge>
+                {preflight.failed > 0 ? (
+                  <Badge variant="neutral">{preflight.failed} failed</Badge>
+                ) : null}
+                <Badge variant="warning">{preflight.remaining} to go</Badge>
               </div>
-              <div className="space-y-2">
-                <h2 className="font-display text-h3 font-medium text-ink">
-                  Reading the names off your private URLs
-                </h2>
-                <p className="text-ui text-ink-soft">
-                  Visiting each URL&apos;s landing page and pulling the registered participant
-                  name. This is a one-time preflight — no tournament data is stored yet.
-                </p>
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <Badge variant="info">{preflight.extracted} extracted</Badge>
-                  {preflight.failed > 0 ? (
-                    <Badge variant="neutral">{preflight.failed} failed</Badge>
-                  ) : null}
-                  <Badge variant="warning">{preflight.remaining} remaining</Badge>
-                </div>
-              </div>
-            </div>
+              <p role="status" className="text-caption text-ink-soft">
+                {announced}
+              </p>
+            </StepIntro>
+
+            {preflightError ? (
+              <StepError
+                title="Reading your links stopped"
+                detail={`${preflightError}. The links read so far are kept.`}
+              >
+                <RetryButton
+                  onClick={() => {
+                    setPreflightError(null);
+                    setPreflightRun((n) => n + 1);
+                  }}
+                >
+                  Try again
+                </RetryButton>
+                <Button type="button" variant="ghost" size="sm" onClick={() => goTo('pick')}>
+                  Skip to picking names
+                </Button>
+              </StepError>
+            ) : null}
 
             {showFailureWarning ? <FailureWarning /> : null}
           </CardBody>
@@ -293,91 +353,69 @@ export function OnboardingFlow({
       {phase === 'pick' && (
         <Card>
           <CardBody className="space-y-5 p-6 md:p-8">
-            <div className="flex items-start gap-4">
-              <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                <UserCheck className="h-5 w-5" aria-hidden />
-              </div>
-              <div className="space-y-1.5">
-                <h2 className="font-display text-h3 font-medium text-ink">
-                  Which of these names are you?
-                </h2>
-                <p className="text-ui text-ink-soft">
-                  We extracted these names from {totals.named} of your{' '}
-                  {totals.urls} private URLs. Tournaments often spell people slightly
-                  differently — tick every spelling that&apos;s you. We&apos;ll merge them into
-                  one identity on your CV.
-                </p>
-              </div>
-            </div>
+            <StepIntro icon={<UserCheck className="h-5 w-5" aria-hidden />}>
+              {heading('Which of these names are you?')}
+              <p className="text-ui text-ink-soft">
+                We found these names on {totals.named} of your {totals.urls} tournament links.
+                Tournaments often spell people slightly differently — tick every spelling
+                that&apos;s you. We&apos;ll merge them into one identity on your CV.
+              </p>
+            </StepIntro>
 
             {showFailureWarning ? <FailureWarning /> : null}
 
-            {names.length === 0 ? (
+            {namesState === 'loading' ? (
+              <p role="status" className="flex items-center gap-2 text-ui text-ink-soft">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading names…
+              </p>
+            ) : namesState === 'error' ? (
+              <StepError title="The names did not load">
+                <RetryButton onClick={() => void loadNames()}>Retry</RetryButton>
+              </StepError>
+            ) : names.length === 0 ? (
               <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
-                No names extracted. Any URLs that failed permanently will appear on the{' '}
+                No names could be read from your links. Links that failed for good appear on{' '}
                 <Link href="/dashboard" className="text-primary hover:underline">
-                  dashboard
+                  Imports
                 </Link>{' '}
                 under the <strong>Failed</strong> filter.
               </p>
             ) : (
-              <ul className="divide-y divide-border rounded-card border border-border bg-card">
-                {names.map((n) => {
-                  const checked = selected.has(n.normalizedName);
-                  return (
-                    <li key={n.normalizedName}>
-                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
-                        <span className="flex min-w-0 items-center gap-3">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-primary/40"
-                            checked={checked}
-                            onChange={() => toggle(n.normalizedName)}
-                          />
-                          <span className="font-medium text-ink">{n.displayName}</span>
-                          {n.isMine ? (
-                            <Badge variant="success">Already mine</Badge>
-                          ) : n.proximity === 'close' ? (
-                            <Badge variant="neutral">Close to your Google name</Badge>
-                          ) : n.proximity === 'different' ? (
-                            <Badge variant="warning">Not like your Google name</Badge>
-                          ) : null}
-                        </span>
-                        <span className="whitespace-nowrap text-caption text-ink-soft">
-                          {n.urlCount} {n.urlCount === 1 ? 'URL' : 'URLs'}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
+              <NamePicker
+                names={names}
+                selected={selected}
+                error={pickError}
+                firstCheckboxRef={firstCheckboxRef}
+                onToggle={toggle}
+              />
             )}
 
-            {names.some((n) => selected.has(n.normalizedName) && !n.isMine && n.proximity === 'different') ? (
-              <p role="status" className="text-caption text-warning">
-                You ticked a name that does not look like your Google name. A private URL is a personal link, so tick it
-                only if it really is you.
+            {confirmError ? (
+              <p role="alert" className="text-caption font-medium text-destructive">
+                {confirmError}
               </p>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <p className="text-caption text-ink-soft">
-                {selected.size} of {names.length} selected
-              </p>
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                disabled={selected.size === 0 || isConfirming}
-                loading={isConfirming}
-                leftIcon={
-                  !isConfirming ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : undefined
-                }
-                onClick={onConfirm}
-              >
-                {isConfirming ? 'Confirming…' : 'These are me — continue'}
-              </Button>
-            </div>
+            {namesState === 'ready' && names.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <p className="text-caption text-ink-soft">
+                  {selected.size} of {names.length} selected
+                </p>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  loading={isConfirming}
+                  leftIcon={
+                    !isConfirming ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : undefined
+                  }
+                  onClick={onConfirm}
+                >
+                  {isConfirming ? 'Confirming…' : 'These are me — continue'}
+                </Button>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       )}
@@ -386,7 +424,7 @@ export function OnboardingFlow({
         <Card>
           <CardBody className="flex items-center gap-3 p-6 md:p-8">
             <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
-            <p className="text-ink">Loading your CV…</p>
+            {heading('Loading your Record…')}
           </CardBody>
         </Card>
       )}
@@ -394,71 +432,13 @@ export function OnboardingFlow({
   );
 }
 
-function ProgressBar({ phase }: { phase: Phase }) {
-  const steps: { key: Phase; label: string }[] = [
-    { key: 'scan', label: 'Scan Gmail' },
-    { key: 'preflight', label: 'Read names' },
-    { key: 'pick', label: 'Pick yourself' },
-  ];
-  const order = (p: Phase) => steps.findIndex((s) => s.key === p);
-  const current = phase === 'done' ? steps.length : order(phase);
+function StepIntro({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <ol className="flex items-center justify-between gap-2 rounded-card border border-border bg-card/60 p-3">
-      {steps.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <li key={s.key} className="flex flex-1 items-center gap-2">
-            <span
-              className={
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold ' +
-                (done
-                  ? 'bg-primary text-primary-foreground'
-                  : active
-                    ? 'bg-primary-soft text-primary ring-2 ring-primary/40'
-                    : 'bg-ink/10 text-ink-soft')
-              }
-              aria-current={active ? 'step' : undefined}
-            >
-              {done ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : i + 1}
-            </span>
-            <span
-              className={
-                'truncate text-caption ' +
-                (active ? 'font-medium text-ink' : 'text-ink-soft')
-              }
-            >
-              {s.label}
-            </span>
-            {i < steps.length - 1 ? (
-              <span aria-hidden className="hidden flex-1 border-t border-dashed border-border md:block" />
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function FailureWarning() {
-  return (
-    <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-table">
-      <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
-        <AlertTriangle className="h-4 w-4" aria-hidden />
-        We couldn&apos;t read most of your URLs
+    <div className="flex items-start gap-4">
+      <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+        {icon}
       </div>
-      <p className="text-ink-soft">
-        This usually means a Gmail connection issue or that your URLs are
-        blocked at the source. Permanent failures will appear on the{' '}
-        <Link href="/dashboard" className="text-primary hover:underline">
-          dashboard
-        </Link>{' '}
-        once preflight finishes, where you can retry them or check your{' '}
-        <Link href="/settings" className="text-primary hover:underline">
-          Gmail connection
-        </Link>
-        .
-      </p>
+      <div className="min-w-0 space-y-2">{children}</div>
     </div>
   );
 }
