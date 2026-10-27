@@ -10,5 +10,5 @@
     "*.{ts,mjs,cjs}"
   ],
   "ignore": ["next-env.d.ts"],
-  "ignoreDependencies": ["eslint-config-next"]
+  "ignoreDependencies": ["eslint-config-next", "playwright", "@axe-core/playwright"]
 }
