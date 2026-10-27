@@ -48,7 +48,7 @@ import { PARSER_VERSION } from './version';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
 import { inferTournamentFormat } from './format';
-import { outroundRankStrict } from './judgeStats';
+import { compareOutroundDepth, outroundRankStrict } from './judgeStats';
 import {
   computeJudgeAggregates,
   writeJudgeParticipantRole,
@@ -2220,7 +2220,9 @@ async function recordSpeakerRoundsFromLanding(
   const ranked = outrounds
     .map((r) => ({ r, rank: outroundRankStrict(r.stage) }))
     .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
-    .sort((a, b) => b.rank - a.rank);
+    .sort((a, b) =>
+      compareOutroundDepth({ label: b.r.stage, rank: b.rank }, { label: a.r.stage, rank: a.rank }),
+    );
   const deepest = ranked[0]?.r.stage ?? null;
 
   // Always write the current landing-page answer, including null when the team

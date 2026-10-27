@@ -123,7 +123,7 @@ export function getInroundsChairedCount(
 
 export type { OutroundStage } from '@/lib/calicotab/stageLexicon';
 import type { OutroundStage } from '@/lib/calicotab/stageLexicon';
-import { matchStage } from '@/lib/calicotab/stageLexicon';
+import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 
 /**
  * Map a raw outround label ("Grand Final", "ESL Quarterfinals",
@@ -221,6 +221,31 @@ export function outroundRank(round: { roundLabel: string | null; roundNumber: nu
 }
 
 /**
+ * THE comparator for "which outround is deeper". Positive when `a` is deeper.
+ * Order: stage rank, then the Open bracket before a category bracket (an
+ * "ESL Final" does not outrank a "Grand Final"), then Gold > Silver > Bronze,
+ * then the label itself so the answer never depends on list order. Every
+ * "deepest outround" site uses this; the rank comes from the caller because
+ * ingest wants unclassified labels dropped while the CV scale keeps them.
+ */
+export function compareOutroundDepth(
+  a: { label: string; rank: number },
+  b: { label: string; rank: number },
+): number {
+  if (a.rank !== b.rank) return a.rank - b.rank;
+  const isOpen = (label: string) => {
+    const c = splitStageLabel(label).category;
+    return !c || c.toLowerCase() === 'open';
+  };
+  const openDiff = Number(isOpen(a.label)) - Number(isOpen(b.label));
+  if (openDiff !== 0) return openDiff;
+  const tierDiff = tierRank(a.label) - tierRank(b.label);
+  if (tierDiff !== 0) return tierDiff;
+  // Equal in every respect that matters: break the tie on the text, deterministically.
+  return a.label < b.label ? 1 : a.label > b.label ? -1 : 0;
+}
+
+/**
  * Pick the deeper outround across the URL owner's chair and panel roles.
  *
  * `TournamentParticipant.lastOutroundChaired` and `lastOutroundPaneled` are
@@ -242,6 +267,8 @@ export function deepestOutroundAcrossRoles(
   if (!p) return c;
   const rankFor = (label: string) =>
     outroundRank({ roundLabel: label, roundNumber: null, isOutround: true });
-  return rankFor(p) > rankFor(c) ? p : c;
+  return compareOutroundDepth({ label: p, rank: rankFor(p) }, { label: c, rank: rankFor(c) }) > 0
+    ? p
+    : c;
 }
 
