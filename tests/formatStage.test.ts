@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, championTitle, titleCategory } from '@/lib/cv/formatStage';
 
 describe('formatStageForDisplay', () => {
   test('"Open Finals", "Grand Final", and "Final" all collapse to "Final"', () => {
@@ -74,5 +74,22 @@ describe('formatBaseStageForDisplay', () => {
     expect(formatBaseStageForDisplay(null)).toBe('');
     expect(formatBaseStageForDisplay('')).toBe('');
     expect(formatBaseStageForDisplay('Round 3')).toBe('Round 3');
+  });
+});
+
+describe('championTitle (owner decision C10: category finals are titles, labelled by category)', () => {
+  test('Open and bare finals are plain "Champion"', () => {
+    expect(championTitle('Grand Final')).toBe('Champion');
+    expect(championTitle('Open Final')).toBe('Champion');
+    expect(championTitle(null)).toBe('Champion');
+    expect(titleCategory('Final')).toBeNull();
+  });
+
+  test('ESL / EFL / Novice finals carry their category', () => {
+    expect(championTitle('ESL Grand Final')).toBe('ESL Champion');
+    expect(championTitle('EFL Final')).toBe('EFL Champion');
+    expect(championTitle('Novice Final')).toBe('Novice Champion');
+    expect(championTitle('Silver Final')).toBe('Silver Champion');
+    expect(titleCategory('ESL Final')).toBe('ESL');
   });
 });

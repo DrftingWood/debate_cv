@@ -7,6 +7,7 @@ import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { placementHighlights } from '@/lib/cv/teamPlacement';
+import { titleCategory } from '@/lib/cv/formatStage';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -190,7 +191,12 @@ export type CvUnmatchedTournament = {
 
 export type CvHighlights = {
   /** Tournaments where the user's team won the GF (wonTournament === true). */
-  championships: { tournamentName: string; year: number | null }[];
+  championships: {
+    tournamentName: string;
+    year: number | null;
+    /** Set for a category title (ESL, EFL, Novice, Silver …); absent for the Open title. */
+    category?: string;
+  }[];
   /**
    * Breaks ranked by strength: furthest outround reached first, then a won
    * final, then break seed, then team-tab placement (compareBreakStrength in
@@ -1249,7 +1255,10 @@ export async function buildCvData(
 
   const championships = speakerRows
     .filter((r) => r.wonTournament === true)
-    .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
+    .map((r) => {
+      const category = titleCategory(r.eliminationReached);
+      return { tournamentName: r.tournamentName, year: r.year, ...(category ? { category } : {}) };
+    })
     .slice(0, 5);
 
   const { deepestBreaks, topTeamFinishes, bestTeamFinish } = placementHighlights(speakerRows);

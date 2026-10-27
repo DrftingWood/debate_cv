@@ -1,5 +1,6 @@
 import type { CvData, CvJudgeRow, CvSpeakerRow } from './buildCvData';
 import { teamTabPlacement } from './teamPlacement';
+import { championTitle } from './formatStage';
 
 /**
  * The CV as a JSON Resume document (https://jsonresume.org/schema), so a
@@ -104,7 +105,7 @@ function speakerAward(row: CvSpeakerRow): JsonResumeAward | null {
   const rank = row.speakerRankOpen;
   const speakerNote = rank != null && rank <= TOP_SPEAKER_RANK ? `${ordinal(rank)} best speaker` : null;
   let title: string | null = null;
-  if (row.wonTournament) title = 'Champion';
+  if (row.wonTournament) title = championTitle(row.eliminationReached);
   else if (row.broke) title = row.eliminationReached ? `Broke — reached ${row.eliminationReached}` : 'Broke to outrounds';
   else if (speakerNote) title = speakerNote.replace(/^./, (c) => c.toUpperCase());
   if (!title) return null;

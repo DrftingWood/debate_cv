@@ -5,7 +5,7 @@ import type {
   CvFieldStat,
   CvTaggedMotion,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, titleCategory } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 import { breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
 
@@ -85,11 +85,18 @@ function fmtLastOutroundSpoken(r: CvSpeakerRow): string {
     const joined = multi
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (W)` : joined;
+    return r.wonTournament === true ? `${joined} (${winMark(r)})` : joined;
   }
   if (!r.eliminationReached) return '';
   const display = formatStageForDisplay(r.eliminationReached);
-  return r.wonTournament === true ? `${display} (W)` : display;
+  return r.wonTournament === true ? `${display} (${winMark(r)})` : display;
+}
+
+// "(W)" for the Open bracket, "(W, ESL)" for a category title (C10), so the
+// export never lets an ESL/Novice win read as the Open title.
+function winMark(r: CvSpeakerRow): string {
+  const category = titleCategory(r.eliminationReached);
+  return category ? `W, ${category}` : 'W';
 }
 
 export const EXPORT_FIELDS: ExportField[] = [

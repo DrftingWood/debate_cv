@@ -12,7 +12,7 @@ import type {
   CvTaggedMotion,
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
@@ -309,11 +309,11 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string | null {
     const joined = r.eliminationReachedByCategory
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+    return r.wonTournament === true ? `${joined} (${championTitle(r.eliminationReached)})` : joined;
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  if (r.wonTournament === true) return `${display} (Champion)`;
+  if (r.wonTournament === true) return `${display} (${championTitle(r.eliminationReached)})`;
   return display;
 }
 

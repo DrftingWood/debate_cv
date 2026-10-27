@@ -50,7 +50,9 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Championships',
       title: `Won ${championships.length} ${championships.length === 1 ? 'title' : 'titles'}`,
-      items: championships.map((c) => withYear(c.tournamentName, c.year)),
+      items: championships.map(
+        (c) => withYear(c.tournamentName, c.year) + (c.category ? ` (${c.category} title)` : ''),
+      ),
       icon: <Trophy className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });

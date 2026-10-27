@@ -689,7 +689,7 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
           <StatLine
             label="Deepest outround"
             value={r.deepestOutround}
-            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, any bracket` : undefined}
+            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, including ESL / EFL / Novice finals` : undefined}
           />
           <StatLine
             label="Finals reached"

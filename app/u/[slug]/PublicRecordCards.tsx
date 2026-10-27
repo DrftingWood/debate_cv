@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
 import { teamTabPlacement, formatTopPercent } from '@/lib/cv/teamPlacement';
 import { Badge } from '@/components/ui/Badge';
 
@@ -28,11 +28,11 @@ export function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
     const joined = r.eliminationReachedByCategory
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+    return r.wonTournament === true ? `${joined} (${championTitle(r.eliminationReached)})` : joined;
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  return r.wonTournament === true ? `${display} (Champion)` : display;
+  return r.wonTournament === true ? `${display} (${championTitle(r.eliminationReached)})` : display;
 }
 
 /**

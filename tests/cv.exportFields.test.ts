@@ -103,6 +103,15 @@ describe('buildExportCsv', () => {
     expect(lines[1]).toContain('#9 Open');
     // formatStageForDisplay canonicalizes "Grand Final" → "Final".
     expect(lines[1]).toContain(',Final (W)');
+    // A category title carries its bracket so it never reads as the Open title.
+    const esl = buildExportCsv(
+      makeCvData({
+        speakerRows: [makeSpeakerRow({ broke: true, eliminationReached: 'ESL Final', wonTournament: true })],
+        judgeRows: [],
+      }),
+      EXPORT_FIELDS,
+    );
+    expect(esl).toContain('ESL Final (W, ESL)');
     // Judge row leaves the speaker-only columns blank but fills judge columns.
     expect(lines[2].startsWith('judge,Delhi IV,')).toBe(true);
     expect(lines[2]).toContain('core,5,4');
