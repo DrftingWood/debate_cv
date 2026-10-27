@@ -123,7 +123,7 @@ export function getInroundsChairedCount(
 
 export type { OutroundStage } from '@/lib/calicotab/stageLexicon';
 import type { OutroundStage } from '@/lib/calicotab/stageLexicon';
-import { matchStage } from '@/lib/calicotab/stageLexicon';
+import { matchStage, splitStageLabel } from '@/lib/calicotab/stageLexicon';
 
 /**
  * Map a raw outround label ("Grand Final", "ESL Quarterfinals",
@@ -156,16 +156,19 @@ export function classifyOutroundStage(
 
 
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
-  grand_final: 100,
+  // "Final" and "Grand Final" are one round (owner decision, assumptions I8/C8),
+  // so they share a rank.
+  grand_final: 95,
   final: 95,
   // Each rung, and just below it the same rung run partially — with byes
   // (see "One nomenclature" in stageLexicon.ts). Partial sits under its full
-  // rung and over the rung beneath, and no two stages share a rank, so
-  // "deepest outround" never depends on the order rounds were listed in.
+  // rung and over the rung beneath, except the partial quarterfinal
+  // ("Pre-Semis", the BP 12-team round), which the owner treats as a
+  // quarterfinal (C11) and so shares its rank.
   semifinal: 90,
   partial_semifinal: 85,
   quarterfinal: 80,
-  partial_quarterfinal: 75,
+  partial_quarterfinal: 80,
   octofinal: 70,
   partial_octofinal: 65,
   double_octofinal: 60,
@@ -173,6 +176,20 @@ const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   triple_octofinal: 50,
   partial_triple_octofinal: 45,
 };
+
+/**
+ * Tie-break among one-day-competition tier finals: Gold > Silver > Bronze
+ * (owner decision, assumptions C9/Q1). These are valid open-category finals,
+ * so they count as breaks and as final-level appearances; the tier only
+ * orders them at equal stage depth. Any other label returns 0.
+ */
+export function tierRank(label: string | null | undefined): number {
+  if (!label) return 0;
+  if (/\bgold\b/i.test(label)) return 3;
+  if (/\bsilver\b/i.test(label)) return 2;
+  if (/\bbronze\b/i.test(label)) return 1;
+  return 0;
+}
 
 /**
  * Strict variant of {@link outroundRank} for callers that only have a
@@ -204,6 +221,31 @@ export function outroundRank(round: { roundLabel: string | null; roundNumber: nu
 }
 
 /**
+ * THE comparator for "which outround is deeper". Positive when `a` is deeper.
+ * Order: stage rank, then the Open bracket before a category bracket (an
+ * "ESL Final" does not outrank a "Grand Final"), then Gold > Silver > Bronze,
+ * then the label itself so the answer never depends on list order. Every
+ * "deepest outround" site uses this; the rank comes from the caller because
+ * ingest wants unclassified labels dropped while the CV scale keeps them.
+ */
+export function compareOutroundDepth(
+  a: { label: string; rank: number },
+  b: { label: string; rank: number },
+): number {
+  if (a.rank !== b.rank) return a.rank - b.rank;
+  const isOpen = (label: string) => {
+    const c = splitStageLabel(label).category;
+    return !c || c.toLowerCase() === 'open';
+  };
+  const openDiff = Number(isOpen(a.label)) - Number(isOpen(b.label));
+  if (openDiff !== 0) return openDiff;
+  const tierDiff = tierRank(a.label) - tierRank(b.label);
+  if (tierDiff !== 0) return tierDiff;
+  // Equal in every respect that matters: break the tie on the text, deterministically.
+  return a.label < b.label ? 1 : a.label > b.label ? -1 : 0;
+}
+
+/**
  * Pick the deeper outround across the URL owner's chair and panel roles.
  *
  * `TournamentParticipant.lastOutroundChaired` and `lastOutroundPaneled` are
@@ -225,6 +267,8 @@ export function deepestOutroundAcrossRoles(
   if (!p) return c;
   const rankFor = (label: string) =>
     outroundRank({ roundLabel: label, roundNumber: null, isOutround: true });
-  return rankFor(p) > rankFor(c) ? p : c;
+  return compareOutroundDepth({ label: p, rank: rankFor(p) }, { label: c, rank: rankFor(c) }) > 0
+    ? p
+    : c;
 }
 

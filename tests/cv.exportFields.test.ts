@@ -7,6 +7,7 @@ import {
   buildExportSheets,
   exportNeedsFieldStats,
 } from '@/lib/cv/exportFields';
+import { hashRank } from '@/lib/cv/rankDisplay';
 import { makeCvData, makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 
 describe('resolveExportFields', () => {
@@ -24,6 +25,18 @@ describe('resolveExportFields', () => {
   test('reports unknown ids instead of silently dropping them', () => {
     const { unknown } = resolveExportFields(['tournament', 'speaker_position']);
     expect(unknown).toEqual(['speaker_position']);
+  });
+});
+
+describe('team_rank export is machine-clean while the CV display shows the tie', () => {
+  test('a tied team rank exports as "#5" with no "=", the display helper still adds it', () => {
+    const field = EXPORT_FIELDS.find((f) => f.id === 'team_rank')!;
+    const row = makeSpeakerRow({ teamRank: 5, teamRankTied: true });
+    expect(field.speaker!(row, {} as never)).toBe('#5');
+    const csv = buildExportCsv(makeCvData({ speakerRows: [row], judgeRows: [] }), [field]);
+    expect(csv.split('\n')[1]).toBe('speaker,#5');
+    expect(csv.includes('=')).toBe(false);
+    expect(hashRank(5, true)).toBe('#5=');
   });
 });
 
@@ -103,6 +116,15 @@ describe('buildExportCsv', () => {
     expect(lines[1]).toContain('#9 Open');
     // formatStageForDisplay canonicalizes "Grand Final" → "Final".
     expect(lines[1]).toContain(',Final (W)');
+    // A category title carries its bracket so it never reads as the Open title.
+    const esl = buildExportCsv(
+      makeCvData({
+        speakerRows: [makeSpeakerRow({ broke: true, eliminationReached: 'ESL Final', wonTournament: true })],
+        judgeRows: [],
+      }),
+      EXPORT_FIELDS,
+    );
+    expect(esl).toContain('ESL Final (W, ESL)');
     // Judge row leaves the speaker-only columns blank but fills judge columns.
     expect(lines[2].startsWith('judge,Delhi IV,')).toBe(true);
     expect(lines[2]).toContain('core,5,4');

@@ -1,5 +1,6 @@
 import type { CvData, CvJudgeRow, CvSpeakerRow } from './buildCvData';
-import { teamTabPlacement } from './teamPlacement';
+import { teamTabPlacement, TOP_SPEAKER_RANK } from './teamPlacement';
+import { championTitle } from './formatStage';
 
 /**
  * The CV as a JSON Resume document (https://jsonresume.org/schema), so a
@@ -36,8 +37,6 @@ export const DEBATE_EXTENSION_KEY = 'x-debate-cv';
 /** Bump on a breaking change to the extension's shape (and its schema file). */
 export const DEBATE_EXTENSION_VERSION = 1;
 
-/** A speaker rank at or inside this reads as an award on its own. */
-const TOP_SPEAKER_RANK = 10;
 
 export type JsonResumeAward = { title: string; date?: string; awarder: string; summary?: string };
 
@@ -104,7 +103,7 @@ function speakerAward(row: CvSpeakerRow): JsonResumeAward | null {
   const rank = row.speakerRankOpen;
   const speakerNote = rank != null && rank <= TOP_SPEAKER_RANK ? `${ordinal(rank)} best speaker` : null;
   let title: string | null = null;
-  if (row.wonTournament) title = 'Champion';
+  if (row.wonTournament) title = championTitle(row.eliminationReached);
   else if (row.broke) title = row.eliminationReached ? `Broke — reached ${row.eliminationReached}` : 'Broke to outrounds';
   else if (speakerNote) title = speakerNote.replace(/^./, (c) => c.toUpperCase());
   if (!title) return null;
