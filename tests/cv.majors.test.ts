@@ -41,6 +41,57 @@ describe('majors list (C21)', () => {
     expect(isMajor(name)).toBe(true);
   });
 
+  test.each([
+    ['Pan-African Universities Debating Championship', 'PAUDC'],
+    ['US Universities Debating Championship', 'USUDC'],
+    ['Asian Universities Debating Championship', 'ABP'],
+    ['AUDC 2012', 'ABP'],
+  ])('%s is a major (%s)', (name, id) => {
+    expect(majorFor(name)?.id).toBe(id);
+  });
+
+  test.each([
+    'Pre-Worlds 2024',
+    'Novice Worlds',
+    'Junior Worlds',
+    'Schools Worlds',
+    'Mini-Worlds',
+    'Worlds Masters',
+    'World Debating Forum',
+    'Worlds Schools Debating Championship',
+    'Junior Australs',
+    'Pre-Australs',
+    'South East Asian Debating Championship',
+  ])('"%s" is not a major', (name) => {
+    expect(isMajor(name)).toBe(false);
+  });
+
+  test.each([
+    'Korea WUDC 2021',
+    'Belgrade Worlds 2022',
+    'Madrid 2023',
+    'Hanoi 2024',
+    'Vietnam Worlds 2024',
+    'Panama 2025',
+    'Sofia 2026',
+    'Ho Chi Minh 2024',
+  ])('host-named "%s" is WUDC', (name) => {
+    expect(majorFor(name)?.id).toBe('WUDC');
+  });
+
+  test.each([
+    'North American Debating Championship',
+    'Madrid Open 2023',
+    'Korea Open 2021',
+    'Madrid 2022',
+    'Sofia IV 2026',
+    'Panama',
+    'Pre-Worlds Madrid 2023',
+    'Novice Madrid 2023',
+  ])('"%s" is not WUDC', (name) => {
+    expect(isMajor(name)).toBe(false);
+  });
+
   test.each(['World Schools Debating Championships', 'Hart House IV 2023', 'Oxford IV', ''])(
     '"%s" is not a major',
     (name) => {
