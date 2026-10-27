@@ -92,20 +92,29 @@ describe('BP rounds are 2nd-or-better, never wins', () => {
 });
 
 describe('findings use straights wording for BP', () => {
-  test('a long BP run says 2nd or better, never "won", and needs eight not five', () => {
-    const seven = computeSpeakerStats({
-      speakerRows: [makeSpeakerRow({ format: BP, prelimRoundCount: 7, teamPoints: '14', teamRoundResults: bpRounds([2, 2, 2, 2, 2, 2, 2]) })],
+  test('a BP run of five in-rounds says 2nd or better, never "won"; four is not enough', () => {
+    const four = computeSpeakerStats({
+      speakerRows: [makeSpeakerRow({ format: BP, prelimRoundCount: 4, teamPoints: '8', teamRoundResults: bpRounds([2, 2, 2, 2]) })],
       judgeRows: [],
     });
-    expect(deriveQuirks(seven).some((q) => q.id === 'streak')).toBe(false);
+    expect(deriveQuirks(four).some((q) => q.id === 'streak')).toBe(false);
 
-    const eight = computeSpeakerStats({
-      speakerRows: [makeSpeakerRow({ format: BP, prelimRoundCount: 8, teamPoints: '16', teamRoundResults: bpRounds([2, 2, 2, 2, 2, 2, 2, 2]) })],
+    const five = computeSpeakerStats({
+      speakerRows: [makeSpeakerRow({ format: BP, prelimRoundCount: 5, teamPoints: '10', teamRoundResults: bpRounds([2, 2, 2, 2, 2]) })],
       judgeRows: [],
     });
-    const streak = deriveQuirks(eight).find((q) => q.id === 'streak');
-    expect(streak?.text).toMatch(/2nd or better is 8/);
-    expect(streak?.text).not.toMatch(/\bwon\b|\bwin/);
+    const streak = deriveQuirks(five).find((q) => q.id === 'streak');
+    expect(streak?.text).toMatch(/2nd or better is 5/);
+    expect(streak?.text).not.toMatch(/won|win/);
+  });
+
+  test('outrounds never extend a streak', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [makeSpeakerRow({ format: BP, prelimRoundCount: 3, teamPoints: '6', teamRoundResults: bpRounds([2, 2, 2, 2, 2, 2]) })],
+      judgeRows: [],
+    });
+    expect(s.results.longestWinStreak).toBe(3);
+    expect(deriveQuirks(s).some((q) => q.id === 'streak')).toBe(false);
   });
 
   test('a two-team run of five is still a streak finding in "won rounds" wording', () => {

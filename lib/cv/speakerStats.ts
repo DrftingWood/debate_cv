@@ -69,12 +69,11 @@ export const MIN_QUIRK_ROUNDS = 6;
 /** Minimum tournaments before a tournament-level quirk is allowed. */
 export const MIN_QUIRK_TOURNAMENTS = 4;
 /**
- * Run length that becomes a "streak" finding, by outcome kind. Five wins in a
- * row is unusual in a two-team format; five rounds of 2nd-or-better in BP is
- * ordinary, so BP and mixed careers need eight. The BP figure is a working
- * default (C41), not an owner-supplied number.
+ * Run length that becomes a "streak" finding. Five in every format (most
+ * comps run five prelims; owner decision). Only in-rounds count, never
+ * outrounds.
  */
-const STREAK_BAR: Record<OutcomeKind, number> = { win: 5, 'top-two': 8, mixed: 8 };
+const STREAK_BAR = 5;
 
 export type Split = {
   /** The dimension value: "CG", "British Parliamentary", "THW", 2024… */
@@ -943,6 +942,8 @@ export function computeSpeakerStats(input: {
   let currentLoss = 0;
   for (const row of chronological(speakerRows)) {
     for (const tr of [...row.teamRoundResults].sort((a, b) => a.roundNumber - b.roundNumber)) {
+      // In-rounds only: teamRoundResults also carries outrounds.
+      if (row.prelimRoundCount != null && tr.roundNumber > row.prelimRoundCount) continue;
       const hit = roundHit(row.format, tr);
       if (hit == null) continue;
       if (hit) {
@@ -1359,11 +1360,9 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
   }
 
   // Streaks — only interesting once they are long enough to be unlikely. A BP
-  // run is 2nd-or-better rounds (never "wins"), which half the field manages
-  // far more easily than a two-team win, so its bar is higher (C41; the
-  // BP number is a working default, not an owner figure).
-  const streakBar = STREAK_BAR[results.outcome];
-  if (results.longestWinStreak >= streakBar) {
+  // run is 2nd-or-better rounds (never "wins"). Same bar in every format;
+  // prelims only.
+  if (results.longestWinStreak >= STREAK_BAR) {
     quirks.push({
       id: 'streak',
       text:

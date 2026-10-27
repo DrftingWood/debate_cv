@@ -663,3 +663,64 @@ describe('buildCvData regressions: fixed behaviours', () => {
     expect(cv.summary.breaks).toBeLessThanOrEqual(cv.summary.totalTournaments);
   });
 });
+
+// I17: ties are inferred (the parser drops the "="): equal team rank on the
+// tab, or equal speaker total in the loaded field.
+describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
+  const originalTeamFind = () => prismaMock.teamResult.findMany.getMockImplementation()!;
+  const originalPartFind = () => prismaMock.tournamentParticipant.findMany.getMockImplementation()!;
+
+  function withTeamRanks(ranks: Record<string, number>) {
+    const base = originalTeamFind();
+    prismaMock.teamResult.findMany.mockImplementation(async (args: unknown) => {
+      if (argsWhere(args).roundNumber === 0) {
+        return Object.entries(ranks).map(([teamName, rank]) => ({
+          tournamentId: 1n, teamName, rank, wins: null, points: 10, firsts: 1, seconds: 1,
+        }));
+      }
+      return base(args);
+    });
+  }
+
+  function withFieldTotals(totals: number[]) {
+    const base = originalPartFind();
+    prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
+      if (argsWhere(args).speakerScoreTotal) return totals.map((speakerScoreTotal) => ({ tournamentId: 1n, speakerScoreTotal }));
+      return base(args);
+    });
+  }
+
+  it('teamRankTied is true when another team holds the same rank', async () => {
+    withTeamRanks({ 'Oxford A': 2, 'Cambridge A': 2, 'Durham A': 4 });
+    const cv = await buildCvData(USER);
+    const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+    expect(row.teamRank).toBe(2);
+    expect(row.teamRankTied).toBe(true);
+  });
+
+  it('teamRankTied is false when the rank is unique', async () => {
+    withTeamRanks({ 'Oxford A': 2, 'Cambridge A': 1, 'Durham A': 3 });
+    const cv = await buildCvData(USER);
+    const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+    expect(row.teamRank).toBe(2);
+    expect(row.teamRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is true when another speaker has the same total', async () => {
+    withFieldTotals([390, 390, 350]);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(true);
+  });
+
+  it('speakerRankTied is false when the total is unique in the field', async () => {
+    withFieldTotals([390, 400, 350]);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is false when field stats are not loaded, even if totals would tie', async () => {
+    withFieldTotals([390, 390, 350]);
+    const cv = await buildCvData(USER, { includeFieldStats: false });
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+});
