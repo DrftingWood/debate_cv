@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-27 - Vercel preview builds are now filtered (ignoreCommand)
+
+- **Why.** Hobby allows about 100 deployments/day and every branch push built a preview; agent pushes hit "Deployment rate limited", which also blocked production deploys.
+- **Now.** `vercel.json` `ignoreCommand` runs `scripts/vercel-ignore-build.mjs` (tests: `tests/vercelIgnoreBuild.test.ts`). Production and `main` always build. Previews skip docs/text-only pushes and `worktree-agent-*`, `claude/*`, `wip/*` branches. Any doubt builds. Escape hatch: `[vercel build]` in the commit message.
+- **Unverified.** Needs a real preview push to confirm. Vercel docs say canceled builds still count toward the daily quota, so check the deployment count afterwards; if it does not drop, use dashboard-level branch settings instead.
+
+---
+
 ## 2026-10-27 - SAFETY: preview builds no longer run migrations (owner action needed)
 
 - **Incident.** The Vercel Preview build log for PR #201 showed `prisma migrate deploy` applying migration `20261027120000_appearance_candidate` to a real database (`neondb`). `scripts/migrate-if-configured.mjs` assumed previews have no database attached, but the Preview environment had the Postgres URL, so an unmerged migration (one that changes existing user data) ran from a PR build.
