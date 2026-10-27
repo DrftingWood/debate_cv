@@ -397,14 +397,14 @@ Where: `prescrape.ts:59-68`; `ingest.ts:714-716`.
 Kind D/L. Source: owner statement (rule 3, as implemented in #143/#144).
 If false: motions often go public after the final, and some events publish the break or speaker tab days later. Motions released after the stored scrape are never fetched, because no check looks at them.
 Check: Q15. Query: tournaments with `"Motion"` count 0 whose landing nav now links `/motions/`.
-Status: confirmed by owner for rounds; motions not covered by the rule.
+Status: confirmed by owner for rounds; **owner (2026-10-27): a later motions release triggers a re-scrape. Implemented:** `releasedTabMissing` now also returns true when the landing nav links the motions page (`motionsTab` in `meta.discovered`) and no `Motion` row is stored, and `checkCacheFreshness` looks the motions up (`prisma.motion.findFirst`). Known limit: a tournament that links an empty or unparseable motions page re-scrapes on every load until a motion is stored, the same shape as I47/I48; watch for it.
 
 **I50. A PARSER_VERSION bump re-scrapes every stored tournament on its next load.**
 Where: `ingest.ts:697-699`, `:736`; `version.ts:59`; prescrape `ingest.ts:308`.
 Kind L. Source: documentation (CLAUDE.md).
 If false (owner rule 2 says only missing rounds/tabs or force): a bump is a code-side force for everyone. Today that is the only way parser fixes reach old data.
 Check: Q16.
-Status: unverified against rule 2.
+Status: **owner (2026-10-27): a parser-version bump is an acceptable re-scrape trigger.** Documented in `prescrape.ts` (`releasedTabMissing` lists every trigger) and here. Bumps remain a deliberate act: do not bump `PARSER_VERSION` casually, it invalidates every user's cached parses. The Spanish stage lexicon change (I25) did not bump it.
 
 **I51. The pre-scrape treats a stored row as current on parser version alone; it does not check rounds or tabs.**
 Where: `ingest.ts:308-310`.

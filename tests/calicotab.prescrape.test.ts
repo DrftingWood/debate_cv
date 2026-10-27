@@ -81,6 +81,37 @@ describe('releasedTabMissing', () => {
     expect(releasedTabMissing(['teamTab'], { hasTeamTab: false, hasSpeakerTab: true })).toBe(true);
   });
 
+  // Owner rule (assumptions I49, ingest Q15, 2026-10-27): motions are often
+  // released after the last round, and that later release re-scrapes.
+  it('is true when the motions tab is linked but no motions are stored', () => {
+    expect(
+      releasedTabMissing(['teamTab', 'speakerTab', 'motionsTab'], {
+        hasTeamTab: true,
+        hasSpeakerTab: true,
+        hasMotions: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('is false when the motions tab is linked and motions are stored, or the caller did not ask', () => {
+    expect(
+      releasedTabMissing(['motionsTab'], {
+        hasTeamTab: true,
+        hasSpeakerTab: true,
+        hasMotions: true,
+      }),
+    ).toBe(false);
+    expect(releasedTabMissing(['motionsTab'], { hasTeamTab: true, hasSpeakerTab: true })).toBe(
+      false,
+    );
+  });
+
+  it('ignores a motions page the landing page does not link', () => {
+    expect(
+      releasedTabMissing(['teamTab'], { hasTeamTab: true, hasSpeakerTab: true, hasMotions: false }),
+    ).toBe(false);
+  });
+
   it('ignores a tab the landing page does not link (a constructed URL is not a release)', () => {
     expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(
       false,

@@ -73,13 +73,26 @@ export function storedTournamentFresh(existing: { scrapedAt: Date; year: number 
  * merely constructed a URL for does not count). The team tab is stored as the
  * roundNumber=0 TeamResult rows, the speaker tab as speaker score totals on
  * the participants.
+ *
+ * The motions page counts too (owner rule, assumptions I49, 2026-10-27):
+ * organisers often release the motions after the last round, so a later
+ * release re-scrapes the tournament. `hasMotions` is optional; a caller that
+ * does not look motions up passes nothing and motions never trigger.
+ *
+ * Re-scrape triggers, all told (rule 2 of the ingest freshness rules):
+ *   1. the landing page advertises more result rounds than are stored;
+ *   2. this function: a linked team tab, speaker tab or motions page is not stored;
+ *   3. a PARSER_VERSION bump (owner-accepted, I50), or Re-ingest all's epoch scrapedAt;
+ *   4. an admin forces it (I53; app/api/ingest/url and lib/admin.ts).
+ * Age alone never triggers one.
  */
 export function releasedTabMissing(
   discovered: readonly string[],
-  stored: { hasTeamTab: boolean; hasSpeakerTab: boolean },
+  stored: { hasTeamTab: boolean; hasSpeakerTab: boolean; hasMotions?: boolean },
 ): boolean {
   if (discovered.includes('teamTab') && !stored.hasTeamTab) return true;
   if (discovered.includes('speakerTab') && !stored.hasSpeakerTab) return true;
+  if (discovered.includes('motionsTab') && stored.hasMotions === false) return true;
   return false;
 }
 

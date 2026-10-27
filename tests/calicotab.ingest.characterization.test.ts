@@ -851,6 +851,23 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     });
   });
 
+  // Owner rule (assumptions I49): motions released after the last round re-scrape.
+  it.each([
+    ['no motions stored', null, false],
+    ['motions stored', { id: 1n }, true],
+  ] as const)('a linked motions page with %s', async (_label, motionRow, cached) => {
+    const discovered = SNAPSHOT.navigation.meta.discovered;
+    SNAPSHOT.navigation.meta.discovered = [...discovered, 'motionsTab'];
+    try {
+      install({ existing: existingTournament() });
+      prismaMock.motion.findFirst.mockResolvedValue(motionRow);
+      const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+      expect(result.cached).toBe(cached);
+    } finally {
+      SNAPSHOT.navigation.meta.discovered = discovered;
+    }
+  });
+
   it('a re-scrape of a stored tournament with no fetch warnings runs the tournament-wide refresh', async () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([{ id: 900n, personId: 101n }]);

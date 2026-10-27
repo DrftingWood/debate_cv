@@ -751,8 +751,9 @@ async function checkCacheFreshness(
     const discovered = snapshot.navigation.meta.discovered;
     const wantTeam = discovered.includes('teamTab');
     const wantSpeaker = discovered.includes('speakerTab');
-    if (wantTeam || wantSpeaker) {
-      const [teamRow, speakerRow] = await Promise.all([
+    const wantMotions = discovered.includes('motionsTab');
+    if (wantTeam || wantSpeaker || wantMotions) {
+      const [teamRow, speakerRow, motionRow] = await Promise.all([
         wantTeam
           ? prisma.teamResult.findFirst({
               where: { tournamentId: existing.id, roundNumber: 0 },
@@ -765,10 +766,18 @@ async function checkCacheFreshness(
               select: { id: true },
             })
           : Promise.resolve(null),
+        // Motions released after the last round re-scrape (owner rule, I49).
+        wantMotions
+          ? prisma.motion.findFirst({
+              where: { tournamentId: existing.id },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
       ]);
       cacheStale = releasedTabMissing(discovered, {
         hasTeamTab: teamRow !== null,
         hasSpeakerTab: speakerRow !== null,
+        hasMotions: motionRow !== null,
       });
     }
   }
