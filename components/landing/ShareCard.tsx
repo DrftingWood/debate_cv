@@ -9,10 +9,10 @@
  * accent (the BrandMark tile), no serif and no italics, and the landing
  * hero's own copy.
  *
- * Deliberately generic: it names no person and shows no figures. A per-CV
- * card would have to re-check `publicCvEnabled` at render time and would be
- * cached by every chat client that unfurled it, so a record later made
- * private would keep showing its name and numbers in old previews.
+ * With no `person` it is generic and names no one (the landing page and any
+ * disabled or missing profile). `app/u/[slug]/opengraph-image.tsx` passes a
+ * person only after re-checking `publicCvEnabled` at render time; chat clients
+ * cache unfurls, so that route sends a short max-age.
  *
  * Satori (the renderer behind `next/og`) has no access to the app's web
  * fonts without fetching them, and this image is prerendered at build time,
@@ -34,7 +34,14 @@ const LEDGER = {
 
 const TRUST = ['Read-only Gmail', 'Private until shared', 'Source-backed rows'];
 
-export function ShareCard() {
+export type ShareCardPerson = {
+  name: string;
+  tournaments: number;
+  breaks: number;
+  activeYears?: string | null;
+};
+
+export function ShareCard({ person }: { person?: ShareCardPerson } = {}) {
   return (
     <div
       style={{
@@ -79,7 +86,7 @@ export function ShareCard() {
             color: LEDGER.emerald,
           }}
         >
-          Verified tournament record
+          {person ? 'Public debate record' : 'Verified tournament record'}
         </div>
         <div
           style={{
@@ -90,10 +97,18 @@ export function ShareCard() {
             maxWidth: 1000,
           }}
         >
-          Your debate history, kept like an account
+          {person ? person.name : 'Your debate history, kept like an account'}
         </div>
         <div style={{ fontSize: 28, color: LEDGER.muted, maxWidth: 940, lineHeight: 1.4 }}>
-          Every tournament, round and motion, read from the tab pages you were already sent.
+          {person
+            ? [
+                `${person.tournaments} tournament${person.tournaments === 1 ? '' : 's'}`,
+                person.breaks > 0 ? `${person.breaks} break${person.breaks === 1 ? '' : 's'}` : null,
+                person.activeYears ?? null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : 'Every tournament, round and motion, read from the tab pages you were already sent.'}
         </div>
       </div>
 
