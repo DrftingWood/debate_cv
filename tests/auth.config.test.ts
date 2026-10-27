@@ -234,8 +234,10 @@ describe('events.signIn only', () => {
 });
 
 /**
- * Which sign-ins save a token, replaying the order Auth.js 5.0.0-beta.25
- * calls things in (@auth/core lib/actions/callback): adapter.linkAccount only
+ * Which sign-ins save a token, replaying by hand the order Auth.js calls
+ * things in (@auth/core lib/actions/callback; the same in 0.37.2 and 0.41.3,
+ * and auth.callOrder.contract.test.ts runs the installed library to keep this
+ * honest across upgrades): adapter.linkAccount only
  * when the Google account is not linked yet, then events.signIn on every
  * OAuth callback. Before this, a first sign-in saved the same token three
  * times (adapter, events.linkAccount, events.signIn).

@@ -17,7 +17,7 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 ## Stack (from package.json)
 
 - **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)
-- **Auth.js / next-auth v5 beta** (`5.0.0-beta.25`) with `@auth/prisma-adapter`, Google OAuth (`openid email profile gmail.readonly`)
+- **Auth.js / next-auth v5 beta** (`5.0.0-beta.32`, pinned exactly; one `@auth/core` 0.41.3 shared with `@auth/prisma-adapter` 2.11.3), Google OAuth (`openid email profile gmail.readonly`)
 - **Prisma 6** against Postgres (Vercel Postgres / Neon — `POSTGRES_PRISMA_URL` pooled + `POSTGRES_URL_NON_POOLING` for migrations)
 - **Tailwind 3.4** + `@tailwindcss/typography`, custom HSL CSS-var design tokens
 - **googleapis 144** for Gmail, **cheerio 1** for scraping
