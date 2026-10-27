@@ -28,6 +28,10 @@ export function CvShareButton() {
   const [open, setOpen] = useState(false);
   const [pendingToggle, startToggle] = useTransition();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const wasOpen = useRef(false);
+  const skipRestore = useRef(false);
 
   // Lazy-load only on first open so we don't hit /api/sharing for users
   // who never click Share.
@@ -45,11 +49,28 @@ export function CvShareButton() {
     })();
   }, [open, state, toast]);
 
+  // Focus moves into the panel on open and back to the trigger on close, so a
+  // keyboard or screen-reader user is not left on a button that is now behind
+  // the panel, or dropped on <body> when it closes (CV-4/CV-5, SC 2.4.3). A
+  // close by clicking elsewhere keeps focus where the user put it.
+  useEffect(() => {
+    if (open) {
+      panelRef.current?.focus();
+    } else if (wasOpen.current && !skipRestore.current) {
+      triggerRef.current?.focus();
+    }
+    wasOpen.current = open;
+    skipRestore.current = false;
+  }, [open]);
+
   // Close on outside click + Escape.
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!containerRef.current?.contains(e.target as Node)) {
+        skipRestore.current = true;
+        setOpen(false);
+      }
     };
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -95,6 +116,7 @@ export function CvShareButton() {
   return (
     <div ref={containerRef} className="relative" data-print-hide="true">
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="outline"
@@ -107,9 +129,11 @@ export function CvShareButton() {
       </Button>
       {open ? (
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
           aria-label="Share your CV"
-          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card outline-none border border-border bg-card p-4 shadow-lg"
         >
           {!state ? (
             <p role="status" className="text-caption text-ink-soft">
