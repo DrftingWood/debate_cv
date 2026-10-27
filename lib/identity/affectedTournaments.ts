@@ -770,7 +770,7 @@ const NOVICE_CATEGORY = /novice|novat[oa]s?|noviz|iniciad[oa]s?/;
 function outroundBracket(key: string): string | null {
   const m = OUTROUND_KEY.exec(key);
   if (!m) return null;
-  const category = (m[1] ?? '').trim().toLowerCase();
+  const category = (m[1] || '').trim().toLowerCase();
   if (category === '' || OPEN_CATEGORY.test(category)) return 'open';
   return NOVICE_CATEGORY.test(category) ? 'novice' : category;
 }
