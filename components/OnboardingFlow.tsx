@@ -166,9 +166,10 @@ export function OnboardingFlow({
       setSelected(
         new Set(
           rows
-            // Already mine, or a name that looks like the user's Google name.
-            // A name that does not is never pre-ticked.
-            .filter((n) => n.isMine || n.proximity === 'match' || n.proximity === 'close')
+            // Already mine, or the same name as the user's Google name. A close
+            // name (and any double surname or one-word name, which the server
+            // caps at close) always needs the user's own tick (owner rule, I38).
+            .filter((n) => n.isMine || n.proximity === 'match')
             .map((n) => n.normalizedName),
         ),
       );

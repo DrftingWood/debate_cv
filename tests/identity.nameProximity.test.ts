@@ -47,6 +47,28 @@ describe('nameProximity', () => {
 
 import { proximityToYou } from '@/lib/identity/nameProximity';
 
+describe('owner rule (I38): double surnames and one-word names never auto-pass', () => {
+  it('caps an exact one-word name at close, so it always goes to the user', () => {
+    expect(nameProximity('Abhishek', 'Abhishek')).toBe('close');
+    expect(nameProximity('Abhishek', 'Abhishek Acharya')).toBe('different');
+  });
+
+  it('caps a double surname at close even when the words are identical', () => {
+    expect(nameProximity('Maria Garcia Lopez', 'Maria Garcia Lopez')).toBe('close');
+    expect(nameProximity('Maria Garcia-Lopez', 'Maria Garcia-Lopez')).toBe('close');
+    expect(nameProximity('Ana de la Cruz', 'Ana de la Cruz')).toBe('close');
+    expect(nameProximity('Maria Garcia Lopez', 'Maria Lopez')).toBe('close');
+  });
+
+  it('still lets a middle initial through as a match', () => {
+    expect(nameProximity('Abhishek K Acharya', 'Abhishek Acharya')).toBe('match');
+  });
+
+  it('does not turn a different name into close', () => {
+    expect(nameProximity('Maria Garcia Lopez', 'Rohit Sharma')).toBe('different');
+  });
+});
+
 describe('proximityToYou', () => {
   it('is unknown with no reference name, not different', () => {
     expect(proximityToYou('Abhishek Acharya', [])).toBe('unknown');

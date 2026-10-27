@@ -316,7 +316,7 @@ Where: `nameProximity.ts:55-89`.
 Kind N. Source: owner decision A (threshold set by an agent, "tested rather than tuned").
 If false: the ordering fails for names whose family name is not first or last as expected. Spanish double surnames: "Ana García López" vs "Ana García" share first and first-surname but the last word differs, so the result is "different". Mononyms and single-word profile names always give "different". Siblings ("A. Acharya" vs "Abhishek Acharya") give "close".
 Check: Q2.
-Status: unverified (thresholds).
+Status: unverified (thresholds). **Owner rule implemented (2026-10-27):** a one-word name, a hyphenated or particle surname ("de la Cruz", "van Dijk"), and any name of three or more words whose middle words are not initials is "ambiguous" (`isAmbiguousNameShape`). If either side is ambiguous, `nameProximity` returns at most `close`. Onboarding pre-ticks only `isMine` or `match` rows, so `close` (and every ambiguous name) always needs the user's own tick. The claim route uses the separate `personNameMatches` and is unchanged.
 
 **I39. A pasted or CSV-uploaded private URL belongs to whoever pasted it, and needs no DiscoveredUrl row.**
 Where: `app/api/ingest/url/route.ts`, `app/api/ingest/csv/route.ts:41` (`enqueueUrl` only). The only `DiscoveredUrl` writer is `lib/gmail/scanUser.ts:52`.
