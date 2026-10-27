@@ -33,7 +33,37 @@ describe('GET /api/sharing', () => {
     });
     const res = await GET();
     const data = await readJson<{ enabled: boolean; slug: string; avatarEnabled: boolean }>(res);
-    expect(data).toEqual({ enabled: true, slug: 'abhi', avatarEnabled: false });
+    expect(data).toEqual({
+      enabled: true,
+      slug: 'abhi',
+      avatarEnabled: false,
+      hiddenTournamentIds: [],
+      tournaments: [],
+    });
+  });
+
+  it('returns hidden tournament ids as strings, with the tournaments to pick from (C101)', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1'));
+    prismaMock.user.findUnique.mockResolvedValue({
+      publicCvEnabled: true,
+      publicCvSlug: 'abhi',
+      publicAvatarEnabled: true,
+      publicHiddenTournamentIds: [2n],
+    });
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([
+      { tournament: { id: 1n, name: 'Oxford IV', year: 2025 } },
+      { tournament: { id: 2n, name: 'EUDC', year: 2024 } },
+      { tournament: { id: 2n, name: 'EUDC', year: 2024 } },
+    ]);
+    const data = await readJson<{
+      hiddenTournamentIds: string[];
+      tournaments: { id: string; name: string; year: number | null }[];
+    }>(await GET());
+    expect(data.hiddenTournamentIds).toEqual(['2']);
+    expect(data.tournaments).toEqual([
+      { id: '1', name: 'Oxford IV', year: 2025 },
+      { id: '2', name: 'EUDC', year: 2024 },
+    ]);
   });
 });
 
@@ -118,6 +148,33 @@ describe('POST /api/sharing — toggle behaviour', () => {
     };
     // No new slug — only the toggle changed.
     expect(updateArg.data.publicCvSlug).toBeUndefined();
+  });
+
+  it('stores the hidden tournament list as bigints (C101)', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ publicCvSlug: 'existing' });
+    prismaMock.user.update.mockResolvedValue({
+      publicCvEnabled: true,
+      publicCvSlug: 'existing',
+      publicAvatarEnabled: true,
+      publicHiddenTournamentIds: [3n, 5n],
+    });
+    const res = await POST(
+      jsonRequest('/api/sharing', { body: { hiddenTournamentIds: ['3', '5'] } }),
+    );
+    expect(res.status).toBe(200);
+    const updateArg = prismaMock.user.update.mock.calls[0]![0] as {
+      data: { publicHiddenTournamentIds?: bigint[] };
+    };
+    expect(updateArg.data.publicHiddenTournamentIds).toEqual([3n, 5n]);
+    expect((await readJson<{ hiddenTournamentIds: string[] }>(res)).hiddenTournamentIds).toEqual([
+      '3',
+      '5',
+    ]);
+  });
+
+  it('rejects non-numeric hidden tournament ids', async () => {
+    const res = await POST(jsonRequest('/api/sharing', { body: { hiddenTournamentIds: ['x'] } }));
+    expect(res.status).toBe(400);
   });
 
   it('returns 401 when unauthenticated', () =>

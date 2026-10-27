@@ -197,6 +197,22 @@ describe('PublicCvPage', () => {
     expect(out).toContain('2 tournaments · sourced from tournament tab pages');
   });
 
+  it('builds the record without the tournaments the owner hid (C101)', async () => {
+    findUnique.mockResolvedValue({
+      id: 'u1',
+      name: 'Maya Rao',
+      image: null,
+      publicCvEnabled: true,
+      publicAvatarEnabled: false,
+      publicHiddenTournamentIds: [7n],
+    });
+    await render([], []);
+    expect(buildCvData).toHaveBeenCalledWith('u1', {
+      includeFieldStats: false,
+      excludeTournamentIds: [7n],
+    });
+  });
+
   it('says so when an enabled record has no rows', async () => {
     const out = await render([], []);
     expect(out).toContain('No tournaments on this record yet');
