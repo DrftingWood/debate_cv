@@ -68,10 +68,23 @@ describe('owner rule (I38): double surnames and one-word names never auto-pass',
   });
 
   it('counts a particle only when a word follows it', () => {
-    for (const n of ['Ana de la Cruz', 'Jan van Dijk', 'van Dijk', 'Omar al Sayed']) {
+    for (const n of [
+      'Ana de la Cruz',
+      'Maria de la Cruz',
+      'Anna van Dijk',
+      'Jan van Dijk',
+      'Omar al Sayed',
+    ]) {
       expect(isAmbiguousNameShape(n)).toBe(true);
       expect(nameProximity(n, n)).toBe('close');
     }
+  });
+
+  it('does not read a leading particle as a surname prefix (family name first)', () => {
+    for (const n of ['Bin Li', 'Le Minh', 'Do Thanh Tung', 'Al Gore', 'Van Morrison']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+    }
+    expect(isAmbiguousNameShape('Smith-Jones')).toBe(true);
   });
 
   it('treats a hyphenated first name as one word', () => {

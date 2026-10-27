@@ -9,7 +9,7 @@ import {
   isWithheldByTournament,
   withApiSnapshots,
 } from './fetch';
-import { FetchSession } from './fetchSession';
+import { FetchSession, isIngestDeadlineError } from './fetchSession';
 import {
   API_TIMEOUT_MS,
   fetchTabsFromApi,
@@ -788,11 +788,16 @@ async function checkCacheFreshness(
     snapshot.navigation.meta.discovered.includes('motionsTab') &&
     motionsCheckDue(existing.id)
   ) {
+    // This check is optional: a deadline reached during it serves the cache
+    // hit rather than failing a load whose stored data is fine.
     const page = await fetchHtmlWithProvenance(motionsUrl, {
       referer: loaded.normalized,
       session: loaded.fetchSession,
+    }).catch((err: unknown) => {
+      if (isIngestDeadlineError(err)) return null;
+      throw err;
     });
-    if (page.ok) {
+    if (page?.ok) {
       const storedMotions = await prisma.motion.count({ where: { tournamentId: existing.id } });
       cacheStale = motionsGained(storedMotions, parseMotionsTab(page.html));
     }

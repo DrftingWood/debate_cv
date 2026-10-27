@@ -432,8 +432,6 @@ type RoundIndex = {
   judgesByKey: Map<string, Map<string, Set<string>>>;
   /** Exact judge spelling → rounds. */
   judgeNameRounds: Map<string, Set<string>>;
-  /** Rounds whose page lists a team twice: one debate, two judging panels. */
-  doublePanelRounds: Set<string>;
   /** At least one results page named at least one judge. */
   hasJudges: boolean;
   /** Results pages read. */
@@ -445,28 +443,14 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
     teamRounds: new Map(),
     judgesByKey: new Map(),
     judgeNameRounds: new Map(),
-    doublePanelRounds: new Set(),
     hasJudges: false,
     pages: 0,
   };
-  const pagesByKey = new Map<string, number>();
-  const doublePanelPages = new Map<string, number>();
   for (const r of rounds ?? []) {
     idx.pages += 1;
     const key = roundKey(r.roundLabel, r.roundNumber);
     if (!key) continue;
-    // HWS-style round robins list the TEAM twice on one results page, each
-    // listing with its own judging panel (owner answer, 2026-10-27). A judge
-    // cannot sit on both panels of one debate, so a repeat inside such a page
-    // is undecided rather than proof of two judges. Only a page where EVERY
-    // team appears exactly twice counts; empty names and swing stand-ins are
-    // not teams to count. A key shared by pages of different parts (R1A, R1B)
-    // is double-panel only if every one of those pages is.
     for (const t of r.teamResults) addTo(idx.teamRounds, loose(t.teamName), key);
-    pagesByKey.set(key, (pagesByKey.get(key) ?? 0) + 1);
-    if (isDoublePanelPage(r.teamResults)) {
-      doublePanelPages.set(key, (doublePanelPages.get(key) ?? 0) + 1);
-    }
     for (const j of r.judgeAssignments) {
       const name = cleanName(j.personName);
       const k = normalizePersonName(name);
@@ -478,22 +462,7 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
       addTo(idx.judgeNameRounds, name, key);
     }
   }
-  for (const [key, n] of doublePanelPages) {
-    if (n === pagesByKey.get(key)) idx.doublePanelRounds.add(key);
-  }
   return idx;
-}
-
-/** Every counted team on the page is listed exactly twice (and there is at least one). */
-export function isDoublePanelPage(teams: ReadonlyArray<{ teamName: string }>): boolean {
-  const counts = new Map<string, number>();
-  for (const t of teams) {
-    const name = cleanName(t.teamName);
-    if (!name || /^swing\b/i.test(name) || isPlaceholderPersonName(name)) continue;
-    const team = loose(name);
-    counts.set(team, (counts.get(team) ?? 0) + 1);
-  }
-  return counts.size > 0 && [...counts.values()].every((n) => n === 2);
 }
 
 function addTo<K, V>(m: Map<K, Set<V>>, k: K, v: V): void {
@@ -702,7 +671,13 @@ type PairVerdict = {
   pair?: UndecidedPair;
 };
 
-function sideVerdict(a: Side, b: Side, crossRole: boolean, eudc: boolean): PairVerdict {
+function sideVerdict(
+  a: Side,
+  b: Side,
+  crossRole: boolean,
+  eudc: boolean,
+  sameRoundOnly = false,
+): PairVerdict {
   const ra = a.rounds;
   const rb = b.rounds;
   if (!ra || !rb) {
@@ -715,6 +690,14 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean, eudc: boolean): PairV
       cls: 'overlap',
       crossRole,
       evidence: `${shared[0]}: ${a.word} (${a.from}) and ${b.word} (${b.from})`,
+    };
+  }
+  // Cross-bracket rules are about speakers; judges sit several brackets' outrounds.
+  if (sameRoundOnly) {
+    return {
+      cls: 'disjoint',
+      crossRole,
+      evidence: `${a.word} ${formatRounds(ra)} (${a.from}); ${b.word} ${formatRounds(rb)} (${b.from})`,
     };
   }
   // Owner rule (assumptions Q4/Q10): nobody is in both an Open final and a
@@ -747,12 +730,27 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean, eudc: boolean): PairV
 /** What the offline checker is told about the event a list belongs to. */
 export type EventInfo = { name?: string | null; slug?: string | null; host?: string | null };
 
-/** EUDC, from the tournament's name, slug or host. */
+/**
+ * Words that make an EUDC mention a feeder or preparation event, not the
+ * championship ("EUDC Pre-event", "Pre-EUDC IV", "EUDC Selection Trials").
+ */
+const EUDC_FEEDER =
+  /(?<![a-z])(?:pre|selections?|trials?|qualifiers?|qualification|training|prep|mock|practice|workshop|warm[ -]?up|national|regional)(?![a-z])/i;
+
+const EUDC_NAME =
+  /(?<![a-z])eudc(?![a-z])|european universities debating|(?<![a-z])europeans(?![a-z])/i;
+
+/**
+ * EUDC, from the tournament's name, slug or host. Conservative on purpose:
+ * EUDC is the exception to the cross-bracket rule, so when unsure (a
+ * qualifier or preparation event that mentions EUDC) it is NOT EUDC.
+ */
 export function isEudc(event: EventInfo | undefined): boolean {
   if (!event) return false;
-  return [event.name, event.slug, event.host].some((t) =>
-    /(?<![a-z])eudc(?![a-z])|european universities debating/i.test(t ?? ''),
-  );
+  return [event.name, event.slug, event.host].some((t) => {
+    const text = t ?? '';
+    return !EUDC_FEEDER.test(text) && EUDC_NAME.test(text);
+  });
 }
 
 const OUTROUND_KEY =
@@ -826,13 +824,10 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
   const byRound = ev.rounds.judgesByKey.get(key);
   if (!byRound || byRound.size === 0)
     return { cls: 'unknown', crossRole: false, evidence: 'no rounds for either judge' };
-  // A double-panel round lists the same judge name once per panel, so a repeat
-  // there is not two judges (owner exception to the same-round rule).
-  const twice = sortedRounds(
-    [...byRound]
-      .filter(([r, seen]) => seen.size >= 2 && !ev.rounds.doublePanelRounds.has(r))
-      .map(([r]) => r),
-  );
+  // Owner rule: a judge cannot sit twice in one debate, not even in a
+  // double-panel round (the team is listed twice there, each listing with its
+  // own panel), so a key showing twice in a round is two judges.
+  const twice = sortedRounds([...byRound].filter(([, seen]) => seen.size >= 2).map(([r]) => r));
   if (twice.length > 0)
     return { cls: 'overlap', crossRole: false, evidence: `${twice[0]}: two judges (results)` };
   const na = cleanName(a.name);
@@ -849,7 +844,7 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
     rounds: ev.rounds.judgeNameRounds.get(name) ?? null,
     from: 'results',
   });
-  return sideVerdict(side(na), side(nb), false, ev.eudc);
+  return sideVerdict(side(na), side(nb), false, ev.eudc, true);
 }
 
 /**

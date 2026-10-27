@@ -108,14 +108,17 @@ export function isAmbiguousNameShape(name: string): boolean {
   const raw = name.replace(/\([^)]*\)/g, ' ').trim();
   if (/\p{L}-\p{L}/u.test(raw.split(/[\s,]+/).slice(-1)[0] ?? '')) return true;
   // Words as typed: a hyphenated first name ("Jean-Paul") stays one word.
-  const tokens = raw
+  let tokens = raw
     .split(/[\s,]+/)
     .map((t) => fold(t))
     .filter(Boolean);
   if (tokens.length < 2) return true; // a one-word name
+  // A leading particle is a family name written first ("Do Thanh Tung", "Le Van
+  // Minh"), not a surname prefix: drop it, the rest decides.
+  if (tokens.length >= 3 && SURNAME_PARTICLES.has(tokens[0] ?? '')) tokens = tokens.slice(1);
   // A particle counts only when a word follows it ("de la Cruz", "van Dijk"):
   // as the last word it is the surname itself ("Li Bin", "Wang Di", "Minh Do").
-  if (tokens.slice(0, -1).some((t) => SURNAME_PARTICLES.has(t))) return true;
+  if (tokens.slice(1, -1).some((t) => SURNAME_PARTICLES.has(t))) return true;
   return tokens.length >= 3 && tokens.slice(1, -1).some((t) => t.length > 1);
 }
 

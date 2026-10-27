@@ -416,6 +416,12 @@ describe('owner rules: Open and Novice finals, double panels', () => {
     expect(isEudc({ name: 'Open 2025', slug: 'eudc25' })).toBe(true);
     expect(isEudc({ name: 'Euro Open' })).toBe(false);
     expect(isEudc(undefined)).toBe(false);
+    expect(isEudc({ name: 'Europeans 2024' })).toBe(true);
+    expect(isEudc({ name: 'European Universities Debating Championship' })).toBe(true);
+    expect(isEudc({ slug: 'eudc2025' })).toBe(true);
+    expect(isEudc({ name: 'EUDC Pre-event' })).toBe(false);
+    expect(isEudc({ name: 'Pre-EUDC IV' })).toBe(false);
+    expect(isEudc({ name: 'EUDC Selection Trials' })).toBe(false);
   });
 
   test('EUDC may have one person in both the Open and the ESL outrounds', () => {
@@ -438,7 +444,7 @@ describe('owner rules: Open and Novice finals, double panels', () => {
     });
   });
 
-  test('a team listed twice on one results page is a double-panel debate: no panel overlap', () => {
+  test('a team listed twice (double panel) still shows a judge listed twice as an overlap', () => {
     const k = (rounds: string) =>
       findIdentityIssues(
         parseTournamentDocuments(
@@ -465,7 +471,8 @@ describe('owner rules: Open and Novice finals, double panels', () => {
           { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
         ),
       ).sharedKeys[0];
-    expect(k('Lou Fey (c), Lou Fey')).toMatchObject({ class: 'unknown' });
+    // A judge cannot sit on both panels of one debate; the repeated TEAM adds no collision.
+    expect(k('Lou Fey (c), Lou Fey')).toMatchObject({ class: 'overlap' });
   });
 
   // Owner answer: in HWS-style rounds the TEAM is listed twice, each listing
@@ -541,6 +548,37 @@ describe('owner rules: Open and Novice finals, double panels', () => {
         ['Blue B', ''],
       ]),
     ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('two judge spellings split as an Open QF and a Novice Final are not an overlap', () => {
+    // Judges routinely sit several brackets' outrounds: the cross-bracket rule
+    // is for speakers only.
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Zoe Ash' }, { text: 'Uni A' }],
+                  [{ text: 'Zoe-Ash' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            land: landing('x', ['Open Quarterfinals', 'Novice Final']),
+            r1: resultsPage([['Red R', 'Zoe Ash (c)']]),
+            r2: resultsPage([['Blue B', 'Zoe-Ash (c)']]),
+          })[e.id]!,
+        {
+          landing: doc('land', 'https://x.calicotab.com/x/'),
+          results: [1, 2].map((n) => doc(`r${n}`, `https://x.calicotab.com/x/results/round/${n}/`)),
+        },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'disjoint' });
   });
 
   test('a flag on R1A does not cover R1B', () => {

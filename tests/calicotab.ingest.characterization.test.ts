@@ -275,6 +275,7 @@ import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
 import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
+import { IngestDeadlineError } from '@/lib/calicotab/fetchSession';
 
 const USER = 'user-1';
 const FINGERPRINT = computeFingerprint({
@@ -926,6 +927,30 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
         install({ existing: existingTournament() });
         prismaMock.motion.count.mockResolvedValue(1);
         expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(false);
+      });
+    });
+
+    it('that lists fewer motions than are stored does not re-scrape', async () => {
+      await withMotionsLinked(async () => {
+        h.motions = [{ roundLabel: 'Round 1', seq: 1 }];
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(3);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('an ingest deadline hit during the motions fetch still serves the cache hit', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        h.fetchHtml.mockImplementation(async (url: string) => {
+          if (url === MOTIONS_TAB)
+            throw new IngestDeadlineError('ingest stopped: deadline reached');
+          return okPage(url);
+        });
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
       });
     });
 
