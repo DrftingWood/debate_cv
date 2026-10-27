@@ -44,6 +44,11 @@
     "date": "2026-10-27",
     "note": "Split with affectedTournaments.ts: overlap cases vs collection cases."
   },
+  "components/DashboardActions.tsx": {
+    "lines": 867,
+    "date": "2026-10-27",
+    "note": "Split the scan, drain and identity actions into separate components under components/dashboard/."
+  },
   "tests/cv.speakerStats.test.ts": {
     "lines": 857,
     "date": "2026-10-27",
