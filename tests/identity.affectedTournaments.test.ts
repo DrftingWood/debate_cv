@@ -415,12 +415,126 @@ describe('owner rules: Open and Novice finals, double panels', () => {
                 ['Red R', rounds],
                 ['Red R', ''],
                 ['Blue B', ''],
+                ['Blue B', ''],
               ]),
             })[e.id]!,
           { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
         ),
       ).sharedKeys[0];
     expect(k('Lou Fey (c), Lou Fey')).toMatchObject({ class: 'unknown' });
+  });
+
+  // Owner answer: in HWS-style rounds the TEAM is listed twice, each listing
+  // with its own judging panel; a judge cannot sit on both panels of one
+  // debate. So only a page where EVERY team is listed exactly twice is a
+  // double-panel page; stand-ins and blanks are not counted.
+  const sameJudgeTwice = (teams: Array<[string, string]>, url = 'results/round/1/') =>
+    findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            r1: resultsPage(teams),
+          })[e.id]!,
+        { results: [doc('r1', `https://x.calicotab.com/x/${url}`)] },
+      ),
+    ).sharedKeys[0];
+  const J = 'Lou Fey (c), Lou Fey';
+
+  test('two Swing teams on a page do not make it double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['Swing', J],
+        ['Swing', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('an empty team name does not make a page double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['', J],
+        ['', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('a normal page and a page with a team listed once still flag the overlap', () => {
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Red R', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('a team listed three times is not double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Red R', ''],
+        ['Red R', ''],
+        ['Blue B', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('a flag on R1A does not cover R1B', () => {
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            a: resultsPage([
+              ['Red R', J],
+              ['Red R', ''],
+              ['Blue B', ''],
+              ['Blue B', ''],
+            ]),
+            b: resultsPage([
+              ['Red R', J],
+              ['Blue B', ''],
+            ]),
+          })[e.id]!,
+        {
+          results: [
+            doc('a', 'https://x.calicotab.com/x/results/round/1a/'),
+            doc('b', 'https://x.calicotab.com/x/results/round/1b/'),
+          ],
+        },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'overlap' });
   });
 
   test('without a repeated team the same two panel entries are an overlap', () => {

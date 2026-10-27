@@ -447,20 +447,23 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
     hasJudges: false,
     pages: 0,
   };
+  const pagesByKey = new Map<string, number>();
+  const doublePanelPages = new Map<string, number>();
   for (const r of rounds ?? []) {
     idx.pages += 1;
     const key = roundKey(r.roundLabel, r.roundNumber);
     if (!key) continue;
-    // HWS-style round robins: one debate with two judging panels, each with
-    // its own ranking and speaks, shows the same team on two rows of one
-    // results page. That is the owner's exception to the same-round rule, so
-    // the round is remembered and no panel overlap is flagged in it.
-    const seenTeams = new Set<string>();
-    for (const t of r.teamResults) {
-      const team = loose(t.teamName);
-      if (seenTeams.has(team)) idx.doublePanelRounds.add(key);
-      seenTeams.add(team);
-      addTo(idx.teamRounds, team, key);
+    // HWS-style round robins list the TEAM twice on one results page, each
+    // listing with its own judging panel (owner answer, 2026-10-27). A judge
+    // cannot sit on both panels of one debate, so a repeat inside such a page
+    // is undecided rather than proof of two judges. Only a page where EVERY
+    // team appears exactly twice counts; empty names and swing stand-ins are
+    // not teams to count. A key shared by pages of different parts (R1A, R1B)
+    // is double-panel only if every one of those pages is.
+    for (const t of r.teamResults) addTo(idx.teamRounds, loose(t.teamName), key);
+    pagesByKey.set(key, (pagesByKey.get(key) ?? 0) + 1);
+    if (isDoublePanelPage(r.teamResults)) {
+      doublePanelPages.set(key, (doublePanelPages.get(key) ?? 0) + 1);
     }
     for (const j of r.judgeAssignments) {
       const name = cleanName(j.personName);
@@ -473,7 +476,22 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
       addTo(idx.judgeNameRounds, name, key);
     }
   }
+  for (const [key, n] of doublePanelPages) {
+    if (n === pagesByKey.get(key)) idx.doublePanelRounds.add(key);
+  }
   return idx;
+}
+
+/** Every counted team on the page is listed exactly twice (and there is at least one). */
+export function isDoublePanelPage(teams: ReadonlyArray<{ teamName: string }>): boolean {
+  const counts = new Map<string, number>();
+  for (const t of teams) {
+    const name = cleanName(t.teamName);
+    if (!name || /^swing/i.test(name) || isPlaceholderPersonName(name)) continue;
+    const team = loose(name);
+    counts.set(team, (counts.get(team) ?? 0) + 1);
+  }
+  return counts.size > 0 && [...counts.values()].every((n) => n === 2);
 }
 
 function addTo<K, V>(m: Map<K, Set<V>>, k: K, v: V): void {
