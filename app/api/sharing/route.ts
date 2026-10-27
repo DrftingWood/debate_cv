@@ -31,7 +31,7 @@ export async function GET() {
   return NextResponse.json({
     enabled: user?.publicCvEnabled ?? false,
     slug: user?.publicCvSlug ?? null,
-    avatarEnabled: user?.publicAvatarEnabled ?? true,
+    avatarEnabled: user?.publicAvatarEnabled ?? false,
   });
 }
 
