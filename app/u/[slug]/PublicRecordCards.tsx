@@ -1,7 +1,8 @@
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
 import { teamTabPlacement, formatTopPercent } from '@/lib/cv/teamPlacement';
 import { Badge } from '@/components/ui/Badge';
+import { hashRank } from '@/lib/cv/rankDisplay';
 import { TournamentCard, type TournamentCardField } from '@/components/TournamentCard';
 
 /**
@@ -28,11 +29,11 @@ export function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
     const joined = r.eliminationReachedByCategory
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+    return r.wonTournament === true ? `${joined} (${championTitle(r.eliminationReached)})` : joined;
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  return r.wonTournament === true ? `${display} (Champion)` : display;
+  return r.wonTournament === true ? `${display} (${championTitle(r.eliminationReached)})` : display;
 }
 
 /**
@@ -58,13 +59,13 @@ function speakerFields(r: CvSpeakerRow): TournamentCardField[] {
     const p = teamTabPlacement(r.teamRank, r.totalTeams);
     out.push({
       label: 'Team rank',
-      value: p ? `#${p.rank} of ${p.of}` : `#${r.teamRank}`,
+      value: p ? `${hashRank(p.rank, r.teamRankTied)} of ${p.of}` : hashRank(r.teamRank, r.teamRankTied),
       hint: p ? `top ${formatTopPercent(p.topPercent)} of the team tab` : undefined,
       mono: true,
     });
   }
   if (r.speakerRankOpen != null) {
-    out.push({ label: 'Speaker-tab rank', value: `#${r.speakerRankOpen}`, mono: true });
+    out.push({ label: 'Speaker-tab rank', value: hashRank(r.speakerRankOpen, r.speakerRankTied), mono: true });
   }
   if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
   if (r.teamName) out.push({ label: 'Team', value: r.teamName });

@@ -1,4 +1,4 @@
-import { outroundRank } from '@/lib/calicotab/judgeStats';
+import { compareOutroundDepth, outroundRank } from '@/lib/calicotab/judgeStats';
 
 export type SpeakerCvSignal = {
   eliminationReached: string | null | undefined;
@@ -17,7 +17,7 @@ export function deepestOutroundLabel(labels: Array<string | null | undefined>): 
     if (!label) continue;
     const rank = outroundRank({ roundLabel: label, roundNumber: null, isOutround: true });
     if (rank < 0) continue;
-    if (!best || rank > best.rank) best = { label, rank };
+    if (!best || compareOutroundDepth({ label, rank }, best) > 0) best = { label, rank };
   }
   return best?.label ?? null;
 }

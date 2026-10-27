@@ -38,7 +38,7 @@ const findings = [
     basis: '7 tournaments with six or more scored rounds',
   },
   {
-    text: 'CG is your weakest seat at 41%, against a 53% overall round win rate.',
+    text: 'CG is your weakest seat at 41%, against a 53% overall 2nd-or-better rate.',
     basis: '22 decided rounds in CG',
   },
   {
@@ -200,7 +200,7 @@ export default function SamplePage() {
             </div>
             <div className="panel space-y-4 p-4">
               <Meter label="Team-tab percentile" display="92nd" value={92} tone="blue" />
-              <Meter label="Round win rate" display="53%" value={53} />
+              <Meter label="2nd-or-better rate" display="53%" value={53} />
               <div className="border-t border-border pt-3">
                 <div className="data-label mb-3">Team points per round</div>
                 <BarList

@@ -187,7 +187,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
               <WithheldSection
                 id="momentum"
                 label="Momentum"
-                title="The round after a win, and after a loss"
+                title="The round after a good round, and after a bad one"
                 reason="Momentum pairs each round with the next one, and a seat filter removes the rounds in between."
               />
             ) : (

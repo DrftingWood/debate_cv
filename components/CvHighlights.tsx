@@ -30,7 +30,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   const {
     championships,
     deepestBreaks,
-    topTeamFinishes,
+    topSpeakerFinishes,
     bestSpeakerRank,
     bestSpeakerAverage,
     outroundsChaired,
@@ -50,7 +50,9 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Championships',
       title: `Won ${championships.length} ${championships.length === 1 ? 'title' : 'titles'}`,
-      items: championships.map((c) => withYear(c.tournamentName, c.year)),
+      items: championships.map(
+        (c) => withYear(c.tournamentName, c.year) + (c.category ? ` (${c.category} title)` : ''),
+      ),
       icon: <Trophy className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });
@@ -70,13 +72,14 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       gold: true,
     });
   }
-  // "Top 10%" is a claim about the TEAM tab: team rank against team count.
-  if (topTeamFinishes.length > 0) {
+  // "Top 10 speaker" is an absolute speaker-tab rank (<= 10), not a percentile.
+  if (topSpeakerFinishes.length > 0) {
     tiles.push({
-      label: 'Team tab',
-      title: `Top-10% team finish × ${topTeamFinishes.length}`,
-      items: topTeamFinishes.map(
-        (b) => `#${b.rank} of ${b.totalTeams} teams · ${withYear(b.tournamentName, b.year)}`,
+      label: 'Speaker tab',
+      title: `Top 10 speaker × ${topSpeakerFinishes.length}`,
+      items: topSpeakerFinishes.map(
+        (b) =>
+          `#${b.rank} speaker · ${withYear(b.tournamentName, b.year)}`,
       ),
       icon: <Users className="h-3.5 w-3.5" aria-hidden />,
     });

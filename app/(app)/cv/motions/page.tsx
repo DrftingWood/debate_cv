@@ -13,6 +13,7 @@ import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
 import { CvSubNav } from '@/components/CvSubNav';
 import { isAdminEmail } from '@/lib/admin';
+import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
 
 export const metadata: Metadata = {
   title: 'Motions',
@@ -62,6 +63,10 @@ export default async function CvMotionsPage() {
   const withScore = debated.filter((e) => e.score != null);
   const decided = debated.filter((e) => e.won != null);
   const wins = decided.filter((e) => e.won).length;
+  // BP rounds are never "wins": a four-team room counts 2nd or better.
+  const hasBp = decided.some((e) => e.fourTeam);
+  const hasTwoTeam = decided.some((e) => !e.fourTeam);
+  const outcome = hasBp ? (hasTwoTeam ? 'mixed' : 'top-two') : 'win';
   // Count tournaments the user SPOKE at for the summary strip — the page
   // below also lists tournaments they only judged, which would inflate a
   // "motions debated across N tournaments" figure.
@@ -136,11 +141,17 @@ export default async function CvMotionsPage() {
               }
             />
             <StatTile
-              label="Round record"
-              value={decided.length > 0 ? `${wins}–${decided.length - wins}` : '—'}
+              label={outcome === 'win' ? 'Round record' : 'Rounds 2nd or better'}
+              value={
+                decided.length > 0
+                  ? outcome === 'win'
+                    ? `${wins}–${decided.length - wins}`
+                    : `${wins} of ${decided.length}`
+                  : '—'
+              }
               hint={
                 decided.length > 0
-                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds`
+                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds${outcome === 'win' ? '' : ` (${OUTCOME_COPY[outcome].rounds})`}`
                   : 'No results published'
               }
             />

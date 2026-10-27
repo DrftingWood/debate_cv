@@ -5,9 +5,10 @@ import type {
   CvFieldStat,
   CvTaggedMotion,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, titleCategory } from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 import { breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
+import { hashRank, rankLabel } from '@/lib/cv/rankDisplay';
 
 /**
  * Single source of truth for exportable CV columns. The /api/cv/export
@@ -67,7 +68,7 @@ export type ExportField = {
 
 function fmtSpeakerRanks(r: CvSpeakerRow): string {
   return [
-    r.speakerRankOpen != null ? `#${r.speakerRankOpen} Open` : null,
+    r.speakerRankOpen != null ? `${hashRank(r.speakerRankOpen, r.speakerRankTied)} Open` : null,
     r.speakerRankEsl != null ? `#${r.speakerRankEsl} ESL` : null,
     r.speakerRankEfl != null ? `#${r.speakerRankEfl} EFL` : null,
   ]
@@ -85,11 +86,18 @@ function fmtLastOutroundSpoken(r: CvSpeakerRow): string {
     const joined = multi
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (W)` : joined;
+    return r.wonTournament === true ? `${joined} (${winMark(r)})` : joined;
   }
   if (!r.eliminationReached) return '';
   const display = formatStageForDisplay(r.eliminationReached);
-  return r.wonTournament === true ? `${display} (W)` : display;
+  return r.wonTournament === true ? `${display} (${winMark(r)})` : display;
+}
+
+// "(W)" for the Open bracket, "(W, ESL)" for a category title (C10), so the
+// export never lets an ESL/Novice win read as the Open title.
+function winMark(r: CvSpeakerRow): string {
+  const category = titleCategory(r.eliminationReached);
+  return category ? `W, ${category}` : 'W';
 }
 
 export const EXPORT_FIELDS: ExportField[] = [
@@ -100,7 +108,8 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'my_name', label: 'My name', speaker: (r) => r.myName, judge: (r) => r.myName },
   { id: 'teammates', label: 'Teammates', speaker: (r) => r.teammates.join(' | ') },
   { id: 'team', label: 'Team', speaker: (r) => r.teamName },
-  { id: 'team_rank', label: 'Team rank', speaker: (r) => (r.teamRank != null ? `#${r.teamRank}` : '') },
+  { id: 'team_rank', label: 'Team rank', // Machine-clean: never the "=" tie marker, which is display-only (owner).
+  speaker: (r) => (r.teamRank != null ? `#${r.teamRank}` : '') },
   {
     id: 'team_points',
     label: 'Team points',
@@ -198,7 +207,7 @@ export const EXPORT_FIELDS: ExportField[] = [
     // columns above are individual figures and say so in their labels.
     speaker: (r) => {
       const p = teamTabPlacement(r.teamRank, r.totalTeams);
-      return p ? `${p.rank}/${p.of} (top ${formatTopPercent(p.topPercent)})` : '';
+      return p ? `${rankLabel(p.rank, r.teamRankTied)}/${p.of} (top ${formatTopPercent(p.topPercent)})` : '';
     },
   },
   {
