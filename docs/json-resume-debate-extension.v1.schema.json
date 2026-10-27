@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://debate-cv.vercel.app/schemas/json-resume-debate-extension.v1.json",
+  "title": "Debate CV extension for JSON Resume (v1, superseded by v2)",
+  "description": "Lives at meta[\"x-debate-cv\"] of a JSON Resume document. Kept so documents exported before v2 still validate; new exports are v2 (json-resume-debate-extension.schema.json); validated in tests/cv.jsonResume.schema.test.ts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "summary", "speaking", "judging"],
+  "definitions": {
+    "nullableString": { "type": ["string", "null"] },
+    "nullableInt": { "type": ["integer", "null"] },
+    "year": { "type": ["integer", "null"], "minimum": 1900, "maximum": 2200 }
+  },
+  "properties": {
+    "version": { "const": 1 },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalTournaments", "breaks", "totalRoundsChaired"],
+      "properties": {
+        "totalTournaments": { "type": "integer", "minimum": 0 },
+        "breaks": { "type": "integer", "minimum": 0 },
+        "totalRoundsChaired": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "speaking": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tournament", "year", "format", "team", "teammates", "teamRank", "totalTeams", "teamPoints", "teamWins", "speakerRank", "speakerAverage", "speakerCategories", "broke", "outroundReached", "won", "source"],
+        "properties": {
+          "tournament": { "type": "string" },
+          "year": { "$ref": "#/definitions/year" },
+          "format": { "$ref": "#/definitions/nullableString" },
+          "team": { "$ref": "#/definitions/nullableString" },
+          "teammates": { "type": "array", "items": { "type": "string" } },
+          "teamRank": { "$ref": "#/definitions/nullableInt" },
+          "totalTeams": { "$ref": "#/definitions/nullableInt" },
+          "teamPoints": { "$ref": "#/definitions/nullableString" },
+          "teamWins": { "$ref": "#/definitions/nullableInt" },
+          "speakerRank": { "$ref": "#/definitions/nullableInt" },
+          "speakerAverage": { "$ref": "#/definitions/nullableString" },
+          "speakerCategories": { "type": "array", "items": { "type": "string" } },
+          "broke": { "type": "boolean" },
+          "outroundReached": { "$ref": "#/definitions/nullableString" },
+          "won": { "type": ["boolean", "null"] },
+          "source": { "type": "string", "format": "uri" }
+        }
+      }
+    },
+    "judging": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tournament", "year", "format", "role", "inroundsJudged", "inroundsChaired", "lastOutroundChaired", "lastOutroundJudged", "broke", "source"],
+        "properties": {
+          "tournament": { "type": "string" },
+          "year": { "$ref": "#/definitions/year" },
+          "format": { "$ref": "#/definitions/nullableString" },
+          "role": { "$ref": "#/definitions/nullableString" },
+          "inroundsJudged": { "$ref": "#/definitions/nullableInt" },
+          "inroundsChaired": { "$ref": "#/definitions/nullableInt" },
+          "lastOutroundChaired": { "$ref": "#/definitions/nullableString" },
+          "lastOutroundJudged": { "$ref": "#/definitions/nullableString" },
+          "broke": { "type": "boolean" },
+          "source": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}
+

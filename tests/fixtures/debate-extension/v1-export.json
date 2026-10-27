@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "summary": { "totalTournaments": 2, "breaks": 1, "totalRoundsChaired": 4 },
+  "speaking": [
+    {
+      "tournament": "Mumbai Open",
+      "year": 2025,
+      "format": "British Parliamentary",
+      "team": "Mumbai A",
+      "teammates": ["Partner One"],
+      "teamRank": 3,
+      "totalTeams": 40,
+      "teamPoints": "18",
+      "teamWins": null,
+      "speakerRank": 12,
+      "speakerAverage": "74.2",
+      "speakerCategories": [],
+      "broke": true,
+      "outroundReached": "Semifinals",
+      "won": false,
+      "source": "https://mumbai.calicotab.com/open/"
+    }
+  ],
+  "judging": [
+    {
+      "tournament": "Delhi IV",
+      "year": 2024,
+      "format": "British Parliamentary",
+      "role": "core",
+      "inroundsJudged": 5,
+      "inroundsChaired": 4,
+      "lastOutroundChaired": null,
+      "lastOutroundJudged": null,
+      "broke": false,
+      "source": "https://delhi.calicotab.com/iv/"
+    }
+  ]
+}

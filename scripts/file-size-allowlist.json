@@ -11,7 +11,7 @@
     "date": "2026-10-27",
     "note": "Split buildCvData (one ~760-line function) into per-section builders: rows, motions, field summary.",
     "allowGrowth": true,
-    "growthReason": "Owner-rule PR #196 (ingest and identity) and the public CV hidden-tournaments filter (PR #198) add small in-place lines to an already-oversize file; split is tracked in the note."
+    "growthReason": "Owner-decided CV display changes (C15/C16/C21/C25/C26): per-role break summary, speaker field size, majors list. The new logic lives in headerMetrics.ts, teamPlacement.ts and majors.ts; only wiring grew here. Also: Public CV hidden-tournaments filter (PR #198) adds 10 lines to the builder; owner-rule PR #196 (ingest and identity) adds small in-place lines; split is tracked in the note."
   },
   "lib/cv/speakerStats.ts": {
     "lines": 1416,
@@ -42,7 +42,7 @@
     "date": "2026-10-27",
     "note": "Split by CV section when buildCvData.ts is split.",
     "allowGrowth": true,
-    "growthReason": "Characterization tests for the hidden-tournaments filter (PR #198); split with buildCvData.ts."
+    "growthReason": "Deliberate characterization updates for the per-role break summary and speakerFieldSize (C16/C25/C26). Also: Characterization tests for the hidden-tournaments filter (PR #198); split with buildCvData.ts."
   },
   "components/stats/StatsSections.tsx": {
     "lines": 998,
@@ -71,7 +71,9 @@
   "app/(app)/cv/page.tsx": {
     "lines": 856,
     "date": "2026-10-27",
-    "note": "Extract data loading and the section components into components/cv/; leave the page as composition."
+    "note": "Extract data loading and the section components into components/cv/; leave the page as composition.",
+    "allowGrowth": true,
+    "growthReason": "Wires the per-role break summary into the header tiles (C25/C26); no new logic."
   },
   "tests/calicotab.parseNav.adjudicator.test.ts": {
     "lines": 831,

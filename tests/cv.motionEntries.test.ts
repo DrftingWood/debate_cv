@@ -6,7 +6,13 @@ import {
   knockoutResultFor,
   sameKnockoutStage,
 } from '@/lib/cv/motionEntries';
-import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
+import {
+  pickHeaderMetrics,
+  summarizeBreaks,
+  breakRates,
+  formatBreaks,
+  formatBreakRates,
+} from '@/lib/cv/headerMetrics';
 import { makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 
 const scores = (pairs: [number, number | null][]) =>
@@ -234,7 +240,7 @@ describe('buildMotionEntries: a judged tournament lists only the rounds the user
 describe('pickHeaderMetrics', () => {
   const base = {
     totalTournaments: 0,
-    breaks: 0,
+    breaks: { speaking: 0, judging: 0, tournamentsSpoken: 0, tournamentsJudged: 0 },
     totalRoundsChaired: 0,
     outroundsChaired: 0,
     bestSpeakerRank: null,
@@ -253,8 +259,8 @@ describe('pickHeaderMetrics', () => {
       ...base,
       totalTournaments: 8,
       speakerCount: 8,
-      breaks: 3,
-      bestSpeakerRank: 6,
+      breaks: { speaking: 3, judging: 0, tournamentsSpoken: 8, tournamentsJudged: 0 },
+      bestSpeakerRank: { rank: 6, totalSpeakers: 90, topPercent: 6.7 },
       bestSpeakerAverage: 77.2,
     });
     const labels = tiles.map((t) => t.label);
@@ -262,24 +268,36 @@ describe('pickHeaderMetrics', () => {
     expect(labels).not.toContain('Prelims chaired');
     expect(labels).not.toContain('Outrounds chaired');
     // The breaks tile carries its conversion rate rather than a bare count.
+    // Owner rule C25/C26: a count per role, and a rate per role.
     expect(tiles.find((t) => t.label === 'Breaks')).toMatchObject({
-      value: 3,
-      hint: '38% of entries',
+      value: '3 speaking',
+      hint: '38% of 8 spoken',
     });
   });
 
-  test('a pure judge is never shown a breaks tile', () => {
-    const tiles = pickHeaderMetrics({
+  test('a pure judge is never shown "Breaks: 0", but a judge with judging breaks gets the tile', () => {
+    const none = pickHeaderMetrics({
       ...base,
       totalTournaments: 6,
       judgeCount: 6,
       totalRoundsChaired: 22,
       outroundsChaired: 3,
     });
-    const labels = tiles.map((t) => t.label);
+    const labels = none.map((t) => t.label);
     expect(labels).toContain('Prelims chaired');
     expect(labels).toContain('Outrounds chaired');
     expect(labels).not.toContain('Breaks');
+    const broke = pickHeaderMetrics({
+      ...base,
+      totalTournaments: 6,
+      judgeCount: 6,
+      totalRoundsChaired: 22,
+      breaks: { speaking: 0, judging: 2, tournamentsSpoken: 0, tournamentsJudged: 6 },
+    });
+    expect(broke.find((t) => t.label === 'Breaks')).toMatchObject({
+      value: '2 judging',
+      hint: '33% of 6 judged',
+    });
   });
 
   test('a mixed record shows both sides and annotates the split', () => {
@@ -288,7 +306,7 @@ describe('pickHeaderMetrics', () => {
       totalTournaments: 10,
       speakerCount: 6,
       judgeCount: 4,
-      breaks: 2,
+      breaks: { speaking: 2, judging: 0, tournamentsSpoken: 6, tournamentsJudged: 4 },
       totalRoundsChaired: 12,
       outroundsChaired: 1,
     });
@@ -305,7 +323,6 @@ describe('pickHeaderMetrics', () => {
       ...base,
       totalTournaments: 4,
       speakerCount: 4,
-      breaks: 0,
       bestSpeakerAverage: 71.4,
     });
     expect(tiles.map((t) => t.label)).toEqual(['Tournaments', 'Best speaker avg']);
@@ -316,13 +333,107 @@ describe('pickHeaderMetrics', () => {
       ...base,
       totalTournaments: 20,
       speakerCount: 20,
-      breaks: 9,
-      bestSpeakerRank: 3,
+      breaks: { speaking: 9, judging: 0, tournamentsSpoken: 20, tournamentsJudged: 0 },
+      bestSpeakerRank: { rank: 3, totalSpeakers: 90, topPercent: 3.3 },
       bestSpeakerAverage: 78.1,
       totalRoundsChaired: 5,
       outroundsChaired: 2,
     });
     expect(tiles.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('speaking and judging breaks (C25, C26)', () => {
+  const base = {
+    totalTournaments: 20,
+    totalRoundsChaired: 0,
+    outroundsChaired: 0,
+    bestSpeakerRank: null,
+    bestSpeakerAverage: null,
+    speakerCount: 12,
+    judgeCount: 8,
+    activeYears: null,
+  };
+
+  test('the header shows both numbers and a separate rate for each', () => {
+    const tiles = pickHeaderMetrics({
+      ...base,
+      breaks: { speaking: 6, judging: 2, tournamentsSpoken: 12, tournamentsJudged: 8 },
+    });
+    expect(tiles.find((t) => t.label === 'Breaks')).toMatchObject({
+      value: '6 speaking, 2 judging',
+      hint: '50% of 12 spoken · 25% of 8 judged',
+    });
+  });
+
+  test('a judge-leaning record with judging breaks shows them', () => {
+    const tiles = pickHeaderMetrics({
+      ...base,
+      speakerCount: 1,
+      judgeCount: 9,
+      totalRoundsChaired: 10,
+      breaks: { speaking: 0, judging: 3, tournamentsSpoken: 1, tournamentsJudged: 9 },
+    });
+    expect(tiles.find((t) => t.label === 'Breaks')).toMatchObject({ value: '3 judging' });
+  });
+
+  test('the deepest-team-break hint appears only with speaking breaks', () => {
+    const judging = pickHeaderMetrics({
+      ...base,
+      speakerCount: 1,
+      judgeCount: 9,
+      breaks: { speaking: 0, judging: 3, tournamentsSpoken: 1, tournamentsJudged: 9 },
+      deepestBreak: 'Semifinals',
+    });
+    expect(judging.find((t) => t.label === 'Breaks')?.hint).not.toMatch(/deepest/);
+    const speaking = pickHeaderMetrics({
+      ...base,
+      breaks: { speaking: 2, judging: 0, tournamentsSpoken: 12, tournamentsJudged: 0 },
+      deepestBreak: 'Semifinals',
+    });
+    expect(speaking.find((t) => t.label === 'Breaks')?.hint).toBe(
+      '17% of 12 spoken · deepest team break Semifinals',
+    );
+  });
+
+  test('a role with tournaments but no breaks reads 0%, a role with none is omitted', () => {
+    expect(
+      formatBreakRates({ speaking: 3, judging: 0, tournamentsSpoken: 12, tournamentsJudged: 8 }),
+    ).toBe('25% of 12 spoken · 0% of 8 judged');
+    expect(
+      formatBreakRates({ speaking: 3, judging: 0, tournamentsSpoken: 12, tournamentsJudged: 0 }),
+    ).toBe('25% of 12 spoken');
+    expect(
+      formatBreakRates({ speaking: 0, judging: 0, tournamentsSpoken: 12, tournamentsJudged: 8 }),
+    ).toBeNull();
+  });
+
+  test('a tied best rank reads 5th= of 40', () => {
+    const tiles = pickHeaderMetrics({
+      ...base,
+      judgeCount: 0,
+      breaks: { speaking: 1, judging: 0, tournamentsSpoken: 12, tournamentsJudged: 0 },
+      bestSpeakerRank: { rank: 5, totalSpeakers: 40, topPercent: 12.5, tied: true },
+      bestTeamFinish: { rank: 2, totalTeams: 30, topPercent: 6.7, tied: true },
+    });
+    expect(tiles.find((t) => t.label === 'Best speaker-tab rank')?.value).toBe('5th= of 40');
+    expect(tiles.find((t) => t.label === 'Best team finish')?.value).toBe('2nd= of 30');
+  });
+
+  test('summarizeBreaks never folds judged outrounds into the speaking count', () => {
+    const row = (id: bigint, broke: boolean) => ({ tournamentId: id, broke });
+    const s = summarizeBreaks(
+      [row(1n, true), row(2n, false), row(1n, true)],
+      [row(1n, true), row(3n, true), row(4n, false)],
+    );
+    expect(s).toEqual({ speaking: 1, judging: 2, tournamentsSpoken: 2, tournamentsJudged: 3 });
+    expect(breakRates(s)).toEqual({ speaking: 0.5, judging: 2 / 3 });
+  });
+
+  test('no tournaments in a role means no rate and no number', () => {
+    const s = summarizeBreaks([], []);
+    expect(breakRates(s)).toEqual({ speaking: null, judging: null });
+    expect(formatBreaks(s)).toBeNull();
   });
 });
 

@@ -34,6 +34,7 @@ const validators = {
   'JSON Resume 1.3.1 (current)': validator('tests/fixtures/json-resume/schema-1.3.1.json'),
 };
 const validateExtension = validator('docs/json-resume-debate-extension.schema.json');
+const validateExtensionV1 = validator('docs/json-resume-debate-extension.v1.schema.json');
 
 const NOW = new Date('2026-10-20T10:00:00Z');
 
@@ -115,6 +116,31 @@ describe('JSON Resume export validates against the official schemas', () => {
   });
 });
 
+describe('extension versioning: v1 documents stay valid against the v1 schema', () => {
+  const v1 = readJson('tests/fixtures/debate-extension/v1-export.json');
+
+  it('a stored pre-v2 export validates against the v1 schema and not the v2 one', () => {
+    const result = validateExtensionV1(v1);
+    expect(result.errors).toBe('No errors');
+    expect(result.ok).toBe(true);
+    expect(validateExtension(v1).ok).toBe(false);
+  });
+
+  it('a v2 export carries the split summary and is not valid v1', () => {
+    const ext = docs['a full record'].meta[DEBATE_EXTENSION_KEY];
+    expect(ext.version).toBe(2);
+    expect(ext.summary).toEqual(
+      expect.objectContaining({
+        breaks: expect.any(Number),
+        judgingBreaks: expect.any(Number),
+        tournamentsSpoken: expect.any(Number),
+        tournamentsJudged: expect.any(Number),
+      }),
+    );
+    expect(validateExtensionV1(ext).ok).toBe(false);
+  });
+});
+
 describe('the debate extension', () => {
   it('lives under meta["x-debate-cv"] and matches its published schema', () => {
     for (const doc of Object.values(docs)) {
@@ -127,7 +153,10 @@ describe('the debate extension', () => {
   it('the extension schema is strict, so code and schema cannot drift apart silently', () => {
     const ext = docs['a full record'].meta[DEBATE_EXTENSION_KEY];
     expect(validateExtension({ ...ext, extra: true }).ok).toBe(false);
-    expect(validateExtension({ ...ext, version: 2 }).ok).toBe(false);
+    expect(validateExtension({ ...ext, version: 1 }).ok).toBe(false);
+    expect(validateExtension({ ...ext, version: 3 }).ok).toBe(false);
+    const { judgingBreaks: _omit, ...summaryWithoutJudging } = ext.summary;
+    expect(validateExtension({ ...ext, summary: summaryWithoutJudging }).ok).toBe(false);
     expect(validateExtension({ ...ext, speaking: [{ ...ext.speaking[0], newField: 1 }] }).ok).toBe(
       false,
     );

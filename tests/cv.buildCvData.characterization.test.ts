@@ -448,7 +448,16 @@ describe('buildCvData characterization: top-level shape', () => {
     // breaks counts tournaments broken at (T1 as a speaker, T2 as a judge);
     // unchanged at 2 here because no tournament has both. See the
     // regression block at the end for the case that changed.
-    expect(cv.summary).toEqual({ totalTournaments: 4, breaks: 2, totalRoundsChaired: 3 });
+    // Changed by the owner decision C25/C26: breaks are split by role. T1 is a
+    // speaking break, T2 a judging break; the old combined `breaks: 2` is gone.
+    expect(cv.summary).toEqual({
+      totalTournaments: 4,
+      speakingBreaks: 1,
+      judgingBreaks: 1,
+      tournamentsSpoken: 2,
+      tournamentsJudged: 1,
+      totalRoundsChaired: 3,
+    });
   });
 
   it('orders speaker rows by year descending with undated rows last', async () => {
@@ -526,6 +535,8 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
       // team rank or the speaker total in this fixture.
       teamRankTied: false,
       speakerRankTied: false,
+      // Added with C16: the speakers on the tab, so the rank reads "Nth of 4".
+      speakerFieldSize: 4,
       teamPoints: '12',
       teamWins: null,
       teamFirsts: 3,
@@ -741,6 +752,73 @@ describe('buildCvData characterization: field summary', () => {
     expect(t3.prelimRoundCount).toBe(2);
   });
 
+  it('includeFieldSizes: a cheap grouped count gives field sizes without the heavy field query', async () => {
+    prismaMock.tournamentParticipant.groupBy.mockImplementation(async (args: unknown) =>
+      (args as { by: string[] }).by.includes('speakerScoreTotal')
+        ? []
+        : [{ tournamentId: 1n, _count: { _all: 400 } }],
+    );
+    const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+    expect(cv.fieldStats).toEqual([]);
+    expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(2);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerFieldSize).toBe(400);
+    const heavy = prismaMock.tournamentParticipant.findMany.mock.calls.filter(
+      ([args]) => !!argsWhere(args).speakerScoreTotal,
+    );
+    expect(heavy).toHaveLength(0);
+  });
+
+  describe('includeFieldSizes: speaker ties without the field rows', () => {
+    // The user's T1 row gets the parser's own rank (3), as a tab with a
+    // published rank column would.
+    function rankedUser() {
+      const base = prismaMock.tournamentParticipant.findMany.getMockImplementation()!;
+      prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
+        const rows = (await base(args)) as Array<Record<string, unknown>>;
+        if (!argsWhere(args).person) return rows;
+        return rows.map((r) =>
+          r.tournamentId === 1n && r.personId === ADA.id ? { ...r, speakerRankOpen: 3 } : r,
+        );
+      });
+    }
+    function groups(tied: boolean) {
+      prismaMock.tournamentParticipant.groupBy.mockImplementation(async (args: unknown) => {
+        const by = (args as { by: string[] }).by;
+        if (by.includes('speakerScoreTotal')) {
+          return tied
+            ? [
+                {
+                  tournamentId: 1n,
+                  speakerScoreTotal: 390,
+                  speakerRankOpen: 3,
+                  _count: { _all: 2 },
+                },
+              ]
+            : [];
+        }
+        return [{ tournamentId: 1n, _count: { _all: 400 } }];
+      });
+    }
+
+    it('marks a speaker tied when another speaker shares the total and rank', async () => {
+      rankedUser();
+      groups(true);
+      const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+      const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+      expect(row.speakerRankTied).toBe(true);
+      expect(row.speakerFieldSize).toBe(400);
+      // One batched query for ties plus one for sizes: no per-tournament calls.
+      expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(2);
+    });
+
+    it('is not tied when no other speaker shares the total and rank', async () => {
+      rankedUser();
+      groups(false);
+      const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+      expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+    });
+  });
+
   it('includeFieldStats: false skips the field query and returns no field stats', async () => {
     const cv = await buildCvData(USER, { includeFieldStats: false });
     expect(cv.fieldStats).toEqual([]);
@@ -748,6 +826,7 @@ describe('buildCvData characterization: field summary', () => {
       ([args]) => !!argsWhere(args).speakerScoreTotal,
     );
     expect(fieldQueries).toHaveLength(0);
+    expect(prismaMock.tournamentParticipant.groupBy).not.toHaveBeenCalled();
     // Everything else is unchanged.
     expect(cv.speakerRows).toHaveLength(2);
   });
@@ -784,7 +863,14 @@ describe('buildCvData characterization: queries', () => {
       teamOutroundResults: [],
       fieldStats: [],
       unmatchedTournaments: [],
-      summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
+      summary: {
+        totalTournaments: 0,
+        speakingBreaks: 0,
+        judgingBreaks: 0,
+        tournamentsSpoken: 0,
+        tournamentsJudged: 0,
+        totalRoundsChaired: 0,
+      },
       lastIngestedAt: null,
       highlights: {
         championships: [],
@@ -926,7 +1012,7 @@ describe('buildCvData regressions: fixed behaviours', () => {
     expect(row.judgedRoundNumbers).toEqual([1, 2]);
   });
 
-  it('summary.breaks counts a tournament once when both the speaker row and the judge row broke', async () => {
+  it('a tournament with a speaking break and a judging break counts once on each side, never combined', async () => {
     // A judge participation at Oxford IV as well, on the outround panels.
     const judgeAtT1 = participation({
       tournamentId: 1n,
@@ -942,9 +1028,12 @@ describe('buildCvData regressions: fixed behaviours', () => {
     const cv = await buildCvData(USER);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
     expect(cv.judgeRows.find((r) => r.tournamentId === 1n)!.broke).toBe(true);
-    // T1 (speaker and judge) + T2 (judge). Was 3.
-    expect(cv.summary.breaks).toBe(2);
-    expect(cv.summary.breaks).toBeLessThanOrEqual(cv.summary.totalTournaments);
+    // T1 is both a speaking and a judging break; T2 is judging only. The two
+    // sides are no longer summed (was a combined 2, before that 3).
+    expect(cv.summary.speakingBreaks).toBe(1);
+    expect(cv.summary.judgingBreaks).toBe(2);
+    expect(cv.summary.speakingBreaks).toBeLessThanOrEqual(cv.summary.tournamentsSpoken);
+    expect(cv.summary.judgingBreaks).toBeLessThanOrEqual(cv.summary.tournamentsJudged);
   });
 });
 
