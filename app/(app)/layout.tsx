@@ -125,13 +125,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
  * visitors never reach this: the layout gives them PublicHeader.)
  *
  * Header items must agree with CvSubNav about what is current (NV-3): Record
- * also owns /cv/motions; Admin owns the /cv/tags and /cv/verify operator
- * tools, which only an admin can open.
+ * also owns /cv/motions and /cv/found (the flagged Found tab); Admin owns the
+ * /cv/tags and /cv/verify operator tools, which only an admin can open.
  */
 function SectionLinks({ showAdmin }: { showAdmin: boolean }) {
   return (
     <>
-      <NavLink href="/cv" exact alsoMatch={['/cv/motions']}>
+      <NavLink href="/cv" exact alsoMatch={['/cv/motions', '/cv/found']}>
         Record
       </NavLink>
       <NavLink href="/cv/stats">Statistics</NavLink>
