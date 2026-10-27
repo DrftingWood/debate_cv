@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Nil, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { useToast } from '@/components/ui/Toast';
@@ -76,7 +77,19 @@ export async function approveAllInPasses(
 export function AdminTagProposals() {
   const toast = useToast();
 
-  const [filter, setFilter] = useState<StatusFilter>('pending');
+  // The status view lives in ?status= so reload and Back keep it (NV-22).
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get('status');
+  const [filter, setFilterState] = useState<StatusFilter>(
+    initialStatus && initialStatus in STATUS_LABELS ? (initialStatus as StatusFilter) : 'pending',
+  );
+  const setFilter = (next: StatusFilter) => {
+    setFilterState(next);
+    const url = new URL(window.location.href);
+    if (next === 'pending') url.searchParams.delete('status');
+    else url.searchParams.set('status', next);
+    window.history.replaceState(null, '', url);
+  };
   const [proposals, setProposals] = useState<ProposalRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -291,7 +304,7 @@ export function AdminTagProposals() {
                           <Button
                             type="button"
                             size="sm"
-                            variant="primary"
+                            variant="secondary"
                             aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
                             disabled={busyIds.has(p.id)}
                             onClick={() => handleAction(p.id, 'approve')}

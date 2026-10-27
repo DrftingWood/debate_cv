@@ -8,7 +8,7 @@ import { AdminTagPreprocess } from '@/components/AdminTagPreprocess';
 import { buttonClasses } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
-  title: 'Admin — Tag proposals',
+  title: 'Tag proposals · Admin',
   robots: { index: false, follow: false },
 };
 
