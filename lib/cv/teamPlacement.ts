@@ -1,5 +1,7 @@
 import { outroundRankStrict, tierRank } from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
+import { bracketOf } from '@/lib/cv/outroundFunnel';
+import { titleCategory } from '@/lib/cv/formatStage';
 import { rankLabel } from '@/lib/cv/rankDisplay';
 import type { CvHighlights, CvSpeakerRow } from '@/lib/cv/buildCvData';
 
@@ -243,4 +245,20 @@ export function formatTeamTabPlacement(p: TeamTabPlacement, tied = false): strin
 export function formatTopPercent(topPercent: number): string {
   if (topPercent < 1) return '<1%';
   return `${Math.round(topPercent)}%`;
+}
+
+/**
+ * Titles for the highlights tile. A Plate or Consolation win is a real result
+ * but not a championship (milestones already exclude it), so it is left out.
+ */
+export function championshipHighlights(
+  rows: Array<Pick<CvSpeakerRow, 'wonTournament' | 'eliminationReached' | 'tournamentName' | 'year'>>,
+): CvHighlights['championships'] {
+  return rows
+    .filter((r) => r.wonTournament === true && bracketOf(r.eliminationReached) !== 'consolation')
+    .map((r) => {
+      const category = titleCategory(r.eliminationReached);
+      return { tournamentName: r.tournamentName, year: r.year, ...(category ? { category } : {}) };
+    })
+    .slice(0, 5);
 }

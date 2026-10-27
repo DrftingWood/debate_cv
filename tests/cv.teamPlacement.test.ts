@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  championshipHighlights,
   breakDepth,
   breakSeed,
   compareBreakStrength,
@@ -283,5 +284,21 @@ describe('surfaces', () => {
       title: 'Broke — reached Semifinals',
       summary: 'Team Test A; team ranked 3 of 40 after prelims',
     });
+  });
+});
+
+describe('championshipHighlights', () => {
+  const row = (name: string, stage: string) =>
+    makeSpeakerRow({ tournamentName: name, year: 2025, wonTournament: true, eliminationReached: stage });
+
+  test('Plate and Consolation wins are not championships; a Grand Final and an ESL Final are', () => {
+    const out = championshipHighlights([
+      row('Alpha', 'Grand Final'),
+      row('Beta', 'Plate Final'),
+      row('Gamma', 'Consolation Final'),
+      row('Delta', 'ESL Final'),
+    ]);
+    expect(out.map((c) => c.tournamentName)).toEqual(['Alpha', 'Delta']);
+    expect(out[1].category).toBe('ESL');
   });
 });

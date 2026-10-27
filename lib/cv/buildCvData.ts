@@ -6,8 +6,7 @@ import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
-import { placementHighlights } from '@/lib/cv/teamPlacement';
-import { titleCategory } from '@/lib/cv/formatStage';
+import { championshipHighlights, placementHighlights } from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -1287,13 +1286,7 @@ export async function buildCvData(
   const MAJOR_PATTERN =
     /\b(?:wudc|world(?: university)? debating|eudc|european debating|australs|asian debating|naudc|north american debating)\b/i;
 
-  const championships = speakerRows
-    .filter((r) => r.wonTournament === true)
-    .map((r) => {
-      const category = titleCategory(r.eliminationReached);
-      return { tournamentName: r.tournamentName, year: r.year, ...(category ? { category } : {}) };
-    })
-    .slice(0, 5);
+  const championships = championshipHighlights(speakerRows);
 
   const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
