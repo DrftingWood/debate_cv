@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LEGAL_PROSE } from '../privacy/legalProse';
 
 export const metadata: Metadata = {
   title: 'Terms',
@@ -16,7 +17,7 @@ export default function Terms() {
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-display">
+      <article className={LEGAL_PROSE}>
       <p className="lead">
         debate cv is provided as-is for personal use. Last updated: 2026.
       </p>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LEGAL_PROSE } from './legalProse';
 import { getPrivacyContactEmail } from '@/lib/utils/site';
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function Privacy() {
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-display">
+      <article className={LEGAL_PROSE}>
       <p className="lead">
         debate cv is a personal-use tool for debaters. We try to collect and retain as little as
         possible. Last updated: 2026.
@@ -75,7 +76,7 @@ export default function Privacy() {
       <h2>Data deletion</h2>
       <p>
         You can delete your data yourself at any time. Go to{' '}
-        <a href="/settings">Settings</a>, click <strong>Delete my data</strong>, and confirm by
+        <a href="/settings/account">Settings → Account</a>, click <strong>Delete my data</strong>, and confirm by
         typing your email. Your account, OAuth tokens, discovered URLs, ingest jobs, and identity
         claims are removed immediately.
       </p>
