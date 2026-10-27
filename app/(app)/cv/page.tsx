@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, Search, ChevronDown, ExternalLink } from 'lucide-react';
+import { Trophy, Search, ChevronDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
@@ -26,10 +26,22 @@ import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
+import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { CvSubNav } from '@/components/CvSubNav';
+import {
+  TournamentCard,
+  TournamentLink,
+  type TournamentCardField,
+} from '@/components/TournamentCard';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
-import { bpPlacement, cumulativePoints, isFourTeamRound, ledgerMotions, ledgerRoundNames } from '@/lib/cv/roundLedger';
+import {
+  bpPlacement,
+  cumulativePoints,
+  isFourTeamRound,
+  ledgerMotions,
+  ledgerRoundNames,
+} from '@/lib/cv/roundLedger';
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
@@ -119,29 +131,26 @@ export default async function CvPage() {
 
   return (
     <div className="space-y-8">
-      <AutoScanOnVisit />
+      {/*
+        No Gmail grant, no scan: the request can only 400, and the banner
+        below already says what to do. Firing it anyway logged a console
+        error on every visit (DASH-13).
+      */}
+      {gmailToken ? <AutoScanOnVisit /> : null}
       {!gmailToken ? (
-        <section
-          aria-label="Gmail disconnected"
+        <GmailDisconnectedNotice
           data-print-hide="true"
-          className="flex flex-col gap-3 rounded-card border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
+          action={
+            <Link href="/dashboard">
+              <Button variant="primary">Reconnect from imports</Button>
+            </Link>
+          }
         >
-          <div>
-            <div className="data-label text-warning">Gmail disconnected</div>
-            <p className="mt-1 text-table text-ink">
-              New tournaments have stopped arriving. Your record below is still accurate for
-              everything already imported.
-            </p>
-          </div>
-          <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
-            Reconnect from imports
-          </Link>
-        </section>
+          New tournaments have stopped arriving. Your record below is still accurate for
+          everything already imported.
+        </GmailDisconnectedNotice>
       ) : null}
-      <CvNeedsAttentionBanners
-        pendingCount={pendingCount}
-        unmatchedCount={unmatched.length}
-      />
+      <CvNeedsAttentionBanners pendingCount={pendingCount} unmatchedCount={unmatched.length} />
 
       {/* Account header — identity on the left, statement actions on the
           right, exactly where a banking dashboard puts them. */}
@@ -149,6 +158,7 @@ export default async function CvPage() {
         <div className="min-w-0">
           <div className="data-label">Debate record · compiled {compiled}</div>
           <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
+            <span className="sr-only">Debate record of </span>
             {user?.name ?? 'Debater'}
           </h1>
           <p className="mt-1.5 text-table text-ink-soft">
@@ -192,9 +202,9 @@ export default async function CvPage() {
           title="No tournaments ingested yet"
           description={
             <>
-              Two steps from Imports: <strong>Scan Gmail</strong> finds the tournament links,
-              then <strong>Ingest all</strong> parses each one. Your record populates here as
-              they finish.
+              Two steps from Imports: <strong>Scan Gmail</strong> finds the tournament links, then{' '}
+              <strong>Ingest all</strong> parses each one. Your record populates here as they
+              finish.
             </>
           }
           action={
@@ -228,14 +238,14 @@ export default async function CvPage() {
                 in full already.
               */}
               <p className="hidden text-caption text-ink-soft md:block">
-                <span className="font-medium text-ink">Team rank</span> is where your team
-                finished on the prelim team tab — your placement.{' '}
-                <span className="font-medium text-ink">Spk avg</span> is your speaker score per
-                prelim round. <span className="font-medium text-ink">Spk tab</span> is where that
-                average placed among every speaker on the speaker tab.{' '}
+                <span className="font-medium text-ink">Team rank</span> is where your team finished
+                on the prelim team tab, out of how many teams (#3/40 is third of forty) — your
+                placement. <span className="font-medium text-ink">Spk avg</span> is your speaker
+                score per prelim round. <span className="font-medium text-ink">Spk tab</span> is
+                where that average placed among every speaker on the speaker tab.{' '}
                 <span className="font-medium text-ink">Spk rank</span> is the speaker tab&rsquo;s
-                own rank within each break category — Open, ESL (English as Second Language) and
-                EFL (English as Foreign Language).
+                own rank within each break category — Open, ESL (English as Second Language) and EFL
+                (English as Foreign Language).
               </p>
             </section>
           ) : null}
@@ -266,7 +276,10 @@ export default async function CvPage() {
  * placement against the team tab. Falls back to the bare rank when the field
  * size is unknown or inconsistent with it.
  */
-function teamPlacementTitle(r: { teamRank: number | null; totalTeams: number | null }): string | undefined {
+function teamPlacementTitle(r: {
+  teamRank: number | null;
+  totalTeams: number | null;
+}): string | undefined {
   const p = teamTabPlacement(r.teamRank, r.totalTeams);
   return p ? `${formatTeamTabPlacement(p)} on the prelim team tab` : undefined;
 }
@@ -313,11 +326,9 @@ function ReportCell({
 }) {
   return (
     <div className="flex items-center justify-end gap-1.5" data-print-hide="true">
-      {r.hasOpenReport ? (
-        <Badge variant="warning" role="status" aria-label="Open report against this tournament">
-          Reported
-        </Badge>
-      ) : null}
+      {/* Plain visible text, not a live region: the badge is a fact about
+          the row present at load, not a status change (UX-19). */}
+      {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
       <CvRowReportButton
         tournamentId={r.tournamentId.toString()}
         tournamentName={r.tournamentName}
@@ -388,7 +399,9 @@ function RoundLedger({
               <Th>Side</Th>
               {anyMotion ? <Th>Motion</Th> : null}
               <Th numeric>Score</Th>
-              <Th numeric title="Team points after this round (running total)">Pts</Th>
+              <Th numeric title="Team points after this round (running total)">
+                Pts
+              </Th>
               <Th>Result</Th>
             </tr>
           </thead>
@@ -397,7 +410,10 @@ function RoundLedger({
               const score = scoreByRound.get(n);
               const result = resultByRound.get(n);
               const motions = motionsByRound.get(n) ?? [];
-              const placement = isFourTeamRound({ position: result?.position ?? null, format: r.format })
+              const placement = isFourTeamRound({
+                position: result?.position ?? null,
+                format: r.format,
+              })
                 ? bpPlacement(result?.points ?? null)
                 : null;
               return (
@@ -405,24 +421,26 @@ function RoundLedger({
                   <Td className="whitespace-nowrap">{roundNames.get(n) ?? `Round ${n}`}</Td>
                   <Td className="whitespace-nowrap text-ink-soft">{result?.position ?? <Nil />}</Td>
                   {anyMotion ? (
-                    <Td className="max-w-[32rem] text-ink-soft">
+                    <Td className="text-ink-soft">
                       {motions.length === 0 ? (
                         <Nil title="No motion released for this round" />
                       ) : (
-                        <span title={motions.map((m) => m.text).join('\n\n')}>
-                          {motions[0].text}
-                          {motions.length > 1 ? (
-                            <span className="ml-1 text-ink-soft">
-                              (+{motions.length - 1} more this round)
+                        // Every motion on its own line. A round with two
+                        // motions used to show the first and park the rest
+                        // in a hover-only title, which touch never shows
+                        // (CV-9). The width cap sits on the inner block
+                        // because browsers ignore max-width on a table cell.
+                        <span className="block max-w-[32rem] space-y-1">
+                          {motions.map((m, i) => (
+                            <span key={i} className="block">
+                              {m.text}
                             </span>
-                          ) : null}
+                          ))}
                         </span>
                       )}
                     </Td>
                   ) : null}
-                  <Td numeric>
-                    {score?.score != null ? score.score.toFixed(1) : <Nil />}
-                  </Td>
+                  <Td numeric>{score?.score != null ? score.score.toFixed(1) : <Nil />}</Td>
                   <Td numeric>{totalPoints.has(n) ? totalPoints.get(n) : <Nil />}</Td>
                   <Td className="whitespace-nowrap">
                     {isFourTeamRound({ position: result?.position ?? null, format: r.format }) ? (
@@ -432,7 +450,11 @@ function RoundLedger({
                       placement ? (
                         <span
                           className={
-                            placement === '1st' ? 'val-pos font-medium' : placement === '4th' ? 'val-neg' : undefined
+                            placement === '1st'
+                              ? 'val-pos font-medium'
+                              : placement === '4th'
+                                ? 'val-neg'
+                                : undefined
                           }
                         >
                           {placement}
@@ -472,28 +494,36 @@ function SpeakingTable({
       {/* Desktop ledger */}
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max" label="Speaking record by tournament">
+          <Table className="w-full" label="Speaking record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
                 <Th numeric>Year</Th>
                 <Th>Format</Th>
-                <Th numeric>Teams</Th>
                 <Th>Team</Th>
-                <Th>Partner</Th>
-                <Th numeric title="Where the team finished on the prelim team tab">Team rank</Th>
+                <Th
+                  numeric
+                  title="Where the team finished on the prelim team tab, of how many teams"
+                >
+                  Team rank
+                </Th>
                 <Th numeric>Pts</Th>
                 <Th numeric title="Average speaker score per prelim round spoken">
                   Spk avg
                 </Th>
-                <Th numeric title="Where that average placed among every speaker on the speaker tab — an individual figure, not the team's placement">
+                <Th
+                  numeric
+                  title="Where that average placed among every speaker on the speaker tab — an individual figure, not the team's placement"
+                >
                   Spk tab
                 </Th>
                 <Th title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language.">
                   Spk rank
                 </Th>
                 <Th>Result</Th>
-                <Th className="pr-4" aria-label="Report" />
+                <Th className="pr-4">
+                  <span className="sr-only">Report a problem</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -501,107 +531,112 @@ function SpeakingTable({
                 const field = fieldByTournament.get(r.tournamentId.toString());
                 const outround = fmtLastOutroundSpoken(r);
                 const ranks = fmtSpeakerRanks(r);
-                const hasRoundDetail =
-                  r.roundScores.length > 0 || r.teamRoundResults.length > 0;
+                const hasRoundDetail = r.roundScores.length > 0 || r.teamRoundResults.length > 0;
                 return (
                   <React.Fragment key={r.tournamentId.toString()}>
-                  <Tr className="align-top">
-                    <Td className="pl-4">
-                      <a
-                        href={r.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group inline-flex min-h-[44px] max-w-[16rem] items-center gap-1 truncate font-medium text-ink hover:text-primary"
-                        title={r.tournamentName}
-                      >
-                        <span className="truncate">{r.tournamentName}</span>
-                        <ExternalLink
-                          className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
-                          aria-hidden
+                    <Tr className="align-top">
+                      <Td className="pl-4">
+                        <TournamentCell
+                          name={r.tournamentName}
+                          href={r.sourceUrl}
+                          myName={r.myName}
                         />
-                      </a>
-                      <div className="text-caption text-ink-soft">{r.myName}</div>
-                    </Td>
-                    <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
-                    <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
-                      {formatAbbrev(r.format) ?? <Nil />}
-                    </Td>
-                    <Td numeric className="text-ink-soft">{r.totalTeams ?? <Nil />}</Td>
-                    <Td className="max-w-[10rem] truncate" title={r.teamName ?? undefined}>
-                      {r.teamName ?? <Nil />}
-                    </Td>
-                    <Td
-                      className="max-w-[10rem] truncate text-ink-soft"
-                      title={r.teammates.join(', ')}
-                    >
-                      {r.teammates.length ? r.teammates.join(', ') : <Nil />}
-                    </Td>
-                    <Td numeric>
-                      {r.teamRank != null ? (
-                        <span title={teamPlacementTitle(r)}>#{r.teamRank}</span>
-                      ) : (
-                        <Nil />
-                      )}
-                    </Td>
-                    <Td numeric>
-                      {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : <Nil />)}
-                    </Td>
-                    <Td
-                      numeric
-                      title={
-                        r.speakerAvgScore && r.prelimsSpoken > 0
-                          ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
-                          : undefined
-                      }
-                    >
-                      {r.speakerAvgScore ?? <Nil />}
-                    </Td>
-                    <Td numeric className="text-ink-soft">
-                      {field?.betterThanUser != null && field.speakerCount > 0 ? (
-                        <span
-                          title={`${field.betterThanUser + 1} of ${field.speakerCount} speakers on the speaker tab`}
-                        >
-                          {field.betterThanUser + 1}/{field.speakerCount}
-                        </span>
-                      ) : (
-                        <Nil title="Speaker tab did not publish comparable totals" />
-                      )}
-                    </Td>
-                    <Td className="whitespace-nowrap">{ranks ?? <Nil />}</Td>
-                    {/*
+                      </Td>
+                      <Td numeric className="text-ink-soft">
+                        {r.year ?? <Nil />}
+                      </Td>
+                      <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
+                        {formatAbbrev(r.format) ?? <Nil />}
+                      </Td>
+                      {/*
+                      Team and partner share one column, and the field size
+                      rides on the rank ("#3/40") instead of a Teams column of
+                      its own. Those two columns were the ledger's overflow
+                      at 1280 px (CV-2), and both truncated their text behind
+                      a hover-only title (UX-36). The cap sits on the inner
+                      block because a table cell ignores max-width.
+                    */}
+                      <Td>
+                        <div className="max-w-[13rem] break-words">
+                          {r.teamName ?? <Nil />}
+                          {r.teammates.length ? (
+                            <div className="text-caption text-ink-soft">
+                              with {r.teammates.join(', ')}
+                            </div>
+                          ) : null}
+                        </div>
+                      </Td>
+                      <Td numeric className="whitespace-nowrap">
+                        {r.teamRank != null ? (
+                          <span title={teamPlacementTitle(r)}>
+                            #{r.teamRank}
+                            {r.totalTeams != null ? (
+                              <span className="text-ink-soft">/{r.totalTeams}</span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <Nil />
+                        )}
+                      </Td>
+                      <Td numeric>
+                        {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : <Nil />)}
+                      </Td>
+                      <Td
+                        numeric
+                        title={
+                          r.speakerAvgScore && r.prelimsSpoken > 0
+                            ? `Average across ${r.prelimsSpoken} prelim ${r.prelimsSpoken === 1 ? 'round' : 'rounds'}`
+                            : undefined
+                        }
+                      >
+                        {r.speakerAvgScore ?? <Nil />}
+                      </Td>
+                      <Td numeric className="text-ink-soft">
+                        {field?.betterThanUser != null && field.speakerCount > 0 ? (
+                          <span
+                            title={`${field.betterThanUser + 1} of ${field.speakerCount} speakers on the speaker tab`}
+                          >
+                            {field.betterThanUser + 1}/{field.speakerCount}
+                          </span>
+                        ) : (
+                          <Nil title="Speaker tab did not publish comparable totals" />
+                        )}
+                      </Td>
+                      <Td className="whitespace-nowrap">{ranks ?? <Nil />}</Td>
+                      {/*
                       A "Broke" badge next to "Quarterfinals" says the same
                       thing twice — reaching an outround IS the break — and
                       the pair was the widest column on the ledger. The gold
                       badge is what carries the break visually, so the label
                       moves inside it instead of sitting beside it.
                     */}
-                    <Td className="whitespace-nowrap">
-                      {r.broke ? (
-                        <Badge variant="gold">{outround ?? 'Broke'}</Badge>
-                      ) : outround ? (
-                        <span className="text-ink">{outround}</span>
-                      ) : (
-                        <Nil />
-                      )}
-                    </Td>
-                    <Td className="pr-4">
-                      <ReportCell r={r} compact />
-                    </Td>
-                  </Tr>
-                  {/*
+                      <Td className="whitespace-nowrap">
+                        {r.broke ? (
+                          <Badge variant="gold">{outround ?? 'Broke'}</Badge>
+                        ) : outround ? (
+                          <span className="text-ink">{outround}</span>
+                        ) : (
+                          <Nil />
+                        )}
+                      </Td>
+                      <Td className="pr-4">
+                        <ReportCell r={r} compact />
+                      </Td>
+                    </Tr>
+                    {/*
                     The round ledger gets its own full-width row rather than
                     living inside the Tournament cell. Nested in a cell, the
                     long motion column forces that column wide and blows the
                     whole ledger's geometry apart — and the print stylesheet
                     forces <details> open, so it would do it on paper too.
                   */}
-                  {hasRoundDetail ? (
-                    <tr className="border-b border-border">
-                      <td colSpan={13} className="px-4 py-0">
-                        <RoundLedger r={r} motionsByTournament={motionsByTournament} />
-                      </td>
-                    </tr>
-                  ) : null}
+                    {hasRoundDetail ? (
+                      <tr className="border-b border-border">
+                        <td colSpan={SPEAKING_COLUMNS} className="px-4 py-0">
+                          <RoundLedger r={r} motionsByTournament={motionsByTournament} />
+                        </td>
+                      </tr>
+                    ) : null}
                   </React.Fragment>
                 );
               })}
@@ -610,60 +645,22 @@ function SpeakingTable({
         </TableScroll>
       </div>
 
-      {/* Mobile: one panel per tournament. A 13-column ledger cannot be
+      {/* Mobile: one panel per tournament. An eleven-column ledger cannot be
           squeezed onto a phone, so the same fields become a labelled grid. */}
       <ul className="space-y-3 md:hidden">
-        {rows.map((r) => {
-          const field = fieldByTournament.get(r.tournamentId.toString());
-          const outround = fmtLastOutroundSpoken(r);
-          const ranks = fmtSpeakerRanks(r);
-          return (
-            <li key={r.tournamentId.toString()} className="panel p-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <a
-                  href={r.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="truncate font-display text-h4 font-medium text-ink"
-                >
-                  {r.tournamentName}
-                </a>
-                <span className="num shrink-0 text-caption text-ink-soft">{r.year ?? '—'}</span>
-              </div>
-              {r.broke || outround ? (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {r.broke ? <Badge variant="gold">Broke</Badge> : null}
-                  {outround ? <span className="text-caption text-ink">{outround}</span> : null}
-                </div>
-              ) : null}
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-                {r.speakerAvgScore ? <Field label="Speaker avg" value={r.speakerAvgScore} mono /> : null}
-                {field?.betterThanUser != null && field.speakerCount > 0 ? (
-                  <Field
-                    label="Speaker tab"
-                    value={`${field.betterThanUser + 1} of ${field.speakerCount}`}
-                    mono
-                  />
-                ) : null}
-                {r.teamRank != null ? (
-                  <Field
-                    label="Team rank"
-                    value={r.totalTeams != null ? `#${r.teamRank} of ${r.totalTeams}` : `#${r.teamRank}`}
-                    mono
-                  />
-                ) : null}
-                {r.teamPoints ? <Field label="Team points" value={r.teamPoints} mono /> : null}
-                {ranks ? <Field label="Speaker-tab rank" value={ranks} /> : null}
-                {r.format ? <Field label="Format" value={r.format} /> : null}
-                {r.totalTeams != null ? <Field label="Teams" value={String(r.totalTeams)} mono /> : null}
-                {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
-                {r.teammates.length ? <Field label="Partner" value={r.teammates.join(', ')} /> : null}
-              </dl>
-              <RoundLedger r={r} motionsByTournament={motionsByTournament} />
-              <ReportCell r={r} />
-            </li>
-          );
-        })}
+        {rows.map((r) => (
+          <TournamentCard
+            key={r.tournamentId.toString()}
+            name={r.tournamentName}
+            href={r.sourceUrl}
+            year={r.year}
+            result={breakResult(r.broke, fmtLastOutroundSpoken(r))}
+            fields={speakerCardFields(r, fieldByTournament.get(r.tournamentId.toString()))}
+          >
+            <RoundLedger r={r} motionsByTournament={motionsByTournament} />
+            <ReportCell r={r} />
+          </TournamentCard>
+        ))}
       </ul>
     </>
   );
@@ -674,7 +671,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max" label="Judging record by tournament">
+          <Table className="w-full" label="Judging record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
@@ -686,32 +683,27 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                 <Th numeric>Chaired</Th>
                 <Th>Last outround chaired</Th>
                 <Th>Last outround judged</Th>
-                <Th className="pr-4" aria-label="Report" />
+                <Th className="pr-4">
+                  <span className="sr-only">Report a problem</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <Tr key={r.tournamentId.toString()}>
                   <Td className="pl-4">
-                    <a
-                      href={r.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block max-w-[16rem] truncate font-medium text-ink hover:text-primary"
-                      title={r.tournamentName}
-                    >
-                      {r.tournamentName}
-                    </a>
-                    <div className="text-caption text-ink-soft">{r.myName}</div>
+                    <TournamentCell name={r.tournamentName} href={r.sourceUrl} myName={r.myName} />
                   </Td>
-                  <Td numeric className="text-ink-soft">{r.year ?? <Nil />}</Td>
+                  <Td numeric className="text-ink-soft">
+                    {r.year ?? <Nil />}
+                  </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
                   </Td>
-                  <Td numeric className="text-ink-soft">{r.totalTeams ?? <Nil />}</Td>
-                  <Td className="whitespace-nowrap text-ink-soft">
-                    {r.judgeTypeTag ?? <Nil />}
+                  <Td numeric className="text-ink-soft">
+                    {r.totalTeams ?? <Nil />}
                   </Td>
+                  <Td className="whitespace-nowrap text-ink-soft">{r.judgeTypeTag ?? <Nil />}</Td>
                   <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
                   <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                   <Td className="whitespace-nowrap">
@@ -726,7 +718,9 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
                       <Nil />
                     )}
                   </Td>
-                  <Td className="whitespace-nowrap">{formatStageForDisplay(r.lastOutroundJudged) || <Nil />}</Td>
+                  <Td className="whitespace-nowrap">
+                    {formatStageForDisplay(r.lastOutroundJudged) || <Nil />}
+                  </Td>
                   <Td className="pr-4">
                     <ReportCell r={r} compact />
                   </Td>
@@ -739,58 +733,101 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
 
       <ul className="space-y-3 md:hidden">
         {rows.map((r) => (
-          <li key={r.tournamentId.toString()} className="panel p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <a
-                href={r.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate font-display text-h4 font-medium text-ink"
-              >
-                {r.tournamentName}
-              </a>
-              <span className="num shrink-0 text-caption text-ink-soft">{r.year ?? '—'}</span>
-            </div>
-            {r.broke ? (
-              <div className="mt-2">
-                <Badge variant="gold">Broke</Badge>
-              </div>
-            ) : null}
-            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-              {r.judgeTypeTag ? <Field label="Judge type" value={r.judgeTypeTag} /> : null}
-              <Field
-                label="Inrounds judged"
-                value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'}
-                mono
-              />
-              <Field
-                label="Inrounds chaired"
-                value={r.inroundsChaired != null ? String(r.inroundsChaired) : '—'}
-                mono
-              />
-              {r.format ? <Field label="Format" value={r.format} /> : null}
-              {r.lastOutroundChaired ? (
-                <Field label="Last outround chaired" value={formatStageForDisplay(r.lastOutroundChaired)} />
-              ) : null}
-              {r.lastOutroundJudged ? (
-                <Field label="Last outround judged" value={formatStageForDisplay(r.lastOutroundJudged)} />
-              ) : null}
-            </dl>
+          <TournamentCard
+            key={r.tournamentId.toString()}
+            name={r.tournamentName}
+            href={r.sourceUrl}
+            year={r.year}
+            result={r.broke ? <Badge variant="gold">Broke</Badge> : null}
+            fields={judgeCardFields(r)}
+          >
             <ReportCell r={r} />
-          </li>
+          </TournamentCard>
         ))}
       </ul>
     </>
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+const SPEAKING_COLUMNS = 11;
+
+/**
+ * The ledger's first column: the tournament, linked out to its tab, and the
+ * name the tab printed for the user underneath. The name wraps inside a
+ * 16rem block instead of truncating behind a hover title (UX-36).
+ */
+function TournamentCell({ name, href, myName }: { name: string; href: string; myName: string }) {
   return (
-    <div className="min-w-0">
-      <dt className="data-label truncate">{label}</dt>
-      <dd className={'mt-0.5 truncate text-table text-ink ' + (mono ? 'num' : '')} title={value}>
-        {value}
-      </dd>
+    <div className="max-w-[16rem]">
+      <TournamentLink name={name} href={href} className="coarse:min-h-[44px]" />
+      <div className="text-caption text-ink-soft">{myName}</div>
     </div>
   );
+}
+
+/**
+ * The result line on a speaking card. Reaching an outround is the break, so
+ * the stage goes inside the gold badge rather than beside a second "Broke"
+ * badge, exactly as the desktop Result column has it (CV-8).
+ */
+function breakResult(broke: boolean, outround: string | null): React.ReactNode {
+  if (broke) return <Badge variant="gold">{outround ?? 'Broke'}</Badge>;
+  return outround ? <span className="text-caption text-ink">{outround}</span> : null;
+}
+
+/** A speaking row's columns as labelled card fields, most telling first. */
+function speakerCardFields(
+  r: SpeakingTableRow,
+  field: CvFieldStat | undefined,
+): TournamentCardField[] {
+  const ranks = fmtSpeakerRanks(r);
+  const out: TournamentCardField[] = [];
+  if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
+  if (field?.betterThanUser != null && field.speakerCount > 0) {
+    out.push({
+      label: 'Speaker tab',
+      value: `${field.betterThanUser + 1} of ${field.speakerCount}`,
+      mono: true,
+    });
+  }
+  if (r.teamRank != null) {
+    out.push({
+      label: 'Team rank',
+      value: r.totalTeams != null ? `#${r.teamRank} of ${r.totalTeams}` : `#${r.teamRank}`,
+      mono: true,
+    });
+  }
+  if (r.teamPoints) out.push({ label: 'Team points', value: r.teamPoints, mono: true });
+  if (ranks) out.push({ label: 'Speaker-tab rank', value: ranks });
+  if (r.format) out.push({ label: 'Format', value: r.format });
+  if (r.totalTeams != null) out.push({ label: 'Teams', value: String(r.totalTeams), mono: true });
+  if (r.teamName) out.push({ label: 'Team', value: r.teamName });
+  if (r.teammates.length) out.push({ label: 'Partner', value: r.teammates.join(', ') });
+  return out;
+}
+
+function judgeCardFields(r: JudgingTableRow): TournamentCardField[] {
+  const out: TournamentCardField[] = [];
+  if (r.judgeTypeTag) out.push({ label: 'Judge type', value: r.judgeTypeTag });
+  out.push({
+    label: 'Inrounds judged',
+    value: r.inroundsJudged != null ? String(r.inroundsJudged) : '—',
+    mono: true,
+  });
+  out.push({
+    label: 'Inrounds chaired',
+    value: r.inroundsChaired != null ? String(r.inroundsChaired) : '—',
+    mono: true,
+  });
+  if (r.format) out.push({ label: 'Format', value: r.format });
+  if (r.lastOutroundChaired) {
+    out.push({
+      label: 'Last outround chaired',
+      value: formatStageForDisplay(r.lastOutroundChaired),
+    });
+  }
+  if (r.lastOutroundJudged) {
+    out.push({ label: 'Last outround judged', value: formatStageForDisplay(r.lastOutroundJudged) });
+  }
+  return out;
 }

@@ -4,6 +4,11 @@ import { Skeleton } from '@/components/ui/Skeleton';
 export default function CvLoading() {
   return (
     <div className="space-y-6">
+      {/* The skeleton blocks are aria-hidden, so without this line a screen
+          reader hears nothing at all while the record loads (STATE-4). */}
+      <p role="status" className="sr-only">
+        Loading your record…
+      </p>
       <div className="space-y-2">
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-4 w-80" />
