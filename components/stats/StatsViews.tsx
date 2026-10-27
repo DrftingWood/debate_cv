@@ -11,12 +11,14 @@ import type { Split } from '@/lib/cv/speakerStats';
 import type { RoundFact, StatsFacts } from '@/lib/cv/statsFacts';
 import { MIN_SPLIT_ROUNDS, splitRounds, type RoundSplit } from '@/lib/cv/roundSplits';
 import { teammateStats } from '@/lib/cv/teammateStats';
+import { OUTCOME_COPY, outcomeKind, type OutcomeKind } from '@/lib/cv/roundOutcome';
 import { CARRY_LEVEL_BAND, carryIndex, momentumAfter, roundCurve } from '@/lib/cv/roundViews';
 import { SectionHeader } from '@/components/ui/Card';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Badge } from '@/components/ui/Badge';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
+import { signedOrNull as signed } from '@/components/stats/format';
 
 import { FORMAT_NAME, MOTION_ORDER, SEAT_ORDER } from '@/lib/cv/crossTabs';
 
@@ -36,11 +38,20 @@ function asSplit(r: RoundSplit, key = r.key): Split {
   };
 }
 
-const signed = (n: number | null, digits = 1) => {
-  if (n == null) return null;
-  const rounded = Number(n.toFixed(digits));
-  return `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toFixed(digits)}`;
-};
+
+/**
+ * Which words the round outcome gets on this page: "win" for two-team rounds,
+ * "2nd or better" for BP (never "win"), both when the record has both. Read
+ * from the prelim rounds the tables count; a four-seat position is BP whatever
+ * the format says.
+ */
+function outcomeOf(facts: StatsFacts): OutcomeKind {
+  return outcomeKind(
+    facts.rounds
+      .filter((r) => !r.isOutround && r.won != null)
+      .map((r) => (r.seat?.startsWith('BP:') ? 'British Parliamentary' : r.format)),
+  );
+}
 
 // ── Positions ─────────────────────────────────────────────────────────────
 
@@ -78,7 +89,7 @@ export function PositionsSection({ facts, baseline }: { facts: StatsFacts; basel
             <h3 className="font-display text-h4 font-medium text-ink">{FORMAT_NAME[group] ?? group}</h3>
             <span className="data-label">{rounds} prelim rounds</span>
           </div>
-          <StatsSplitTable
+          <StatsSplitTable outcome={group === 'BP' ? 'top-two' : 'win'}
             splits={seats.map((s) => asSplit(s, s.key.split(':')[1]))}
             dimensionLabel="Seat"
             thinBelow={MIN_SPLIT_ROUNDS}
@@ -88,8 +99,9 @@ export function PositionsSection({ facts, baseline }: { facts: StatsFacts; basel
         </div>
       ))}
       <p className="text-caption text-ink-soft">
-        A win means first of four teams in British Parliamentary and first of two elsewhere, so seats
-        are only compared within a format.
+        British Parliamentary rounds are never counted as wins: the rate there is the share of rounds
+        finished 2nd or better (2 points or more). Two-team formats count a win. Seats are only
+        compared within a format.
       </p>
     </section>
   );
@@ -106,6 +118,7 @@ const PAIRING_TITLE = { pro: 'As the pro', am: 'As the am', peers: 'With peers' 
  */
 export function TeammatesSection({ facts, perRoundOnly = false }: { facts: StatsFacts; perRoundOnly?: boolean }) {
   const { partners, pairings } = teammateStats(facts);
+  const outcome = outcomeOf(facts);
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   if (partners.length === 0) return null;
 
@@ -130,8 +143,8 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                 p.winRate == null
                   ? null
                   : p.decided < MIN_SPLIT_ROUNDS
-                    ? `${plural(p.decided, 'decided round')} — too few for a win rate`
-                    : `${Math.round(p.winRate * 100)}% of ${p.decided} prelim rounds won`,
+                    ? `${plural(p.decided, 'decided round')} — too few for a ${OUTCOME_COPY[outcome].rate.toLowerCase()}`
+                    : `${Math.round(p.winRate * 100)}% of ${p.decided} prelim ${OUTCOME_COPY[outcome].rounds}`,
               ]
                 .filter(Boolean)
                 .join(' · ')}
@@ -158,7 +171,7 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                 </Th>
                 {perRoundOnly ? null : <Th numeric>Breaks</Th>}
                 <Th numeric>Your avg</Th>
-                <Th numeric className="pr-4">Round win rate</Th>
+                <Th numeric className="pr-4">Round {OUTCOME_COPY[outcome].rate.toLowerCase()}</Th>
               </tr>
             </thead>
             <tbody>
@@ -172,7 +185,8 @@ export function TeammatesSection({ facts, perRoundOnly = false }: { facts: Stats
                   <Td numeric>{p.tournaments}</Td>
                   <Td className="whitespace-nowrap">
                     <span className="inline-flex gap-1">
-                      {p.pairings.pro ? <Badge variant="gold">Pro ×{p.pairings.pro}</Badge> : null}
+                      {/* Neutral, not gold: gold means a break (Ledger rule 3). */}
+                      {p.pairings.pro ? <Badge variant="neutral">Pro ×{p.pairings.pro}</Badge> : null}
                       {p.pairings.am ? <Badge>Am ×{p.pairings.am}</Badge> : null}
                       {p.pairings.peers ? <Badge variant="neutral">Peers ×{p.pairings.peers}</Badge> : null}
                       {p.tournaments === p.pairings.unlabelled ? <Nil /> : null}
@@ -231,7 +245,7 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
         title="What each kind of motion asks of you"
         meta={`${typed.length} of ${prelims} prelim rounds typed`}
       />
-      <StatsSplitTable
+      <StatsSplitTable outcome={outcomeOf(facts)}
         splits={byType.map((s) => asSplit(s))}
         dimensionLabel="Type"
         thinBelow={MIN_SPLIT_ROUNDS}
@@ -246,17 +260,23 @@ export function MotionTypesSection({ facts, baseline }: { facts: StatsFacts; bas
       </p>
 
       {byInfo.length > 1 || byFraming.length > 1 ? (
+        // `min-w-0` on each grid item is what keeps the page from scrolling
+        // sideways on a phone. A grid item's minimum width defaults to its
+        // content's, and the content here is a `min-w-max` table about 664 px
+        // wide, so without it each item grew to the table and dragged the
+        // whole document to 770 px at a 390 px viewport. With it, the item
+        // takes the column's width and the table scrolls inside its panel.
         <div className="grid gap-6 lg:grid-cols-2">
           {byInfo.length > 1 ? (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Info slides</h3>
-              <StatsSplitTable splits={byInfo.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
+              <StatsSplitTable outcome={outcomeOf(facts)} splits={byInfo.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
             </div>
           ) : null}
           {byFraming.length > 1 ? (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <h3 className="font-display text-h4 font-medium text-ink">Framing</h3>
-              <StatsSplitTable splits={byFraming.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
+              <StatsSplitTable outcome={outcomeOf(facts)} splits={byFraming.map((s) => asSplit(s))} dimensionLabel="Motion" thinBelow={MIN_SPLIT_ROUNDS} baselineLabel="your whole record in each round's format" />
             </div>
           ) : null}
         </div>
@@ -278,7 +298,7 @@ export function RoundCurveSection({ facts, baseline }: { facts: StatsFacts; base
         title="Early rounds and late ones"
         meta="Deltas compare with your whole record in the same format"
       />
-      <StatsSplitTable
+      <StatsSplitTable outcome={outcomeOf(facts)}
         splits={curve.map((p) => asSplit(p, `Round ${p.roundNumber}`))}
         dimensionLabel="Round"
         thinBelow={MIN_SPLIT_ROUNDS}
@@ -345,7 +365,7 @@ export function CarrySection({
       </StatRow>
       )}
       {!thin && c.results.length > 1 ? (
-        <StatsSplitTable
+        <StatsSplitTable outcome={outcomeOf(facts)}
           splits={c.results.map((s) => asSplit(s, CARRY_LABEL[s.key] ?? s.key))}
           dimensionLabel="Carry"
           thinBelow={MIN_SPLIT_ROUNDS}
@@ -369,29 +389,35 @@ export function CarrySection({
 
 // ── Momentum ──────────────────────────────────────────────────────────────
 
-const MOMENTUM_LABEL: Record<string, string> = { 'after-win': 'After a win', 'after-loss': 'After a loss' };
+const MOMENTUM_LABEL: Record<OutcomeKind, Record<string, string>> = {
+  win: { 'after-win': 'After a win', 'after-loss': 'After a loss' },
+  // BP rounds are never "wins": the split is 2nd-or-better against 3rd-or-worse.
+  'top-two': { 'after-win': 'After a 2nd or better', 'after-loss': 'After a 3rd or 4th' },
+  mixed: { 'after-win': 'After a win / 2nd or better', 'after-loss': 'After a loss / 3rd or 4th' },
+};
 
 export function MomentumSection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
   const rows = momentumAfter(facts.rounds, baseline);
   if (rows.length < 2) return null;
+  const outcome = outcomeOf(facts);
 
   return (
-    <section id="momentum" aria-label="After a win or a loss" className="scroll-mt-24 space-y-3">
+    <section id="momentum" aria-label="After a good round or a bad one" className="scroll-mt-24 space-y-3">
       <SectionHeader
         label="Momentum"
-        title="The round after a win, and after a loss"
+        title={outcome === 'win' ? 'The round after a win, and after a loss' : 'The round after a good round, and after a bad one'}
         meta={`${rows.reduce((n, r) => n + r.rounds, 0)} paired prelim rounds`}
       />
-      <StatsSplitTable
-        splits={rows.map((r) => asSplit(r, MOMENTUM_LABEL[r.key] ?? r.key))}
+      <StatsSplitTable outcome={outcomeOf(facts)}
+        splits={rows.map((r) => asSplit(r, MOMENTUM_LABEL[outcome][r.key] ?? r.key))}
         dimensionLabel="Next round"
         thinBelow={MIN_SPLIT_ROUNDS}
         baselineLabel="your whole record in each round's format"
       />
       <p className="text-caption text-ink-soft">
         Each row is the next prelim at the same tournament, paired only when the round before it has a
-        recorded result. Tabs power-pair, so a win sends you into a stronger room and a loss into a
-        weaker one: win rate after a win falls for almost everyone. The speaker average is the fairer
+        recorded result. Tabs power-pair, so a good round sends you into a stronger room and a bad one
+        into a weaker one: the rate after a good round falls for almost everyone. The speaker average is the fairer
         read of whether a result carries into the next speech.
       </p>
     </section>

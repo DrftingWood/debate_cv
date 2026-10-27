@@ -12,12 +12,13 @@ import {
   type MotionEntry,
 } from '@/lib/cv/motionEntries';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
 import { CvSubNav } from '@/components/CvSubNav';
 import { isAdminEmail } from '@/lib/admin';
+import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
 
 export const metadata: Metadata = {
   title: 'Motions',
@@ -77,6 +78,10 @@ export default async function CvMotionsPage() {
   const knockoutsThrough = knockouts.filter((e) => e.knockout?.won).length;
   const decided = debated.filter((e) => e.won != null);
   const wins = decided.filter((e) => e.won).length;
+  // BP rounds are never "wins": a four-team room counts 2nd or better.
+  const hasBp = decided.some((e) => e.fourTeam);
+  const hasTwoTeam = decided.some((e) => !e.fourTeam);
+  const outcome = hasBp ? (hasTwoTeam ? 'mixed' : 'top-two') : 'win';
   // Count tournaments the user SPOKE at for the summary strip — the page
   // below also lists tournaments they only judged, which would inflate a
   // "motions debated across N tournaments" figure.
@@ -119,8 +124,8 @@ export default async function CvMotionsPage() {
           title="No motions on record yet"
           description="Motions appear once a tournament on your record has published its motions tab. Older tournaments may need re-ingesting before their motions are captured."
           action={
-            <Link href="/dashboard">
-              <Button variant="primary">Open imports</Button>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              Open imports
             </Link>
           }
         />
@@ -149,11 +154,17 @@ export default async function CvMotionsPage() {
               }
             />
             <StatTile
-              label="Round record"
-              value={decided.length > 0 ? `${wins}–${decided.length - wins}` : '—'}
+              label={outcome === 'win' ? 'Round record' : 'Rounds 2nd or better'}
+              value={
+                decided.length > 0
+                  ? outcome === 'win'
+                    ? `${wins}–${decided.length - wins}`
+                    : `${wins} of ${decided.length}`
+                  : '—'
+              }
               hint={
                 decided.length > 0
-                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds`
+                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds${outcome === 'win' ? '' : ` (${OUTCOME_COPY[outcome].rounds})`}`
                   : 'No results published'
               }
             />
@@ -207,7 +218,7 @@ export default async function CvMotionsPage() {
                       <span className="data-label block">
                         {first.year ? `${first.year}` : 'Undated'}
                       </span>
-                      <span className="mt-1 block truncate font-display text-h4 font-medium text-ink">
+                      <span className="mt-1 block break-words font-display text-h4 font-medium text-ink">
                         {first.tournamentName}
                       </span>
                     </span>
@@ -248,12 +259,7 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
         ) : null}
         {motion.topic ? <Badge variant="outline">{motion.topic}</Badge> : null}
         {entry.siblings > 0 ? (
-          <Badge
-            variant="neutral"
-            title="This round released more than one motion; the round data shown applies to the round, not necessarily to this motion."
-          >
-            1 of {entry.siblings + 1} this round
-          </Badge>
+          <Badge variant="neutral">1 of {entry.siblings + 1} this round</Badge>
         ) : null}
         {entry.judgedOnly ? (
           <Badge variant="neutral" title="You judged at this tournament rather than speaking.">
@@ -261,6 +267,12 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
           </Badge>
         ) : null}
       </div>
+      {entry.siblings > 0 ? (
+        <p className="mt-1.5 text-caption text-ink-soft">
+          This round released more than one motion, so the round data below applies to the round, not necessarily to
+          this motion.
+        </p>
+      ) : null}
 
       <p className="mt-2 text-body leading-relaxed text-ink">{motion.text}</p>
 

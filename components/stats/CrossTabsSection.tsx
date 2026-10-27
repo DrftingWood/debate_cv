@@ -27,6 +27,8 @@ import { MIN_SPLIT_ROUNDS } from '@/lib/cv/roundSplits';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, TableScroll } from '@/components/ui/DataTable';
 import { cn } from '@/lib/utils/cn';
+import { PressedMark, pressedClasses } from '@/components/stats/pressed';
+import { deltaTone, signed } from '@/components/stats/format';
 
 type Metric = 'score' | 'win' | 'points';
 
@@ -38,7 +40,8 @@ const GRIDS: Array<{ id: string; label: string; rows: CrossTabDimension; cols: C
 
 const METRICS: Array<{ id: Metric; label: string }> = [
   { id: 'score', label: 'Speaker avg vs you' },
-  { id: 'win', label: 'Win rate vs you' },
+  // BP rounds are never "wins": for them this is the 2nd-or-better rate.
+  { id: 'win', label: 'Win / 2nd-or-better rate vs you' },
   { id: 'points', label: 'Team points' },
 ];
 
@@ -50,24 +53,25 @@ function keyLabel(dimension: CrossTabDimension, key: string, multiFormat: boolea
   return key;
 }
 
-const signed = (n: number, digits: number) => {
-  const r = Number(n.toFixed(digits));
-  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(digits)}`;
-};
-
+// Thin and empty cells are drawn in `ink-soft` at full strength. They were
+// at /50 and /60 (about 2:1), with the round count only in a `title` — the
+// sample size, which §9 says must be visible, was the faintest thing on the
+// grid (SC 1.4.3, 1.4.13).
 function CellValue({ cell, metric }: { cell: CrossTabCell | undefined; metric: Metric }) {
   if (!cell)
     return (
-      <span className="text-ink-soft/50">
+      <span className="text-ink-soft">
         <span aria-hidden>–</span>
         <span className="sr-only">No rounds</span>
       </span>
     );
   if (cell.hidden) {
     return (
-      <span className="text-ink-soft/60" title={`${cell.rounds} round${cell.rounds === 1 ? '' : 's'} — too few to show`}>
-        <span aria-hidden>·</span>
-        <span className="sr-only">{cell.rounds} rounds, too few to show</span>
+      <span className="num whitespace-nowrap text-caption text-ink-soft">
+        <span aria-hidden>· {cell.rounds} rds</span>
+        <span className="sr-only">
+          {cell.rounds} round{cell.rounds === 1 ? '' : 's'}, too few to show
+        </span>
       </span>
     );
   }
@@ -92,14 +96,14 @@ function CellValue({ cell, metric }: { cell: CrossTabCell | undefined; metric: M
       <span
         className={cn(
           'num',
-          value == null || Math.abs(value) < flat ? 'text-ink' : value > 0 ? 'val-pos' : 'val-neg',
+          value == null || Math.abs(value) < flat ? 'text-ink' : deltaTone(value, metric === 'win' ? 0 : 1),
         )}
       >
         {text ?? '—'}
       </span>
-      <span className="num text-caption text-ink-soft">
+      <span className="num whitespace-nowrap text-caption text-ink-soft">
         {cell.rounds}
-        <span aria-hidden>r</span>
+        <span aria-hidden> rds</span>
         <span className="sr-only"> rounds</span>
       </span>
     </span>
@@ -129,7 +133,7 @@ function Grid({ tab, metric, label }: { tab: CrossTab; metric: Metric; label: st
           <tbody>
             {tab.rows.map((r) => (
               <Tr key={r}>
-                <Td className="whitespace-nowrap pl-4 font-medium">{keyLabel(tab.rowDimension, r, rowsMulti)}</Td>
+                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{keyLabel(tab.rowDimension, r, rowsMulti)}</Td>
                 {tab.cols.map((c, i) => (
                   <Td key={c} numeric className={i === tab.cols.length - 1 ? 'pr-4' : undefined}>
                     <CellValue cell={cellAt.get(cellKey(r, c))} metric={metric} />
@@ -156,19 +160,21 @@ function Toggle<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2 p-1">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
-          aria-pressed={o.id === value}
+          role="radio"
+          aria-checked={o.id === value}
           onClick={() => onChange(o.id)}
           className={cn(
-            'rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            o.id === value ? 'bg-card text-ink shadow-xs' : 'text-ink-soft hover:text-ink',
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+            pressedClasses(o.id === value),
           )}
         >
+          {o.id === value ? <PressedMark /> : null}
           {o.label}
         </button>
       ))}
@@ -235,7 +241,7 @@ export function CrossTabsSection({ facts, baseline }: { facts: StatsFacts; basel
 
       <p className="text-caption text-ink-soft">
         Prelim rounds only. A cell with fewer than {MIN_SPLIT_ROUNDS} rounds, scored speeches or
-        decided rounds shows a dot instead of a figure. Findings are the cells furthest from what their row and column predict on their own
+        decided rounds shows a dot and its round count instead of a figure. Findings are the cells furthest from what their row and column predict on their own
         — at least 0.5 speaker points, across two or more tournaments — so a seat or a motion type
         that is simply strong everywhere shows up in Positions and Motion types, not here.
         Team points are British Parliamentary only.

@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Bell, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { postJson } from '@/lib/utils/api';
+import { formatDate } from '@/lib/utils/date';
+import { usePopover } from '@/components/ui/usePopover';
 
 type NotificationItem = {
   id: string;
@@ -30,8 +32,7 @@ type ListResponse = {
 export function NotificationBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
 
   const refresh = useCallback(async () => {
     try {
@@ -61,23 +62,6 @@ export function NotificationBell() {
     };
   }, [refresh]);
 
-  // Close on outside click + Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKeydown);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKeydown);
-    };
-  }, [open]);
-
   const onToggle = () => {
     setOpen((wasOpen) => {
       const willOpen = !wasOpen;
@@ -97,11 +81,11 @@ export function NotificationBell() {
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={onToggle}
-        aria-label="Notifications"
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls="notifications-panel"
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
       >
         <Bell className="h-4 w-4" aria-hidden />
@@ -113,20 +97,31 @@ export function NotificationBell() {
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         ) : null}
+        {/* The button's name. It used to be overridden by an aria-label of
+            plain "Notifications", so the unread count was never read out. */}
         <span className="sr-only">
-          {unreadCount > 0
-            ? `${unreadCount} unread notifications`
-            : 'No new notifications'}
+          {unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         </span>
       </button>
       {open ? (
+        // A disclosure, not role="menu" (UX-5): the panel holds a heading
+        // and plain links, none of them menu items, so the menu role was a
+        // promise of arrow-key navigation it could not keep (axe
+        // aria-required-children).
         <div
-          role="menu"
+          ref={panelRef}
+          id="notifications-panel"
+          role="region"
+          aria-labelledby="notifications-heading"
+          tabIndex={-1}
           className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card border border-border bg-card shadow-lg"
         >
-          <div className="border-b border-border px-4 py-2.5 text-table font-medium text-ink">
+          <h2
+            id="notifications-heading"
+            className="border-b border-border px-4 py-2.5 text-table font-medium text-ink"
+          >
             Notifications
-          </div>
+          </h2>
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-ink-soft">
               <Inbox className="h-5 w-5" aria-hidden />
@@ -147,13 +142,7 @@ export function NotificationBell() {
   );
 }
 
-function NotificationRow({
-  item,
-  onClick,
-}: {
-  item: NotificationItem;
-  onClick: () => void;
-}) {
+function NotificationRow({ item, onClick }: { item: NotificationItem; onClick: () => void }) {
   const created = new Date(item.createdAt);
   const time = relativeTime(created);
   const inner = (
@@ -188,5 +177,5 @@ function relativeTime(date: Date): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return date.toLocaleDateString();
+  return formatDate(date);
 }

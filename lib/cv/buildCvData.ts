@@ -6,7 +6,7 @@ import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
-import { placementHighlights } from '@/lib/cv/teamPlacement';
+import { championshipHighlights, placementHighlights } from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
@@ -85,6 +85,8 @@ export type CvSpeakerRow = {
   teammateDetails: CvTeammate[];
   teamName: string | null;
   teamRank: number | null;
+  /** Another team on the same tab holds this rank, so it reads "5=" (display only; I17). */
+  teamRankTied?: boolean;
   teamPoints: string | null;
   teamWins: number | null;
   /**
@@ -103,6 +105,8 @@ export type CvSpeakerRow = {
    */
   prelimRoundCount: number | null;
   speakerRankOpen: number | null;
+  /** Another speaker has the same total, so the rank reads "7=". False when the field was not loaded. */
+  speakerRankTied?: boolean;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
   /**
@@ -190,7 +194,12 @@ export type CvUnmatchedTournament = {
 
 export type CvHighlights = {
   /** Tournaments where the user's team won the GF (wonTournament === true). */
-  championships: { tournamentName: string; year: number | null }[];
+  championships: {
+    tournamentName: string;
+    year: number | null;
+    /** Set for a category title (ESL, EFL, Novice, Silver …); absent for the Open title. */
+    category?: string;
+  }[];
   /**
    * Breaks ranked by strength: furthest outround reached first, then a won
    * final, then break seed, then team-tab placement (compareBreakStrength in
@@ -205,16 +214,17 @@ export type CvHighlights = {
     breakRank: number | null;
   }[];
   /**
-   * Tournaments where the TEAM finished in the top 10% of the prelim team tab
-   * (teamRank ≤ ceil(totalTeams * 0.10)), best share first. Replaces the old
-   * speaker-rank "top-10% break", which compared a speaker rank with a team
-   * count.
+   * Tournaments where the user was a Top 10 speaker: Open speaker-tab rank
+   * <= TOP_SPEAKER_RANK (10), best rank first. An absolute rank, not a
+   * percentile (owner decision, assumptions C3/Q5) — it replaces the earlier
+   * "top 10% of the team tab" rule and its ceil rounding. `totalTeams` is the
+   * field size when known, for context only.
    */
-  topTeamFinishes: {
+  topSpeakerFinishes: {
     tournamentName: string;
     year: number | null;
     rank: number;
-    totalTeams: number;
+    totalTeams: number | null;
   }[];
   /** Best team-tab placement as a share of the field (ties: the bigger field). */
   bestTeamFinish: {
@@ -359,6 +369,12 @@ export type CvData = {
     totalRoundsChaired: number;
   };
   highlights: CvHighlights;
+  /**
+   * When the newest tournament on this record finished ingesting. The "as of"
+   * date the CV headers show; the render date said "compiled today" on every
+   * visit, which is not a fact about the data (CV-10).
+   */
+  lastIngestedAt?: Date | null;
 };
 
 export type BuildCvDataOptions = {
@@ -771,11 +787,12 @@ export async function buildCvData(
             speakerScoreTotal: { not: null },
             roles: { some: { role: 'speaker' } },
           },
-          select: { tournamentId: true, speakerScoreTotal: true },
+          select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
         })
       : Promise.resolve([] as Array<{
           tournamentId: bigint;
           speakerScoreTotal: { toString(): string } | null;
+          speakerRankOpen?: number | null;
         }>),
 
     // The Open break tab's team names, for the break line. Ingest stores each
@@ -927,6 +944,26 @@ export async function buildCvData(
 
   const myDisplayName = claimedPersons[0]?.displayName ?? user?.name ?? 'You';
 
+  // Ties, for the "5=" display (I17). The parser stores a tied rank as the bare
+  // number, so a tie is derived: a team rank is tied when another team on the
+  // same tab holds it; a speaker rank when another speaker has the same total
+  // (only known when the field rows were loaded).
+  const teamRankHolders = new Map<string, number>();
+  for (const [key, rank] of teamRankByKey) {
+    const tournamentPart = key.slice(0, key.indexOf(':'));
+    const k = `${tournamentPart}#${rank}`;
+    teamRankHolders.set(k, (teamRankHolders.get(k) ?? 0) + 1);
+  }
+  // A speaker tie needs the parser's own rank: the derived ROW_NUMBER rank
+  // gives equal totals different numbers, and a tab that split them itself
+  // (or gave the other speaker no rank) is not a tie to show.
+  const speakersOnTotal = new Map<string, number>();
+  for (const row of fieldRows) {
+    if (row.speakerScoreTotal == null || row.speakerRankOpen == null) continue;
+    const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}#${row.speakerRankOpen}`;
+    speakersOnTotal.set(k, (speakersOnTotal.get(k) ?? 0) + 1);
+  }
+
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
   for (const p of myParticipations) {
@@ -1015,6 +1052,10 @@ export async function buildCvData(
       teammateDetails: teamKey ? (teammateDetailsByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
+      teamRankTied: (() => {
+        const rank = teamKey ? teamRankByKey.get(teamKey) : undefined;
+        return rank != null && (teamRankHolders.get(`${tid}#${rank}`) ?? 0) > 1;
+      })(),
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? null,
       teamFirsts: tr?.firsts ?? null,
@@ -1027,6 +1068,10 @@ export async function buildCvData(
       // speakerRankOpenDerived. Covers BP/AP tabs whose rank header doesn't
       // match the canonical "Rank/#" patterns and whose cell parses to null.
       speakerRankOpen: p.speakerRankOpen ?? p.speakerRankOpenDerived ?? null,
+      speakerRankTied:
+        p.speakerScoreTotal != null &&
+        p.speakerRankOpen != null &&
+        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}#${p.speakerRankOpen}`) ?? 0) > 1,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
       speakerCategories: p.speakerCategories ?? [],
@@ -1277,12 +1322,9 @@ export async function buildCvData(
   const MAJOR_PATTERN =
     /\b(?:wudc|world(?: university)? debating|eudc|european debating|australs|asian debating|naudc|north american debating)\b/i;
 
-  const championships = speakerRows
-    .filter((r) => r.wonTournament === true)
-    .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
-    .slice(0, 5);
+  const championships = championshipHighlights(speakerRows);
 
-  const { deepestBreaks, topTeamFinishes, bestTeamFinish } = placementHighlights(speakerRows);
+  const { deepestBreaks, topSpeakerFinishes, bestTeamFinish } = placementHighlights(speakerRows);
 
   const bestSpeakerRank = speakerRows.reduce<CvHighlights['bestSpeakerRank']>((best, r) => {
     if (r.speakerRankOpen == null) return best;
@@ -1325,7 +1367,7 @@ export async function buildCvData(
   const highlights: CvHighlights = {
     championships,
     deepestBreaks,
-    topTeamFinishes,
+    topSpeakerFinishes,
     bestTeamFinish,
     bestSpeakerRank,
     bestSpeakerAverage,
@@ -1346,5 +1388,9 @@ export async function buildCvData(
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },
     highlights,
+    lastIngestedAt: urls.reduce<Date | null>(
+      (latest, u) => (u.ingestedAt && (!latest || u.ingestedAt > latest) ? u.ingestedAt : latest),
+      null,
+    ),
   };
 }

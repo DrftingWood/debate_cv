@@ -25,9 +25,11 @@
  * into a sign-in outage (the 2026-10-26 "Server error" on /api/auth/callback).
  * The plain tokens are never written to Account either way.
  *
- * One save per sign-in. Auth.js 5.0.0-beta.25 (@auth/core
- * lib/actions/callback/handle-login.js) calls adapter.linkAccount only when
- * the Google account is not yet linked: a first sign-in, or a signed-in user
+ * One save per sign-in. Auth.js (@auth/core lib/actions/callback/handle-login.js,
+ * read for 0.37.2 under next-auth 5.0.0-beta.25 and unchanged in 0.41.3 under
+ * beta.32; tests/auth.callOrder.contract.test.ts runs the installed copy)
+ * calls adapter.linkAccount only when the Google account is not yet linked:
+ * a first sign-in, or a signed-in user
  * re-linking after /api/account/disconnect deleted the Account row. A
  * returning user whose Account already exists skips linkAccount entirely, so
  * events.signIn (which fires on every OAuth callback) is the only save for

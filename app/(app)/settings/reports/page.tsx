@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Flag } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -5,9 +6,12 @@ import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
+import { formatDate } from '@/lib/utils/date';
 import type { CvReportStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Reports · Settings' };
 
 function statusBadge(status: CvReportStatus) {
   switch (status) {
@@ -52,8 +56,9 @@ export default async function ReportsSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · REPORTS</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Open and resolved reports
+          Reports
         </h1>
+        <p className="text-body text-ink-soft">Open and resolved reports.</p>
         <hr className="hairline" />
       </header>
 
@@ -69,7 +74,7 @@ export default async function ReportsSettingsPage() {
         {reports.length === 0 ? (
           <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
             You haven&apos;t reported any CV issues yet. The Report button on
-            each row of <strong>My CV</strong> opens a quick form for telling
+            each row of <strong>Record</strong> opens a quick form for telling
             us when something looks wrong.
           </p>
         ) : (
@@ -91,7 +96,7 @@ export default async function ReportsSettingsPage() {
                     )}
                     {statusBadge(r.status)}
                     <span className="text-caption text-ink-soft">
-                      {r.createdAt.toLocaleDateString()}
+                      {formatDate(r.createdAt)}
                     </span>
                   </div>
                   {r.categories.length > 0 ? (

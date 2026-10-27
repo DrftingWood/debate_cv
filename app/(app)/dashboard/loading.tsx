@@ -19,14 +19,12 @@ export default function DashboardLoading() {
           </Card>
         ))}
       </div>
-      <Card className="p-4">
-        <Skeleton className="mb-4 h-5 w-40" />
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      </Card>
+      {/* The bare /dashboard is the summary: tiles and one "Browse all"
+          link. A table skeleton here promised a page that no longer loads. */}
+      <Skeleton className="h-5 w-40" />
+      <p role="status" className="sr-only">
+        Loading imports…
+      </p>
     </div>
   );
 }

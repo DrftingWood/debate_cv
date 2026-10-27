@@ -44,7 +44,7 @@
 import type { CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { outroundRankStrict } from '@/lib/calicotab/judgeStats';
 import { splitStageLabel } from '@/lib/calicotab/stageLexicon';
-import { bracketOf } from '@/lib/cv/outroundFunnel';
+import { bracketOf, isTierBracket } from '@/lib/cv/outroundFunnel';
 
 export type FirstMilestone = {
   year: number;
@@ -118,7 +118,9 @@ function anyFinal(row: CvSpeakerRow): boolean {
 }
 const anyTitle = (row: CvSpeakerRow) => row.wonTournament === true && bracket(row) !== 'consolation';
 
-const reachedFinal = (row: CvSpeakerRow) => anyFinal(row) && bracket(row) === 'open';
+// Gold, Silver and Bronze finals count as reaching a final (owner decision).
+const reachedFinal = (row: CvSpeakerRow) =>
+  anyFinal(row) && (bracket(row) === 'open' || isTierBracket(row.eliminationReached));
 const title = (row: CvSpeakerRow) => anyTitle(row) && bracket(row) === 'open';
 
 /**

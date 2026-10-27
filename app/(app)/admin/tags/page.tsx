@@ -5,10 +5,10 @@ import { requireAdmin } from '@/lib/admin';
 import { AdminTagProposals } from '@/components/AdminTagProposals';
 import { AdminClassifyMotionsButton } from '@/components/AdminClassifyMotionsButton';
 import { AdminTagPreprocess } from '@/components/AdminTagPreprocess';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
-  title: 'Admin — Tag proposals',
+  title: 'Tag proposals · Admin',
   robots: { index: false, follow: false },
 };
 
@@ -32,20 +32,18 @@ export default async function AdminTagsPage() {
           Tag proposals
         </h1>
         <hr className="hairline" />
-        <div className="byline flex items-center justify-between gap-2">
+        <div className="byline flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span>
             "Suggest all tags" fills this list with an answer for every untagged motion and
             tournament. Reject the few that look wrong, then approve the rest in one click.
             Approved values are written to the canonical Tournament.region / Motion.motionType /
             Motion.topic columns and become visible on all CVs.
           </span>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
             <AdminTagPreprocess />
             <AdminClassifyMotionsButton />
-            <Link href="/admin">
-              <Button variant="outline" size="sm">
-                ← Admin
-              </Button>
+            <Link href="/admin" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+              ← Admin
             </Link>
           </span>
         </div>

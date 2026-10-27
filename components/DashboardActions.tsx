@@ -1,13 +1,28 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Play, RotateCw, Trash2, RefreshCw, Download, Lock, Unlock, Square, Upload } from 'lucide-react';
+import {
+  Search,
+  Play,
+  RotateCw,
+  RotateCcw,
+  RefreshCw,
+  Download,
+  Lock,
+  Unlock,
+  Square,
+  Upload,
+  Clock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 import { drainUntilEmpty, summariseDrain } from '@/lib/ingest/drainUntilEmpty';
-import { scanErrorMessage } from '@/lib/ingest/scanErrorMessage';
+import { scanErrorMessage, formatCountdown } from '@/lib/ingest/scanErrorMessage';
+import { failureToast, thrownToast } from '@/lib/ingest/userMessage';
+import { useFocusAfterRender } from '@/components/useFocusAfterRender';
+import { ScanCooldownNotice, useScanCooldown, type ScanCooldown } from '@/components/ScanCooldown';
 
 type ScanResponse = { scanned: number; found: number };
 type IngestUrlResponse = {
@@ -25,7 +40,8 @@ type IngestUrlResponse = {
 function formatMetrics(totalTeams: number | null, totalParticipants: number | null): string {
   const parts: string[] = [];
   if (totalTeams != null && totalTeams > 0) parts.push(`${totalTeams} teams`);
-  if (totalParticipants != null && totalParticipants > 0) parts.push(`${totalParticipants} participants`);
+  if (totalParticipants != null && totalParticipants > 0)
+    parts.push(`${totalParticipants} participants`);
   return parts.join(' · ');
 }
 
@@ -38,53 +54,99 @@ function formatMetrics(totalTeams: number | null, totalParticipants: number | nu
  * "Reconnect Gmail" as the single live action on the screen.
  */
 export function ScanButton({ disconnected = false }: { disconnected?: boolean }) {
+  const cooldown = useScanCooldown();
+  const { isPending, phase, run } = useScanRun(cooldown);
+  const noticeId = useId();
+
+  const label = cooldown.active
+    ? `Scan again in ${formatCountdown(cooldown.remainingSec)}`
+    : phase === 'scanning'
+      ? 'Scanning Gmail…'
+      : phase === 'ingesting'
+        ? 'Ingesting URLs…'
+        : 'Scan Gmail';
+
+  return (
+    <div className="flex max-w-xs flex-col sm:items-end">
+      <Button
+        type="button"
+        variant={disconnected ? 'outline' : 'primary'}
+        disabled={disconnected || cooldown.active}
+        title={disconnected ? 'Reconnect Gmail before scanning' : undefined}
+        aria-describedby={cooldown.notice ? noticeId : undefined}
+        loading={isPending}
+        leftIcon={
+          isPending ? undefined : cooldown.active ? (
+            <Clock className="h-4 w-4" aria-hidden />
+          ) : (
+            <Search className="h-4 w-4" aria-hidden />
+          )
+        }
+        onClick={run}
+      >
+        {label}
+      </Button>
+      <ScanCooldownNotice cooldown={cooldown} id={noticeId} />
+      {/* The button label changes during the run; this line says it (DASH-9). */}
+      <p role="status" className="sr-only">
+        {phase === 'scanning'
+          ? 'Scanning Gmail.'
+          : phase === 'ingesting'
+            ? 'Scan done. Ingesting the URLs it found.'
+            : ''}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The scan-then-ingest run behind the Scan button. A refused scan that is
+ * only the cooldown starts the button's countdown instead of a toast.
+ */
+function useScanRun(cooldown: ScanCooldown) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [phase, setPhase] = useState<'idle' | 'scanning' | 'ingesting'>('idle');
 
-  return (
-    <Button
-      type="button"
-      variant={disconnected ? 'outline' : 'primary'}
-      disabled={disconnected}
-      title={disconnected ? 'Reconnect Gmail before scanning' : undefined}
-      loading={isPending}
-      leftIcon={!isPending ? <Search className="h-4 w-4" aria-hidden /> : undefined}
-      onClick={() => {
-        startTransition(async () => {
-          try {
-            setPhase('scanning');
-            const scan = await postJson<ScanResponse>('/api/ingest/gmail');
-            if (!scan.ok) throw new Error(scanErrorMessage(scan.status, scan.error));
-            toast.show({
-              kind: 'success',
-              title: 'Gmail scan complete',
-              description: `Found ${scan.data.found} private URLs in ${scan.data.scanned} messages.`,
-            });
-            router.refresh();
+  const run = () =>
+    startTransition(async () => {
+      try {
+        setPhase('scanning');
+        const scan = await postJson<ScanResponse>('/api/ingest/gmail');
+        if (!scan.ok) {
+          setPhase('idle');
+          const notice = scanErrorMessage(scan);
+          if (notice.kind === 'cooldown') cooldown.start(notice);
+          else
+            toast.show({ kind: notice.kind, title: notice.title, description: notice.description });
+          return;
+        }
+        const foundText = `Found ${scan.data.found} private URLs in ${scan.data.scanned} messages.`;
+        router.refresh();
 
-            if (scan.data.found > 0) {
-              setPhase('ingesting');
-              const drain = await drainUntilEmpty(() => router.refresh());
-              toast.show(summariseDrain(drain, false));
-              router.refresh();
-            }
-            setPhase('idle');
-          } catch (e) {
-            setPhase('idle');
-            toast.show({
-              kind: 'error',
-              title: 'Scan failed',
-              description: e instanceof Error ? e.message : 'Unknown error',
-            });
-          }
-        });
-      }}
-    >
-      {phase === 'scanning' ? 'Scanning Gmail…' : phase === 'ingesting' ? 'Ingesting URLs…' : 'Scan Gmail'}
-    </Button>
-  );
+        // One toast per click (DASH-2): the scan result and, when URLs were
+        // found, the import result that follows it, said together.
+        if (scan.data.found > 0) {
+          setPhase('ingesting');
+          const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);
+          toast.show({
+            ...drain,
+            title: drain.title === 'Done' ? 'Gmail scan complete' : drain.title,
+            description: `${foundText} ${drain.description}`,
+          });
+          router.refresh();
+        } else {
+          toast.show({ kind: 'success', title: 'Gmail scan complete', description: foundText });
+        }
+        setPhase('idle');
+      } catch (e) {
+        setPhase('idle');
+        toast.show(thrownToast(e, 'Import did not finish'));
+      }
+    });
+
+  return { isPending, phase, run };
 }
 
 export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
@@ -93,9 +155,24 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
   const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<{ processed: number; remaining: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [stopping, setStopping] = useState(false);
+
+  // The label ticks on every batch, which a screen reader must not narrate;
+  // this line changes on start, every fifth URL, on Stop and at the end (DASH-9).
+  const total = progress ? progress.processed + progress.remaining : 0;
+  const statusLine = !isPending
+    ? ''
+    : stopping
+      ? 'Stopping after the current batch.'
+      : progress && progress.processed >= 5
+        ? `Ingested ${Math.floor(progress.processed / 5) * 5} of ${total}.`
+        : 'Ingesting the queued URLs.';
 
   return (
     <div className="flex items-center gap-2">
+      <p role="status" className="sr-only">
+        {statusLine}
+      </p>
       <Button
         type="button"
         variant="secondary"
@@ -103,6 +180,7 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
         leftIcon={!isPending ? <Play className="h-4 w-4" aria-hidden /> : undefined}
         onClick={() => {
           setProgress(null);
+          setStopping(false);
           const controller = new AbortController();
           abortRef.current = controller;
           startTransition(async () => {
@@ -117,11 +195,7 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
               toast.show(summariseDrain(drain, controller.signal.aborted));
               router.refresh();
             } catch (e) {
-              toast.show({
-                kind: 'error',
-                title: 'Ingest failed',
-                description: e instanceof Error ? e.message : 'Unknown error',
-              });
+              toast.show(thrownToast(e, 'Import did not finish'));
             } finally {
               abortRef.current = null;
             }
@@ -140,7 +214,11 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
           variant="ghost"
           size="sm"
           leftIcon={<Square className="h-3.5 w-3.5" aria-hidden />}
-          onClick={() => abortRef.current?.abort()}
+          disabled={stopping}
+          onClick={() => {
+            setStopping(true);
+            abortRef.current?.abort();
+          }}
         >
           Stop
         </Button>
@@ -184,27 +262,43 @@ export function UploadCsvButton() {
           e.target.value = '';
           if (!file) return;
           startTransition(async () => {
-            const result = await postJson<CsvResponse>('/api/ingest/csv', { csv: await file.text() });
+            const result = await postJson<CsvResponse>('/api/ingest/csv', {
+              csv: await file.text(),
+            });
             if (!result.ok) {
-              toast.show({ kind: 'error', title: 'CSV upload failed', description: result.error });
+              toast.show(failureToast(result, 'CSV upload failed'));
               return;
             }
             const skipped = result.data.rows.filter((r) => r.status !== 'ok');
             const byReason = new Map<string, number[]>();
-            for (const r of skipped) byReason.set(r.status, [...(byReason.get(r.status) ?? []), r.line]);
+            for (const r of skipped)
+              byReason.set(r.status, [...(byReason.get(r.status) ?? []), r.line]);
             const detail = [...byReason.entries()]
-              .map(([status, lines]) => `${lines.length} ${CSV_SKIP_REASON[status] ?? status} (line${lines.length === 1 ? '' : 's'} ${lines.slice(0, 5).join(', ')}${lines.length > 5 ? '…' : ''})`)
+              .map(
+                ([status, lines]) =>
+                  `${lines.length} ${CSV_SKIP_REASON[status] ?? status} (line${lines.length === 1 ? '' : 's'} ${lines.slice(0, 5).join(', ')}${lines.length > 5 ? '…' : ''})`,
+              )
               .join('; ');
-            toast.show({
-              kind: result.data.queued > 0 ? 'success' : 'error',
-              title: result.data.queued > 0 ? `Queued ${result.data.queued} tournament${result.data.queued === 1 ? '' : 's'}` : 'Nothing to queue',
-              description: detail || undefined,
-            });
+            // One toast per upload (DASH-2). "Nothing to queue" is a result,
+            // not a failure, so it is neutral and times out like any other.
             router.refresh();
             if (result.data.queued > 0) {
-              const drain = await drainUntilEmpty(() => router.refresh());
-              toast.show(summariseDrain(drain, false));
+              const queuedTitle = `Queued ${result.data.queued} tournament${result.data.queued === 1 ? '' : 's'}`;
+              const drain = summariseDrain(await drainUntilEmpty(() => router.refresh()), false);
+              toast.show({
+                ...drain,
+                title: drain.title === 'Done' ? queuedTitle : drain.title,
+                description: [detail ? `Skipped: ${detail}.` : '', drain.description]
+                  .filter(Boolean)
+                  .join(' '),
+              });
               router.refresh();
+            } else {
+              toast.show({
+                kind: 'info',
+                title: 'Nothing to queue',
+                description: detail || undefined,
+              });
             }
           });
         }}
@@ -222,7 +316,19 @@ export function UploadCsvButton() {
   );
 }
 
-export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: boolean }) {
+/** Row-action buttons share the touch scale the `link` variant skips (NV-13). */
+const ROW_ACTION_CLASS = 'coarse:min-h-[44px]';
+
+export function IngestButton({
+  url,
+  alreadyDone,
+  name,
+}: {
+  url: string;
+  alreadyDone: boolean;
+  /** Tournament name or host, so the accessible name says which row (NV-13). */
+  name?: string;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -234,53 +340,50 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
       type="button"
       variant="link"
       size="sm"
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `${label} ${name}` : undefined}
       loading={isPending}
-      leftIcon={!isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      leftIcon={
+        !isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined
+      }
       onClick={() => {
         startTransition(async () => {
-          const result = await postJson<IngestUrlResponse>('/api/ingest/url', { url, force: alreadyDone });
+          const result = await postJson<IngestUrlResponse>('/api/ingest/url', {
+            url,
+            force: alreadyDone,
+          });
           if (!result.ok) {
-            toast.show({
-              kind: 'error',
-              title: `${label} failed`,
-              description: result.error,
-            });
+            toast.show(failureToast(result, `${label} failed`));
             return;
           }
+          // One toast per click. This used to be up to three (done, linked,
+          // then a red "Scrape warnings" error), so a successful import with
+          // one unreadable optional page ended on an error. Warnings are now
+          // a clause in the same toast, which turns neutral rather than red,
+          // and the row itself keeps a persistent "Partial data" marker
+          // (the route stores the warnings in the job's lastError).
           const metrics = formatMetrics(result.data.totalTeams, result.data.totalParticipants);
           const host = new URL(url).host;
-          toast.show({
-            kind: 'success',
-            title: `${label}ed`,
-            description: metrics
-              ? `${host} · ${metrics}${result.data.cached ? ' (cached)' : ''}`
-              : result.data.cached
-                ? `${host} (cached)`
-                : host,
-          });
-          // Surface where the ingest landed — every URL auto-claims the
-          // registered participant, so we always know how many tournaments
-          // are visible on the user's CV.
-          if (result.data.claimedPersonId) {
-            const n = result.data.linkedTournamentsCount;
-            toast.show({
-              kind: 'success',
-              title: 'Linked to your CV',
-              description:
-                n > 0
-                  ? `${n} ${n === 1 ? 'tournament' : 'tournaments'} now visible`
-                  : 'Your identity was confirmed from the private URL.',
-              action: { label: 'View your CV', href: '/cv' },
-            });
-          }
+          const what = `${host}${metrics ? ` · ${metrics}` : ''}${result.data.cached ? ' (cached)' : ''}.`;
+          const n = result.data.linkedTournamentsCount;
+          const linked = result.data.claimedPersonId
+            ? n > 0
+              ? ` ${n} ${n === 1 ? 'tournament' : 'tournaments'} now on your record.`
+              : ' Your identity was confirmed from the private URL.'
+            : '';
           const warnings = result.data.warnings ?? [];
-          if (warnings.length > 0) {
-            toast.show({
-              kind: 'error',
-              title: '⚠ Scrape warnings',
-              description: warnings.slice(0, 3).join('\n'),
-            });
-          }
+          const partial =
+            warnings.length > 0
+              ? ` Some pages could not be read (${warnings.length}); the row is marked "Partial data".`
+              : '';
+          toast.show({
+            kind: warnings.length > 0 ? 'info' : 'success',
+            title: warnings.length > 0 ? `${label}ed with gaps` : `${label}ed`,
+            description: `${what}${linked}${partial}`,
+            action: result.data.claimedPersonId
+              ? { label: 'View your record', href: '/cv' }
+              : undefined,
+          });
           router.refresh();
         });
       }}
@@ -290,39 +393,87 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
   );
 }
 
-export function ClearButton({ url }: { url: string }) {
+export function ClearButton({ url, name }: { url: string; name?: string }) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const focusAfterRender = useFocusAfterRender();
+
+  // Clear resets a URL's ingest, so it asks first (DASH-8, UX-17). The step is
+  // inline, with Cancel as the first control and the safe default for focus.
+  if (confirming) {
+    return (
+      <span
+        role="group"
+        aria-label="Confirm resetting this import"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1"
+      >
+        <span className="text-caption text-ink-soft">
+          Reset this import? The tournament stays on your record until you ingest it again.
+        </span>
+        <Button
+          ref={cancelRef}
+          type="button"
+          variant="link"
+          size="sm"
+          className={ROW_ACTION_CLASS}
+          disabled={isPending}
+          onClick={() => {
+            setConfirming(false);
+            focusAfterRender(triggerRef);
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className={ROW_ACTION_CLASS}
+          aria-label={name ? `Confirm reset of ${name}` : undefined}
+          loading={isPending}
+          leftIcon={!isPending ? <RotateCcw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+          onClick={() => {
+            startTransition(async () => {
+              const result = await postJson('/api/ingest/clear', { url });
+              if (!result.ok) {
+                toast.show(failureToast(result, 'Reset failed'));
+                return;
+              }
+              toast.show({
+                kind: 'success',
+                title: 'Import reset',
+                description: 'Ingestion reset — click Ingest to retry.',
+              });
+              router.refresh();
+              setConfirming(false);
+            });
+          }}
+        >
+          Reset
+        </Button>
+      </span>
+    );
+  }
 
   return (
     <Button
+      ref={triggerRef}
       type="button"
       variant="link"
       size="sm"
-      loading={isPending}
-      leftIcon={!isPending ? <Trash2 className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `Reset import of ${name}` : undefined}
+      leftIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
       onClick={() => {
-        startTransition(async () => {
-          const result = await postJson('/api/ingest/clear', { url });
-          if (!result.ok) {
-            toast.show({
-              kind: 'error',
-              title: 'Clear failed',
-              description: result.error,
-            });
-            return;
-          }
-          toast.show({
-            kind: 'success',
-            title: 'Cleared',
-            description: 'Ingestion reset — click Ingest to retry.',
-          });
-          router.refresh();
-        });
+        setConfirming(true);
+        focusAfterRender(cancelRef);
       }}
     >
-      Clear
+      Reset
     </Button>
   );
 }
@@ -343,7 +494,8 @@ function reingestDescription({
   if (queued > 0) {
     return `${queued} ${queued === 1 ? 'URL' : 'URLs'} queued - use "Ingest all" to process them.${note}`;
   }
-  if (notes.length > 0) return `Nothing queued${selected ? ' from that selection' : ''} - ${notes.join(', ')} skipped.`;
+  if (notes.length > 0)
+    return `Nothing queued${selected ? ' from that selection' : ''} - ${notes.join(', ')} skipped.`;
   return selected ? 'Choose at least one unlocked URL first.' : 'Nothing to re-ingest yet.';
 }
 
@@ -369,29 +521,27 @@ export function ReingestMineButton() {
         startTransition(async () => {
           const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine');
           if (!result.ok) {
-            toast.show({ kind: 'error', title: 'Re-ingest failed', description: result.error });
+            toast.show(failureToast(result, 'Re-ingest failed'));
             return;
           }
           const { queued: n, skipped } = result.data;
           const skipNote =
             skipped > 0 ? ` (${skipped} skipped — source page no longer exists)` : '';
+          const locked = result.data.skippedLocked;
+          const lockedNote =
+            locked > 0
+              ? ` ${locked} locked ${locked === 1 ? 'URL was' : 'URLs were'} left untouched.`
+              : '';
           toast.show({
             kind: 'success',
             title: 'Queued for re-ingest',
             description:
-              n > 0
+              (n > 0
                 ? `${n} ${n === 1 ? 'URL' : 'URLs'} queued — use "Ingest all" to process them.${skipNote}`
                 : skipped > 0
                   ? `Nothing to re-ingest — all ${skipped} URLs are permanently unavailable.`
-                  : 'Nothing to re-ingest yet.',
+                  : 'Nothing to re-ingest yet.') + lockedNote,
           });
-          if (result.data.skippedLocked > 0) {
-            toast.show({
-              kind: 'success',
-              title: 'Locked tournaments skipped',
-              description: `${result.data.skippedLocked} locked ${result.data.skippedLocked === 1 ? 'URL was' : 'URLs were'} left untouched.`,
-            });
-          }
           router.refresh();
         });
       }}
@@ -419,13 +569,14 @@ export function ReingestSelectedButton() {
       type="button"
       variant="outline"
       loading={isPending}
-      disabled={selectedCount === 0}
       leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {
+        // Left enabled so the reason can be given on press instead of hidden
+        // behind a disabled button (FORM-7, UX-16).
         const urls = selectedReingestUrls();
         if (urls.length === 0) {
           toast.show({
-            kind: 'error',
+            kind: 'info',
             title: 'Nothing selected',
             description: 'Select one or more unlocked tournament URLs first.',
           });
@@ -433,12 +584,16 @@ export function ReingestSelectedButton() {
         }
 
         startTransition(async () => {
-          const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine', { urls });
+          const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine', {
+            urls,
+          });
           if (!result.ok) {
-            toast.show({ kind: 'error', title: 'Re-ingest failed', description: result.error });
+            toast.show(failureToast(result, 'Re-ingest failed'));
             return;
           }
-          for (const input of document.querySelectorAll<HTMLInputElement>('input[data-reingest-url]:checked')) {
+          for (const input of document.querySelectorAll<HTMLInputElement>(
+            'input[data-reingest-url]:checked',
+          )) {
             input.checked = false;
           }
           setSelectedCount(0);
@@ -456,7 +611,15 @@ export function ReingestSelectedButton() {
   );
 }
 
-export function LockUrlButton({ url, locked }: { url: string; locked: boolean }) {
+export function LockUrlButton({
+  url,
+  locked,
+  name,
+}: {
+  url: string;
+  locked: boolean;
+  name?: string;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -467,10 +630,18 @@ export function LockUrlButton({ url, locked }: { url: string; locked: boolean })
       type="button"
       variant="link"
       size="sm"
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `${locked ? 'Unlock' : 'Lock'} ${name}` : undefined}
       loading={isPending}
-      leftIcon={!isPending ? (
-        locked ? <Unlock className="h-3.5 w-3.5" aria-hidden /> : <Lock className="h-3.5 w-3.5" aria-hidden />
-      ) : undefined}
+      leftIcon={
+        !isPending ? (
+          locked ? (
+            <Unlock className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Lock className="h-3.5 w-3.5" aria-hidden />
+          )
+        ) : undefined
+      }
       onClick={() => {
         startTransition(async () => {
           const result = await postJson<{ locked: boolean; updated: number }>('/api/ingest/lock', {
@@ -478,7 +649,7 @@ export function LockUrlButton({ url, locked }: { url: string; locked: boolean })
             locked: nextLocked,
           });
           if (!result.ok) {
-            toast.show({ kind: 'error', title: 'Lock update failed', description: result.error });
+            toast.show(failureToast(result, 'Lock update failed'));
             return;
           }
           toast.show({
@@ -511,10 +682,7 @@ export function ExportErrorsButton() {
         startTransition(async () => {
           try {
             const res = await fetch('/api/ingest/errors-export');
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({ error: 'export_failed' }));
-              throw new Error(body.error ?? `HTTP ${res.status}`);
-            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             // Force download via blob URL — keeps the auth cookie that
             // window.location navigation would also send, but doesn't navigate
             // the user away from the dashboard.
@@ -530,11 +698,7 @@ export function ExportErrorsButton() {
             URL.revokeObjectURL(url);
             toast.show({ kind: 'success', title: 'Errors exported' });
           } catch (e) {
-            toast.show({
-              kind: 'error',
-              title: 'Export failed',
-              description: e instanceof Error ? e.message : 'Unknown error',
-            });
+            toast.show(thrownToast(e, 'Export failed'));
           }
         });
       }}

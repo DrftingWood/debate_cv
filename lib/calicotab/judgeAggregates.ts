@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { getInroundsChairedCount, outroundRankStrict } from './judgeStats';
+import { compareOutroundDepth, getInroundsChairedCount, outroundRankStrict } from './judgeStats';
 
 /**
  * Input shape for the judge aggregate computation. Both Tabbycat data
@@ -42,7 +42,9 @@ export function computeJudgeAggregates(rounds: JudgeRound[]): JudgeAggregates {
   const ranked = outrounds
     .map((r) => ({ r, rank: outroundRankStrict(r.stage) }))
     .filter((x): x is { r: typeof x.r; rank: number } => x.rank != null)
-    .sort((a, b) => b.rank - a.rank);
+    .sort((a, b) =>
+      compareOutroundDepth({ label: b.r.stage, rank: b.rank }, { label: a.r.stage, rank: a.rank }),
+    );
   return {
     chairedPrelims,
     deepestChaired: ranked.find((x) => x.r.role === 'chair')?.r.stage ?? null,

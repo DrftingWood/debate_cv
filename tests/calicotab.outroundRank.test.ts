@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { outroundRank, outroundRankStrict } from '@/lib/calicotab/judgeStats';
+import { outroundRank, outroundRankStrict, tierRank } from '@/lib/calicotab/judgeStats';
 
 /**
  * The single home for outround stage ranking.
@@ -29,7 +29,7 @@ describe('outroundRankStrict', () => {
     // Absolute values, not just ordering: the champion check compares
     // against outroundRank('Final'), so the gap between Final and Semifinal
     // is what makes "reached the GF" distinguishable from "reached semis".
-    expect(outroundRankStrict('Grand Final')).toBe(100);
+    expect(outroundRankStrict('Grand Final')).toBe(95);
     expect(outroundRankStrict('Final')).toBe(95);
     expect(outroundRankStrict('Semifinal')).toBe(90);
     expect(outroundRankStrict('Quarterfinal')).toBe(80);
@@ -48,13 +48,30 @@ describe('outroundRankStrict', () => {
     expect(outroundRankStrict('EFL Final')).toBe(95);
     expect(outroundRankStrict('U16 Final')).toBe(95);
     expect(outroundRankStrict('Open Final')).toBe(95);
-    expect(outroundRankStrict('Open Grand Final')).toBe(100);
+    expect(outroundRankStrict('Open Grand Final')).toBe(95);
     // …and the stage-specific patterns still beat the bare-final
     // fallthrough, which every one of these would otherwise hit on the
     // substring "final".
     expect(outroundRankStrict('Novice Quarterfinals')).toBe(80);
     expect(outroundRankStrict('ESL Semifinals')).toBe(90);
     expect(outroundRankStrict('U16 Octofinals')).toBe(70);
+  });
+
+  test('Final and Grand Final are one round: equal rank (owner, I8/C8)', () => {
+    expect(outroundRankStrict('Final')).toBe(outroundRankStrict('Grand Final'));
+    expect(outroundRankStrict('ESL Grand Final')).toBe(outroundRankStrict('Open Final'));
+  });
+
+  test('a partial quarterfinal / Pre-Semis ranks as a quarterfinal (owner, C11)', () => {
+    expect(outroundRankStrict('Partial Quarterfinals')).toBe(outroundRankStrict('Quarterfinals'));
+    expect(outroundRankStrict('Pre-Semifinals')).toBe(outroundRankStrict('Quarterfinals'));
+  });
+
+  test('tierRank orders Gold > Silver > Bronze > anything else', () => {
+    expect(tierRank('Gold Final')).toBeGreaterThan(tierRank('Silver Final'));
+    expect(tierRank('Silver Final')).toBeGreaterThan(tierRank('Bronze Final'));
+    expect(tierRank('Bronze Final')).toBeGreaterThan(tierRank('ESL Final'));
+    expect(tierRank(null)).toBe(0);
   });
 
   test('plural and abbreviated forms resolve to the same stage', () => {

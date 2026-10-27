@@ -1,5 +1,8 @@
-import { outroundRankStrict } from '@/lib/calicotab/judgeStats';
+import { outroundRankStrict, tierRank } from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
+import { bracketOf } from '@/lib/cv/outroundFunnel';
+import { titleCategory } from '@/lib/cv/formatStage';
+import { rankLabel } from '@/lib/cv/rankDisplay';
 import type { CvHighlights, CvSpeakerRow } from '@/lib/cv/buildCvData';
 
 /**
@@ -61,18 +64,15 @@ export function teamTabPlacement(
 }
 
 /**
- * True when the team finished inside the top `share` of the team tab
- * (0.1 = top 10%). Uses ceil so a 15-team tab still has a top-10% place
- * (rank 1 or 2) rather than none.
+ * The "Top 10 speaker" bar: an ABSOLUTE speaker-tab rank, not a percentile.
+ * Owner decision (assumptions C3, Q5) — the earlier "top 10% of the team
+ * tab" rule, with its ceil rounding, is gone. Rank 10 qualifies at any field
+ * size; rank 11 never does.
  */
-export function inTopShareOfTeamTab(
-  teamRank: number | null | undefined,
-  totalTeams: number | null | undefined,
-  share = 0.1,
-): boolean {
-  const p = teamTabPlacement(teamRank, totalTeams);
-  if (!p) return false;
-  return p.rank <= Math.ceil(p.of * share);
+export const TOP_SPEAKER_RANK = 10;
+
+export function isTopSpeaker(rank: number | null | undefined): boolean {
+  return rank != null && Number.isInteger(rank) && rank >= 1 && rank <= TOP_SPEAKER_RANK;
 }
 
 export type BreakDepth = {
@@ -80,13 +80,15 @@ export type BreakDepth = {
   stage: string;
   /**
    * Position on the canonical outround scale (lib/calicotab/judgeStats.ts,
-   * JUDGE_STATS_RANK: grand final 100 … partial triple octos 45). 0 when the
+   * JUDGE_STATS_RANK: final / grand final 95 … partial triple octos 45). 0 when the
    * label is an outround the classifier doesn't recognise — still a break,
    * just not one that can be placed on the ladder.
    */
   rank: number;
   /** True when the stage belongs to a category bracket (ESL, Novice, …). */
   category: boolean;
+  /** Gold 3 / Silver 2 / Bronze 1 / other 0 — orders tiered finals at equal depth. */
+  tier: number;
 };
 
 /**
@@ -107,9 +109,16 @@ export function breakDepth(
   for (const { stage, category } of labels) {
     const rank = outroundRankStrict(stage) ?? 0;
     const isCategory = !!category && category !== 'Open';
-    // Deeper wins; at equal depth the Open bracket outranks a category one.
-    if (!best || rank > best.rank || (rank === best.rank && best.category && !isCategory)) {
-      best = { stage, rank, category: isCategory };
+    const tier = tierRank(stage);
+    // Deeper wins; at equal depth the Open bracket outranks a category one,
+    // and among tiered finals Gold > Silver > Bronze.
+    if (
+      !best ||
+      rank > best.rank ||
+      (rank === best.rank && best.category && !isCategory) ||
+      (rank === best.rank && best.category === isCategory && tier > best.tier)
+    ) {
+      best = { stage, rank, category: isCategory, tier };
     }
   }
   return best;
@@ -159,6 +168,7 @@ export function compareBreakStrength(a: StrengthRow, b: StrengthRow): number {
   if (da && db) {
     if (da.rank !== db.rank) return db.rank - da.rank;
     if (da.category !== db.category) return da.category ? 1 : -1;
+    if (da.tier !== db.tier) return db.tier - da.tier;
   }
   const wa = a.wonTournament === true ? 1 : 0;
   const wb = b.wonTournament === true ? 1 : 0;
@@ -179,7 +189,7 @@ export function compareBreakStrength(a: StrengthRow, b: StrengthRow): number {
  */
 export function placementHighlights(
   rows: CvSpeakerRow[],
-): Pick<CvHighlights, 'deepestBreaks' | 'topTeamFinishes' | 'bestTeamFinish'> {
+): Pick<CvHighlights, 'deepestBreaks' | 'topSpeakerFinishes' | 'bestTeamFinish'> {
   const deepestBreaks = rows
     .filter((r) => r.broke)
     .sort(compareBreakStrength)
@@ -199,10 +209,18 @@ export function placementHighlights(
     // the harder finish.
     .sort((a, b) => a.p.topPercent - b.p.topPercent || b.p.of - a.p.of);
 
-  const topTeamFinishes = placed
-    .filter(({ p }) => inTopShareOfTeamTab(p.rank, p.of, 0.1))
+  // Best (lowest) speaker rank first; Array.sort is stable, so equal ranks keep
+  // row order.
+  const topSpeakerFinishes = rows
+    .filter((r) => isTopSpeaker(r.speakerRankOpen))
+    .sort((a, b) => (a.speakerRankOpen as number) - (b.speakerRankOpen as number))
     .slice(0, 5)
-    .map(({ r, p }) => ({ tournamentName: r.tournamentName, year: r.year, rank: p.rank, totalTeams: p.of }));
+    .map((r) => ({
+      tournamentName: r.tournamentName,
+      year: r.year,
+      rank: r.speakerRankOpen as number,
+      totalTeams: r.totalTeams ?? null,
+    }));
 
   const best = placed[0];
   const bestTeamFinish = best
@@ -215,16 +233,32 @@ export function placementHighlights(
       }
     : null;
 
-  return { deepestBreaks, topTeamFinishes, bestTeamFinish };
+  return { deepestBreaks, topSpeakerFinishes, bestTeamFinish };
 }
 
 /** "3 of 40 teams · top 8%" — the one wording every surface uses. */
-export function formatTeamTabPlacement(p: TeamTabPlacement): string {
-  return `${p.rank} of ${p.of} teams · top ${formatTopPercent(p.topPercent)}`;
+export function formatTeamTabPlacement(p: TeamTabPlacement, tied = false): string {
+  return `${rankLabel(p.rank, tied)} of ${p.of} teams · top ${formatTopPercent(p.topPercent)}`;
 }
 
 /** Whole percent, except under 1% where "top 0%" would be false. */
 export function formatTopPercent(topPercent: number): string {
   if (topPercent < 1) return '<1%';
   return `${Math.round(topPercent)}%`;
+}
+
+/**
+ * Titles for the highlights tile. A Plate or Consolation win is a real result
+ * but not a championship (milestones already exclude it), so it is left out.
+ */
+export function championshipHighlights(
+  rows: Array<Pick<CvSpeakerRow, 'wonTournament' | 'eliminationReached' | 'tournamentName' | 'year'>>,
+): CvHighlights['championships'] {
+  return rows
+    .filter((r) => r.wonTournament === true && bracketOf(r.eliminationReached) !== 'consolation')
+    .map((r) => {
+      const category = titleCategory(r.eliminationReached);
+      return { tournamentName: r.tournamentName, year: r.year, ...(category ? { category } : {}) };
+    })
+    .slice(0, 5);
 }

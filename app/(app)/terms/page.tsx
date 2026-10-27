@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { LEGAL_PROSE } from '../privacy/legalProse';
+import { LEGAL_LAST_UPDATED } from '@/lib/utils/date';
 
 export const metadata: Metadata = {
   title: 'Terms',
@@ -16,9 +18,9 @@ export default function Terms() {
         <hr className="hairline" />
       </header>
 
-      <article className="prose prose-stone max-w-none font-display">
+      <article className={LEGAL_PROSE}>
       <p className="lead">
-        debate cv is provided as-is for personal use. Last updated: 2026.
+        debate cv is provided as-is for personal use. Last updated: {LEGAL_LAST_UPDATED}.
       </p>
 
       <p>
@@ -37,7 +39,7 @@ export default function Terms() {
 
       <p>
         For questions, deletion requests, or reports, open an issue on{' '}
-        <a href="https://github.com/DrftingWood/debate_cv" target="_blank" rel="noopener noreferrer">
+        <a href="https://github.com/DrftingWood/debate_cv">
           GitHub
         </a>
         .

@@ -43,19 +43,18 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   if (!cell)
     return (
-      <span className="text-ink-soft/50">
+      <span className="text-ink-soft">
         <span aria-hidden>–</span>
         <span className="sr-only">No rounds</span>
       </span>
     );
   if (!cell.enough) {
     return (
-      <span
-        className="text-ink-soft/60"
-        title={`${cell.rounds} round${cell.rounds === 1 ? '' : 's'} — too few to show`}
-      >
-        <span aria-hidden>·</span>
-        <span className="sr-only">{cell.rounds} rounds, too few to show</span>
+      <span className="num whitespace-nowrap text-caption text-ink-soft">
+        <span aria-hidden>· {cell.rounds} rds</span>
+        <span className="sr-only">
+          {cell.rounds} round{cell.rounds === 1 ? '' : 's'}, too few to show
+        </span>
       </span>
     );
   }
@@ -72,7 +71,7 @@ function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
       </span>
       <span className="num text-caption text-ink-soft">
         {cell.rounds}
-        <span aria-hidden>r</span>
+        <span aria-hidden> rds</span>
         <span className="sr-only"> rounds</span>
       </span>
     </span>
@@ -197,7 +196,7 @@ function ScoreGrid({ grid }: { grid: TopicTypeHeatmap }) {
           <tbody>
             {grid.topics.map((topic, row) => (
               <Tr key={topic}>
-                <Td className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
+                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
                 {grid.types.map((type) => (
                   <Td key={type} numeric>
                     <CellValue cell={cellAt.get(`${topic}\u0000${type}`)} />

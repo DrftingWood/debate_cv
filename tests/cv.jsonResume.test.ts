@@ -34,6 +34,19 @@ describe('buildJsonResume', () => {
     expect('canonical' in doc.meta).toBe(false);
   });
 
+  it('labels an ESL / Novice / Silver final win by its category, never as the plain Champion title (C10)', () => {
+    const doc = buildJsonResume(
+      makeCvData({
+        speakerRows: [
+          makeSpeakerRow({ tournamentName: 'ESL Cup', year: 2024, wonTournament: true, broke: true, eliminationReached: 'ESL Grand Final', speakerRankOpen: 40 }),
+        ],
+        judgeRows: [],
+      }),
+      { now: NOW },
+    );
+    expect(doc.awards?.[0]).toMatchObject({ title: 'ESL Champion', awarder: 'ESL Cup' });
+  });
+
   it('turns champion, break and top-ten speaker results into awards, and nothing else', () => {
     const doc = buildJsonResume(
       makeCvData({

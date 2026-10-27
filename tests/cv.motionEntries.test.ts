@@ -16,6 +16,22 @@ const teamRounds = (rows: [number, string | null, boolean | null, number | null]
   rows.map(([roundNumber, position, won, points]) => ({ roundNumber, position, won, points }));
 
 describe('buildMotionEntries', () => {
+  test('a BP outround that advanced is not a 2nd-or-better room', () => {
+    const entries = buildMotionEntries(
+      [
+        makeSpeakerRow({
+          tournamentId: 1n,
+          prelimRoundCount: 5,
+          roundScores: scores([[6, 75]]),
+          teamRoundResults: teamRounds([[6, 'OG', true, null]]),
+        }),
+      ],
+      [],
+      [makeMotion({ tournamentId: 1n, roundNumber: 6, text: 'THW X' })],
+    );
+    expect(entries[0].won).toBeNull();
+  });
+
   test('joins a motion to the round the user debated it in', () => {
     const entries = buildMotionEntries(
       [

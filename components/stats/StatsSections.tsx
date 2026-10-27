@@ -15,6 +15,8 @@ import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
+import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
+import { deltaTone, signed, signedOrNull } from '@/components/stats/format';
 
 // ── Headline ──────────────────────────────────────────────────────────────
 
@@ -73,9 +75,21 @@ export function HeadlineStats({
     tiles.push(
       <StatTile
         key="win"
-        label="Round win rate"
+        label={`Round ${OUTCOME_COPY[results.outcome].rate.toLowerCase()}`}
         value={`${Math.round(results.winRate * 100)}%`}
         hint={`${results.wins} of ${results.decidedRounds} decided prelim rounds`}
+      />,
+    );
+  }
+  // BP headline: straights — a points total of at least 2 x rounds. Firsts are
+  // shown beside it as the separate break indicator; neither is a "win".
+  if (!perRoundOnly && results.bp && results.bp.straightsRate != null) {
+    tiles.push(
+      <StatTile
+        key="straights"
+        label="BP straights"
+        value={`${Math.round(results.bp.straightsRate * 100)}%`}
+        hint={`${results.bp.straights} of ${results.bp.tournaments} BP tournaments averaging 2nd or better · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
       />,
     );
   }
@@ -174,10 +188,13 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
           <Histogram
             bins={p.bins}
             highlightIndex={p.meanBinIndex}
-            formatBin={(from, to) => (to - from > 1 ? `${from}` : `${from}`)}
+            formatBin={(from) => `${from}`}
+            title="Your speaker scores by band"
+            unit="scored speeches"
           />
           <p className="mt-3 text-caption text-ink-soft">
-            Each column is a score band; the highlighted one contains your average.
+            Each column is a one-band slice of your scores, labelled by where the band starts; the
+            figure above a column is how many speeches fell in it.
           </p>
         </div>
 
@@ -238,7 +255,7 @@ export function StatLine({
       </div>
       {hint ? <div className="mt-0.5 text-caption text-ink-soft">{hint}</div> : null}
       {note ? (
-        <div className="mt-1 line-clamp-2 text-caption italic text-ink-soft" title={note}>
+        <div className="mt-1 break-words text-caption italic text-ink-soft">
           “{note}”
         </div>
       ) : null}
@@ -316,8 +333,8 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
               <tbody>
                 {t.placements.map((p) => (
                   <Tr key={p.tournamentId}>
-                    <Td className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block truncate" title={p.tournamentName}>
+                    <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block break-words">
                         {p.tournamentName}
                       </span>
                     </Td>
@@ -363,6 +380,8 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
             domain={[0, 100]}
             baseline={50}
             baselineLabel="median team"
+            title="Team-tab percentile by year"
+            valueLabel="Percentile"
           />
         </div>
       ) : null}
@@ -371,6 +390,9 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
 }
 
 // ── Field standing ────────────────────────────────────────────────────────
+
+/** A delta's tone as a StatTile accent; a figure that rounds to 0 stays ink. */
+const TILE_ACCENT = { 'val-pos': 'pos', 'val-neg': 'neg', 'val-flat': undefined } as const;
 
 export function FieldStanding({ stats }: { stats: SpeakerStats }) {
   const f = stats.fieldContext;
@@ -416,19 +438,15 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
               <StatTile
                 label="Avg vs field"
                 size="sm"
-                value={
-                  f.meanDelta == null
-                    ? '—'
-                    : `${f.meanDelta > 0 ? '+' : '−'}${Math.abs(f.meanDelta).toFixed(1)}`
-                }
-                accent={f.meanDelta == null ? undefined : f.meanDelta > 0 ? 'pos' : 'neg'}
-                hint="Points above the field mean"
+                value={signedOrNull(f.meanDelta) ?? '—'}
+                accent={f.meanDelta == null ? undefined : TILE_ACCENT[deltaTone(f.meanDelta)]}
+                hint="Speaker points against the field mean"
               />
               <StatTile
                 label="Standard deviations"
                 size="sm"
-                value={f.meanZ == null ? '—' : `${f.meanZ > 0 ? '+' : '−'}${Math.abs(f.meanZ).toFixed(2)}σ`}
-                hint="Above the field mean"
+                value={f.meanZ == null ? '—' : `${signed(f.meanZ, 2)}σ`}
+                hint="Against the field mean, in standard deviations"
               />
             </div>
           </div>
@@ -443,8 +461,12 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                   <Th numeric>Year</Th>
                   <Th numeric>Your avg</Th>
                   <Th numeric>Field avg</Th>
-                  <Th numeric>Δ</Th>
-                  <Th numeric>z</Th>
+                  <Th numeric title="Your average minus the field average, in speaker points">
+                    vs field (pts)
+                  </Th>
+                  <Th numeric title="The same gap in standard deviations of the field">
+                    z-score
+                  </Th>
                   <Th numeric className="pr-4" title="Your place among every speaker on the speaker tab">
                     Spk tab
                   </Th>
@@ -453,8 +475,8 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
               <tbody>
                 {rows.map((p) => (
                   <Tr key={p.tournamentId} className={p.incompleteDraw ? 'text-ink-soft' : undefined}>
-                    <Td className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block truncate" title={p.tournamentName}>
+                    <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
+                      <span className="block break-words">
                         {p.tournamentName}
                       </span>
                       {p.incompleteDraw ? (
@@ -475,14 +497,11 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                       {p.delta == null ? (
                         <Nil />
                       ) : (
-                        <span className={p.delta >= 0 ? 'val-pos' : 'val-neg'}>
-                          {p.delta > 0 ? '+' : '−'}
-                          {Math.abs(p.delta).toFixed(1)}
-                        </span>
+                        <span className={deltaTone(p.delta)}>{signed(p.delta)}</span>
                       )}
                     </Td>
                     <Td numeric className="text-ink-soft">
-                      {p.z == null ? <Nil /> : `${p.z > 0 ? '+' : '−'}${Math.abs(p.z).toFixed(2)}`}
+                      {p.z == null ? <Nil /> : signed(p.z, 2)}
                     </Td>
                     <Td numeric className="pr-4">
                       {p.placement != null ? (
@@ -513,6 +532,8 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
             domain={[0, 100]}
             baseline={50}
             baselineLabel="median speaker"
+            title="Speaker-tab percentile by year"
+            valueLabel="Percentile"
           />
         </div>
       ) : null}
@@ -560,6 +581,8 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
             points={points}
             baseline={stats.scoreProfile.mean}
             baselineLabel="your average"
+            title="Speaker average by round number, with the number of speeches behind each"
+            valueLabel="Speaker avg"
           />
         </div>
         <div className="panel divide-y divide-border">
@@ -571,26 +594,20 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
           <StatLine label="Last three rounds" value={d.closingAvg?.toFixed(1)} />
           <StatLine
             label="Momentum"
-            value={
-              d.momentum == null
-                ? null
-                : `${d.momentum > 0 ? '+' : '−'}${Math.abs(d.momentum).toFixed(2)}`
-            }
+            value={signedOrNull(d.momentum, 2)}
             hint={
               d.momentum == null
                 ? undefined
-                : d.momentum > 0
+                : signed(d.momentum, 2).startsWith('+')
                   ? 'You finish above where you start'
-                  : 'You start above where you finish'
+                  : signed(d.momentum, 2).startsWith('−')
+                    ? 'You start above where you finish'
+                    : 'You finish level with where you start'
             }
           />
           <StatLine
             label="Trend per round"
-            value={
-              d.slopePerRound == null
-                ? null
-                : `${d.slopePerRound > 0 ? '+' : '−'}${Math.abs(d.slopePerRound).toFixed(2)}`
-            }
+            value={signedOrNull(d.slopePerRound, 2)}
             hint="Mean least-squares slope of score against round number"
           />
           <StatLine
@@ -669,14 +686,28 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
         ) : (
         <div className="panel divide-y divide-border">
           <StatLine
-            label="Longest winning run"
+            label={OUTCOME_COPY[r.outcome].run}
             value={r.longestWinStreak > 0 ? `${r.longestWinStreak} rounds` : null}
             hint="Consecutive decided prelim rounds, oldest tournament first"
           />
           <StatLine
-            label="Longest losing run"
+            label={r.outcome === 'win' ? 'Longest losing run' : 'Longest run of 3rd or 4th (or a loss)'}
             value={r.longestLossStreak > 0 ? `${r.longestLossStreak} rounds` : null}
           />
+          {r.bp ? (
+            <>
+              <StatLine
+                label="BP straights"
+                value={r.bp.tournaments > 0 ? `${r.bp.straights} of ${r.bp.tournaments}` : null}
+                hint="Tournaments with a points total of at least 2 × rounds, i.e. averaging 2nd or better"
+              />
+              <StatLine
+                label="BP firsts"
+                value={r.bp.rounds > 0 ? `${r.bp.firsts} of ${r.bp.rounds} rounds` : null}
+                hint="Rounds placed 1st — tracked apart from straights as a strong sign of breaking"
+              />
+            </>
+          ) : null}
           <StatLine
             label="Breaks"
             value={`${r.breaks} of ${r.tournamentsSpoken}`}
@@ -685,7 +716,7 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
           <StatLine
             label="Deepest outround"
             value={r.deepestOutround}
-            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, any bracket` : undefined}
+            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, including ESL / EFL / Novice finals` : undefined}
           />
           <StatLine
             label="Finals reached"
@@ -782,7 +813,7 @@ export function Splits({
     <section id="splits" aria-label="Splits" className="scroll-mt-24 space-y-6">
       <SectionHeader
         label="Splits"
-        title="Where the wins and losses concentrate"
+        title={stats.results.outcome === 'win' ? 'Where the wins and losses concentrate' : 'Where good rounds and bad ones concentrate'}
         meta={
           filtered
             ? 'Deltas compare each row with your baseline in the filtered rounds'
@@ -795,6 +826,7 @@ export function Splits({
             <h3 className="text-h4 font-display font-medium text-ink">{b.title}</h3>
           </div>
           <StatsSplitTable
+            outcome={stats.results.outcome}
             splits={b.splits}
             dimensionLabel={b.dimension}
             showPoints={b.points}
@@ -838,7 +870,11 @@ export function SeasonTrends({
         {avgTrend.length > 0 ? (
           <div className="panel p-4">
             <div className="data-label mb-2">Speaker average by season</div>
-            <TrendChart points={avgTrend} />
+            <TrendChart
+              points={avgTrend}
+              title="Speaker average by season, with the number of tournaments behind each"
+              valueLabel="Speaker avg"
+            />
           </div>
         ) : null}
         {breakBars.length > 0 ? (

@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { Nil, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { useToast } from '@/components/ui/Toast';
-import { postJson } from '@/lib/utils/api';
+import { postJson, type ApiResult } from '@/lib/utils/api';
 
 type ProposalRow = {
   id: string;
@@ -31,6 +33,39 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   rejected: 'Rejected',
 };
 
+const MAX_APPROVE_ALL_PASSES = 40;
+
+export type ApproveAllOutcome = {
+  approved: number;
+  /** True only when the endpoint reported an empty queue. */
+  complete: boolean;
+  error: string | null;
+};
+
+/**
+ * Drives the bounded approve-all endpoint until it reports nothing left.
+ *
+ * `complete` is the point of this helper. The list used to be cleared after
+ * the loop whatever happened, so a pass that failed half-way (or a queue
+ * still non-empty after the pass cap) left the page saying "No pending
+ * proposals" while some were still pending: a false status on the one
+ * screen whose job is to show what is left. The caller now clears the list
+ * only on `complete` and refetches otherwise.
+ */
+export async function approveAllInPasses(
+  post: () => Promise<ApiResult<{ approved: number }>>,
+  maxPasses = MAX_APPROVE_ALL_PASSES,
+): Promise<ApproveAllOutcome> {
+  let approved = 0;
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const res = await post();
+    if (!res.ok) return { approved, complete: false, error: res.error };
+    approved += res.data.approved;
+    if (res.data.approved === 0) return { approved, complete: true, error: null };
+  }
+  return { approved, complete: false, error: null };
+}
+
 /**
  * Client component that loads and manages the admin tag-proposal queue.
  * Fetches from GET /api/admin/tag-proposals?status=<filter> on mount and
@@ -42,7 +77,19 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
 export function AdminTagProposals() {
   const toast = useToast();
 
-  const [filter, setFilter] = useState<StatusFilter>('pending');
+  // The status view lives in ?status= so reload and Back keep it (NV-22).
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get('status');
+  const [filter, setFilterState] = useState<StatusFilter>(
+    initialStatus && initialStatus in STATUS_LABELS ? (initialStatus as StatusFilter) : 'pending',
+  );
+  const setFilter = (next: StatusFilter) => {
+    setFilterState(next);
+    const url = new URL(window.location.href);
+    if (next === 'pending') url.searchParams.delete('status');
+    else url.searchParams.set('status', next);
+    window.history.replaceState(null, '', url);
+  };
   const [proposals, setProposals] = useState<ProposalRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +97,10 @@ export function AdminTagProposals() {
   // Inline reject-note state: keyed by proposal id so multiple rows can
   // each have their own note field open at once.
   const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
+
+  // Bumped to refetch the current filter without changing it (after an
+  // approve-all that did not finish).
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -68,7 +119,7 @@ export function AdminTagProposals() {
         setLoading(false);
       }
     })();
-  }, [filter]);
+  }, [filter, reloadKey]);
 
   const [, startTransition] = useTransition();
 
@@ -81,27 +132,30 @@ export function AdminTagProposals() {
   const approveAll = async () => {
     setApprovingAll(true);
     try {
-      let total = 0;
       // The endpoint approves a bounded chunk per call; keep asking until it
       // reports nothing left (bounded, so a stuck queue cannot loop forever).
-      for (let pass = 0; pass < 40; pass += 1) {
-        const res = await postJson<{ approved: number }>('/api/admin/tag-proposals/approve-all', {});
-        if (!res.ok) {
-          toast.show({ kind: 'error', title: 'Approve all failed', description: res.error });
-          break;
-        }
-        total += res.data.approved;
-        if (res.data.approved === 0) break;
+      const outcome = await approveAllInPasses(() =>
+        postJson<{ approved: number }>('/api/admin/tag-proposals/approve-all', {}),
+      );
+      const n = outcome.approved;
+      if (n > 0) toast.show({ kind: 'success', title: `Approved ${n} tag${n === 1 ? '' : 's'}` });
+      if (outcome.error) {
+        toast.show({ kind: 'error', title: 'Approve all stopped', description: outcome.error });
       }
-      if (total > 0) toast.show({ kind: 'success', title: `Approved ${total} tag${total === 1 ? '' : 's'}` });
-      setProposals([]);
+      if (outcome.complete) setProposals([]);
+      else setReloadKey((k) => k + 1);
     } finally {
       setApprovingAll(false);
       setConfirmingAll(false);
     }
   };
 
+  // Rows with a request in flight: stops a double click posting twice.
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
   const handleAction = (id: string, action: 'approve' | 'reject') => {
+    if (busyIds.has(id)) return;
+    setBusyIds((prev) => new Set(prev).add(id));
     const adminNote = action === 'reject' ? (rejectNotes[id] ?? '') : undefined;
 
     startTransition(async () => {
@@ -109,6 +163,11 @@ export function AdminTagProposals() {
         `/api/admin/tag-proposals/${id}`,
         { action, adminNote: adminNote || undefined },
       );
+      setBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       if (!result.ok) {
         toast.show({ kind: 'error', title: `${action === 'approve' ? 'Approve' : 'Reject'} failed`, description: result.error });
         return;
@@ -154,11 +213,12 @@ export function AdminTagProposals() {
             key={s}
             type="button"
             onClick={() => setFilter(s)}
+            aria-pressed={filter === s}
             className={
               'h-8 rounded-md border px-3 text-ui font-medium transition-colors ' +
               (filter === s
                 ? 'border-ink/30 bg-ink text-paper'
-                : 'border-border bg-paper text-ink hover:bg-surface-2')
+                : 'border-input bg-paper text-ink hover:bg-surface-2')
             }
           >
             {STATUS_LABELS[s]}
@@ -196,69 +256,57 @@ export function AdminTagProposals() {
       ) : null}
 
       {loading ? (
-        <p className="text-body text-ink-soft italic">Loading…</p>
+        <p role="status" className="text-body text-ink-soft">Loading…</p>
       ) : error ? (
         <p className="text-body text-destructive">{error}</p>
       ) : !proposals || proposals.length === 0 ? (
-        <p className="text-body text-ink-soft italic">
-          No {filter} proposals.
-        </p>
+        <p className="text-body text-ink-soft">No {filter} proposals.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-max text-table">
-            <thead>
-              <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                <th className="whitespace-nowrap px-4 py-2.5 font-medium">Kind</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposed value</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Current value</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Tournament</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Motion</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Proposer</th>
-                <th className="whitespace-nowrap px-3 py-2.5 font-medium">Date</th>
-                {filter === 'pending' ? (
-                  <th className="whitespace-nowrap px-3 py-2.5 font-medium">Actions</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {proposals.map((p) => (
-                <tr key={p.id} className="align-top border-b border-border hover:bg-surface-2">
-                  <td className="whitespace-nowrap px-4 py-2.5">{kindLabel(p.kind)}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-ink">{p.value}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {p.currentValue ?? <span className="italic">none</span>}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className="block max-w-[14rem] truncate" title={p.tournamentName}>
-                      {p.tournamentName}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {p.motionText ? (
-                      <span
-                        className="block max-w-[18rem] truncate text-ink-soft"
-                        title={p.motionText}
-                      >
-                        {p.motionText}
-                      </span>
-                    ) : (
-                      <span className="text-ink-soft italic">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {p.userEmail ?? '—'}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">
-                    {formatDate(p.createdAt)}
-                  </td>
-                  {filter === 'pending' ? (
-                    <td className="px-3 py-2.5">
+        <div className="panel overflow-hidden">
+          <TableScroll>
+            <Table className="min-w-max" label={`${STATUS_LABELS[filter]} tag proposals`}>
+              <thead>
+                <tr>
+                  <Th className="pl-4">Kind</Th>
+                  <Th>Proposed value</Th>
+                  <Th>Current value</Th>
+                  <Th>Tournament</Th>
+                  <Th>Motion</Th>
+                  <Th>Proposer</Th>
+                  <Th>Date</Th>
+                  {filter === 'pending' ? <Th className="pr-4">Actions</Th> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {proposals.map((p) => (
+                  <Tr key={p.id} className="align-top">
+                    <Td rowHeader className="whitespace-nowrap pl-4 font-normal">{kindLabel(p.kind)}</Td>
+                    <Td className="whitespace-nowrap font-medium text-ink">{p.value}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft">
+                      {p.currentValue ?? <span className="text-ink-soft">none</span>}
+                    </Td>
+                    <Td>
+                      <span className="block max-w-[14rem] break-words">{p.tournamentName}</span>
+                    </Td>
+                    <Td>
+                      {p.motionText ? (
+                        <span className="block max-w-[18rem] break-words text-ink-soft">{p.motionText}</span>
+                      ) : (
+                        <Nil title="No motion attached" />
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap text-ink-soft">{p.userEmail ?? <Nil />}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft">{formatDate(p.createdAt)}</Td>
+                    {filter === 'pending' ? (
+                      <Td className="pr-4">
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2">
                           <Button
                             type="button"
                             size="sm"
-                            variant="primary"
+                            variant="secondary"
+                            aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                            disabled={busyIds.has(p.id)}
                             onClick={() => handleAction(p.id, 'approve')}
                           >
                             Approve
@@ -267,6 +315,8 @@ export function AdminTagProposals() {
                             type="button"
                             size="sm"
                             variant="outline"
+                            aria-label={`Reject ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                            disabled={busyIds.has(p.id)}
                             onClick={() => handleAction(p.id, 'reject')}
                           >
                             Reject
@@ -278,23 +328,25 @@ export function AdminTagProposals() {
                         <input
                           type="text"
                           placeholder="Rejection note (optional)"
+                          aria-label={`Rejection note for ${p.value}, ${p.tournamentName} (optional)`}
                           value={rejectNotes[p.id] ?? ''}
                           onChange={(e) =>
                             setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           className={
-                            'h-7 w-48 rounded border border-border bg-paper px-2 text-caption ' +
+                            'h-7 w-48 rounded border border-input bg-paper px-2 text-caption ' +
                             'text-ink placeholder:text-ink-soft focus:outline-none ' +
                             'focus:ring-1 focus:ring-ring'
                           }
                         />
                       </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </Td>
+                    ) : null}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableScroll>
         </div>
       )}
     </div>

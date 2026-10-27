@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import { messageFromThrown, userMessage } from '@/lib/ingest/userMessage';
 
 const MIN_QUERY_LENGTH = 3;
 const DEBOUNCE_MS = 200;
@@ -25,9 +26,12 @@ type SearchResponse = { results: SearchHit[]; reason?: string };
 export function ParticipantSearch({
   tournamentId,
   tournamentName,
+  autoFocus = false,
 }: {
   tournamentId: string;
   tournamentName: string;
+  /** Set when the search opens on demand (the dashboard's "Find me"). */
+  autoFocus?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchHit[]>([]);
@@ -35,9 +39,13 @@ export function ParticipantSearch({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
   const router = useRouter();
   const toast = useToast();
   const [isClaiming, startClaim] = useTransition();
+  // Which hit is in flight, so only that row shows the pending state (NV-16).
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   // Debounced fetch — only triggers when the query has at least
   // MIN_QUERY_LENGTH characters. Older requests are ignored via `seq` so a
@@ -59,7 +67,9 @@ export function ParticipantSearch({
         );
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `HTTP ${res.status}`);
+          throw new Error(
+            typeof body.error === 'string' && body.error ? body.error : `HTTP ${res.status}`,
+          );
         }
         const data: SearchResponse = await res.json();
         if (my !== seq.current) return; // stale
@@ -68,7 +78,7 @@ export function ParticipantSearch({
         setError(null);
       } catch (e) {
         if (my !== seq.current) return;
-        setError(e instanceof Error ? e.message : 'Search failed');
+        setError(`Search did not work. ${messageFromThrown(e).description}`);
         setHasSearched(true);
       } finally {
         if (my === seq.current) setIsLoading(false);
@@ -78,6 +88,7 @@ export function ParticipantSearch({
   }, [query, tournamentId]);
 
   const claim = (hit: SearchHit) => {
+    setClaimingId(String(hit.personId));
     startClaim(async () => {
       const result = await postJson(`/api/persons/${hit.personId}/claim`);
       if (!result.ok) {
@@ -91,10 +102,8 @@ export function ParticipantSearch({
               return `${hit.displayName} was just claimed by another user. Search again to see updated results.`;
             case 'forbidden':
               return `You can only claim a person on a tournament you've ingested.`;
-            case 'unauthorized':
-              return `Your session expired. Sign in and try again.`;
             default:
-              return result.error;
+              return userMessage(result).description;
           }
         })();
         toast.show({ kind: 'error', title: 'Claim failed', description });
@@ -113,51 +122,66 @@ export function ParticipantSearch({
     });
   };
 
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
   const tooShort = query.trim().length > 0 && query.trim().length < MIN_QUERY_LENGTH;
 
   return (
     <div className="space-y-2.5">
-      <label className="block">
-        <span className="sr-only">Search participants</span>
-        <span className="relative block">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
-            aria-hidden
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type your name to find yourself in this tournament…"
-            className="w-full rounded-md border border-border bg-paper py-2 pl-9 pr-3 text-base text-ink md:text-ui placeholder:text-ink-soft focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </span>
+      {/*
+        A visible label, not a placeholder: the placeholder vanished on the
+        first keystroke and took the instruction with it. `border-input`
+        rather than the hairline `border-border` (a field edge must reach 3:1,
+        SC 1.4.11), and no `outline-none`: the global :focus-visible outline
+        is the visible focus, where the old 30% ring was close to invisible.
+      */}
+      <label htmlFor={inputId} className="block text-caption font-medium text-ink">
+        Search the participant list for {tournamentName}
       </label>
+      <span className="relative block">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
+          aria-hidden
+        />
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="search"
+          autoComplete="off"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Your name as it appears on the tab"
+          className="w-full rounded-md border border-input bg-paper py-2 pl-9 pr-3 text-base text-ink md:text-ui placeholder:text-ink-soft focus:border-primary"
+        />
+      </span>
 
       {/*
         The status line is a live region. Results, "Searching…", the empty
         result and the error all arrived silently before — and this is the
         identity-claim flow, where picking the wrong row takes a record that
         is not yours. `role="alert"` for the error so a failure interrupts;
-        polite for everything else so typing is not narrated over.
+        polite for everything else so typing is not narrated over. The
+        two regions are siblings (nested live regions double-announce).
       */}
-      <div aria-live="polite" aria-atomic="true">
+      <div role="status">
         {tooShort ? (
-          <p className="text-caption text-ink-soft">
-            Type at least {MIN_QUERY_LENGTH} characters.
-          </p>
+          <p className="text-caption text-ink-soft">Type at least {MIN_QUERY_LENGTH} characters.</p>
         ) : isLoading ? (
           <p className="text-caption text-ink-soft">Searching…</p>
-        ) : error ? (
-          <p role="alert" className="text-caption text-destructive">
-            {error}
-          </p>
-        ) : hasSearched && results.length === 0 ? (
+        ) : error ? null : hasSearched && results.length === 0 ? (
           <p className="text-caption text-ink-soft">No participants found with that name.</p>
         ) : results.length > 0 ? (
           <p className="sr-only">
             {results.length} participant{results.length === 1 ? '' : 's'} found.
           </p>
+        ) : null}
+      </div>
+      {/* A sibling, never inside the polite region: nested live regions are read twice or not at all. */}
+      <div role="alert">
+        {error && !tooShort && !isLoading ? (
+          <p className="text-caption text-destructive">{error}</p>
         ) : null}
       </div>
 
@@ -183,13 +207,20 @@ export function ParticipantSearch({
               <Button
                 type="button"
                 size="sm"
-                variant={hit.isMine ? 'outline' : 'primary'}
+                variant="outline"
                 disabled={hit.isMine || isClaiming}
-                loading={isClaiming}
-                leftIcon={!isClaiming ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : undefined}
+                loading={isClaiming && claimingId === String(hit.personId)}
+                aria-label={
+                  hit.isMine ? `Already mine: ${hit.displayName}` : `This is me: ${hit.displayName}`
+                }
+                leftIcon={
+                  !(isClaiming && claimingId === String(hit.personId)) ? (
+                    <UserCheck className="h-3.5 w-3.5" aria-hidden />
+                  ) : undefined
+                }
                 onClick={() => claim(hit)}
               >
-                {hit.isMine ? 'Already mine' : isClaiming ? 'Claiming…' : 'This is me'}
+                {hit.isMine ? 'Already mine' : 'This is me'}
               </Button>
             </li>
           ))}

@@ -8,7 +8,9 @@ import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components
 import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
+import { formatDate } from '@/lib/utils/date';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -88,7 +90,7 @@ export default async function AdminPage() {
       <header className="space-y-3">
         <div className="kicker">ADMIN · INTERNAL</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Operator tools
+          Admin: operator tools
         </h1>
         <hr className="hairline" />
       </header>
@@ -97,7 +99,7 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
-        <dl className="grid grid-cols-4 gap-4 text-table">
+        <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
           <div>
             <dt className="text-ink-soft">Tournaments</dt>
             <dd className="text-stat font-semibold mt-1">{tournaments}</dd>
@@ -126,8 +128,8 @@ export default async function AdminPage() {
           Review user-proposed region and motion tags. Approvals write directly to the
           canonical Tournament / Motion columns.
         </p>
-        <Link href="/admin/tags">
-          <Button variant="outline" size="sm">Review tag proposals →</Button>
+        <Link href="/admin/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+          Review tag proposals →
         </Link>
       </section>
 
@@ -139,14 +141,12 @@ export default async function AdminPage() {
               Beta reports users submitted from their CV page.
             </p>
           </div>
-          <a href="/api/admin/cv-error-reports-export">
-            <Button variant="outline" size="sm" leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}>
-              Export CSV
-            </Button>
+          <a href="/api/admin/cv-error-reports-export" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            <Download className="h-3.5 w-3.5" aria-hidden /> Export CSV
           </a>
         </div>
         {cvReports.length === 0 ? (
-          <p className="text-body text-ink-soft italic">No CV reports yet.</p>
+          <EmptyState title="No CV reports yet" headingLevel={3} />
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {cvReports.map((report) => (
@@ -156,7 +156,7 @@ export default async function AdminPage() {
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
                   <div className="text-caption text-ink-soft">
-                    {report.createdAt.toLocaleString()}
+                    {formatDate(report.createdAt)}
                   </div>
                 </div>
                 {report.user.email ? (
@@ -208,9 +208,11 @@ export default async function AdminPage() {
           </p>
         </div>
         {sortedWarnings.length === 0 ? (
-          <p className="text-body text-ink-soft italic">
-            No warnings recorded in the last 200 parser runs. Parsers are clean.
-          </p>
+          <EmptyState
+            title="No parser warnings"
+            description="Nothing recorded in the last 200 parser runs. Parsers are clean."
+            headingLevel={3}
+          />
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {sortedWarnings.map(([key, { count, sample, latest }]) => (
@@ -222,7 +224,7 @@ export default async function AdminPage() {
                   </span>
                 </div>
                 <div className="text-byline text-ink-soft">
-                  Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
+                  Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
                   {sample.length > 200 ? '…' : ''}
                 </div>
               </li>
@@ -268,7 +270,7 @@ export default async function AdminPage() {
             <span className="font-medium">Ingest all</span> on the dashboard to process the queue.
           </p>
         </div>
-        <ReingestAllButton />
+        <ReingestAllButton count={Math.max(0, discoveredUrls - lockedUrls)} />
       </section>
     </div>
   );

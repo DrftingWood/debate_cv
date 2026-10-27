@@ -32,8 +32,6 @@ export function Footer() {
             </Link>
             <a
               href="https://github.com/DrftingWood/debate_cv"
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center hover:text-ink sm:justify-start"
             >
               GitHub

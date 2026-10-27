@@ -29,10 +29,10 @@ const BASELINE = {
   // first candidates when this number next falls.
   // 76 -> 73 (2026-10-27): those three are gone (the round-overlap rework of
   // affectedTournaments.ts).
-  // 73 -> 70 (2026-10-27): the knockout-motion PR removed two in
+  // 72 -> 69 (2026-10-27, after main 73 -> 72): the knockout-motion PR removed two in
   // lib/cv/motionEntries.ts and one in app/(app)/cv/motions/page.tsx.
-  nonNull: 70,
-  eslintDisableUnexplained: 4,
+  nonNull: 69,
+  eslintDisableUnexplained: 2,
 };
 
 const ROOT = process.cwd();

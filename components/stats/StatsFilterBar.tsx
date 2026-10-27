@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { PressedMark, pressedClasses } from '@/components/stats/pressed';
 import type { ProAm, StatsFacts } from '@/lib/cv/statsFacts';
 import type { StatsFilter } from '@/lib/cv/statsFilter';
 
@@ -103,12 +104,15 @@ function Chip({
       onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        pressed ? 'bg-card text-ink shadow-xs' : 'text-ink-soft hover:text-ink',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        pressedClasses(pressed),
       )}
     >
+      {pressed ? <PressedMark /> : null}
       {label}
-      <span className="num text-caption text-ink-soft">
+      {/* The count inherits the chip's colour when pressed: `ink-soft` on
+          the inverted ink background would fall to about 2:1. */}
+      <span className={cn('num text-caption', pressed ? 'text-paper' : 'text-ink-soft')}>
         {count}
         <span className="sr-only"> {unit}</span>
       </span>
@@ -168,7 +172,7 @@ export function StatsFilterBar({
             <summary
               aria-labelledby="stats-filter-partner stats-filter-partner-value"
               className={cn(
-                'flex cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-table text-ink coarse:min-h-[44px]',
+                'flex cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-input bg-surface px-3 py-2 text-table text-ink coarse:min-h-[44px]',
                 '[&::-webkit-details-marker]:hidden',
               )}
             >
@@ -181,7 +185,7 @@ export function StatsFilterBar({
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180" aria-hidden />
             </summary>
-            <fieldset className="panel-raised absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto p-1">
+            <fieldset className="panel-raised absolute z-20 mt-1 max-h-72 w-full min-w-[min(16rem,100%)] overflow-y-auto p-1">
               <legend className="sr-only">Partners</legend>
               {options.partners.map((p) => (
                 <label
@@ -195,7 +199,7 @@ export function StatsFilterBar({
                       onChange={() => onChange({ ...filter, partners: toggle(filter.partners, p.key) })}
                       className="h-4 w-4 shrink-0 accent-primary"
                     />
-                    <span className="truncate text-ink" title={p.label}>{p.label}</span>
+                    <span className="break-words text-ink">{p.label}</span>
                   </span>
                   <span className="num text-caption text-ink-soft">
                     {p.count}

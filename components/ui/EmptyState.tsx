@@ -7,6 +7,12 @@ export type EmptyStateProps = {
   description?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
+  /**
+   * Heading level of the title. Defaults to 2: the panel almost always sits
+   * straight under a page's h1 (/cv, /cv/stats, /cv/motions, the
+   * dashboard), and the hard-coded h3 skipped a level on every one (UX-3).
+   */
+  headingLevel?: 2 | 3 | 4;
 };
 
 /**
@@ -14,7 +20,15 @@ export type EmptyStateProps = {
  * panel reads as a real statement sheet with no rows on it, which looks
  * like a bug. Dashed reads as a placeholder waiting to be filled.
  */
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+  headingLevel = 2,
+}: EmptyStateProps) {
+  const Heading = `h${headingLevel}` as const;
   return (
     <div
       className={cn(
@@ -27,7 +41,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
           {icon}
         </div>
       ) : null}
-      <h3 className="font-display text-h4 font-medium text-ink">{title}</h3>
+      <Heading className="font-display text-h4 font-medium text-ink">{title}</Heading>
       {description ? (
         <p className="mt-2 max-w-md text-ui leading-relaxed text-ink-soft">{description}</p>
       ) : null}
