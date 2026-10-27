@@ -45,7 +45,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 export const metadata: Metadata = {
-  title: 'My CV',
+  title: 'Record',
   description: 'Your debate tournament history, compiled from your Gmail.',
   robots: { index: false, follow: false },
 };
@@ -391,7 +391,7 @@ function RoundLedger({
         Round ledger — {roundNumbers.length} round{roundNumbers.length === 1 ? '' : 's'}
         {anyMotion ? ' with motions' : ''}
       </summary>
-      <div className="panel-inset mb-3 overflow-x-auto p-3">
+      <div className="panel-inset mb-3 p-3"><TableScroll>
         <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
           <thead>
             <tr>
@@ -474,7 +474,7 @@ function RoundLedger({
               );
             })}
           </tbody>
-        </Table>
+        </Table></TableScroll>
       </div>
     </details>
   );

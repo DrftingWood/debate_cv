@@ -7,6 +7,7 @@ import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { TableScroll } from '@/components/ui/DataTable';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
@@ -260,7 +261,7 @@ export default async function CvVerifyPage({
                       ) : null}
                     </div>
                     {/* Desktop: 13-column table. md+ only. */}
-                    <div className="hidden max-w-full overflow-x-auto md:block">
+                    <TableScroll className="hidden md:block" label={`Parsed data for ${t.name}`}>
                       <table className="min-w-max text-table">
                         <caption className="sr-only">
                           Everything the parser read for {t.name}
@@ -352,7 +353,7 @@ export default async function CvVerifyPage({
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </TableScroll>
 
                     {/* Mobile: stacked card per participant. The 13-column table
                         is unusable on phones via horizontal scroll alone. Cards

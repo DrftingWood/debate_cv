@@ -3,6 +3,7 @@ import { ArrowUpRight, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Sparkline } from '@/components/ui/TrendChart';
 import { Badge } from '@/components/ui/Badge';
+import { TableScroll } from '@/components/ui/DataTable';
 
 type SampleCvPreviewProps = {
   compact?: boolean;
@@ -70,7 +71,7 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
         ))}
       </div>
 
-      <div className="w-full overflow-x-auto">
+      <TableScroll label="Sample speaking record">
         <table className="ledger text-caption">
           <caption className="sr-only">
             Sample debate record: four tournaments with speaker average, team
@@ -107,7 +108,7 @@ export function SampleCvPreview({ compact = false, className }: SampleCvPreviewP
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-2 px-4 py-3">
         <div className="min-w-0">

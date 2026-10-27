@@ -9,6 +9,7 @@ import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import { buttonClasses } from '@/components/ui/Button';
+import { formatDate } from '@/lib/utils/date';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -154,7 +155,7 @@ export default async function AdminPage() {
                     {report.user.name ?? report.user.email ?? report.userId}
                   </div>
                   <div className="text-caption text-ink-soft">
-                    {report.createdAt.toLocaleString()}
+                    {formatDate(report.createdAt)}
                   </div>
                 </div>
                 {report.user.email ? (
@@ -220,7 +221,7 @@ export default async function AdminPage() {
                   </span>
                 </div>
                 <div className="text-byline text-ink-soft">
-                  Latest: {latest.toLocaleString()} · Sample: {sample.slice(0, 200)}
+                  Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
                   {sample.length > 200 ? '…' : ''}
                 </div>
               </li>

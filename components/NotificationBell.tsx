@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Bell, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { postJson } from '@/lib/utils/api';
+import { formatDate } from '@/lib/utils/date';
 import { usePopover } from '@/components/ui/usePopover';
 
 type NotificationItem = {
@@ -176,5 +177,5 @@ function relativeTime(date: Date): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return date.toLocaleDateString();
+  return formatDate(date);
 }

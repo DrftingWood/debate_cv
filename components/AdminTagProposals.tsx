@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { TableScroll } from '@/components/ui/DataTable';
 import { postJson, type ApiResult } from '@/lib/utils/api';
 
 type ProposalRow = {
@@ -250,7 +251,7 @@ export function AdminTagProposals() {
           No {filter} proposals.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <TableScroll label="Tag proposals">
           <table className="min-w-max text-table">
             <thead>
               <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
@@ -346,7 +347,7 @@ export function AdminTagProposals() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
       )}
     </div>
   );
