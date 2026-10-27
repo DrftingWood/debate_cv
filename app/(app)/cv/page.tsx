@@ -141,8 +141,8 @@ export default async function CvPage() {
         <GmailDisconnectedNotice
           data-print-hide="true"
           action={
-            <Link href="/dashboard">
-              <Button variant="primary">Reconnect from imports</Button>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              Reconnect from imports
             </Link>
           }
         >
