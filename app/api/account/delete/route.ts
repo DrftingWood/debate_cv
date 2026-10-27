@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
+import { matchesDeleteConfirmation } from '@/lib/account/deleteConfirmation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const Body = z.object({
-  // Require the user to type their email to confirm the destructive action.
+  // Require the user to type their email (or DELETE, for an account with no
+  // email on file) to confirm the destructive action.
   confirmEmail: z.string().min(1),
 });
 
@@ -31,10 +33,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    if (
-      parse.data.confirmEmail.trim().toLowerCase() !==
-      (user.email ?? '').toLowerCase()
-    ) {
+    if (!matchesDeleteConfirmation(parse.data.confirmEmail, user.email)) {
       return NextResponse.json({ error: 'email_mismatch' }, { status: 400 });
     }
 
