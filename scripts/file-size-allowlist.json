@@ -1,0 +1,72 @@
+{
+  "lib/calicotab/ingest.ts": {
+    "lines": 2437,
+    "date": "2026-10-27",
+    "note": "Split by stage: fetch, normalise, persist (writeIngestTransaction), enqueue; keep the orchestrator thin."
+  },
+  "lib/cv/buildCvData.ts": {
+    "lines": 1420,
+    "date": "2026-10-27",
+    "note": "Split buildCvData (one ~760-line function) into per-section builders: rows, motions, field summary."
+  },
+  "lib/cv/speakerStats.ts": {
+    "lines": 1416,
+    "date": "2026-10-27",
+    "note": "Split the statistics engine by topic: per-round, per-season trends, signals, sample-size helpers."
+  },
+  "lib/calicotab/parseTabs.ts": {
+    "lines": 1317,
+    "date": "2026-10-27",
+    "note": "Split per tab page type: team, speaker, rounds, break, participants (bump PARSER_VERSION only if output changes)."
+  },
+  "lib/identity/affectedTournaments.ts": {
+    "lines": 1253,
+    "date": "2026-10-27",
+    "note": "Split round-overlap logic from candidate collection and the query layer."
+  },
+  "tests/calicotab.ingest.characterization.test.ts": {
+    "lines": 1081,
+    "date": "2026-10-27",
+    "note": "Split by ingest stage when ingest.ts is split; share the harness through tests/setup."
+  },
+  "tests/cv.buildCvData.characterization.test.ts": {
+    "lines": 1066,
+    "date": "2026-10-27",
+    "note": "Split by CV section when buildCvData.ts is split."
+  },
+  "components/stats/StatsSections.tsx": {
+    "lines": 998,
+    "date": "2026-10-27",
+    "note": "One file per stats section component; keep an index that composes them."
+  },
+  "tests/identity.affectedTournaments.test.ts": {
+    "lines": 903,
+    "date": "2026-10-27",
+    "note": "Split with affectedTournaments.ts: overlap cases vs collection cases."
+  },
+  "components/DashboardActions.tsx": {
+    "lines": 867,
+    "date": "2026-10-27",
+    "note": "Split the scan, drain and identity actions into separate components under components/dashboard/."
+  },
+  "tests/cv.speakerStats.test.ts": {
+    "lines": 857,
+    "date": "2026-10-27",
+    "note": "Split alongside speakerStats.ts, one test file per topic module."
+  },
+  "app/(app)/cv/page.tsx": {
+    "lines": 856,
+    "date": "2026-10-27",
+    "note": "Extract data loading and the section components into components/cv/; leave the page as composition."
+  },
+  "tests/calicotab.parseNav.adjudicator.test.ts": {
+    "lines": 831,
+    "date": "2026-10-27",
+    "note": "Split by adjudicator page variant; move shared builders to tests/setup."
+  },
+  "lib/calicotab/parseNav.ts": {
+    "lines": 808,
+    "date": "2026-10-27",
+    "note": "Just over the limit: extract the adjudicator parsing into parseNavAdjudicators.ts."
+  }
+}
