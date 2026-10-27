@@ -140,3 +140,53 @@ describe('findings use straights wording for BP', () => {
     expect(q?.basis).toContain('2 of 4 BP tournaments');
   });
 });
+
+describe('BP outrounds stay out of the prelim measures', () => {
+  test('outround rows are excluded from decidedRounds, wins and the rate', () => {
+    const prelims = [1, 2, 3, 4, 5].map((n) => ({ roundNumber: n, position: 'OG', won: false, points: 1 }));
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({
+          format: BP,
+          prelimRoundCount: 5,
+          teamPoints: '5',
+          teamRoundResults: [
+            ...prelims,
+            { roundNumber: 6, position: 'OG', won: true, points: null },
+            { roundNumber: 7, position: 'OG', won: false, points: null },
+          ],
+        }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.decidedRounds).toBe(5);
+    expect(s.results.wins).toBe(0);
+    expect(s.results.winRate).toBe(0);
+  });
+
+  test('straights with no prelim count never sums outround points', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({ format: BP, prelimRoundCount: null, teamPoints: null, teamRoundResults: bpRounds([1, 1, 1, 3, 3]) }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.bp?.tournaments ?? 0).toBe(0);
+  });
+
+  test('BP seats with an unknown format get the same top-two wording and straights', () => {
+    const s = computeSpeakerStats({
+      speakerRows: [
+        makeSpeakerRow({
+          format: null,
+          prelimRoundCount: 3,
+          teamPoints: '6',
+          teamRoundResults: [1, 2, 3].map((n) => ({ roundNumber: n, position: 'OG', won: false, points: 2 })),
+        }),
+      ],
+      judgeRows: [],
+    });
+    expect(s.results.outcome).toBe('top-two');
+    expect(s.results.bp).toMatchObject({ tournaments: 1, straights: 1 });
+  });
+});

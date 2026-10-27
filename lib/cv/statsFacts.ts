@@ -16,7 +16,7 @@
 import type { CvData, CvSpeakerRow, CvSpeakerRoundScore, CvTaggedMotion } from '@/lib/cv/buildCvData';
 import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { formatAbbrev } from '@/lib/calicotab/format';
-import { roundHit } from '@/lib/cv/roundOutcome';
+import { isFourTeam, roundHit } from '@/lib/cv/roundOutcome';
 import { classifyMotion, type MotionClass } from '@/lib/motions/classify';
 
 /**
@@ -246,7 +246,11 @@ export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotio
         points: result?.points ?? null,
         // The format's "hit": a win in a two-team room, 2nd or better in BP.
         // A BP round is never a "win" (lib/cv/roundOutcome.ts).
-        won: result ? roundHit(row.format, result) : null,
+        won:
+          result &&
+          !(isFourTeam(row.format, result.position) && row.prelimRoundCount != null && round > row.prelimRoundCount)
+            ? roundHit(row.format, result)
+            : null,
       });
     }
 

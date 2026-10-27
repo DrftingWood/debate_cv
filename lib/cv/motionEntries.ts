@@ -101,7 +101,11 @@ export function buildMotionEntries(
       score,
       position: result?.position ?? null,
       // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
-      won: result ? roundHit(row!.format, result) : null,
+      // An outround result is advancing, not a 2nd-or-better room.
+      won:
+        result && !(isFourTeam(row!.format, result.position) && row!.prelimRoundCount != null && motion.roundNumber! > row!.prelimRoundCount)
+          ? roundHit(row!.format, result)
+          : null,
       fourTeam: result ? isFourTeam(row!.format, result.position) : false,
       points: result?.points ?? null,
     });

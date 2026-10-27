@@ -853,11 +853,16 @@ export function computeSpeakerStats(input: {
     const prelimCount = row.prelimRoundCount;
 
     // Straights: one verdict per BP tournament, on the prelim points TOTAL.
-    if (isFourTeam(row.format)) {
+    // Seat-aware: a BP seat counts even when the format string is unknown.
+    // With no prelim count there is nothing to cut at, so outround points
+    // could be summed or counted as rounds; leave straights unjudged then.
+    const isBp =
+      isFourTeam(row.format) || row.teamRoundResults.some((tr) => isFourTeam(row.format, tr.position));
+    if (isBp && prelimCount != null) {
       const prelimResults = row.teamRoundResults.filter(
-        (tr) => tr.points != null && (prelimCount == null || tr.roundNumber <= prelimCount),
+        (tr) => tr.points != null && tr.roundNumber <= prelimCount,
       );
-      const rounds = prelimCount ?? prelimResults.length;
+      const rounds = prelimCount;
       const tabTotal = row.teamPoints != null ? Number(row.teamPoints) : NaN;
       // The tab's own total wins when it is there; otherwise sum the rounds,
       // but only when every prelim round has points (a missing round would
@@ -884,7 +889,7 @@ export function computeSpeakerStats(input: {
 
       if (won != null) {
         decidedRounds += 1;
-        outcomeFormats.add(row.format);
+        outcomeFormats.add(result && isFourTeam(row.format, result.position) ? BP_FORMAT : row.format);
         if (won) wins += 1;
       }
       if (result && isFourTeam(row.format, result.position)) {
@@ -1170,6 +1175,8 @@ export function buildBins(sortedScores: number[]): ScoreBin[] {
  * table (lib/cv/statsFacts.ts) all count the same speeches. With no prelim
  * count every round is kept: there is nothing to cut at.
  */
+const BP_FORMAT = 'British Parliamentary';
+
 function prelimScope(row: CvSpeakerRow): CvSpeakerRow {
   const prelims = row.prelimRoundCount;
   if (prelims == null) return row;
