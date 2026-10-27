@@ -41,6 +41,16 @@ const variants: Record<Variant, string> = {
   link: 'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto min-h-6 disabled:opacity-50',
 };
 
+// The `disabled:` look for a button that is merely busy (aria-disabled).
+const pendingStyle: Record<Variant, string> = {
+  primary: 'bg-surface-3 text-ink-soft cursor-not-allowed',
+  secondary: 'opacity-50 cursor-not-allowed',
+  outline: 'opacity-50 cursor-not-allowed',
+  ghost: 'opacity-50 cursor-not-allowed',
+  danger: 'bg-destructive/60 cursor-not-allowed',
+  link: 'opacity-50 cursor-not-allowed',
+};
+
 /*
  * Touch-first, dense at md+.
  *
@@ -77,8 +87,15 @@ export function buttonClasses({
   variant = 'primary',
   size = 'md',
   className,
-}: { variant?: Variant; size?: Size; className?: string } = {}): string {
-  return cn(base, variants[variant], variant === 'link' ? '' : sizes[size], className);
+  pending,
+}: { variant?: Variant; size?: Size; className?: string; pending?: boolean } = {}): string {
+  return cn(
+    base,
+    variants[variant],
+    variant === 'link' ? '' : sizes[size],
+    pending && pendingStyle[variant],
+    className,
+  );
 }
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -100,15 +117,25 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       leftIcon,
       rightIcon,
       children,
+      onClick,
       ...rest
     },
     ref,
   ) => {
+    // UX-70/71: a pending button is `aria-disabled`, not `disabled`. A
+    // disabled button drops out of the tab order and a focused one loses
+    // focus to <body> mid-action. Here focus stays put, and the click and
+    // the form submit it would trigger are swallowed so a second press
+    // cannot repeat the action. Styling mirrors the `disabled:` look.
+    const pending = Boolean(loading) && !disabled;
     return (
       <button
         ref={ref}
-        disabled={disabled || loading}
-        className={buttonClasses({ variant, size, className })}
+        disabled={disabled}
+        aria-disabled={pending ? true : undefined}
+        aria-busy={pending ? true : undefined}
+        onClick={pending ? (event) => event.preventDefault() : onClick}
+        className={buttonClasses({ variant, size, className, pending })}
         {...rest}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : (leftIcon ?? null)}

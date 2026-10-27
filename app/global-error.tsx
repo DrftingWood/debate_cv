@@ -66,6 +66,10 @@ export default function GlobalError({
           <button type="button" onClick={() => reset()}>
             Try again
           </button>
+          <p>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a plain anchor on purpose: global-error renders when the app router itself may be what failed (UX-84). */}
+            <a href="/">Go to the home page</a>
+          </p>
         </main>
       </body>
     </html>

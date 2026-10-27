@@ -83,7 +83,7 @@ export default function Privacy() {
       </p>
       <p>
         To revoke our access to your Gmail without deleting the account, use{' '}
-        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">
+        <a href="https://myaccount.google.com/permissions">
           Google Account permissions
         </a>{' '}
         — that revokes the OAuth grant. Settings → Disconnect does the same.
@@ -122,8 +122,6 @@ export default function Privacy() {
         ) : (
           <a
             href="https://github.com/DrftingWood/debate_cv/issues"
-            target="_blank"
-            rel="noopener noreferrer"
           >
             the project's issue tracker
           </a>
