@@ -9,7 +9,7 @@ import {
   isWithheldByTournament,
   withApiSnapshots,
 } from './fetch';
-import { FetchSession } from './fetchSession';
+import { FetchSession, isIngestDeadlineError } from './fetchSession';
 import {
   API_TIMEOUT_MS,
   fetchTabsFromApi,
@@ -25,6 +25,8 @@ import {
   judgeHitsFromRounds,
   publicTournamentBase,
   releasedTabMissing,
+  motionsGained,
+  motionsCheckDue,
   storedTournamentFresh,
 } from './prescrape';
 import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
@@ -770,6 +772,34 @@ async function checkCacheFreshness(
         hasTeamTab: teamRow !== null,
         hasSpeakerTab: speakerRow !== null,
       });
+    }
+  }
+  // Motions released later (owner rule I49, e.g. outround motions) re-scrape,
+  // but only when the page lists MORE than is stored: a linked page can be
+  // empty, blocked or unparseable, and "linked, none stored" re-scraped the
+  // whole tournament on every load. One request for the motions page alone,
+  // through the per-host throttle, and at most once per window per tournament.
+  const motionsUrl = snapshot.navigation.motionsTab;
+  if (
+    !cacheStale &&
+    fresh &&
+    parserUpToDate &&
+    motionsUrl &&
+    snapshot.navigation.meta.discovered.includes('motionsTab') &&
+    motionsCheckDue(existing.id)
+  ) {
+    // This check is optional: a deadline reached during it serves the cache
+    // hit rather than failing a load whose stored data is fine.
+    const page = await fetchHtmlWithProvenance(motionsUrl, {
+      referer: loaded.normalized,
+      session: loaded.fetchSession,
+    }).catch((err: unknown) => {
+      if (isIngestDeadlineError(err)) return null;
+      throw err;
+    });
+    if (page?.ok) {
+      const storedMotions = await prisma.motion.count({ where: { tournamentId: existing.id } });
+      cacheStale = motionsGained(storedMotions, parseMotionsTab(page.html));
     }
   }
   if (!fresh || !parserUpToDate || cacheStale) return { kind: 'miss' };

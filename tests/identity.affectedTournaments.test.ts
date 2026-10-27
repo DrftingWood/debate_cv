@@ -11,6 +11,8 @@ import {
   findIdentityIssues,
   groupByTournament,
   isLostName,
+  crossBracketOutrounds,
+  isEudc,
   roundKey,
   parseTournamentDocuments,
   summarise,
@@ -356,6 +358,292 @@ describe('roundKey', () => {
     expect(roundKey('Novice Final')).not.toBe(roundKey('Grand Final'));
     expect(roundKey('', 4)).toBe('R4');
     expect(roundKey('Average')).toBeNull();
+  });
+});
+
+describe('owner rules: Open and Novice finals, double panels', () => {
+  const namesakes = (cols: [string, string], event?: { name?: string }) =>
+    findIdentityIssues(
+      parseTournamentDocuments({ speakerTab: doc('s') }, () =>
+        vuePage([
+          {
+            head: [
+              { key: 'name' },
+              { key: 'team' },
+              { key: cols[0], title: cols[0] },
+              { key: cols[1], title: cols[1] },
+            ],
+            data: [
+              [{ text: 'Kay Obi' }, { text: 'Open Team' }, { text: '75' }, { text: '' }],
+              [{ text: 'Kay Obi' }, { text: 'Novice Team' }, { text: '' }, { text: '74' }],
+            ],
+          },
+        ]),
+      ),
+      event,
+    ).sharedKeys[0];
+
+  test('an Open final and a Novice final at one tournament are two people', () => {
+    expect(namesakes(['Open Final', 'Novice Final'])).toMatchObject({
+      class: 'overlap',
+      evidence: expect.stringContaining('Open final and Novice final'),
+    });
+    expect(namesakes(['Grand Final', 'Novice Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Novice Final', 'Final'])).toMatchObject({ class: 'overlap' });
+  });
+
+  // Owner rule 2 (completed): at every event but EUDC, Open outrounds and
+  // ESL (or any other category) outrounds belong to different people, at any
+  // stage. EUDC is the one event where one person may be in both.
+  test('at a non-EUDC event an Open outround and an ESL or other category outround are two people', () => {
+    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Semifinal', 'Novice Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Quarterfinal', 'Gold Semifinal'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Open Final', 'Gold Final'], { name: 'Some Open 2025' })).toMatchObject({
+      class: 'overlap',
+    });
+  });
+
+  test('an Open final and an ESL final are two people unless the event is EUDC', () => {
+    // The speaker tab files ESL as a category column, so the bracket rule is
+    // checked directly on the round keys it compares.
+    expect(crossBracketOutrounds(new Set(['final open']), new Set(['final esl']))).not.toBeNull();
+    expect(crossBracketOutrounds(new Set(['final']), new Set(['semifinal esl']))).not.toBeNull();
+    expect(crossBracketOutrounds(new Set(['final esl']), new Set(['final efl']))).toBeNull();
+    expect(crossBracketOutrounds(new Set(['final open']), new Set(['semifinal']))).toBeNull();
+    expect(isEudc({ name: 'EUDC 2025' })).toBe(true);
+    expect(isEudc({ name: 'Open 2025', slug: 'eudc25' })).toBe(true);
+    expect(isEudc({ name: 'Euro Open' })).toBe(false);
+    expect(isEudc(undefined)).toBe(false);
+    expect(isEudc({ name: 'Europeans 2024' })).toBe(true);
+    expect(isEudc({ name: 'European Universities Debating Championship' })).toBe(true);
+    expect(isEudc({ slug: 'eudc2025' })).toBe(true);
+    expect(isEudc({ name: 'EUDC Pre-event' })).toBe(false);
+    expect(isEudc({ name: 'Pre-EUDC IV' })).toBe(false);
+    expect(isEudc({ name: 'EUDC Selection Trials' })).toBe(false);
+  });
+
+  test('EUDC may have one person in both the Open and the ESL outrounds', () => {
+    expect(namesakes(['Open Final', 'Gold Final'], { name: 'EUDC 2025' })).toMatchObject({
+      class: 'disjoint',
+    });
+    expect(namesakes(['Open Semifinal', 'Gold Final'], { name: 'EUDC 2025' })).toMatchObject({
+      class: 'disjoint',
+    });
+  });
+
+  test('the same bracket at two stages is still one person', () => {
+    expect(namesakes(['Open Semifinal', 'Open Final'])).toMatchObject({ class: 'disjoint' });
+  });
+
+  test('Spanish bracket names are read: Gran Final Abierta and Final Novatos', () => {
+    expect(namesakes(['Gran Final Abierta', 'Final Novatos'])).toMatchObject({
+      class: 'overlap',
+      evidence: expect.stringContaining('Open final and Novice final'),
+    });
+  });
+
+  test('a team listed twice (double panel) still shows a judge listed twice as an overlap', () => {
+    const k = (rounds: string) =>
+      findIdentityIssues(
+        parseTournamentDocuments(
+          { participants: doc('p') },
+          (e) =>
+            ({
+              p: vuePage([
+                {
+                  title: 'Adjudicators',
+                  head: [{ key: 'name' }, { key: 'institution' }],
+                  data: [
+                    [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                    [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                  ],
+                },
+              ]),
+              r1: resultsPage([
+                ['Red R', rounds],
+                ['Red R', ''],
+                ['Blue B', ''],
+                ['Blue B', ''],
+              ]),
+            })[e.id]!,
+          { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
+        ),
+      ).sharedKeys[0];
+    // A judge cannot sit on both panels of one debate; the repeated TEAM adds no collision.
+    expect(k('Lou Fey (c), Lou Fey')).toMatchObject({ class: 'overlap' });
+  });
+
+  // Owner answer: in HWS-style rounds the TEAM is listed twice, each listing
+  // with its own judging panel; a judge cannot sit on both panels of one
+  // debate. So only a page where EVERY team is listed exactly twice is a
+  // double-panel page; stand-ins and blanks are not counted.
+  const sameJudgeTwice = (teams: Array<[string, string]>, url = 'results/round/1/') =>
+    findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            r1: resultsPage(teams),
+          })[e.id]!,
+        { results: [doc('r1', `https://x.calicotab.com/x/${url}`)] },
+      ),
+    ).sharedKeys[0];
+  const J = 'Lou Fey (c), Lou Fey';
+
+  test('two Swing teams on a page do not make it double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['Swing', J],
+        ['Swing', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('an empty team name does not make a page double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['', J],
+        ['', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('a normal page and a page with a team listed once still flag the overlap', () => {
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Red R', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('a team listed three times is not double-panel', () => {
+    expect(
+      sameJudgeTwice([
+        ['Red R', J],
+        ['Red R', ''],
+        ['Red R', ''],
+        ['Blue B', ''],
+        ['Blue B', ''],
+      ]),
+    ).toMatchObject({ class: 'overlap' });
+  });
+
+  test('two judge spellings split as an Open QF and a Novice Final are not an overlap', () => {
+    // Judges routinely sit several brackets' outrounds: the cross-bracket rule
+    // is for speakers only.
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Zoe Ash' }, { text: 'Uni A' }],
+                  [{ text: 'Zoe-Ash' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            land: landing('x', ['Open Quarterfinals', 'Novice Final']),
+            r1: resultsPage([['Red R', 'Zoe Ash (c)']]),
+            r2: resultsPage([['Blue B', 'Zoe-Ash (c)']]),
+          })[e.id]!,
+        {
+          landing: doc('land', 'https://x.calicotab.com/x/'),
+          results: [1, 2].map((n) => doc(`r${n}`, `https://x.calicotab.com/x/results/round/${n}/`)),
+        },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'disjoint' });
+  });
+
+  test('a flag on R1A does not cover R1B', () => {
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            a: resultsPage([
+              ['Red R', J],
+              ['Red R', ''],
+              ['Blue B', ''],
+              ['Blue B', ''],
+            ]),
+            b: resultsPage([
+              ['Red R', J],
+              ['Blue B', ''],
+            ]),
+          })[e.id]!,
+        {
+          results: [
+            doc('a', 'https://x.calicotab.com/x/results/round/1a/'),
+            doc('b', 'https://x.calicotab.com/x/results/round/1b/'),
+          ],
+        },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'overlap' });
+  });
+
+  test('without a repeated team the same two panel entries are an overlap', () => {
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            r1: resultsPage([
+              ['Red R', 'Lou Fey (c), Lou Fey'],
+              ['Blue B', ''],
+            ]),
+          })[e.id]!,
+        { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'overlap' });
   });
 });
 

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { matchStage, normaliseCategory } from '@/lib/calicotab/stageLexicon';
 import { stripAttendanceTag } from '@/lib/calicotab/names';
+import { isAdjudicationCoreRole } from '@/lib/calicotab/judgeStats';
 import { parseJsValue } from './parseJsValue';
 import { extractFromCheerio } from './cheerioToVue';
 
@@ -475,11 +476,9 @@ function classifyParticipantRole(roleText: string): {
   // (e.g., "Chief Adjudicator", "Deputy Chief Adjudicator") and would
   // otherwise fall through to 'normal'. Match `\bca\b` / `\bdca\b` as
   // standalone words so a name like "Cameron" doesn't false-positive.
-  const isAdjCore =
-    /\b(?:chief|deputy)\s+(?:chief\s+)?adjudicator\b/.test(lowered) ||
-    /\b(?:adj[\s-]?core|core\s+adjudicator|tab[\s-]?director)\b/.test(lowered) ||
-    /\bd?ca\b/.test(lowered);
-  if (isAdjCore) {
+  // The kinds (CA usually judges, TD usually does not) live in judgeStats.ts;
+  // the stored tag is 'core' for all of them.
+  if (isAdjudicationCoreRole(lowered)) {
     return { role: 'adjudicator', judgeTag: 'core' };
   }
   if (/adjud|judge/.test(lowered)) {

@@ -86,8 +86,24 @@ export async function writeJudgeParticipantRole(
 ): Promise<void> {
   const { chairedPrelims, deepestChaired, deepestPaneled } = aggregates;
 
+  // 'core' (Tab Director, Chief Adjudicator, adj core) is the stronger value:
+  // the participants list sets it, and a core member who then judges rounds is
+  // exactly the case coreJudgingBreak counts. Writing the generic
+  // 'Adjudicator' tag over it would erase that, so a core tag is never
+  // overwritten by a weaker one, on any path or in either mode.
+  const existing = await client.tournamentParticipant.findUnique({
+    where: { tournamentId_personId: { tournamentId, personId } },
+    select: {
+      judgeTypeTag: true,
+      chairedPrelimRounds: true,
+      lastOutroundChaired: true,
+      lastOutroundPaneled: true,
+    },
+  });
+  const keepCore = existing?.judgeTypeTag?.toLowerCase() === 'core';
+
   type UpdateShape = {
-    judgeTypeTag: 'Adjudicator';
+    judgeTypeTag?: 'Adjudicator';
     chairedPrelimRounds?: number | null;
     lastOutroundChaired?: string | null;
     lastOutroundPaneled?: string | null;
@@ -96,22 +112,14 @@ export async function writeJudgeParticipantRole(
   let update: UpdateShape;
   if (mode === 'overwrite') {
     update = {
-      judgeTypeTag: 'Adjudicator',
+      ...(keepCore ? {} : { judgeTypeTag: 'Adjudicator' as const }),
       chairedPrelimRounds: chairedPrelims || null,
       lastOutroundChaired: deepestChaired,
       lastOutroundPaneled: deepestPaneled,
     };
   } else {
     // fillNullsOnly: read existing and only set fields where existing is null.
-    const existing = await client.tournamentParticipant.findUnique({
-      where: { tournamentId_personId: { tournamentId, personId } },
-      select: {
-        chairedPrelimRounds: true,
-        lastOutroundChaired: true,
-        lastOutroundPaneled: true,
-      },
-    });
-    update = { judgeTypeTag: 'Adjudicator' };
+    update = keepCore ? {} : { judgeTypeTag: 'Adjudicator' };
     if (chairedPrelims > 0 && (existing?.chairedPrelimRounds ?? null) == null) {
       update.chairedPrelimRounds = chairedPrelims;
     }

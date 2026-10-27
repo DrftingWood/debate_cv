@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nameProximity } from '@/lib/identity/nameProximity';
+import { isAmbiguousNameShape, nameProximity } from '@/lib/identity/nameProximity';
 
 describe('nameProximity', () => {
   it('matches the same name however it is written', () => {
@@ -46,6 +46,69 @@ describe('nameProximity', () => {
 });
 
 import { proximityToYou } from '@/lib/identity/nameProximity';
+
+describe('owner rule (I38): double surnames and one-word names never auto-pass', () => {
+  it('caps an exact one-word name at close, so it always goes to the user', () => {
+    expect(nameProximity('Abhishek', 'Abhishek')).toBe('close');
+    expect(nameProximity('Abhishek', 'Abhishek Acharya')).toBe('different');
+  });
+
+  it('caps a double surname at close even when the words are identical', () => {
+    expect(nameProximity('Maria Garcia Lopez', 'Maria Garcia Lopez')).toBe('close');
+    expect(nameProximity('Maria Garcia-Lopez', 'Maria Garcia-Lopez')).toBe('close');
+    expect(nameProximity('Ana de la Cruz', 'Ana de la Cruz')).toBe('close');
+    expect(nameProximity('Maria Garcia Lopez', 'Maria Lopez')).toBe('close');
+  });
+
+  it('does not read a surname that is also a particle as a particle (Li Bin, Wang Di)', () => {
+    for (const n of ['Li Bin', 'Wang Di', 'Zhang Le', 'Tran Le', 'Minh Do']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+      expect(nameProximity(n, n)).toBe('match');
+    }
+  });
+
+  it('counts a particle only when a word follows it', () => {
+    for (const n of [
+      'Ana de la Cruz',
+      'Maria de la Cruz',
+      'Anna van Dijk',
+      'Jan van Dijk',
+      'Omar al Sayed',
+    ]) {
+      expect(isAmbiguousNameShape(n)).toBe(true);
+      expect(nameProximity(n, n)).toBe('close');
+    }
+  });
+
+  it('does not read a leading particle as a surname prefix (family name first)', () => {
+    for (const n of ['Bin Li', 'Le Minh', 'Do Thanh Tung', 'Al Gore', 'Van Morrison']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+    }
+    expect(isAmbiguousNameShape('Smith-Jones')).toBe(true);
+  });
+
+  it('treats a hyphenated first name as one word', () => {
+    for (const n of ['Jean-Paul Sartre', 'Anne-Marie Lee']) {
+      expect(isAmbiguousNameShape(n)).toBe(false);
+      expect(nameProximity(n, n)).toBe('match');
+    }
+  });
+
+  it('keeps one-word names, hyphenated surnames and 3+ word names capped at close', () => {
+    expect(isAmbiguousNameShape('Abhishek')).toBe(true);
+    expect(isAmbiguousNameShape('Maria Garcia-Lopez')).toBe(true);
+    expect(isAmbiguousNameShape('Maria Garcia Lopez')).toBe(true);
+    expect(isAmbiguousNameShape('Jean-Paul Garcia Lopez')).toBe(true);
+  });
+
+  it('still lets a middle initial through as a match', () => {
+    expect(nameProximity('Abhishek K Acharya', 'Abhishek Acharya')).toBe('match');
+  });
+
+  it('does not turn a different name into close', () => {
+    expect(nameProximity('Maria Garcia Lopez', 'Rohit Sharma')).toBe('different');
+  });
+});
 
 describe('proximityToYou', () => {
   it('is unknown with no reference name, not different', () => {

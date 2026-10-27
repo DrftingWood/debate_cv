@@ -5,6 +5,9 @@ import {
   judgeHitsFromRounds,
   publicTournamentBase,
   releasedTabMissing,
+  motionsGained,
+  motionsCheckDue,
+  resetMotionsChecks,
   storedTournamentFresh,
   tournamentSlugsFromRootPage,
   expandRootSlugs,
@@ -81,10 +84,49 @@ describe('releasedTabMissing', () => {
     expect(releasedTabMissing(['teamTab'], { hasTeamTab: false, hasSpeakerTab: true })).toBe(true);
   });
 
+  // The motions page is NOT a trigger here any more (review fix): it can be
+  // linked before any motion is released, so "linked, none stored" looped.
+  it('does not treat a linked motions page as a missing tab', () => {
+    expect(
+      releasedTabMissing(['teamTab', 'speakerTab', 'motionsTab'], {
+        hasTeamTab: true,
+        hasSpeakerTab: true,
+      }),
+    ).toBe(false);
+  });
+
   it('ignores a tab the landing page does not link (a constructed URL is not a release)', () => {
     expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(
       false,
     );
+  });
+});
+
+// Owner rule (assumptions I49): a later motions release, including outround
+// motions, re-scrapes. Only a page that lists MORE than is stored does.
+describe('motionsGained', () => {
+  const m = (roundLabel: string, seq: number) => ({ roundLabel, seq });
+
+  it('is true only when the page lists more distinct motions than are stored', () => {
+    expect(motionsGained(0, [m('Round 1', 0)])).toBe(true);
+    expect(motionsGained(1, [m('Round 1', 0), m('Grand Final', 1)])).toBe(true);
+    expect(motionsGained(2, [m('Round 1', 0), m('Grand Final', 1)])).toBe(false);
+    expect(motionsGained(0, [])).toBe(false);
+    expect(motionsGained(3, [m('Round 1', 0)])).toBe(false);
+  });
+
+  it('counts motions the way they are stored: one per round label and seq', () => {
+    expect(motionsGained(1, [m('Round 1', 0), m('Round 1', 0)])).toBe(false);
+  });
+});
+
+describe('motions page check guard', () => {
+  it('allows one check per tournament per window', () => {
+    resetMotionsChecks();
+    expect(motionsCheckDue(7n, 1000)).toBe(true);
+    expect(motionsCheckDue(7n, 1000 + 60_000)).toBe(false);
+    expect(motionsCheckDue(8n, 1000)).toBe(true);
+    expect(motionsCheckDue(7n, 1000 + 11 * 60_000)).toBe(true);
   });
 });
 

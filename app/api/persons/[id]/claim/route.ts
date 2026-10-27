@@ -103,6 +103,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     session.user.name ?? '',
   ].filter((n) => n.trim().length > 0);
 
+  // Deliberately the looser personNameMatches (substring, middle names), not
+  // the strict nameProximity used when a URL is linked automatically: this is a
+  // claim the signed-in user starts themselves, on a person they searched for,
+  // so a near name is evidence enough and a stricter test would lock people
+  // out of their own record.
   const identityMatches = candidateNames.some((name) => personNameMatches(name, personName));
   if (!identityMatches) {
     return NextResponse.json(

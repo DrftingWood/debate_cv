@@ -59,6 +59,12 @@ const BY_CODE: Record<string, UserMessage> = {
     description:
       'You can only change imports and names from tournaments you have imported yourself.',
   },
+  force_admin_only: {
+    kind: 'info',
+    title: 'Refresh is automatic',
+    description:
+      'Only an admin can force a re-scrape. Your tournaments refresh by themselves when new rounds, tabs or motions are released.',
+  },
   already_claimed_by_other: {
     kind: 'error',
     description:
