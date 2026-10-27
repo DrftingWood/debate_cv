@@ -41,6 +41,8 @@ const h = vi.hoisted(() => ({
   ownerName: null as string | null,
   // Per-test override of Judge Judy's participants-list tag (null: 'invited').
   judyTag: null as string | null,
+  // Per-test replacement for the motions page parse (null: the default two).
+  motions: null as unknown[] | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -250,22 +252,24 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
 }));
 
 vi.mock('@/lib/calicotab/parseMotions', () => ({
-  parseMotionsTab: () => [
-    { roundNumber: 1, roundLabel: 'Round 1', text: 'THW ban zoos', infoSlide: null, seq: 0 },
-    {
-      roundNumber: null,
-      roundLabel: 'Grand Final',
-      text: 'THR the rise of AI',
-      infoSlide: 'Info',
-      seq: 1,
-    },
-  ],
+  parseMotionsTab: () =>
+    h.motions ?? [
+      { roundNumber: 1, roundLabel: 'Round 1', text: 'THW ban zoos', infoSlide: null, seq: 0 },
+      {
+        roundNumber: null,
+        roundLabel: 'Grand Final',
+        text: 'THR the rise of AI',
+        infoSlide: 'Info',
+        seq: 1,
+      },
+    ],
 }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
+import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
 
 const USER = 'user-1';
 const FINGERPRINT = computeFingerprint({
@@ -407,6 +411,8 @@ beforeEach(() => {
   h.speakerTab = null;
   h.ownerName = null;
   h.judyTag = null;
+  h.motions = null;
+  resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -862,20 +868,75 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
   });
 
   // Owner rule (assumptions I49): motions released after the last round re-scrape.
-  it.each([
-    ['no motions stored', null, false],
-    ['motions stored', { id: 1n }, true],
-  ] as const)('a linked motions page with %s', async (_label, motionRow, cached) => {
-    const discovered = SNAPSHOT.navigation.meta.discovered;
-    SNAPSHOT.navigation.meta.discovered = [...discovered, 'motionsTab'];
-    try {
-      install({ existing: existingTournament() });
-      prismaMock.motion.findFirst.mockResolvedValue(motionRow);
-      const result = await ingestPrivateUrl(PRIVATE_URL, USER);
-      expect(result.cached).toBe(cached);
-    } finally {
-      SNAPSHOT.navigation.meta.discovered = discovered;
-    }
+  // Owner rule (I49): motions released after the last round re-scrape the
+  // tournament, and so does any LATER release (outround motions). The check is
+  // one request for the motions page, compared with the stored count; an empty
+  // or unchanged page is served from the cache.
+  describe('a linked motions page', () => {
+    const withMotionsLinked = async (fn: () => Promise<void>) => {
+      const discovered = SNAPSHOT.navigation.meta.discovered;
+      SNAPSHOT.navigation.meta.discovered = [...discovered, 'motionsTab'];
+      try {
+        await fn();
+      } finally {
+        SNAPSHOT.navigation.meta.discovered = discovered;
+      }
+    };
+    const motionsFetches = () => h.fetchHtml.mock.calls.filter((c) => c[0] === MOTIONS_TAB).length;
+
+    it('with no motions stored and some now listed re-scrapes', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(false);
+      });
+    });
+
+    it('with every listed motion already stored is served from the cache', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(2);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('that is still empty is served from the cache, with one cheap request then none', async () => {
+      await withMotionsLinked(async () => {
+        h.motions = [];
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        // Second load of the same tournament: cached again, no refetch.
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(motionsFetches()).toBe(1);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
+
+    it('that gains a later release (outround motions) triggers a re-scrape', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(1);
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(false);
+      });
+    });
+
+    it('that is blocked does not loop: served from the cache', async () => {
+      await withMotionsLinked(async () => {
+        install({ existing: existingTournament() });
+        prismaMock.motion.count.mockResolvedValue(0);
+        h.fetchHtml.mockImplementation(async (url: string) =>
+          url === MOTIONS_TAB
+            ? { ok: false, url, status: 403, cdnBlocked: true, elapsedMs: 1 }
+            : okPage(url),
+        );
+        expect((await ingestPrivateUrl(PRIVATE_URL, USER)).cached).toBe(true);
+        expect(h.fetchRound).not.toHaveBeenCalled();
+      });
+    });
   });
 
   it('a re-scrape of a stored tournament with no fetch warnings runs the tournament-wide refresh', async () => {

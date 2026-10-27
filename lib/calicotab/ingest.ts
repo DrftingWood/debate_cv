@@ -25,6 +25,8 @@ import {
   judgeHitsFromRounds,
   publicTournamentBase,
   releasedTabMissing,
+  motionsGained,
+  motionsCheckDue,
   storedTournamentFresh,
 } from './prescrape';
 import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
@@ -751,9 +753,8 @@ async function checkCacheFreshness(
     const discovered = snapshot.navigation.meta.discovered;
     const wantTeam = discovered.includes('teamTab');
     const wantSpeaker = discovered.includes('speakerTab');
-    const wantMotions = discovered.includes('motionsTab');
-    if (wantTeam || wantSpeaker || wantMotions) {
-      const [teamRow, speakerRow, motionRow] = await Promise.all([
+    if (wantTeam || wantSpeaker) {
+      const [teamRow, speakerRow] = await Promise.all([
         wantTeam
           ? prisma.teamResult.findFirst({
               where: { tournamentId: existing.id, roundNumber: 0 },
@@ -766,19 +767,34 @@ async function checkCacheFreshness(
               select: { id: true },
             })
           : Promise.resolve(null),
-        // Motions released after the last round re-scrape (owner rule, I49).
-        wantMotions
-          ? prisma.motion.findFirst({
-              where: { tournamentId: existing.id },
-              select: { id: true },
-            })
-          : Promise.resolve(null),
       ]);
       cacheStale = releasedTabMissing(discovered, {
         hasTeamTab: teamRow !== null,
         hasSpeakerTab: speakerRow !== null,
-        hasMotions: motionRow !== null,
       });
+    }
+  }
+  // Motions released later (owner rule I49, e.g. outround motions) re-scrape,
+  // but only when the page lists MORE than is stored: a linked page can be
+  // empty, blocked or unparseable, and "linked, none stored" re-scraped the
+  // whole tournament on every load. One request for the motions page alone,
+  // through the per-host throttle, and at most once per window per tournament.
+  const motionsUrl = snapshot.navigation.motionsTab;
+  if (
+    !cacheStale &&
+    fresh &&
+    parserUpToDate &&
+    motionsUrl &&
+    snapshot.navigation.meta.discovered.includes('motionsTab') &&
+    motionsCheckDue(existing.id)
+  ) {
+    const page = await fetchHtmlWithProvenance(motionsUrl, {
+      referer: loaded.normalized,
+      session: loaded.fetchSession,
+    });
+    if (page.ok) {
+      const storedMotions = await prisma.motion.count({ where: { tournamentId: existing.id } });
+      cacheStale = motionsGained(storedMotions, parseMotionsTab(page.html));
     }
   }
   if (!fresh || !parserUpToDate || cacheStale) return { kind: 'miss' };

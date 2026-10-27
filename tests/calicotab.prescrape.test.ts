@@ -5,6 +5,9 @@ import {
   judgeHitsFromRounds,
   publicTournamentBase,
   releasedTabMissing,
+  motionsGained,
+  motionsCheckDue,
+  resetMotionsChecks,
   storedTournamentFresh,
   tournamentSlugsFromRootPage,
   expandRootSlugs,
@@ -81,34 +84,14 @@ describe('releasedTabMissing', () => {
     expect(releasedTabMissing(['teamTab'], { hasTeamTab: false, hasSpeakerTab: true })).toBe(true);
   });
 
-  // Owner rule (assumptions I49, ingest Q15, 2026-10-27): motions are often
-  // released after the last round, and that later release re-scrapes.
-  it('is true when the motions tab is linked but no motions are stored', () => {
+  // The motions page is NOT a trigger here any more (review fix): it can be
+  // linked before any motion is released, so "linked, none stored" looped.
+  it('does not treat a linked motions page as a missing tab', () => {
     expect(
       releasedTabMissing(['teamTab', 'speakerTab', 'motionsTab'], {
         hasTeamTab: true,
         hasSpeakerTab: true,
-        hasMotions: false,
       }),
-    ).toBe(true);
-  });
-
-  it('is false when the motions tab is linked and motions are stored, or the caller did not ask', () => {
-    expect(
-      releasedTabMissing(['motionsTab'], {
-        hasTeamTab: true,
-        hasSpeakerTab: true,
-        hasMotions: true,
-      }),
-    ).toBe(false);
-    expect(releasedTabMissing(['motionsTab'], { hasTeamTab: true, hasSpeakerTab: true })).toBe(
-      false,
-    );
-  });
-
-  it('ignores a motions page the landing page does not link', () => {
-    expect(
-      releasedTabMissing(['teamTab'], { hasTeamTab: true, hasSpeakerTab: true, hasMotions: false }),
     ).toBe(false);
   });
 
@@ -116,6 +99,34 @@ describe('releasedTabMissing', () => {
     expect(releasedTabMissing(['resultsRounds'], { hasTeamTab: false, hasSpeakerTab: false })).toBe(
       false,
     );
+  });
+});
+
+// Owner rule (assumptions I49): a later motions release, including outround
+// motions, re-scrapes. Only a page that lists MORE than is stored does.
+describe('motionsGained', () => {
+  const m = (roundLabel: string, seq: number) => ({ roundLabel, seq });
+
+  it('is true only when the page lists more distinct motions than are stored', () => {
+    expect(motionsGained(0, [m('Round 1', 0)])).toBe(true);
+    expect(motionsGained(1, [m('Round 1', 0), m('Grand Final', 1)])).toBe(true);
+    expect(motionsGained(2, [m('Round 1', 0), m('Grand Final', 1)])).toBe(false);
+    expect(motionsGained(0, [])).toBe(false);
+    expect(motionsGained(3, [m('Round 1', 0)])).toBe(false);
+  });
+
+  it('counts motions the way they are stored: one per round label and seq', () => {
+    expect(motionsGained(1, [m('Round 1', 0), m('Round 1', 0)])).toBe(false);
+  });
+});
+
+describe('motions page check guard', () => {
+  it('allows one check per tournament per window', () => {
+    resetMotionsChecks();
+    expect(motionsCheckDue(7n, 1000)).toBe(true);
+    expect(motionsCheckDue(7n, 1000 + 60_000)).toBe(false);
+    expect(motionsCheckDue(8n, 1000)).toBe(true);
+    expect(motionsCheckDue(7n, 1000 + 11 * 60_000)).toBe(true);
   });
 });
 
