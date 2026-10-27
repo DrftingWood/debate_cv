@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://debate-cv.vercel.app/schemas/json-resume-debate-extension.v1.json",
-  "title": "Debate CV extension for JSON Resume (v1)",
-  "description": "Lives at meta[\"x-debate-cv\"] of a JSON Resume document. Built by lib/cv/jsonResume.ts; validated in tests/cv.jsonResume.schema.test.ts.",
+  "$id": "https://debate-cv.vercel.app/schemas/json-resume-debate-extension.v2.json",
+  "title": "Debate CV extension for JSON Resume (v2)",
+  "description": "v2 (breaks split by role; v1 is json-resume-debate-extension.v1.schema.json).Lives at meta[\"x-debate-cv\"] of a JSON Resume document. Built by lib/cv/jsonResume.ts; validated in tests/cv.jsonResume.schema.test.ts.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "summary", "speaking", "judging"],
@@ -12,7 +12,7 @@
     "year": { "type": ["integer", "null"], "minimum": 1900, "maximum": 2200 }
   },
   "properties": {
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "summary": {
       "type": "object",
       "additionalProperties": false,
@@ -74,3 +74,4 @@
     }
   }
 }
+

@@ -35,8 +35,14 @@ export const JSON_RESUME_SCHEMA =
 
 /** Where the debate extension lives inside `meta`. */
 export const DEBATE_EXTENSION_KEY = 'x-debate-cv';
-/** Bump on a breaking change to the extension's shape (and its schema file). */
-export const DEBATE_EXTENSION_VERSION = 1;
+/**
+ * Bump on a breaking change to the extension's shape (and its schema file).
+ * v2 (2026-10-27): `summary.breaks` is SPEAKING breaks only (v1 counted a
+ * break in any role once), and `judgingBreaks`, `tournamentsSpoken` and
+ * `tournamentsJudged` are required. The v1 schema stays in docs/ for
+ * documents exported before v2.
+ */
+export const DEBATE_EXTENSION_VERSION = 2;
 
 export type JsonResumeAward = { title: string; date?: string; awarder: string; summary?: string };
 

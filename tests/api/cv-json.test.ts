@@ -47,7 +47,7 @@ describe('GET /cv.json', () => {
     };
     expect(body.$schema).toMatch(/resume-schema\/v1\.0\.0\/schema\.json$/);
     expect(body.meta.canonical).toMatch(/^https?:\/\/.+\/cv\.json$/);
-    expect(body.meta['x-debate-cv'].version).toBe(1);
+    expect(body.meta['x-debate-cv'].version).toBe(2);
     expect(body.meta['x-debate-cv'].speaking.map((s) => s.tournament)).toEqual(['Mumbai Open']);
   });
 

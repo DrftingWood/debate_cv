@@ -29,7 +29,7 @@ describe('buildJsonResume', () => {
     expect(Object.keys(doc).sort()).toEqual(['$schema', 'awards', 'basics', 'meta']);
     expect(DEBATE_EXTENSION_KEY).toBe('x-debate-cv');
     expect(Object.keys(doc.meta)).toContain(DEBATE_EXTENSION_KEY);
-    expect(doc.meta[DEBATE_EXTENSION_KEY].version).toBe(1);
+    expect(doc.meta[DEBATE_EXTENSION_KEY].version).toBe(2);
     expect(doc.meta[DEBATE_EXTENSION_KEY].speaking.map((s) => s.tournament)).toEqual([
       'New Open',
       'Old IV',
