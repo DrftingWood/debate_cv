@@ -4,6 +4,7 @@ import { ArrowRight, Lock, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { BrandMark } from '@/components/BrandMark';
+import { Footer } from '@/components/Footer';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
@@ -54,7 +55,11 @@ const trend = [
 ];
 
 export default function SamplePage() {
+  // The Footer carries the privacy and terms links. A visitor deciding
+  // whether to hand over Gmail access reads the sample first, and it was the
+  // one signed-out page with no route to the privacy statement (§10).
   return (
+    <>
     <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-5 md:py-6">
       <header className="flex items-center justify-between gap-4">
         <Link href="/" aria-label="debate cv home">
@@ -250,5 +255,7 @@ export default function SamplePage() {
         </section>
       </div>
     </div>
+    <Footer />
+    </>
   );
 }

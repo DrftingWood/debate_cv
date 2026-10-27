@@ -5,9 +5,10 @@ export const size = { width: 180, height: 180 };
 export const contentType = 'image/png';
 
 /**
- * 180×180 iOS home-screen icon. Editorial brand mark: italic-Fraunces
- * wordmark on cream paper, with the "cv" half tinted oxblood — matches
- * the in-app BrandMark component.
+ * 180×180 iOS home-screen icon: the BrandMark tile at full bleed. iOS rounds
+ * the corners itself, so the square stays square here. Same Ledger emerald
+ * (--primary, 166 76% 22%) and white "CV" as the favicon; it replaces the
+ * retired italic-serif "debate cv" wordmark on cream.
  */
 export default function AppleIcon() {
   return new ImageResponse(
@@ -17,22 +18,16 @@ export default function AppleIcon() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
-          background: '#FAF6EC',
-          color: '#181A1F',
-          fontFamily: 'Georgia, "Times New Roman", serif',
-          fontStyle: 'italic',
+          background: '#0D634F',
+          color: '#FFFFFF',
+          fontSize: 76,
+          fontWeight: 700,
+          letterSpacing: 2,
         }}
       >
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1 }}>
-          debate
-        </div>
-        <div style={{ fontSize: 62, fontWeight: 500, letterSpacing: -2, lineHeight: 1, color: '#7A2528' }}>
-          cv
-        </div>
+        CV
       </div>
     ),
     { ...size },

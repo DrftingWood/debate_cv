@@ -281,7 +281,7 @@ function PrivacyProof() {
     ['Not stored', 'Email bodies and unrelated message metadata.'],
     ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
     ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
-    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM; legacy rows re-encrypt on next access.'],
+    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM.'],
   ];
 
   return (
