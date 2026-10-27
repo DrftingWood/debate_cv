@@ -22,7 +22,6 @@ export const MAJORS: readonly Major[] = [
       'worlds',
       'world universities debating championship',
       'world university debating championship',
-      'world university debating championship',
     ],
   },
   {
@@ -79,13 +78,13 @@ export const PRESTIGIOUS_BY_REGION: Readonly<Record<string, readonly Major[]>> =
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Names that LOOK like a major but are a different event: a qualifier before
- * the major ("Pre-Worlds", "Novice Worlds", "Junior Australs", "Mini-Worlds",
- * "Worlds Masters"), World Schools and the World Debating Forum, and the
- * South East / East Asian championships (not UADC). Checked first.
+ * Qualifiers that make a name a different event, checked ONLY next to the
+ * major token ("Pre-Worlds", "Novice EUDC", "Junior Australs", "Mini-Worlds",
+ * "SEA Worlds", "Worlds Masters", "Worlds Schools"), never elsewhere in the
+ * name: "EUDC 2023 Pre-Elimination" is still EUDC.
  */
-const EXCLUDED =
-  /\b(?:pre|novice|junior|schools?|mini|masters?|forum|(?:south ?east|east) asian)\b/i;
+const QUALIFIER_BEFORE = /\b(?:pre|novice|junior|mini|sea|schools?|masters?)\s*$/i;
+const QUALIFIER_AFTER = /^\s*(?:masters?|schools?|junior|novice|forum)\b/i;
 
 /** Hyphens read as spaces ("Pan-African", "Pre-Worlds"). */
 const normalize = (name: string) => name.replace(/-/g, ' ');
@@ -122,23 +121,35 @@ const HOST_PATTERN = new RegExp(
   Object.entries(WUDC_HOSTS)
     .map(
       ([year, hosts]) =>
-        `\\b(?:${hosts.map(escapeRegExp).join('|')})(?:\\s+(?:wudc|worlds?))?\\s+${year}\\b`,
+        `\\b(?:${hosts.map(escapeRegExp).join('|')})(?:\\s+city,?)?(?:\\s+(?:wudc|worlds?))?\\s+${year}\\b`,
     )
     .join('|'),
-  'i',
+  'ig',
 );
 
 const MATCHERS = MAJORS.map((major) => ({
   major,
-  pattern: new RegExp(`\\b(?:${major.aliases.map(escapeRegExp).join('|')})s?\\b`, 'i'),
+  pattern: new RegExp(`\\b(?:${major.aliases.map(escapeRegExp).join('|')})s?\\b`, 'ig'),
 }));
+
+/** For every occurrence of `pattern` in `name`: is a qualifier attached to it? */
+function occurrences(name: string, pattern: RegExp): boolean[] {
+  return [...name.matchAll(pattern)].map(
+    (m) =>
+      QUALIFIER_BEFORE.test(name.slice(0, m.index)) ||
+      QUALIFIER_AFTER.test(name.slice(m.index + m[0].length)),
+  );
+}
 
 /** The major a tournament name belongs to, or null. */
 export function majorFor(tournamentName: string): Major | null {
   const name = normalize(tournamentName);
-  if (EXCLUDED.test(name)) return null;
-  if (HOST_PATTERN.test(name)) return MAJORS[0];
-  return MATCHERS.find((m) => m.pattern.test(name))?.major ?? null;
+  const host = occurrences(name, HOST_PATTERN);
+  const found = MATCHERS.map((m) => ({ major: m.major, hits: occurrences(name, m.pattern) }));
+  // A qualifier on any major token makes the whole name a different event.
+  if (host.some(Boolean) || found.some((f) => f.hits.some(Boolean))) return null;
+  if (host.length) return MAJORS[0];
+  return found.find((f) => f.hits.length)?.major ?? null;
 }
 
 export function isMajor(tournamentName: string): boolean {

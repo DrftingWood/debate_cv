@@ -75,6 +75,10 @@ describe('majors list (C21)', () => {
     'Panama 2025',
     'Sofia 2026',
     'Ho Chi Minh 2024',
+    'Ho Chi Minh City 2024',
+    'Panama City 2025',
+    'Panama City, 2025',
+    'Panama City WUDC 2025',
   ])('host-named "%s" is WUDC', (name) => {
     expect(majorFor(name)?.id).toBe('WUDC');
   });
@@ -88,9 +92,30 @@ describe('majors list (C21)', () => {
     'Panama',
     'Pre-Worlds Madrid 2023',
     'Novice Madrid 2023',
+    'Panama City Open 2025',
+    'Panama City 2024',
+    'SEA Worlds',
+    'SEA Worlds 2024',
   ])('"%s" is not WUDC', (name) => {
     expect(isMajor(name)).toBe(false);
   });
+
+  test.each([
+    ['EUDC 2023 Pre-Elimination', 'EUDC'],
+    ['Australs 2024 Masterclass Series', 'Australs'],
+    ['EUDC 2024 Junior Judges Workshop', 'EUDC'],
+    ['WUDC 2025 Pre-Registration', 'WUDC'],
+    ['Worlds 2024 Schools Outreach', 'WUDC'],
+  ])('unrelated qualifier words elsewhere do not drop "%s" (%s)', (name, id) => {
+    expect(majorFor(name)?.id).toBe(id);
+  });
+
+  test.each(['Novice EUDC', 'Junior Worlds 2024', 'Pre-EUDC 2023', 'EUDC Masters'])(
+    'a qualifier attached to the major drops "%s"',
+    (name) => {
+      expect(isMajor(name)).toBe(false);
+    },
+  );
 
   test.each(['World Schools Debating Championships', 'Hart House IV 2023', 'Oxford IV', ''])(
     '"%s" is not a major',

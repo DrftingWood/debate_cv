@@ -424,6 +424,7 @@ export type BuildCvDataOptions = {
    * field summary. Implied by includeFieldStats; the public page sets it.
    */
   includeFieldSizes?: boolean;
+  /**
    * Tournaments to leave out of the whole record (rows, summary, highlights,
    * motions). The public CV passes the owner's hidden tournaments (C101);
    * the owner's own /cv never does.
@@ -1031,6 +1032,38 @@ export async function buildCvData(
     const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}#${row.speakerRankOpen}`;
     speakersOnTotal.set(k, (speakersOnTotal.get(k) ?? 0) + 1);
   }
+  // The public page loads no field rows, so ask the database for the same two
+  // facts in two batched grouped counts (no per-tournament queries): the
+  // speakers on each tab, and only the (total, rank) groups with 2+ speakers.
+  const cheapFieldSizes = new Map<bigint, number>();
+  if (!includeFieldStats && includeFieldSizes && tournamentIds.length) {
+    const speakerWhere = {
+      tournamentId: { in: tournamentIds },
+      speakerScoreTotal: { not: null },
+      roles: { some: { role: 'speaker' as const } },
+    };
+    const [counts, tiedGroups] = await Promise.all([
+      prisma.tournamentParticipant.groupBy({
+        by: ['tournamentId'],
+        where: speakerWhere,
+        _count: { _all: true },
+      }),
+      prisma.tournamentParticipant.groupBy({
+        by: ['tournamentId', 'speakerScoreTotal', 'speakerRankOpen'],
+        where: { ...speakerWhere, speakerRankOpen: { not: null } },
+        having: { tournamentId: { _count: { gt: 1 } } },
+        _count: { _all: true },
+      }),
+    ]);
+    for (const c of counts) cheapFieldSizes.set(c.tournamentId, c._count._all);
+    for (const g of tiedGroups) {
+      if (g.speakerScoreTotal == null || g.speakerRankOpen == null) continue;
+      speakersOnTotal.set(
+        `${g.tournamentId}#${Number(g.speakerScoreTotal)}#${g.speakerRankOpen}`,
+        g._count._all,
+      );
+    }
+  }
 
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
@@ -1395,20 +1428,8 @@ export async function buildCvData(
       (speakerFieldByTournament.get(f.tournamentId) ?? 0) + 1,
     );
   }
-  if (!includeFieldStats && includeFieldSizes && tournamentIds.length) {
-    // Same population as the field query (speakers with a score total), but
-    // counted in the database: one row per tournament comes back.
-    const counts = await prisma.tournamentParticipant.groupBy({
-      by: ['tournamentId'],
-      where: {
-        tournamentId: { in: tournamentIds },
-        speakerScoreTotal: { not: null },
-        roles: { some: { role: 'speaker' } },
-      },
-      _count: { _all: true },
-    });
-    for (const c of counts) speakerFieldByTournament.set(c.tournamentId, c._count._all);
-  }
+  // Public page: the counts fetched above, in the database.
+  for (const [tid, n] of cheapFieldSizes) speakerFieldByTournament.set(tid, n);
   for (const r of speakerRows)
     r.speakerFieldSize = speakerFieldByTournament.get(r.tournamentId) ?? null;
   const bestSpeakerRank = bestSpeakerRankHighlight(speakerRows);

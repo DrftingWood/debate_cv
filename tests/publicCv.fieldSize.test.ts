@@ -58,6 +58,7 @@ describe('public CV field size', () => {
     expect(buildCvDataMock).toHaveBeenCalledWith('u1', {
       includeFieldStats: false,
       includeFieldSizes: true,
+      excludeTournamentIds: [],
     });
     expect(html).toContain('5th= of 400');
     expect(html).toContain('top 1%');

@@ -753,17 +753,70 @@ describe('buildCvData characterization: field summary', () => {
   });
 
   it('includeFieldSizes: a cheap grouped count gives field sizes without the heavy field query', async () => {
-    prismaMock.tournamentParticipant.groupBy.mockResolvedValue([
-      { tournamentId: 1n, _count: { _all: 400 } },
-    ]);
+    prismaMock.tournamentParticipant.groupBy.mockImplementation(async (args: unknown) =>
+      (args as { by: string[] }).by.includes('speakerScoreTotal')
+        ? []
+        : [{ tournamentId: 1n, _count: { _all: 400 } }],
+    );
     const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
     expect(cv.fieldStats).toEqual([]);
-    expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(1);
+    expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(2);
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerFieldSize).toBe(400);
     const heavy = prismaMock.tournamentParticipant.findMany.mock.calls.filter(
       ([args]) => !!argsWhere(args).speakerScoreTotal,
     );
     expect(heavy).toHaveLength(0);
+  });
+
+  describe('includeFieldSizes: speaker ties without the field rows', () => {
+    // The user's T1 row gets the parser's own rank (3), as a tab with a
+    // published rank column would.
+    function rankedUser() {
+      const base = prismaMock.tournamentParticipant.findMany.getMockImplementation()!;
+      prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
+        const rows = (await base(args)) as Array<Record<string, unknown>>;
+        if (!argsWhere(args).person) return rows;
+        return rows.map((r) =>
+          r.tournamentId === 1n && r.personId === ADA.id ? { ...r, speakerRankOpen: 3 } : r,
+        );
+      });
+    }
+    function groups(tied: boolean) {
+      prismaMock.tournamentParticipant.groupBy.mockImplementation(async (args: unknown) => {
+        const by = (args as { by: string[] }).by;
+        if (by.includes('speakerScoreTotal')) {
+          return tied
+            ? [
+                {
+                  tournamentId: 1n,
+                  speakerScoreTotal: 390,
+                  speakerRankOpen: 3,
+                  _count: { _all: 2 },
+                },
+              ]
+            : [];
+        }
+        return [{ tournamentId: 1n, _count: { _all: 400 } }];
+      });
+    }
+
+    it('marks a speaker tied when another speaker shares the total and rank', async () => {
+      rankedUser();
+      groups(true);
+      const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+      const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+      expect(row.speakerRankTied).toBe(true);
+      expect(row.speakerFieldSize).toBe(400);
+      // One batched query for ties plus one for sizes: no per-tournament calls.
+      expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(2);
+    });
+
+    it('is not tied when no other speaker shares the total and rank', async () => {
+      rankedUser();
+      groups(false);
+      const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+      expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+    });
   });
 
   it('includeFieldStats: false skips the field query and returns no field stats', async () => {
