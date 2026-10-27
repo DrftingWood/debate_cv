@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { fullScanAvailableAt } from '@/lib/gmail/fullScan';
 import {
   ScanButton,
+  FullScanButton,
   UploadCsvButton,
   IngestAllButton,
   IngestButton,
@@ -85,7 +87,7 @@ export default async function Dashboard({
   // and the filter must describe the whole set (NV-12; the old `take: 200`
   // made a heavy user's counts silently wrong). Only the page of rows that
   // is rendered gets the heavy tournament join, below.
-  const [gmailToken, urls, jobs, claimedTournamentIds] = await Promise.all([
+  const [gmailToken, urls, jobs, claimedTournamentIds, fullScanAt] = await Promise.all([
     prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } }),
     prisma.discoveredUrl.findMany({
       where: { userId },
@@ -104,6 +106,7 @@ export default async function Dashboard({
         distinct: ['tournamentId'],
       })
       .then((rows) => new Set(rows.map((r) => r.tournamentId.toString()))),
+    fullScanAvailableAt(userId),
   ]);
 
   const jobByUrl = new Map(jobs.map((j) => [j.url, j] as const));
@@ -179,6 +182,7 @@ export default async function Dashboard({
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
           <UploadCsvButton />
+          <FullScanButton disconnected={!gmailToken} availableAt={fullScanAt?.toISOString() ?? null} />
           <ScanButton disconnected={!gmailToken} />
         </div>
       </header>

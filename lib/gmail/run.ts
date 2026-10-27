@@ -71,11 +71,24 @@ export type ExtractSummary = {
   perHost: Record<string, number>;
   perTournament: Record<string, number>;
   urls: PrivateUrlRecord[];
+  /** True when the message cap or the deadline stopped the scan before every matching message was read. */
+  truncated: boolean;
 };
 
 export async function extractAllFromGmail(
   auth: OAuth2Client,
-  options: { query?: string; max?: number; after?: Date } = {},
+  options: {
+    query?: string;
+    /** Most message ids to list. Default 500. */
+    max?: number;
+    after?: Date;
+    /** Message ids already read in a past scan: listed (cheap) but not fetched again. */
+    skipMessageIds?: ReadonlySet<string>;
+    /** Most messages to fetch in full. Default: all listed. */
+    maxFetch?: number;
+    /** Epoch ms after which no new message is fetched; the scan returns what it has, truncated. */
+    deadline?: number;
+  } = {},
 ): Promise<ExtractSummary> {
   let query = options.query ?? DEFAULT_QUERY;
   // Incremental scan: caller can pass the last-known message date and we'll
@@ -105,12 +118,25 @@ export async function extractAllFromGmail(
     pageToken = data.nextPageToken;
   }
 
-  const messages = await mapConcurrent<string, gmail_v1.Schema$Message>(ids, CONCURRENCY, async (id) => {
+  let truncated = ids.length >= max && Boolean(pageToken);
+  const skip = options.skipMessageIds;
+  let toFetch = skip ? ids.filter((id) => !skip.has(id)) : ids;
+  if (options.maxFetch !== undefined && toFetch.length > options.maxFetch) {
+    toFetch = toFetch.slice(0, options.maxFetch);
+    truncated = true;
+  }
+
+  const fetched = await mapConcurrent<string, gmail_v1.Schema$Message | null>(toFetch, CONCURRENCY, async (id) => {
+    if (options.deadline !== undefined && Date.now() > options.deadline) {
+      truncated = true;
+      return null;
+    }
     const { data } = await gmailRetryOn429(() =>
       gmail.users.messages.get({ userId: 'me', id, format: 'full' }),
     );
     return data;
   });
+  const messages = fetched.filter((m): m is gmail_v1.Schema$Message => m !== null);
 
   const records = messages.flatMap((m) => extractFromMessage(m));
   const deduped = dedupeByUrl(records);
@@ -129,5 +155,6 @@ export async function extractAllFromGmail(
     perHost,
     perTournament,
     urls: deduped,
+    truncated,
   };
 }
