@@ -28,10 +28,15 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   try {
     const user = await prisma.user.findUnique({
       where: { publicCvSlug: slug },
-      select: { id: true, name: true, publicCvEnabled: true },
+      select: { id: true, name: true, publicCvEnabled: true, publicHiddenTournamentIds: true },
     });
     if (user?.publicCvEnabled) {
-      const { summary, highlights } = await buildCvData(user.id, { includeFieldStats: false });
+      // Same hidden list as the page: the share card must not count or reveal
+      // a tournament the owner hid (C101).
+      const { summary, highlights } = await buildCvData(user.id, {
+        includeFieldStats: false,
+        excludeTournamentIds: user.publicHiddenTournamentIds ?? [],
+      });
       const y = highlights.activeYears;
       person = {
         name: user.name ?? 'Debater',

@@ -37,6 +37,11 @@ model User {
   publicCvEnabled       Boolean @default(false)
   publicCvSlug          String? @unique
   publicAvatarEnabled   Boolean @default(false)
+  /// Tournaments the owner hid from the public CV and its share image
+  /// (C101). Plain id list, not a join table: it is read only with the
+  /// user row, written only by the owner, and a stale id for a deleted
+  /// tournament matches nothing. Empty means everything is shown.
+  publicHiddenTournamentIds BigInt[] @default([])
 
   accounts          Account[]
   sessions          Session[]
