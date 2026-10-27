@@ -123,7 +123,19 @@ describe('milestones — firsts', () => {
     ])!;
     expect(m.firstBreak).toMatchObject({ year: 2020 });
     expect(m.otherBracket).toMatchObject({ finals: 2, titles: 1 });
-    expect(m.firstFinal).toBeNull(); // open bracket only
+    // Owner rule: Gold/Silver/Bronze finals count as reaching a final (this
+    // asserted null before, when only the open bracket counted).
+    expect(m.firstFinal).toMatchObject({ year: 2020 });
+  });
+
+  test('Plate and Consolation finals still do not count as a first final; Bronze does', () => {
+    const m = milestones([
+      row({ year: 2019, broke: true, eliminationReached: 'Plate Final' }),
+      row({ year: 2021, broke: true, eliminationReached: 'Bronze Final', wonTournament: false }),
+    ])!;
+    expect(m.firstFinal).toMatchObject({ year: 2021, tournament: expect.any(String) });
+    // ESL stays out
+    expect(milestones([row({ year: 2020, broke: true, eliminationReached: 'ESL Final' })])!.firstFinal).toBeNull();
   });
 });
 

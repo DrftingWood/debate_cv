@@ -152,6 +152,28 @@ describe('outroundFunnel', () => {
     expect(f!.consolation.tournaments).toBe(0);
   });
 
+  test('gold, silver and bronze finals reach the funnel final rung (and the rungs below); plate does not; ESL does not', () => {
+    const f = outroundFunnel([
+      t({ broke: true, deepestOutround: 'Gold Final', won: false }),
+      t({ broke: true, deepestOutround: 'Silver Final' }),
+      t({ broke: true, deepestOutround: 'Bronze Final', won: false }),
+      t({ broke: true, deepestOutround: 'Plate Final', won: false }),
+      t({ broke: true, deepestOutround: 'ESL Final', won: false }),
+    ]);
+    expect(rung(f, 'final').count).toBe(3);
+    expect(rung(f, 'semifinal').count).toBe(3);
+    expect(rung(f, 'quarterfinal').count).toBe(3);
+    // Tier results are not the open final's: out of the lost/decided conversions.
+    expect(rung(f, 'final').wentOut).toBe(0);
+    expect(f!.finalsUndecided).toBe(0);
+    expect(f!.consolation.tournaments).toBe(1);
+  });
+
+  test('a Silver Semifinal is not a final', () => {
+    const f = outroundFunnel([t({ broke: true, deepestOutround: 'Silver Semifinals' })]);
+    expect(rung(f, 'final').count).toBe(0);
+  });
+
   test('a Final and a Grand Final land on the same rung', () => {
     const f = outroundFunnel([
       t({ broke: true, deepestOutround: 'Final', won: true }),

@@ -80,6 +80,16 @@ export function bracketOf(label: string | null | undefined): Bracket {
   return CONSOLATION.test(category) ? 'consolation' : 'category';
 }
 
+/**
+ * Gold, Silver and Bronze: the open field split into tiers. Reaching any of
+ * their finals counts as reaching a final (owner decision); titles stay
+ * category titles. Plate/Consolation never match (they are 'consolation').
+ */
+export function isTierBracket(label: string | null | undefined): boolean {
+  const { category } = splitStageLabel(label);
+  return category != null && /^(?:gold|silver|bronze)$/i.test(category.trim());
+}
+
 export type FunnelRungKey = 'spoken' | 'broke' | 'quarterfinal' | 'semifinal' | 'final' | 'won';
 
 export type FunnelRung = {
@@ -136,6 +146,7 @@ export function outroundFunnel(tournaments: TournamentFact[]): OutroundFunnel | 
   let finalsLost = 0;
   let finalsDecided = 0;
   let won = 0;
+  let tierFinals = 0;
   const category = { breaks: 0, finals: 0, titles: 0 };
   const categoryNames = new Set<string>();
   let consolation = 0;
@@ -164,6 +175,15 @@ export function outroundFunnel(tournaments: TournamentFact[]): OutroundFunnel | 
       categoryNames.add(splitStageLabel(t.deepestOutround).category!);
       if (depth != null && depth >= FINAL) category.finals += 1;
       if (title) category.titles += 1;
+      // A tier final is a final-level appearance on the funnel rungs too, so
+      // the funnel stays monotone; its result is not the open final's, so it
+      // stays out of the decided / won / lost conversions.
+      if (isTierBracket(t.deepestOutround) && depth != null && depth >= FINAL) {
+        qf += 1;
+        sf += 1;
+        finals += 1;
+        tierFinals += 1;
+      }
       continue;
     }
 
@@ -196,7 +216,7 @@ export function outroundFunnel(tournaments: TournamentFact[]): OutroundFunnel | 
   return {
     rungs,
     unknownDepth,
-    finalsUndecided: finals - finalsDecided,
+    finalsUndecided: finals - tierFinals - finalsDecided,
     category: { ...category, brackets: sorted(categoryNames) },
     consolation: { tournaments: consolation, brackets: sorted(consolationNames) },
   };
