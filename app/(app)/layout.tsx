@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Discoverability only — /admin still enforces requireAdmin server-side.
   // Without this link, admins had no in-app path to the panel at all.
   const showAdmin = isAdminEmail(session?.user?.email);
+  const signedIn = Boolean(session?.user?.id);
 
   return (
     <>
@@ -48,18 +49,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <BrandMark />
           </Link>
           <div className="flex min-w-0 items-center gap-2">
-            <nav className="hidden items-center gap-0.5 text-table font-medium md:flex">
-              {/* Task names, not object names: "Record" is what the page is
-                  for, "Imports" is what the dashboard actually does. */}
-              <NavLink href="/cv" exact>Record</NavLink>
-              <NavLink href="/cv/stats">Statistics</NavLink>
-              <NavLink href="/dashboard">Imports</NavLink>
-              <NavLink href="/settings">Settings</NavLink>
-              {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+            {/* Named like the mobile strip; only one of the two is ever
+                visible, so they never read as two "Sections" at once. */}
+            <nav aria-label="Sections" className="hidden items-center gap-0.5 text-table font-medium md:flex">
+              <SectionLinks signedIn={signedIn} showAdmin={showAdmin} />
             </nav>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
-              {session?.user?.id ? (
+              {signedIn && session?.user ? (
                 <>
                   <NotificationBell />
                   <UserMenu
@@ -85,17 +82,47 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           aria-label="Sections"
           className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
         >
-          <NavLink href="/cv" exact>Record</NavLink>
-          <NavLink href="/cv/stats">Statistics</NavLink>
-          <NavLink href="/dashboard">Imports</NavLink>
-          <NavLink href="/settings">Settings</NavLink>
-          {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+          <SectionLinks signedIn={signedIn} showAdmin={showAdmin} />
         </nav>
       </header>
-      {/* flex-1 keeps the footer at the bottom on short pages — see the
-          note on <main> in app/layout.tsx. */}
-      <div className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">{children}</div>
+      {/* The one <main>, a sibling of the header and footer rather than
+          their parent (UX-1; see app/layout.tsx). flex-1 keeps the footer at
+          the bottom of a short page. */}
+      <main id="main" className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">
+        {children}
+      </main>
       <Footer />
+    </>
+  );
+}
+
+/**
+ * Signed in: the four task destinations. Task names, not object names:
+ * "Record" is what the page is for, "Imports" is what the dashboard
+ * actually does.
+ *
+ * Signed out, a visitor only reaches this layout through /privacy and
+ * /terms, and every one of those four links bounced them to `/`. They get
+ * what they can actually open instead (DESIGN_INSTRUCTIONS §5: do not lead
+ * signed-out users into app furniture they cannot use).
+ */
+function SectionLinks({ signedIn, showAdmin }: { signedIn: boolean; showAdmin: boolean }) {
+  if (!signedIn) {
+    return (
+      <>
+        <NavLink href="/sample">Sample CV</NavLink>
+        <NavLink href="/privacy">Privacy</NavLink>
+        <NavLink href="/">Build my CV</NavLink>
+      </>
+    );
+  }
+  return (
+    <>
+      <NavLink href="/cv" exact>Record</NavLink>
+      <NavLink href="/cv/stats">Statistics</NavLink>
+      <NavLink href="/dashboard">Imports</NavLink>
+      <NavLink href="/settings">Settings</NavLink>
+      {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
     </>
   );
 }

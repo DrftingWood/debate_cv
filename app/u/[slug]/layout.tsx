@@ -22,7 +22,7 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
     // visitor's theme. data-theme on the wrapper re-scopes the CSS vars.
     <div data-theme="light" className="min-h-screen bg-paper text-ink">
     <div className="mx-auto max-w-5xl space-y-10 px-5 pb-16 pt-10">
-      {children}
+      <main id="main" className="space-y-10">{children}</main>
       <footer className="pt-8">
         <hr className="hairline" />
         <div className="mt-6 flex flex-col items-start justify-between gap-3 text-table text-ink-soft sm:flex-row sm:items-center">

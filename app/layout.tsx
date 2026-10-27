@@ -111,16 +111,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ToastProvider>
           <a href="#main" className="skip-link">Skip to content</a>
           {/*
-            A flex COLUMN, not just a flex child. The footer is rendered by
-            the route layouts (inside this element), so `flex-1` on <main>
-            alone did nothing to push it down — on the dashboard the footer
-            sat at 756px in a 900px viewport with dead space beneath it.
-            Making main a column lets each route's content wrapper claim
-            flex-1 and pin the footer to the bottom.
+            No <main> here. It used to wrap every route, so the (app)
+            header, its nav and the footer all rendered INSIDE main: the
+            skip link landed on the header it exists to skip, and a header
+            inside main is not a banner landmark (SC 2.4.1, 1.3.1; UX-1).
+            Each route layout now renders header, <main id="main"> and
+            footer as siblings. The body stays a flex column so whichever
+            element a route marks flex-1 pins its footer to the bottom.
           */}
-          <main id="main" className="flex flex-1 flex-col">
-            {children}
-          </main>
+          {children}
         </ToastProvider>
       </body>
     </html>

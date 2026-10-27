@@ -99,9 +99,25 @@ export function PageJumpNav({
         </div>
       </nav>
 
+      {/*
+        Out of the tab order and the accessibility tree while invisible:
+        opacity-0 hid it from the eye only, so a keyboard user tabbed onto a
+        control they could not see (SC 2.4.7). The smooth scroll respects
+        reduced motion itself, because the globals.css guard covers CSS
+        scroll-behavior, not a scrollTo() option.
+      */}
       <button
         type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={() =>
+          window.scrollTo({
+            top: 0,
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+              ? 'auto'
+              : 'smooth',
+          })
+        }
+        tabIndex={showTop ? 0 : -1}
+        aria-hidden={!showTop}
         aria-label="Back to top"
         data-print-hide="true"
         className={cn(
