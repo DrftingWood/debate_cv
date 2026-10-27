@@ -238,6 +238,7 @@ export function placementHighlights(
         rank: best.p.rank,
         totalTeams: best.p.of,
         topPercent: best.p.topPercent,
+        tied: best.r.teamRankTied === true,
       }
     : null;
 
@@ -268,6 +269,7 @@ export function bestSpeakerRankHighlight(rows: CvSpeakerRow[]): CvHighlights['be
     rank: best.rank,
     totalSpeakers: p?.of ?? null,
     topPercent: p?.topPercent ?? null,
+    tied: best.r.speakerRankTied === true,
   };
 }
 

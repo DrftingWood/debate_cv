@@ -127,7 +127,9 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
         hint={
           [
             formatBreakRates(breakSummary),
-            deepest ? `Deepest: ${formatStageForDisplay(deepest)}` : null,
+            summary.speakingBreaks > 0 && deepest
+              ? `Deepest team break: ${formatStageForDisplay(deepest)}`
+              : null,
           ]
             .filter(Boolean)
             .join(' · ') || undefined

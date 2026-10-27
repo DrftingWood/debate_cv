@@ -245,6 +245,8 @@ export type CvHighlights = {
     rank: number;
     totalTeams: number;
     topPercent: number;
+    /** The team rank is shared (reads "5th="). */
+    tied: boolean;
   } | null;
   /**
    * Single best Open SPEAKER-tab rank across all tournaments. An individual
@@ -259,6 +261,8 @@ export type CvHighlights = {
     totalSpeakers: number | null;
     /** rank / totalSpeakers as a percentage ("top N%"); null with the field. */
     topPercent: number | null;
+    /** The rank is shared with another speaker (reads "5th="). */
+    tied: boolean;
   } | null;
   /** Single highest speaker average across all tournaments. */
   bestSpeakerAverage: {

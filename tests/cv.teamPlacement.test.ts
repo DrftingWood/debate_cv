@@ -295,6 +295,15 @@ describe('placementHighlights', () => {
   });
 });
 
+describe('best team finish tie flag', () => {
+  test('carries the team-rank tie flag', () => {
+    const h = placementHighlights([
+      makeSpeakerRow({ teamRank: 5, totalTeams: 40, teamRankTied: true }),
+    ]);
+    expect(h.bestTeamFinish?.tied).toBe(true);
+  });
+});
+
 describe('bestSpeakerRankHighlight (C16): raw rank with field size and percentile', () => {
   test('smallest raw rank wins; field size and percentile ride along', () => {
     const best = bestSpeakerRankHighlight([
@@ -318,6 +327,7 @@ describe('bestSpeakerRankHighlight (C16): raw rank with field size and percentil
       rank: 3,
       totalSpeakers: 20,
       topPercent: 15,
+      tied: false,
     });
   });
 
@@ -328,6 +338,14 @@ describe('bestSpeakerRankHighlight (C16): raw rank with field size and percentil
       makeSpeakerRow({ tournamentName: 'Unknown', speakerRankOpen: 2 }),
     ]);
     expect(best?.tournamentName).toBe('Big');
+  });
+
+  test('a tied best rank is flagged so it reads 5th=', () => {
+    expect(
+      bestSpeakerRankHighlight([
+        makeSpeakerRow({ speakerRankOpen: 5, speakerFieldSize: 40, speakerRankTied: true }),
+      ])?.tied,
+    ).toBe(true);
   });
 
   test('an unknown or inconsistent field gives the rank with no percentile', () => {
@@ -452,7 +470,7 @@ describe('surfaces', () => {
       'Best team finish',
       'Best speaker avg',
     ]);
-    expect(tiles[1].hint).toBe('40% of 10 spoken · deepest Semifinals');
+    expect(tiles[1].hint).toBe('40% of 10 spoken · deepest team break Semifinals');
     expect(tiles[2]).toMatchObject({ value: '3rd of 120', hint: 'top 3%' });
   });
 

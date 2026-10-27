@@ -73,14 +73,20 @@ export function breakRates(b: BreakSummary): { speaking: number | null; judging:
   };
 }
 
-/** "50% of 12 spoken · 25% of 8 judged": one rate per role that has breaks, never a combined one. */
+/**
+ * "50% of 12 spoken · 25% of 8 judged": one rate per role the user has
+ * tournaments in, never a combined one. A role with tournaments but no breaks
+ * reads "0% of 8 judged"; a role with no tournaments is left out (no rate
+ * exists). Null when neither role broke, as the tile is not shown then.
+ */
 export function formatBreakRates(b: BreakSummary): string | null {
+  if (b.speaking + b.judging === 0) return null;
   const rates = breakRates(b);
   const parts = [
-    b.speaking > 0 && rates.speaking != null
+    rates.speaking != null
       ? `${Math.round(rates.speaking * 100)}% of ${b.tournamentsSpoken} spoken`
       : null,
-    b.judging > 0 && rates.judging != null
+    rates.judging != null
       ? `${Math.round(rates.judging * 100)}% of ${b.tournamentsJudged} judged`
       : null,
   ].filter(Boolean);
@@ -106,7 +112,12 @@ export function pickHeaderMetrics(input: {
   totalRoundsChaired: number;
   outroundsChaired: number;
   /** Raw best speaker-tab rank with its field (null fields when unknown). */
-  bestSpeakerRank: { rank: number; totalSpeakers: number | null; topPercent: number | null } | null;
+  bestSpeakerRank: {
+    rank: number;
+    totalSpeakers: number | null;
+    topPercent: number | null;
+    tied?: boolean;
+  } | null;
   bestSpeakerAverage: number | null;
   speakerCount: number;
   judgeCount: number;
@@ -117,7 +128,12 @@ export function pickHeaderMetrics(input: {
    */
   deepestBreak?: string | null;
   /** Best TEAM-tab finish (prelim team rank against teams on the tab). */
-  bestTeamFinish?: { rank: number; totalTeams: number; topPercent: number } | null;
+  bestTeamFinish?: {
+    rank: number;
+    totalTeams: number;
+    topPercent: number;
+    tied?: boolean;
+  } | null;
 }): HeaderMetric[] {
   const {
     totalTournaments,
@@ -153,7 +169,10 @@ export function pickHeaderMetrics(input: {
   // Both sides of the break record, with each side's own rate and how deep
   // the best run went (a team fact: the outround reached).
   const breaksTile = (value: string): HeaderMetric => {
-    const hint = [formatBreakRates(breaks), deepestBreak ? `deepest ${deepestBreak}` : null]
+    const hint = [
+      formatBreakRates(breaks),
+      breaks.speaking > 0 && deepestBreak ? `deepest team break ${deepestBreak}` : null,
+    ]
       .filter(Boolean)
       .join(' · ');
     return { label: 'Breaks', value, accent: 'gold', hint: hint || undefined };
@@ -169,7 +188,7 @@ export function pickHeaderMetrics(input: {
     if (bestTeamFinish) {
       candidates.push({
         label: 'Best team finish',
-        value: rankOfField(bestTeamFinish.rank, bestTeamFinish.totalTeams),
+        value: rankOfField(bestTeamFinish.rank, bestTeamFinish.totalTeams, bestTeamFinish.tied),
         hint: `top ${formatTopPercent(bestTeamFinish.topPercent)}`,
       });
     }
@@ -179,7 +198,11 @@ export function pickHeaderMetrics(input: {
     if (bestSpeakerRank != null) {
       candidates.push({
         label: 'Best speaker-tab rank',
-        value: rankOfField(bestSpeakerRank.rank, bestSpeakerRank.totalSpeakers),
+        value: rankOfField(
+          bestSpeakerRank.rank,
+          bestSpeakerRank.totalSpeakers,
+          bestSpeakerRank.tied,
+        ),
         hint:
           bestSpeakerRank.topPercent != null
             ? `top ${formatTopPercent(bestSpeakerRank.topPercent)}`
