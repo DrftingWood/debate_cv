@@ -66,7 +66,16 @@ export function CvShareButton() {
     startToggle(async () => {
       const res = await postJson<SharingState>('/api/sharing', { enabled: next });
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Save failed', description: res.error });
+        // Not res.error: that is the server's code ("bad_request") or the
+        // first 200 characters of an HTML error page (DASH-5).
+        toast.show({
+          kind: 'error',
+          title: next ? 'Sharing not turned on' : 'Sharing not turned off',
+          description:
+            res.status === 0
+              ? 'Could not reach the server. Check your connection and try again.'
+              : 'Nothing changed. Try again, or use Settings → Sharing.',
+        });
         return;
       }
       setState(res.data);
@@ -103,12 +112,13 @@ export function CvShareButton() {
           className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
         >
           {!state ? (
-            <p className="text-caption text-ink-soft">Loading…</p>
+            <p role="status" className="text-caption text-ink-soft">
+              Loading…
+            </p>
           ) : !state.enabled ? (
             <div className="space-y-2.5">
               <p className="text-ui text-ink">
-                Public sharing is off. Turn it on and we&apos;ll generate a
-                link you can share.
+                Public sharing is off. Turn it on and we&apos;ll generate a link you can share.
               </p>
               <div className="flex items-center justify-between gap-2">
                 <Link
@@ -139,6 +149,7 @@ export function CvShareButton() {
                   className="flex-1 truncate font-mono text-caption text-oxblood hover:underline"
                 >
                   {fullUrl ?? '/u/...'}
+                  <span className="sr-only"> (opens in new tab)</span>
                 </a>
                 <Button
                   type="button"
@@ -147,9 +158,21 @@ export function CvShareButton() {
                   leftIcon={<Copy className="h-3.5 w-3.5" aria-hidden />}
                   onClick={() => {
                     if (!fullUrl) return;
-                    void navigator.clipboard.writeText(fullUrl).then(() =>
-                      toast.show({ kind: 'success', title: 'Link copied' }),
-                    );
+                    // A blocked clipboard (an insecure origin, a denied
+                    // permission) used to do nothing visible at all. Wrapped
+                    // so a missing navigator.clipboard (plain http) lands in
+                    // the failure branch instead of throwing.
+                    Promise.resolve()
+                      .then(() => navigator.clipboard.writeText(fullUrl))
+                      .then(
+                        () => toast.show({ kind: 'success', title: 'Link copied' }),
+                        () =>
+                          toast.show({
+                            kind: 'error',
+                            title: 'Could not copy the link',
+                            description: 'Select the link above and press Ctrl+C (⌘C on a Mac).',
+                          }),
+                      );
                   }}
                 >
                   Copy
