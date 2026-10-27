@@ -2,6 +2,7 @@ import { MIN_QUIRK_ROUNDS, type Split } from '@/lib/cv/speakerStats';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { deltaTone, signed } from '@/components/stats/format';
 import { cn } from '@/lib/utils/cn';
+import { OUTCOME_COPY, type OutcomeKind } from '@/lib/cv/roundOutcome';
 
 /**
  * One table shape for every split on /cv/stats — seat, format, region,
@@ -27,7 +28,10 @@ export function StatsSplitTable({
   showPoints = false,
   /** What the "vs you" columns compare with, for their header titles. */
   baselineLabel = 'your overall figure',
+  /** Words for the outcome column: "Win rate", or "2nd-or-better rate" in BP (never "win"). */
+  outcome = 'win',
 }: {
+  outcome?: OutcomeKind;
   splits: Split[];
   dimensionLabel: string;
   thinBelow?: number;
@@ -51,11 +55,11 @@ export function StatsSplitTable({
             <tr>
               <Th className={cn('pl-4', pin)}>{dimensionLabel}</Th>
               <Th numeric>Rounds</Th>
-              <Th numeric title="Prelim rounds where the tab recorded a win or loss">Decided</Th>
-              <Th numeric>Win rate</Th>
+              <Th numeric title="Prelim rounds where the tab recorded a result">Decided</Th>
+              <Th numeric>{OUTCOME_COPY[outcome].rate}</Th>
               {/* The unit is in the visible header, not only the title: these
                   two columns sit side by side in different units (UX-31). */}
-              <Th numeric title={`Win rate minus ${baselineLabel}, in percentage points`}>
+              <Th numeric title={`${OUTCOME_COPY[outcome].rate} minus ${baselineLabel}, in percentage points`}>
                 vs you (pp)
               </Th>
               <Th numeric>Speaker avg</Th>

@@ -13,10 +13,8 @@ import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
  * canonical classifier), then maps each canonical stage to a single
  * display string.
  *
- * "Grand Final" and "Final" both collapse to "Final" — most users
- * think of them as the same round, and the underlying rank scale
- * (grand_final=100 vs final=95 in JUDGE_STATS_RANK) still differentiates
- * them for sorting / champion detection if needed.
+ * "Grand Final" and "Final" both collapse to "Final" — they are the same
+ * round, and the rank scale gives them the same rank (95 in JUDGE_STATS_RANK).
  *
  * Anything that doesn't classify falls back to the raw string so
  * unknown / prelim labels still render.
@@ -85,4 +83,26 @@ export function formatStageForDisplay(raw: string | null | undefined): string {
   if (!base) return '';
   if (!category || category === 'Open') return base;
   return `${category} ${base}`;
+}
+
+/**
+ * The bracket a final was won in, or null for the Open bracket (bare labels
+ * and a literal "Open" prefix). "ESL Grand Final" -> "ESL".
+ */
+export function titleCategory(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const { category } = splitOutroundStage(normalizeStageLabel(raw));
+  return !category || /^open$/i.test(category) ? null : category;
+}
+
+/**
+ * What winning that final is called: "Champion" for the Open bracket and
+ * "<category> Champion" otherwise ("ESL Champion", "Novice Champion",
+ * "Silver Champion"). ESL / EFL / Novice final wins are titles (owner
+ * decision, assumptions C10), but a reader must never take one for the Open
+ * title, so the category always travels with the word.
+ */
+export function championTitle(raw: string | null | undefined): string {
+  const category = titleCategory(raw);
+  return category ? `${category} Champion` : 'Champion';
 }

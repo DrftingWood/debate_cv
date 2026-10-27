@@ -12,7 +12,7 @@ import type {
   CvTaggedMotion,
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
+import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
@@ -35,6 +35,7 @@ import {
 } from '@/components/TournamentCard';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
+import { hashRank } from '@/lib/cv/rankDisplay';
 import {
   bpPlacement,
   cumulativePoints,
@@ -287,20 +288,22 @@ export default async function CvPage() {
  */
 function teamPlacementTitle(r: {
   teamRank: number | null;
+  teamRankTied?: boolean;
   totalTeams: number | null;
 }): string | undefined {
   const p = teamTabPlacement(r.teamRank, r.totalTeams);
-  return p ? `${formatTeamTabPlacement(p)} on the prelim team tab` : undefined;
+  return p ? `${formatTeamTabPlacement(p, r.teamRankTied)} on the prelim team tab` : undefined;
 }
 
-// Pretty-print speaker rank columns: "#5 Open · #3 ESL"
+// Pretty-print speaker rank columns: "#5 Open · #3 ESL"; a tied Open rank reads "#5=".
 function fmtSpeakerRanks(r: {
   speakerRankOpen: number | null;
+  speakerRankTied?: boolean;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
 }): string | null {
   const parts: string[] = [];
-  if (r.speakerRankOpen != null) parts.push(`#${r.speakerRankOpen} Open`);
+  if (r.speakerRankOpen != null) parts.push(`${hashRank(r.speakerRankOpen, r.speakerRankTied)} Open`);
   if (r.speakerRankEsl != null) parts.push(`#${r.speakerRankEsl} ESL`);
   if (r.speakerRankEfl != null) parts.push(`#${r.speakerRankEfl} EFL`);
   return parts.join(' · ') || null;
@@ -318,11 +321,11 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string | null {
     const joined = r.eliminationReachedByCategory
       .map((e) => `${e.category}: ${formatBaseStageForDisplay(e.stage)}`)
       .join(' · ');
-    return r.wonTournament === true ? `${joined} (Champion)` : joined;
+    return r.wonTournament === true ? `${joined} (${championTitle(r.eliminationReached)})` : joined;
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  if (r.wonTournament === true) return `${display} (Champion)`;
+  if (r.wonTournament === true) return `${display} (${championTitle(r.eliminationReached)})`;
   return display;
 }
 
@@ -578,7 +581,7 @@ function SpeakingTable({
                       <Td numeric className="whitespace-nowrap">
                         {r.teamRank != null ? (
                           <span title={teamPlacementTitle(r)}>
-                            #{r.teamRank}
+                            {hashRank(r.teamRank, r.teamRankTied)}
                             {r.totalTeams != null ? (
                               <span className="text-ink-soft">/{r.totalTeams}</span>
                             ) : null}
@@ -802,7 +805,10 @@ function speakerCardFields(
   if (r.teamRank != null) {
     out.push({
       label: 'Team rank',
-      value: r.totalTeams != null ? `#${r.teamRank} of ${r.totalTeams}` : `#${r.teamRank}`,
+      value:
+        r.totalTeams != null
+          ? `${hashRank(r.teamRank, r.teamRankTied)} of ${r.totalTeams}`
+          : hashRank(r.teamRank, r.teamRankTied),
       mono: true,
     });
   }

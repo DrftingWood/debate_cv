@@ -5,6 +5,15 @@ import type {
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
 import { outroundRank } from '@/lib/calicotab/judgeStats';
+import {
+  isFourTeam,
+  isStraights,
+  OUTCOME_COPY,
+  outcomeKind,
+  roundFirst,
+  roundHit,
+  type OutcomeKind,
+} from '@/lib/cv/roundOutcome';
 import { breakDepth, breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
 
 /**
@@ -59,6 +68,12 @@ import { breakDepth, breakSeed, formatTopPercent, teamTabPlacement } from '@/lib
 export const MIN_QUIRK_ROUNDS = 6;
 /** Minimum tournaments before a tournament-level quirk is allowed. */
 export const MIN_QUIRK_TOURNAMENTS = 4;
+/**
+ * Run length that becomes a "streak" finding. Five in every format (most
+ * comps run five prelims; owner decision). Only in-rounds count, never
+ * outrounds.
+ */
+const STREAK_BAR = 5;
 
 export type Split = {
   /** The dimension value: "CG", "British Parliamentary", "THW", 2024… */
@@ -230,14 +245,45 @@ export type RoundDynamics = {
   worstRoundNumber: { roundNumber: number; avgScore: number; samples: number } | null;
 };
 
+/**
+ * British Parliamentary results. A BP prelim is never a "win" (owner decision,
+ * assumptions I1/C40/C41): the headline is STRAIGHTS — a tournament whose
+ * prelim points total is at least 2 x its rounds, i.e. averaging second place
+ * or better. Firsts are tracked separately as a strong indicator of breaking.
+ */
+export type BpResults = {
+  /** BP prelim rounds with a placing on record. */
+  rounds: number;
+  /** Of those, rounds placed 1st. Never called wins. */
+  firsts: number;
+  firstsRate: number | null;
+  /** BP tournaments whose prelim points total and round count are both known. */
+  tournaments: number;
+  /** Of those, tournaments with points >= 2 x rounds. */
+  straights: number;
+  straightsRate: number | null;
+};
+
 export type ResultsProfile = {
+  /** Rounds with a recorded outcome by the format's measure (see lib/cv/roundOutcome.ts). */
   decidedRounds: number;
+  /**
+   * Rounds that were a "hit": won (two-team) or finished 2nd or better (BP,
+   * >= 2 points). The field keeps its name for the many readers; the page copy
+   * comes from `outcome`, and a BP round is never described as won.
+   */
   wins: number;
   winRate: number | null;
+  /** Which wording applies: wins, BP 2nd-or-better rounds, or both. */
+  outcome: OutcomeKind;
+  /** BP-only figures (straights, firsts); null when no BP round is on record. */
+  bp: BpResults | null;
   /** Count of rounds finishing on each BP team-points value. */
   pointsDistribution: { points: number; rounds: number }[];
   avgPoints: number | null;
+  /** Longest run of hit rounds (wins, or BP 2nd-or-better rounds). */
   longestWinStreak: number;
+  /** Longest run of rounds that were not a hit. */
   longestLossStreak: number;
   /** Tournaments where the user broke, over tournaments spoken at. */
   breaks: number;
@@ -770,6 +816,11 @@ export function computeSpeakerStats(input: {
   // ── Results, splits, partners ───────────────────────────────────────
   let decidedRounds = 0;
   let wins = 0;
+  const outcomeFormats = new Set<string | null>();
+  let bpRounds = 0;
+  let bpFirsts = 0;
+  let bpTournaments = 0;
+  let bpStraights = 0;
   const pointsCounts = new Map<number, number>();
   const allPoints: number[] = [];
 
@@ -799,16 +850,54 @@ export function computeSpeakerStats(input: {
     );
     const resultByRound = new Map(row.teamRoundResults.map((tr) => [tr.roundNumber, tr] as const));
     const debatedRounds = new Set([...scoreByRound.keys(), ...resultByRound.keys()]);
+    const prelimCount = row.prelimRoundCount;
+
+    // Straights: one verdict per BP tournament, on the prelim points TOTAL.
+    // Seat-aware: a BP seat counts even when the format string is unknown.
+    // With no prelim count there is nothing to cut at, so outround points
+    // could be summed or counted as rounds; leave straights unjudged then.
+    const isBp =
+      isFourTeam(row.format) || row.teamRoundResults.some((tr) => isFourTeam(row.format, tr.position));
+    if (isBp && prelimCount != null) {
+      const prelimResults = row.teamRoundResults.filter(
+        (tr) => tr.points != null && tr.roundNumber <= prelimCount,
+      );
+      const rounds = prelimCount;
+      const tabTotal = row.teamPoints != null ? Number(row.teamPoints) : NaN;
+      // The tab's own total wins when it is there; otherwise sum the rounds,
+      // but only when every prelim round has points (a missing round would
+      // understate the total and fake a miss).
+      const total = Number.isFinite(tabTotal)
+        ? tabTotal
+        : prelimResults.length === rounds
+          ? prelimResults.reduce((s, tr) => s + (tr.points as number), 0)
+          : null;
+      const verdict = isStraights(total, rounds);
+      if (verdict != null) {
+        bpTournaments += 1;
+        if (verdict) bpStraights += 1;
+      }
+    }
 
     for (const roundNumber of debatedRounds) {
       const result = resultByRound.get(roundNumber) ?? null;
       const score = scoreByRound.get(roundNumber) ?? null;
-      const won = result?.won ?? null;
+      // `won` here is the format's "hit": a win in a two-team room, 2nd or
+      // better in a BP one. A BP round is never a win.
+      const won = result ? roundHit(row.format, result) : null;
       const points = result?.points ?? null;
 
       if (won != null) {
         decidedRounds += 1;
+        outcomeFormats.add(result && isFourTeam(row.format, result.position) ? BP_FORMAT : row.format);
         if (won) wins += 1;
+      }
+      if (result && isFourTeam(row.format, result.position)) {
+        const first = roundFirst(result);
+        if (first != null && (prelimCount == null || roundNumber <= prelimCount)) {
+          bpRounds += 1;
+          if (first) bpFirsts += 1;
+        }
       }
       if (points != null) {
         allPoints.push(points);
@@ -831,7 +920,9 @@ export function computeSpeakerStats(input: {
     // for the event, and the interesting question is whether the pairing
     // performed, not which round it was.
     const tournamentScores = [...scoreByRound.values()];
-    const tournamentDecided = [...resultByRound.values()].filter((r) => r.won != null);
+    const tournamentDecided = [...resultByRound.values()]
+      .map((r) => ({ ...r, won: roundHit(row.format, r) }))
+      .filter((r) => r.won != null);
     for (const partner of row.teammates) {
       const agg =
         partnerAggs.get(partner) ?? { tournaments: 0, breaks: 0, scores: [], decided: 0, wins: 0 };
@@ -856,8 +947,11 @@ export function computeSpeakerStats(input: {
   let currentLoss = 0;
   for (const row of chronological(speakerRows)) {
     for (const tr of [...row.teamRoundResults].sort((a, b) => a.roundNumber - b.roundNumber)) {
-      if (tr.won == null) continue;
-      if (tr.won) {
+      // In-rounds only: teamRoundResults also carries outrounds.
+      if (row.prelimRoundCount != null && tr.roundNumber > row.prelimRoundCount) continue;
+      const hit = roundHit(row.format, tr);
+      if (hit == null) continue;
+      if (hit) {
         currentWin += 1;
         currentLoss = 0;
       } else {
@@ -876,6 +970,18 @@ export function computeSpeakerStats(input: {
     decidedRounds,
     wins,
     winRate: careerWinRate,
+    outcome: outcomeKind(outcomeFormats),
+    bp:
+      bpRounds > 0 || bpTournaments > 0
+        ? {
+            rounds: bpRounds,
+            firsts: bpFirsts,
+            firstsRate: bpRounds > 0 ? bpFirsts / bpRounds : null,
+            tournaments: bpTournaments,
+            straights: bpStraights,
+            straightsRate: bpTournaments > 0 ? bpStraights / bpTournaments : null,
+          }
+        : null,
     pointsDistribution: [...pointsCounts.entries()]
       .map(([points, rounds]) => ({ points, rounds }))
       .sort((a, b) => b.points - a.points),
@@ -1069,6 +1175,8 @@ export function buildBins(sortedScores: number[]): ScoreBin[] {
  * table (lib/cv/statsFacts.ts) all count the same speeches. With no prelim
  * count every round is kept: there is nothing to cut at.
  */
+const BP_FORMAT = 'British Parliamentary';
+
 function prelimScope(row: CvSpeakerRow): CvSpeakerRow {
   const prelims = row.prelimRoundCount;
   if (prelims == null) return row;
@@ -1207,9 +1315,13 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
   if (motionTypes.length > 0) {
     const strongest = motionTypes.reduce((a, b) => (b.winRateDelta! > a.winRateDelta! ? b : a));
     if (strongest.winRateDelta! >= 10) {
+      const points = Math.round(strongest.winRateDelta!);
       quirks.push({
         id: 'motion-type',
-        text: `You win ${Math.round(strongest.winRateDelta!)} percentage points more often on ${strongest.key} motions than your overall rate.`,
+        text:
+          results.outcome === 'win'
+            ? `You win ${points} percentage points more often on ${strongest.key} motions than your overall rate.`
+            : `Your ${OUTCOME_COPY[results.outcome].rate.toLowerCase()} is ${points} percentage points higher on ${strongest.key} motions than your overall rate.`,
         basis: `${strongest.decidedRounds} decided rounds on ${strongest.key}`,
         tone: 'pos',
       });
@@ -1246,8 +1358,8 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
           id: 'field-size',
           text:
             gap > 0
-              ? `Your round win rate drops ${Math.round(gap)} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`
-              : `Your round win rate rises ${Math.round(Math.abs(gap))} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`,
+              ? `Your round ${OUTCOME_COPY[results.outcome].rate.toLowerCase()} drops ${Math.round(gap)} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`
+              : `Your round ${OUTCOME_COPY[results.outcome].rate.toLowerCase()} rises ${Math.round(Math.abs(gap))} points at ${biggest.key.toLowerCase()} compared with ${smallest.key.toLowerCase()}.`,
           basis: `${smallest.decidedRounds} and ${biggest.decidedRounds} decided rounds respectively`,
           tone: gap > 0 ? 'neg' : 'pos',
         });
@@ -1255,13 +1367,31 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     }
   }
 
-  // Streaks — only interesting once they are long enough to be unlikely.
-  if (results.longestWinStreak >= 5) {
+  // Streaks — only interesting once they are long enough to be unlikely. A BP
+  // run is 2nd-or-better rounds (never "wins"). Same bar in every format;
+  // prelims only.
+  if (results.longestWinStreak >= STREAK_BAR) {
     quirks.push({
       id: 'streak',
-      text: `Your longest run of won rounds is ${results.longestWinStreak}.`,
+      text:
+        results.outcome === 'win'
+          ? `Your longest run of won rounds is ${results.longestWinStreak}.`
+          : results.outcome === 'top-two'
+            ? `Your longest run of rounds finishing 2nd or better is ${results.longestWinStreak}.`
+            : `Your longest run of won or 2nd-or-better rounds is ${results.longestWinStreak}.`,
       basis: `${results.decidedRounds} decided prelim rounds on record`,
       tone: 'pos',
+    });
+  }
+
+  // Straights — the BP headline. Firsts are named separately (a strong sign of
+  // breaking) and are never described as wins.
+  if (results.bp && results.bp.tournaments >= MIN_QUIRK_TOURNAMENTS && results.bp.straightsRate != null) {
+    quirks.push({
+      id: 'straights',
+      text: `You went straights (averaging 2nd or better) at ${pct(results.bp.straightsRate * 100)} of your BP tournaments.`,
+      basis: `${results.bp.straights} of ${results.bp.tournaments} BP tournaments; ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`,
+      tone: results.bp.straightsRate >= 0.5 ? 'pos' : 'neutral',
     });
   }
 
