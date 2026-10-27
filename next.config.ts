@@ -17,6 +17,13 @@ const securityHeaders = [
 
 const config: NextConfig = {
   serverExternalPackages: ['@prisma/client', 'googleapis', 'exceljs', '@anthropic-ai/sdk'],
+  // Server source maps (`.next/server/**/*.map`) are uploaded to Sentry at
+  // build time, so they do not need to ride along inside each serverless
+  // function (~23 MB unzipped per route). Safe because Sentry resolves stack
+  // traces from the uploaded maps, not from files next to the running code.
+  outputFileTracingExcludes: {
+    '*': ['**/*.map'],
+  },
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
