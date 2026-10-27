@@ -23,7 +23,7 @@ export type RowsProps = {
 
 /**
  * Per-row controls. Always visible, never on hover (UX-36); outline, because
- * the page's one primary action is the bulk confirm (or nothing). Each name
+ * no single row's answer is the page's primary action. Each name
  * says which tournament it is for (UX-11) and starts with the visible words.
  * After a decision the row stays where it is with the note and an Undo
  * (inline, not a toast: UX-20).
@@ -60,26 +60,23 @@ function RowActions({
   }
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
-      {row.tier !== 'blocked' ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          loading={busy}
-          data-first-action="true"
-          aria-label={`This is me: ${label}`}
-          onClick={() => onDecide(row, 'confirm')}
-          className="w-full sm:w-auto"
-        >
-          This is me
-        </Button>
-      ) : null}
       <Button
         type="button"
         size="sm"
         variant="outline"
         loading={busy}
-        data-first-action={row.tier === 'blocked' ? 'true' : undefined}
+        data-first-action="true"
+        aria-label={`This is me: ${label}`}
+        onClick={() => onDecide(row, 'confirm')}
+        className="w-full sm:w-auto"
+      >
+        This is me
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        loading={busy}
         aria-label={`Not me: ${label}`}
         onClick={() => onDecide(row, 'reject')}
         className="w-full sm:w-auto"
@@ -90,7 +87,7 @@ function RowActions({
   );
 }
 
-/** The "Why this match" line, any warnings, and the block reason, all visible. */
+/** The "Why this match" line and any warnings, all visible. */
 function Why({ row }: { row: RowView }) {
   return (
     <div className="space-y-1">
@@ -98,7 +95,6 @@ function Why({ row }: { row: RowView }) {
         <span className="font-medium">Why this match: </span>
         {row.evidence}
       </p>
-      {row.blockText ? <p className="text-ink">{row.blockText}</p> : null}
       {row.warnings.length > 0 ? (
         <ul className="space-y-0.5 text-caption text-ink">
           {row.warnings.map((w) => (
@@ -118,7 +114,7 @@ function roleAndTeam(row: RowView): string {
 }
 
 /**
- * One tier as a ledger table at `md` and up, and as cards below it (UX-30):
+ * One list as a ledger table at `md` and up, and as cards below it (UX-30):
  * the table has five columns of long text, which a phone cannot hold. Only
  * one of the two is displayed, so only one is in the tab order.
  */

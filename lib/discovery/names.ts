@@ -1,221 +1,105 @@
 /**
- * Names for the Found tab: which of a user's names may seed a search, which
- * stored names to look up for each, and how close a listed name is.
+ * Names for the Found tab: which of a user's names are searched, and the
+ * exact stored key each one is searched by.
  *
- * Pure. The loader turns `lookupKeys` and `prefixRanges` into index probes on
- * `Person.normalizedName` (its unique btree), so a search never reads the
- * whole Person table; `classifyName` then decides, in memory, which of the
- * rows that came back are worth showing.
+ * Exact matching (the owner's decision, 2026-10-27): a name on a public tab
+ * is a candidate when its WHOLE stored key EQUALS the key of one of the
+ * user's claimed names, or, for a name of two or more words only, when it
+ * holds every word of that name in order (`aliasPattern`). No near
+ * spellings, no partial words, no reordering, no similarity. The key is the one
+ * every Person row is stored under (`normalizePersonName`, the v1 normaliser:
+ * lower case, accented letters dropped, punctuation stripped, and any run of
+ * whitespace, including a non-breaking space, collapsed to one space and
+ * trimmed), so the lookup is an equality on `Person.normalizedName`'s unique
+ * btree.
+ *
+ * Pure. The loader does the lookup in one query.
  */
 
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { isPlaceholderPersonName, isRedactedName } from '@/lib/calicotab/names';
-import { fold, nameProximity, proximityToYou } from '@/lib/identity/nameProximity';
-
-/** How a listed name relates to one of the user's anchor names. */
-export type MatchProximity = 'match' | 'close' | 'ambiguous';
 
 /**
- * The spec allows at most five anchors per user without an admin review
- * (section 5.3); more than that is unusual enough to be worth a look.
+ * More names than this is unusual enough that the rest wait; the page says
+ * how many were left out. Equality probes are cheap, so this is generous.
  */
-export const MAX_ANCHORS = 5;
-
-const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
-
-function deletions(word: string): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < word.length; i++) out.push(word.slice(0, i) + word.slice(i + 1));
-  return out;
-}
-
-/** Every string one edit away: delete, swap neighbours, replace, insert (a-z). */
-function singleEdits(word: string): string[] {
-  const out = deletions(word);
-  for (let i = 0; i + 1 < word.length; i++) {
-    out.push(word.slice(0, i) + word[i + 1] + word[i] + word.slice(i + 2));
-  }
-  for (let i = 0; i <= word.length; i++) {
-    for (const c of LETTERS) {
-      if (i < word.length && c !== word[i]) out.push(word.slice(0, i) + c + word.slice(i + 1));
-      out.push(word.slice(0, i) + c + word.slice(i));
-    }
-  }
-  return out;
-}
-
-/**
- * The `Person.normalizedName` values to probe exactly for one anchor.
- *
- * Stored keys are the v1 normaliser's output, which DELETES accented letters
- * ("José" is stored as "jos"), so the anchor's v1 key and its folded key are
- * both probed, and so are the one-letter deletions that an accent costs. The
- * rest mirror what `nameProximity` calls close: an initial, a shortened first
- * name, a one-letter slip in either name, surname-first order, and the first
- * two words of a three-word name (a double surname).
- *
- * Bounded by construction: about a thousand keys for a long two-word name,
- * each one an index probe. Middle names on the LISTED side cannot be
- * enumerated; `prefixRanges` covers those.
- */
-export function lookupKeys(anchor: string): string[] {
-  const keys = new Set<string>();
-  const v1 = normalizePersonName(anchor);
-  const folded = fold(anchor);
-  if (v1) keys.add(v1);
-  if (folded) keys.add(folded);
-  const tokens = folded.split(' ').filter(Boolean);
-  if (tokens.length < 2) return [...keys];
-
-  const first = tokens[0];
-  const last = tokens[tokens.length - 1];
-  const add = (f: string, l: string) => {
-    if (f && l) keys.add(`${f} ${l}`);
-  };
-  add(first, last);
-  add(last, first);
-  add(first[0], last);
-  add(last, first[0]);
-  if (tokens.length >= 3) add(first, tokens[tokens.length - 2]);
-  for (let n = 3; n < first.length; n++) add(first.slice(0, n), last);
-  for (const f of first.length >= 4 ? singleEdits(first) : deletions(first)) add(f, last);
-  for (const l of last.length >= 5 ? singleEdits(last) : deletions(last)) add(first, l);
-  return [...keys];
-}
-
-/** The smallest string that sorts after every string starting with `prefix`. */
-function upperBound(prefix: string): string | null {
-  for (let i = prefix.length - 1; i >= 0; i--) {
-    const c = prefix[i];
-    if (c >= 'a' && c < 'z') return prefix.slice(0, i) + String.fromCharCode(c.charCodeAt(0) + 1);
-  }
-  return null;
-}
-
-export type PrefixRange = { gte: string; lt: string };
-
-/**
- * Key ranges that hold every stored name starting with the anchor's first
- * name or its surname: "abhishek kumar sharma" for "Abhishek Sharma", and
- * "sharma abhishek" for tabs that list the surname first.
- *
- * A range on the btree, not `LIKE 'x%'`: LIKE can only use the index under
- * the C collation, while `>= 'abhishek' AND < 'abhishel'` can under any
- * collation, because stored keys hold only a-z, 0-9 and spaces. Tokens of
- * fewer than three letters are skipped (an initial would read thousands of
- * rows); the loader caps each range anyway.
- */
-export function prefixRanges(anchor: string): PrefixRange[] {
-  const v1 = normalizePersonName(anchor).split(' ').filter(Boolean);
-  const folded = fold(anchor).split(' ').filter(Boolean);
-  const tokens = new Set<string>();
-  for (const t of [v1[0], folded[0], v1[v1.length - 1], folded[folded.length - 1]]) {
-    if (t && t.length >= 3 && /^[a-z]+$/.test(t)) tokens.add(t);
-  }
-  const ranges: PrefixRange[] = [];
-  for (const t of tokens) {
-    const lt = upperBound(t);
-    if (lt) ranges.push({ gte: t, lt });
-  }
-  return ranges;
-}
-
-function sameWords(a: string[], b: string[]): boolean {
-  return a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ');
-}
-
-/**
- * How `listed` (a name on a public tab) relates to `anchor` (a name the user
- * registered under), or null when it is not worth showing.
- *
- * `ambiguous` is the owner's rule that one-word names and double surnames
- * always go to the user: "Ana García López" against "Ana García" (or the
- * reverse), and a three-word name against a two-word one with the same first
- * and last word, could be one person with a middle name or two people with
- * different surnames. Neither side can tell, so neither is ever bulk-added.
- */
-export function classifyName(anchor: string, listed: string): MatchProximity | null {
-  const a = fold(anchor);
-  const b = fold(listed);
-  if (!a || !b) return null;
-  const ta = a.split(' ');
-  const tb = b.split(' ');
-  if (ta.length < 2 || tb.length < 2) return a === b ? 'ambiguous' : null;
-  if (sameWords(ta, tb)) return 'match';
-
-  if (ta.length !== tb.length && Math.max(ta.length, tb.length) >= 3 && ta[0] === tb[0]) {
-    const [short, long] = ta.length < tb.length ? [ta, tb] : [tb, ta];
-    if (long.slice(1).includes(short[short.length - 1])) return 'ambiguous';
-  }
-  const p = nameProximity(anchor, listed);
-  return p === 'different' ? null : p;
-}
-
-/** The strongest relation of `listed` to any anchor, and which anchor gave it. */
-export function bestMatch(
-  anchors: readonly string[],
-  listed: string,
-): { proximity: MatchProximity; anchor: string } | null {
-  const rank: Record<MatchProximity, number> = { match: 3, close: 2, ambiguous: 1 };
-  let best: { proximity: MatchProximity; anchor: string } | null = null;
-  for (const anchor of anchors) {
-    const p = classifyName(anchor, listed);
-    if (p && (!best || rank[p] > rank[best.proximity])) best = { proximity: p, anchor };
-  }
-  return best;
-}
+export const MAX_ALIASES = 20;
 
 /** A name that is a stand-in ("Swing 2", "TBA") or an opted-out redaction. */
 export function isStandInName(name: string): boolean {
   return isPlaceholderPersonName(name) || isRedactedName(name);
 }
 
-export type AnchorSelection = {
-  /** Names that may seed a search, at most MAX_ANCHORS. */
-  usable: string[];
-  /**
-   * Names held back for an admin check: a forwarded private URL whose
-   * registration name is unlike every other name the user has, or anchors
-   * past the cap. Counted, never shown to the user.
-   */
-  heldBack: number;
-  /** Names that fold to nothing (fully non-Latin): unsearchable before option B. */
+/**
+ * The stored key for a name. `normalizePersonName` already turns every
+ * whitespace run (`\s` includes U+00A0) into one space and trims; the
+ * explicit NBSP replace keeps that true even if the normaliser changes.
+ */
+export function aliasKey(name: string): string {
+  return normalizePersonName(name.replace(/ /g, ' '));
+}
+
+export type Alias = { name: string; key: string };
+
+function escapeRegex(word: string): string {
+  return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The one near match the owner allows (2026-10-27), for a name of two or
+ * more words only: every word of the alias, as a WHOLE word, IN ORDER, with
+ * any other words allowed before, between and after. "abhishek acharya"
+ * finds "dr abhishek acharya", "abhishek acharya iitb" and "abhishek
+ * lalatendu acharya", never "acharya abhishek", "abhishekh acharya",
+ * "abhishek acharyaa" or a name missing one of the words.
+ *
+ * Shape: `(^| )w1( .*)? w2( .*)? w3( |$)`. Stored keys hold only a-z, 0-9
+ * and single spaces, so this reads the same in JavaScript and in Postgres
+ * (`~`); the words are escaped anyway, and the pattern is always passed as a
+ * bound parameter. A one-word alias gets no pattern: it matches only by
+ * whole-name equality.
+ */
+export function aliasPattern(key: string): string | null {
+  const words = key.split(' ').filter(Boolean);
+  if (words.length < 2) return null;
+  return `(^| )${words.map(escapeRegex).join('( .*)? ')}( |$)`;
+}
+
+export type AliasSelection = {
+  /** Names searched, one per distinct key, at most MAX_ALIASES. */
+  aliases: Alias[];
+  /** Names that normalise to nothing (fully non-Latin): unsearchable for now. */
   unsearchable: number;
+  /** Names past MAX_ALIASES. */
+  overLimit: number;
 };
 
 /**
- * Pick the anchors from the registration names on the user's own ingested
- * private URLs (never the Google name or a typed name: the owner's rule).
- *
- * The Google name is used only as a reference for the forwarded-URL check: a
- * teammate who forwards their private URL hands the user a registration card
- * with the teammate's name on it. An anchor that is `different` from every
- * other anchor AND from the Google name is held back until an admin looks.
- * With nothing to compare against (one anchor, no Google name) it is held
- * back too: that is exactly the shape of a new account built on one
- * forwarded URL.
+ * The user's claimed names, deduplicated by stored key. Stand-ins are never
+ * searched. A one-word name IS searched, and like every alias it matches only
+ * a stored name that is exactly that key in full: "abhishek" finds the
+ * Person "abhishek", never "abhishek sharma". A one-word name can still have
+ * many exact hits, which the per-name cap and its visible note handle.
  */
-export function selectAnchors(
-  registrationNames: readonly string[],
-  googleName: string | null | undefined,
-): AnchorSelection {
+export function selectAliases(names: readonly string[]): AliasSelection {
   const byKey = new Map<string, string>();
   let unsearchable = 0;
-  for (const raw of registrationNames) {
+  for (const raw of names) {
     const name = raw.trim();
     if (!name || isStandInName(name)) continue;
-    const key = fold(name);
+    const key = aliasKey(name);
     if (!key) {
       unsearchable += 1;
       continue;
     }
     if (!byKey.has(key)) byKey.set(key, name);
   }
-  const names = [...byKey.values()].sort((x, y) => x.localeCompare(y));
-  const vetted = names.filter((name) => {
-    const p = proximityToYou(name, [...names.filter((n) => n !== name), googleName]);
-    return p === 'match' || p === 'close';
-  });
-  const usable = vetted.slice(0, MAX_ANCHORS);
-  return { usable, heldBack: names.length - usable.length, unsearchable };
+  const all = [...byKey.entries()]
+    .map(([key, name]) => ({ name, key }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  return {
+    aliases: all.slice(0, MAX_ALIASES),
+    unsearchable,
+    overLimit: Math.max(0, all.length - MAX_ALIASES),
+  };
 }
