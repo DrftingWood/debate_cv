@@ -33,7 +33,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 | TQ-2 | Characterization tests land before a refactor, and the refactor PR does not change their expected values | Q |
 | TQ-3 | Tests are deterministic; network tests are `__*.live.test.ts` and skip without their env | Q |
 | NC-1 | Comments say why, in the existing narrative voice; none restate the code | Q |
-| NC-2 | New and changed files follow `.prettierrc` | CI report: `prettier --check` |
+| NC-2 | Files follow `.prettierrc` | CI blocks: `npm run format:check` |
 | PF-1 | No Prisma call inside a loop over rows | Q |
 | PF-2 | Server Components by default; `'use client'` only on small interactive leaves | Q |
 | AX-1 | Tabular data uses real tables with `<th scope>` (`components/ui/DataTable`) | lint (`jsx-a11y` rules from `next/core-web-vitals`) + Q |
@@ -109,7 +109,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 **NC-1. Comments say why, in the existing narrative voice; none restate the code.** *Why:* the code says what; only a comment can carry the constraint, the incident or the trade-off (C1, AI3). *Good:* the doc comment on `poolSizedUrl` in `lib/db.ts` (why the pool is derived here, why it only ever raises the limit). *Bad:* `// increment attempts` above `"attempts" = "attempts" + 1`, or "Step 1: now we..." narration. *Q:* "Would each new comment survive a rename? Does any only repeat the line below it?"
 
-**NC-2. New and changed files follow `.prettierrc`.** *Why:* formatting should never be argued in review (R5). The config was measured against the code (single quotes, semicolons, trailing commas, width 100: the width that changes fewest lines). The repo has not been reformatted and will not be wholesale. *Good:* run `npx prettier --write <the files you touched>`. *Bad:* `prettier --write .` in a feature PR. *Enforced by:* `prettier --check`, CI report (294 files differ today).
+**NC-2. Files follow `.prettierrc`.** *Why:* formatting should never be argued in review (R5). The config was measured against the code (single quotes, semicolons, trailing commas, width 100: the width that changes fewest lines). The repo was reformatted once, in one mechanical commit (listed in `.git-blame-ignore-revs`), and `verify` now fails on any file that differs. *Good:* run `npm run format` before pushing (it covers ts, tsx, js, mjs, cjs, json, css and yml; `.prettierignore` keeps out the lockfile, migrations, fixtures and `docs/`); once per clone run `git config blame.ignoreRevsFile .git-blame-ignore-revs` so `git blame` skips the format commit. *Bad:* hand-formatting against the config. *Enforced by:* `npm run format:check`, CI blocks (the first step of `verify`).
 
 ## 7. Performance
 
@@ -171,7 +171,7 @@ From the checklist, these have no check wired here and were left out rather than
 
 - typescript-eslint shared configs (`strictTypeChecked`, semver caveat): https://typescript-eslint.io/users/configs
 - ESLint size rules: https://eslint.org/docs/latest/rules/max-lines (and `max-lines-per-function`, `complexity`, `max-params`, `max-depth`)
-- Prettier options (defaults; `endOfLine: "auto"` keeps existing endings): https://prettier.io/docs/options
+- Prettier options (`endOfLine: "lf"`; `.gitattributes` keeps checkouts LF): https://prettier.io/docs/options
 - OWASP ASVS 5.0.0 (30 May 2025): https://asvs.owasp.org/ ; OWASP Top 10 2025: https://owasp.org/Top10/2025/0x00_2025-Introduction/
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/
 - Google engineering practices (small CLs, tests with logic changes): https://google.github.io/eng-practices/review/developer/small-cls.html
