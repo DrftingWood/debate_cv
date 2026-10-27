@@ -136,7 +136,12 @@ export function AdminTagProposals() {
     }
   };
 
+  // Rows with a request in flight: stops a double click posting twice.
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
   const handleAction = (id: string, action: 'approve' | 'reject') => {
+    if (busyIds.has(id)) return;
+    setBusyIds((prev) => new Set(prev).add(id));
     const adminNote = action === 'reject' ? (rejectNotes[id] ?? '') : undefined;
 
     startTransition(async () => {
@@ -144,6 +149,11 @@ export function AdminTagProposals() {
         `/api/admin/tag-proposals/${id}`,
         { action, adminNote: adminNote || undefined },
       );
+      setBusyIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       if (!result.ok) {
         toast.show({ kind: 'error', title: `${action === 'approve' ? 'Approve' : 'Reject'} failed`, description: result.error });
         return;
@@ -296,6 +306,7 @@ export function AdminTagProposals() {
                             size="sm"
                             variant="primary"
                             aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                            disabled={busyIds.has(p.id)}
                             onClick={() => handleAction(p.id, 'approve')}
                           >
                             Approve
@@ -305,6 +316,7 @@ export function AdminTagProposals() {
                             size="sm"
                             variant="outline"
                             aria-label={`Reject ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                            disabled={busyIds.has(p.id)}
                             onClick={() => handleAction(p.id, 'reject')}
                           >
                             Reject

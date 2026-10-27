@@ -207,8 +207,8 @@ export default async function CvVerifyPage({
                   </div>
 
                   {warningsByTournamentId.has(t.id) ? (
-                    <section className="space-y-2 rounded-md border border-oxblood/30 bg-oxblood/[0.04] p-3">
-                      <h3 className="text-body font-semibold text-oxblood">
+                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/[0.06] p-3">
+                      <h3 className="text-body font-semibold text-warning">
                         Parser warnings ({warningsByTournamentId.get(t.id)!.length})
                       </h3>
                       <ul className="space-y-1 text-caption text-ink">
