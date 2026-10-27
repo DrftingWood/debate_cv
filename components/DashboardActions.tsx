@@ -145,8 +145,8 @@ export function FullScanButton({
   const locked = until !== null && (now === null || until > now);
   const reason = disconnected
     ? 'Reconnect Gmail before scanning.'
-    : locked
-      ? fullScanUnavailableText(until!, now ?? until! - 86_400_000)
+    : until !== null && locked
+      ? fullScanUnavailableText(until, now ?? until - 86_400_000)
       : null;
   const blocked = disconnected || locked;
 
