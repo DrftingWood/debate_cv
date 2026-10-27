@@ -1209,7 +1209,7 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     if (strongest.winRateDelta! >= 10) {
       quirks.push({
         id: 'motion-type',
-        text: `You win ${Math.round(strongest.winRateDelta!)} points more often on ${strongest.key} motions than your overall rate.`,
+        text: `You win ${Math.round(strongest.winRateDelta!)} percentage points more often on ${strongest.key} motions than your overall rate.`,
         basis: `${strongest.decidedRounds} decided rounds on ${strongest.key}`,
         tone: 'pos',
       });

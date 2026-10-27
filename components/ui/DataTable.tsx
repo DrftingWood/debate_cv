@@ -94,9 +94,25 @@ export function Th({
 export function Td({
   children,
   numeric,
+  rowHeader,
   className,
   ...rest
-}: React.TdHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean }) {
+}: React.TdHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean; rowHeader?: boolean }) {
+  // `rowHeader` renders the cell as <th scope="row"> so a screen reader
+  // announces the row's label with each figure (UX-28). Only the .ledger
+  // thead th rules style column headers, so a body th keeps body-cell looks
+  // apart from the weight the browser gives a th.
+  if (rowHeader) {
+    return (
+      <th
+        scope="row"
+        className={cn('text-left font-normal', numeric && 'cell-num', className)}
+        {...(rest as React.ThHTMLAttributes<HTMLTableCellElement>)}
+      >
+        {children}
+      </th>
+    );
+  }
   return (
     <td className={cn(numeric && 'cell-num', className)} {...rest}>
       {children}
