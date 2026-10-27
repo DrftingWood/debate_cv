@@ -1,15 +1,15 @@
-// Runs `prisma migrate deploy` only when the non-pooling Postgres URL
-// is configured. On Vercel Preview builds without an attached database
-// we silently skip instead of failing the whole deploy.
+// Runs `prisma migrate deploy` only for production deployments (or local builds
+// with the non-pooling Postgres URL set). Vercel Preview builds skip it: they can
+// see the real database's URL, and an unmerged migration must never run there.
+// Force with ALLOW_PREVIEW_MIGRATIONS=1 only if the preview has its own database.
+// The decision lives in lib/migrate-gate.mjs.
 
 import { spawnSync } from 'node:child_process';
+import { shouldMigrate } from './lib/migrate-gate.mjs';
 
-const url = process.env.POSTGRES_URL_NON_POOLING || process.env.DIRECT_URL;
-
-if (!url) {
-  console.log('[migrate] POSTGRES_URL_NON_POOLING unset; skipping prisma migrate deploy.');
-  process.exit(0);
-}
+const { migrate, reason } = shouldMigrate(process.env);
+console.log(`[migrate] ${reason}`);
+if (!migrate) process.exit(0);
 
 const result = spawnSync('npx', ['prisma', 'migrate', 'deploy'], {
   stdio: 'inherit',

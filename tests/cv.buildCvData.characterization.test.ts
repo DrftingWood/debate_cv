@@ -466,6 +466,14 @@ describe('buildCvData characterization: top-level shape', () => {
     expect(cv.judgeRows.map((r) => r.tournamentName)).toEqual(['EUDC 2024']);
   });
 
+  it('leaves out tournaments the owner hid from the public CV (C101)', async () => {
+    const cv = await buildCvData(USER, { excludeTournamentIds: [1n, 2n] });
+    expect(cv.speakerRows.map((r) => r.tournamentName)).toEqual(['Novice Cup']);
+    expect(cv.judgeRows).toEqual([]);
+    expect(cv.summary.totalTournaments).toBe(2);
+    expect(cv.unmatchedTournaments.map((t) => t.id)).not.toContain(1n);
+  });
+
   it('passes motions through unchanged', async () => {
     const cv = await buildCvData(USER);
     expect(cv.taggedMotions).toEqual(MOTIONS);

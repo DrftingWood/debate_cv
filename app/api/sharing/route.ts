@@ -26,12 +26,31 @@ export async function GET() {
       publicCvEnabled: true,
       publicCvSlug: true,
       publicAvatarEnabled: true,
+      publicHiddenTournamentIds: true,
     },
   });
+  // The tournaments the owner can choose to hide: the ones on their record.
+  const urls = await prisma.discoveredUrl.findMany({
+    where: { userId: session.user.id, tournamentId: { not: null }, ingestedAt: { not: null } },
+    select: { tournament: { select: { id: true, name: true, year: true } } },
+  });
+  const seen = new Set<string>();
+  const tournaments: { id: string; name: string; year: number | null }[] = [];
+  for (const u of urls) {
+    if (!u.tournament || seen.has(u.tournament.id.toString())) continue;
+    seen.add(u.tournament.id.toString());
+    tournaments.push({
+      id: u.tournament.id.toString(),
+      name: u.tournament.name,
+      year: u.tournament.year,
+    });
+  }
   return NextResponse.json({
     enabled: user?.publicCvEnabled ?? false,
     slug: user?.publicCvSlug ?? null,
     avatarEnabled: user?.publicAvatarEnabled ?? false,
+    hiddenTournamentIds: (user?.publicHiddenTournamentIds ?? []).map(String),
+    tournaments,
   });
 }
 
@@ -39,6 +58,10 @@ const Body = z.object({
   enabled: z.boolean().optional(),
   customSlug: z.string().nullable().optional(),
   avatarEnabled: z.boolean().optional(),
+  hiddenTournamentIds: z
+    .array(z.string().regex(/^\d{1,18}$/))
+    .max(500)
+    .optional(),
 });
 
 /**
@@ -63,7 +86,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { enabled, customSlug, avatarEnabled } = parse.data;
+  const { enabled, customSlug, avatarEnabled, hiddenTournamentIds } = parse.data;
 
   // Validate custom slug up-front so we don't half-write.
   let resolvedCustom: string | null | undefined;
@@ -86,6 +109,11 @@ export async function POST(req: Request) {
   const data: Prisma.UserUpdateInput = {};
   if (enabled !== undefined) data.publicCvEnabled = enabled;
   if (avatarEnabled !== undefined) data.publicAvatarEnabled = avatarEnabled;
+  if (hiddenTournamentIds !== undefined) {
+    data.publicHiddenTournamentIds = Array.from(new Set(hiddenTournamentIds)).map((id) =>
+      BigInt(id),
+    );
+  }
 
   // Slug resolution:
   //   - Explicit customSlug => use it (or regenerate random on null).
@@ -105,12 +133,14 @@ export async function POST(req: Request) {
         publicCvEnabled: true,
         publicCvSlug: true,
         publicAvatarEnabled: true,
+        publicHiddenTournamentIds: true,
       },
     });
     return NextResponse.json({
       enabled: updated.publicCvEnabled,
       slug: updated.publicCvSlug,
       avatarEnabled: updated.publicAvatarEnabled,
+      hiddenTournamentIds: updated.publicHiddenTournamentIds.map(String),
     });
   } catch (e) {
     // Unique constraint on publicCvSlug → another user already owns this

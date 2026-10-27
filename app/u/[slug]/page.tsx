@@ -72,6 +72,7 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
       image: true,
       publicCvEnabled: true,
       publicAvatarEnabled: true,
+      publicHiddenTournamentIds: true,
     },
   });
   if (!user || !user.publicCvEnabled) notFound();
@@ -83,6 +84,7 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
     includeFieldStats: false,
     // Only the per-tab speaker count (one grouped query), for "Nth of N".
     includeFieldSizes: true,
+    excludeTournamentIds: user.publicHiddenTournamentIds ?? [],
   });
   const { speakerRows, judgeRows, summary, highlights } = data;
   const stats = computeSpeakerStats(data);

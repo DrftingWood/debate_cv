@@ -424,6 +424,11 @@ export type BuildCvDataOptions = {
    * field summary. Implied by includeFieldStats; the public page sets it.
    */
   includeFieldSizes?: boolean;
+   * Tournaments to leave out of the whole record (rows, summary, highlights,
+   * motions). The public CV passes the owner's hidden tournaments (C101);
+   * the owner's own /cv never does.
+   */
+  excludeTournamentIds?: bigint[];
 };
 
 export async function buildCvData(
@@ -431,8 +436,9 @@ export async function buildCvData(
   options: BuildCvDataOptions = {},
 ): Promise<CvData> {
   const includeFieldStats = options.includeFieldStats ?? true;
+  const excluded = new Set(options.excludeTournamentIds ?? []);
   const includeFieldSizes = options.includeFieldSizes ?? false;
-  const [user, urls, claimedPersons] = await Promise.all([
+  const [user, allUrls, claimedPersons] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, image: true },
@@ -456,6 +462,9 @@ export async function buildCvData(
     }),
   ]);
 
+  const urls = excluded.size
+    ? allUrls.filter((u) => u.tournamentId == null || !excluded.has(u.tournamentId))
+    : allUrls;
   const claimedPersonIds = new Set(claimedPersons.map((p) => p.id));
   const tournamentIds = Array.from(
     new Set(urls.map((u) => u.tournamentId!).filter((id): id is bigint => id != null)),
