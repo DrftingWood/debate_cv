@@ -88,7 +88,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
   if (bestSpeakerRank) {
     tiles.push({
       label: 'Best speaker-tab rank',
-      title: rankOfField(bestSpeakerRank.rank, bestSpeakerRank.totalSpeakers),
+      title: rankOfField(bestSpeakerRank.rank, bestSpeakerRank.totalSpeakers, bestSpeakerRank.tied),
       items: [
         withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year) +
           (bestSpeakerRank.topPercent != null

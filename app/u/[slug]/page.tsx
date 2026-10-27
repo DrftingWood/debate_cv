@@ -79,7 +79,11 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
   // No field stats: this page shows the owner's own figures only, and the
   // field summary is the single heaviest query in buildCvData. Skipping it
   // keeps an unauthenticated, force-dynamic route cheap to serve.
-  const data = await buildCvData(user.id, { includeFieldStats: false });
+  const data = await buildCvData(user.id, {
+    includeFieldStats: false,
+    // Only the per-tab speaker count (one grouped query), for "Nth of N".
+    includeFieldSizes: true,
+  });
   const { speakerRows, judgeRows, summary, highlights } = data;
   const stats = computeSpeakerStats(data);
 

@@ -744,6 +744,20 @@ describe('buildCvData characterization: field summary', () => {
     expect(t3.prelimRoundCount).toBe(2);
   });
 
+  it('includeFieldSizes: a cheap grouped count gives field sizes without the heavy field query', async () => {
+    prismaMock.tournamentParticipant.groupBy.mockResolvedValue([
+      { tournamentId: 1n, _count: { _all: 400 } },
+    ]);
+    const cv = await buildCvData(USER, { includeFieldStats: false, includeFieldSizes: true });
+    expect(cv.fieldStats).toEqual([]);
+    expect(prismaMock.tournamentParticipant.groupBy).toHaveBeenCalledTimes(1);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerFieldSize).toBe(400);
+    const heavy = prismaMock.tournamentParticipant.findMany.mock.calls.filter(
+      ([args]) => !!argsWhere(args).speakerScoreTotal,
+    );
+    expect(heavy).toHaveLength(0);
+  });
+
   it('includeFieldStats: false skips the field query and returns no field stats', async () => {
     const cv = await buildCvData(USER, { includeFieldStats: false });
     expect(cv.fieldStats).toEqual([]);
@@ -751,6 +765,7 @@ describe('buildCvData characterization: field summary', () => {
       ([args]) => !!argsWhere(args).speakerScoreTotal,
     );
     expect(fieldQueries).toHaveLength(0);
+    expect(prismaMock.tournamentParticipant.groupBy).not.toHaveBeenCalled();
     // Everything else is unchanged.
     expect(cv.speakerRows).toHaveLength(2);
   });

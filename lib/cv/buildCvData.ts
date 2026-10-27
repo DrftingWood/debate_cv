@@ -418,6 +418,12 @@ export type BuildCvDataOptions = {
    * Defaults to true so a new consumer gets the richer payload by default.
    */
   includeFieldStats?: boolean;
+  /**
+   * Only the number of speakers on each tab (one grouped count, no row
+   * transfer), so "Nth of N" and a percentile can be shown without the heavy
+   * field summary. Implied by includeFieldStats; the public page sets it.
+   */
+  includeFieldSizes?: boolean;
 };
 
 export async function buildCvData(
@@ -425,6 +431,7 @@ export async function buildCvData(
   options: BuildCvDataOptions = {},
 ): Promise<CvData> {
   const includeFieldStats = options.includeFieldStats ?? true;
+  const includeFieldSizes = options.includeFieldSizes ?? false;
   const [user, urls, claimedPersons] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -1378,6 +1385,20 @@ export async function buildCvData(
       f.tournamentId,
       (speakerFieldByTournament.get(f.tournamentId) ?? 0) + 1,
     );
+  }
+  if (!includeFieldStats && includeFieldSizes && tournamentIds.length) {
+    // Same population as the field query (speakers with a score total), but
+    // counted in the database: one row per tournament comes back.
+    const counts = await prisma.tournamentParticipant.groupBy({
+      by: ['tournamentId'],
+      where: {
+        tournamentId: { in: tournamentIds },
+        speakerScoreTotal: { not: null },
+        roles: { some: { role: 'speaker' } },
+      },
+      _count: { _all: true },
+    });
+    for (const c of counts) speakerFieldByTournament.set(c.tournamentId, c._count._all);
   }
   for (const r of speakerRows)
     r.speakerFieldSize = speakerFieldByTournament.get(r.tournamentId) ?? null;
