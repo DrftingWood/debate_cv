@@ -37,6 +37,10 @@ const h = vi.hoisted(() => ({
   captureMessage: vi.fn(),
   // Per-test replacement for the speaker tab parse (null: the default rows).
   speakerTab: null as unknown[] | null,
+  // Per-test override of who the private URL's owner is (null: Ada Lovelace).
+  ownerName: null as string | null,
+  // Per-test override of Judge Judy's participants-list tag (null: 'invited').
+  judyTag: null as string | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -79,7 +83,11 @@ const SNAPSHOT = {
 };
 
 vi.mock('@/lib/calicotab/parseNav', () => ({
-  parsePrivateUrlPage: () => structuredClone(SNAPSHOT),
+  parsePrivateUrlPage: () => {
+    const snap = structuredClone(SNAPSHOT);
+    if (h.ownerName) snap.registration = { ...snap.registration, personName: h.ownerName, teamName: null as unknown as string };
+    return snap;
+  },
   extractAdjudicatorRounds: () => [],
   extractSpeakerRounds: () => [],
 }));
@@ -232,7 +240,7 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
           {
             name: 'Judge Judy',
             role: 'adjudicator',
-            judgeTag: 'invited',
+            judgeTag: h.judyTag ?? 'invited',
             teamName: null,
             institution: null,
           },
@@ -397,6 +405,8 @@ beforeEach(() => {
   h.recordParserRun.mockReset();
   h.captureMessage.mockReset();
   h.speakerTab = null;
+  h.ownerName = null;
+  h.judyTag = null;
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -1094,5 +1104,48 @@ describe('ingestPrivateUrl: an iron-man’s teamBreakRank', () => {
       expect(call.create).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
       expect(call.update).toMatchObject({ teamName: 'Oxford A', teamBreakRank: 1 });
     }
+  });
+});
+
+// ─── Core judging break survives the judging writes (review fix) ────────────
+
+describe('ingestPrivateUrl: a core judge who then judges keeps the core tag', () => {
+  // A stateful stand-in for the TournamentParticipant table, so the order of
+  // writes (roster first, judging rounds after) is exercised end to end.
+  function statefulParticipants() {
+    const rows = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    let nextId = 500n;
+    const key = (w: any) => `${w.tournamentId_personId.tournamentId}:${w.tournamentId_personId.personId}`; // eslint-disable-line @typescript-eslint/no-explicit-any
+    prismaMock.tournamentParticipant.upsert.mockImplementation(async (a: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const k = key(a.where);
+      const prior = rows.get(k);
+      const row = prior ? { ...prior, ...a.update } : { id: nextId++, ...a.create };
+      rows.set(k, row);
+      return row;
+    });
+    prismaMock.tournamentParticipant.findUnique.mockImplementation(async (a: any) => rows.get(key(a.where)) ?? null); // eslint-disable-line @typescript-eslint/no-explicit-any
+    return rows;
+  }
+
+  it('Tab Director tagged core who chairs rounds still ends core (a judging break)', async () => {
+    install();
+    const rows = statefulParticipants();
+    h.ownerName = 'Judge Judy';
+    h.judyTag = 'core';
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const judy = [...rows.values()].find((r) => r.personId === 104n)!;
+    expect(judy.judgeTypeTag).toBe('core');
+    expect(judy.chairedPrelimRounds).toBe(2);
+  });
+
+  it('a plain adjudicator is unaffected: still tagged Adjudicator after judging', async () => {
+    install();
+    const rows = statefulParticipants();
+    h.ownerName = 'Judge Judy';
+    h.judyTag = 'normal';
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const judy = [...rows.values()].find((r) => r.personId === 104n)!;
+    expect(judy.judgeTypeTag).toBe('Adjudicator');
+    expect(judy.chairedPrelimRounds).toBe(2);
   });
 });
