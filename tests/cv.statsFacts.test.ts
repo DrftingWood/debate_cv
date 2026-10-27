@@ -334,3 +334,92 @@ describe('red-team regressions', () => {
     expect(f.partnerNames).toEqual({ p1: '[name withdrawn]', p2: '[name withdrawn]' });
   });
 });
+
+describe('buildStatsFacts — untagged is not a choice', () => {
+  const row = makeSpeakerRow({
+    tournamentId: 4n, format: 'Asian Parliamentary', prelimRoundCount: 3,
+    roundScores: scores([1, 75], [2, 75], [3, 75]), teammateDetails: [], teammates: [],
+    teamRoundResults: [],
+  });
+
+  test('options that agree except for a missing tag are untagged, not a choice of motions', () => {
+    const f = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: [
+        makeMotion({ tournamentId: 4n, roundNumber: 1, seq: 0, text: 'THW ban X', topic: 'Education' }),
+        makeMotion({ tournamentId: 4n, roundNumber: 1, seq: 1, text: 'THW tax Y', topic: null }),
+        makeMotion({ tournamentId: 4n, roundNumber: 2, seq: 0, text: 'THW ban X', topic: 'Education' }),
+        makeMotion({ tournamentId: 4n, roundNumber: 2, seq: 1, text: 'THW tax Y', topic: 'Media & Arts' }),
+        makeMotion({ tournamentId: 4n, roundNumber: 3, seq: 0, text: 'Ban X?', topic: 'Education' }),
+      ],
+    });
+    // Round 1: the topic stays unknown (the room may have taken the untagged option).
+    expect(f.rounds[0]).toMatchObject({ motionTopic: null, motionType: 'Policy', choiceRound: false, untagged: true });
+    // Round 2: two known, different topics: a real choice.
+    expect(f.rounds[1]).toMatchObject({ motionTopic: null, motionType: 'Policy', choiceRound: true, untagged: false });
+    // Round 3: a wording the classifier cannot place.
+    expect(f.rounds[2]).toMatchObject({ motionTopic: 'Education', motionType: null, unclassified: true });
+  });
+});
+
+describe('buildStatsFacts — knockouts', () => {
+  const row = makeSpeakerRow({
+    tournamentId: 9n, format: 'British Parliamentary', prelimRoundCount: 1,
+    roundScores: scores([1, 75]), teammateDetails: [], teammates: [], teamRoundResults: [],
+  });
+  const motions = [
+    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'Semifinals', text: 'THW ban X', topic: 'Education' }),
+    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'Grand Final', text: 'THBT Y', topic: 'Media & Arts' }),
+    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'ESL Grand Final', text: 'THR Z', topic: 'Education' }),
+  ];
+
+  test('each stage the team has a result in becomes a knockout with its motion, never a scored round', () => {
+    const f = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: motions,
+      teamOutroundResults: [
+        { tournamentId: 9n, stage: 'Semifinals', won: true },
+        { tournamentId: 9n, stage: 'Final', won: false },
+      ],
+    });
+    expect(f.rounds).toHaveLength(1);
+    expect(f.knockouts).toEqual([
+      expect.objectContaining({ tournamentId: '9', stage: 'Semifinals', won: true, final: false, motionTopic: 'Education', motionType: 'Policy' }),
+      expect.objectContaining({ stage: 'Final', won: false, final: true, motionTopic: 'Media & Arts', motionType: 'Belief' }),
+    ]);
+  });
+
+  test('a stage written twice under two spellings is one knockout, and none when the rows disagree', () => {
+    const one = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: motions,
+      teamOutroundResults: [
+        { tournamentId: 9n, stage: 'Grand Final', won: true },
+        { tournamentId: 9n, stage: 'Final', won: true },
+      ],
+    });
+    expect(one.knockouts).toHaveLength(1);
+    const clash = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: motions,
+      teamOutroundResults: [
+        { tournamentId: 9n, stage: 'Semis', won: true },
+        { tournamentId: 9n, stage: 'Semifinal', won: false },
+      ],
+    });
+    expect(clash.knockouts).toEqual([]);
+  });
+
+  test('a result with no motion for its stage is kept, flagged as having none', () => {
+    const f = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: [],
+      teamOutroundResults: [{ tournamentId: 9n, stage: 'Quarterfinals', won: false }],
+    });
+    expect(f.knockouts).toEqual([expect.objectContaining({ hasMotion: false, motionTopic: null })]);
+  });
+
+  test('without results there are no knockouts', () => {
+    expect(buildStatsFacts({ speakerRows: [row], taggedMotions: motions }).knockouts).toEqual([]);
+  });
+});

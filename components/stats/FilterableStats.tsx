@@ -244,7 +244,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <PositionsSection facts={filteredFacts} baseline={facts.rounds} />
             <MotionTypesSection facts={filteredFacts} baseline={facts.rounds} />
             <CrossTabsSection facts={filteredFacts} baseline={facts.rounds} />
-            <TopicTypeSection facts={filteredFacts} />
+            <TopicTypeSection facts={filteredFacts} knockoutsWithheld={bySeat} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
             <CarrySection

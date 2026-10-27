@@ -13,12 +13,8 @@
  * the browser, where filtering runs without another round trip.
  */
 
-import type {
-  CvData,
-  CvSpeakerRow,
-  CvSpeakerRoundScore,
-  CvTaggedMotion,
-} from '@/lib/cv/buildCvData';
+import type { CvData, CvSpeakerRow, CvSpeakerRoundScore, CvTaggedMotion } from '@/lib/cv/buildCvData';
+import { isFinalStage, sameKnockoutStage } from '@/lib/cv/motionEntries';
 import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { isFourTeam, roundHit } from '@/lib/cv/roundOutcome';
@@ -43,6 +39,12 @@ export type RoundFact = {
   partners: string[];
   partnerGap: number | null;
   proAm: ProAm | null;
+  /**
+   * The motion CLASS read from the wording by lib/motions/classify.ts
+   * (Policy, Belief, Actor, ...), shared by every motion released for the
+   * round. Not Motion.motionType, the moderator-approved stem tag
+   * (THW/THBT/...): the field name predates that distinction.
+   */
   motionType: MotionClass | null;
   /** Approved subject-area tag shared by every motion released for the round, or none. Optional so older fixtures still type. */
   motionTopic?: string | null;
@@ -51,8 +53,17 @@ export type RoundFact = {
    * (Asian Parliamentary's three-motion rounds). Without per-room draw data
    * the motion debated is unknown, so these rounds are clubbed into one bucket
    * rather than dropped or credited to each motion.
+   *
+   * Only a real disagreement counts: two options with different topics, or
+   * different classes. An option that is merely untagged or unclassified
+   * makes the round `untagged` / `unclassified` instead; calling it a choice
+   * would claim the options differ when nothing says so.
    */
   choiceRound?: boolean;
+  /** Some motion released for the round has no approved topic. */
+  untagged?: boolean;
+  /** Some motion released for the round has a wording the classifier cannot place. */
+  unclassified?: boolean;
   /** Any motion is known for the round — the info-slide and framing flags mean nothing without one. */
   hasMotion: boolean;
   /** Every motion released for the round was context-led. Independent of whether they share a type. */
@@ -85,8 +96,31 @@ export type TournamentFact = {
   speakerRank: number | null;
 };
 
+/**
+ * One knockout round the user's team debated, with the result and the
+ * motion's topic and class. Outround speaker scores are not published, so a
+ * knockout carries a result and never a score; it is kept apart from
+ * `rounds` so no score-based section counts it.
+ */
+export type KnockoutFact = {
+  tournamentId: string;
+  /** The stage as the result was stored ("Semifinals", "ESL Grand Final"). */
+  stage: string;
+  /** Advanced, or won the final. */
+  won: boolean;
+  final: boolean;
+  motionType: MotionClass | null;
+  motionTopic: string | null;
+  choiceRound: boolean;
+  untagged: boolean;
+  unclassified: boolean;
+  hasMotion: boolean;
+};
+
 export type StatsFacts = {
   rounds: RoundFact[];
+  /** Knockout rounds with a result. Optional so older fixtures still type. */
+  knockouts?: KnockoutFact[];
   tournaments: TournamentFact[];
   /** Display name for each partner key in `partners`. Several keys may share a name. */
   partnerNames: Record<string, string>;
@@ -125,10 +159,7 @@ export function seatKey(format: string | null, position: string | null): string 
     return `${prefix}:${canonical === 'Prop' ? sides[0] : sides[1]}`;
   }
   // Anything else is kept, case-folded so "Side A" and "side a" are one seat.
-  const folded = raw
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const folded = raw.toLowerCase().replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return `${prefix}:${folded}`;
 }
 
@@ -186,48 +217,123 @@ function pairingFor(row: CvSpeakerRow) {
   return { ...proAmFor(meanOf(mineByRound), compared.map(meanOf)), mineByRound, matesByRound };
 }
 
-/** A round's motion type: shared by every motion released for it, or none. */
+/**
+ * A round's motion facts: the class and topic shared by every motion
+ * released for it, or none.
+ *
+ * Untagged is not the same as different. A round whose options agree on
+ * every topic they carry, with one option untagged, has an unknown topic
+ * (the room may have debated the untagged one), so its topic stays null and
+ * the round is flagged `untagged` for the coverage line rather than filed
+ * under "Choice of motions", which is for options known to differ.
+ */
 function motionFor(motions: CvTaggedMotion[]) {
   if (motions.length === 0) {
     return {
       motionType: null,
       motionTopic: null,
       choiceRound: false,
+      untagged: false,
+      unclassified: false,
       hasMotion: false,
       contextLed: false,
       infoSlide: false,
     };
   }
   const classified = motions.map((m) => classifyMotion(m.text, m.infoSlide));
-  const type = classified[0].type;
+  const unclassified = classified.some((c) => c.type === 'Unclassified');
+  const untagged = motions.some((m) => m.topic == null);
+  const classes = new Set(classified.map((c) => c.type).filter((t) => t !== 'Unclassified'));
+  const topics = new Set(motions.map((m) => m.topic).filter((t): t is string => t != null));
   // The flags don't wait for a shared type: a choice round where every
   // option came with an info slide was an info-slide round whichever the
-  // room picked. Only the type needs the options to agree.
-  const shared = type !== 'Unclassified' && classified.every((c) => c.type === type);
-  // The topic is the owner-approved tag, and only counts when every motion
-  // released for the round carries the same one (a choice round whose options
-  // disagree has no single topic).
-  const topics = new Set(motions.map((m) => m.topic));
-  const topic = topics.size === 1 ? [...topics][0] : null;
+  // room picked. Only the class and topic need the options to agree.
   return {
-    motionType: shared ? type : null,
-    motionTopic: topic ?? null,
-    choiceRound: motions.length > 1 && !(shared && topic != null),
+    motionType: !unclassified && classes.size === 1 ? [...classes][0] : null,
+    motionTopic: !untagged && topics.size === 1 ? [...topics][0] : null,
+    choiceRound: motions.length > 1 && (classes.size > 1 || topics.size > 1),
+    untagged,
+    unclassified,
     hasMotion: true,
     contextLed: classified.every((c) => c.contextLed),
     infoSlide: classified.every((c) => c.infoSlide),
   };
 }
 
-export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotions'>): StatsFacts {
+/**
+ * The knockout rounds of one tournament the user's team has a result in,
+ * each with the motions released for that stage.
+ *
+ * Results are grouped by stage first, because the round-results pages and
+ * the private URL's Debates card each write one and may spell the stage
+ * differently ("Final" / "Grand Final"); a group whose rows disagree on the
+ * result is dropped rather than settled by a guess. A stage whose motions sit under more
+ * than one label ("Semifinals" and "Open Semifinals") takes none, as on the
+ * CV ledger, rather than pick one.
+ */
+function knockoutsFor(
+  tournamentId: string,
+  results: Array<{ stage: string; won: boolean }>,
+  unnumbered: CvTaggedMotion[],
+): KnockoutFact[] {
+  const out: KnockoutFact[] = [];
+  const seen: string[] = [];
+  for (const r of results) {
+    if (seen.some((s) => sameKnockoutStage(s, r.stage))) continue;
+    seen.push(r.stage);
+    const group = results.filter((x) => sameKnockoutStage(x.stage, r.stage));
+    if (!group.every((x) => x.won === r.won)) continue;
+    const won = r.won;
+    const motions = unnumbered.filter((m) => sameKnockoutStage(m.roundLabel, r.stage));
+    const labels = new Set(motions.map((m) => m.roundLabel.trim().toLowerCase()));
+    const { motionType, motionTopic, choiceRound, untagged, unclassified, hasMotion } = motionFor(
+      labels.size > 1 ? [] : motions,
+    );
+    out.push({
+      tournamentId,
+      stage: r.stage,
+      won,
+      final: isFinalStage(r.stage),
+      motionType,
+      motionTopic,
+      choiceRound,
+      untagged,
+      unclassified,
+      hasMotion,
+    });
+  }
+  return out;
+}
+
+type FactsInput = Pick<CvData, 'speakerRows' | 'taggedMotions'> &
+  Partial<Pick<CvData, 'teamOutroundResults'>>;
+
+/** Motions by prelim round and, for knockouts, by tournament; team results by tournament. */
+function indexInput(input: FactsInput) {
   const motionsByRound = new Map<string, CvTaggedMotion[]>();
+  const unnumberedByTournament = new Map<string, CvTaggedMotion[]>();
   for (const m of input.taggedMotions) {
-    if (m.roundNumber == null) continue;
-    const key = `${m.tournamentId}:${m.roundNumber}`;
+    const tid = m.tournamentId.toString();
+    if (m.roundNumber == null) {
+      unnumberedByTournament.set(tid, [...(unnumberedByTournament.get(tid) ?? []), m]);
+      continue;
+    }
+    const key = `${tid}:${m.roundNumber}`;
     motionsByRound.set(key, [...(motionsByRound.get(key) ?? []), m]);
   }
+  const resultsByTournament = new Map<string, Array<{ stage: string; won: boolean }>>();
+  for (const r of input.teamOutroundResults ?? []) {
+    const tid = r.tournamentId.toString();
+    resultsByTournament.set(tid, [...(resultsByTournament.get(tid) ?? []), r]);
+  }
+  return { motionsByRound, unnumberedByTournament, resultsByTournament };
+}
+
+export function buildStatsFacts(input: FactsInput): StatsFacts {
+  const { motionsByRound, unnumberedByTournament, resultsByTournament } = indexInput(input);
 
   const rounds: RoundFact[] = [];
+  const knockouts: KnockoutFact[] = [];
   const tournaments: TournamentFact[] = [];
   const partnerNames: Record<string, string> = {};
 
@@ -237,9 +343,9 @@ export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotio
     const partners = row.teammateDetails.map((t) => t.key);
     for (const t of row.teammateDetails) partnerNames[t.key] = t.name;
     const resultByRound = new Map(row.teamRoundResults.map((r) => [r.roundNumber, r]));
-    const roundNumbers = [
-      ...new Set([...pairing.mineByRound.keys(), ...resultByRound.keys()]),
-    ].sort((a, b) => a - b);
+    const roundNumbers = [...new Set([...pairing.mineByRound.keys(), ...resultByRound.keys()])].sort(
+      (a, b) => a - b,
+    );
 
     for (const round of roundNumbers) {
       const result = resultByRound.get(round);
@@ -263,15 +369,19 @@ export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotio
         // A BP round is never a "win" (lib/cv/roundOutcome.ts).
         won:
           result &&
-          !(
-            isFourTeam(row.format, result.position) &&
-            row.prelimRoundCount != null &&
-            round > row.prelimRoundCount
-          )
+          !(isFourTeam(row.format, result.position) && row.prelimRoundCount != null && round > row.prelimRoundCount)
             ? roundHit(row.format, result)
             : null,
       });
     }
+
+    knockouts.push(
+      ...knockoutsFor(
+        tournamentId,
+        resultsByTournament.get(tournamentId) ?? [],
+        unnumberedByTournament.get(tournamentId) ?? [],
+      ),
+    );
 
     tournaments.push({
       tournamentId,
@@ -289,5 +399,5 @@ export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotio
     });
   }
 
-  return { rounds, tournaments, partnerNames };
+  return { rounds, knockouts, tournaments, partnerNames };
 }

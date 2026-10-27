@@ -289,6 +289,23 @@ export type CvTaggedMotion = {
 };
 
 /**
+ * One knockout round the user's team debated, with its result: 'won' means
+ * the team advanced (or won the final), 'lost' that it went out there.
+ *
+ * Outround motions carry no round number, so they cannot join to round data
+ * the way prelim motions do; this is what they join to instead, by stage and
+ * break category (lib/cv/motionEntries.ts#sameKnockoutStage). `stage` is the
+ * label exactly as stored on EliminationResult — the same string
+ * `wonTournament` keys on. Outround speaker scores are not published, so a
+ * result is all there is.
+ */
+export type CvTeamOutroundResult = {
+  tournamentId: bigint;
+  stage: string;
+  won: boolean;
+};
+
+/**
  * Per-tournament summary of the FIELD the user competed against, derived
  * from every speaker the tab published — not just the user's own row.
  *
@@ -346,6 +363,8 @@ export type CvData = {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
   taggedMotions: CvTaggedMotion[];
+  /** The user's own team's outround results, for the knockout motion join. */
+  teamOutroundResults: CvTeamOutroundResult[];
   fieldStats: CvFieldStat[];
   unmatchedTournaments: CvUnmatchedTournament[];
   summary: {
@@ -1230,6 +1249,17 @@ export async function buildCvData(
   // Motions — fetched in the batched read above.
   const taggedMotions: CvTaggedMotion[] = motionRows;
 
+  // The user's team's outround results, for joining knockout motions to the
+  // round the team debated them in. Same rows as the champion check above,
+  // narrowed to the team on each speaker row; every other team's results
+  // stay server-side.
+  const myTeamByTournament = new Map(
+    speakerRows.filter((r) => r.teamName).map((r) => [r.tournamentId, r.teamName]),
+  );
+  const teamOutroundResults: CvTeamOutroundResult[] = teamOutroundRows
+    .filter((r) => myTeamByTournament.get(r.tournamentId) === r.entityName)
+    .map((r) => ({ tournamentId: r.tournamentId, stage: r.stage, won: r.result === 'won' }));
+
   // ── Field context ────────────────────────────────────────────────────
   // Summarised from the field rows fetched in the batched read above. The
   // aggregation stays here, next to the speaker rows it compares against.
@@ -1377,6 +1407,7 @@ export async function buildCvData(
     speakerRows,
     judgeRows,
     taggedMotions,
+    teamOutroundResults,
     fieldStats,
     unmatchedTournaments,
     summary: { totalTournaments, breaks, totalRoundsChaired },

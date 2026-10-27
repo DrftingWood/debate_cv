@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
 import {
+  attachKnockoutResults,
   buildMotionEntries,
   judgedWithoutKnownRounds,
   type MotionEntry,
@@ -41,6 +42,10 @@ export const dynamic = 'force-dynamic';
  * data attached and marked as such: without per-room draw data there is no
  * way to know which one was in the user's room, and dropping the round
  * would hide it entirely.
+ *
+ * Knockout motions carry no round number, so they join instead to the
+ * user's team's result in that stage (advanced, won, eliminated): outround
+ * speaker scores are not published, so a result is all there is to show.
  */
 export default async function CvMotionsPage() {
   const session = await auth();
@@ -57,14 +62,20 @@ export default async function CvMotionsPage() {
 
   // Motions don't need the field summary — no placement figures here.
   const data = await buildCvData(session.user.id, { includeFieldStats: false });
-  const entries = buildMotionEntries(data.speakerRows, data.judgeRows, data.taggedMotions);
+  const entries = attachKnockoutResults(
+    buildMotionEntries(data.speakerRows, data.judgeRows, data.taggedMotions),
+    data.teamOutroundResults,
+  );
   // Tournaments the user judged whose panels are not recorded: left out
   // rather than listed in full, and counted so the page can say so.
   const leftOut = judgedWithoutKnownRounds(data.speakerRows, data.judgeRows, data.taggedMotions);
 
   const debated = entries.filter((e) => e.debated);
   const tagged = debated.filter((e) => e.motion.motionType || e.motion.topic).length;
-  const withScore = debated.filter((e) => e.score != null);
+  const fullyTagged = debated.filter((e) => e.motion.motionType && e.motion.topic).length;
+  const scores = debated.map((e) => e.score).filter((s): s is number => s != null);
+  const knockouts = debated.filter((e) => e.knockout != null);
+  const knockoutsThrough = knockouts.filter((e) => e.knockout?.won).length;
   const decided = debated.filter((e) => e.won != null);
   const wins = decided.filter((e) => e.won).length;
   // BP rounds are never "wins": a four-team room counts 2nd or better.
@@ -98,9 +109,9 @@ export default async function CvMotionsPage() {
         </p>
         {leftOut > 0 ? (
           <p className="mt-2 max-w-2xl text-caption text-ink-soft">
-            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'}{' '}
-            not listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded,
-            so there is no telling which rounds you sat on.
+            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'} not
+            listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded, so there is
+            no telling which rounds you sat on.
           </p>
         ) : null}
       </header>
@@ -127,18 +138,18 @@ export default async function CvMotionsPage() {
               hint={
                 <>
                   Across {debatedTournaments} tournament{debatedTournaments === 1 ? '' : 's'}
-                  {judgedEntries.length > 0 ? ` · ${judgedEntries.length} more judged` : ''}
+                  {judgedEntries.length > 0
+                    ? ` · ${judgedEntries.length} more judged`
+                    : ''}
                 </>
               }
             />
             <StatTile
               label="With a speaker score"
-              value={withScore.length}
+              value={scores.length}
               hint={
-                withScore.length > 0
-                  ? `Averaging ${(
-                      withScore.reduce((s, e) => s + e.score!, 0) / withScore.length
-                    ).toFixed(1)}`
+                scores.length > 0
+                  ? `Averaging ${(scores.reduce((s, v) => s + v, 0) / scores.length).toFixed(1)}`
                   : undefined
               }
             />
@@ -157,21 +168,36 @@ export default async function CvMotionsPage() {
                   : 'No results published'
               }
             />
-            {isAdmin ? (
+            {knockouts.length > 0 ? (
               <StatTile
-                label="Tagged"
-                value={debated.length > 0 ? `${Math.round((tagged / debated.length) * 100)}%` : '—'}
-                hint={
-                  <>
-                    {tagged} of {debated.length} carry an approved tag ·{' '}
-                    <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
-                      propose more
-                    </Link>
-                  </>
-                }
+                label="Knockout record"
+                value={`${knockoutsThrough}–${knockouts.length - knockoutsThrough}`}
+                hint="Rounds advanced from or won, against rounds you went out in"
               />
             ) : null}
+            {isAdmin ? (
+            <StatTile
+              label="Tagged"
+              value={debated.length > 0 ? `${Math.round((tagged / debated.length) * 100)}%` : '—'}
+              hint={
+                <>
+                  {tagged} of {debated.length} carry an approved tag ·{' '}
+                  <Link href="/cv/tags" className="underline underline-offset-2 hover:text-ink">
+                    propose more
+                  </Link>
+                </>
+              }
+            />
+            ) : null}
           </StatRow>
+
+          {debated.length > 0 ? (
+            <p className="max-w-2xl text-caption text-ink-soft">
+              {fullyTagged} of {debated.length} motion{debated.length === 1 ? '' : 's'} you debated carry both a
+              topic and a stem tag (THW, THBT, …). Knockout motions show your team&rsquo;s result rather than a
+              score, because outround speaker scores are not published.
+            </p>
+          ) : null}
 
           {/*
             One <details> per tournament, and only the most recent opens.
@@ -226,7 +252,11 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="num text-caption font-medium text-ink">{motion.roundLabel}</span>
         {entry.position ? <Badge variant="neutral">{entry.position}</Badge> : null}
-        {motion.motionType ? <Badge variant="info">{motion.motionType}</Badge> : null}
+        {motion.motionType ? (
+          <Badge variant="info" title="Stem tag, approved by a moderator">
+            {motion.motionType}
+          </Badge>
+        ) : null}
         {motion.topic ? <Badge variant="outline">{motion.topic}</Badge> : null}
         {entry.siblings > 0 ? (
           <Badge variant="neutral">1 of {entry.siblings + 1} this round</Badge>
@@ -239,8 +269,8 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
       </div>
       {entry.siblings > 0 ? (
         <p className="mt-1.5 text-caption text-ink-soft">
-          This round released more than one motion, so the round data below applies to the round,
-          not necessarily to this motion.
+          This round released more than one motion, so the round data below applies to the round, not necessarily to
+          this motion.
         </p>
       ) : null}
 
@@ -262,14 +292,28 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
       <dl className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-border pt-3">
         <Stat label="Your score" value={entry.score != null ? entry.score.toFixed(1) : null} />
         <Stat label="Team points" value={entry.points != null ? String(entry.points) : null} />
-        <Stat
-          label="Result"
-          value={entry.won == null ? null : entry.won ? 'Won' : 'Lost'}
-          tone={entry.won == null ? undefined : entry.won ? 'pos' : 'neg'}
-        />
+        <Stat label="Result" value={resultLabel(entry)} tone={resultTone(entry)} />
       </dl>
     </li>
   );
+}
+
+/**
+ * A prelim result reads Won / Lost. A knockout reads Advanced or Eliminated,
+ * and the final Won or Lost: in BP two of four teams go through a knockout
+ * room, so "won" there would overstate it.
+ */
+function resultLabel(entry: MotionEntry): string | null {
+  if (entry.knockout) {
+    if (entry.knockout.final) return entry.knockout.won ? 'Won' : 'Lost';
+    return entry.knockout.won ? 'Advanced' : 'Eliminated';
+  }
+  return entry.won == null ? null : entry.won ? 'Won' : 'Lost';
+}
+
+function resultTone(entry: MotionEntry): 'pos' | 'neg' | undefined {
+  const won = entry.knockout ? entry.knockout.won : entry.won;
+  return won == null ? undefined : won ? 'pos' : 'neg';
 }
 
 function Stat({

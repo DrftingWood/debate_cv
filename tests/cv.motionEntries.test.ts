@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { buildMotionEntries, judgedWithoutKnownRounds } from '@/lib/cv/motionEntries';
+import {
+  attachKnockoutResults,
+  buildMotionEntries,
+  judgedWithoutKnownRounds,
+  knockoutResultFor,
+  sameKnockoutStage,
+} from '@/lib/cv/motionEntries';
 import { pickHeaderMetrics } from '@/lib/cv/headerMetrics';
 import { makeSpeakerRow, makeJudgeRow, makeMotion } from './setup/cv-fixtures';
 
@@ -317,5 +323,85 @@ describe('pickHeaderMetrics', () => {
       outroundsChaired: 2,
     });
     expect(tiles.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('knockout motions joined to the team result', () => {
+  const ko = (tournamentId: bigint, stage: string, won: boolean) => ({ tournamentId, stage, won });
+  const speaker = makeSpeakerRow({ tournamentId: 3n, tournamentName: 'Worlds', year: 2025 });
+  const motions = [
+    makeMotion({ tournamentId: 3n, roundNumber: 1, roundLabel: 'Round 1', seq: 0 }),
+    makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Quarterfinals', seq: 1 }),
+    makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Semifinals', seq: 2 }),
+    makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Grand Final', seq: 3 }),
+    makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'ESL Final', seq: 4 }),
+    makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Novice Finals', seq: 5 }),
+  ];
+  const byLabel = (entries: ReturnType<typeof attachKnockoutResults>) =>
+    Object.fromEntries(entries.map((e) => [e.motion.roundLabel, e]));
+
+  test('advanced and eliminated stages carry the result and count as debated; others stay blank', () => {
+    const out = byLabel(
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [
+        ko(3n, 'Quarterfinals', true),
+        ko(3n, 'Semifinals', false),
+      ]),
+    );
+    expect(out['Quarterfinals']).toMatchObject({ debated: true, knockout: { won: true, final: false }, score: null });
+    expect(out['Semifinals']).toMatchObject({ debated: true, knockout: { won: false, final: false } });
+    expect(out['Grand Final']).toMatchObject({ debated: false, knockout: null });
+    expect(out['Round 1'].knockout).toBeNull();
+  });
+
+  test('break categories are different stages: an Open final result never lands on the ESL or Novice final', () => {
+    const out = byLabel(attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'Final', true)]));
+    // "Final" and "Grand Final" are the same last round of the open bracket.
+    expect(out['Grand Final'].knockout).toEqual({ won: true, final: true });
+    expect(out['ESL Final'].knockout).toBeNull();
+    expect(out['Novice Finals'].knockout).toBeNull();
+  });
+
+  test('an ESL result joins the ESL motion only', () => {
+    const out = byLabel(
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'ESL Grand Final', false)]),
+    );
+    expect(out['ESL Final'].knockout).toEqual({ won: false, final: true });
+    expect(out['Grand Final'].knockout).toBeNull();
+  });
+
+  test('a judged-only tournament never takes a team result', () => {
+    const judge = makeJudgeRow({ tournamentId: 3n, judgedOutroundStages: ['Semifinals'] });
+    const out = attachKnockoutResults(buildMotionEntries([], [judge], motions), [ko(3n, 'Semifinals', true)]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ judgedOnly: true, knockout: null, debated: false });
+  });
+
+  test('several motions released for one knockout stage are siblings', () => {
+    const entries = buildMotionEntries(
+      [speaker],
+      [],
+      [
+        makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Grand Final', seq: 0 }),
+        makeMotion({ tournamentId: 3n, roundNumber: null, roundLabel: 'Grand Final', seq: 1 }),
+      ],
+    );
+    expect(entries.map((e) => e.siblings)).toEqual([1, 1]);
+  });
+});
+
+describe('knockoutResultFor', () => {
+  test('reads one stage across spellings, and gives null when same-stage rows disagree', () => {
+    expect(knockoutResultFor('Finals', [{ stage: 'Final', won: true }, { stage: 'Grand Final', won: true }])).toBe(true);
+    const clash = [
+      { stage: 'Final', won: true },
+      { stage: 'Grand Final', won: false },
+    ];
+    expect(knockoutResultFor('Final', clash)).toBeNull();
+    expect(knockoutResultFor('Semifinals', clash)).toBeNull();
+  });
+
+  test('a pre-round is its own stage, not the round it feeds', () => {
+    expect(knockoutResultFor('Pre-Quarterfinals', [{ stage: 'Quarterfinals', won: true }])).toBeNull();
+    expect(sameKnockoutStage('Pre-Quarterfinals', 'Partial Octofinals')).toBe(true);
   });
 });
