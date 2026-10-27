@@ -52,6 +52,22 @@ export function countByFilter(statuses: readonly ImportStatus[]): Record<ImportF
   return counts;
 }
 
+/**
+ * The caption under the Failed tile on the Imports page.
+ *
+ * Two different things used to be mixed here. "Failed" counts links whose
+ * import hit an error that may be temporary; those can be retried. "Dead"
+ * links (the site answers 404) are a separate bucket (the Unavailable
+ * filter): they are never retried, so they are not part of the Failed number.
+ * A tile that read "0" over "34 dead links" looked self-contradictory. The
+ * caption now says plainly what the number means and what the dead count is.
+ */
+export function failedTileHint(failed: number, dead: number): string {
+  const deadText = `${dead} ${dead === 1 ? 'link no longer loads' : 'links no longer load'} (dead, not retried)`;
+  if (failed > 0) return dead > 0 ? `open Failed to retry. ${deadText}` : 'open Failed to retry';
+  return dead > 0 ? `Nothing to retry. ${deadText}` : 'nothing to retry';
+}
+
 /** 1-based page from a raw `?page=` value; junk and out-of-range clamp. */
 export function resolvePage(raw: string | undefined, total: number, pageSize = IMPORT_PAGE_SIZE) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
