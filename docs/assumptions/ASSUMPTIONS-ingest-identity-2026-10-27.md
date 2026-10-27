@@ -221,7 +221,7 @@ Where: `stageLexicon.ts:104-176`; `parseTabs.ts:996-999`.
 Kind T/D. Source: documentation (PR #114).
 If false: "Viertelfinale" (German), "Demi-finale" (French) or "Perempat Final" (Malay/Indonesian) are not outrounds. Their winners are not recorded, and they may count as prelims. "Perempat Final" contains "Final" and so reads as THE final.
 Check: Q14. Query: `SELECT DISTINCT stage FROM "EliminationResult"` and `"JudgeAssignment"` for labels outside the lexicon.
-Status: unverified.
+Status: unverified. **Owner answer implemented (2026-10-27):** English is the default and at least one Spanish-language competition exists. The Spanish stage names are now covered and tested (`tests/calicotab.stageLexiconSpanish.test.ts`): Final, Gran Final, Semifinal(es), Semis, Cuartos (de final), Octavos (de final), Dieciseisavos (de final, the round of 32), Treintaidosavos (de final, the round of 64) and the pre-rounds Prefinal, Pre-semifinales, Precuartos, Preoctavos, Predieciseisavos. "Debate-off" stays the only tie-break name; "Desempate" is deliberately not added. `PARSER_VERSION` is not bumped, so stored rows with these labels are re-read only when something else triggers a re-scrape (see I50).
 
 **I26. Results pages live at `/results/round/<N>/`, the number is the round's order in the tournament, and outrounds are numbered after the prelims.**
 Where: `parseTabs.ts:976-1001`; `parseNav.ts:139-149`.
