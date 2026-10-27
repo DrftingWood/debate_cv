@@ -13,10 +13,8 @@ import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
  * canonical classifier), then maps each canonical stage to a single
  * display string.
  *
- * "Grand Final" and "Final" both collapse to "Final" — most users
- * think of them as the same round, and the underlying rank scale
- * (grand_final=100 vs final=95 in JUDGE_STATS_RANK) still differentiates
- * them for sorting / champion detection if needed.
+ * "Grand Final" and "Final" both collapse to "Final" — they are the same
+ * round, and the rank scale gives them the same rank (95 in JUDGE_STATS_RANK).
  *
  * Anything that doesn't classify falls back to the raw string so
  * unknown / prelim labels still render.

@@ -1,4 +1,4 @@
-import { outroundRankStrict } from '@/lib/calicotab/judgeStats';
+import { outroundRankStrict, tierRank } from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
 import type { CvHighlights, CvSpeakerRow } from '@/lib/cv/buildCvData';
 
@@ -80,13 +80,15 @@ export type BreakDepth = {
   stage: string;
   /**
    * Position on the canonical outround scale (lib/calicotab/judgeStats.ts,
-   * JUDGE_STATS_RANK: grand final 100 … partial triple octos 45). 0 when the
+   * JUDGE_STATS_RANK: final / grand final 95 … partial triple octos 45). 0 when the
    * label is an outround the classifier doesn't recognise — still a break,
    * just not one that can be placed on the ladder.
    */
   rank: number;
   /** True when the stage belongs to a category bracket (ESL, Novice, …). */
   category: boolean;
+  /** Gold 3 / Silver 2 / Bronze 1 / other 0 — orders tiered finals at equal depth. */
+  tier: number;
 };
 
 /**
@@ -107,9 +109,16 @@ export function breakDepth(
   for (const { stage, category } of labels) {
     const rank = outroundRankStrict(stage) ?? 0;
     const isCategory = !!category && category !== 'Open';
-    // Deeper wins; at equal depth the Open bracket outranks a category one.
-    if (!best || rank > best.rank || (rank === best.rank && best.category && !isCategory)) {
-      best = { stage, rank, category: isCategory };
+    const tier = tierRank(stage);
+    // Deeper wins; at equal depth the Open bracket outranks a category one,
+    // and among tiered finals Gold > Silver > Bronze.
+    if (
+      !best ||
+      rank > best.rank ||
+      (rank === best.rank && best.category && !isCategory) ||
+      (rank === best.rank && best.category === isCategory && tier > best.tier)
+    ) {
+      best = { stage, rank, category: isCategory, tier };
     }
   }
   return best;
@@ -159,6 +168,7 @@ export function compareBreakStrength(a: StrengthRow, b: StrengthRow): number {
   if (da && db) {
     if (da.rank !== db.rank) return db.rank - da.rank;
     if (da.category !== db.category) return da.category ? 1 : -1;
+    if (da.tier !== db.tier) return db.tier - da.tier;
   }
   const wa = a.wonTournament === true ? 1 : 0;
   const wb = b.wonTournament === true ? 1 : 0;

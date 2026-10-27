@@ -46,8 +46,8 @@ describe('"Partial X" is rung X run with byes', () => {
     expect(stageOf('Dobles Octavos Parciales')).toBe('partial_double_octofinal');
   });
 
-  test('ranked below the full rung, above the rung beneath, never tied', () => {
-    expect(rankOf('Partial Quarterfinals')).toBeLessThan(rankOf('Quarterfinals'));
+  test('ranked below the full rung, above the rung beneath (Partial Quarterfinals = Quarterfinals, C11; Final = Grand Final, C8)', () => {
+    expect(rankOf('Partial Quarterfinals')).toBe(rankOf('Quarterfinals'));
     expect(rankOf('Partial Quarterfinals')).toBeGreaterThan(rankOf('Octofinals'));
     expect(rankOf('Partial Double Octos')).toBeLessThan(rankOf('Double Octofinals'));
     expect(rankOf('Partial Double Octofinals')).toBeGreaterThan(rankOf('Triple Octofinals'));
@@ -56,7 +56,8 @@ describe('"Partial X" is rung X run with byes', () => {
       'Partial Quarterfinals', 'Octofinals', 'Partial Octofinals', 'Double Octofinals',
       'Partial Double Octofinals', 'Triple Octofinals', 'Partial Triple Octofinals',
     ].map(rankOf);
-    expect(new Set(ranks).size).toBe(ranks.length);
+    // Two deliberate ties: Final = Grand Final, Partial Quarterfinals = Quarterfinals.
+    expect(new Set(ranks).size).toBe(ranks.length - 2);
   });
 
   test('deepest outround does not depend on the order rounds are listed', () => {

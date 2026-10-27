@@ -23,9 +23,15 @@ describe('bracketOf', () => {
     expect(bracketOf('Junior Grand Final')).toBe('category');
   });
 
-  test('silver, plate, bronze, consolation and lower brackets are consolation', () => {
-    for (const label of ['Silver Final', 'Plate Final', 'Bronze Finals', 'Consolation Final', 'Lower Bracket Final']) {
+  test('plate, consolation and lower brackets are consolation', () => {
+    for (const label of ['Plate Final', 'Consolation Final', 'Lower Bracket Final']) {
       expect(bracketOf(label)).toBe('consolation');
+    }
+  });
+
+  test('gold, silver and bronze finals are real (category) brackets, not consolation (owner, C9)', () => {
+    for (const label of ['Gold Final', 'Silver Final', 'Bronze Finals']) {
+      expect(bracketOf(label)).toBe('category');
     }
   });
 });
@@ -120,9 +126,7 @@ describe('outroundFunnel', () => {
 
   test('consolation brackets are never a break, a final or a title of the tournament', () => {
     const f = outroundFunnel([
-      t({ broke: true, deepestOutround: 'Silver Final', won: true }),
       t({ broke: true, deepestOutround: 'Plate Final', won: false }),
-      t({ broke: true, deepestOutround: 'Bronze Final' }),
       t({ broke: true, deepestOutround: 'Consolation Final' }),
       t({ broke: true, deepestOutround: 'Lower Bracket Final' }),
     ]);
@@ -131,9 +135,30 @@ describe('outroundFunnel', () => {
     expect(rung(f, 'won').count).toBe(0);
     expect(f!.category.breaks).toBe(0);
     expect(f!.consolation).toEqual({
-      tournaments: 5,
-      brackets: ['Bronze', 'Consolation', 'Lower Bracket', 'Plate', 'Silver'],
+      tournaments: 3,
+      brackets: ['Consolation', 'Lower Bracket', 'Plate'],
     });
+  });
+
+  test('gold, silver and bronze finals count as breaks and final-level appearances; a win is a category title', () => {
+    const f = outroundFunnel([
+      t({ broke: true, deepestOutround: 'Gold Final', won: true }),
+      t({ broke: true, deepestOutround: 'Silver Final', won: false }),
+      t({ broke: true, deepestOutround: 'Bronze Final' }),
+    ]);
+    expect(rung(f, 'broke').count).toBe(3);
+    expect(f!.category).toMatchObject({ breaks: 3, finals: 3, titles: 1 });
+    expect(f!.category.brackets).toEqual(['Bronze', 'Gold', 'Silver']);
+    expect(f!.consolation.tournaments).toBe(0);
+  });
+
+  test('a Final and a Grand Final land on the same rung', () => {
+    const f = outroundFunnel([
+      t({ broke: true, deepestOutround: 'Final', won: true }),
+      t({ broke: true, deepestOutround: 'Grand Final', won: true }),
+    ]);
+    expect(rung(f, 'final').count).toBe(2);
+    expect(rung(f, 'won').count).toBe(2);
   });
 
   test('a small break straight to semifinals still counts on the quarterfinal rung', () => {

@@ -156,16 +156,19 @@ export function classifyOutroundStage(
 
 
 const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
-  grand_final: 100,
+  // "Final" and "Grand Final" are one round (owner decision, assumptions I8/C8),
+  // so they share a rank.
+  grand_final: 95,
   final: 95,
   // Each rung, and just below it the same rung run partially — with byes
   // (see "One nomenclature" in stageLexicon.ts). Partial sits under its full
-  // rung and over the rung beneath, and no two stages share a rank, so
-  // "deepest outround" never depends on the order rounds were listed in.
+  // rung and over the rung beneath, except the partial quarterfinal
+  // ("Pre-Semis", the BP 12-team round), which the owner treats as a
+  // quarterfinal (C11) and so shares its rank.
   semifinal: 90,
   partial_semifinal: 85,
   quarterfinal: 80,
-  partial_quarterfinal: 75,
+  partial_quarterfinal: 80,
   octofinal: 70,
   partial_octofinal: 65,
   double_octofinal: 60,
@@ -173,6 +176,20 @@ const JUDGE_STATS_RANK: Record<OutroundStage, number> = {
   triple_octofinal: 50,
   partial_triple_octofinal: 45,
 };
+
+/**
+ * Tie-break among one-day-competition tier finals: Gold > Silver > Bronze
+ * (owner decision, assumptions C9/Q1). These are valid open-category finals,
+ * so they count as breaks and as final-level appearances; the tier only
+ * orders them at equal stage depth. Any other label returns 0.
+ */
+export function tierRank(label: string | null | undefined): number {
+  if (!label) return 0;
+  if (/\bgold\b/i.test(label)) return 3;
+  if (/\bsilver\b/i.test(label)) return 2;
+  if (/\bbronze\b/i.test(label)) return 1;
+  return 0;
+}
 
 /**
  * Strict variant of {@link outroundRank} for callers that only have a

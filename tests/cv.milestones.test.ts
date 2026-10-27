@@ -103,7 +103,7 @@ describe('milestones — firsts', () => {
 
   test('a consolation bracket is never a break, a final or a title', () => {
     const m = milestones([
-      row({ year: 2020, broke: true, eliminationReached: 'Silver Final', wonTournament: true }),
+      row({ year: 2020, broke: true, eliminationReached: 'Consolation Final', wonTournament: true }),
       row({ year: 2020, broke: true, eliminationReached: 'Plate Final', wonTournament: false, teamBreakRank: 1 }),
       row({ year: 2021 }),
     ])!;
@@ -113,6 +113,17 @@ describe('milestones — firsts', () => {
     expect(m.otherBracket).toMatchObject({ finals: 0, titles: 0 });
     expect(m.bestBreakRank).toBeNull();
     expect(m.breakRun).toBeNull();
+  });
+
+  test('gold, silver and bronze finals are breaks and category finals (owner decision on C9)', () => {
+    const m = milestones([
+      row({ year: 2020, broke: true, eliminationReached: 'Silver Final', wonTournament: true }),
+      row({ year: 2021, broke: true, eliminationReached: 'Bronze Final', wonTournament: false }),
+      row({ year: 2022 }),
+    ])!;
+    expect(m.firstBreak).toMatchObject({ year: 2020 });
+    expect(m.otherBracket).toMatchObject({ finals: 2, titles: 1 });
+    expect(m.firstFinal).toBeNull(); // open bracket only
   });
 });
 

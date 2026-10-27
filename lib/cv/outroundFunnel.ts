@@ -41,8 +41,8 @@
  * bracket only: an "ESL Final" is a final, but not the tournament's final,
  * and a CV that reads "10 finals, 3 titles" when four of those finals and
  * one title were ESL overstates the record. Category brackets (ESL, Novice,
- * Junior …) are counted beside the funnel. Consolation brackets (Silver,
- * Plate, Bronze, Consolation, Lower) are where teams that did NOT make the
+ * Junior, Gold, Silver, Bronze …) are counted beside the funnel. Consolation
+ * brackets (Plate, Consolation, Lower) are where teams that did NOT make the
  * break play on, so they are never a break, a final or a title here; they
  * are counted so the section can say they were left out. The tab keeps one
  * deepest round per tournament, so a team that broke in both open and ESL
@@ -61,7 +61,12 @@ export type Bracket = 'open' | 'category' | 'consolation';
  * A category the list doesn't know ("Gold", "Pro-Am") stays a category — the
  * safe side, because it is kept out of the open rungs either way.
  */
-const CONSOLATION = /\b(?:silver|plate|bronze|consolation|lower)\b/i;
+// Gold, Silver and Bronze are NOT here: in one-day competitions they are the
+// open field split into tiers (1-4 gold, 5-8 silver …) and each tier's final is
+// a real final (owner decision, assumptions C9). They stay 'category' — broke,
+// final-level, labelled by tier — and tierRank() orders them gold > silver >
+// bronze.
+const CONSOLATION = /\b(?:plate|consolation|lower)\b/i;
 
 /**
  * Which bracket an outround label belongs to. A label with no category is

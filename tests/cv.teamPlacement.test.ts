@@ -96,6 +96,31 @@ describe('breakDepth and break strength', () => {
     expect([seed9, seed2].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['2', '9']);
   });
 
+  test('Final and Grand Final tie on depth, so Open-first now applies between them (C8)', () => {
+    const eslGf = makeSpeakerRow({ tournamentName: 'ESL GF', broke: true, eliminationReached: 'ESL Grand Final' });
+    const openFinal = makeSpeakerRow({ tournamentName: 'Open F', broke: true, eliminationReached: 'Final' });
+    expect([eslGf, openFinal].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['Open F', 'ESL GF']);
+  });
+
+  test('Pre-Semis counts as a quarterfinal: it ties a full quarterfinal on depth (C11)', () => {
+    const pre = makeSpeakerRow({ tournamentName: 'pre', broke: true, eliminationReached: 'Pre-Semifinals', teamBreakRank: 1 });
+    const full = makeSpeakerRow({ tournamentName: 'full', broke: true, eliminationReached: 'Quarterfinals', teamBreakRank: 5 });
+    expect(breakDepth(pre)?.rank).toBe(breakDepth(full)?.rank);
+    // Equal depth falls through to seed, so the better seed wins rather than the "full" label.
+    expect([full, pre].sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['pre', 'full']);
+  });
+
+  test('Gold, Silver and Bronze finals are final-level breaks ranked gold > silver > bronze', () => {
+    const rows = ['Bronze', 'Gold', 'Silver'].map((tier) =>
+      makeSpeakerRow({ tournamentName: tier, broke: true, eliminationReached: `${tier} Final` }),
+    );
+    expect(rows.sort(compareBreakStrength).map((r) => r.tournamentName)).toEqual(['Gold', 'Silver', 'Bronze']);
+    expect(breakDepth(rows[0]!)?.rank).toBe(95);
+    // A tier final is final-level, so it still outranks an Open semifinal.
+    const semi = makeSpeakerRow({ tournamentName: 'Semi', broke: true, eliminationReached: 'Semifinals' });
+    expect([semi, ...rows].sort(compareBreakStrength).map((r) => r.tournamentName).at(-1)).toBe('Semi');
+  });
+
   test('break seed quotes the break size only when the team is on the Open break', () => {
     expect(breakSeed(makeSpeakerRow({ teamBreakRank: null }))).toBeNull();
     expect(
