@@ -22,6 +22,7 @@ import {
 } from '@/components/DashboardActions';
 import { RetryFailedButton } from '@/components/RetryFailedButton';
 import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
+import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -158,18 +159,11 @@ export default async function Dashboard({
       <IngestProgressTracker scope="user" />
 
       {!gmailToken ? (
-        <section
-          aria-label="Gmail disconnected"
-          className="flex flex-col gap-3 rounded-card border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
+        <GmailDisconnectedNotice
+          action={<ReconnectGmailButton redirectTo="/dashboard" variant="primary" />}
         >
-          <div>
-            <div className="data-label text-warning">Gmail disconnected</div>
-            <p className="mt-1 text-table text-ink">
-              Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
-            </p>
-          </div>
-          <ReconnectGmailButton redirectTo="/dashboard" variant="primary" />
-        </section>
+          Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
+        </GmailDisconnectedNotice>
       ) : null}
 
       {/* Stat tiles — clickable filter shortcuts */}
