@@ -16,6 +16,7 @@
 import type { CvData, CvSpeakerRow, CvSpeakerRoundScore, CvTaggedMotion } from '@/lib/cv/buildCvData';
 import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { formatAbbrev } from '@/lib/calicotab/format';
+import { roundHit } from '@/lib/cv/roundOutcome';
 import { classifyMotion, type MotionClass } from '@/lib/motions/classify';
 
 /**
@@ -56,6 +57,11 @@ export type RoundFact = {
   score: number | null;
   partnerScores: number[];
   points: number | null;
+  /**
+   * The format's "hit": won in a two-team room, finished 2nd or better (>= 2
+   * points) in a BP room. Named `won` for the many readers; BP copy must say
+   * "2nd or better", never "won" (see lib/cv/roundOutcome.ts).
+   */
   won: boolean | null;
 };
 
@@ -238,7 +244,9 @@ export function buildStatsFacts(input: Pick<CvData, 'speakerRows' | 'taggedMotio
           .map((m) => m.get(round))
           .filter((s): s is number => s != null),
         points: result?.points ?? null,
-        won: result?.won ?? null,
+        // The format's "hit": a win in a two-team room, 2nd or better in BP.
+        // A BP round is never a "win" (lib/cv/roundOutcome.ts).
+        won: result ? roundHit(row.format, result) : null,
       });
     }
 

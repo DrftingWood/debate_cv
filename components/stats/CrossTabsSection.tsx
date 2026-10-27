@@ -40,7 +40,8 @@ const GRIDS: Array<{ id: string; label: string; rows: CrossTabDimension; cols: C
 
 const METRICS: Array<{ id: Metric; label: string }> = [
   { id: 'score', label: 'Speaker avg vs you' },
-  { id: 'win', label: 'Win rate vs you' },
+  // BP rounds are never "wins": for them this is the 2nd-or-better rate.
+  { id: 'win', label: 'Win / 2nd-or-better rate vs you' },
   { id: 'points', label: 'Team points' },
 ];
 
