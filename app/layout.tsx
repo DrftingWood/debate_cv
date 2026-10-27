@@ -109,7 +109,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <ToastProvider>
-          <a href="#main" className="skip-link">Skip to content</a>
+          <a href="#main" className="skip-link">
+            Skip to content
+          </a>
           {/*
             No <main> here. It used to wrap every route, so the (app)
             header, its nav and the footer all rendered INSIDE main: the

@@ -33,7 +33,9 @@ export default function GlobalError({
       </p>
       <ErrorReference digest={error.digest} />
       <div className="mt-7 flex justify-center gap-3">
-        <Button variant="primary" onClick={() => reset()}>Try again</Button>
+        <Button variant="primary" onClick={() => reset()}>
+          Try again
+        </Button>
         <Link href="/" className={buttonClasses({ variant: 'secondary' })}>
           Go home
         </Link>

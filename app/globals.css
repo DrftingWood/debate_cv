@@ -31,22 +31,22 @@
    */
   :root,
   [data-theme='light'] {
-    --background: 210 20% 97%;         /* statement canvas */
-    --foreground: 213 27% 11%;         /* ledger ink */
+    --background: 210 20% 97%; /* statement canvas */
+    --foreground: 213 27% 11%; /* ledger ink */
     --muted-foreground: 213 11% 43%;
-    --border: 213 18% 40%;             /* used at low opacity for hairlines */
+    --border: 213 18% 40%; /* used at low opacity for hairlines */
 
-    --card: 0 0% 100%;                 /* statement paper */
+    --card: 0 0% 100%; /* statement paper */
     --card-foreground: 213 27% 11%;
 
     --surface: 0 0% 100%;
-    --surface-2: 210 22% 98%;          /* zebra rows, inset wells */
-    --surface-3: 212 20% 95%;          /* chart gutters, track fills */
+    --surface-2: 210 22% 98%; /* zebra rows, inset wells */
+    --surface-3: 212 20% 95%; /* chart gutters, track fills */
 
     --popover: 0 0% 100%;
     --popover-foreground: 213 27% 11%;
 
-    --primary: 166 76% 22%;            /* emerald — action + verified */
+    --primary: 166 76% 22%; /* emerald — action + verified */
     --primary-foreground: 0 0% 100%;
     --primary-hover: 166 78% 17%;
     --primary-soft: 166 76% 22%;
@@ -59,8 +59,8 @@
     --accent: 210 22% 96%;
     --accent-foreground: 166 76% 22%;
 
-    --pos: 160 68% 27%;                /* up / won / gained */
-    --neg: 356 68% 45%;                /* down / lost */
+    --pos: 160 68% 27%; /* up / won / gained */
+    --neg: 356 68% 45%; /* down / lost */
 
     --success: 160 68% 27%;
     --success-foreground: 0 0% 100%;
@@ -93,8 +93,8 @@
        size it ships in: 4.04:1 for the .figure headline numbers, 3.52:1 for
        a "Broke" badge on its own 12% tint. 32% clears 4.5:1 on all three
        backgrounds. Dark-theme gold (40 80% 60%) already passes at 9.4:1. */
-    --break-gold: 38 74% 32%;          /* standout result */
-    --score-blue: 214 72% 40%;         /* analysis */
+    --break-gold: 38 74% 32%; /* standout result */
+    --score-blue: 214 72% 40%; /* analysis */
 
     /* Shadows stay almost invisible: a statement is printed, not floating. */
     --shadow-xs: 0 1px 1px 0 hsl(213 27% 11% / 0.04);
@@ -105,10 +105,10 @@
   }
 
   [data-theme='dark'] {
-    --background: 216 24% 7%;          /* terminal graphite */
+    --background: 216 24% 7%; /* terminal graphite */
     --foreground: 210 22% 93%;
     --muted-foreground: 213 12% 60%;
-    --border: 210 22% 93%;             /* hairlines via low opacity */
+    --border: 210 22% 93%; /* hairlines via low opacity */
 
     --card: 216 22% 10%;
     --card-foreground: 210 22% 93%;
@@ -500,9 +500,15 @@
 
   /* Directional value colours — the only place tint is allowed to mean
      something on a number. */
-  .val-pos { color: hsl(var(--pos)); }
-  .val-neg { color: hsl(var(--neg)); }
-  .val-flat { color: hsl(var(--muted-foreground)); }
+  .val-pos {
+    color: hsl(var(--pos));
+  }
+  .val-neg {
+    color: hsl(var(--neg));
+  }
+  .val-flat {
+    color: hsl(var(--muted-foreground));
+  }
 
   .hairline {
     height: 1px;
@@ -527,10 +533,14 @@
   .table-scroll {
     --scroll-cover: hsl(var(--card));
     background:
-      linear-gradient(to right, var(--scroll-cover) 30%, transparent) left center / 2.5rem 100% no-repeat local,
-      linear-gradient(to left, var(--scroll-cover) 30%, transparent) right center / 2.5rem 100% no-repeat local,
-      radial-gradient(farthest-side at 0 50%, hsl(var(--foreground) / 0.16), transparent) left center / 0.75rem 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, hsl(var(--foreground) / 0.16), transparent) right center / 0.75rem 100% no-repeat scroll;
+      linear-gradient(to right, var(--scroll-cover) 30%, transparent) left center / 2.5rem 100%
+        no-repeat local,
+      linear-gradient(to left, var(--scroll-cover) 30%, transparent) right center / 2.5rem 100%
+        no-repeat local,
+      radial-gradient(farthest-side at 0 50%, hsl(var(--foreground) / 0.16), transparent) left
+        center / 0.75rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, hsl(var(--foreground) / 0.16), transparent) right
+        center / 0.75rem 100% no-repeat scroll;
     background-color: var(--scroll-cover);
   }
   .panel-inset .table-scroll {
@@ -642,7 +652,8 @@
     --primary: 166 76% 22%;
     --primary-foreground: 0 0% 100%;
   }
-  html, body {
+  html,
+  body {
     background: white !important;
     color: black !important;
   }
@@ -653,9 +664,9 @@
     margin: 14mm 12mm;
   }
 
-  header[class*="sticky"],
+  header[class*='sticky'],
   footer,
-  [data-print-hide="true"] {
+  [data-print-hide='true'] {
     display: none !important;
   }
 

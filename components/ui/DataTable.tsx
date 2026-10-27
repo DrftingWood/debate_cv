@@ -85,11 +85,7 @@ export function Th({
   ...rest
 }: React.ThHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean }) {
   return (
-    <th
-      scope="col"
-      className={cn(numeric && 'text-right', className)}
-      {...rest}
-    >
+    <th scope="col" className={cn(numeric && 'text-right', className)} {...rest}>
       {children}
     </th>
   );
@@ -113,11 +109,7 @@ export function Td({
  * hairline rules already carry the eye — but they do respond to the pointer
  * so a wide row stays trackable across the screen.
  */
-export function Tr({
-  children,
-  className,
-  ...rest
-}: React.HTMLAttributes<HTMLTableRowElement>) {
+export function Tr({ children, className, ...rest }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr className={cn('transition-colors hover:bg-surface-2', className)} {...rest}>
       {children}

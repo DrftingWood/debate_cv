@@ -29,10 +29,8 @@ const variants: Record<Variant, string> = {
     'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-hover disabled:bg-surface-3 disabled:text-ink-soft',
   // secondary is a deprecated alias of outline — kept identical so callers
   // don't need to change and the visual result stays consistent.
-  secondary:
-    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
-  outline:
-    'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  secondary: 'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
+  outline: 'bg-surface text-ink border border-border hover:bg-surface-2 disabled:opacity-50',
   ghost: 'bg-transparent text-ink hover:bg-surface-2 disabled:opacity-50',
   danger:
     'bg-destructive text-destructive-foreground hover:brightness-110 disabled:bg-destructive/60',
@@ -40,8 +38,7 @@ const variants: Record<Variant, string> = {
   // "Ingest" / "Clear" / "Lock" measured 20px tall, under the 24px floor
   // (SC 2.5.8). They passed axe only on its spacing exception. A coarse
   // pointer already gets 44px from the global `button` rule in globals.css.
-  link:
-    'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto min-h-6 disabled:opacity-50',
+  link: 'text-primary hover:text-primary-hover underline-offset-4 hover:underline p-0 h-auto min-h-6 disabled:opacity-50',
 };
 
 /*
@@ -94,7 +91,17 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant = 'primary', size = 'md', loading, disabled, leftIcon, rightIcon, children, ...rest },
+    {
+      className,
+      variant = 'primary',
+      size = 'md',
+      loading,
+      disabled,
+      leftIcon,
+      rightIcon,
+      children,
+      ...rest
+    },
     ref,
   ) => {
     return (
@@ -104,7 +111,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={buttonClasses({ variant, size, className })}
         {...rest}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : leftIcon ?? null}
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : (leftIcon ?? null)}
         {children}
         {!loading && rightIcon ? rightIcon : null}
       </button>

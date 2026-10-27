@@ -51,7 +51,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex min-w-0 items-center gap-2">
             {/* Named like the mobile strip; only one of the two is ever
                 visible, so they never read as two "Sections" at once. */}
-            <nav aria-label="Sections" className="hidden items-center gap-0.5 text-table font-medium md:flex">
+            <nav
+              aria-label="Sections"
+              className="hidden items-center gap-0.5 text-table font-medium md:flex"
+            >
               <SectionLinks signedIn={signedIn} showAdmin={showAdmin} />
             </nav>
             <div className="flex items-center gap-1.5">
@@ -118,7 +121,9 @@ function SectionLinks({ signedIn, showAdmin }: { signedIn: boolean; showAdmin: b
   }
   return (
     <>
-      <NavLink href="/cv" exact>Record</NavLink>
+      <NavLink href="/cv" exact>
+        Record
+      </NavLink>
       <NavLink href="/cv/stats">Statistics</NavLink>
       <NavLink href="/dashboard">Imports</NavLink>
       <NavLink href="/settings">Settings</NavLink>

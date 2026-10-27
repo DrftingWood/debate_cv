@@ -141,13 +141,7 @@ export function NotificationBell() {
   );
 }
 
-function NotificationRow({
-  item,
-  onClick,
-}: {
-  item: NotificationItem;
-  onClick: () => void;
-}) {
+function NotificationRow({ item, onClick }: { item: NotificationItem; onClick: () => void }) {
   const created = new Date(item.createdAt);
   const time = relativeTime(created);
   const inner = (
