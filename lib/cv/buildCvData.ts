@@ -86,6 +86,8 @@ export type CvSpeakerRow = {
   teammateDetails: CvTeammate[];
   teamName: string | null;
   teamRank: number | null;
+  /** Another team on the same tab holds this rank, so it reads "5=" (display only; I17). */
+  teamRankTied?: boolean;
   teamPoints: string | null;
   teamWins: number | null;
   /**
@@ -104,6 +106,8 @@ export type CvSpeakerRow = {
    */
   prelimRoundCount: number | null;
   speakerRankOpen: number | null;
+  /** Another speaker has the same total, so the rank reads "7=". False when the field was not loaded. */
+  speakerRankTied?: boolean;
   speakerRankEsl: number | null;
   speakerRankEfl: number | null;
   /**
@@ -915,6 +919,23 @@ export async function buildCvData(
 
   const myDisplayName = claimedPersons[0]?.displayName ?? user?.name ?? 'You';
 
+  // Ties, for the "5=" display (I17). The parser stores a tied rank as the bare
+  // number, so a tie is derived: a team rank is tied when another team on the
+  // same tab holds it; a speaker rank when another speaker has the same total
+  // (only known when the field rows were loaded).
+  const teamRankHolders = new Map<string, number>();
+  for (const [key, rank] of teamRankByKey) {
+    const tournamentPart = key.slice(0, key.indexOf(':'));
+    const k = `${tournamentPart}#${rank}`;
+    teamRankHolders.set(k, (teamRankHolders.get(k) ?? 0) + 1);
+  }
+  const speakersOnTotal = new Map<string, number>();
+  for (const row of fieldRows) {
+    if (row.speakerScoreTotal == null) continue;
+    const k = `${row.tournamentId}#${Number(row.speakerScoreTotal)}`;
+    speakersOnTotal.set(k, (speakersOnTotal.get(k) ?? 0) + 1);
+  }
+
   const speakerByTournament = new Map<bigint, (typeof myParticipations)[number]>();
   const speakerParticipationsByTournament = new Map<bigint, (typeof myParticipations)[number][]>();
   for (const p of myParticipations) {
@@ -1003,6 +1024,10 @@ export async function buildCvData(
       teammateDetails: teamKey ? (teammateDetailsByKey.get(teamKey) ?? []) : [],
       teamName: p.teamName,
       teamRank: teamKey ? (teamRankByKey.get(teamKey) ?? null) : null,
+      teamRankTied: (() => {
+        const rank = teamKey ? teamRankByKey.get(teamKey) : undefined;
+        return rank != null && (teamRankHolders.get(`${tid}#${rank}`) ?? 0) > 1;
+      })(),
       teamPoints: tr?.points ?? null,
       teamWins: tr?.wins ?? null,
       teamFirsts: tr?.firsts ?? null,
@@ -1015,6 +1040,9 @@ export async function buildCvData(
       // speakerRankOpenDerived. Covers BP/AP tabs whose rank header doesn't
       // match the canonical "Rank/#" patterns and whose cell parses to null.
       speakerRankOpen: p.speakerRankOpen ?? p.speakerRankOpenDerived ?? null,
+      speakerRankTied:
+        p.speakerScoreTotal != null &&
+        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}`) ?? 0) > 1,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
       speakerCategories: p.speakerCategories ?? [],

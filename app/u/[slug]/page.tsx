@@ -12,6 +12,7 @@ import { SectionHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
+import { hashRank } from '@/lib/cv/rankDisplay';
 import {
   PublicBreakMarker,
   PublicJudgeCard,
@@ -273,7 +274,7 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                   <Td numeric className="whitespace-nowrap" title={teamPlacementTitle(r)}>
                     {r.teamRank != null ? (
                       <>
-                        #{r.teamRank}
+                        {hashRank(r.teamRank, r.teamRankTied)}
                         {r.totalTeams != null ? (
                           <span className="text-ink-soft">/{r.totalTeams}</span>
                         ) : null}
@@ -282,7 +283,7 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                       <Nil />
                     )}
                   </Td>
-                  <Td numeric>{r.speakerRankOpen != null ? `#${r.speakerRankOpen}` : <Nil />}</Td>
+                  <Td numeric>{r.speakerRankOpen != null ? hashRank(r.speakerRankOpen, r.speakerRankTied) : <Nil />}</Td>
                   <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
                   <Td className="min-w-[8rem] pr-4">
                     {r.broke || fmtPublicLastOutround(r) ? <PublicBreakMarker r={r} /> : <Nil />}
@@ -382,7 +383,7 @@ function TableSourceLink({ href, name }: { href: string; name: string }) {
 
 function teamPlacementTitle(r: CvSpeakerRow): string | undefined {
   const p = teamTabPlacement(r.teamRank, r.totalTeams);
-  return p ? formatTeamTabPlacement(p) : undefined;
+  return p ? formatTeamTabPlacement(p, r.teamRankTied) : undefined;
 }
 
 function initials(name: string | null | undefined): string {

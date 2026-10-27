@@ -3,6 +3,7 @@ import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
 import { teamTabPlacement, formatTopPercent } from '@/lib/cv/teamPlacement';
 import { Badge } from '@/components/ui/Badge';
+import { hashRank } from '@/lib/cv/rankDisplay';
 
 /**
  * Phone layout for the public CV (`/u/<slug>`): one card per tournament.
@@ -107,7 +108,7 @@ function teamRankField(r: CvSpeakerRow) {
   return (
     <Field
       label="Team rank"
-      value={p ? `#${p.rank} of ${p.of}` : `#${r.teamRank}`}
+      value={p ? `${hashRank(p.rank, r.teamRankTied)} of ${p.of}` : hashRank(r.teamRank, r.teamRankTied)}
       hint={p ? `top ${formatTopPercent(p.topPercent)} of the team tab` : undefined}
       mono
     />
@@ -125,7 +126,7 @@ export function PublicSpeakerCard({ r }: { r: CvSpeakerRow }) {
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
         {teamRankField(r)}
         {r.speakerRankOpen != null ? (
-          <Field label="Speaker-tab rank" value={`#${r.speakerRankOpen}`} mono />
+          <Field label="Speaker-tab rank" value={hashRank(r.speakerRankOpen, r.speakerRankTied)} mono />
         ) : null}
         {r.speakerAvgScore ? <Field label="Speaker avg" value={r.speakerAvgScore} mono /> : null}
         {r.teamName ? <Field label="Team" value={r.teamName} /> : null}

@@ -1,5 +1,6 @@
 import { outroundRankStrict, tierRank } from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
+import { rankLabel } from '@/lib/cv/rankDisplay';
 import type { CvHighlights, CvSpeakerRow } from '@/lib/cv/buildCvData';
 
 /**
@@ -234,8 +235,8 @@ export function placementHighlights(
 }
 
 /** "3 of 40 teams · top 8%" — the one wording every surface uses. */
-export function formatTeamTabPlacement(p: TeamTabPlacement): string {
-  return `${p.rank} of ${p.of} teams · top ${formatTopPercent(p.topPercent)}`;
+export function formatTeamTabPlacement(p: TeamTabPlacement, tied = false): string {
+  return `${rankLabel(p.rank, tied)} of ${p.of} teams · top ${formatTopPercent(p.topPercent)}`;
 }
 
 /** Whole percent, except under 1% where "top 0%" would be false. */

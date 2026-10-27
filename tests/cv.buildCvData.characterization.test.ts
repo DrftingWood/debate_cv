@@ -326,6 +326,10 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
         { key: 'p20', name: 'Grace Hopper', speakerScoreTotal: 400, roundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }] },
       ],
       teamName: 'Oxford A',
+      // I17: tie flags are derived for the "5=" display. Nobody shares the
+      // team rank or the speaker total in this fixture.
+      teamRankTied: false,
+      speakerRankTied: false,
       teamPoints: '12',
       teamWins: null,
       teamFirsts: 3,
