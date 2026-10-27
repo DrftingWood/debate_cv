@@ -156,9 +156,7 @@ describe('parseParticipantsList — modern card-based layout (mukmem78)', () => 
   });
 
   test('preserves names that contain inline quotes', () => {
-    const aryan = rows.find((r) =>
-      r.name.startsWith('Aryan'),
-    );
+    const aryan = rows.find((r) => r.name.startsWith('Aryan'));
     expect(aryan?.name).toBe('Aryan" silence a fried bald man is speaking"Yadav');
     expect(aryan?.role).toBe('speaker');
     expect(aryan?.teamName).toBe('Hansraj A');

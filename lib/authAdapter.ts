@@ -68,7 +68,10 @@ function savedKey(provider: string, providerAccountId: string, accessToken: stri
 function markSaved(account: AdapterAccount & { access_token: string }): void {
   const now = Date.now();
   for (const [key, expires] of recentlySaved) if (expires <= now) recentlySaved.delete(key);
-  recentlySaved.set(savedKey(account.provider, account.providerAccountId, account.access_token), now + SAVED_TTL_MS);
+  recentlySaved.set(
+    savedKey(account.provider, account.providerAccountId, account.access_token),
+    now + SAVED_TTL_MS,
+  );
 }
 
 /**

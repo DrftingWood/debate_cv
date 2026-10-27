@@ -296,7 +296,9 @@ export function OnboardingFlow({
                 scanned={emptyScan.scanned}
                 scanning={isScanning}
                 cooldownLabel={
-                  cooldown.active ? `Scan again in ${formatCountdown(cooldown.remainingSec)}` : undefined
+                  cooldown.active
+                    ? `Scan again in ${formatCountdown(cooldown.remainingSec)}`
+                    : undefined
                 }
                 onScanAgain={() => {
                   focusAfterRender(headingRef);

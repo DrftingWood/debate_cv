@@ -35,8 +35,7 @@ const BROWSER_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  Accept:
-    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
@@ -202,7 +201,8 @@ async function soakOne(root: string): Promise<TournamentReport> {
 
   const jobs: Array<Promise<ParseOutcome>> = [];
   if (nav.teamTab) jobs.push(probe('teamTab', nav.teamTab, (h) => parseTeamTab(h).length));
-  if (nav.speakerTab) jobs.push(probe('speakerTab', nav.speakerTab, (h) => parseSpeakerTab(h).length));
+  if (nav.speakerTab)
+    jobs.push(probe('speakerTab', nav.speakerTab, (h) => parseSpeakerTab(h).length));
   if (nav.participants)
     jobs.push(probe('participants', nav.participants, (h) => parseParticipantsList(h).length));
   for (const b of realBreakTabs.slice(0, 2))
@@ -219,7 +219,11 @@ async function soakOne(root: string): Promise<TournamentReport> {
   return rep;
 }
 
-async function pool<T, R>(items: T[], n: number, fn: (t: T, i: number) => Promise<R>): Promise<R[]> {
+async function pool<T, R>(
+  items: T[],
+  n: number,
+  fn: (t: T, i: number) => Promise<R>,
+): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
   await Promise.all(
@@ -239,7 +243,10 @@ describe.skipIf(!process.env.RUN_PARSER_SOAK)('parser soak against live Tabbycat
     'parses public tab pages across many tournaments',
     async () => {
       const targetsPath = process.env.SOAK_TARGETS;
-      expect(targetsPath, 'SOAK_TARGETS must point at a JSON array of tournament roots').toBeTruthy();
+      expect(
+        targetsPath,
+        'SOAK_TARGETS must point at a JSON array of tournament roots',
+      ).toBeTruthy();
       const all: string[] = JSON.parse(readFileSync(targetsPath!, 'utf-8'));
       const offset = Number(process.env.SOAK_OFFSET ?? 0);
       const limit = Number(process.env.SOAK_LIMIT ?? all.length);

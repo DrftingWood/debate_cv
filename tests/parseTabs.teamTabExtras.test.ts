@@ -41,7 +41,14 @@ const teamCell = (name: string, speakers: string | null) => ({
   },
 });
 
-const row = (rk: string, name: string, speakers: string | null, pts: string, firsts: string, seconds: string) => [
+const row = (
+  rk: string,
+  name: string,
+  speakers: string | null,
+  pts: string,
+  firsts: string,
+  seconds: string,
+) => [
   { text: rk, sort: Number(rk) },
   teamCell(name, speakers),
   { text: pts, sort: Number(pts) },
@@ -61,9 +68,7 @@ describe('team tab — firsts and seconds', () => {
 
   test('they reconcile with the points total', () => {
     // BP scores 3/2/1/0, so firsts*3 + seconds*2 can never exceed the total.
-    const rows = parseTeamTab(
-      teamTabPage(HEAD, [row('1', 'Cat Woman', 'A, B', '13', '3', '2')]),
-    );
+    const rows = parseTeamTab(teamTabPage(HEAD, [row('1', 'Cat Woman', 'A, B', '13', '3', '2')]));
     const r = rows[0]!;
     expect(r.firsts! * 3 + r.seconds! * 2).toBeLessThanOrEqual(Number(r.totalPoints));
   });
@@ -135,7 +140,9 @@ describe('team tab — the roster in the popover', () => {
       },
     };
     const rows = parseTeamTab(
-      teamTabPage(HEAD, [[{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }]]),
+      teamTabPage(HEAD, [
+        [{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }],
+      ]),
     );
     expect(rows[0]!.speakers).toEqual(['David Africa', 'Maeca Pansensoy']);
   });
@@ -146,7 +153,9 @@ describe('team tab — the roster in the popover', () => {
       popover: { content: [{ text: 'Code name: <strong>Lacrosse</strong>' }] },
     };
     const rows = parseTeamTab(
-      teamTabPage(HEAD, [[{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }]]),
+      teamTabPage(HEAD, [
+        [{ text: '1' }, cell, { text: '13' }, { text: '7' }, { text: '3' }, { text: '2' }],
+      ]),
     );
     for (const n of rows[0]!.speakers) expect(n).not.toMatch(/<[a-zA-Z/]/);
   });

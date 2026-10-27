@@ -1,7 +1,12 @@
 import { gzipSync } from 'node:zlib';
 import { prisma } from '@/lib/db';
 import { sha256Hex } from '@/lib/crypto';
-import { FetchSession, IngestDeadlineError, isIngestDeadlineError, MIN_REQUEST_MS } from './fetchSession';
+import {
+  FetchSession,
+  IngestDeadlineError,
+  isIngestDeadlineError,
+  MIN_REQUEST_MS,
+} from './fetchSession';
 import { isAllowedTabHost } from '@/lib/gmail/extract';
 
 /**
@@ -126,8 +131,7 @@ const RETRYABLE_STATUSES = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
  */
 function isCloudflareChallenge(html: string): boolean {
   return (
-    html.includes('__cf_chl_') ||
-    (html.includes('Just a moment') && html.includes('cloudflare'))
+    html.includes('__cf_chl_') || (html.includes('Just a moment') && html.includes('cloudflare'))
   );
 }
 
@@ -153,8 +157,7 @@ function browserHeaders(referer?: string): Record<string, string> {
   const ua = process.env.TABBYCAT_USER_AGENT || DEFAULT_USER_AGENT;
   const headers: Record<string, string> = {
     'User-Agent': ua,
-    Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
@@ -190,7 +193,11 @@ const MAX_REDIRECT_HOPS = 5;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-async function throttledFetch(url: string, session: FetchSession, referer?: string): Promise<Response> {
+async function throttledFetch(
+  url: string,
+  session: FetchSession,
+  referer?: string,
+): Promise<Response> {
   const controller = new AbortController();
   // The per-request ceiling, cut short by the ingest's deadline when that
   // comes first: a request still in flight when the function is killed
@@ -244,9 +251,7 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
 
       const next = new URL(location, current);
       if (!isAllowedTabHost(next.hostname) || next.port || next.username || next.password) {
-        throw new Error(
-          `refusing redirect off the allowlist: ${host} → ${next.hostname}`,
-        );
+        throw new Error(`refusing redirect off the allowlist: ${host} → ${next.hostname}`);
       }
       if (hop >= MAX_REDIRECT_HOPS) {
         throw new Error(`too many redirects (${MAX_REDIRECT_HOPS}) starting at ${url}`);
@@ -258,7 +263,8 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
     // with a clearer error so fetchWarnings show "fetch: tab timeout (15s)"
     // instead of a cryptic generic abort string.
     if (err instanceof Error && err.name === 'AbortError') {
-      if (deadlineBound) throw new IngestDeadlineError(`ingest stopped: deadline reached while fetching ${url}`);
+      if (deadlineBound)
+        throw new IngestDeadlineError(`ingest stopped: deadline reached while fetching ${url}`);
       throw new Error(`fetch timeout after ${FETCH_TIMEOUT_MS}ms: ${url}`);
     }
     throw err;
@@ -271,7 +277,11 @@ async function throttledFetch(url: string, session: FetchSession, referer?: stri
  * Retry on the statuses Cloudflare uses for soft-rejections. Budget: two
  * retries at 1 s then 3 s. Per-host throttle still applies inside each call.
  */
-async function fetchWithRetry(url: string, session: FetchSession, referer?: string): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  session: FetchSession,
+  referer?: string,
+): Promise<Response> {
   const delays = [0, 1_000, 3_000];
   let lastRes: Response | null = null;
   let lastErr: unknown = null;
@@ -280,7 +290,8 @@ async function fetchWithRetry(url: string, session: FetchSession, referer?: stri
     // A retry is only worth starting if it can finish before the ingest's
     // deadline. Without one, the transient failure is a reason to run the
     // whole ingest again with a full budget, not a failed attempt.
-    if (delay > 0 || networkRetries > 0) session.assertTimeLeft(delay + MIN_REQUEST_MS, `retry ${url}`);
+    if (delay > 0 || networkRetries > 0)
+      session.assertTimeLeft(delay + MIN_REQUEST_MS, `retry ${url}`);
     if (delay > 0) await wait(delay);
     let res: Response;
     try {
@@ -443,7 +454,8 @@ export async function storeSourceDocument(
   // (scripts/export-source-documents.mjs, docs/runbooks/source-document-bodies.md).
   // The row itself (url, hash, length, status, fetch time) is still written, so
   // the provenance trail and the unchanged-page dedup are unaffected.
-  const keepBody = process.env.STORE_SOURCE_BODIES === '1' && contentLength <= MAX_STORED_BODY_BYTES;
+  const keepBody =
+    process.env.STORE_SOURCE_BODIES === '1' && contentLength <= MAX_STORED_BODY_BYTES;
   const bodyGzip = keepBody ? gzipSync(body) : null;
 
   const doc = await prisma.sourceDocument.upsert({
@@ -593,7 +605,10 @@ export async function fetchRoundWithProvenance(
  * Single-shot probe for the admin debug endpoint. Bypasses the retry loop
  * so the operator sees the first response exactly as upstream served it.
  */
-export async function probeFetch(url: string, session?: FetchSession): Promise<{
+export async function probeFetch(
+  url: string,
+  session?: FetchSession,
+): Promise<{
   status: number;
   ok: boolean;
   bodyPreview: string;

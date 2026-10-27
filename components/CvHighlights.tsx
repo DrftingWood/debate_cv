@@ -78,8 +78,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Speaker tab',
       title: `Top 10 speaker × ${topSpeakerFinishes.length}`,
       items: topSpeakerFinishes.map(
-        (b) =>
-          `#${b.rank} speaker · ${withYear(b.tournamentName, b.year)}`,
+        (b) => `#${b.rank} speaker · ${withYear(b.tournamentName, b.year)}`,
       ),
       icon: <Users className="h-3.5 w-3.5" aria-hidden />,
     });
@@ -88,9 +87,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Best speaker-tab rank',
       title: `#${bestSpeakerRank.rank}`,
-      items: [
-        withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year),
-      ],
+      items: [withYear(bestSpeakerRank.tournamentName, bestSpeakerRank.year)],
       icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
   }
@@ -98,9 +95,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     tiles.push({
       label: 'Peak average',
       title: bestSpeakerAverage.score.toFixed(1),
-      items: [
-        withYear(bestSpeakerAverage.tournamentName, bestSpeakerAverage.year),
-      ],
+      items: [withYear(bestSpeakerAverage.tournamentName, bestSpeakerAverage.year)],
       icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
     });
   }
@@ -142,9 +137,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
               {t.label}
             </div>
             <h3
-              className={
-                'figure mt-2 text-figure-sm ' + (t.gold ? 'text-break-gold' : 'text-ink')
-              }
+              className={'figure mt-2 text-figure-sm ' + (t.gold ? 'text-break-gold' : 'text-ink')}
             >
               {t.title}
             </h3>

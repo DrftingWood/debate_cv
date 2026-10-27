@@ -1,9 +1,4 @@
-import type {
-  CvData,
-  CvSpeakerRow,
-  CvJudgeRow,
-  CvTaggedMotion,
-} from '@/lib/cv/buildCvData';
+import type { CvData, CvSpeakerRow, CvJudgeRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 
 /**
  * Row builders for tests that exercise pure functions over CvData
@@ -23,7 +18,9 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     sourceUrl: 'https://example.calicotab.com/t/',
     myName: 'Test Person',
     teammates: ['Partner One'],
-    teammateDetails: [{ key: 'p-partner-one', name: 'Partner One', speakerScoreTotal: null, roundScores: [] }],
+    teammateDetails: [
+      { key: 'p-partner-one', name: 'Partner One', speakerScoreTotal: null, roundScores: [] },
+    ],
     teamName: 'Test A',
     teamRank: null,
     teamPoints: null,
@@ -35,9 +32,9 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     speakerRankOpen: null,
     speakerRankEsl: null,
     speakerRankEfl: null,
-  speakerCategories: [],
-  teamFirsts: null,
-  teamSeconds: null,
+    speakerCategories: [],
+    teamFirsts: null,
+    teamSeconds: null,
     teamBreakRank: null,
     eliminationReached: null,
     eliminationReachedByCategory: null,

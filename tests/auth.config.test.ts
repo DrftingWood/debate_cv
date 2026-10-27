@@ -66,7 +66,12 @@ const googleAccount = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const tokensOf = { access_token: 'AT', refresh_token: 'RT', expires_at: 1_800_000_000, scope: googleAccount().scope };
+const tokensOf = {
+  access_token: 'AT',
+  refresh_token: 'RT',
+  expires_at: 1_800_000_000,
+  scope: googleAccount().scope,
+};
 
 beforeEach(() => {
   resetPrismaMock();
@@ -85,7 +90,10 @@ describe('NextAuth configuration', () => {
   });
 
   it('asks Google for offline access, a consent prompt and read-only Gmail', () => {
-    const [google] = h.config!.providers as Array<{ id: string; options: { authorization: { params: Record<string, string> } } }>;
+    const [google] = h.config!.providers as Array<{
+      id: string;
+      options: { authorization: { params: Record<string, string> } };
+    }>;
     expect(google.id).toBe('google');
     expect(google.options.authorization.params).toEqual({
       access_type: 'offline',
@@ -118,8 +126,11 @@ describe('NextAuth configuration', () => {
 // it ran straight after the adapter's linkAccount with the same tokens, so it
 // was a second save of the same token on every first sign-in.
 describe.each(['signIn'] as const)('events.%s', (name) => {
-  const run = (user: Record<string, unknown>, account: Record<string, unknown>, profile?: Record<string, unknown>) =>
-    events().signIn({ user, account, profile });
+  const run = (
+    user: Record<string, unknown>,
+    account: Record<string, unknown>,
+    profile?: Record<string, unknown>,
+  ) => events().signIn({ user, account, profile });
 
   it('persists tokens under user.id when NextAuth supplies it, with no lookups', async () => {
     await run({ id: 'user-1', email: 'a@example.com' }, googleAccount());
@@ -160,13 +171,18 @@ describe.each(['signIn'] as const)('events.%s', (name) => {
     prismaMock.user.findUnique.mockResolvedValue(null);
     await run({ email: 'nobody@example.com' }, googleAccount());
     expect(h.persist).not.toHaveBeenCalled();
-    expect(console.warn).toHaveBeenCalledWith(`[auth.${name}] could not resolve userId`, expect.any(Object));
+    expect(console.warn).toHaveBeenCalledWith(
+      `[auth.${name}] could not resolve userId`,
+      expect.any(Object),
+    );
   });
 
   it('warns and persists nothing when Google returned no access token', async () => {
     await run({ id: 'user-1' }, googleAccount({ access_token: undefined }));
     expect(h.persist).not.toHaveBeenCalled();
-    expect(console.warn).toHaveBeenCalledWith(`[auth.${name}] no access_token on account`, { userId: 'user-1' });
+    expect(console.warn).toHaveBeenCalledWith(`[auth.${name}] no access_token on account`, {
+      userId: 'user-1',
+    });
   });
 
   it('does not query by email when neither payload carries one', async () => {
@@ -181,7 +197,11 @@ describe('events.signIn only', () => {
   it('uses the OAuth profile email when the user payload has none', async () => {
     prismaMock.account.findFirst.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue({ id: 'user-from-profile' });
-    await events().signIn({ user: {}, account: googleAccount(), profile: { email: 'p@example.com' } });
+    await events().signIn({
+      user: {},
+      account: googleAccount(),
+      profile: { email: 'p@example.com' },
+    });
     expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
       where: { email: 'p@example.com' },
       select: { id: true },
@@ -192,7 +212,11 @@ describe('events.signIn only', () => {
   it('prefers the user payload email over the profile email', async () => {
     prismaMock.account.findFirst.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue({ id: 'u' });
-    await events().signIn({ user: { email: 'user@example.com' }, account: googleAccount(), profile: { email: 'p@example.com' } });
+    await events().signIn({
+      user: { email: 'user@example.com' },
+      account: googleAccount(),
+      profile: { email: 'p@example.com' },
+    });
     expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
       where: { email: 'user@example.com' },
       select: { id: true },
@@ -210,7 +234,9 @@ describe('events.signIn only', () => {
     // adapter path already caught and reported. Both now behave the same.
     const boom = new Error('db down');
     h.persist.mockRejectedValueOnce(boom);
-    await expect(events().signIn({ user: { id: 'user-1' }, account: googleAccount() })).resolves.toBeUndefined();
+    await expect(
+      events().signIn({ user: { id: 'user-1' }, account: googleAccount() }),
+    ).resolves.toBeUndefined();
     expect(console.error).toHaveBeenCalledWith(
       '[auth.signIn] could not save the encrypted Gmail token; signed in without Gmail access',
       { userId: 'user-1', message: 'db down' },
@@ -243,18 +269,25 @@ describe('events.signIn only', () => {
  * times (adapter, events.linkAccount, events.signIn).
  */
 describe('one token save per sign-in', () => {
-  const adapter = () => h.config!.adapter as { linkAccount: (a: AdapterAccount) => Promise<unknown> };
+  const adapter = () =>
+    h.config!.adapter as { linkAccount: (a: AdapterAccount) => Promise<unknown> };
 
   it('first sign-in (or re-link after disconnect): the adapter saves, signIn does not save again', async () => {
     const account = googleAccount({ access_token: 'AT-first' });
     await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
     await events().signIn({ user: { id: 'user-1' }, account });
     expect(h.persist).toHaveBeenCalledTimes(1);
-    expect(h.persist).toHaveBeenCalledWith('user-1', expect.objectContaining({ access_token: 'AT-first' }));
+    expect(h.persist).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ access_token: 'AT-first' }),
+    );
   });
 
   it('returning user (Account already linked, no adapter call): signIn is the one save', async () => {
-    await events().signIn({ user: { id: 'user-1' }, account: googleAccount({ access_token: 'AT-returning' }) });
+    await events().signIn({
+      user: { id: 'user-1' },
+      account: googleAccount({ access_token: 'AT-returning' }),
+    });
     expect(h.persist).toHaveBeenCalledTimes(1);
   });
 
@@ -267,14 +300,25 @@ describe('one token save per sign-in', () => {
   });
 
   it('a different token after an adapter save is not skipped', async () => {
-    await adapter().linkAccount({ ...googleAccount({ access_token: 'AT-old' }), userId: 'user-1' } as AdapterAccount);
-    await events().signIn({ user: { id: 'user-1' }, account: googleAccount({ access_token: 'AT-new' }) });
+    await adapter().linkAccount({
+      ...googleAccount({ access_token: 'AT-old' }),
+      userId: 'user-1',
+    } as AdapterAccount);
+    await events().signIn({
+      user: { id: 'user-1' },
+      account: googleAccount({ access_token: 'AT-new' }),
+    });
     expect(h.persist).toHaveBeenCalledTimes(2);
-    expect(h.persist).toHaveBeenLastCalledWith('user-1', expect.objectContaining({ access_token: 'AT-new' }));
+    expect(h.persist).toHaveBeenLastCalledWith(
+      'user-1',
+      expect.objectContaining({ access_token: 'AT-new' }),
+    );
   });
 
   it('if the adapter save failed, signIn tries once more, and neither failure breaks sign-in', async () => {
-    h.persist.mockRejectedValueOnce(new Error('blip')).mockRejectedValueOnce(new Error('blip again'));
+    h.persist
+      .mockRejectedValueOnce(new Error('blip'))
+      .mockRejectedValueOnce(new Error('blip again'));
     const account = googleAccount({ access_token: 'AT-retry' });
     await adapter().linkAccount({ ...account, userId: 'user-1' } as AdapterAccount);
     await expect(events().signIn({ user: { id: 'user-1' }, account })).resolves.toBeUndefined();

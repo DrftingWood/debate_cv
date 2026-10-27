@@ -43,24 +43,70 @@ describe('NavLink current marking (NV-3)', () => {
 
   it('lights Record on /cv/motions via alsoMatch, but not Statistics', () => {
     pathname = '/cv/motions';
-    expect(cur(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/cv', exact: true, alsoMatch: ['/cv/motions'] }, 'Record'))).toBe(true);
-    expect(cur(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/cv/stats' }, 'Statistics'))).toBe(false);
+    expect(
+      cur(
+        h(
+          NavLink as React.ComponentType<Record<string, unknown>>,
+          { href: '/cv', exact: true, alsoMatch: ['/cv/motions'] },
+          'Record',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      cur(
+        h(
+          NavLink as React.ComponentType<Record<string, unknown>>,
+          { href: '/cv/stats' },
+          'Statistics',
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('lights Admin, not Record, on the operator tools under /cv', () => {
     pathname = '/cv/verify';
-    expect(cur(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/cv', exact: true, alsoMatch: ['/cv/motions'] }, 'Record'))).toBe(false);
-    expect(cur(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/admin', alsoMatch: ['/cv/tags', '/cv/verify'] }, 'Admin'))).toBe(true);
+    expect(
+      cur(
+        h(
+          NavLink as React.ComponentType<Record<string, unknown>>,
+          { href: '/cv', exact: true, alsoMatch: ['/cv/motions'] },
+          'Record',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      cur(
+        h(
+          NavLink as React.ComponentType<Record<string, unknown>>,
+          { href: '/admin', alsoMatch: ['/cv/tags', '/cv/verify'] },
+          'Admin',
+        ),
+      ),
+    ).toBe(true);
   });
 
   it('does not match a sibling that merely shares a prefix', () => {
     pathname = '/dashboard-old';
-    expect(cur(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/dashboard' }, 'Imports'))).toBe(false);
+    expect(
+      cur(
+        h(
+          NavLink as React.ComponentType<Record<string, unknown>>,
+          { href: '/dashboard' },
+          'Imports',
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('adds a non-colour cue to the current item', () => {
     pathname = '/cv/stats';
-    const out = html(h(NavLink as React.ComponentType<Record<string, unknown>>, { href: '/cv/stats' }, 'Statistics'));
+    const out = html(
+      h(
+        NavLink as React.ComponentType<Record<string, unknown>>,
+        { href: '/cv/stats' },
+        'Statistics',
+      ),
+    );
     expect(out).toContain('font-semibold');
     expect(out).toContain('inset_0_-2px_0');
   });
@@ -73,7 +119,10 @@ describe('signed-out header (NV-10, NV-11)', () => {
 
   it('gives the legal-page layout the shared header: same links, sign-in, theme toggle', async () => {
     authMock.mockResolvedValue(null);
-    for (const out of [html(h(PublicHeader)), html(await AppLayout({ children: h('p', null, 'x') }))]) {
+    for (const out of [
+      html(h(PublicHeader)),
+      html(await AppLayout({ children: h('p', null, 'x') })),
+    ]) {
       const links = [...(out.match(NAV)?.[0] ?? '').matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
       expect(links).toEqual(['/sample', '/privacy']);
       expect(out).toContain('Sign in');

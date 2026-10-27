@@ -41,12 +41,17 @@ const TIMEOUT = Number(process.env.CORPUS_TIMEOUT_MS ?? 20_000);
 const chain = new Map<string, Promise<unknown>>();
 function perHost<T>(host: string, fn: () => Promise<T>): Promise<T> {
   const prev = chain.get(host) ?? Promise.resolve();
-  const next = prev.catch(() => {}).then(async () => {
-    const out = await fn();
-    await new Promise((r) => setTimeout(r, INTERVAL));
-    return out;
-  });
-  chain.set(host, next.catch(() => {}));
+  const next = prev
+    .catch(() => {})
+    .then(async () => {
+      const out = await fn();
+      await new Promise((r) => setTimeout(r, INTERVAL));
+      return out;
+    });
+  chain.set(
+    host,
+    next.catch(() => {}),
+  );
   return next as Promise<T>;
 }
 
@@ -114,11 +119,17 @@ describe.skipIf(!process.env.RUN_CORPUS)('build real-data corpus', () => {
       // 200 would be, which is what lets the passes compose.
       // Set CORPUS_REFETCH=1 to ignore the cache and rebuild from the network.
       let hits = 0;
-      const fetchOrCached = async (url: string): Promise<{ status: number; file: string | null; html: string }> => {
+      const fetchOrCached = async (
+        url: string,
+      ): Promise<{ status: number; file: string | null; html: string }> => {
         const file = `${keyFor(url)}.html.gz`;
         if (!process.env.CORPUS_REFETCH && existsSync(join(pagesDir, file))) {
           hits += 1;
-          return { status: 200, file, html: gunzipSync(readFileSync(join(pagesDir, file))).toString('utf-8') };
+          return {
+            status: 200,
+            file,
+            html: gunzipSync(readFileSync(join(pagesDir, file))).toString('utf-8'),
+          };
         }
         const res = await get(url);
         return {
@@ -136,9 +147,7 @@ describe.skipIf(!process.env.RUN_CORPUS)('build real-data corpus', () => {
         if (done % 50 === 0) console.log(`[corpus] ${done}/${targets.length} (cached ${hits})`);
         if (home.status !== 200) return { root, rootStatus: home.status, pages: [] };
 
-        const pages: PageRef[] = [
-          { url: root, kind: 'home', status: 200, file: home.file },
-        ];
+        const pages: PageRef[] = [{ url: root, kind: 'home', status: 200, file: home.file }];
 
         let nav;
         try {
@@ -171,9 +180,7 @@ describe.skipIf(!process.env.RUN_CORPUS)('build real-data corpus', () => {
           // every round. CORPUS_ROUNDS=all (or a number) widens it; the cache
           // means rounds already on disk are not fetched again.
           const roundCap =
-            process.env.CORPUS_ROUNDS === 'all'
-              ? Infinity
-              : Number(process.env.CORPUS_ROUNDS ?? 3);
+            process.env.CORPUS_ROUNDS === 'all' ? Infinity : Number(process.env.CORPUS_ROUNDS ?? 3);
           for (const r of nav.resultsRounds.slice(0, roundCap)) wanted.push(['roundResults', r]);
         }
 

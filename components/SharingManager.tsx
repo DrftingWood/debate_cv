@@ -82,7 +82,11 @@ export function SharingManager() {
     startToggle(async () => {
       const res = await postJson<SharingState>('/api/sharing', { enabled: next });
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Sharing not changed', description: userMessage(res).description });
+        toast.show({
+          kind: 'error',
+          title: 'Sharing not changed',
+          description: userMessage(res).description,
+        });
         return;
       }
       setState(res.data);
@@ -100,7 +104,11 @@ export function SharingManager() {
     startAvatar(async () => {
       const res = await postJson<SharingState>('/api/sharing', { avatarEnabled: next });
       if (!res.ok) {
-        toast.show({ kind: 'error', title: 'Photo setting not changed', description: userMessage(res).description });
+        toast.show({
+          kind: 'error',
+          title: 'Photo setting not changed',
+          description: userMessage(res).description,
+        });
         return;
       }
       setState(res.data);

@@ -44,10 +44,7 @@ describe('speaker tab — break categories', () => {
     // "Open, Novice" and "ESL, EFL" are the second and third most common
     // values in the corpus.
     const rows = parseSpeakerTab(
-      speakerTabPage(HEAD, [
-        row('1', 'Bo Both', 'Open, Novice'),
-        row('2', 'Cy Two', 'ESL, EFL'),
-      ]),
+      speakerTabPage(HEAD, [row('1', 'Bo Both', 'Open, Novice'), row('2', 'Cy Two', 'ESL, EFL')]),
     );
     expect(rows[0]!.categories).toEqual(['Open', 'Novice']);
     expect(rows[1]!.categories).toEqual(['ESL', 'EFL']);
@@ -75,7 +72,13 @@ describe('speaker tab — break categories', () => {
     const headNoCat = HEAD.filter((h) => h.key !== 'category');
     const rows = parseSpeakerTab(
       speakerTabPage(headNoCat, [
-        [{ text: '1' }, { text: 'Una Categorised' }, { text: 'Some Team' }, { text: '75' }, { text: '75' }],
+        [
+          { text: '1' },
+          { text: 'Una Categorised' },
+          { text: 'Some Team' },
+          { text: '75' },
+          { text: '75' },
+        ],
       ]),
     );
     expect(rows[0]!.categories).toEqual([]);
@@ -83,7 +86,9 @@ describe('speaker tab — break categories', () => {
 
   test('the plural "categories" key is read too', () => {
     // Team tabs use the plural; 72 pages in the corpus.
-    const headPlural = HEAD.map((h) => (h.key === 'category' ? { key: 'categories', title: 'Categories' } : h));
+    const headPlural = HEAD.map((h) =>
+      h.key === 'category' ? { key: 'categories', title: 'Categories' } : h,
+    );
     const rows = parseSpeakerTab(speakerTabPage(headPlural, [row('1', 'Plu Ral', 'Novice')]));
     expect(rows[0]!.categories).toEqual(['Novice']);
   });

@@ -36,7 +36,8 @@ export type PairingSummary = {
   winRate: number | null;
 };
 
-const mean = (xs: number[]): number | null => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null);
+const mean = (xs: number[]): number | null =>
+  xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
 
 function roundFigures(rounds: StatsFacts['rounds']) {
   const prelims = rounds.filter((r) => !r.isOutround);
@@ -50,7 +51,10 @@ function roundFigures(rounds: StatsFacts['rounds']) {
   };
 }
 
-export function teammateStats(facts: StatsFacts): { partners: PartnerRow[]; pairings: PairingSummary[] } {
+export function teammateStats(facts: StatsFacts): {
+  partners: PartnerRow[];
+  pairings: PairingSummary[];
+} {
   const roundsByTournament = new Map<string, StatsFacts['rounds']>();
   for (const r of facts.rounds) {
     const list = roundsByTournament.get(r.tournamentId) ?? [];

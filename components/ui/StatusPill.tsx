@@ -2,13 +2,7 @@ import * as React from 'react';
 import { CheckCircle2, Clock, XCircle, Loader2, Ban, UserSearch } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
-export type Status =
-  | 'done'
-  | 'pending'
-  | 'running'
-  | 'failed'
-  | 'unavailable'
-  | 'unmatched';
+export type Status = 'done' | 'pending' | 'running' | 'failed' | 'unavailable' | 'unmatched';
 
 // Per-status colour tokens — used only for the icon and an optional
 // underline. The label itself is small-caps ink, the same across all

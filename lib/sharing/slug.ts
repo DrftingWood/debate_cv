@@ -25,10 +25,7 @@ export const RESERVED_SLUGS = new Set([
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
 
 export type CustomSlugError =
-  | { code: 'too_short' }
-  | { code: 'too_long' }
-  | { code: 'invalid_chars' }
-  | { code: 'reserved' };
+  { code: 'too_short' } | { code: 'too_long' } | { code: 'invalid_chars' } | { code: 'reserved' };
 
 /**
  * Validate a user-supplied custom slug. Returns null on success, or an

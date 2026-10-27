@@ -8,10 +8,7 @@
  * room shape and name keywords on top and can also produce World Schools,
  * Australs, Two-team Parliamentary, Policy, Lincoln-Douglas and Public Forum.
  */
-export type DebateFormat =
-  | 'British Parliamentary'
-  | 'Asian Parliamentary'
-  | 'unknown';
+export type DebateFormat = 'British Parliamentary' | 'Asian Parliamentary' | 'unknown';
 
 /**
  * Short display code for a stored `Tournament.format` string.

@@ -80,7 +80,10 @@ export function cumulativePoints(
 const BP_SEATS = new Set(['OG', 'OO', 'CG', 'CO']);
 
 /** Is this a four-team room? True on a BP seat, or when the tournament is BP. */
-export function isFourTeamRound(input: { position: string | null; format: string | null }): boolean {
+export function isFourTeamRound(input: {
+  position: string | null;
+  format: string | null;
+}): boolean {
   if (input.position && BP_SEATS.has(input.position.toUpperCase())) return true;
   return formatAbbrev(input.format) === 'BP';
 }
@@ -137,7 +140,9 @@ export function categoryKey(label: string | null | undefined): string {
  * Several motions under one label stay together, as a prelim's do. A motion
  * with its own round number is never moved onto another row.
  */
-export function ledgerMotions<M extends { roundNumber: number | null; roundLabel: string; seq: number }>(input: {
+export function ledgerMotions<
+  M extends { roundNumber: number | null; roundLabel: string; seq: number },
+>(input: {
   roundNumbers: number[];
   roundNames: Map<number, string>;
   prelimRoundCount: number | null;
@@ -148,12 +153,17 @@ export function ledgerMotions<M extends { roundNumber: number | null; roundLabel
   const out = new Map<number, M[]>();
   const teamCategory = categoryKey(input.eliminationReached);
   const unnumbered = input.motions.filter((m) => m.roundNumber == null);
-  const hasPartialRound = unnumbered.some((m) => splitStageLabel(m.roundLabel).stage?.startsWith('partial_'));
+  const hasPartialRound = unnumbered.some((m) =>
+    splitStageLabel(m.roundLabel).stage?.startsWith('partial_'),
+  );
   const matchByStage = !input.multiCategoryRun && !hasPartialRound;
   for (const n of input.roundNumbers) {
     const direct = input.motions.filter((m) => m.roundNumber === n);
     if (direct.length > 0) {
-      out.set(n, direct.sort((a, b) => a.seq - b.seq));
+      out.set(
+        n,
+        direct.sort((a, b) => a.seq - b.seq),
+      );
       continue;
     }
     const isOutround = input.prelimRoundCount != null && n > input.prelimRoundCount;
@@ -164,7 +174,10 @@ export function ledgerMotions<M extends { roundNumber: number | null; roundLabel
       (m) => stageKey(m.roundLabel) === stage && categoryKey(m.roundLabel) === teamCategory,
     );
     if (new Set(matches.map((m) => m.roundLabel.trim().toLowerCase())).size !== 1) continue;
-    out.set(n, matches.sort((a, b) => a.seq - b.seq));
+    out.set(
+      n,
+      matches.sort((a, b) => a.seq - b.seq),
+    );
   }
   return out;
 }

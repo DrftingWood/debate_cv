@@ -19,7 +19,11 @@ export const PRIVATE_URL_RE =
  * and Yellow Tab, which run the same software); nothing else is ever a
  * legitimate scrape target.
  */
-export const ALLOWED_TAB_HOST_SUFFIXES = ['.calicotab.com', '.herokuapp.com', '.yellowtabs.com'] as const;
+export const ALLOWED_TAB_HOST_SUFFIXES = [
+  '.calicotab.com',
+  '.herokuapp.com',
+  '.yellowtabs.com',
+] as const;
 
 /**
  * Is this hostname one we will fetch from?
@@ -179,11 +183,13 @@ export function privateUrlVariants(rawUrl: string): string[] {
  * delivers them as base64 already.
  */
 function decodeQuotedPrintable(input: string): string {
-  return input
-    // Soft line breaks: =<CR><LF> or =<LF>
-    .replace(/=\r?\n/g, '')
-    // Hex escapes: =XX where X is hex
-    .replace(/=([A-F0-9]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  return (
+    input
+      // Soft line breaks: =<CR><LF> or =<LF>
+      .replace(/=\r?\n/g, '')
+      // Hex escapes: =XX where X is hex
+      .replace(/=([A-F0-9]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+  );
 }
 
 export function extractUrlsFromText(text: string): string[] {
@@ -206,11 +212,7 @@ export function extractFromMessage(message: GmailMessage): PrivateUrlRecord[] {
     ? new Date(Number(message.internalDate)).toISOString()
     : dateHeader || null;
 
-  const haystack = [
-    message.snippet ?? '',
-    subject,
-    collectBodyText(message.payload),
-  ].join('\n');
+  const haystack = [message.snippet ?? '', subject, collectBodyText(message.payload)].join('\n');
 
   const urls = extractUrlsFromText(haystack);
   const seen = new Set<string>();

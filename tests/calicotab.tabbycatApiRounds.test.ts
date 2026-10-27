@@ -14,12 +14,20 @@ import { API_REDACTED_NAME } from '@/lib/calicotab/tabbycatApi';
 
 const API = 'https://t.calicotab.com/api/v1/tournaments/t';
 const T = 'https://t.calicotab.com/t/';
-const team = (id: number, short_name: string, speakers: ApiRoundsTeam['speakers'] = []): ApiRoundsTeam => ({
+const team = (
+  id: number,
+  short_name: string,
+  speakers: ApiRoundsTeam['speakers'] = [],
+): ApiRoundsTeam => ({
   url: `${API}/teams/${id}`,
   short_name,
   speakers,
 });
-const adj = (id: number, name: string | null, extra: Partial<ApiAdjudicator> = {}): ApiAdjudicator => ({
+const adj = (
+  id: number,
+  name: string | null,
+  extra: Partial<ApiAdjudicator> = {},
+): ApiAdjudicator => ({
   url: `${API}/adjudicators/${id}`,
   name,
   anonymous: false,
@@ -81,7 +89,10 @@ describe('mapRoundResults', () => {
       apiRoundName: 'Grand Final',
       roundStandings: [
         { team: teams[0].url, rounds: [{ round: round(10), points: null, win: true, side: 'cg' }] },
-        { team: teams[1].url, rounds: [{ round: round(10), points: null, win: false, side: 'oo' }] },
+        {
+          team: teams[1].url,
+          rounds: [{ round: round(10), points: null, win: false, side: 'oo' }],
+        },
       ],
     });
     expect(r.teamResults.map((t) => [t.teamName, t.points, t.won])).toEqual([
@@ -98,9 +109,13 @@ describe('mapRoundResults', () => {
       sideNames: 'aff-neg',
       seq: 2,
       sourceUrl: `${T}results/round/2/`,
-      roundStandings: [{ team: teams[0].url, rounds: [{ round: round(2), points: 1, win: true, side: 'aff' }] }],
+      roundStandings: [
+        { team: teams[0].url, rounds: [{ round: round(2), points: 1, win: true, side: 'aff' }] },
+      ],
     });
-    expect(r.teamResults).toEqual([{ teamName: 'Alpha A', position: 'Affirmative', points: null, won: true }]);
+    expect(r.teamResults).toEqual([
+      { teamName: 'Alpha A', position: 'Affirmative', points: null, won: true },
+    ]);
   });
 
   test('a drawn team with no result (a bye) has no row, as on the HTML table', () => {
@@ -124,7 +139,9 @@ describe('mapRoundResults', () => {
       teamsInDebate: 2,
       seq: 1,
       sourceUrl: `${T}results/round/1/`,
-      roundStandings: [{ team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] }],
+      roundStandings: [
+        { team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] },
+      ],
     });
     expect(r.teamResults[0]).toMatchObject({ points: 3, won: true });
     expect(bpFromPreference('bp')).toBe(true);
@@ -154,7 +171,9 @@ describe('mapRoundResults', () => {
       ...base,
       seq: 2,
       sourceUrl: `${T}results/round/2/`,
-      roundStandings: [{ team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] }],
+      roundStandings: [
+        { team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] },
+      ],
     });
     expect(r.teamResults).toEqual([]);
   });
@@ -165,13 +184,25 @@ describe('mapRoundResults', () => {
       seq: 1,
       sourceUrl: `${T}results/round/1/`,
       roundStandings: [],
-      adjudicators: [adj(1, 'Cara Chair'), adj(2, 'Pat Panel'), adj(3, 'Tia Trainee'), adj(4, 'Hidden', { anonymous: true })],
+      adjudicators: [
+        adj(1, 'Cara Chair'),
+        adj(2, 'Pat Panel'),
+        adj(3, 'Tia Trainee'),
+        adj(4, 'Hidden', { anonymous: true }),
+      ],
       pairings: [
         {
           teams: [],
-          adjudicators: { chair: `${API}/adjudicators/1`, panellists: [`${API}/adjudicators/2`, `${API}/adjudicators/4`], trainees: [`${API}/adjudicators/3`] },
+          adjudicators: {
+            chair: `${API}/adjudicators/1`,
+            panellists: [`${API}/adjudicators/2`, `${API}/adjudicators/4`],
+            trainees: [`${API}/adjudicators/3`],
+          },
         },
-        { teams: [], adjudicators: { chair: `${API}/adjudicators/1`, panellists: [], trainees: [] } },
+        {
+          teams: [],
+          adjudicators: { chair: `${API}/adjudicators/1`, panellists: [], trainees: [] },
+        },
         { teams: [], adjudicators: null },
       ],
     });
@@ -188,7 +219,10 @@ describe('mapBreakPage', () => {
   test('team break: rank from the break list, score from team points, stage from the URL', () => {
     const rows = mapBreakPage({
       sourceUrl: `${T}break/teams/esl/`,
-      breakingTeams: [{ team: teams[1].url, rank: 1 }, { team: teams[0].url, rank: 2 }],
+      breakingTeams: [
+        { team: teams[1].url, rank: 1 },
+        { team: teams[0].url, rank: 2 },
+      ],
       teams,
       teamStandings: [
         { team: teams[0].url, metrics: [{ metric: 'points', value: 17 }] },
@@ -197,8 +231,22 @@ describe('mapBreakPage', () => {
       adjudicators: [],
     });
     expect(rows).toEqual([
-      { rank: 1, entityType: 'team', entityName: 'Beta B', institution: null, score: 19, stage: 'ESL' },
-      { rank: 2, entityType: 'team', entityName: 'Alpha A', institution: null, score: 17, stage: 'ESL' },
+      {
+        rank: 1,
+        entityType: 'team',
+        entityName: 'Beta B',
+        institution: null,
+        score: 19,
+        stage: 'ESL',
+      },
+      {
+        rank: 2,
+        entityType: 'team',
+        entityName: 'Alpha A',
+        institution: null,
+        score: 17,
+        stage: 'ESL',
+      },
     ]);
   });
 
@@ -234,7 +282,11 @@ describe('mapBreakPage', () => {
       sourceUrl: `${T}break/adjudicators/`,
       teams: [],
       teamStandings: [],
-      adjudicators: [adj(1, 'Ann Adj', { breaking: true }), adj(2, 'Not Breaking'), adj(3, 'Real Name', { breaking: true, anonymous: true })],
+      adjudicators: [
+        adj(1, 'Ann Adj', { breaking: true }),
+        adj(2, 'Not Breaking'),
+        adj(3, 'Real Name', { breaking: true, anonymous: true }),
+      ],
     });
     expect(rows.map((r) => r.entityName)).toEqual(['Ann Adj', API_REDACTED_NAME]);
     expect(rows.every((r) => r.stage === 'Adjudicators' && r.rank === null)).toBe(true);
@@ -259,12 +311,48 @@ describe('mapParticipants', () => {
       ],
     });
     expect(rows).toEqual([
-      { name: 'Sam Speaker', role: 'speaker', judgeTag: null, teamName: 'Alpha A', institution: null },
-      { name: API_REDACTED_NAME, role: 'speaker', judgeTag: null, teamName: 'Alpha A', institution: null },
-      { name: 'Core Person', role: 'adjudicator', judgeTag: 'core', teamName: null, institution: null },
-      { name: 'Invited Person', role: 'adjudicator', judgeTag: 'invited', teamName: null, institution: null },
-      { name: 'Normal Person', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: null },
-      { name: API_REDACTED_NAME, role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: null },
+      {
+        name: 'Sam Speaker',
+        role: 'speaker',
+        judgeTag: null,
+        teamName: 'Alpha A',
+        institution: null,
+      },
+      {
+        name: API_REDACTED_NAME,
+        role: 'speaker',
+        judgeTag: null,
+        teamName: 'Alpha A',
+        institution: null,
+      },
+      {
+        name: 'Core Person',
+        role: 'adjudicator',
+        judgeTag: 'core',
+        teamName: null,
+        institution: null,
+      },
+      {
+        name: 'Invited Person',
+        role: 'adjudicator',
+        judgeTag: 'invited',
+        teamName: null,
+        institution: null,
+      },
+      {
+        name: 'Normal Person',
+        role: 'adjudicator',
+        judgeTag: 'normal',
+        teamName: null,
+        institution: null,
+      },
+      {
+        name: API_REDACTED_NAME,
+        role: 'adjudicator',
+        judgeTag: 'normal',
+        teamName: null,
+        institution: null,
+      },
     ]);
     expect(JSON.stringify(rows)).not.toMatch(/Secret/);
   });
@@ -279,14 +367,14 @@ describe('fetchRestFromApi', () => {
   };
   const prefs = (overrides: Record<string, unknown>) =>
     Object.entries({
-      'debate_rules__teams_in_debate': 4,
-      'debate_rules__side_names': 'gov-opp',
-      'public_features__public_results': true,
-      'public_features__public_breaking_teams': true,
-      'public_features__public_breaking_adjs': true,
-      'public_features__public_participants': true,
-      'ui_options__show_team_institutions': false,
-      'ui_options__show_adjudicator_institutions': false,
+      debate_rules__teams_in_debate: 4,
+      debate_rules__side_names: 'gov-opp',
+      public_features__public_results: true,
+      public_features__public_breaking_teams: true,
+      public_features__public_breaking_adjs: true,
+      public_features__public_participants: true,
+      ui_options__show_team_institutions: false,
+      ui_options__show_adjudicator_institutions: false,
       ...overrides,
     }).map(([identifier, value]) => ({ identifier, value }));
 
@@ -307,9 +395,13 @@ describe('fetchRestFromApi', () => {
   const full = {
     teams,
     adjudicators: [adj(1, 'Cara Chair', { breaking: true })],
-    'teams/standings/rounds': [{ team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] }],
+    'teams/standings/rounds': [
+      { team: teams[0].url, rounds: [{ round: round(1), points: 3, win: false, side: 'og' }] },
+    ],
     rounds: [{ url: round(1), seq: 1, name: 'Round 1' }],
-    'rounds/1/pairings': [{ teams: [], adjudicators: { chair: `${API}/adjudicators/1`, panellists: [], trainees: [] } }],
+    'rounds/1/pairings': [
+      { teams: [], adjudicators: { chair: `${API}/adjudicators/1`, panellists: [], trainees: [] } },
+    ],
     'teams/standings': [{ team: teams[0].url, metrics: [{ metric: 'points', value: 3 }] }],
     'break-categories': [{ url: `${API}/break-categories/9`, slug: 'open', name: 'Open' }],
     'break-categories/9/break': [{ team: teams[0].url, rank: 1 }],
@@ -326,7 +418,10 @@ describe('fetchRestFromApi', () => {
 
   test('a page the tournament keeps private is not read from the API', async () => {
     const { fetcher, asked } = fakeApi({
-      preferences: prefs({ 'public_features__public_results': false, 'public_features__public_participants': false }),
+      preferences: prefs({
+        public_features__public_results: false,
+        public_features__public_participants: false,
+      }),
       ...full,
     });
     const r = await fetchRestFromApi(T, nav, fetcher);
@@ -339,11 +434,19 @@ describe('fetchRestFromApi', () => {
   test('an absent preference is not consent', async () => {
     const { fetcher } = fakeApi({ preferences: [], ...full });
     const r = await fetchRestFromApi(T, nav, fetcher);
-    expect([...r.rounds.values(), ...r.breaks.values(), r.participants].every((x) => x?.source === 'html')).toBe(true);
+    expect(
+      [...r.rounds.values(), ...r.breaks.values(), r.participants].every(
+        (x) => x?.source === 'html',
+      ),
+    ).toBe(true);
   });
 
   test('only rounds the nav links are asked for', async () => {
-    const { fetcher, asked } = fakeApi({ preferences: prefs({}), ...full, 'rounds/2/pairings': [] });
+    const { fetcher, asked } = fakeApi({
+      preferences: prefs({}),
+      ...full,
+      'rounds/2/pairings': [],
+    });
     await fetchRestFromApi(T, nav, fetcher);
     expect(asked.filter((p) => p.includes('pairings'))).toEqual(['rounds/1/pairings']);
   });
@@ -359,7 +462,9 @@ describe('fetchRestFromApi', () => {
     const { fetcher } = fakeApi({
       preferences: prefs({}),
       ...full,
-      adjudicators: [adj(1, 'Cara Chair', { breaking: true, institution: `${API}/institutions/7` })],
+      adjudicators: [
+        adj(1, 'Cara Chair', { breaking: true, institution: `${API}/institutions/7` }),
+      ],
     });
     const r = await fetchRestFromApi(T, nav, fetcher);
     expect(r.participants?.source).toBe('html');
@@ -369,7 +474,10 @@ describe('fetchRestFromApi', () => {
   });
 
   test('team institutions shown: team breaks and participants stay on HTML', async () => {
-    const { fetcher } = fakeApi({ preferences: prefs({ 'ui_options__show_team_institutions': true }), ...full });
+    const { fetcher } = fakeApi({
+      preferences: prefs({ ui_options__show_team_institutions: true }),
+      ...full,
+    });
     const r = await fetchRestFromApi(T, nav, fetcher);
     expect(r.breaks.get(nav.breakTabs[0])?.source).toBe('html');
     expect(r.participants?.source).toBe('html');
@@ -383,7 +491,15 @@ describe('fetchRestFromApi', () => {
       preferences: prefs({}),
       ...full,
       teams: two,
-      'rounds/1/pairings': [{ teams: [{ team: two[0].url, side: 'og' }, { team: two[1].url, side: 'oo' }], adjudicators: null }],
+      'rounds/1/pairings': [
+        {
+          teams: [
+            { team: two[0].url, side: 'og' },
+            { team: two[1].url, side: 'oo' },
+          ],
+          adjudicators: null,
+        },
+      ],
     });
     const r = await fetchRestFromApi(T, nav, fetcher);
     expect(r.rounds.get(nav.resultsRounds[0])).toMatchObject({ source: 'html' });
@@ -406,7 +522,9 @@ describe('fetchRestFromApi', () => {
       asked.push(path);
       if (path === 'rounds/1/pairings') return { status: 429, json: async () => ({}) };
       const hit = body[path];
-      return hit === undefined ? { status: 404, json: async () => ({}) } : { status: 200, json: async () => hit };
+      return hit === undefined
+        ? { status: 404, json: async () => ({}) }
+        : { status: 200, json: async () => hit };
     };
     const r = await fetchRestFromApi(T, nav3, fetcher);
     expect(asked.filter((p) => p.includes('pairings'))).toEqual(['rounds/1/pairings']);
@@ -426,7 +544,11 @@ describe('fetchRestFromApi', () => {
   });
 
   test('one failing endpoint costs only its own page', async () => {
-    const { fetcher } = fakeApi({ preferences: prefs({}), ...full, 'break-categories/9/break': undefined });
+    const { fetcher } = fakeApi({
+      preferences: prefs({}),
+      ...full,
+      'break-categories/9/break': undefined,
+    });
     const r = await fetchRestFromApi(T, nav, fetcher);
     expect(r.breaks.get(nav.breakTabs[0])?.source).toBe('html');
     expect(r.rounds.get(nav.resultsRounds[0])?.source).toBe('api');

@@ -3,9 +3,23 @@ import { momentumAfter } from '@/lib/cv/roundViews';
 import type { RoundFact } from '@/lib/cv/statsFacts';
 
 const round = (o: Partial<RoundFact>): RoundFact => ({
-  tournamentId: '1', year: 2024, format: 'British Parliamentary', round: 1, isOutround: false,
-  seat: 'BP:OG', partners: ['Ann'], partnerGap: 0, proAm: 'peers', motionType: 'Policy',
-  hasMotion: true, contextLed: false, infoSlide: false, score: 75, partnerScores: [75], points: 2, won: false,
+  tournamentId: '1',
+  year: 2024,
+  format: 'British Parliamentary',
+  round: 1,
+  isOutround: false,
+  seat: 'BP:OG',
+  partners: ['Ann'],
+  partnerGap: 0,
+  proAm: 'peers',
+  motionType: 'Policy',
+  hasMotion: true,
+  contextLed: false,
+  infoSlide: false,
+  score: 75,
+  partnerScores: [75],
+  points: 2,
+  won: false,
   ...o,
 });
 

@@ -51,7 +51,13 @@ describe('speaker CV signal merge', () => {
 describe('buildTeamRankLookup', () => {
   test('uses explicit team-tab ranks when present', () => {
     const ranks = buildTeamRankLookup([
-      { tournamentId: 1n, teamName: 'Bangalore Bombay Chennai', rank: 1, wins: 5, points: decimal('1374.50') },
+      {
+        tournamentId: 1n,
+        teamName: 'Bangalore Bombay Chennai',
+        rank: 1,
+        wins: 5,
+        points: decimal('1374.50'),
+      },
       { tournamentId: 1n, teamName: 'Other Team', rank: 2, wins: 4, points: decimal('1300.00') },
     ]);
     expect(ranks.get(teamResultKey(1n, 'Bangalore Bombay Chennai'))).toBe(1);
@@ -70,7 +76,13 @@ describe('buildTeamRankLookup', () => {
 
   test('does not invent a fallback rank without a standings set', () => {
     const ranks = buildTeamRankLookup([
-      { tournamentId: 1n, teamName: 'Only Known Team', rank: null, wins: 5, points: decimal('1200.00') },
+      {
+        tournamentId: 1n,
+        teamName: 'Only Known Team',
+        rank: null,
+        wins: 5,
+        points: decimal('1200.00'),
+      },
     ]);
     expect(ranks.get(teamResultKey(1n, 'Only Known Team'))).toBeUndefined();
   });
@@ -101,8 +113,7 @@ describe('buildCvData — discoveredUrl filter (audit #7)', () => {
     await buildCvData('user-1');
 
     const discoveredUrlCall = prismaMock.discoveredUrl.findMany.mock.calls[0]?.[0] as
-      | { where: { userId: string; tournamentId: object; ingestedAt: object } }
-      | undefined;
+      { where: { userId: string; tournamentId: object; ingestedAt: object } } | undefined;
     expect(discoveredUrlCall?.where).toEqual(
       expect.objectContaining({
         userId: 'user-1',
@@ -124,7 +135,9 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
     const personId = 200n;
 
     prismaMock.user.findUnique.mockResolvedValue({
-      name: 'Test', email: 't@e.com', image: null,
+      name: 'Test',
+      email: 't@e.com',
+      image: null,
     });
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       {
@@ -153,8 +166,8 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
         personId,
         teamName: 'Team A',
         speakerScoreTotal: decimal('450.0'),
-        speakerRankOpen: null,            // parser missed it
-        speakerRankOpenDerived: 7,        // persisted at ingest time
+        speakerRankOpen: null, // parser missed it
+        speakerRankOpenDerived: 7, // persisted at ingest time
         speakerRankEsl: null,
         speakerRankEfl: null,
         teamBreakRank: null,
@@ -168,9 +181,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
         speakerRoundScores: [],
       },
     ]);
-    prismaMock.tournament.findMany.mockResolvedValue([
-      { id: tournamentId, prelimRoundCount: 6 },
-    ]);
+    prismaMock.tournament.findMany.mockResolvedValue([{ id: tournamentId, prelimRoundCount: 6 }]);
     prismaMock.teamResult.groupBy.mockResolvedValue([]);
     prismaMock.teamResult.findMany.mockResolvedValue([]);
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
@@ -191,7 +202,9 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
     const personId = 201n;
 
     prismaMock.user.findUnique.mockResolvedValue({
-      name: 'Test', email: 't@e.com', image: null,
+      name: 'Test',
+      email: 't@e.com',
+      image: null,
     });
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       {
@@ -219,8 +232,8 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
         personId,
         teamName: 'Team B',
         speakerScoreTotal: decimal('500.0'),
-        speakerRankOpen: 3,               // parsed from the tab
-        speakerRankOpenDerived: 7,        // derivation differs (e.g. break category quirk)
+        speakerRankOpen: 3, // parsed from the tab
+        speakerRankOpenDerived: 7, // derivation differs (e.g. break category quirk)
         speakerRankEsl: null,
         speakerRankEfl: null,
         teamBreakRank: null,
@@ -234,9 +247,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
         speakerRoundScores: [],
       },
     ]);
-    prismaMock.tournament.findMany.mockResolvedValue([
-      { id: tournamentId, prelimRoundCount: 6 },
-    ]);
+    prismaMock.tournament.findMany.mockResolvedValue([{ id: tournamentId, prelimRoundCount: 6 }]);
     prismaMock.teamResult.groupBy.mockResolvedValue([]);
     prismaMock.teamResult.findMany.mockResolvedValue([]);
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
@@ -250,7 +261,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
 });
 
 describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
-  test('carries each teammate\'s total and round scores, with suppressed names masked', async () => {
+  test("carries each teammate's total and round scores, with suppressed names masked", async () => {
     const userId = 'user-3';
     const tournamentId = 102n;
     const me = 300n;
@@ -265,8 +276,13 @@ describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
         ingestedAt: new Date('2026-01-03'),
         registrationName: 'Test User',
         tournament: {
-          id: tournamentId, name: 'Pairs Open', year: 2026, format: 'Asian Parliamentary',
-          totalTeams: 40, sourceUrlRaw: 'https://example.calicotab.com/ghi/', prelimRoundCount: 5,
+          id: tournamentId,
+          name: 'Pairs Open',
+          year: 2026,
+          format: 'Asian Parliamentary',
+          totalTeams: 40,
+          sourceUrlRaw: 'https://example.calicotab.com/ghi/',
+          prelimRoundCount: 5,
         },
       },
     ]);
@@ -274,29 +290,57 @@ describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
       { id: me, displayName: 'Test User', normalizedName: 'test user' },
     ]);
     const myRow = {
-      tournamentId, personId: me, teamName: 'Team C', speakerScoreTotal: decimal('390.0'),
-      speakerRankOpen: 4, speakerRankOpenDerived: null, speakerRankEsl: null, speakerRankEfl: null,
-      teamBreakRank: null, judgeTypeTag: null, chairedPrelimRounds: null, lastOutroundChaired: null,
-      lastOutroundPaneled: null, wins: null, eliminationReached: null, roles: [{ role: 'speaker' }],
+      tournamentId,
+      personId: me,
+      teamName: 'Team C',
+      speakerScoreTotal: decimal('390.0'),
+      speakerRankOpen: 4,
+      speakerRankOpenDerived: null,
+      speakerRankEsl: null,
+      speakerRankEfl: null,
+      teamBreakRank: null,
+      judgeTypeTag: null,
+      chairedPrelimRounds: null,
+      lastOutroundChaired: null,
+      lastOutroundPaneled: null,
+      wins: null,
+      eliminationReached: null,
+      roles: [{ role: 'speaker' }],
       speakerRoundScores: [],
     };
-    prismaMock.tournamentParticipant.findMany.mockImplementation(((args: { where?: { OR?: unknown } }) =>
+    prismaMock.tournamentParticipant.findMany.mockImplementation(((args: {
+      where?: { OR?: unknown };
+    }) =>
       Promise.resolve(
         args?.where?.OR
           ? [
-              { tournamentId, teamName: 'Team C', personId: me,
+              {
+                tournamentId,
+                teamName: 'Team C',
+                personId: me,
                 person: { displayName: 'Test User', suppressedAt: null },
-                speakerScoreTotal: decimal('390.0'), speakerRoundScores: [] },
-              { tournamentId, teamName: 'Team C', personId: partner,
+                speakerScoreTotal: decimal('390.0'),
+                speakerRoundScores: [],
+              },
+              {
+                tournamentId,
+                teamName: 'Team C',
+                personId: partner,
                 person: { displayName: 'Pat Partner', suppressedAt: null },
                 speakerScoreTotal: decimal('372.5'),
                 speakerRoundScores: [
                   { roundNumber: 1, positionLabel: null, score: decimal('74.5') },
                   { roundNumber: 2, positionLabel: null, score: decimal('75.0') },
-                ] },
-              { tournamentId, teamName: 'Team C', personId: withdrawn,
+                ],
+              },
+              {
+                tournamentId,
+                teamName: 'Team C',
+                personId: withdrawn,
                 person: { displayName: 'Real Name', suppressedAt: new Date('2026-02-01') },
-                speakerScoreTotal: decimal('360.0'), speakerRoundScores: [] },
+                speakerScoreTotal: decimal('360.0'),
+                speakerRoundScores: [],
+              },
             ]
           : [myRow],
       )) as never);
@@ -332,21 +376,42 @@ describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
     prismaMock.user.findUnique.mockResolvedValue({ name: 'Test', email: 't@e.com', image: null });
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       {
-        url: 'https://example.calicotab.com/jkl/private/xyz/', tournamentId,
-        ingestedAt: new Date('2026-01-04'), registrationName: 'Test User',
+        url: 'https://example.calicotab.com/jkl/private/xyz/',
+        tournamentId,
+        ingestedAt: new Date('2026-01-04'),
+        registrationName: 'Test User',
         tournament: {
-          id: tournamentId, name: 'Nine Rounds', year: 2026, format: 'British Parliamentary',
-          totalTeams: 200, sourceUrlRaw: 'https://example.calicotab.com/jkl/', prelimRoundCount: 9,
+          id: tournamentId,
+          name: 'Nine Rounds',
+          year: 2026,
+          format: 'British Parliamentary',
+          totalTeams: 200,
+          sourceUrlRaw: 'https://example.calicotab.com/jkl/',
+          prelimRoundCount: 9,
         },
       },
     ]);
-    prismaMock.person.findMany.mockResolvedValue([{ id: 400n, displayName: 'Test User', normalizedName: 'test user' }]);
+    prismaMock.person.findMany.mockResolvedValue([
+      { id: 400n, displayName: 'Test User', normalizedName: 'test user' },
+    ]);
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([
       {
-        tournamentId, personId: 400n, teamName: 'Team D', speakerScoreTotal: decimal('700.0'),
-        speakerRankOpen: 10, speakerRankOpenDerived: null, speakerRankEsl: null, speakerRankEfl: null,
-        teamBreakRank: null, judgeTypeTag: null, chairedPrelimRounds: null, lastOutroundChaired: null,
-        lastOutroundPaneled: null, wins: null, eliminationReached: null, roles: [{ role: 'speaker' }],
+        tournamentId,
+        personId: 400n,
+        teamName: 'Team D',
+        speakerScoreTotal: decimal('700.0'),
+        speakerRankOpen: 10,
+        speakerRankOpenDerived: null,
+        speakerRankEsl: null,
+        speakerRankEfl: null,
+        teamBreakRank: null,
+        judgeTypeTag: null,
+        chairedPrelimRounds: null,
+        lastOutroundChaired: null,
+        lastOutroundPaneled: null,
+        wins: null,
+        eliminationReached: null,
+        roles: [{ role: 'speaker' }],
         speakerRoundScores: [],
       },
     ]);
@@ -368,47 +433,89 @@ describe('buildCvData — Open break line', () => {
     prismaMock.user.findUnique.mockResolvedValue({ name: 'Test', email: 't@e.com', image: null });
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       {
-        url: 'https://example.calicotab.com/mno/private/xyz/', tournamentId,
-        ingestedAt: new Date('2026-01-05'), registrationName: 'Test User',
+        url: 'https://example.calicotab.com/mno/private/xyz/',
+        tournamentId,
+        ingestedAt: new Date('2026-01-05'),
+        registrationName: 'Test User',
         tournament: {
-          id: tournamentId, name: 'Break Open', year: 2026, format: 'British Parliamentary',
-          totalTeams: 5, sourceUrlRaw: 'https://example.calicotab.com/mno/', prelimRoundCount: 5,
+          id: tournamentId,
+          name: 'Break Open',
+          year: 2026,
+          format: 'British Parliamentary',
+          totalTeams: 5,
+          sourceUrlRaw: 'https://example.calicotab.com/mno/',
+          prelimRoundCount: 5,
         },
       },
     ]);
-    prismaMock.person.findMany.mockResolvedValue([{ id: 500n, displayName: 'Test User', normalizedName: 'test user' }]);
+    prismaMock.person.findMany.mockResolvedValue([
+      { id: 500n, displayName: 'Test User', normalizedName: 'test user' },
+    ]);
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([
       {
-        tournamentId, personId: 500n, teamName: 'Mine', speakerScoreTotal: null,
-        speakerRankOpen: null, speakerRankOpenDerived: null, speakerRankEsl: null, speakerRankEfl: null,
-        teamBreakRank: null, judgeTypeTag: null, chairedPrelimRounds: null, lastOutroundChaired: null,
-        lastOutroundPaneled: null, wins: null, eliminationReached: null, roles: [{ role: 'speaker' }],
+        tournamentId,
+        personId: 500n,
+        teamName: 'Mine',
+        speakerScoreTotal: null,
+        speakerRankOpen: null,
+        speakerRankOpenDerived: null,
+        speakerRankEsl: null,
+        speakerRankEfl: null,
+        teamBreakRank: null,
+        judgeTypeTag: null,
+        chairedPrelimRounds: null,
+        lastOutroundChaired: null,
+        lastOutroundPaneled: null,
+        wins: null,
+        eliminationReached: null,
+        roles: [{ role: 'speaker' }],
         speakerRoundScores: [],
       },
     ]);
     prismaMock.tournament.findMany.mockResolvedValue([{ id: tournamentId, prelimRoundCount: 5 }]);
     prismaMock.teamResult.groupBy.mockResolvedValue([]);
-    const standing = (teamName: string, points: string) =>
-      ({ tournamentId, teamName, rank: null, wins: null, points: decimal(points), firsts: null, seconds: null });
-    prismaMock.teamResult.findMany.mockImplementation(((args: { where?: { roundNumber?: unknown } }) =>
-      Promise.resolve(args?.where?.roundNumber === 0
-        ? [standing('A', '12'), standing('B', '10'), standing('Mine', '9'), standing('X', '11')]
-        : [])) as never);
+    const standing = (teamName: string, points: string) => ({
+      tournamentId,
+      teamName,
+      rank: null,
+      wins: null,
+      points: decimal(points),
+      firsts: null,
+      seconds: null,
+    });
+    prismaMock.teamResult.findMany.mockImplementation(((args: {
+      where?: { roundNumber?: unknown };
+    }) =>
+      Promise.resolve(
+        args?.where?.roundNumber === 0
+          ? [standing('A', '12'), standing('B', '10'), standing('Mine', '9'), standing('X', '11')]
+          : [],
+      )) as never);
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
-    prismaMock.eliminationResult.findMany.mockImplementation(((args: { where?: { stage?: unknown } }) =>
-      Promise.resolve(args?.where?.stage === 'Open'
-        ? [
-            { tournamentId, entityName: 'A', stage: 'Open' },
-            { tournamentId, entityName: 'B', stage: 'Open' },
-          ]
-        : [])) as never);
+    prismaMock.eliminationResult.findMany.mockImplementation(((args: {
+      where?: { stage?: unknown };
+    }) =>
+      Promise.resolve(
+        args?.where?.stage === 'Open'
+          ? [
+              { tournamentId, entityName: 'A', stage: 'Open' },
+              { tournamentId, entityName: 'B', stage: 'Open' },
+            ]
+          : [],
+      )) as never);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
 
     const data = await buildCvData('user-5', { includeFieldStats: false });
     // X on 11 sits off the break (ineligible) and does not move the line.
-    expect(data.speakerRows[0]!.openBreak).toEqual({ teams: 2, userOnBreak: false, linePoints: 10, lineWins: null });
-    const openCalls = prismaMock.eliminationResult.findMany.mock.calls
-      .filter(([a]) => (a as { where?: { stage?: unknown } })?.where?.stage === 'Open');
+    expect(data.speakerRows[0]!.openBreak).toEqual({
+      teams: 2,
+      userOnBreak: false,
+      linePoints: 10,
+      lineWins: null,
+    });
+    const openCalls = prismaMock.eliminationResult.findMany.mock.calls.filter(
+      ([a]) => (a as { where?: { stage?: unknown } })?.where?.stage === 'Open',
+    );
     expect(openCalls).toHaveLength(1);
   });
 });

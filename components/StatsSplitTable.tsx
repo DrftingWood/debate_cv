@@ -55,15 +55,24 @@ export function StatsSplitTable({
             <tr>
               <Th className={cn('pl-4', pin)}>{dimensionLabel}</Th>
               <Th numeric>Rounds</Th>
-              <Th numeric title="Prelim rounds where the tab recorded a result">Decided</Th>
+              <Th numeric title="Prelim rounds where the tab recorded a result">
+                Decided
+              </Th>
               <Th numeric>{OUTCOME_COPY[outcome].rate}</Th>
               {/* The unit is in the visible header, not only the title: these
                   two columns sit side by side in different units (UX-31). */}
-              <Th numeric title={`${OUTCOME_COPY[outcome].rate} minus ${baselineLabel}, in percentage points`}>
+              <Th
+                numeric
+                title={`${OUTCOME_COPY[outcome].rate} minus ${baselineLabel}, in percentage points`}
+              >
                 vs you (pp)
               </Th>
               <Th numeric>Speaker avg</Th>
-              <Th numeric title={`Speaker average minus ${baselineLabel}, in speaker points`} className={lastScoreCell}>
+              <Th
+                numeric
+                title={`Speaker average minus ${baselineLabel}, in speaker points`}
+                className={lastScoreCell}
+              >
                 vs you (pts)
               </Th>
               {/* No points column at all when the block has no points. An
@@ -90,7 +99,9 @@ export function StatsSplitTable({
                     ) : null}
                   </Td>
                   <Td numeric>{s.rounds}</Td>
-                  <Td numeric className="text-ink-soft">{s.decidedRounds}</Td>
+                  <Td numeric className="text-ink-soft">
+                    {s.decidedRounds}
+                  </Td>
                   {thin ? (
                     // A thin row prints its sample size where the rate would
                     // be. A muted "100%" over two rounds still reads as a
@@ -112,11 +123,20 @@ export function StatsSplitTable({
                     <>
                       <Td numeric>{pct(s.winRate) ?? <Nil />}</Td>
                       <Td numeric>
-                        <DeltaText value={s.winRateDelta} digits={0} threshold={WIN_RATE_DELTA_THRESHOLD} suffix="pp" />
+                        <DeltaText
+                          value={s.winRateDelta}
+                          digits={0}
+                          threshold={WIN_RATE_DELTA_THRESHOLD}
+                          suffix="pp"
+                        />
                       </Td>
                       <Td numeric>{s.avgScore != null ? s.avgScore.toFixed(1) : <Nil />}</Td>
                       <Td numeric className={lastScoreCell}>
-                        <DeltaText value={s.scoreDelta} digits={1} threshold={SCORE_DELTA_THRESHOLD} />
+                        <DeltaText
+                          value={s.scoreDelta}
+                          digits={1}
+                          threshold={SCORE_DELTA_THRESHOLD}
+                        />
                       </Td>
                     </>
                   )}
@@ -175,5 +195,9 @@ function DeltaText({
 }) {
   if (value == null) return <Nil />;
   const meaningful = Math.abs(value) >= threshold;
-  return <span className={meaningful ? deltaTone(value, digits) : 'val-flat'}>{`${signed(value, digits)}${suffix}`}</span>;
+  return (
+    <span
+      className={meaningful ? deltaTone(value, digits) : 'val-flat'}
+    >{`${signed(value, digits)}${suffix}`}</span>
+  );
 }

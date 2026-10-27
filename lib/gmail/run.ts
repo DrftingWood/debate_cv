@@ -2,8 +2,7 @@ import { google, type gmail_v1 } from 'googleapis';
 import type { OAuth2Client } from './client';
 import { extractFromMessage, dedupeByUrl, type PrivateUrlRecord } from './extract';
 
-const DEFAULT_QUERY =
-  '(calicotab.com OR herokuapp.com OR yellowtabs.com OR privateurls)';
+const DEFAULT_QUERY = '(calicotab.com OR herokuapp.com OR yellowtabs.com OR privateurls)';
 
 const DEFAULT_MAX_MESSAGES = 500;
 const CONCURRENCY = 5;
@@ -19,26 +18,25 @@ const CONCURRENCY = 5;
  * limit and propagate a generic "ingest_failed" to the dashboard, when the
  * fix is just to wait a second and retry.
  */
-async function gmailRetryOn429<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 4,
-): Promise<T> {
+async function gmailRetryOn429<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       return await fn();
     } catch (err) {
       const isLast = i === maxAttempts - 1;
-      const status = (err as { code?: number; response?: { status?: number } })
-        .response?.status ?? (err as { code?: number }).code;
+      const status =
+        (err as { code?: number; response?: { status?: number } }).response?.status ??
+        (err as { code?: number }).code;
       if (isLast || (status !== 429 && status !== 503)) throw err;
       // Retry-After can be seconds or HTTP-date. We only handle seconds —
       // HTTP-date is rare for API rate limits.
-      const retryAfter = (err as { response?: { headers?: Record<string, string> } })
-        .response?.headers?.['retry-after'];
+      const retryAfter = (err as { response?: { headers?: Record<string, string> } }).response
+        ?.headers?.['retry-after'];
       const headerSeconds = retryAfter ? Number(retryAfter) : NaN;
-      const waitMs = Number.isFinite(headerSeconds) && headerSeconds > 0
-        ? headerSeconds * 1000
-        : 500 * Math.pow(2, i) + Math.floor(Math.random() * 500);
+      const waitMs =
+        Number.isFinite(headerSeconds) && headerSeconds > 0
+          ? headerSeconds * 1000
+          : 500 * Math.pow(2, i) + Math.floor(Math.random() * 500);
       await new Promise<void>((r) => setTimeout(r, waitMs));
     }
   }
@@ -105,12 +103,16 @@ export async function extractAllFromGmail(
     pageToken = data.nextPageToken;
   }
 
-  const messages = await mapConcurrent<string, gmail_v1.Schema$Message>(ids, CONCURRENCY, async (id) => {
-    const { data } = await gmailRetryOn429(() =>
-      gmail.users.messages.get({ userId: 'me', id, format: 'full' }),
-    );
-    return data;
-  });
+  const messages = await mapConcurrent<string, gmail_v1.Schema$Message>(
+    ids,
+    CONCURRENCY,
+    async (id) => {
+      const { data } = await gmailRetryOn429(() =>
+        gmail.users.messages.get({ userId: 'me', id, format: 'full' }),
+      );
+      return data;
+    },
+  );
 
   const records = messages.flatMap((m) => extractFromMessage(m));
   const deduped = dedupeByUrl(records);
@@ -119,7 +121,8 @@ export async function extractAllFromGmail(
   const perTournament: Record<string, number> = {};
   for (const r of deduped) {
     perHost[r.host] = (perHost[r.host] ?? 0) + 1;
-    if (r.tournamentSlug) perTournament[r.tournamentSlug] = (perTournament[r.tournamentSlug] ?? 0) + 1;
+    if (r.tournamentSlug)
+      perTournament[r.tournamentSlug] = (perTournament[r.tournamentSlug] ?? 0) + 1;
   }
 
   return {

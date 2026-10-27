@@ -207,12 +207,16 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
           />
           <StatLine
             label="Floor / ceiling"
-            value={p.p10 != null && p.p90 != null ? `${p.p10.toFixed(1)} – ${p.p90.toFixed(1)}` : null}
+            value={
+              p.p10 != null && p.p90 != null ? `${p.p10.toFixed(1)} – ${p.p90.toFixed(1)}` : null
+            }
             hint="10th to 90th percentile of your speeches"
           />
           <StatLine
             label="Range"
-            value={p.min != null && p.max != null ? `${p.min.toFixed(1)} – ${p.max.toFixed(1)}` : null}
+            value={
+              p.min != null && p.max != null ? `${p.min.toFixed(1)} – ${p.max.toFixed(1)}` : null
+            }
           />
           {p.best ? (
             <StatLine
@@ -255,9 +259,7 @@ export function StatLine({
       </div>
       {hint ? <div className="mt-0.5 text-caption text-ink-soft">{hint}</div> : null}
       {note ? (
-        <div className="mt-1 break-words text-caption italic text-ink-soft">
-          “{note}”
-        </div>
+        <div className="mt-1 break-words text-caption italic text-ink-soft">“{note}”</div>
       ) : null}
     </div>
   );
@@ -308,8 +310,8 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
               />
             ) : null}
             <p className="border-t border-border pt-3 text-caption text-ink-soft">
-              Rank on the prelim team tab against the number of teams. The top 10% of a 40-team
-              tab is rank 4 or better.
+              Rank on the prelim team tab against the number of teams. The top 10% of a 40-team tab
+              is rank 4 or better.
             </p>
           </div>
         </div>
@@ -324,9 +326,13 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
                 <tr>
                   <Th className="pl-4">Tournament</Th>
                   <Th numeric>Year</Th>
-                  <Th numeric title="Prelim team-tab rank, of the teams on the tab">Team rank</Th>
+                  <Th numeric title="Prelim team-tab rank, of the teams on the tab">
+                    Team rank
+                  </Th>
                   <Th numeric>Top</Th>
-                  <Th numeric title="Break seed, of the teams on the Open break where known">Break</Th>
+                  <Th numeric title="Break seed, of the teams on the Open break where known">
+                    Break
+                  </Th>
                   <Th className="pr-4">Furthest outround</Th>
                 </tr>
               </thead>
@@ -334,15 +340,17 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
                 {t.placements.map((p) => (
                   <Tr key={p.tournamentId}>
                     <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block break-words">
-                        {p.tournamentName}
-                      </span>
+                      <span className="block break-words">{p.tournamentName}</span>
                     </Td>
-                    <Td numeric className="text-ink-soft">{p.year ?? <Nil />}</Td>
+                    <Td numeric className="text-ink-soft">
+                      {p.year ?? <Nil />}
+                    </Td>
                     <Td numeric>
                       {p.teamRank}/{p.totalTeams}
                     </Td>
-                    <Td numeric className="text-ink-soft">{formatTopPercent(p.topPercent)}</Td>
+                    <Td numeric className="text-ink-soft">
+                      {formatTopPercent(p.topPercent)}
+                    </Td>
                     <Td numeric>
                       {p.breakRank == null ? (
                         <Nil title="No break seed published" />
@@ -454,7 +462,10 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
 
         <div className="panel overflow-hidden lg:col-span-2">
           <TableScroll>
-            <Table className="min-w-max" label="Your speaker average against the speaker tab, tournament by tournament">
+            <Table
+              className="min-w-max"
+              label="Your speaker average against the speaker tab, tournament by tournament"
+            >
               <thead>
                 <tr>
                   <Th className="pl-4">Tournament</Th>
@@ -467,18 +478,23 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                   <Th numeric title="The same gap in standard deviations of the field">
                     z-score
                   </Th>
-                  <Th numeric className="pr-4" title="Your place among every speaker on the speaker tab">
+                  <Th
+                    numeric
+                    className="pr-4"
+                    title="Your place among every speaker on the speaker tab"
+                  >
                     Spk tab
                   </Th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((p) => (
-                  <Tr key={p.tournamentId} className={p.incompleteDraw ? 'text-ink-soft' : undefined}>
+                  <Tr
+                    key={p.tournamentId}
+                    className={p.incompleteDraw ? 'text-ink-soft' : undefined}
+                  >
                     <Td rowHeader className="max-w-[14rem] pl-4 font-medium">
-                      <span className="block break-words">
-                        {p.tournamentName}
-                      </span>
+                      <span className="block break-words">{p.tournamentName}</span>
                       {p.incompleteDraw ? (
                         <span
                           className="text-caption font-normal text-warning"
@@ -488,7 +504,9 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                         </span>
                       ) : null}
                     </Td>
-                    <Td numeric className="text-ink-soft">{p.year ?? <Nil />}</Td>
+                    <Td numeric className="text-ink-soft">
+                      {p.year ?? <Nil />}
+                    </Td>
                     <Td numeric>{p.userAvg != null ? p.userAvg.toFixed(1) : <Nil />}</Td>
                     <Td numeric className="text-ink-soft">
                       {p.fieldMeanAvg != null ? p.fieldMeanAvg.toFixed(1) : <Nil />}
@@ -505,7 +523,9 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                     </Td>
                     <Td numeric className="pr-4">
                       {p.placement != null ? (
-                        <span title={`Top ${(100 - (p.percentile ?? 0)).toFixed(0)}% of the speaker tab`}>
+                        <span
+                          title={`Top ${(100 - (p.percentile ?? 0)).toFixed(0)}% of the speaker tab`}
+                        >
                           {p.placement}/{p.speakerCount}
                         </span>
                       ) : (
@@ -539,9 +559,9 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
       ) : null}
 
       <p className="text-caption text-ink-soft">
-        Field averages divide the tab&rsquo;s published score totals by the tournament&rsquo;s prelim
-        round count, so they are exact when everyone spoke every round and slightly low when some
-        speakers missed rounds.
+        Field averages divide the tab&rsquo;s published score totals by the tournament&rsquo;s
+        prelim round count, so they are exact when everyone spoke every round and slightly low when
+        some speakers missed rounds.
         {f.incompleteDraws > 0 ? (
           <>
             {' '}
@@ -642,7 +662,13 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
  * round, and drops runs (consecutive rounds, broken by the removed seats) and
  * breaks / outrounds / finals (whole tournaments).
  */
-export function ResultsSection({ stats, perRoundOnly = false }: { stats: SpeakerStats; perRoundOnly?: boolean }) {
+export function ResultsSection({
+  stats,
+  perRoundOnly = false,
+}: {
+  stats: SpeakerStats;
+  perRoundOnly?: boolean;
+}) {
   const r = stats.results;
   if (r.decidedRounds === 0 && r.tournamentsSpoken === 0) return null;
 
@@ -651,10 +677,7 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
     label: `${p.points} ${p.points === 1 ? 'point' : 'points'}`,
     value: p.rounds,
     display: `${p.rounds} · ${Math.round((p.rounds / Math.max(totalPointRounds, 1)) * 100)}%`,
-    tone: (p.points >= 3 ? 'pos' : p.points === 0 ? 'neg' : 'default') as
-      | 'pos'
-      | 'neg'
-      | 'default',
+    tone: (p.points >= 3 ? 'pos' : p.points === 0 ? 'neg' : 'default') as 'pos' | 'neg' | 'default',
   }));
 
   return (
@@ -684,46 +707,54 @@ export function ResultsSection({ stats, perRoundOnly = false }: { stats: Speaker
             filtering by seat.
           </div>
         ) : (
-        <div className="panel divide-y divide-border">
-          <StatLine
-            label={OUTCOME_COPY[r.outcome].run}
-            value={r.longestWinStreak > 0 ? `${r.longestWinStreak} rounds` : null}
-            hint="Consecutive decided prelim rounds, oldest tournament first"
-          />
-          <StatLine
-            label={r.outcome === 'win' ? 'Longest losing run' : 'Longest run of 3rd or 4th (or a loss)'}
-            value={r.longestLossStreak > 0 ? `${r.longestLossStreak} rounds` : null}
-          />
-          {r.bp ? (
-            <>
-              <StatLine
-                label="BP straights"
-                value={r.bp.tournaments > 0 ? `${r.bp.straights} of ${r.bp.tournaments}` : null}
-                hint="Tournaments with a points total of at least 2 × rounds, i.e. averaging 2nd or better"
-              />
-              <StatLine
-                label="BP firsts"
-                value={r.bp.rounds > 0 ? `${r.bp.firsts} of ${r.bp.rounds} rounds` : null}
-                hint="Rounds placed 1st — tracked apart from straights as a strong sign of breaking"
-              />
-            </>
-          ) : null}
-          <StatLine
-            label="Breaks"
-            value={`${r.breaks} of ${r.tournamentsSpoken}`}
-            hint={r.breakRate != null ? `${Math.round(r.breakRate * 100)}% conversion` : undefined}
-          />
-          <StatLine
-            label="Deepest outround"
-            value={r.deepestOutround}
-            hint={r.championships > 0 ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, including ESL / EFL / Novice finals` : undefined}
-          />
-          <StatLine
-            label="Finals reached"
-            value={r.finals > 0 ? String(r.finals) : null}
-            hint="Any bracket, ESL and novice included — Outrounds below splits open from the rest"
-          />
-        </div>
+          <div className="panel divide-y divide-border">
+            <StatLine
+              label={OUTCOME_COPY[r.outcome].run}
+              value={r.longestWinStreak > 0 ? `${r.longestWinStreak} rounds` : null}
+              hint="Consecutive decided prelim rounds, oldest tournament first"
+            />
+            <StatLine
+              label={
+                r.outcome === 'win' ? 'Longest losing run' : 'Longest run of 3rd or 4th (or a loss)'
+              }
+              value={r.longestLossStreak > 0 ? `${r.longestLossStreak} rounds` : null}
+            />
+            {r.bp ? (
+              <>
+                <StatLine
+                  label="BP straights"
+                  value={r.bp.tournaments > 0 ? `${r.bp.straights} of ${r.bp.tournaments}` : null}
+                  hint="Tournaments with a points total of at least 2 × rounds, i.e. averaging 2nd or better"
+                />
+                <StatLine
+                  label="BP firsts"
+                  value={r.bp.rounds > 0 ? `${r.bp.firsts} of ${r.bp.rounds} rounds` : null}
+                  hint="Rounds placed 1st — tracked apart from straights as a strong sign of breaking"
+                />
+              </>
+            ) : null}
+            <StatLine
+              label="Breaks"
+              value={`${r.breaks} of ${r.tournamentsSpoken}`}
+              hint={
+                r.breakRate != null ? `${Math.round(r.breakRate * 100)}% conversion` : undefined
+              }
+            />
+            <StatLine
+              label="Deepest outround"
+              value={r.deepestOutround}
+              hint={
+                r.championships > 0
+                  ? `${r.championships} title${r.championships === 1 ? '' : 's'} won, including ESL / EFL / Novice finals`
+                  : undefined
+              }
+            />
+            <StatLine
+              label="Finals reached"
+              value={r.finals > 0 ? String(r.finals) : null}
+              hint="Any bracket, ESL and novice included — Outrounds below splits open from the rest"
+            />
+          </div>
         )}
       </div>
     </section>
@@ -813,7 +844,11 @@ export function Splits({
     <section id="splits" aria-label="Splits" className="scroll-mt-24 space-y-6">
       <SectionHeader
         label="Splits"
-        title={stats.results.outcome === 'win' ? 'Where the wins and losses concentrate' : 'Where good rounds and bad ones concentrate'}
+        title={
+          stats.results.outcome === 'win'
+            ? 'Where the wins and losses concentrate'
+            : 'Where good rounds and bad ones concentrate'
+        }
         meta={
           filtered
             ? 'Deltas compare each row with your baseline in the filtered rounds'
@@ -923,12 +958,10 @@ export function Coverage({ coverage }: { coverage: SpeakerStats['coverage'] }) {
           <p className="mt-1.5 text-caption text-ink-soft">
             Of your {coverage.tournaments} speaking{' '}
             {coverage.tournaments === 1 ? 'tournament' : 'tournaments'},{' '}
-            {lines
-              .map((l) => `${l.have} ${l.have === 1 ? 'has' : 'have'} ${l.label}`)
-              .join(', ')}
-            . Sections backed by fewer tournaments are correspondingly thinner — a gap here
-            usually means the tab site never published that column, or the tournament was
-            ingested before the parser captured it.
+            {lines.map((l) => `${l.have} ${l.have === 1 ? 'has' : 'have'} ${l.label}`).join(', ')}.
+            Sections backed by fewer tournaments are correspondingly thinner — a gap here usually
+            means the tab site never published that column, or the tournament was ingested before
+            the parser captured it.
           </p>
         </div>
       </div>

@@ -62,10 +62,7 @@ export async function GET(req: Request) {
 
   const { fields, unknown } = resolveExportFields(parsed.data.fields ?? null);
   if (unknown.length > 0 || fields.length === 0) {
-    return NextResponse.json(
-      { error: 'bad_request', unknownFields: unknown },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'bad_request', unknownFields: unknown }, { status: 400 });
   }
 
   // The field summary is buildCvData's most expensive query — it reads
@@ -102,8 +99,7 @@ export async function GET(req: Request) {
     return new NextResponse(Buffer.from(buffer as ArrayBuffer), {
       status: 200,
       headers: {
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="debate-cv-${stamp}.xlsx"`,
         'Cache-Control': 'no-store',
       },

@@ -119,9 +119,7 @@ export function summariseDrain(summary: DrainSummary, aborted: boolean): DrainTo
     };
   }
   if (summary.failed) {
-    const queued = summary.remaining
-      ? `${summary.remaining} still queued. `
-      : '';
+    const queued = summary.remaining ? `${summary.remaining} still queued. ` : '';
     return {
       kind: 'info',
       title: 'Ingest incomplete',

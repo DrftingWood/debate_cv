@@ -12,7 +12,11 @@ import type {
   CvTaggedMotion,
   CvFieldStat,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay, championTitle } from '@/lib/cv/formatStage';
+import {
+  formatStageForDisplay,
+  formatBaseStageForDisplay,
+  championTitle,
+} from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
@@ -152,8 +156,8 @@ export default async function CvPage() {
             </Link>
           }
         >
-          New tournaments have stopped arriving. Your record below is still accurate for
-          everything already imported.
+          New tournaments have stopped arriving. Your record below is still accurate for everything
+          already imported.
         </GmailDisconnectedNotice>
       ) : null}
       <CvNeedsAttentionBanners pendingCount={pendingCount} unmatchedCount={unmatched.length} />
@@ -303,7 +307,8 @@ function fmtSpeakerRanks(r: {
   speakerRankEfl: number | null;
 }): string | null {
   const parts: string[] = [];
-  if (r.speakerRankOpen != null) parts.push(`${hashRank(r.speakerRankOpen, r.speakerRankTied)} Open`);
+  if (r.speakerRankOpen != null)
+    parts.push(`${hashRank(r.speakerRankOpen, r.speakerRankTied)} Open`);
   if (r.speakerRankEsl != null) parts.push(`#${r.speakerRankEsl} ESL`);
   if (r.speakerRankEfl != null) parts.push(`#${r.speakerRankEfl} EFL`);
   return parts.join(' · ') || null;
@@ -403,90 +408,94 @@ function RoundLedger({
         Round ledger — {roundNumbers.length} round{roundNumbers.length === 1 ? '' : 's'}
         {anyMotion ? ' with motions' : ''}
       </summary>
-      <div className="panel-inset mb-3 p-3"><TableScroll>
-        <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
-          <thead>
-            <tr>
-              <Th>Round</Th>
-              <Th>Side</Th>
-              {anyMotion ? <Th>Motion</Th> : null}
-              <Th numeric>Score</Th>
-              <Th numeric title="Team points after this round (running total)">
-                Pts
-              </Th>
-              <Th>Result</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {roundNumbers.map((n) => {
-              const score = scoreByRound.get(n);
-              const result = resultByRound.get(n);
-              const motions = motionsByRound.get(n) ?? [];
-              const placement = isFourTeamRound({
-                position: result?.position ?? null,
-                format: r.format,
-              })
-                ? bpPlacement(result?.points ?? null)
-                : null;
-              return (
-                <tr key={n}>
-                  <Td className="whitespace-nowrap">{roundNames.get(n) ?? `Round ${n}`}</Td>
-                  <Td className="whitespace-nowrap text-ink-soft">{result?.position ?? <Nil />}</Td>
-                  {anyMotion ? (
-                    <Td className="text-ink-soft">
-                      {motions.length === 0 ? (
-                        <Nil title="No motion released for this round" />
+      <div className="panel-inset mb-3 p-3">
+        <TableScroll>
+          <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
+            <thead>
+              <tr>
+                <Th>Round</Th>
+                <Th>Side</Th>
+                {anyMotion ? <Th>Motion</Th> : null}
+                <Th numeric>Score</Th>
+                <Th numeric title="Team points after this round (running total)">
+                  Pts
+                </Th>
+                <Th>Result</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {roundNumbers.map((n) => {
+                const score = scoreByRound.get(n);
+                const result = resultByRound.get(n);
+                const motions = motionsByRound.get(n) ?? [];
+                const placement = isFourTeamRound({
+                  position: result?.position ?? null,
+                  format: r.format,
+                })
+                  ? bpPlacement(result?.points ?? null)
+                  : null;
+                return (
+                  <tr key={n}>
+                    <Td className="whitespace-nowrap">{roundNames.get(n) ?? `Round ${n}`}</Td>
+                    <Td className="whitespace-nowrap text-ink-soft">
+                      {result?.position ?? <Nil />}
+                    </Td>
+                    {anyMotion ? (
+                      <Td className="text-ink-soft">
+                        {motions.length === 0 ? (
+                          <Nil title="No motion released for this round" />
+                        ) : (
+                          // Every motion on its own line. A round with two
+                          // motions used to show the first and park the rest
+                          // in a hover-only title, which touch never shows
+                          // (CV-9). The width cap sits on the inner block
+                          // because browsers ignore max-width on a table cell.
+                          <span className="block max-w-[32rem] space-y-1">
+                            {motions.map((m, i) => (
+                              <span key={i} className="block">
+                                {m.text}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </Td>
+                    ) : null}
+                    <Td numeric>{score?.score != null ? score.score.toFixed(1) : <Nil />}</Td>
+                    <Td numeric>{totalPoints.has(n) ? totalPoints.get(n) : <Nil />}</Td>
+                    <Td className="whitespace-nowrap">
+                      {isFourTeamRound({ position: result?.position ?? null, format: r.format }) ? (
+                        // A BP room has four teams and no winner: show where the
+                        // team placed. Colour only the ends, as elsewhere —
+                        // colour on a number means up or down.
+                        placement ? (
+                          <span
+                            className={
+                              placement === '1st'
+                                ? 'val-pos font-medium'
+                                : placement === '4th'
+                                  ? 'val-neg'
+                                  : undefined
+                            }
+                          >
+                            {placement}
+                          </span>
+                        ) : (
+                          <Nil />
+                        )
+                      ) : result?.won == null ? (
+                        <Nil />
+                      ) : result.won ? (
+                        <span className="val-pos font-medium">Won</span>
                       ) : (
-                        // Every motion on its own line. A round with two
-                        // motions used to show the first and park the rest
-                        // in a hover-only title, which touch never shows
-                        // (CV-9). The width cap sits on the inner block
-                        // because browsers ignore max-width on a table cell.
-                        <span className="block max-w-[32rem] space-y-1">
-                          {motions.map((m, i) => (
-                            <span key={i} className="block">
-                              {m.text}
-                            </span>
-                          ))}
-                        </span>
+                        <span className="val-neg">Lost</span>
                       )}
                     </Td>
-                  ) : null}
-                  <Td numeric>{score?.score != null ? score.score.toFixed(1) : <Nil />}</Td>
-                  <Td numeric>{totalPoints.has(n) ? totalPoints.get(n) : <Nil />}</Td>
-                  <Td className="whitespace-nowrap">
-                    {isFourTeamRound({ position: result?.position ?? null, format: r.format }) ? (
-                      // A BP room has four teams and no winner: show where the
-                      // team placed. Colour only the ends, as elsewhere —
-                      // colour on a number means up or down.
-                      placement ? (
-                        <span
-                          className={
-                            placement === '1st'
-                              ? 'val-pos font-medium'
-                              : placement === '4th'
-                                ? 'val-neg'
-                                : undefined
-                          }
-                        >
-                          {placement}
-                        </span>
-                      ) : (
-                        <Nil />
-                      )
-                    ) : result?.won == null ? (
-                      <Nil />
-                    ) : result.won ? (
-                      <span className="val-pos font-medium">Won</span>
-                    ) : (
-                      <span className="val-neg">Lost</span>
-                    )}
-                  </Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table></TableScroll>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </TableScroll>
       </div>
     </details>
   );

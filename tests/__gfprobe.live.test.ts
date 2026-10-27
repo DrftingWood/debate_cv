@@ -31,7 +31,9 @@ describe.skipIf(!process.env.RUN_GF_PROBE)('grand final probe', () => {
       console.log(`\n${url}`);
       console.log(`  roundLabel=${d.roundLabel} isOutround=${d.isOutround}`);
       for (const t of d.teamResults) {
-        console.log(`   team=${JSON.stringify(t.teamName)} pos=${JSON.stringify(t.position)} points=${t.points} won=${t.won}`);
+        console.log(
+          `   team=${JSON.stringify(t.teamName)} pos=${JSON.stringify(t.position)} points=${t.points} won=${t.won}`,
+        );
       }
       for (const j of d.judgeAssignments.slice(0, 4)) {
         console.log(`   judge=${JSON.stringify(j.personName)} role=${j.panelRole}`);

@@ -41,7 +41,10 @@ export type MotionEntry = {
  * Final") — the same keys the judge join below and the CV ledger use, since
  * the motions tab and the round-results nav spell a stage independently.
  */
-export function sameKnockoutStage(a: string | null | undefined, b: string | null | undefined): boolean {
+export function sameKnockoutStage(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
   const stage = stageKey(a);
   return stage != null && stage === stageKey(b) && categoryKey(a) === categoryKey(b);
 }
@@ -113,7 +116,9 @@ export function buildMotionEntries(
   // A round is its number for prelims and its label for knockouts, which is
   // all an outround motion carries; AP's three-motion outrounds share one.
   const roundOf = (m: CvTaggedMotion) =>
-    m.roundNumber != null ? `${m.tournamentId}:#${m.roundNumber}` : `${m.tournamentId}:${normLabel(m.roundLabel)}`;
+    m.roundNumber != null
+      ? `${m.tournamentId}:#${m.roundNumber}`
+      : `${m.tournamentId}:${normLabel(m.roundLabel)}`;
   const siblingCount = new Map<string, number>();
   for (const m of motions) siblingCount.set(roundOf(m), (siblingCount.get(roundOf(m)) ?? 0) + 1);
 
@@ -155,8 +160,7 @@ export function buildMotionEntries(
       position: result?.position ?? null,
       // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
       // An outround result is advancing, not a 2nd-or-better room.
-      won:
-        result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
+      won: result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
       fourTeam: result && row ? isFourTeam(row.format, result.position) : false,
       points: result?.points ?? null,
       knockout: null,

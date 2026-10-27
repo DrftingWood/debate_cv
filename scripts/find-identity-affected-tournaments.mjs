@@ -85,18 +85,25 @@ try {
   for (const t of tournaments) {
     // The tab pages, then the pages read for rounds only: the landing page
     // (round names) and how many round-results pages (judge rounds).
-    const pagesRead = [...Object.keys(t.docs).sort(), ...(t.landing ? ['landing'] : []), `results:${t.results.length}`];
+    const pagesRead = [
+      ...Object.keys(t.docs).sort(),
+      ...(t.landing ? ['landing'] : []),
+      `results:${t.results.length}`,
+    ];
     let findings = { emptyKeyNames: [], sharedKeys: [], resultsPages: 0 };
     let error;
     try {
-      findings = m.findIdentityIssues(m.parseTournamentDocuments(t.docs, read, { landing: t.landing, results: t.results }));
+      findings = m.findIdentityIssues(
+        m.parseTournamentDocuments(t.docs, read, { landing: t.landing, results: t.results }),
+      );
     } catch (e) {
       error = e instanceof Error ? e.message.slice(0, 200) : String(e);
     }
     const name = unknown.tournamentNameOf(t.landing, read);
     reports.push({ base: t.base, host: t.host, slug: t.slug, pagesRead, findings, error, name });
     done += 1;
-    if (done % 25 === 0) process.stdout.write(`\rread ${done} of ${tournaments.length} tournaments`);
+    if (done % 25 === 0)
+      process.stdout.write(`\rread ${done} of ${tournaments.length} tournaments`);
   }
 
   // A byte-order mark so Excel and Windows PowerShell 5.1 read the non-Latin

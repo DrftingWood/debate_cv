@@ -168,8 +168,12 @@ describe('PublicCvPage', () => {
 
   it('renders phone cards beside the md-and-up ledger', async () => {
     const out = await render([speakerRow()], [judgeRow()]);
-    expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Speaking record by tournament">/);
-    expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Judging record by tournament">/);
+    expect(out).toMatch(
+      /<ul class="space-y-3 md:hidden" aria-label="Speaking record by tournament">/,
+    );
+    expect(out).toMatch(
+      /<ul class="space-y-3 md:hidden" aria-label="Judging record by tournament">/,
+    );
     expect(out).toContain('panel hidden overflow-hidden md:block');
   });
 

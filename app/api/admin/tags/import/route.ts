@@ -63,11 +63,17 @@ export async function POST(req: Request) {
 
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
-    return NextResponse.json({ error: 'bad_request', details: parse.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'bad_request', details: parse.error.flatten() },
+      { status: 400 },
+    );
   }
   const { motions: motionAnswers, tournaments: tournamentAnswers } = parse.data;
 
-  const adminUser = await prisma.user.findUnique({ where: { email: adminEmail }, select: { id: true } });
+  const adminUser = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true },
+  });
   if (!adminUser) {
     return NextResponse.json({ error: 'admin_user_not_found' }, { status: 400 });
   }
@@ -76,7 +82,13 @@ export async function POST(req: Request) {
     motionAnswers.length
       ? prisma.motion.findMany({
           where: { id: { in: motionAnswers.map((m) => BigInt(m.id)) } },
-          select: { id: true, tournamentId: true, motionType: true, topic: true, tagProposals: { select: { kind: true } } },
+          select: {
+            id: true,
+            tournamentId: true,
+            motionType: true,
+            topic: true,
+            tagProposals: { select: { kind: true } },
+          },
         })
       : Promise.resolve([]),
     tournamentAnswers.length
@@ -126,7 +138,13 @@ export async function POST(req: Request) {
     const t = tournamentById.get(a.id);
     const has = new Set((t?.tagProposals ?? []).map((p) => p.kind));
     if (t && t.region == null && !has.has('region')) {
-      data.push({ userId: adminUser.id, kind: 'region', tournamentId: t.id, motionId: null, value: a.region });
+      data.push({
+        userId: adminUser.id,
+        kind: 'region',
+        tournamentId: t.id,
+        motionId: null,
+        value: a.region,
+      });
     }
   }
 

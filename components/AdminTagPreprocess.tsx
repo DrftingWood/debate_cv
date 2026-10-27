@@ -31,7 +31,11 @@ export function AdminTagPreprocess() {
       try {
         payload = JSON.parse(await file.text());
       } catch {
-        toast.show({ kind: 'error', title: 'Not a JSON file', description: 'Pick the answers file, not the export.' });
+        toast.show({
+          kind: 'error',
+          title: 'Not a JSON file',
+          description: 'Pick the answers file, not the export.',
+        });
         return;
       }
       const res = await postJson<ImportResult>('/api/admin/tags/import', payload);
@@ -39,14 +43,18 @@ export function AdminTagPreprocess() {
         toast.show({
           kind: 'error',
           title: 'Answers rejected',
-          description: 'A value is outside the tag lists, or the file is the wrong shape. Nothing was filed.',
+          description:
+            'A value is outside the tag lists, or the file is the wrong shape. Nothing was filed.',
         });
         return;
       }
       const { filed, skipped } = res.data;
       toast.show({
         kind: 'success',
-        title: filed === 0 ? 'Nothing new to file' : `Filed ${filed} suggestion${filed === 1 ? '' : 's'}`,
+        title:
+          filed === 0
+            ? 'Nothing new to file'
+            : `Filed ${filed} suggestion${filed === 1 ? '' : 's'}`,
         description:
           skipped > 0
             ? `${skipped} already had a tag or a suggestion, so they were left alone.`
@@ -61,7 +69,11 @@ export function AdminTagPreprocess() {
 
   return (
     <span className="flex items-center gap-2">
-      <a href="/api/admin/tags/export" download className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+      <a
+        href="/api/admin/tags/export"
+        download
+        className={buttonClasses({ variant: 'outline', size: 'sm' })}
+      >
         <Download className="h-3.5 w-3.5" aria-hidden /> Download untagged
       </a>
       <Button

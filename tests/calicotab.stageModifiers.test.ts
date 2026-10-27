@@ -52,9 +52,18 @@ describe('"Partial X" is rung X run with byes', () => {
     expect(rankOf('Partial Double Octos')).toBeLessThan(rankOf('Double Octofinals'));
     expect(rankOf('Partial Double Octofinals')).toBeGreaterThan(rankOf('Triple Octofinals'));
     const ranks = [
-      'Grand Final', 'Final', 'Semifinals', 'Partial Semifinals', 'Quarterfinals',
-      'Partial Quarterfinals', 'Octofinals', 'Partial Octofinals', 'Double Octofinals',
-      'Partial Double Octofinals', 'Triple Octofinals', 'Partial Triple Octofinals',
+      'Grand Final',
+      'Final',
+      'Semifinals',
+      'Partial Semifinals',
+      'Quarterfinals',
+      'Partial Quarterfinals',
+      'Octofinals',
+      'Partial Octofinals',
+      'Double Octofinals',
+      'Partial Double Octofinals',
+      'Triple Octofinals',
+      'Partial Triple Octofinals',
     ].map(rankOf);
     // Two deliberate ties: Final = Grand Final, Partial Quarterfinals = Quarterfinals.
     expect(new Set(ranks).size).toBe(ranks.length - 2);
@@ -90,8 +99,14 @@ describe('modifiers are never a category', () => {
   });
 
   test('a real category survives beside them', () => {
-    expect(splitStageLabel('Novice Partial Semis')).toEqual({ category: 'Novice', stage: 'partial_semifinal' });
-    expect(splitStageLabel('ESL Partial Double Quarters')).toEqual({ category: 'ESL', stage: 'partial_octofinal' });
+    expect(splitStageLabel('Novice Partial Semis')).toEqual({
+      category: 'Novice',
+      stage: 'partial_semifinal',
+    });
+    expect(splitStageLabel('ESL Partial Double Quarters')).toEqual({
+      category: 'ESL',
+      stage: 'partial_octofinal',
+    });
     expect(catOf('Pro-Am Partial Octofinals')).toBe('Pro-Am');
     expect(catOf('Double Trouble Final')).toBe('Trouble');
   });
@@ -108,8 +123,13 @@ describe('display: one name per round, stable when re-read', () => {
 
   test('formatting a formatted label changes nothing', () => {
     for (const label of [
-      'Partial Double Quarters', 'Pre-Quarterfinals', 'Partial Double Octos', 'ESL Pre-Semifinals',
-      'Octavos Parciales', 'Partial Triple Octofinals', 'Novice Partial Semis',
+      'Partial Double Quarters',
+      'Pre-Quarterfinals',
+      'Partial Double Octos',
+      'ESL Pre-Semifinals',
+      'Octavos Parciales',
+      'Partial Triple Octofinals',
+      'Novice Partial Semis',
     ]) {
       const once = formatStageForDisplay(label);
       expect(formatStageForDisplay(once), label).toBe(once);

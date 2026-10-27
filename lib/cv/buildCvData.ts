@@ -2,7 +2,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
-import { classifyRoundLabel, deepestOutroundAcrossRoles, outroundRank } from '@/lib/calicotab/judgeStats';
+import {
+  classifyRoundLabel,
+  deepestOutroundAcrossRoles,
+  outroundRank,
+} from '@/lib/calicotab/judgeStats';
 import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
@@ -442,7 +446,8 @@ export async function buildCvData(
   // counts — dropping it would blank the date for every tournament whose
   // private-URL page doesn't print a name.
   const isSomeoneElsesUrl = (u: (typeof urls)[number]): boolean => {
-    if (u.registrationPersonId != null && claimedPersonIds.has(u.registrationPersonId)) return false;
+    if (u.registrationPersonId != null && claimedPersonIds.has(u.registrationPersonId))
+      return false;
     const reg = (u.registrationName ?? '').trim();
     if (reg && claimedNormalizedNames.has(normalizePersonName(reg))) return false;
     return u.registrationPersonId != null || !!reg;
@@ -545,7 +550,10 @@ export async function buildCvData(
     for (const r of maxSpeakerRoundRows) {
       maxSpeakerRoundByTournament.set(r.tournamentId, r.maxRound);
     }
-    const roundCountsByTournament = new Map<bigint, Array<{ roundNumber: number; teams: number }>>();
+    const roundCountsByTournament = new Map<
+      bigint,
+      Array<{ roundNumber: number; teams: number }>
+    >();
     for (const r of maxRoundRows) {
       if (r.roundNumber == null) continue;
       const list = roundCountsByTournament.get(r.tournamentId) ?? [];
@@ -566,121 +574,134 @@ export async function buildCvData(
     }
   }
 
-  const [teammateRows, teamResultRows, teamRoundRows, judgeAssignmentRows, adjudicatorBreakRows] = await Promise.all([
-    myTeamPairs.length
-      ? prisma.tournamentParticipant.findMany({
-          where: {
-            OR: myTeamPairs.map((p) => ({
-              tournamentId: p.tournamentId,
-              teamName: p.teamName,
-            })),
-            roles: { some: { role: 'speaker' } },
-          },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            personId: true,
-            person: { select: { displayName: true, suppressedAt: true } },
-            speakerScoreTotal: true,
-            speakerRoundScores: { select: { roundNumber: true, positionLabel: true, score: true } },
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          teamName: string | null;
-          personId: bigint;
-          person: { displayName: string; suppressedAt: Date | null };
-          speakerScoreTotal: { toString(): string } | null;
-          speakerRoundScores: Array<{
-            roundNumber: number;
-            positionLabel: string | null;
-            score: { toString(): string } | null;
-          }>;
-        }>),
-    tournamentIds.length
-      ? prisma.teamResult.findMany({
-          where: { tournamentId: { in: tournamentIds }, roundNumber: 0 },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            rank: true,
-            wins: true,
-            points: true,
-            firsts: true,
-            seconds: true,
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          teamName: string | null;
-          rank: number | null;
-          wins: number | null;
-          points: { toString(): string } | null;
-          firsts: number | null;
-          seconds: number | null;
-        }>),
-    // Per-round rows for the user's own teams only — position/outcome/points
-    // feed the by-position analytics slice. Scoped to myTeamPairs rather
-    // than the whole tournament so a WUDC-sized ingest doesn't drag
-    // hundreds of teams × 9 rounds through the CV build.
-    myTeamPairs.length
-      ? prisma.teamResult.findMany({
-          where: {
-            OR: myTeamPairs.map((p) => ({
-              tournamentId: p.tournamentId,
-              teamName: p.teamName,
-            })),
-            roundNumber: { gt: 0 },
-          },
-          select: {
-            tournamentId: true,
-            teamName: true,
-            roundNumber: true,
-            position: true,
-            wins: true,
-            points: true,
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          teamName: string | null;
-          roundNumber: number | null;
-          position: string | null;
-          wins: number | null;
-          points: { toString(): string } | null;
-        }>),
-    myParticipations.length
-      ? prisma.judgeAssignment.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            personId: { in: Array.from(claimedPersonIds) },
-          },
-          select: {
-            tournamentId: true,
-            personId: true,
-            stage: true,
-            panelRole: true,
-            roundNumber: true,
-          },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          personId: bigint;
-          stage: string | null;
-          panelRole: string | null;
-          roundNumber: number | null;
-        }>),
-    tournamentIds.length
-      ? prisma.eliminationResult.findMany({
-          where: { tournamentId: { in: tournamentIds }, entityType: 'adjudicator' },
-          select: { tournamentId: true, entityName: true, stage: true },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          entityName: string;
-          stage: string;
-        }>),
-  ]);
+  const [teammateRows, teamResultRows, teamRoundRows, judgeAssignmentRows, adjudicatorBreakRows] =
+    await Promise.all([
+      myTeamPairs.length
+        ? prisma.tournamentParticipant.findMany({
+            where: {
+              OR: myTeamPairs.map((p) => ({
+                tournamentId: p.tournamentId,
+                teamName: p.teamName,
+              })),
+              roles: { some: { role: 'speaker' } },
+            },
+            select: {
+              tournamentId: true,
+              teamName: true,
+              personId: true,
+              person: { select: { displayName: true, suppressedAt: true } },
+              speakerScoreTotal: true,
+              speakerRoundScores: {
+                select: { roundNumber: true, positionLabel: true, score: true },
+              },
+            },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              teamName: string | null;
+              personId: bigint;
+              person: { displayName: string; suppressedAt: Date | null };
+              speakerScoreTotal: { toString(): string } | null;
+              speakerRoundScores: Array<{
+                roundNumber: number;
+                positionLabel: string | null;
+                score: { toString(): string } | null;
+              }>;
+            }>,
+          ),
+      tournamentIds.length
+        ? prisma.teamResult.findMany({
+            where: { tournamentId: { in: tournamentIds }, roundNumber: 0 },
+            select: {
+              tournamentId: true,
+              teamName: true,
+              rank: true,
+              wins: true,
+              points: true,
+              firsts: true,
+              seconds: true,
+            },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              teamName: string | null;
+              rank: number | null;
+              wins: number | null;
+              points: { toString(): string } | null;
+              firsts: number | null;
+              seconds: number | null;
+            }>,
+          ),
+      // Per-round rows for the user's own teams only — position/outcome/points
+      // feed the by-position analytics slice. Scoped to myTeamPairs rather
+      // than the whole tournament so a WUDC-sized ingest doesn't drag
+      // hundreds of teams × 9 rounds through the CV build.
+      myTeamPairs.length
+        ? prisma.teamResult.findMany({
+            where: {
+              OR: myTeamPairs.map((p) => ({
+                tournamentId: p.tournamentId,
+                teamName: p.teamName,
+              })),
+              roundNumber: { gt: 0 },
+            },
+            select: {
+              tournamentId: true,
+              teamName: true,
+              roundNumber: true,
+              position: true,
+              wins: true,
+              points: true,
+            },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              teamName: string | null;
+              roundNumber: number | null;
+              position: string | null;
+              wins: number | null;
+              points: { toString(): string } | null;
+            }>,
+          ),
+      myParticipations.length
+        ? prisma.judgeAssignment.findMany({
+            where: {
+              tournamentId: { in: tournamentIds },
+              personId: { in: Array.from(claimedPersonIds) },
+            },
+            select: {
+              tournamentId: true,
+              personId: true,
+              stage: true,
+              panelRole: true,
+              roundNumber: true,
+            },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              personId: bigint;
+              stage: string | null;
+              panelRole: string | null;
+              roundNumber: number | null;
+            }>,
+          ),
+      tournamentIds.length
+        ? prisma.eliminationResult.findMany({
+            where: { tournamentId: { in: tournamentIds }, entityType: 'adjudicator' },
+            select: { tournamentId: true, entityName: true, stage: true },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              entityName: string;
+              stage: string;
+            }>,
+          ),
+    ]);
 
   // ── Everything else this function needs, in one round trip ───────────
   //
@@ -700,112 +721,112 @@ export async function buildCvData(
     return t ? isEudcTournament(t.name) : false;
   });
 
-  const [
-    teamOutroundRows,
-    eudcOutroundRows,
-    openReportRows,
-    motionRows,
-    fieldRows,
-    openBreakRows,
-  ] = await Promise.all([
-    // Outround team win/loss results. Feed `wonTournament` per speaker row
-    // — did the user's team win the deepest outround they reached, and was
-    // that outround the Grand Final.
-    tournamentIds.length
-      ? prisma.eliminationResult.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            entityType: 'team',
-            result: { in: ['won', 'lost'] },
-          },
-          select: { tournamentId: true, entityName: true, stage: true, result: true },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          entityName: string;
-          stage: string;
-          result: string | null;
-        }>),
+  const [teamOutroundRows, eudcOutroundRows, openReportRows, motionRows, fieldRows, openBreakRows] =
+    await Promise.all([
+      // Outround team win/loss results. Feed `wonTournament` per speaker row
+      // — did the user's team win the deepest outround they reached, and was
+      // that outround the Grand Final.
+      tournamentIds.length
+        ? prisma.eliminationResult.findMany({
+            where: {
+              tournamentId: { in: tournamentIds },
+              entityType: 'team',
+              result: { in: ['won', 'lost'] },
+            },
+            select: { tournamentId: true, entityName: true, stage: true, result: true },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              entityName: string;
+              stage: string;
+              result: string | null;
+            }>,
+          ),
 
-    // EUDC-only: every outround stage label per (tournament, team), so we
-    // can derive deepest-per-category for the dual-break case (a team that
-    // breaks in Open AND ESL has different deepest outrounds in each
-    // bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and the CV
-    // shows both instead of collapsing to one). Pulls all team rows
-    // regardless of result so a row missing its win/loss indicator still
-    // contributes its stage. Skipped entirely on non-EUDC tournaments.
-    eudcTournamentIds.length
-      ? prisma.eliminationResult.findMany({
-          where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
-          select: { tournamentId: true, entityName: true, stage: true },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          entityName: string;
-          stage: string;
-        }>),
+      // EUDC-only: every outround stage label per (tournament, team), so we
+      // can derive deepest-per-category for the dual-break case (a team that
+      // breaks in Open AND ESL has different deepest outrounds in each
+      // bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and the CV
+      // shows both instead of collapsing to one). Pulls all team rows
+      // regardless of result so a row missing its win/loss indicator still
+      // contributes its stage. Skipped entirely on non-EUDC tournaments.
+      eudcTournamentIds.length
+        ? prisma.eliminationResult.findMany({
+            where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
+            select: { tournamentId: true, entityName: true, stage: true },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              entityName: string;
+              stage: string;
+            }>,
+          ),
 
-    // Unresolved (open or acknowledged) CvErrorReports, for the per-row
-    // "Reported" badge.
-    tournamentIds.length
-      ? prisma.cvErrorReport.findMany({
-          where: { userId, status: { in: ['open', 'acknowledged'] } },
-          select: { tournamentIds: true },
-        })
-      : Promise.resolve([] as Array<{ tournamentIds: string[] }>),
+      // Unresolved (open or acknowledged) CvErrorReports, for the per-row
+      // "Reported" badge.
+      tournamentIds.length
+        ? prisma.cvErrorReport.findMany({
+            where: { userId, status: { in: ['open', 'acknowledged'] } },
+            select: { tournamentIds: true },
+          })
+        : Promise.resolve([] as Array<{ tournamentIds: string[] }>),
 
-    // Motions, for the analytics join, /cv/motions and the per-round
-    // detail on the CV.
-    tournamentIds.length
-      ? prisma.motion.findMany({
-          where: { tournamentId: { in: tournamentIds } },
-          select: {
-            tournamentId: true,
-            roundNumber: true,
-            roundLabel: true,
-            seq: true,
-            text: true,
-            infoSlide: true,
-            motionType: true,
-            topic: true,
-          },
-          orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
-        })
-      : Promise.resolve([] as CvTaggedMotion[]),
+      // Motions, for the analytics join, /cv/motions and the per-round
+      // detail on the CV.
+      tournamentIds.length
+        ? prisma.motion.findMany({
+            where: { tournamentId: { in: tournamentIds } },
+            select: {
+              tournamentId: true,
+              roundNumber: true,
+              roundLabel: true,
+              seq: true,
+              text: true,
+              infoSlide: true,
+              motionType: true,
+              topic: true,
+            },
+            orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
+          })
+        : Promise.resolve([] as CvTaggedMotion[]),
 
-    // Every speaker the tab published for each tournament, projected to two
-    // columns — the raw material for the field summary. Bounded by
-    // construction: a large tournament publishes ~800 speakers, so even a
-    // heavy CV pulls low tens of thousands of (bigint, decimal) pairs. It
-    // deliberately does NOT fetch per-round score rows for the field (800
-    // speakers × 9 rounds per tournament would be an order of magnitude
-    // more, for a round-level percentile nobody has asked for yet).
-    includeFieldStats && tournamentIds.length
-      ? prisma.tournamentParticipant.findMany({
-          where: {
-            tournamentId: { in: tournamentIds },
-            speakerScoreTotal: { not: null },
-            roles: { some: { role: 'speaker' } },
-          },
-          select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
-        })
-      : Promise.resolve([] as Array<{
-          tournamentId: bigint;
-          speakerScoreTotal: { toString(): string } | null;
-          speakerRankOpen?: number | null;
-        }>),
+      // Every speaker the tab published for each tournament, projected to two
+      // columns — the raw material for the field summary. Bounded by
+      // construction: a large tournament publishes ~800 speakers, so even a
+      // heavy CV pulls low tens of thousands of (bigint, decimal) pairs. It
+      // deliberately does NOT fetch per-round score rows for the field (800
+      // speakers × 9 rounds per tournament would be an order of magnitude
+      // more, for a round-level percentile nobody has asked for yet).
+      includeFieldStats && tournamentIds.length
+        ? prisma.tournamentParticipant.findMany({
+            where: {
+              tournamentId: { in: tournamentIds },
+              speakerScoreTotal: { not: null },
+              roles: { some: { role: 'speaker' } },
+            },
+            select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              tournamentId: bigint;
+              speakerScoreTotal: { toString(): string } | null;
+              speakerRankOpen?: number | null;
+            }>,
+          ),
 
-    // The Open break tab's team names, for the break line. Ingest stores each
-    // break tab's rows under its category ('Open', 'ESL', …); one query for
-    // every tournament, joined in memory against the round-0 standings
-    // already fetched above.
-    tournamentIds.length
-      ? prisma.eliminationResult.findMany({
-          where: { tournamentId: { in: tournamentIds }, entityType: 'team', stage: 'Open' },
-          select: { tournamentId: true, entityName: true, stage: true },
-        })
-      : Promise.resolve([] as Array<{ tournamentId: bigint; entityName: string; stage: string }>),
-  ]);
+      // The Open break tab's team names, for the break line. Ingest stores each
+      // break tab's rows under its category ('Open', 'ESL', …); one query for
+      // every tournament, joined in memory against the round-0 standings
+      // already fetched above.
+      tournamentIds.length
+        ? prisma.eliminationResult.findMany({
+            where: { tournamentId: { in: tournamentIds }, entityType: 'team', stage: 'Open' },
+            select: { tournamentId: true, entityName: true, stage: true },
+          })
+        : Promise.resolve([] as Array<{ tournamentId: bigint; entityName: string; stage: string }>),
+    ]);
 
   const openBreakNamesByTournament = new Map<bigint, string[]>();
   for (const r of openBreakRows) {
@@ -819,7 +840,11 @@ export async function buildCvData(
     if (!tr.teamName || !openBreakNamesByTournament.has(tr.tournamentId)) continue;
     const points = tr.points == null ? null : Number(tr.points.toString());
     const list = standingsByTournament.get(tr.tournamentId) ?? [];
-    list.push({ teamName: tr.teamName, points: Number.isFinite(points) ? points : null, wins: tr.wins });
+    list.push({
+      teamName: tr.teamName,
+      points: Number.isFinite(points) ? points : null,
+      wins: tr.wins,
+    });
     standingsByTournament.set(tr.tournamentId, list);
   }
 
@@ -1071,7 +1096,8 @@ export async function buildCvData(
       speakerRankTied:
         p.speakerScoreTotal != null &&
         p.speakerRankOpen != null &&
-        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}#${p.speakerRankOpen}`) ?? 0) > 1,
+        (speakersOnTotal.get(`${tid}#${Number(p.speakerScoreTotal)}#${p.speakerRankOpen}`) ?? 0) >
+          1,
       speakerRankEsl: p.speakerRankEsl,
       speakerRankEfl: p.speakerRankEfl,
       speakerCategories: p.speakerCategories ?? [],
@@ -1111,7 +1137,7 @@ export async function buildCvData(
   for (const p of myParticipations) {
     if (!isJudgeParticipant(p)) continue;
     const existing = judgeByTournament.get(p.tournamentId);
-    const score = (q: (typeof p) | undefined) =>
+    const score = (q: typeof p | undefined) =>
       !q
         ? -1
         : (q.judgeTypeTag ? 1 : 0) +
@@ -1276,8 +1302,7 @@ export async function buildCvData(
         total == null || divisor == null || divisor <= 0 ? null : total / divisor;
 
       const mean = sorted.reduce((s, v) => s + v, 0) / sorted.length;
-      const variance =
-        sorted.reduce((s, v) => s + (v - mean) * (v - mean), 0) / sorted.length;
+      const variance = sorted.reduce((s, v) => s + (v - mean) * (v - mean), 0) / sorted.length;
       const quantile = (q: number): number => {
         if (sorted.length === 1) return sorted[0];
         const pos = (sorted.length - 1) * q;
@@ -1296,8 +1321,7 @@ export async function buildCvData(
         fieldStdevAvg: divisor && divisor > 0 ? Math.sqrt(variance) / divisor : null,
         fieldMedianAvg: toAvg(quantile(0.5)),
         fieldP90Avg: toAvg(quantile(0.9)),
-        betterThanUser:
-          myTotal == null ? null : sorted.filter((v) => v > myTotal).length,
+        betterThanUser: myTotal == null ? null : sorted.filter((v) => v > myTotal).length,
         userScoredRounds: myScoredRoundsByTournament.get(tournamentId) ?? null,
         prelimRoundCount: divisor,
       });
@@ -1334,18 +1358,15 @@ export async function buildCvData(
     return best;
   }, null);
 
-  const bestSpeakerAverage = speakerRows.reduce<CvHighlights['bestSpeakerAverage']>(
-    (best, r) => {
-      if (!r.speakerAvgScore) return best;
-      const score = Number(r.speakerAvgScore);
-      if (!Number.isFinite(score)) return best;
-      if (!best || score > best.score) {
-        return { tournamentName: r.tournamentName, year: r.year, score };
-      }
-      return best;
-    },
-    null,
-  );
+  const bestSpeakerAverage = speakerRows.reduce<CvHighlights['bestSpeakerAverage']>((best, r) => {
+    if (!r.speakerAvgScore) return best;
+    const score = Number(r.speakerAvgScore);
+    if (!Number.isFinite(score)) return best;
+    if (!best || score > best.score) {
+      return { tournamentName: r.tournamentName, year: r.year, score };
+    }
+    return best;
+  }, null);
 
   const outroundsChaired = judgeRows.filter((r) => !!r.lastOutroundChaired).length;
   const adjCoreCount = judgeRows.filter((r) => r.judgeTypeTag === 'core').length;
@@ -1355,7 +1376,10 @@ export async function buildCvData(
     .map((r) => ({ tournamentName: r.tournamentName, year: r.year }))
     // Dedup by name+year so a user with both a speaker and judge row at the
     // same major doesn't double-count.
-    .filter((m, i, all) => i === all.findIndex((x) => x.tournamentName === m.tournamentName && x.year === m.year));
+    .filter(
+      (m, i, all) =>
+        i === all.findIndex((x) => x.tournamentName === m.tournamentName && x.year === m.year),
+    );
 
   const allYears = [...speakerRows, ...judgeRows]
     .map((r) => r.year)

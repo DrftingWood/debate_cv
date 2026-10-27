@@ -98,13 +98,19 @@ describe('withoutStoredTokens', () => {
   it("returns whatever the base adapter's linkAccount returns", async () => {
     const linked = { ...account(), access_token: undefined };
     const base = { linkAccount: vi.fn(async () => linked) };
-    const adapter = withoutStoredTokens(base as unknown as Adapter, vi.fn(async () => {}));
+    const adapter = withoutStoredTokens(
+      base as unknown as Adapter,
+      vi.fn(async () => {}),
+    );
     await expect(adapter.linkAccount!(account())).resolves.toBe(linked);
   });
 
   it('keeps every other adapter method unchanged', () => {
     const getUser = vi.fn();
-    const adapter = withoutStoredTokens({ getUser, linkAccount: vi.fn() } as unknown as Adapter, vi.fn());
+    const adapter = withoutStoredTokens(
+      { getUser, linkAccount: vi.fn() } as unknown as Adapter,
+      vi.fn(),
+    );
     expect(adapter.getUser).toBe(getUser);
   });
 

@@ -18,7 +18,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   authMock.mockResolvedValue(fakeSession('user-1'));
   buildCvDataMock.mockResolvedValue(
-    makeCvData({ speakerRows: [makeSpeakerRow({ tournamentName: 'Mumbai Open', year: 2025 })], judgeRows: [] }),
+    makeCvData({
+      speakerRows: [makeSpeakerRow({ tournamentName: 'Mumbai Open', year: 2025 })],
+      judgeRows: [],
+    }),
   );
 });
 
@@ -37,7 +40,10 @@ describe('GET /cv.json', () => {
     expect(enforceRateLimit).toHaveBeenCalledWith('cv:export', 'user-1');
     const body = (await res.json()) as {
       $schema: string;
-      meta: { canonical: string; 'x-debate-cv': { version: number; speaking: { tournament: string }[] } };
+      meta: {
+        canonical: string;
+        'x-debate-cv': { version: number; speaking: { tournament: string }[] };
+      };
     };
     expect(body.$schema).toMatch(/resume-schema\/v1\.0\.0\/schema\.json$/);
     expect(body.meta.canonical).toMatch(/^https?:\/\/.+\/cv\.json$/);

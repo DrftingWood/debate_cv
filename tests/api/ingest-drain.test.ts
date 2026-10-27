@@ -9,7 +9,9 @@ import {
 } from '../setup/api-test-utils';
 
 vi.mock('@/lib/auth', () => import('../setup/api-test-utils').then((m) => ({ auth: m.authMock })));
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 vi.mock('@/lib/calicotab/ingest', () => ({
   ingestPrivateUrl: vi.fn(),
   isDeadlockError: vi.fn(() => false),
@@ -32,8 +34,7 @@ function seedJobs(jobs: Array<{ status: string }>) {
   type CountArgs = { where?: { status?: string | { in?: string[] } } };
   prismaMock.ingestJob.count.mockImplementation(async (args: CountArgs) => {
     const status = args?.where?.status;
-    const wanted =
-      typeof status === 'string' ? [status] : (status?.in ?? []);
+    const wanted = typeof status === 'string' ? [status] : (status?.in ?? []);
     return jobs.filter((j) => wanted.includes(j.status)).length;
   });
 }

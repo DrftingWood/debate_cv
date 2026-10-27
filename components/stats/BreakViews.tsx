@@ -45,7 +45,10 @@ const OUTCOME_LABEL: Record<MarginOutcome, string> = {
 const EXCLUSION_TEXT: Record<ExclusionReason, [one: string, many: string]> = {
   'no-open-break': ['has no Open break tab on record', 'have no Open break tab on record'],
   'unknown-format': ['has no known format', 'have no known format'],
-  'no-team-standing': ['has no team-tab standing for your team', 'have no team-tab standing for your team'],
+  'no-team-standing': [
+    'has no team-tab standing for your team',
+    'have no team-tab standing for your team',
+  ],
   'line-incomplete': [
     'has a breaking team missing from the team tab, so its line is unknown',
     'have a breaking team missing from the team tab, so their lines are unknown',
@@ -79,9 +82,13 @@ function EntryRow({ e, unit }: { e: MarginEntry; unit: MarginUnit }) {
       </Td>
       <Td>
         {OUTCOME_LABEL[e.outcome]}
-        {e.brokeElsewhere ? <span className="text-ink-soft"> · broke in another category</span> : null}
+        {e.brokeElsewhere ? (
+          <span className="text-ink-soft"> · broke in another category</span>
+        ) : null}
       </Td>
-      <Td numeric className="pr-4">{e.breakTeams}</Td>
+      <Td numeric className="pr-4">
+        {e.breakTeams}
+      </Td>
     </Tr>
   );
 }
@@ -93,7 +100,9 @@ function FormatBlock({ f }: { f: FormatMargins }) {
   return (
     <div className="space-y-3">
       <h3 className="data-label">
-        <abbr title={f.format} className="no-underline">{formatAbbrev(f.format) ?? f.format}</abbr>
+        <abbr title={f.format} className="no-underline">
+          {formatAbbrev(f.format) ?? f.format}
+        </abbr>
         {' · '}margins in {unitLabel}
       </h3>
       <StatRow columns={4}>
@@ -107,9 +116,18 @@ function FormatBlock({ f }: { f: FormatMargins }) {
           size="sm"
           label="Broke"
           value={`${broke} of ${f.tournaments}`}
-          hint={f.onTheLine > 0 ? `${f.onTheLine} level with the line, through on the tiebreak` : 'Open break'}
+          hint={
+            f.onTheLine > 0
+              ? `${f.onTheLine} level with the line, through on the tiebreak`
+              : 'Open break'
+          }
         />
-        <StatTile size="sm" label={`Missed by ${one}`} value={f.missedByOne} hint={`of ${plural(f.tournaments - broke, 'miss', 'misses')}`} />
+        <StatTile
+          size="sm"
+          label={`Missed by ${one}`}
+          value={f.missedByOne}
+          hint={`of ${plural(f.tournaments - broke, 'miss', 'misses')}`}
+        />
         <StatTile
           size="sm"
           label="Level, missed"
@@ -119,7 +137,10 @@ function FormatBlock({ f }: { f: FormatMargins }) {
       </StatRow>
       <div className="panel overflow-hidden">
         <TableScroll>
-          <Table className="min-w-max" label={`Break margin, ${f.format}: your team against the Open break line`}>
+          <Table
+            className="min-w-max"
+            label={`Break margin, ${f.format}: your team against the Open break line`}
+          >
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
@@ -127,7 +148,9 @@ function FormatBlock({ f }: { f: FormatMargins }) {
                 <Th numeric>Line</Th>
                 <Th numeric>Margin</Th>
                 <Th>Outcome</Th>
-                <Th numeric className="pr-4">Teams broke</Th>
+                <Th numeric className="pr-4">
+                  Teams broke
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -163,8 +186,9 @@ export function BreakMarginSection({ speakerRows }: { speakerRows: CvSpeakerRow[
       <p className="text-caption text-ink-soft">
         The line is the team-tab total of the lowest team on the Open break — points in British
         Parliamentary, wins elsewhere — and formats are never added together. Teams level with the
-        line are split by the tournament's tiebreak (usually speaker scores), so "on the line" can go
-        either way. A team that broke in ESL, EFL or novice is still measured against the Open line.
+        line are split by the tournament's tiebreak (usually speaker scores), so "on the line" can
+        go either way. A team that broke in ESL, EFL or novice is still measured against the Open
+        line.
         {exclusions.length > 0 ? ` Left out: ${exclusions.join('; ')}.` : ''}
       </p>
     </section>

@@ -72,7 +72,12 @@ export type Milestones = {
    * Finals and titles in category brackets (dated or not), with the earliest
    * dated season one was reached in. Consolation brackets never appear here.
    */
-  otherBracket: { finals: number; titles: number; firstFinalYear: number | null; brackets: string[] };
+  otherBracket: {
+    finals: number;
+    titles: number;
+    firstFinalYear: number | null;
+    brackets: string[];
+  };
   bestSpeech: {
     score: number;
     speeches: number;
@@ -116,7 +121,8 @@ function anyFinal(row: CvSpeakerRow): boolean {
   const rank = row.eliminationReached ? outroundRankStrict(row.eliminationReached) : null;
   return rank != null && rank >= FINAL_RANK;
 }
-const anyTitle = (row: CvSpeakerRow) => row.wonTournament === true && bracket(row) !== 'consolation';
+const anyTitle = (row: CvSpeakerRow) =>
+  row.wonTournament === true && bracket(row) !== 'consolation';
 
 // Gold, Silver and Bronze finals count as reaching a final (owner decision).
 const reachedFinal = (row: CvSpeakerRow) =>
@@ -132,7 +138,10 @@ const broke = (row: CvSpeakerRow) => (row.broke || anyTitle(row)) && bracket(row
 const byYearThenName = (a: RecordHolder, b: RecordHolder) =>
   (a.year ?? Infinity) - (b.year ?? Infinity) || a.tournament.localeCompare(b.tournament);
 
-function firstOf(rows: CvSpeakerRow[], qualifies: (r: CvSpeakerRow) => boolean): FirstMilestone | null {
+function firstOf(
+  rows: CvSpeakerRow[],
+  qualifies: (r: CvSpeakerRow) => boolean,
+): FirstMilestone | null {
   const dated = rows.filter((r) => r.year != null && qualifies(r));
   if (dated.length === 0) return null;
   const undated = rows.filter((r) => r.year == null && qualifies(r)).length;
@@ -232,13 +241,22 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
   // caption instead of being silently trusted.
   let unbounded = 0;
   const speeches = rows.flatMap((r) => {
-    const pointed = (r.teamRoundResults ?? []).filter((t) => t.points != null).map((t) => t.roundNumber);
+    const pointed = (r.teamRoundResults ?? [])
+      .filter((t) => t.points != null)
+      .map((t) => t.roundNumber);
     const lastPrelim = r.prelimRoundCount ?? (pointed.length > 0 ? Math.max(...pointed) : null);
     return r.roundScores.flatMap((s) => {
       if (s.score == null || s.roundNumber <= 0 || s.positionLabel === 'average') return [];
       if (lastPrelim != null && s.roundNumber > lastPrelim) return [];
       if (lastPrelim == null) unbounded += 1;
-      return [{ score: Number(s.score), tournament: r.tournamentName, year: r.year, round: s.roundNumber }];
+      return [
+        {
+          score: Number(s.score),
+          tournament: r.tournamentName,
+          year: r.year,
+          round: s.roundNumber,
+        },
+      ];
     });
   });
   let bestSpeech: Milestones['bestSpeech'] = null;
@@ -268,8 +286,14 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
   // the same default bracketOf gives, and the one buildCvData's break rank
   // leans on (resolveTeamBreaks prefers the Open break's rank).
   const breaks = rows.filter(broke);
-  const bestBreakRank = bestRank(breaks.filter((r) => bracket(r) === 'open'), (r) => r.teamBreakRank);
-  const bestCategoryRank = bestRank(breaks.filter((r) => bracket(r) === 'category'), (r) => r.teamBreakRank);
+  const bestBreakRank = bestRank(
+    breaks.filter((r) => bracket(r) === 'open'),
+    (r) => r.teamBreakRank,
+  );
+  const bestCategoryRank = bestRank(
+    breaks.filter((r) => bracket(r) === 'category'),
+    (r) => r.teamBreakRank,
+  );
 
   const categoryFinals = rows.filter((r) => anyFinal(r) && bracket(r) === 'category');
   const categoryYears = categoryFinals.flatMap((r) => (r.year != null ? [r.year] : []));
@@ -283,14 +307,18 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
       finals: categoryFinals.length,
       titles: rows.filter((r) => anyTitle(r) && bracket(r) === 'category').length,
       firstFinalYear: categoryYears.length > 0 ? Math.min(...categoryYears) : null,
-      brackets: [...new Set(categoryFinals.map((r) => splitStageLabel(r.eliminationReached).category!))].sort(),
+      brackets: [
+        ...new Set(categoryFinals.map((r) => splitStageLabel(r.eliminationReached).category!)),
+      ].sort(),
     },
     bestSpeech,
     bestTeamRank: bestRank(rows, (r) => r.teamRank),
     bestSpeakerRank: bestRank(rows, (r) => r.speakerRankOpen),
     bestBreakRank,
     bestBreakRankOtherBracket:
-      bestCategoryRank && (!bestBreakRank || bestCategoryRank.rank < bestBreakRank.rank) ? bestCategoryRank : null,
+      bestCategoryRank && (!bestBreakRank || bestCategoryRank.rank < bestBreakRank.rank)
+        ? bestCategoryRank
+        : null,
     breakRun,
     undated,
     undatedFirsts: {
@@ -305,6 +333,12 @@ export function milestones(rows: CvSpeakerRow[]): Milestones | null {
   // "undated"; only a record with no figure of any kind has nothing to show.
   const { break: b, final: f, title: w } = out.undatedFirsts;
   const empty =
-    !out.firstTournament && !out.bestSpeech && !out.bestTeamRank && !out.bestSpeakerRank && !out.bestBreakRank && !out.breakRun && b + f + w === 0;
+    !out.firstTournament &&
+    !out.bestSpeech &&
+    !out.bestTeamRank &&
+    !out.bestSpeakerRank &&
+    !out.bestBreakRank &&
+    !out.breakRun &&
+    b + f + w === 0;
   return empty ? null : out;
 }

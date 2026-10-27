@@ -11,18 +11,26 @@ describe('publicTournamentUrl', () => {
   });
 
   it('keeps the scheme it was stored with', () => {
-    expect(publicTournamentUrl('http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/privateurls/poxsfblg/')).toBe(
-      'http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/',
-    );
+    expect(
+      publicTournamentUrl(
+        'http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/privateurls/poxsfblg/',
+      ),
+    ).toBe('http://15thiitbombaydebate.calicotab.com/15thiitbombaydebate2023/');
   });
 
   it('leaves an already-public base as it is', () => {
-    expect(publicTournamentUrl('https://sido2026.calicotab.com/sido2026/')).toBe('https://sido2026.calicotab.com/sido2026/');
+    expect(publicTournamentUrl('https://sido2026.calicotab.com/sido2026/')).toBe(
+      'https://sido2026.calicotab.com/sido2026/',
+    );
   });
 
   it('never carries a query string, fragment or deeper path', () => {
-    expect(publicTournamentUrl('https://a.calicotab.com/t/privateurls/tok/?x=1#frag')).toBe('https://a.calicotab.com/t/');
-    expect(publicTournamentUrl('https://a.calicotab.com/t/tab/team/')).toBe('https://a.calicotab.com/t/');
+    expect(publicTournamentUrl('https://a.calicotab.com/t/privateurls/tok/?x=1#frag')).toBe(
+      'https://a.calicotab.com/t/',
+    );
+    expect(publicTournamentUrl('https://a.calicotab.com/t/tab/team/')).toBe(
+      'https://a.calicotab.com/t/',
+    );
   });
 
   it('a root-hosted private URL has no tournament segment: the site root, never the token', () => {
@@ -45,7 +53,11 @@ describe('Tournament.sourceUrlRaw is never copied into CV data unfiltered', () =
   const src = readFileSync(join(process.cwd(), 'lib/cv/buildCvData.ts'), 'utf8');
 
   it('every sourceUrl / sourceUrlRaw assignment goes through publicTournamentUrl', () => {
-    const bad = src.split('\n').filter((l) => /\bsourceUrl(Raw)?:\s*t\.sourceUrlRaw\b/.test(l) && !/publicTournamentUrl\(/.test(l));
+    const bad = src
+      .split('\n')
+      .filter(
+        (l) => /\bsourceUrl(Raw)?:\s*t\.sourceUrlRaw\b/.test(l) && !/publicTournamentUrl\(/.test(l),
+      );
     expect(bad).toEqual([]);
   });
 });

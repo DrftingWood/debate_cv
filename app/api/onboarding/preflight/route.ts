@@ -87,8 +87,7 @@ export async function POST(req: Request) {
           const snap = parsePrivateUrlPage(r.html, url);
           name = (snap.registration.personName ?? '').trim();
           if (!name) {
-            errMsg =
-              'fetch ok (200) but no participant name found on the landing page';
+            errMsg = 'fetch ok (200) but no participant name found on the landing page';
           }
         }
       } catch (e) {

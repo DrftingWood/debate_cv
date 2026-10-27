@@ -72,12 +72,18 @@ describe('a pre-round is the partial round of the rung below', () => {
   });
 
   test('the break category still comes through', () => {
-    expect(splitStageLabel('Open Pre-Quarterfinals')).toEqual({ category: 'Open', stage: 'partial_octofinal' });
+    expect(splitStageLabel('Open Pre-Quarterfinals')).toEqual({
+      category: 'Open',
+      stage: 'partial_octofinal',
+    });
     expect(splitStageLabel('High School Pre-Grand Finals')).toEqual({
       category: 'High School',
       stage: 'partial_semifinal',
     });
-    expect(splitStageLabel('Iniciado Pré-Final')).toEqual({ category: 'Iniciado', stage: 'partial_semifinal' });
+    expect(splitStageLabel('Iniciado Pré-Final')).toEqual({
+      category: 'Iniciado',
+      stage: 'partial_semifinal',
+    });
     expect(formatStageForDisplay('Novice Pre-Semifinals')).toBe('Novice Partial Quarterfinals');
   });
 

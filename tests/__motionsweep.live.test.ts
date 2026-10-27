@@ -29,7 +29,11 @@ const HEADERS = {
 
 describe.skipIf(!process.env.RUN_MOTIONS_SWEEP || !DIR)('motions sweep', () => {
   it('counts motions across the depth tier', async () => {
-    type Entry = { root: string; rootStatus: number; pages: Array<{ kind: string; file: string | null }> };
+    type Entry = {
+      root: string;
+      rootStatus: number;
+      pages: Array<{ kind: string; file: string | null }>;
+    };
     const entries: Entry[] = JSON.parse(readFileSync(join(DIR, 'index.json'), 'utf-8'));
     const rootIndex = new Map<string, number>();
     {
@@ -92,7 +96,9 @@ describe.skipIf(!process.env.RUN_MOTIONS_SWEEP || !DIR)('motions sweep', () => {
       writeFileSync(process.env.MOTIONS_CSV, csv.join('\n') + (csv.length ? '\n' : ''), 'utf-8');
       console.log(`[motions] wrote ${csv.length} rows to ${process.env.MOTIONS_CSV}`);
     }
-    console.log(`[motions] motions=${total} withInfoSlide=${withInfoSlide} distinctRoundLabels=${labels.size}`);
+    console.log(
+      `[motions] motions=${total} withInfoSlide=${withInfoSlide} distinctRoundLabels=${labels.size}`,
+    );
     expect(ok).toBeGreaterThan(0);
   }, 900_000);
 });

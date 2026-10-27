@@ -73,7 +73,8 @@ async function statusCounts() {
 function printStatusCounts(title, rows) {
   console.log(title);
   if (rows.length === 0) console.log('  (no proposals)');
-  for (const r of rows) console.log(`  ${r.kind.padEnd(14)} ${r.status.padEnd(9)} ${String(r.n).padStart(7)}`);
+  for (const r of rows)
+    console.log(`  ${r.kind.padEnd(14)} ${r.status.padEnd(9)} ${String(r.n).padStart(7)}`);
 }
 
 async function loadPlan() {
@@ -109,10 +110,13 @@ function printPlan(plan) {
       `  ${k.padEnd(14)} one value: ${x.agreedTargets} targets (${x.agreedProposals} proposals; ` +
         `${x.wouldSet} unset, ${x.wouldOverwrite} would overwrite a different value, ${x.alreadyEqual} already equal)` +
         ` | conflicts (2+ values): ${x.conflictTargets} targets (${x.conflictProposals} proposals)` +
-        (x.malformedTargets ? ` | skipped as malformed: ${x.malformedTargets} targets (${x.malformedProposals} proposals)` : ''),
+        (x.malformedTargets
+          ? ` | skipped as malformed: ${x.malformedTargets} targets (${x.malformedProposals} proposals)`
+          : ''),
     );
   }
-  if (plan.ignored) console.log(`  (${plan.ignored} pending proposals of other kinds are not touched)`);
+  if (plan.ignored)
+    console.log(`  (${plan.ignored} pending proposals of other kinds are not touched)`);
 }
 
 /** Approve one kind's agreed targets in batches, adding to `totals` and printing progress. */
@@ -148,7 +152,9 @@ try {
   console.log(`\nConflicting and skipped targets listed in ${conflictsPath}`);
 
   if (!opts.apply) {
-    console.log('\nDry run: nothing was written to the database. Add --apply to approve the one-value targets.');
+    console.log(
+      '\nDry run: nothing was written to the database. Add --apply to approve the one-value targets.',
+    );
   } else {
     // Snapshot what each canonical column held before this run, so a rollback
     // knows what to restore. Written before the first write.
@@ -159,7 +165,11 @@ try {
 
     const totals = { targets: 0, canonical: 0, proposals: 0, skipped: 0 };
     for (const kind of kinds) {
-      await applyKind(kind, plan.agreed.filter((a) => a.kind === kind), totals);
+      await applyKind(
+        kind,
+        plan.agreed.filter((a) => a.kind === kind),
+        totals,
+      );
     }
     console.log(
       `\nApplied. targets ${totals.targets} | canonical rows written ${totals.canonical} | proposals approved ${totals.proposals} | skipped ${totals.skipped}`,

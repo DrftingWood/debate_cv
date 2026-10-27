@@ -152,8 +152,9 @@ export function collectRegistrationWarnings(
       w.push('timing: competition likely finished (private URL email is older than 30 days)');
     }
   }
-  const hiddenCoreTabs = ['teamTab', 'speakerTab', 'participants']
-    .filter((k) => !discovered.has(k) || constructed.has(k));
+  const hiddenCoreTabs = ['teamTab', 'speakerTab', 'participants'].filter(
+    (k) => !discovered.has(k) || constructed.has(k),
+  );
   if (snapshot.navigation.breakTabs.length === 0 && hiddenCoreTabs.length >= 2) {
     w.push(
       'nav: limited tab visibility may be intentional (e.g., schools/child-protection privacy settings)',

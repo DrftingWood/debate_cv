@@ -53,7 +53,9 @@ if (!/@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(DB_URL)) {
 
 const [bundlePath, placeholderPath, derivedPath] = process.argv.slice(2);
 if (!bundlePath || !placeholderPath || !derivedPath) {
-  console.error('Usage: node scripts/seed-from-corpus.mjs <bundle.json> <placeholders.json> <derived.json>');
+  console.error(
+    'Usage: node scripts/seed-from-corpus.mjs <bundle.json> <placeholders.json> <derived.json>',
+  );
   process.exit(1);
 }
 
@@ -178,7 +180,9 @@ async function main() {
   });
 
   // ── Tournaments ─────────────────────────────────────────────────────────
-  const prelimsByCorpusId = new Map(bundle.prelims.map((p) => [p.tournament_id, Number(p.prelims)]));
+  const prelimsByCorpusId = new Map(
+    bundle.prelims.map((p) => [p.tournament_id, Number(p.prelims)]),
+  );
 
   const fieldByTournament = new Map();
   for (const row of bundle.field) {
@@ -397,9 +401,10 @@ async function main() {
   for (const s of bundle.teammate_scores ?? []) {
     const tournamentId = tournamentIdByCorpusId.get(s.tournament_id);
     const personId = s.speaker_name ? personIdByKey.get(normalize(s.speaker_name)) : undefined;
-    const participantId = tournamentId && personId
-      ? participantIdByTournamentPerson.get(`${tournamentId}:${personId}`)
-      : undefined;
+    const participantId =
+      tournamentId && personId
+        ? participantIdByTournamentPerson.get(`${tournamentId}:${personId}`)
+        : undefined;
     if (!participantId) continue;
     const isAverage = (s.position_label ?? '') === 'average';
     const roundNumber = isAverage ? 0 : roundNumberFromLabel(s.round_label);
@@ -430,7 +435,11 @@ async function main() {
       // "Quarterfinals" as an outround; a word like "prelim" classifies as
       // unknown and empties the CV's "Judged" column.
       roundNumber: j.is_outround ? null : roundNumber,
-      stage: j.is_outround ? decodeEntities(j.round_label) : roundNumber != null ? String(roundNumber) : null,
+      stage: j.is_outround
+        ? decodeEntities(j.round_label)
+        : roundNumber != null
+          ? String(roundNumber)
+          : null,
       source: 'corpus',
     });
   }
@@ -478,7 +487,10 @@ async function main() {
     breakRows.push(row);
   }
   for (let i = 0; i < breakRows.length; i += 2000) {
-    await prisma.eliminationResult.createMany({ data: breakRows.slice(i, i + 2000), skipDuplicates: true });
+    await prisma.eliminationResult.createMany({
+      data: breakRows.slice(i, i + 2000),
+      skipDuplicates: true,
+    });
   }
   console.log(`  break rows         ${breakRows.length}`);
 

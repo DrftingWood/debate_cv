@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { prismaMock, resetPrismaMock } from '../setup/api-test-utils';
 
-vi.mock('@/lib/db', () => import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
+vi.mock('@/lib/db', () =>
+  import('../setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })),
+);
 const requireAdminMock = vi.fn();
 vi.mock('@/lib/admin', () => ({ requireAdmin: requireAdminMock }));
 
@@ -34,10 +36,23 @@ describe('GET /api/admin/tags/export', () => {
 
   it('lists only what still needs an answer, as plain JSON the admin can hand over', async () => {
     prismaMock.motion.findMany.mockResolvedValue([
-      { id: 11n, tournamentId: 5n, text: 'THW ban zoos', infoSlide: null, motionType: null, topic: null },
+      {
+        id: 11n,
+        tournamentId: 5n,
+        text: 'THW ban zoos',
+        infoSlide: null,
+        motionType: null,
+        topic: null,
+      },
     ]);
     prismaMock.tournament.findMany.mockResolvedValue([
-      { id: 5n, name: 'WUDC Belgrade 2022', format: 'British Parliamentary', year: 2022, sourceUrlRaw: 'https://wudc2022.calicotab.com/wudc/' },
+      {
+        id: 5n,
+        name: 'WUDC Belgrade 2022',
+        format: 'British Parliamentary',
+        year: 2022,
+        sourceUrlRaw: 'https://wudc2022.calicotab.com/wudc/',
+      },
     ]);
     const res = await GET();
     expect(res.status).toBe(200);
@@ -48,7 +63,11 @@ describe('GET /api/admin/tags/export', () => {
     };
     // BigInt ids travel as strings.
     expect(body.motions[0]).toMatchObject({ id: '11', tournamentId: '5', text: 'THW ban zoos' });
-    expect(body.tournaments[0]).toMatchObject({ id: '5', name: 'WUDC Belgrade 2022', host: 'wudc2022.calicotab.com' });
+    expect(body.tournaments[0]).toMatchObject({
+      id: '5',
+      name: 'WUDC Belgrade 2022',
+      host: 'wudc2022.calicotab.com',
+    });
     // Same "still to do" rule as the classifier: nothing already tagged or suggested.
     expect((prismaMock.motion.findMany.mock.calls[0][0] as { where: unknown }).where).toEqual({
       OR: [
@@ -68,7 +87,10 @@ describe('POST /api/admin/tags/import', () => {
   });
 
   it('rejects a value outside the vocabulary before touching the database', async () => {
-    const res = await importReq({ motions: [{ id: '11', motionType: 'THW', topic: 'Cooking' }], tournaments: [] });
+    const res = await importReq({
+      motions: [{ id: '11', motionType: 'THW', topic: 'Cooking' }],
+      tournaments: [],
+    });
     expect(res.status).toBe(400);
     expect(prismaMock.motion.findMany).not.toHaveBeenCalled();
   });
@@ -80,7 +102,13 @@ describe('POST /api/admin/tags/import', () => {
       // Topic already approved: only the type may be filed.
       { id: 12n, tournamentId: 5n, motionType: null, topic: 'Education', tagProposals: [] },
       // Type already has a (say, rejected) proposal: it must not be revived.
-      { id: 13n, tournamentId: 5n, motionType: null, topic: null, tagProposals: [{ kind: 'motion_type' }] },
+      {
+        id: 13n,
+        tournamentId: 5n,
+        motionType: null,
+        topic: null,
+        tagProposals: [{ kind: 'motion_type' }],
+      },
     ]);
     prismaMock.tournament.findMany.mockResolvedValue([
       { id: 5n, region: null, tagProposals: [] },
@@ -101,10 +129,19 @@ describe('POST /api/admin/tags/import', () => {
     });
     expect(res.status).toBe(200);
 
-    const data = (prismaMock.tagProposal.createMany.mock.calls[0][0] as {
-      data: Array<{ kind: string; motionId: bigint | null; tournamentId: bigint; value: string; userId: string }>;
-    }).data;
-    const key = (d: (typeof data)[number]) => `${d.kind}:${d.motionId ?? 't'}:${d.tournamentId}:${d.value}`;
+    const data = (
+      prismaMock.tagProposal.createMany.mock.calls[0][0] as {
+        data: Array<{
+          kind: string;
+          motionId: bigint | null;
+          tournamentId: bigint;
+          value: string;
+          userId: string;
+        }>;
+      }
+    ).data;
+    const key = (d: (typeof data)[number]) =>
+      `${d.kind}:${d.motionId ?? 't'}:${d.tournamentId}:${d.value}`;
     expect(data.map(key).sort()).toEqual(
       [
         'motion_type:11:5:THW',

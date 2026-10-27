@@ -46,7 +46,11 @@ export async function POST() {
     if (limited) return limited;
     const userId = session.user.id;
     const started = Date.now();
-    const results: Array<{ url: string; status: 'done' | 'failed' | 'abandoned' | 'retry'; error?: string }> = [];
+    const results: Array<{
+      url: string;
+      status: 'done' | 'failed' | 'abandoned' | 'retry';
+      error?: string;
+    }> = [];
 
     await resetStuckRunning({ userId });
 

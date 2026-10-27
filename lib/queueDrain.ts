@@ -99,10 +99,7 @@ export type DrainOptions = {
  * claim increments `attempts`, so claiming work we might not reach would
  * burn retries on jobs that never ran.
  */
-export async function drainQueue(
-  deps: DrainDeps,
-  opts: DrainOptions,
-): Promise<DrainReport> {
+export async function drainQueue(deps: DrainDeps, opts: DrainOptions): Promise<DrainReport> {
   const now = deps.now ?? Date.now;
   const started = now();
   const results: DrainResult[] = [];

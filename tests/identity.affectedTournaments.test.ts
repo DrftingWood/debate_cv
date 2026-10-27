@@ -63,8 +63,16 @@ const teamTab = vuePage([
   {
     head: [{ key: 'Rk' }, { key: 'team' }, { key: 'pts' }],
     data: [
-      [{ text: '1' }, { text: 'Alpha A', popover: { content: [{ text: 'Rahul Sharma, Priya Das' }] } }, { text: '9' }],
-      [{ text: '2' }, { text: 'Delta D', popover: { content: [{ text: 'Ann Lee, Bo Chan' }] } }, { text: '6' }],
+      [
+        { text: '1' },
+        { text: 'Alpha A', popover: { content: [{ text: 'Rahul Sharma, Priya Das' }] } },
+        { text: '9' },
+      ],
+      [
+        { text: '2' },
+        { text: 'Delta D', popover: { content: [{ text: 'Ann Lee, Bo Chan' }] } },
+        { text: '6' },
+      ],
     ],
   },
 ]);
@@ -134,12 +142,52 @@ const cleanSpeakerTab = vuePage([
 //   and Hal Ode never judges one                              → unknown (no rounds either side)
 const roundsSpeakerTab = vuePage([
   {
-    head: [{ key: 'Rk' }, { key: 'name' }, { key: 'team' }, { key: 'R1', title: 'R1' }, { key: 'R2', title: 'R2' }, { key: 'R3', title: 'R3' }, { key: 'Total', title: 'Total' }],
+    head: [
+      { key: 'Rk' },
+      { key: 'name' },
+      { key: 'team' },
+      { key: 'R1', title: 'R1' },
+      { key: 'R2', title: 'R2' },
+      { key: 'R3', title: 'R3' },
+      { key: 'Total', title: 'Total' },
+    ],
     data: [
-      [{ text: '1' }, { text: 'Ola Nwosu' }, { text: 'Alpha A' }, { text: '75' }, { text: '76' }, { text: '77' }, { text: '228' }],
-      [{ text: '2' }, { text: 'Ola Nwosu' }, { text: 'Beta B' }, { text: '74' }, { text: '' }, { text: '' }, { text: '74' }],
-      [{ text: '3' }, { text: 'Pat Kim' }, { text: 'Gamma C' }, { text: '73' }, { text: '72' }, { text: '' }, { text: '145' }],
-      [{ text: '4' }, { text: 'Pat Kim' }, { text: 'Swing' }, { text: '' }, { text: '' }, { text: '71' }, { text: '71' }],
+      [
+        { text: '1' },
+        { text: 'Ola Nwosu' },
+        { text: 'Alpha A' },
+        { text: '75' },
+        { text: '76' },
+        { text: '77' },
+        { text: '228' },
+      ],
+      [
+        { text: '2' },
+        { text: 'Ola Nwosu' },
+        { text: 'Beta B' },
+        { text: '74' },
+        { text: '' },
+        { text: '' },
+        { text: '74' },
+      ],
+      [
+        { text: '3' },
+        { text: 'Pat Kim' },
+        { text: 'Gamma C' },
+        { text: '73' },
+        { text: '72' },
+        { text: '' },
+        { text: '145' },
+      ],
+      [
+        { text: '4' },
+        { text: 'Pat Kim' },
+        { text: 'Swing' },
+        { text: '' },
+        { text: '' },
+        { text: '71' },
+        { text: '71' },
+      ],
     ],
   },
 ]);
@@ -200,36 +248,71 @@ const landing = (slug: string, labels: string[]) =>
 
 describe('classifyDocumentUrl', () => {
   test('tab pages, participants list and the two API lists', () => {
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/team/')).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'teamTab', slug: 'open26' });
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/speaker-standings/')?.kind).toBe('speakerTab');
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/participants/list/')?.kind).toBe('participants');
-    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/teams')).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'apiTeams' });
-    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/adjudicators')?.kind).toBe('apiAdjudicators');
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/team/')).toMatchObject({
+      base: 'https://a.calicotab.com/open26/',
+      kind: 'teamTab',
+      slug: 'open26',
+    });
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/tab/speaker-standings/')?.kind).toBe(
+      'speakerTab',
+    );
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/participants/list/')?.kind).toBe(
+      'participants',
+    );
+    expect(
+      classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/teams'),
+    ).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'apiTeams' });
+    expect(
+      classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/adjudicators')?.kind,
+    ).toBe('apiAdjudicators');
   });
 
   test('the landing page and round results are read for their rounds', () => {
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/')).toMatchObject({ base: 'https://a.calicotab.com/open26/', kind: 'landing' });
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/results/round/4/')).toMatchObject({ kind: 'roundResults', roundSeq: 4 });
-    expect(classifyDocumentUrl('https://a.calicotab.com/open26/results/round/4/by-debate/')).toMatchObject({ kind: 'roundResults', roundSeq: 4 });
-    expect(classifyDocumentUrl('https://wudc.calicotab.com/results/round/2/')).toMatchObject({ base: 'https://wudc.calicotab.com/', slug: null, roundSeq: 2 });
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/')).toMatchObject({
+      base: 'https://a.calicotab.com/open26/',
+      kind: 'landing',
+    });
+    expect(classifyDocumentUrl('https://a.calicotab.com/open26/results/round/4/')).toMatchObject({
+      kind: 'roundResults',
+      roundSeq: 4,
+    });
+    expect(
+      classifyDocumentUrl('https://a.calicotab.com/open26/results/round/4/by-debate/'),
+    ).toMatchObject({ kind: 'roundResults', roundSeq: 4 });
+    expect(classifyDocumentUrl('https://wudc.calicotab.com/results/round/2/')).toMatchObject({
+      base: 'https://wudc.calicotab.com/',
+      slug: null,
+      roundSeq: 2,
+    });
   });
 
   test('a root-hosted tournament keys on the site root', () => {
-    expect(classifyDocumentUrl('https://wudc.calicotab.com/tab/team/')).toMatchObject({ base: 'https://wudc.calicotab.com/', slug: null });
+    expect(classifyDocumentUrl('https://wudc.calicotab.com/tab/team/')).toMatchObject({
+      base: 'https://wudc.calicotab.com/',
+      slug: null,
+    });
   });
 
   test('other pages and private URLs are not read', () => {
     expect(classifyDocumentUrl('https://a.calicotab.com/open26/motions/')).toBeNull();
     expect(classifyDocumentUrl('https://a.calicotab.com/open26/break/teams/open/')).toBeNull();
     expect(classifyDocumentUrl('https://a.calicotab.com/open26/privateurls/abc/')).toBeNull();
-    expect(classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/speakers/standings')).toBeNull();
+    expect(
+      classifyDocumentUrl('https://a.calicotab.com/api/v1/tournaments/open26/speakers/standings'),
+    ).toBeNull();
     expect(classifyDocumentUrl('https://a.calicotab.com/api/')).toBeNull();
     expect(classifyDocumentUrl('not a url')).toBeNull();
   });
 });
 
 describe('groupByTournament', () => {
-  const e = (id: string, url: string, fetchedAt: string, status = 200): IndexEntry => ({ id, url, status, fetchedAt, file: `${id}.html.gz` });
+  const e = (id: string, url: string, fetchedAt: string, status = 200): IndexEntry => ({
+    id,
+    url,
+    status,
+    fetchedAt,
+    file: `${id}.html.gz`,
+  });
 
   test('keeps the newest 200 document of each kind, and the newest results page per round', () => {
     const [t, ...rest] = groupByTournament([
@@ -285,7 +368,13 @@ describe('isLostName', () => {
   });
 });
 
-const doc = (id: string, url = ''): IndexEntry => ({ id, url, status: 200, fetchedAt: null, file: id });
+const doc = (id: string, url = ''): IndexEntry => ({
+  id,
+  url,
+  status: 200,
+  fetchedAt: null,
+  file: id,
+});
 
 describe('findIdentityIssues without round data', () => {
   const lists = parseTournamentDocuments(
@@ -308,10 +397,19 @@ describe('findIdentityIssues without round data', () => {
 
   test('with no per-round scores and no results pages, a shared key is unknown, never a collision', () => {
     const keys = Object.fromEntries(f.sharedKeys.map((s) => [s.key, s]));
-    expect(keys['rahul sharma']).toMatchObject({ class: 'unknown', crossRole: false, evidence: 'no rounds for the speaker and speaker' });
+    expect(keys['rahul sharma']).toMatchObject({
+      class: 'unknown',
+      crossRole: false,
+      evidence: 'no rounds for the speaker and speaker',
+    });
     // The Adjudicators table comes first, so participantByName keeps the
     // speaker row and the judge role is dropped either way.
-    expect(keys['jos silva']).toMatchObject({ class: 'unknown', crossRole: true, judgeRoleDropped: true, crossRoleInstitution: 'unknown' });
+    expect(keys['jos silva']).toMatchObject({
+      class: 'unknown',
+      crossRole: true,
+      judgeRoleDropped: true,
+      crossRoleInstitution: 'unknown',
+    });
     expect(f.resultsPages).toBe(0);
   });
 
@@ -328,16 +426,30 @@ describe('shared-key classes', () => {
   const withRounds = keysOf(
     parseTournamentDocuments(
       { speakerTab: doc('s'), participants: doc('p') },
-      (e) => ({ s: roundsSpeakerTab, p: roundsParticipants, land: landing('r', ['Round 1', 'Round 2', 'Round 3']), r1: round1, r2: round2, r3: round3 })[e.id]!,
+      (e) =>
+        ({
+          s: roundsSpeakerTab,
+          p: roundsParticipants,
+          land: landing('r', ['Round 1', 'Round 2', 'Round 3']),
+          r1: round1,
+          r2: round2,
+          r3: round3,
+        })[e.id]!,
       {
         landing: doc('land', 'https://r.calicotab.com/r/'),
-        results: [1, 2, 3].map((n) => doc(`r${n}`, `https://r.calicotab.com/r/results/round/${n}/`)),
+        results: [1, 2, 3].map((n) =>
+          doc(`r${n}`, `https://r.calicotab.com/r/results/round/${n}/`),
+        ),
       },
     ),
   );
 
   test('two speakers scored in the same round are two people', () => {
-    expect(withRounds['ola nwosu']).toMatchObject({ class: 'overlap', crossRole: false, evidence: 'R1: speaker (speaker tab) and speaker (speaker tab)' });
+    expect(withRounds['ola nwosu']).toMatchObject({
+      class: 'overlap',
+      crossRole: false,
+      evidence: 'R1: speaker (speaker tab) and speaker (speaker tab)',
+    });
   });
 
   test('one speaker on two teams in different rounds is plausibly one person (a swing)', () => {
@@ -369,7 +481,11 @@ describe('shared-key classes', () => {
   });
 
   test('one name twice on one round as judge is two judges', () => {
-    expect(withRounds['fay ng']).toMatchObject({ class: 'overlap', crossRole: false, evidence: 'R1: two judges (results)' });
+    expect(withRounds['fay ng']).toMatchObject({
+      class: 'overlap',
+      crossRole: false,
+      evidence: 'R1: two judges (results)',
+    });
   });
 
   test('two judges with one spelling, seen once a round, cannot be told apart', () => {
@@ -377,9 +493,13 @@ describe('shared-key classes', () => {
     expect(withRounds['gus tan']!.evidence).toMatch(/^judge R1-R3 \(results\): one spelling/);
   });
 
-  test("a speaker whose team is on no results page has no rounds: unknown", () => {
+  test('a speaker whose team is on no results page has no rounds: unknown', () => {
     // Nor did his namesake judge any round on the stored pages.
-    expect(withRounds['hal ode']).toMatchObject({ class: 'unknown', crossRole: true, evidence: 'no rounds for the speaker and judge' });
+    expect(withRounds['hal ode']).toMatchObject({
+      class: 'unknown',
+      crossRole: true,
+      evidence: 'no rounds for the speaker and judge',
+    });
   });
 
   test('the halves of a split round are one round', () => {
@@ -390,13 +510,22 @@ describe('shared-key classes', () => {
           ({
             s: vuePage([
               {
-                head: [{ key: 'name' }, { key: 'team' }, { key: 'R1A', title: 'R1A' }, { key: 'R1B', title: 'R1B' }],
+                head: [
+                  { key: 'name' },
+                  { key: 'team' },
+                  { key: 'R1A', title: 'R1A' },
+                  { key: 'R1B', title: 'R1B' },
+                ],
                 data: [[{ text: 'Ivy Ash' }, { text: 'India I' }, { text: '75' }, { text: '' }]],
               },
             ]),
             p: vuePage([
               { title: 'Adjudicators', head: [{ key: 'name' }], data: [[{ text: 'Ivy Ash' }]] },
-              { title: 'Speakers', head: [{ key: 'name' }, { key: 'team' }], data: [[{ text: 'Ivy Ash' }, { text: 'India I' }]] },
+              {
+                title: 'Speakers',
+                head: [{ key: 'name' }, { key: 'team' }],
+                data: [[{ text: 'Ivy Ash' }, { text: 'India I' }]],
+              },
             ]),
             land: landing('sp', ['Round 1A', 'Round 1B']),
             r1: resultsPage([['India I', '']]),
@@ -404,30 +533,84 @@ describe('shared-key classes', () => {
           })[e.id]!,
         {
           landing: doc('land', 'https://sp.calicotab.com/sp/'),
-          results: [1, 2].map((n) => doc(`r${n}`, `https://sp.calicotab.com/sp/results/round/${n}/`)),
+          results: [1, 2].map((n) =>
+            doc(`r${n}`, `https://sp.calicotab.com/sp/results/round/${n}/`),
+          ),
         },
       ),
     );
     // She spoke in R1A (speaker tab) and judged R1B: the same round.
-    expect(k['ivy ash']).toMatchObject({ class: 'overlap', evidence: 'R1: speaker (speaker tab) and judge (results)' });
+    expect(k['ivy ash']).toMatchObject({
+      class: 'overlap',
+      evidence: 'R1: speaker (speaker tab) and judge (results)',
+    });
   });
 
   test('the same person twice with the same team is a duplicate row, not a namesake', () => {
-    const k = keysOf(parseTournamentDocuments({ speakerTab: doc('s'), participants: doc('p') }, (e) => (e.id === 's' ? harmlessSpeakerTab : harmlessParticipants)));
-    expect(k['kim lee']).toMatchObject({ class: 'duplicate', entries: 2, sources: ['speaker tab'] });
+    const k = keysOf(
+      parseTournamentDocuments({ speakerTab: doc('s'), participants: doc('p') }, (e) =>
+        e.id === 's' ? harmlessSpeakerTab : harmlessParticipants,
+      ),
+    );
+    expect(k['kim lee']).toMatchObject({
+      class: 'duplicate',
+      entries: 2,
+      sources: ['speaker tab'],
+    });
     // Speaker listed before adjudicator: the judge row survives the merge.
-    expect(k['mia fox']).toMatchObject({ class: 'unknown', crossRole: true, judgeRoleDropped: false, sources: ['participants'] });
+    expect(k['mia fox']).toMatchObject({
+      class: 'unknown',
+      crossRole: true,
+      judgeRoleDropped: false,
+      sources: ['participants'],
+    });
   });
 
   test('speaker+judge groups say whether the two rows share an institution', () => {
     const k = keysOf({
       participantRows: [
-        { name: 'Ada Wu', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: 'Uni X' },
-        { name: 'Ada Wu', role: 'speaker', judgeTag: null, teamName: 'Uni X A', institution: 'uni  x' },
-        { name: 'Ben Ho', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: 'Uni X' },
-        { name: 'Ben Ho', role: 'speaker', judgeTag: null, teamName: 'Uni Y A', institution: 'Uni Y' },
-        { name: 'Cy Om', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: null },
-        { name: 'Cy Om', role: 'speaker', judgeTag: null, teamName: 'Uni Y B', institution: 'Uni Y' },
+        {
+          name: 'Ada Wu',
+          role: 'adjudicator',
+          judgeTag: 'normal',
+          teamName: null,
+          institution: 'Uni X',
+        },
+        {
+          name: 'Ada Wu',
+          role: 'speaker',
+          judgeTag: null,
+          teamName: 'Uni X A',
+          institution: 'uni  x',
+        },
+        {
+          name: 'Ben Ho',
+          role: 'adjudicator',
+          judgeTag: 'normal',
+          teamName: null,
+          institution: 'Uni X',
+        },
+        {
+          name: 'Ben Ho',
+          role: 'speaker',
+          judgeTag: null,
+          teamName: 'Uni Y A',
+          institution: 'Uni Y',
+        },
+        {
+          name: 'Cy Om',
+          role: 'adjudicator',
+          judgeTag: 'normal',
+          teamName: null,
+          institution: null,
+        },
+        {
+          name: 'Cy Om',
+          role: 'speaker',
+          judgeTag: null,
+          teamName: 'Uni Y B',
+          institution: 'Uni Y',
+        },
       ],
     });
     expect(k['ada wu']).toMatchObject({ crossRole: true, crossRoleInstitution: 'same' });
@@ -436,38 +619,78 @@ describe('shared-key classes', () => {
   });
 
   test('two adjudicators with no results pages are unknown', () => {
-    const k = keysOf(parseTournamentDocuments({ participants: doc('p') }, () => twoJudgesParticipants));
-    expect(k['sam roy']).toMatchObject({ class: 'unknown', judgeRoleDropped: false, entries: 2, evidence: 'no rounds for either judge' });
+    const k = keysOf(
+      parseTournamentDocuments({ participants: doc('p') }, () => twoJudgesParticipants),
+    );
+    expect(k['sam roy']).toMatchObject({
+      class: 'unknown',
+      judgeRoleDropped: false,
+      entries: 2,
+      evidence: 'no rounds for either judge',
+    });
   });
 
   test('a key keeps the strongest class any list showed', () => {
     const k = keysOf({
-      speakerRows: parseTournamentDocuments({ speakerTab: doc('s') }, () => roundsSpeakerTab).speakerRows,
+      speakerRows: parseTournamentDocuments({ speakerTab: doc('s') }, () => roundsSpeakerTab)
+        .speakerRows,
       participantRows: [
-        { name: 'Ola Nwosu', role: 'speaker', judgeTag: null, teamName: 'Alpha A', institution: null },
-        { name: 'Ola Nwosu', role: 'adjudicator', judgeTag: 'normal', teamName: null, institution: null },
+        {
+          name: 'Ola Nwosu',
+          role: 'speaker',
+          judgeTag: null,
+          teamName: 'Alpha A',
+          institution: null,
+        },
+        {
+          name: 'Ola Nwosu',
+          role: 'adjudicator',
+          judgeTag: 'normal',
+          teamName: null,
+          institution: null,
+        },
       ],
     });
     // Unknown on the participants list (no results pages), overlap on the speaker tab.
-    expect(k['ola nwosu']).toMatchObject({ class: 'overlap', crossRole: true, sources: ['speaker tab', 'participants'] });
+    expect(k['ola nwosu']).toMatchObject({
+      class: 'overlap',
+      crossRole: true,
+      sources: ['speaker tab', 'participants'],
+    });
   });
 });
 
 describe('API participants', () => {
   test('teams and adjudicators lists go through mapParticipants', () => {
     const teams = JSON.stringify([
-      { url: 'u1', short_name: 'A', speakers: [{ url: 's1', name: 'Mo Ali', anonymous: false }, { url: 's2', name: 'Ана', anonymous: false }] },
+      {
+        url: 'u1',
+        short_name: 'A',
+        speakers: [
+          { url: 's1', name: 'Mo Ali', anonymous: false },
+          { url: 's2', name: 'Ана', anonymous: false },
+        ],
+      },
       { url: 'u2', short_name: 'B', speakers: [{ url: 's3', name: 'Mo Ali', anonymous: false }] },
     ]);
     const adjs = JSON.stringify([{ url: 'a1', name: 'Zed Kay', anonymous: false }]);
-    const lists = parseTournamentDocuments({ apiTeams: doc('t'), apiAdjudicators: doc('a') }, (e) => (e.id === 't' ? teams : adjs));
+    const lists = parseTournamentDocuments(
+      { apiTeams: doc('t'), apiAdjudicators: doc('a') },
+      (e) => (e.id === 't' ? teams : adjs),
+    );
     expect(lists.apiParticipantRows).toHaveLength(4);
     const f = findIdentityIssues(lists);
     expect(f.emptyKeyNames).toEqual(['Ана']);
     // Two speakers on two teams, no rounds. mapParticipants puts
     // adjudicators last, so this path never drops a judge role.
     expect(f.sharedKeys).toMatchObject([
-      { key: 'mo ali', entries: 2, sources: ['api participants'], class: 'unknown', judgeRoleDropped: false },
+      {
+        key: 'mo ali',
+        entries: 2,
+        sources: ['api participants'],
+        class: 'unknown',
+        judgeRoleDropped: false,
+      },
     ]);
   });
 });
@@ -477,7 +700,12 @@ describe('output', () => {
   const report = (
     base: string,
     empty: string[],
-    shared: Array<{ cls: Cls; cross?: boolean; inst?: 'same' | 'different' | 'unknown'; dropped?: boolean }>,
+    shared: Array<{
+      cls: Cls;
+      cross?: boolean;
+      inst?: 'same' | 'different' | 'unknown';
+      dropped?: boolean;
+    }>,
   ): TournamentReport => ({
     base,
     host: 'h',
@@ -502,9 +730,21 @@ describe('output', () => {
   const reports = [
     report('https://h/b/', [], []),
     report('https://h/a/', ['李明'], [{ cls: 'overlap' }]),
-    report('https://h/c/', [], [{ cls: 'overlap', cross: true, inst: 'same' }, { cls: 'duplicate' }]),
-    report('https://h/d/', [], [{ cls: 'disjoint', cross: true, inst: 'different', dropped: true }, { cls: 'disjoint' }]),
-    report('https://h/e/', [], [{ cls: 'unknown', cross: true, inst: 'unknown', dropped: true }, { cls: 'duplicate' }]),
+    report(
+      'https://h/c/',
+      [],
+      [{ cls: 'overlap', cross: true, inst: 'same' }, { cls: 'duplicate' }],
+    ),
+    report(
+      'https://h/d/',
+      [],
+      [{ cls: 'disjoint', cross: true, inst: 'different', dropped: true }, { cls: 'disjoint' }],
+    ),
+    report(
+      'https://h/e/',
+      [],
+      [{ cls: 'unknown', cross: true, inst: 'unknown', dropped: true }, { cls: 'duplicate' }],
+    ),
   ];
 
   test('CSV: affected first, then affected only if unknown counts; class counts; evidence follows the examples', () => {
@@ -512,7 +752,9 @@ describe('output', () => {
     expect(lines[0]).toBe(
       'tournament_url,host,slug,affected,affected_if_unknown_counted,empty_key_names,shared_key_groups,shared_key_entries,overlap_groups,disjoint_speaker_judge_groups,disjoint_same_role_groups,unknown_round_groups,duplicate_groups,cross_role_same_institution,judge_role_dropped,judge_role_lost_one_person,results_pages,empty_key_examples,shared_key_examples,round_evidence,pages_read,error',
     );
-    expect(lines[1]).toBe('https://h/a/,h,s,true,true,1,1,2,1,0,0,0,0,0,0,0,3,李明,"K, 0 (x2, overlapping rounds, same role, speaker tab)",ev0,speakerTab results:3,');
+    expect(lines[1]).toBe(
+      'https://h/a/,h,s,true,true,1,1,2,1,0,0,0,0,0,0,0,3,李明,"K, 0 (x2, overlapping rounds, same role, speaker tab)",ev0,speakerTab results:3,',
+    );
     expect(lines[2]).toBe(
       'https://h/c/,h,s,true,true,0,2,4,1,0,0,0,1,1,0,0,3,,"K, 0 (x2, overlapping rounds, speaker+judge, same institution, speaker tab) | K, 1 (x2, duplicate, speaker tab)",ev0 | ev1,speakerTab results:3,',
     );
@@ -520,7 +762,9 @@ describe('output', () => {
     expect(lines[3]).toBe(
       'https://h/e/,h,s,false,true,0,2,4,0,0,0,1,1,0,1,0,3,,"K, 0 (x2, rounds unknown, speaker+judge, unknown institution, speaker tab) | K, 1 (x2, duplicate, speaker tab)",ev0 | ev1,speakerTab results:3,',
     );
-    expect(lines[4]).toBe('https://h/b/,h,s,false,false,0,0,0,0,0,0,0,0,0,0,0,3,,,,speakerTab results:3,');
+    expect(lines[4]).toBe(
+      'https://h/b/,h,s,false,false,0,0,0,0,0,0,0,0,0,0,0,3,,,,speakerTab results:3,',
+    );
     // Disjoint groups alone: plausibly one person each, not affected; the
     // dropped judge role on the speaker+judge one is lost credit.
     expect(lines[5]).toBe(
@@ -553,7 +797,13 @@ describe('output', () => {
 
 describe('exportUrlStats', () => {
   test('folds slug case and scheme, and spots a root-hosted tab whose API JSON sits on a second address', () => {
-    const e = (id: string, url: string): IndexEntry => ({ id, url, status: 200, fetchedAt: null, file: id });
+    const e = (id: string, url: string): IndexEntry => ({
+      id,
+      url,
+      status: 200,
+      fetchedAt: null,
+      file: id,
+    });
     const entries = [
       e('1', 'https://a.calicotab.com/Open26/tab/team/'),
       e('2', 'http://a.calicotab.com/open26/tab/speaker/'),
@@ -594,11 +844,23 @@ describe('the script, end to end on a synthetic export', () => {
       ];
       const index = docs.map(([id, url, body]) => {
         writeFileSync(join(dir, `${id}.html.gz`), gzipSync(body));
-        return JSON.stringify({ id, url, status: 200, contentHash: id, contentLength: body.length, fetchedAt: '2026-10-01T00:00:00.000Z', file: `${id}.html.gz` });
+        return JSON.stringify({
+          id,
+          url,
+          status: 200,
+          contentHash: id,
+          contentLength: body.length,
+          fetchedAt: '2026-10-01T00:00:00.000Z',
+          file: `${id}.html.gz`,
+        });
       });
       writeFileSync(join(dir, 'index.jsonl'), index.join('\n') + '\n');
 
-      const stdout = execFileSync(process.execPath, ['scripts/find-identity-affected-tournaments.mjs', '--in', dir], { encoding: 'utf8' });
+      const stdout = execFileSync(
+        process.execPath,
+        ['scripts/find-identity-affected-tournaments.mjs', '--in', dir],
+        { encoding: 'utf8' },
+      );
       expect(stdout).toMatch(/Tournament URLs with a tab page: 4 \(on 4 hosts\)/);
       // open26 has (a); r has overlaps. quiet24 has only an unknown group.
       expect(stdout).toMatch(/Affected \(a or overlapping rounds\): 2 of 4/);
@@ -609,16 +871,28 @@ describe('the script, end to end on a synthetic export', () => {
       expect(stdout).toMatch(/same role:\s+1 tournaments, 1 groups/);
       expect(stdout).toMatch(/rounds unknown:\s+3 tournaments, 5 groups/);
       expect(stdout).toMatch(/duplicate rows:\s+1 tournaments, 1 groups/);
-      expect(stdout).toMatch(/of which one plausible person \(disjoint speaker\+judge\): 1 tournaments, 1 groups/);
+      expect(stdout).toMatch(
+        /of which one plausible person \(disjoint speaker\+judge\): 1 tournaments, 1 groups/,
+      );
       expect(stdout).toMatch(/Tournaments with no results page: 3/);
 
-      const csv = readFileSync(join(dir, 'identity-affected-tournaments.csv'), 'utf8').split('\r\n');
-      expect(csv[1]).toMatch(/^https:\/\/a\.calicotab\.com\/open26\/,a\.calicotab\.com,open26,true,true,1,2,4,0,0,0,2,0,/);
-      expect(csv[2]).toMatch(/^https:\/\/r\.calicotab\.com\/r\/,r\.calicotab\.com,r,true,true,0,7,14,3,1,1,2,0,2,3,1,3,/);
+      const csv = readFileSync(join(dir, 'identity-affected-tournaments.csv'), 'utf8').split(
+        '\r\n',
+      );
+      expect(csv[1]).toMatch(
+        /^https:\/\/a\.calicotab\.com\/open26\/,a\.calicotab\.com,open26,true,true,1,2,4,0,0,0,2,0,/,
+      );
+      expect(csv[2]).toMatch(
+        /^https:\/\/r\.calicotab\.com\/r\/,r\.calicotab\.com,r,true,true,0,7,14,3,1,1,2,0,2,3,1,3,/,
+      );
       expect(csv[2]).toContain('R1: speaker (speaker tab) and speaker (speaker tab)');
       expect(csv[2]).toMatch(/participants speakerTab landing results:3,$/);
-      expect(csv[3]).toMatch(/^https:\/\/c\.calicotab\.com\/quiet24\/,c\.calicotab\.com,quiet24,false,true,0,2,4,0,0,0,1,1,/);
-      expect(csv[4]).toMatch(/^https:\/\/b\.calicotab\.com\/calm25\/,b\.calicotab\.com,calm25,false,false,0,0,0,/);
+      expect(csv[3]).toMatch(
+        /^https:\/\/c\.calicotab\.com\/quiet24\/,c\.calicotab\.com,quiet24,false,true,0,2,4,0,0,0,1,1,/,
+      );
+      expect(csv[4]).toMatch(
+        /^https:\/\/b\.calicotab\.com\/calm25\/,b\.calicotab\.com,calm25,false,false,0,0,0,/,
+      );
       expect(readFileSync(join(dir, 'identity-affected-tournaments.txt'), 'utf8')).toBe(
         'https://a.calicotab.com/open26/\nhttps://r.calicotab.com/r/\n',
       );

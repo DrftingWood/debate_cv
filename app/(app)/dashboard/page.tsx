@@ -156,8 +156,7 @@ export default async function Dashboard({
     const d = detailById.get(u.id);
     return d ? [{ u: { ...u, ...d }, job, status }] : [];
   });
-  const pageHref = (n: number) =>
-    `/dashboard?filter=${activeFilter}${n > 1 ? `&page=${n}` : ''}`;
+  const pageHref = (n: number) => `/dashboard?filter=${activeFilter}${n > 1 ? `&page=${n}` : ''}`;
 
   // With Gmail disconnected the Scan button is disabled, so the empty state
   // must not tell the user to click it. It carries the action itself (NV-26).

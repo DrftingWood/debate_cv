@@ -159,17 +159,21 @@ export function AdminTagProposals() {
     const adminNote = action === 'reject' ? (rejectNotes[id] ?? '') : undefined;
 
     startTransition(async () => {
-      const result = await postJson<ActionResponse>(
-        `/api/admin/tag-proposals/${id}`,
-        { action, adminNote: adminNote || undefined },
-      );
+      const result = await postJson<ActionResponse>(`/api/admin/tag-proposals/${id}`, {
+        action,
+        adminNote: adminNote || undefined,
+      });
       setBusyIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
       if (!result.ok) {
-        toast.show({ kind: 'error', title: `${action === 'approve' ? 'Approve' : 'Reject'} failed`, description: result.error });
+        toast.show({
+          kind: 'error',
+          title: `${action === 'approve' ? 'Approve' : 'Reject'} failed`,
+          description: result.error,
+        });
         return;
       }
       toast.show({
@@ -256,7 +260,9 @@ export function AdminTagProposals() {
       ) : null}
 
       {loading ? (
-        <p role="status" className="text-body text-ink-soft">Loading…</p>
+        <p role="status" className="text-body text-ink-soft">
+          Loading…
+        </p>
       ) : error ? (
         <p className="text-body text-destructive">{error}</p>
       ) : !proposals || proposals.length === 0 ? (
@@ -280,7 +286,9 @@ export function AdminTagProposals() {
               <tbody>
                 {proposals.map((p) => (
                   <Tr key={p.id} className="align-top">
-                    <Td rowHeader className="whitespace-nowrap pl-4 font-normal">{kindLabel(p.kind)}</Td>
+                    <Td rowHeader className="whitespace-nowrap pl-4 font-normal">
+                      {kindLabel(p.kind)}
+                    </Td>
                     <Td className="whitespace-nowrap font-medium text-ink">{p.value}</Td>
                     <Td className="whitespace-nowrap text-ink-soft">
                       {p.currentValue ?? <span className="text-ink-soft">none</span>}
@@ -290,7 +298,9 @@ export function AdminTagProposals() {
                     </Td>
                     <Td>
                       {p.motionText ? (
-                        <span className="block max-w-[18rem] break-words text-ink-soft">{p.motionText}</span>
+                        <span className="block max-w-[18rem] break-words text-ink-soft">
+                          {p.motionText}
+                        </span>
                       ) : (
                         <Nil title="No motion attached" />
                       )}
@@ -299,47 +309,47 @@ export function AdminTagProposals() {
                     <Td className="whitespace-nowrap text-ink-soft">{formatDate(p.createdAt)}</Td>
                     {filter === 'pending' ? (
                       <Td className="pr-4">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
-                            disabled={busyIds.has(p.id)}
-                            onClick={() => handleAction(p.id, 'approve')}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            aria-label={`Reject ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
-                            disabled={busyIds.has(p.id)}
-                            onClick={() => handleAction(p.id, 'reject')}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                        {/* Inline optional reject-note field. Only rendered
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              aria-label={`Approve ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                              disabled={busyIds.has(p.id)}
+                              onClick={() => handleAction(p.id, 'approve')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              aria-label={`Reject ${kindLabel(p.kind).toLowerCase()} ${p.value} for ${p.tournamentName}`}
+                              disabled={busyIds.has(p.id)}
+                              onClick={() => handleAction(p.id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                          {/* Inline optional reject-note field. Only rendered
                             after admin types into it — doesn't expand until
                             focused, keeping the table tidy for pure approvals. */}
-                        <input
-                          type="text"
-                          placeholder="Rejection note (optional)"
-                          aria-label={`Rejection note for ${p.value}, ${p.tournamentName} (optional)`}
-                          value={rejectNotes[p.id] ?? ''}
-                          onChange={(e) =>
-                            setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
-                          }
-                          className={
-                            'h-7 w-48 rounded border border-input bg-paper px-2 text-caption ' +
-                            'text-ink placeholder:text-ink-soft focus:outline-none ' +
-                            'focus:ring-1 focus:ring-ring'
-                          }
-                        />
-                      </div>
+                          <input
+                            type="text"
+                            placeholder="Rejection note (optional)"
+                            aria-label={`Rejection note for ${p.value}, ${p.tournamentName} (optional)`}
+                            value={rejectNotes[p.id] ?? ''}
+                            onChange={(e) =>
+                              setRejectNotes((prev) => ({ ...prev, [p.id]: e.target.value }))
+                            }
+                            className={
+                              'h-7 w-48 rounded border border-input bg-paper px-2 text-caption ' +
+                              'text-ink placeholder:text-ink-soft focus:outline-none ' +
+                              'focus:ring-1 focus:ring-ring'
+                            }
+                          />
+                        </div>
                       </Td>
                     ) : null}
                   </Tr>

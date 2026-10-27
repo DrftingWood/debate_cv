@@ -65,7 +65,14 @@ describe('buildMotionEntries', () => {
     // silently dropped every motion from a judged tournament.
     const entries = buildMotionEntries(
       [],
-      [makeJudgeRow({ tournamentId: 7n, tournamentName: 'Cambridge IV', year: 2023, judgedRoundNumbers: [1] })],
+      [
+        makeJudgeRow({
+          tournamentId: 7n,
+          tournamentName: 'Cambridge IV',
+          year: 2023,
+          judgedRoundNumbers: [1],
+        }),
+      ],
       [makeMotion({ tournamentId: 7n, roundNumber: 1, text: 'THW judge X' })],
     );
 
@@ -121,14 +128,18 @@ describe('buildMotionEntries', () => {
     // join short-circuits) and a prelim the user has no row for (the lookup
     // misses). Both must still appear on the archive.
     const rows = [makeSpeakerRow({ tournamentId: 1n, roundScores: scores([[1, 75]]) })];
-    const outround = buildMotionEntries(rows, [], [
-      makeMotion({ tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 9 }),
-    ]);
+    const outround = buildMotionEntries(
+      rows,
+      [],
+      [makeMotion({ tournamentId: 1n, roundNumber: null, roundLabel: 'Grand Final', seq: 9 })],
+    );
     expect(outround[0]).toMatchObject({ siblings: 0, score: null, won: null, debated: false });
 
-    const undebated = buildMotionEntries(rows, [], [
-      makeMotion({ tournamentId: 1n, roundNumber: 4 }),
-    ]);
+    const undebated = buildMotionEntries(
+      rows,
+      [],
+      [makeMotion({ tournamentId: 1n, roundNumber: 4 })],
+    );
     expect(undebated[0]).toMatchObject({ score: null, debated: false });
   });
 
@@ -158,13 +169,16 @@ describe('buildMotionEntries', () => {
 });
 
 describe('buildMotionEntries: a judged tournament lists only the rounds the user sat on', () => {
-  const judge = (over = {}) => makeJudgeRow({ tournamentId: 7n, tournamentName: 'Cambridge IV', year: 2023, ...over });
+  const judge = (over = {}) =>
+    makeJudgeRow({ tournamentId: 7n, tournamentName: 'Cambridge IV', year: 2023, ...over });
 
   test('prelim motions: only the rounds with the user on the panel', () => {
     const entries = buildMotionEntries(
       [],
       [judge({ judgedRoundNumbers: [1, 3] })],
-      [1, 2, 3, 4].map((n) => makeMotion({ tournamentId: 7n, roundNumber: n, roundLabel: 'Round ' + n, text: 'R' + n })),
+      [1, 2, 3, 4].map((n) =>
+        makeMotion({ tournamentId: 7n, roundNumber: n, roundLabel: 'Round ' + n, text: 'R' + n }),
+      ),
     );
     expect(entries.map((e) => e.motion.text)).toEqual(['R1', 'R3']);
   });
@@ -173,17 +187,28 @@ describe('buildMotionEntries: a judged tournament lists only the rounds the user
     const motions = [
       makeMotion({ tournamentId: 7n, roundNumber: null, roundLabel: 'Quarterfinals', text: 'QF' }),
       makeMotion({ tournamentId: 7n, roundNumber: null, roundLabel: 'Semifinals', text: 'SF' }),
-      makeMotion({ tournamentId: 7n, roundNumber: null, roundLabel: 'ESL Semifinals', text: 'ESL SF' }),
+      makeMotion({
+        tournamentId: 7n,
+        roundNumber: null,
+        roundLabel: 'ESL Semifinals',
+        text: 'ESL SF',
+      }),
       makeMotion({ tournamentId: 7n, roundNumber: null, roundLabel: 'Grand Final', text: 'GF' }),
     ];
-    const entries = buildMotionEntries([], [judge({ judgedOutroundStages: ['Semifinals', 'Final'] })], motions);
+    const entries = buildMotionEntries(
+      [],
+      [judge({ judgedOutroundStages: ['Semifinals', 'Final'] })],
+      motions,
+    );
     // Open Semifinals and the Grand Final (a Final is a Grand Final); not the QF, not the ESL bracket.
     expect(entries.map((e) => e.motion.text).sort()).toEqual(['GF', 'SF']);
   });
 
   test('a judged tournament whose rounds are not recorded lists no motions rather than all of them', () => {
     const rows = [judge({ judgedRoundNumbers: [], judgedOutroundStages: [] })];
-    const motions = [1, 2].map((n) => makeMotion({ tournamentId: 7n, roundNumber: n, text: 'R' + n }));
+    const motions = [1, 2].map((n) =>
+      makeMotion({ tournamentId: 7n, roundNumber: n, text: 'R' + n }),
+    );
     expect(buildMotionEntries([], rows, motions)).toEqual([]);
     // ...and says so, so the page can tell the user instead of silently hiding the tournament.
     expect(judgedWithoutKnownRounds([], rows, motions)).toBe(1);
@@ -322,14 +347,23 @@ describe('knockout motions joined to the team result', () => {
         ko(3n, 'Semifinals', false),
       ]),
     );
-    expect(out['Quarterfinals']).toMatchObject({ debated: true, knockout: { won: true, final: false }, score: null });
-    expect(out['Semifinals']).toMatchObject({ debated: true, knockout: { won: false, final: false } });
+    expect(out['Quarterfinals']).toMatchObject({
+      debated: true,
+      knockout: { won: true, final: false },
+      score: null,
+    });
+    expect(out['Semifinals']).toMatchObject({
+      debated: true,
+      knockout: { won: false, final: false },
+    });
     expect(out['Grand Final']).toMatchObject({ debated: false, knockout: null });
     expect(out['Round 1'].knockout).toBeNull();
   });
 
   test('break categories are different stages: an Open final result never lands on the ESL or Novice final', () => {
-    const out = byLabel(attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'Final', true)]));
+    const out = byLabel(
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'Final', true)]),
+    );
     // "Final" and "Grand Final" are the same last round of the open bracket.
     expect(out['Grand Final'].knockout).toEqual({ won: true, final: true });
     expect(out['ESL Final'].knockout).toBeNull();
@@ -338,7 +372,9 @@ describe('knockout motions joined to the team result', () => {
 
   test('an ESL result joins the ESL motion only', () => {
     const out = byLabel(
-      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'ESL Grand Final', false)]),
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [
+        ko(3n, 'ESL Grand Final', false),
+      ]),
     );
     expect(out['ESL Final'].knockout).toEqual({ won: false, final: true });
     expect(out['Grand Final'].knockout).toBeNull();
@@ -346,7 +382,9 @@ describe('knockout motions joined to the team result', () => {
 
   test('a judged-only tournament never takes a team result', () => {
     const judge = makeJudgeRow({ tournamentId: 3n, judgedOutroundStages: ['Semifinals'] });
-    const out = attachKnockoutResults(buildMotionEntries([], [judge], motions), [ko(3n, 'Semifinals', true)]);
+    const out = attachKnockoutResults(buildMotionEntries([], [judge], motions), [
+      ko(3n, 'Semifinals', true),
+    ]);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ judgedOnly: true, knockout: null, debated: false });
   });
@@ -366,7 +404,12 @@ describe('knockout motions joined to the team result', () => {
 
 describe('knockoutResultFor', () => {
   test('reads one stage across spellings, and gives null when same-stage rows disagree', () => {
-    expect(knockoutResultFor('Finals', [{ stage: 'Final', won: true }, { stage: 'Grand Final', won: true }])).toBe(true);
+    expect(
+      knockoutResultFor('Finals', [
+        { stage: 'Final', won: true },
+        { stage: 'Grand Final', won: true },
+      ]),
+    ).toBe(true);
     const clash = [
       { stage: 'Final', won: true },
       { stage: 'Grand Final', won: false },
@@ -376,7 +419,9 @@ describe('knockoutResultFor', () => {
   });
 
   test('a pre-round is its own stage, not the round it feeds', () => {
-    expect(knockoutResultFor('Pre-Quarterfinals', [{ stage: 'Quarterfinals', won: true }])).toBeNull();
+    expect(
+      knockoutResultFor('Pre-Quarterfinals', [{ stage: 'Quarterfinals', won: true }]),
+    ).toBeNull();
     expect(sameKnockoutStage('Pre-Quarterfinals', 'Partial Octofinals')).toBe(true);
   });
 });

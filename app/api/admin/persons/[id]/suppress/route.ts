@@ -59,17 +59,11 @@ async function guardAdmin() {
     return null;
   } catch (err) {
     const status = (err as { status?: number }).status ?? 500;
-    return NextResponse.json(
-      { error: status === 403 ? 'forbidden' : 'unauthorized' },
-      { status },
-    );
+    return NextResponse.json({ error: status === 403 ? 'forbidden' : 'unauthorized' }, { status });
   }
 }
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await guardAdmin();
   if (denied) return denied;
 
@@ -117,10 +111,7 @@ export async function POST(
   });
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await guardAdmin();
   if (denied) return denied;
 

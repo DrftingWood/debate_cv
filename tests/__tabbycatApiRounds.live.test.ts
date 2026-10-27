@@ -52,7 +52,8 @@ async function html(url: string): Promise<string | null> {
 async function roundHtml(url: string): Promise<{ url: string; html: string } | null> {
   const trimmed = url.replace(/\/+$/, '') + '/';
   const byDebate = await html(`${trimmed}by-debate/`);
-  if (byDebate && /window\.vueData|tablesData/.test(byDebate)) return { url: `${trimmed}by-debate/`, html: byDebate };
+  if (byDebate && /window\.vueData|tablesData/.test(byDebate))
+    return { url: `${trimmed}by-debate/`, html: byDebate };
   const plain = await html(trimmed);
   return plain ? { url: trimmed, html: plain } : null;
 }
@@ -66,13 +67,18 @@ function diffRound(h: RoundDebate, a: RoundDebate): string[] {
   const api = new Map(a.teamResults.map((t) => [key(t), t]));
   for (const t of h.teamResults) {
     const x = api.get(key(t));
-    if (!x) { out.push(`team missing from API: ${t.teamName}`); continue; }
+    if (!x) {
+      out.push(`team missing from API: ${t.teamName}`);
+      continue;
+    }
     for (const k of ['position', 'points', 'won'] as const) {
       if (t[k] !== x[k]) out.push(`${t.teamName}.${k}: html=${t[k]} api=${x[k]}`);
     }
   }
-  if (h.teamResults.length !== a.teamResults.length) out.push(`team rows: html=${h.teamResults.length} api=${a.teamResults.length}`);
-  const j = (x: RoundDebate['judgeAssignments'][number]) => `${normalizePersonName(x.personName)}|${x.panelRole}`;
+  if (h.teamResults.length !== a.teamResults.length)
+    out.push(`team rows: html=${h.teamResults.length} api=${a.teamResults.length}`);
+  const j = (x: RoundDebate['judgeAssignments'][number]) =>
+    `${normalizePersonName(x.personName)}|${x.panelRole}`;
   const hj = new Set(h.judgeAssignments.map(j));
   const aj = new Set(a.judgeAssignments.map(j));
   for (const x of hj) if (!aj.has(x)) out.push(`judge missing from API: ${x}`);
@@ -85,7 +91,10 @@ function diffBreak(h: BreakRow[], a: BreakRow[]): string[] {
   const api = new Map(a.map((r) => [normalizePersonName(r.entityName), r]));
   for (const r of h) {
     const x = api.get(normalizePersonName(r.entityName));
-    if (!x) { out.push(`break row missing from API: ${r.entityName}`); continue; }
+    if (!x) {
+      out.push(`break row missing from API: ${r.entityName}`);
+      continue;
+    }
     for (const k of ['rank', 'score', 'stage', 'entityType', 'institution'] as const) {
       if (r[k] !== x[k]) out.push(`${r.entityName}.${k}: html=${r[k]} api=${x[k]}`);
     }
@@ -107,74 +116,96 @@ function diffParticipants(h: ParticipantsRow[], a: ParticipantsRow[]): string[] 
   const hc = count(h);
   const ac = count(a);
   const out: string[] = [];
-  for (const [k, n] of hc) if ((ac.get(k) ?? 0) !== n) out.push(`html×${n} api×${ac.get(k) ?? 0}: ${k}`);
+  for (const [k, n] of hc)
+    if ((ac.get(k) ?? 0) !== n) out.push(`html×${n} api×${ac.get(k) ?? 0}: ${k}`);
   for (const [k, n] of ac) if (!hc.has(k)) out.push(`html×0 api×${n}: ${k}`);
   return out;
 }
 
-describe.runIf(process.env.RUN_TABBYCAT_API_ROUNDS === '1')('tabbycat API rounds/break/participants parity', () => {
-  const report: Record<string, unknown> = {};
+describe.runIf(process.env.RUN_TABBYCAT_API_ROUNDS === '1')(
+  'tabbycat API rounds/break/participants parity',
+  () => {
+    const report: Record<string, unknown> = {};
 
-  for (const base of TOURNAMENTS) {
-    it(
-      base,
-      async () => {
-        const start = requests;
-        const landing = await html(base);
-        expect(landing, 'landing page').toBeTruthy();
-        const nav = extractNavigation(landing!, base);
+    for (const base of TOURNAMENTS) {
+      it(
+        base,
+        async () => {
+          const start = requests;
+          const landing = await html(base);
+          expect(landing, 'landing page').toBeTruthy();
+          const nav = extractNavigation(landing!, base);
 
-        const apiStart = requests;
-        const api = await fetchRestFromApi(base, nav, (u) => politeFetch(u, 'application/json'));
-        const apiRequests = requests - apiStart;
+          const apiStart = requests;
+          const api = await fetchRestFromApi(base, nav, (u) => politeFetch(u, 'application/json'));
+          const apiRequests = requests - apiStart;
 
-        const diffs: Record<string, string[] | string> = {};
-        let htmlRequests = 0;
-        for (const u of nav.resultsRounds) {
-          const before = requests;
-          const page = await roundHtml(u);
-          htmlRequests += requests - before;
-          const got = api.rounds.get(u);
-          if (!page) { diffs[u] = 'html: not fetched'; continue; }
-          if (!got || got.source !== 'api') { diffs[u] = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`; continue; }
-          // Both sides get the nav label by the nav URL (see the B8 handoff
-          // note on ingest's by-debate label lookup).
-          const h = parseRoundResults(page.html, u, nav.resultsRoundLabels?.[u]);
-          const d = diffRound(h, got.value);
-          if (d.length) diffs[u] = d;
-        }
-        for (const u of nav.breakTabs) {
-          const before = requests;
-          const page = await html(u);
-          htmlRequests += requests - before;
-          const got = api.breaks.get(u);
-          if (!page) { diffs[u] = 'html: not fetched'; continue; }
-          if (!got || got.source !== 'api') { diffs[u] = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`; continue; }
-          const d = diffBreak(parseBreakPage(page, u), got.value);
-          if (d.length) diffs[u] = d;
-        }
-        if (nav.participants) {
-          const before = requests;
-          const page = await html(nav.participants);
-          htmlRequests += requests - before;
-          const got = api.participants;
-          if (!page) diffs.participants = 'html: not fetched';
-          else if (!got || got.source !== 'api') diffs.participants = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`;
-          else {
-            const d = diffParticipants(parseParticipantsList(page), got.value);
-            if (d.length) diffs.participants = d;
+          const diffs: Record<string, string[] | string> = {};
+          let htmlRequests = 0;
+          for (const u of nav.resultsRounds) {
+            const before = requests;
+            const page = await roundHtml(u);
+            htmlRequests += requests - before;
+            const got = api.rounds.get(u);
+            if (!page) {
+              diffs[u] = 'html: not fetched';
+              continue;
+            }
+            if (!got || got.source !== 'api') {
+              diffs[u] = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`;
+              continue;
+            }
+            // Both sides get the nav label by the nav URL (see the B8 handoff
+            // note on ingest's by-debate label lookup).
+            const h = parseRoundResults(page.html, u, nav.resultsRoundLabels?.[u]);
+            const d = diffRound(h, got.value);
+            if (d.length) diffs[u] = d;
           }
-        }
+          for (const u of nav.breakTabs) {
+            const before = requests;
+            const page = await html(u);
+            htmlRequests += requests - before;
+            const got = api.breaks.get(u);
+            if (!page) {
+              diffs[u] = 'html: not fetched';
+              continue;
+            }
+            if (!got || got.source !== 'api') {
+              diffs[u] = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`;
+              continue;
+            }
+            const d = diffBreak(parseBreakPage(page, u), got.value);
+            if (d.length) diffs[u] = d;
+          }
+          if (nav.participants) {
+            const before = requests;
+            const page = await html(nav.participants);
+            htmlRequests += requests - before;
+            const got = api.participants;
+            if (!page) diffs.participants = 'html: not fetched';
+            else if (!got || got.source !== 'api')
+              diffs.participants = `api fell back: ${got?.source === 'html' ? got.reason : 'missing'}`;
+            else {
+              const d = diffParticipants(parseParticipantsList(page), got.value);
+              if (d.length) diffs.participants = d;
+            }
+          }
 
-        report[base] = {
-          pages: { rounds: nav.resultsRounds.length, breaks: nav.breakTabs.length, participants: !!nav.participants },
-          requests: { api: apiRequests, html: htmlRequests, landing: apiStart - start },
-          diffs,
-        };
-        if (process.env.TABBYCAT_API_REPORT) writeFileSync(process.env.TABBYCAT_API_REPORT, JSON.stringify(report, null, 1));
-        console.info(base, JSON.stringify(report[base]).slice(0, 3000));
-      },
-      900_000,
-    );
-  }
-});
+          report[base] = {
+            pages: {
+              rounds: nav.resultsRounds.length,
+              breaks: nav.breakTabs.length,
+              participants: !!nav.participants,
+            },
+            requests: { api: apiRequests, html: htmlRequests, landing: apiStart - start },
+            diffs,
+          };
+          if (process.env.TABBYCAT_API_REPORT)
+            writeFileSync(process.env.TABBYCAT_API_REPORT, JSON.stringify(report, null, 1));
+          console.info(base, JSON.stringify(report[base]).slice(0, 3000));
+        },
+        900_000,
+      );
+    }
+  },
+);

@@ -28,7 +28,11 @@ export function DeltaChip({
   className?: string;
 }) {
   const tone =
-    trend === 'up' ? 'text-pos bg-pos-soft' : trend === 'down' ? 'text-neg bg-neg-soft' : 'text-ink-soft bg-surface-2';
+    trend === 'up'
+      ? 'text-pos bg-pos-soft'
+      : trend === 'down'
+        ? 'text-neg bg-neg-soft'
+        : 'text-ink-soft bg-surface-2';
   const glyph = trend === 'up' ? '▲' : trend === 'down' ? '▼' : '—';
   return (
     <span
@@ -38,7 +42,9 @@ export function DeltaChip({
         className,
       )}
     >
-      <span aria-hidden className="text-[8px] leading-none">{glyph}</span>
+      <span aria-hidden className="text-[8px] leading-none">
+        {glyph}
+      </span>
       {value}
     </span>
   );

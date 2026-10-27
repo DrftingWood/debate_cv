@@ -15,7 +15,10 @@ const DIR = process.env.CORPUS_DIR ?? '';
 
 describe.skipIf(!process.env.RUN_CAT_PROBE || !DIR)('speaker categories on real tabs', () => {
   it('parses categories out of the corpus', () => {
-    type Entry = { rootStatus: number; pages: Array<{ url: string; kind: string; file: string | null }> };
+    type Entry = {
+      rootStatus: number;
+      pages: Array<{ url: string; kind: string; file: string | null }>;
+    };
     const entries: Entry[] = JSON.parse(readFileSync(join(DIR, 'index.json'), 'utf-8'));
     const key = (u: string) => createHash('sha1').update(u).digest('hex').slice(0, 16);
 
@@ -38,7 +41,9 @@ describe.skipIf(!process.env.RUN_CAT_PROBE || !DIR)('speaker categories on real 
       }
     }
 
-    console.log(`[cat] speaker tabs=${pages} withCategories=${withCats} speakersTagged=${speakersWithCats}`);
+    console.log(
+      `[cat] speaker tabs=${pages} withCategories=${withCats} speakersTagged=${speakersWithCats}`,
+    );
     console.log(
       `[cat] distinct=${seen.size} top=${[...seen.entries()]
         .sort((a, b) => b[1] - a[1])

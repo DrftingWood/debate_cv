@@ -73,7 +73,7 @@ describe('findRedactedOwnerRow', () => {
 
   test('returns null when the team has no rows at all', () => {
     const speakerRows = [row({ speakerName: 'Other', teamName: 'Some Other Team' })];
-    const lookup = makeLookup({ 'Other': 1n, 'Anya Yuk Lan': 13n });
+    const lookup = makeLookup({ Other: 1n, 'Anya Yuk Lan': 13n });
     expect(findRedactedOwnerRow(speakerRows, 'Anya Yuk Lan', 'NUJS A', lookup)).toBeNull();
   });
 

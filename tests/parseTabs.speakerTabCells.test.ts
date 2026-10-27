@@ -22,22 +22,26 @@ const HEAD = [
   { key: 'Stdev', title: 'Stdev' },
   { key: 'Num', title: 'Num' },
 ];
-const small = (whole: string, frac: string) => ({ text: `${whole}<small class="text-muted">.${frac}</small>` });
+const small = (whole: string, frac: string) => ({
+  text: `${whole}<small class="text-muted">.${frac}</small>`,
+});
 
 describe('speaker tab cells', () => {
   const [row] = parseSpeakerTab(
-    vuePage(HEAD, [[
-      { text: '1=', sort: 1 },
-      { text: 'David Africa' },
-      { text: 'novice, esl' },
-      { text: '—' },
-      small('77', '50'),
-      small('78', '00'),
-      { text: '' },
-      small('77', '75'),
-      { text: '0.25' },
-      { text: '2' },
-    ]]),
+    vuePage(HEAD, [
+      [
+        { text: '1=', sort: 1 },
+        { text: 'David Africa' },
+        { text: 'novice, esl' },
+        { text: '—' },
+        small('77', '50'),
+        small('78', '00'),
+        { text: '' },
+        small('77', '75'),
+        { text: '0.25' },
+        { text: '2' },
+      ],
+    ]),
   );
 
   test('a score with its decimals in a <small> is read', () => {
@@ -54,13 +58,15 @@ describe('speaker tab cells', () => {
   test('only the <small> decimal wrapper is unwrapped', () => {
     const head = [{ key: 'Rk' }, { key: 'name' }, { key: 'R1' }, { key: 'R2' }, { key: 'R3' }];
     const [r] = parseSpeakerTab(
-      vuePage(head, [[
-        { text: '1' },
-        { text: 'A B' },
-        { text: '75<span class="d-none">3</span>' },
-        { text: '<em>1</em><em>2</em>' },
-        small('76', '25'),
-      ]]),
+      vuePage(head, [
+        [
+          { text: '1' },
+          { text: 'A B' },
+          { text: '75<span class="d-none">3</span>' },
+          { text: '<em>1</em><em>2</em>' },
+          small('76', '25'),
+        ],
+      ]),
     );
     expect(r!.roundScores.map((s) => s.score)).toEqual([null, null, 76.25]);
   });
@@ -75,10 +81,11 @@ describe('speaker tab cells', () => {
 
   test('a published total still wins over the sum', () => {
     const head = [{ key: 'Rk' }, { key: 'name' }, { key: 'R1' }, { key: 'Total' }];
-    const [r] = parseSpeakerTab(vuePage(head, [[{ text: '1' }, { text: 'A B' }, { text: '75' }, { text: '150' }]]));
+    const [r] = parseSpeakerTab(
+      vuePage(head, [[{ text: '1' }, { text: 'A B' }, { text: '75' }, { text: '150' }]]),
+    );
     expect(r!.totalScore).toBe(150);
   });
-
 });
 
 describe('two-team result cells', () => {
@@ -95,8 +102,16 @@ describe('two-team result cells', () => {
   test('the popover title is the outcome', () => {
     const round = parseRoundResults(
       vuePage(HEAD_RR, [
-        [{ text: 'Honorable Conquerors' }, cell('Jesus you are v emo', 'Won against Jesus you are v emo', true), { text: 'Government' }],
-        [{ text: 'Jesus you are v emo' }, cell('Honorable Conquerors', 'Lost to Honorable Conquerors', false), { text: 'Opposition' }],
+        [
+          { text: 'Honorable Conquerors' },
+          cell('Jesus you are v emo', 'Won against Jesus you are v emo', true),
+          { text: 'Government' },
+        ],
+        [
+          { text: 'Jesus you are v emo' },
+          cell('Honorable Conquerors', 'Lost to Honorable Conquerors', false),
+          { text: 'Opposition' },
+        ],
       ]),
       'https://x.calicotab.com/t/results/round/1/',
       'Round 1',
@@ -118,8 +133,16 @@ describe('two-team result cells', () => {
   test("the opponent's name is never read as the outcome", () => {
     const round = parseRoundResults(
       vuePage(HEAD_RR, [
-        [{ text: 'Alpha' }, cell('Lost Boys', 'Won against Lost Boys', true), { text: 'Affirmative' }],
-        [{ text: 'Beta' }, cell('Winners United', 'Lost to Winners United', false), { text: 'Negative' }],
+        [
+          { text: 'Alpha' },
+          cell('Lost Boys', 'Won against Lost Boys', true),
+          { text: 'Affirmative' },
+        ],
+        [
+          { text: 'Beta' },
+          cell('Winners United', 'Lost to Winners United', false),
+          { text: 'Negative' },
+        ],
       ]),
       'https://x.calicotab.com/t/results/round/1/',
       'Round 1',

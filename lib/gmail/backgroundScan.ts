@@ -54,7 +54,13 @@ export async function scanDueMailboxes(
 ): Promise<BackgroundScanReport> {
   const now = deps.now ?? Date.now;
   const started = now();
-  const report: BackgroundScanReport = { scanned: 0, urlsFound: 0, grantsCleared: 0, failed: 0, stoppedForBudget: false };
+  const report: BackgroundScanReport = {
+    scanned: 0,
+    urlsFound: 0,
+    grantsCleared: 0,
+    failed: 0,
+    stoppedForBudget: false,
+  };
 
   const due = await deps.findDue(new Date(started - opts.intervalMs), opts.maxUsers);
   for (const userId of due) {

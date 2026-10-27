@@ -77,14 +77,23 @@ describe('buildStatsFacts — rounds', () => {
       mate('Bob', 228, scores([1, 76], [2, 76], [3, 76])),
     ],
     teammates: ['Ann', 'Bob'],
-    teamRoundResults: rounds([1, 'Government', true, null], [2, 'Opposition', false, null], [4, 'Government', true, null]),
+    teamRoundResults: rounds(
+      [1, 'Government', true, null],
+      [2, 'Opposition', false, null],
+      [4, 'Government', true, null],
+    ),
   });
 
   const facts = buildStatsFacts({
     speakerRows: [ap],
     taggedMotions: [
       makeMotion({ tournamentId: 1n, roundNumber: 1, text: 'THW ban zoos' }),
-      makeMotion({ tournamentId: 1n, roundNumber: 2, text: 'THBT zoos are bad', infoSlide: 'Zoos…' }),
+      makeMotion({
+        tournamentId: 1n,
+        roundNumber: 2,
+        text: 'THBT zoos are bad',
+        infoSlide: 'Zoos…',
+      }),
     ],
   });
 
@@ -110,11 +119,22 @@ describe('buildStatsFacts — rounds', () => {
       motionType: 'Policy',
       infoSlide: false,
     });
-    expect(facts.rounds[1]).toMatchObject({ seat: 'AP:Opp', won: false, motionType: 'Belief', infoSlide: true });
+    expect(facts.rounds[1]).toMatchObject({
+      seat: 'AP:Opp',
+      won: false,
+      motionType: 'Belief',
+      infoSlide: true,
+    });
   });
 
   test('a round with a score but no result still appears, with a null outcome', () => {
-    expect(facts.rounds[2]).toMatchObject({ round: 3, score: 80, won: null, seat: null, motionType: null });
+    expect(facts.rounds[2]).toMatchObject({
+      round: 3,
+      score: 80,
+      won: null,
+      seat: null,
+      motionType: null,
+    });
   });
 
   test('pairing label and gap come from round-score means at that tournament', () => {
@@ -246,7 +266,9 @@ describe('red-team regressions', () => {
     const f = buildStatsFacts({
       speakerRows: [
         makeSpeakerRow({
-          tournamentId: 5n, format: 'World Schools', prelimRoundCount: 2,
+          tournamentId: 5n,
+          format: 'World Schools',
+          prelimRoundCount: 2,
           roundScores: scores([1, 78], [2, 78]),
           teammateDetails: [mate('Ann', 150, scores([1, 75], [2, 75])), mate('Reserve', null)],
           teammates: ['Ann', 'Reserve'],
@@ -262,14 +284,24 @@ describe('red-team regressions', () => {
     const f = buildStatsFacts({
       speakerRows: [
         makeSpeakerRow({
-          tournamentId: 6n, format: 'British Parliamentary', prelimRoundCount: 2,
-          roundScores: scores([1, 75], [2, 75]), teammateDetails: [], teammates: [],
+          tournamentId: 6n,
+          format: 'British Parliamentary',
+          prelimRoundCount: 2,
+          roundScores: scores([1, 75], [2, 75]),
+          teammateDetails: [],
+          teammates: [],
           teamRoundResults: rounds([1, 'OG', true, 3], [2, 'OO', false, 0]),
         }),
       ],
       taggedMotions: [
         makeMotion({ tournamentId: 6n, roundNumber: 1, seq: 0, text: 'THW ban X', infoSlide: 'x' }),
-        makeMotion({ tournamentId: 6n, roundNumber: 1, seq: 1, text: 'THBT Y is bad', infoSlide: 'y' }),
+        makeMotion({
+          tournamentId: 6n,
+          roundNumber: 1,
+          seq: 1,
+          text: 'THBT Y is bad',
+          infoSlide: 'y',
+        }),
       ],
     });
     expect(f.rounds[0]).toMatchObject({ motionType: null, hasMotion: true, infoSlide: true });
@@ -277,15 +309,21 @@ describe('red-team regressions', () => {
   });
 
   test('two-team sides share one key whatever the tab calls them', () => {
-    expect(seatKey('Two-team Parliamentary', 'Government')).toBe(seatKey('Two-team Parliamentary', 'Proposition'));
+    expect(seatKey('Two-team Parliamentary', 'Government')).toBe(
+      seatKey('Two-team Parliamentary', 'Proposition'),
+    );
     expect(seatKey(null, 'Government')).toBe(seatKey(null, 'Proposition'));
-    expect(seatKey('British Parliamentary', 'Side A')).toBe(seatKey('British Parliamentary', 'side a'));
+    expect(seatKey('British Parliamentary', 'Side A')).toBe(
+      seatKey('British Parliamentary', 'side a'),
+    );
   });
 
   test('partners are keyed by person, so two people with one display name stay apart', () => {
     const row = (id: bigint, key: string) =>
       makeSpeakerRow({
-        tournamentId: id, format: 'British Parliamentary', prelimRoundCount: 1,
+        tournamentId: id,
+        format: 'British Parliamentary',
+        prelimRoundCount: 1,
         roundScores: scores([1, 75]),
         teammateDetails: [{ ...mate('[name withdrawn]', 75, scores([1, 75])), key }],
         teammates: ['[name withdrawn]'],
@@ -299,8 +337,12 @@ describe('red-team regressions', () => {
 
 describe('buildStatsFacts — untagged is not a choice', () => {
   const row = makeSpeakerRow({
-    tournamentId: 4n, format: 'Asian Parliamentary', prelimRoundCount: 3,
-    roundScores: scores([1, 75], [2, 75], [3, 75]), teammateDetails: [], teammates: [],
+    tournamentId: 4n,
+    format: 'Asian Parliamentary',
+    prelimRoundCount: 3,
+    roundScores: scores([1, 75], [2, 75], [3, 75]),
+    teammateDetails: [],
+    teammates: [],
     teamRoundResults: [],
   });
 
@@ -308,31 +350,92 @@ describe('buildStatsFacts — untagged is not a choice', () => {
     const f = buildStatsFacts({
       speakerRows: [row],
       taggedMotions: [
-        makeMotion({ tournamentId: 4n, roundNumber: 1, seq: 0, text: 'THW ban X', topic: 'Education' }),
+        makeMotion({
+          tournamentId: 4n,
+          roundNumber: 1,
+          seq: 0,
+          text: 'THW ban X',
+          topic: 'Education',
+        }),
         makeMotion({ tournamentId: 4n, roundNumber: 1, seq: 1, text: 'THW tax Y', topic: null }),
-        makeMotion({ tournamentId: 4n, roundNumber: 2, seq: 0, text: 'THW ban X', topic: 'Education' }),
-        makeMotion({ tournamentId: 4n, roundNumber: 2, seq: 1, text: 'THW tax Y', topic: 'Media & Arts' }),
-        makeMotion({ tournamentId: 4n, roundNumber: 3, seq: 0, text: 'Ban X?', topic: 'Education' }),
+        makeMotion({
+          tournamentId: 4n,
+          roundNumber: 2,
+          seq: 0,
+          text: 'THW ban X',
+          topic: 'Education',
+        }),
+        makeMotion({
+          tournamentId: 4n,
+          roundNumber: 2,
+          seq: 1,
+          text: 'THW tax Y',
+          topic: 'Media & Arts',
+        }),
+        makeMotion({
+          tournamentId: 4n,
+          roundNumber: 3,
+          seq: 0,
+          text: 'Ban X?',
+          topic: 'Education',
+        }),
       ],
     });
     // Round 1: the topic stays unknown (the room may have taken the untagged option).
-    expect(f.rounds[0]).toMatchObject({ motionTopic: null, motionType: 'Policy', choiceRound: false, untagged: true });
+    expect(f.rounds[0]).toMatchObject({
+      motionTopic: null,
+      motionType: 'Policy',
+      choiceRound: false,
+      untagged: true,
+    });
     // Round 2: two known, different topics: a real choice.
-    expect(f.rounds[1]).toMatchObject({ motionTopic: null, motionType: 'Policy', choiceRound: true, untagged: false });
+    expect(f.rounds[1]).toMatchObject({
+      motionTopic: null,
+      motionType: 'Policy',
+      choiceRound: true,
+      untagged: false,
+    });
     // Round 3: a wording the classifier cannot place.
-    expect(f.rounds[2]).toMatchObject({ motionTopic: 'Education', motionType: null, unclassified: true });
+    expect(f.rounds[2]).toMatchObject({
+      motionTopic: 'Education',
+      motionType: null,
+      unclassified: true,
+    });
   });
 });
 
 describe('buildStatsFacts — knockouts', () => {
   const row = makeSpeakerRow({
-    tournamentId: 9n, format: 'British Parliamentary', prelimRoundCount: 1,
-    roundScores: scores([1, 75]), teammateDetails: [], teammates: [], teamRoundResults: [],
+    tournamentId: 9n,
+    format: 'British Parliamentary',
+    prelimRoundCount: 1,
+    roundScores: scores([1, 75]),
+    teammateDetails: [],
+    teammates: [],
+    teamRoundResults: [],
   });
   const motions = [
-    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'Semifinals', text: 'THW ban X', topic: 'Education' }),
-    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'Grand Final', text: 'THBT Y', topic: 'Media & Arts' }),
-    makeMotion({ tournamentId: 9n, roundNumber: null, roundLabel: 'ESL Grand Final', text: 'THR Z', topic: 'Education' }),
+    makeMotion({
+      tournamentId: 9n,
+      roundNumber: null,
+      roundLabel: 'Semifinals',
+      text: 'THW ban X',
+      topic: 'Education',
+    }),
+    makeMotion({
+      tournamentId: 9n,
+      roundNumber: null,
+      roundLabel: 'Grand Final',
+      text: 'THBT Y',
+      topic: 'Media & Arts',
+    }),
+    makeMotion({
+      tournamentId: 9n,
+      roundNumber: null,
+      roundLabel: 'ESL Grand Final',
+      text: 'THR Z',
+      topic: 'Education',
+    }),
   ];
 
   test('each stage the team has a result in becomes a knockout with its motion, never a scored round', () => {
@@ -346,8 +449,21 @@ describe('buildStatsFacts — knockouts', () => {
     });
     expect(f.rounds).toHaveLength(1);
     expect(f.knockouts).toEqual([
-      expect.objectContaining({ tournamentId: '9', stage: 'Semifinals', won: true, final: false, motionTopic: 'Education', motionType: 'Policy' }),
-      expect.objectContaining({ stage: 'Final', won: false, final: true, motionTopic: 'Media & Arts', motionType: 'Belief' }),
+      expect.objectContaining({
+        tournamentId: '9',
+        stage: 'Semifinals',
+        won: true,
+        final: false,
+        motionTopic: 'Education',
+        motionType: 'Policy',
+      }),
+      expect.objectContaining({
+        stage: 'Final',
+        won: false,
+        final: true,
+        motionTopic: 'Media & Arts',
+        motionType: 'Belief',
+      }),
     ]);
   });
 

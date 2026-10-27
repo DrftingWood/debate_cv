@@ -5,9 +5,18 @@ import { writeReserveMs } from '@/lib/calicotab/ingest';
 // [participants, teams, measured writeMs]. The reserve must cover each with
 // margin, or a tournament that passes the check is killed mid-write.
 const MEASURED: Array<[number, number, number]> = [
-  [60, 25, 1_800], [91, 29, 2_100], [125, 26, 3_400], [137, 31, 4_400],
-  [146, 53, 5_000], [194, 43, 3_200], [211, 58, 5_300], [244, 87, 5_600],
-  [273, 94, 5_800], [242, 94, 6_600], [274, 94, 8_500], [436, 192, 11_000],
+  [60, 25, 1_800],
+  [91, 29, 2_100],
+  [125, 26, 3_400],
+  [137, 31, 4_400],
+  [146, 53, 5_000],
+  [194, 43, 3_200],
+  [211, 58, 5_300],
+  [244, 87, 5_600],
+  [273, 94, 5_800],
+  [242, 94, 6_600],
+  [274, 94, 8_500],
+  [436, 192, 11_000],
   [1_062, 379, 18_094], // WUDC 2022, ingested successfully with a flat 15 s reserve
 ];
 

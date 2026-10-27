@@ -170,9 +170,7 @@ import { expect } from 'vitest';
  * block in every API test file — every endpoint needs this check, and
  * doing it 10 different ways across files invited drift.
  */
-export async function expectUnauthorized(
-  call: () => Promise<Response>,
-): Promise<void> {
+export async function expectUnauthorized(call: () => Promise<Response>): Promise<void> {
   authMock.mockResolvedValue(null);
   const res = await call();
   expect(res.status).toBe(401);
@@ -186,9 +184,7 @@ export async function expectUnauthorized(
  * which is what every route in this app returns from the standard
  * `safeParse` failure branch.
  */
-export async function expectMalformedBody(
-  call: () => Promise<Response>,
-): Promise<void> {
+export async function expectMalformedBody(call: () => Promise<Response>): Promise<void> {
   const res = await call();
   expect(res.status).toBe(400);
   const data = (await res.json()) as { error?: string };

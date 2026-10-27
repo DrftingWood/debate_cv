@@ -44,7 +44,10 @@ describe('parseRoundResults — isOutround classification', () => {
 // (`key` is the data key, `title` is the visible label); each row in
 // `data` is an array of `{ text }` cells aligned with `head`. Used to
 // pin the Vue extraction path in roundResultsFromVue.
-function vueResultsHtml(head: { key: string; title: string }[], data: { text: string }[][]): string {
+function vueResultsHtml(
+  head: { key: string; title: string }[],
+  data: { text: string }[][],
+): string {
   const payload = JSON.stringify([{ head, data }]);
   return `<!doctype html><html><body><script>window.vueData = ${payload}</script></body></html>`;
 }
@@ -64,18 +67,8 @@ describe('parseRoundResults — Vue judge extraction', () => {
         { key: 'adjudicators', title: 'Adjudicators' },
       ],
       [
-        [
-          { text: 'Alpha' },
-          { text: 'OG' },
-          { text: '3' },
-          { text: 'Jane Doe (chair), John Roe' },
-        ],
-        [
-          { text: 'Beta' },
-          { text: 'OO' },
-          { text: '2' },
-          { text: 'Jane Doe (chair), John Roe' },
-        ],
+        [{ text: 'Alpha' }, { text: 'OG' }, { text: '3' }, { text: 'Jane Doe (chair), John Roe' }],
+        [{ text: 'Beta' }, { text: 'OO' }, { text: '2' }, { text: 'Jane Doe (chair), John Roe' }],
       ],
     );
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/1/');
@@ -93,14 +86,15 @@ describe('parseRoundResults — Vue judge extraction', () => {
         { key: 'team', title: 'Team' },
         { key: 'adjudicators', title: 'Adj' },
       ],
-      [
-        [{ text: 'Team A' }, { text: 'Alice (c), Bob (chair), Carol (chief), Dave' }],
-      ],
+      [[{ text: 'Team A' }, { text: 'Alice (c), Bob (chair), Carol (chief), Dave' }]],
     );
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/2/');
     const names = round.judgeAssignments.map((j) => j.personName).sort();
     expect(names).toEqual(['Alice', 'Bob', 'Carol', 'Dave']);
-    const chairs = round.judgeAssignments.filter((j) => j.panelRole === 'chair').map((j) => j.personName).sort();
+    const chairs = round.judgeAssignments
+      .filter((j) => j.panelRole === 'chair')
+      .map((j) => j.personName)
+      .sort();
     expect(chairs).toEqual(['Alice', 'Bob', 'Carol']);
   });
 
@@ -110,9 +104,7 @@ describe('parseRoundResults — Vue judge extraction', () => {
         { key: 'team', title: 'Team' },
         { key: 'points', title: 'Points' },
       ],
-      [
-        [{ text: 'Alpha' }, { text: '3' }],
-      ],
+      [[{ text: 'Alpha' }, { text: '3' }]],
     );
     const round = parseRoundResults(html, 'https://x.calicotab.com/t/results/round/3/');
     expect(round.teamResults).toHaveLength(1);

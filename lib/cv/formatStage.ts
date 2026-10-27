@@ -1,4 +1,8 @@
-import { classifyOutroundStage, type OutroundStage, normalizeStageLabel } from '@/lib/calicotab/judgeStats';
+import {
+  classifyOutroundStage,
+  type OutroundStage,
+  normalizeStageLabel,
+} from '@/lib/calicotab/judgeStats';
 import { splitOutroundStage } from '@/lib/calicotab/breakCategoryResolve';
 
 /**

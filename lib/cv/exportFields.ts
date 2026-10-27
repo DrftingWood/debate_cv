@@ -5,7 +5,11 @@ import type {
   CvFieldStat,
   CvTaggedMotion,
 } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay, formatBaseStageForDisplay, titleCategory } from '@/lib/cv/formatStage';
+import {
+  formatStageForDisplay,
+  formatBaseStageForDisplay,
+  titleCategory,
+} from '@/lib/cv/formatStage';
 import { csvLine } from '@/lib/utils/csv';
 import { breakSeed, formatTopPercent, teamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank, rankLabel } from '@/lib/cv/rankDisplay';
@@ -101,15 +105,23 @@ function winMark(r: CvSpeakerRow): string {
 }
 
 export const EXPORT_FIELDS: ExportField[] = [
-  { id: 'tournament', label: 'Tournament', speaker: (r) => r.tournamentName, judge: (r) => r.tournamentName },
+  {
+    id: 'tournament',
+    label: 'Tournament',
+    speaker: (r) => r.tournamentName,
+    judge: (r) => r.tournamentName,
+  },
   { id: 'year', label: 'Year', speaker: (r) => r.year, judge: (r) => r.year },
   { id: 'format', label: 'Format', speaker: (r) => r.format, judge: (r) => r.format },
   { id: 'teams', label: 'Teams', speaker: (r) => r.totalTeams, judge: (r) => r.totalTeams },
   { id: 'my_name', label: 'My name', speaker: (r) => r.myName, judge: (r) => r.myName },
   { id: 'teammates', label: 'Teammates', speaker: (r) => r.teammates.join(' | ') },
   { id: 'team', label: 'Team', speaker: (r) => r.teamName },
-  { id: 'team_rank', label: 'Team rank', // Machine-clean: never the "=" tie marker, which is display-only (owner).
-  speaker: (r) => (r.teamRank != null ? `#${r.teamRank}` : '') },
+  {
+    id: 'team_rank',
+    label: 'Team rank', // Machine-clean: never the "=" tie marker, which is display-only (owner).
+    speaker: (r) => (r.teamRank != null ? `#${r.teamRank}` : ''),
+  },
   {
     id: 'team_points',
     label: 'Team points',
@@ -128,8 +140,16 @@ export const EXPORT_FIELDS: ExportField[] = [
   { id: 'judge_type', label: 'Judge type', judge: (r) => r.judgeTypeTag },
   { id: 'inrounds_judged', label: 'Inrounds judged', judge: (r) => r.inroundsJudged ?? '' },
   { id: 'inrounds_chaired', label: 'Inrounds chaired', judge: (r) => r.inroundsChaired ?? '' },
-  { id: 'last_outround_chaired', label: 'Last outround chaired', judge: (r) => formatStageForDisplay(r.lastOutroundChaired) },
-  { id: 'last_outround_judged', label: 'Last outround judged', judge: (r) => formatStageForDisplay(r.lastOutroundJudged) },
+  {
+    id: 'last_outround_chaired',
+    label: 'Last outround chaired',
+    judge: (r) => formatStageForDisplay(r.lastOutroundChaired),
+  },
+  {
+    id: 'last_outround_judged',
+    label: 'Last outround judged',
+    judge: (r) => formatStageForDisplay(r.lastOutroundJudged),
+  },
   // ── Post-legacy additions (append-only zone) ──────────────────────────
   { id: 'region', label: 'Region', speaker: (r) => r.region, judge: (r) => r.region },
   {
@@ -207,7 +227,9 @@ export const EXPORT_FIELDS: ExportField[] = [
     // columns above are individual figures and say so in their labels.
     speaker: (r) => {
       const p = teamTabPlacement(r.teamRank, r.totalTeams);
-      return p ? `${rankLabel(p.rank, r.teamRankTied)}/${p.of} (top ${formatTopPercent(p.topPercent)})` : '';
+      return p
+        ? `${rankLabel(p.rank, r.teamRankTied)}/${p.of} (top ${formatTopPercent(p.topPercent)})`
+        : '';
     },
   },
   {

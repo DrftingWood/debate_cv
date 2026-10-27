@@ -35,7 +35,11 @@ export function VerifyMineOnlyToggle({ mine }: { mine: boolean }) {
       variant={mine ? 'primary' : 'secondary'}
       size="sm"
       leftIcon={
-        mine ? <UserCheck className="h-4 w-4" aria-hidden /> : <Users className="h-4 w-4" aria-hidden />
+        mine ? (
+          <UserCheck className="h-4 w-4" aria-hidden />
+        ) : (
+          <Users className="h-4 w-4" aria-hidden />
+        )
       }
       onClick={toggle}
       aria-pressed={mine}

@@ -20,12 +20,14 @@ import {
   type ApiTabsResult,
 } from './tabbycatApi';
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
-import { dedupeJudgeHits, judgeHitsFromRounds, publicTournamentBase, releasedTabMissing, storedTournamentFresh } from './prescrape';
 import {
-  parsePrivateUrlPage,
-  extractAdjudicatorRounds,
-  extractSpeakerRounds,
-} from './parseNav';
+  dedupeJudgeHits,
+  judgeHitsFromRounds,
+  publicTournamentBase,
+  releasedTabMissing,
+  storedTournamentFresh,
+} from './prescrape';
+import { parsePrivateUrlPage, extractAdjudicatorRounds, extractSpeakerRounds } from './parseNav';
 import {
   parseTeamTab,
   parseSpeakerTab,
@@ -66,7 +68,6 @@ import {
   speakerColumnRounds,
 } from './roundNumbers';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
-
 
 type IngestResult = {
   tournamentId: bigint;
@@ -109,9 +110,7 @@ type LoadedState = {
   year: number | null;
 };
 
-type CacheCheckResult =
-  | { kind: 'cache-hit'; result: IngestResult }
-  | { kind: 'miss' };
+type CacheCheckResult = { kind: 'cache-hit'; result: IngestResult } | { kind: 'miss' };
 
 type FetchedTabs = {
   teamRows: ReturnType<typeof parseTeamTab>;
@@ -136,8 +135,7 @@ type FetchedTabs = {
 };
 
 type RegressionGuardResult =
-  | { kind: 'regression-blocked'; result: IngestResult }
-  | { kind: 'proceed' };
+  { kind: 'regression-blocked'; result: IngestResult } | { kind: 'proceed' };
 
 type PersonContext = {
   personIdByNormalized: Map<string, bigint>;
@@ -223,7 +221,10 @@ export async function findTournamentByHostSlug(
   });
   if (rows.length === 1) return rows[0];
   if (rows.length > 1) {
-    console.warn('[ingest] host+slug matches more than one tournament; adopting none', { host, slug });
+    console.warn('[ingest] host+slug matches more than one tournament; adopting none', {
+      host,
+      slug,
+    });
   }
   return null;
 }
@@ -264,7 +265,8 @@ export async function prescrapeTournament(
   const { base, host, slug } = publicTournamentBase(url);
   const fetchSession = new FetchSession({ deadline: options.deadline });
   const landingResult = await fetchHtmlWithProvenance(base, { session: fetchSession });
-  if (!landingResult.ok) throw new Error(`fetch public home ${base} → HTTP ${landingResult.status}`);
+  if (!landingResult.ok)
+    throw new Error(`fetch public home ${base} → HTTP ${landingResult.status}`);
   const parseStart = Date.now();
   const parsed = parsePrivateUrlPage(landingResult.html, base);
   // A public page has no registration card. Force it empty so nothing
@@ -293,7 +295,10 @@ export async function prescrapeTournament(
     existing?.fingerprint ??
     computeFingerprint({ host, tournamentSlug: slug, tournamentName: name, year: explicitYear });
 
-  const summary = (status: PrescrapeResult['status'], extra: Partial<PrescrapeResult> = {}): PrescrapeResult => ({
+  const summary = (
+    status: PrescrapeResult['status'],
+    extra: Partial<PrescrapeResult> = {},
+  ): PrescrapeResult => ({
     status,
     base,
     tournamentId: existing?.id ?? null,
@@ -305,7 +310,12 @@ export async function prescrapeTournament(
     warnings: [],
     ...extra,
   });
-  if (existing && !options.force && existing.parserVersion === PARSER_VERSION && storedTournamentFresh(existing)) {
+  if (
+    existing &&
+    !options.force &&
+    existing.parserVersion === PARSER_VERSION &&
+    storedTournamentFresh(existing)
+  ) {
     return summary('current');
   }
 
@@ -331,9 +341,18 @@ export async function prescrapeTournament(
   if (claim === 'busy') throw new Error(`another scrape of ${base} is in progress`);
   let judgesWritten = 0;
   try {
-    const result = await runFullScrape(loaded, null, { force: options.force }, async ({ fetched, persons, tournamentId }) => {
-      judgesWritten = await recordEveryJudgeFromRoundResults(fetched.rounds, tournamentId, persons.lookupPersonId);
-    });
+    const result = await runFullScrape(
+      loaded,
+      null,
+      { force: options.force },
+      async ({ fetched, persons, tournamentId }) => {
+        judgesWritten = await recordEveryJudgeFromRoundResults(
+          fetched.rounds,
+          tournamentId,
+          persons.lookupPersonId,
+        );
+      },
+    );
     const blocked = result.warnings.includes('regression-guard: overwrite blocked');
     return summary(blocked ? 'blocked' : 'written', {
       tournamentId: result.tournamentId,
@@ -410,7 +429,11 @@ async function runFullScrape(
   loaded: LoadedState,
   userId: string | null,
   options: { force?: boolean },
-  afterWrite?: (ctx: { fetched: FetchedTabs; persons: PersonContext; tournamentId: bigint }) => Promise<void>,
+  afterWrite?: (ctx: {
+    fetched: FetchedTabs;
+    persons: PersonContext;
+    tournamentId: bigint;
+  }) => Promise<void>,
 ): Promise<IngestResult> {
   const fetchStarted = Date.now();
   const fetched = await fetchAndParseTabs(loaded);
@@ -499,7 +522,8 @@ export function writeReserveMs(
   override: string | undefined = process.env.INGEST_WRITE_RESERVE_MS,
 ): number {
   const fixed = Number(override);
-  if (override !== undefined && override !== '' && Number.isFinite(fixed) && fixed >= 0) return fixed;
+  if (override !== undefined && override !== '' && Number.isFinite(fixed) && fixed >= 0)
+    return fixed;
   return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
 }
 const WRITE_RESERVE_BASE_MS = 4_000;
@@ -679,7 +703,16 @@ async function checkCacheFreshness(
   userId: string,
   options: { force?: boolean },
 ): Promise<CacheCheckResult> {
-  const { landingDoc, landingHtml, snapshot, existing, urlVariants, tournamentFingerprint, parseStart, landingWarnings } = loaded;
+  const {
+    landingDoc,
+    landingHtml,
+    snapshot,
+    existing,
+    urlVariants,
+    tournamentFingerprint,
+    parseStart,
+    landingWarnings,
+  } = loaded;
   if (!existing || options.force) return { kind: 'miss' };
 
   // Age does not matter: any stored row is fresh unless Re-ingest all marked
@@ -721,7 +754,10 @@ async function checkCacheFreshness(
     if (wantTeam || wantSpeaker) {
       const [teamRow, speakerRow] = await Promise.all([
         wantTeam
-          ? prisma.teamResult.findFirst({ where: { tournamentId: existing.id, roundNumber: 0 }, select: { id: true } })
+          ? prisma.teamResult.findFirst({
+              where: { tournamentId: existing.id, roundNumber: 0 },
+              select: { id: true },
+            })
           : Promise.resolve(null),
         wantSpeaker
           ? prisma.tournamentParticipant.findFirst({
@@ -730,7 +766,10 @@ async function checkCacheFreshness(
             })
           : Promise.resolve(null),
       ]);
-      cacheStale = releasedTabMissing(discovered, { hasTeamTab: teamRow !== null, hasSpeakerTab: speakerRow !== null });
+      cacheStale = releasedTabMissing(discovered, {
+        hasTeamTab: teamRow !== null,
+        hasSpeakerTab: speakerRow !== null,
+      });
     }
   }
   if (!fresh || !parserUpToDate || cacheStale) return { kind: 'miss' };
@@ -810,8 +849,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // about the tournament, not a fault, so it is noted as `optional:` and the
   // ingest goes on. A CDN block, a timeout or a 5xx still fails the ingest and
   // is retried like any other tab.
-  const fetchTab = async (targetUrl: string, label: string, enrichment = false): Promise<string | null> => {
-    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
+  const fetchTab = async (
+    targetUrl: string,
+    label: string,
+    enrichment = false,
+  ): Promise<string | null> => {
+    const r = await fetchHtmlWithProvenance(targetUrl, {
+      referer: normalized,
+      session: fetchSession,
+    });
     if (r.ok) return r.html;
     // Never when we already hold participants for this tournament: a forced
     // re-ingest skips the regression guard and would rewrite them from the
@@ -837,15 +883,14 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
         bodyPreview: r.bodyPreview.replace(/\s+/g, ' ').slice(0, 300),
       });
     }
-    fetchWarnings.push(
-      `fetch: ${label} HTTP ${r.status}${hint}`,
-    );
+    fetchWarnings.push(`fetch: ${label} HTTP ${r.status}${hint}`);
     return null;
   };
-  const fetchRound = async (
-    targetUrl: string,
-  ): Promise<{ url: string; html: string } | null> => {
-    const r = await fetchRoundWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
+  const fetchRound = async (targetUrl: string): Promise<{ url: string; html: string } | null> => {
+    const r = await fetchRoundWithProvenance(targetUrl, {
+      referer: normalized,
+      session: fetchSession,
+    });
     if (r.ok) return { url: r.url, html: r.html };
     fetchWarnings.push(`fetch: round ${targetUrl} HTTP ${r.status}`);
     return null;
@@ -861,8 +906,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // landing page. If the tournament says that page is not there or not public,
   // that is the expected answer for a guess, and it stays silent: a warning
   // would also stop a re-ingest of an existing tournament from refreshing.
-  const fetchOptionalTab = async (targetUrl: string, label: string, guessed = false): Promise<string | null> => {
-    const r = await fetchHtmlWithProvenance(targetUrl, { referer: normalized, session: fetchSession });
+  const fetchOptionalTab = async (
+    targetUrl: string,
+    label: string,
+    guessed = false,
+  ): Promise<string | null> => {
+    const r = await fetchHtmlWithProvenance(targetUrl, {
+      referer: normalized,
+      session: fetchSession,
+    });
     if (r.ok) return r.html;
     if (guessed && isWithheldByTournament(r)) return null;
     fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
@@ -885,13 +937,19 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     const host = new URL(apiUrl).host;
     await fetchSession.acquireSlot(host, FETCH_MIN_INTERVAL_MS);
     const res = await fetch(apiUrl, {
-      headers: { 'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT, Accept: 'application/json' },
+      headers: {
+        'User-Agent': process.env.TABBYCAT_USER_AGENT || API_USER_AGENT,
+        Accept: 'application/json',
+      },
       // Never past the ingest's deadline (FetchSession.deadline).
-      signal: AbortSignal.timeout(Math.max(0, Math.min(API_TIMEOUT_MS, fetchSession.remainingMs()))),
+      signal: AbortSignal.timeout(
+        Math.max(0, Math.min(API_TIMEOUT_MS, fetchSession.remainingMs())),
+      ),
     });
     // Push-back on the API is push-back on the host: slow the HTML
     // fallback that follows through the same learned interval fetch.ts uses.
-    if (isCdnRateLimit(res.status, res.headers)) fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
+    if (isCdnRateLimit(res.status, res.headers))
+      fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
     return res;
   });
   const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
@@ -899,8 +957,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     : htmlOnly('TABBYCAT_API_TABS=0');
   console.info('[ingest] tabbycat api', {
     url: normalized,
-    teams: apiTabs.teams.source === 'api' ? 'api' : `${apiTabs.teams.source}: ${apiTabs.teams.reason}`,
-    speakers: apiTabs.speakers.source === 'api' ? 'api' : `${apiTabs.speakers.source}: ${apiTabs.speakers.reason}`,
+    teams:
+      apiTabs.teams.source === 'api' ? 'api' : `${apiTabs.teams.source}: ${apiTabs.teams.reason}`,
+    speakers:
+      apiTabs.speakers.source === 'api'
+        ? 'api'
+        : `${apiTabs.speakers.source}: ${apiTabs.speakers.reason}`,
   });
   const htmlTabs = htmlTabsToFetch(apiTabs, nav);
   fetchWarnings.push(...unreleasedTabWarnings(apiTabs));
@@ -909,9 +971,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // opt-in with TABBYCAT_API_ROUNDS=1 until the owner turns it on. Same
   // contract as the tabs: a page the API answered skips its HTML fetch; any
   // other page is scraped exactly as before. See lib/calicotab/tabbycatApiRounds.ts.
-  const apiRest = tabbycatApiRoundsEnabled() ? await fetchRestFromApi(normalized, nav, apiFetcher) : null;
+  const apiRest = tabbycatApiRoundsEnabled()
+    ? await fetchRestFromApi(normalized, nav, apiFetcher)
+    : null;
   if (apiRest) {
-    const count = (xs: Iterable<{ source: string }>) => [...xs].filter((x) => x.source === 'api').length;
+    const count = (xs: Iterable<{ source: string }>) =>
+      [...xs].filter((x) => x.source === 'api').length;
     console.info('[ingest] tabbycat api rounds', {
       url: normalized,
       rounds: `${count(apiRest.rounds.values())}/${nav.resultsRounds.length}`,
@@ -919,12 +984,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       participants: apiRest.participants?.source ?? 'none',
     });
   }
-  const apiParticipants = apiRest?.participants?.source === 'api' ? apiRest.participants.value : null;
+  const apiParticipants =
+    apiRest?.participants?.source === 'api' ? apiRest.participants.value : null;
 
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
     htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
     htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
-    nav.participants && !apiParticipants ? fetchTab(nav.participants, 'participants', true) : Promise.resolve(null),
+    nav.participants && !apiParticipants
+      ? fetchTab(nav.participants, 'participants', true)
+      : Promise.resolve(null),
     nav.motionsTab
       ? fetchOptionalTab(nav.motionsTab, 'motionsTab', nav.meta?.constructed.includes('motionsTab'))
       : Promise.resolve(null),
@@ -949,19 +1017,30 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     }),
   );
 
-  const teamRows = apiTabs.teams.source === 'api' ? apiTabs.teams.rows : teamHtml ? parseTeamTab(teamHtml) : [];
+  const teamRows =
+    apiTabs.teams.source === 'api' ? apiTabs.teams.rows : teamHtml ? parseTeamTab(teamHtml) : [];
   if (teamRows.length === 0 && teamHtml) {
     fetchWarnings.push(`parse: teamTab → 0 rows — ${diagnoseVueData(teamHtml, ['team'])}`);
   }
 
-  const speakerRows = apiTabs.speakers.source === 'api' ? apiTabs.speakers.rows : speakerHtml ? parseSpeakerTab(speakerHtml) : [];
+  const speakerRows =
+    apiTabs.speakers.source === 'api'
+      ? apiTabs.speakers.rows
+      : speakerHtml
+        ? parseSpeakerTab(speakerHtml)
+        : [];
   if (speakerRows.length === 0 && speakerHtml) {
-    fetchWarnings.push(`parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`);
+    fetchWarnings.push(
+      `parse: speakerTab → 0 rows — ${diagnoseVueData(speakerHtml, ['name', 'speaker'])}`,
+    );
   }
 
-  const participantRows = apiParticipants ?? (participantsHtml ? parseParticipantsList(participantsHtml) : []);
+  const participantRows =
+    apiParticipants ?? (participantsHtml ? parseParticipantsList(participantsHtml) : []);
   if (participantRows.length === 0 && participantsHtml) {
-    fetchWarnings.push(`parse: participants → 0 rows — ${diagnoseVueData(participantsHtml, ['name'])}`);
+    fetchWarnings.push(
+      `parse: participants → 0 rows — ${diagnoseVueData(participantsHtml, ['name'])}`,
+    );
   }
 
   // Private URL landing pages can include a registration card whose role label
@@ -1075,10 +1154,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   };
 }
 
-async function recordPipelineParserRun(
-  loaded: LoadedState,
-  fetched: FetchedTabs,
-): Promise<void> {
+async function recordPipelineParserRun(loaded: LoadedState, fetched: FetchedTabs): Promise<void> {
   // Record the full ParserRun once all tab fetches + parses are done so
   // both landing warnings and per-tab fetch failures (fetchWarnings) land
   // in the same row. Lets /cv/verify surface "tab fetch returned 403" next
@@ -1087,8 +1163,7 @@ async function recordPipelineParserRun(
     sourceDocumentId: loaded.landingDoc.sourceDocumentId,
     parserName: 'parseNav',
     success:
-      (!!loaded.snapshot.tournamentName ||
-        loaded.snapshot.navigation.resultsRounds.length > 0) &&
+      (!!loaded.snapshot.tournamentName || loaded.snapshot.navigation.resultsRounds.length > 0) &&
       fetched.fetchLevelFailures.length === 0,
     warnings: [...loaded.landingWarnings, ...loaded.fetchWarnings],
     durationMs: Date.now() - loaded.parseStart,
@@ -1143,7 +1218,9 @@ async function checkRegressionGuard(
   const oldRankCount = await prisma.tournamentParticipant.count({
     where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
   });
-  const claimedStandIns = await claimedPlaceholderNorms(fetched.speakerRows.map((r) => r.speakerName));
+  const claimedStandIns = await claimedPlaceholderNorms(
+    fetched.speakerRows.map((r) => r.speakerName),
+  );
   const rankedNames = new Set<string>();
   for (const r of fetched.speakerRows) {
     if (r.rank == null) continue;
@@ -1264,14 +1341,7 @@ async function writeIngestTransaction(
   options: { force?: boolean },
   txTimeoutMs: number,
 ): Promise<TxResult> {
-  const {
-    normalized,
-    tournamentFingerprint,
-    snapshot,
-    existing,
-    fetchWarnings,
-    year,
-  } = loaded;
+  const { normalized, tournamentFingerprint, snapshot, existing, fetchWarnings, year } = loaded;
   const {
     teamRows,
     speakerRows,
@@ -1288,345 +1358,346 @@ async function writeIngestTransaction(
   } = fetched;
   const { lookupPersonId } = persons;
 
-  return prisma.$transaction(async (tx) => {
-    // Acquire a transaction-scoped Postgres advisory lock keyed on the
-    // tournament fingerprint. Two concurrent ingests of the same
-    // tournament would otherwise interleave through
-    // `prepareTournamentWideRefresh` (deletes leaf tables) and the
-    // bulk writes that follow, with each tx clobbering the other's
-    // partial state. With this lock the second ingest blocks here
-    // until the first commits — then runs against fresh state.
-    // Auto-released on commit/rollback, so a process crash mid-tx
-    // never leaves a stale lock. Audit issue #4.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(tournamentFingerprint)})`;
+  return prisma.$transaction(
+    async (tx) => {
+      // Acquire a transaction-scoped Postgres advisory lock keyed on the
+      // tournament fingerprint. Two concurrent ingests of the same
+      // tournament would otherwise interleave through
+      // `prepareTournamentWideRefresh` (deletes leaf tables) and the
+      // bulk writes that follow, with each tx clobbering the other's
+      // partial state. With this lock the second ingest blocks here
+      // until the first commits — then runs against fresh state.
+      // Auto-released on commit/rollback, so a process crash mid-tx
+      // never leaves a stale lock. Audit issue #4.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${fingerprintLockKey(tournamentFingerprint)})`;
 
-    // Only the tournament's public address is stored, never the private URL
-    // this ingest came from: the row is shared by everyone who has the
-    // tournament on their record, and a private URL is one participant's
-    // credential (lib/cv/publicTournamentUrl.ts). The user's own private URL
-    // lives on their DiscoveredUrl, which is all a re-ingest needs.
-    const storedSourceUrl = publicTournamentUrl(normalized);
-    const t = await tx.tournament.upsert({
-      where: { fingerprint: tournamentFingerprint },
-      update: {
-        name: tournamentName,
-        // A re-scrape that can't infer a format (rounds page hidden this
-        // time, tabs released and withdrawn) must not erase the one an
-        // earlier scrape found. Prisma leaves a field untouched when it is
-        // undefined, so a null inference keeps the stored value.
-        format: format ?? undefined,
-        year,
-        totalParticipants,
-        totalTeams,
-        prelimRoundCount,
-        sourceUrlRaw: storedSourceUrl,
-        scrapedAt: new Date(),
-        // Stamp the version that produced this data (tournament-scoped
-        // cache invalidation) and release the scrape claim — committing
-        // the write IS the success signal concurrent waiters poll for.
-        parserVersion: PARSER_VERSION,
-        scrapeClaimedAt: null,
-      },
-      create: {
-        name: tournamentName,
-        format,
-        year,
-        totalParticipants,
-        totalTeams,
-        prelimRoundCount,
-        sourceUrlRaw: storedSourceUrl,
-        fingerprint: tournamentFingerprint,
-        parserVersion: PARSER_VERSION,
-      },
-    });
-
-    if (options.force || (existing && fetchWarnings.length === 0)) {
-      await prepareTournamentWideRefresh(tx, t.id);
-    }
-
-    // Team results
-    for (const row of teamRows) {
-      await tx.teamResult.upsert({
-        where: {
-          tournamentId_teamName_roundNumber: {
-            tournamentId: t.id,
-            teamName: row.teamName,
-            roundNumber: 0,
-          },
-        },
+      // Only the tournament's public address is stored, never the private URL
+      // this ingest came from: the row is shared by everyone who has the
+      // tournament on their record, and a private URL is one participant's
+      // credential (lib/cv/publicTournamentUrl.ts). The user's own private URL
+      // lives on their DiscoveredUrl, which is all a re-ingest needs.
+      const storedSourceUrl = publicTournamentUrl(normalized);
+      const t = await tx.tournament.upsert({
+        where: { fingerprint: tournamentFingerprint },
         update: {
-          rank: row.rank,
-          wins: row.wins,
-          points: row.totalPoints,
-          firsts: row.firsts,
-          seconds: row.seconds,
+          name: tournamentName,
+          // A re-scrape that can't infer a format (rounds page hidden this
+          // time, tabs released and withdrawn) must not erase the one an
+          // earlier scrape found. Prisma leaves a field untouched when it is
+          // undefined, so a null inference keeps the stored value.
+          format: format ?? undefined,
+          year,
+          totalParticipants,
+          totalTeams,
+          prelimRoundCount,
+          sourceUrlRaw: storedSourceUrl,
+          scrapedAt: new Date(),
+          // Stamp the version that produced this data (tournament-scoped
+          // cache invalidation) and release the scrape claim — committing
+          // the write IS the success signal concurrent waiters poll for.
+          parserVersion: PARSER_VERSION,
+          scrapeClaimedAt: null,
         },
         create: {
-          tournamentId: t.id,
-          teamName: row.teamName,
-          roundNumber: 0,
-          rank: row.rank,
-          wins: row.wins,
-          points: row.totalPoints,
-          firsts: row.firsts,
-          seconds: row.seconds,
+          name: tournamentName,
+          format,
+          year,
+          totalParticipants,
+          totalTeams,
+          prelimRoundCount,
+          sourceUrlRaw: storedSourceUrl,
+          fingerprint: tournamentFingerprint,
+          parserVersion: PARSER_VERSION,
         },
       });
-    }
 
-    // Per-round team results (prelims only — outrounds are persisted as
-    // EliminationResult rows below since they carry win/lose semantics
-    // rather than points-per-round and don't have a numeric round number).
-    for (const round of rounds) {
-      if (round.roundNumber == null) continue;
-      for (const r of round.teamResults) {
+      if (options.force || (existing && fetchWarnings.length === 0)) {
+        await prepareTournamentWideRefresh(tx, t.id);
+      }
+
+      // Team results
+      for (const row of teamRows) {
         await tx.teamResult.upsert({
           where: {
             tournamentId_teamName_roundNumber: {
               tournamentId: t.id,
-              teamName: r.teamName,
-              roundNumber: round.roundNumber,
+              teamName: row.teamName,
+              roundNumber: 0,
             },
           },
           update: {
-            points: r.points,
-            wins: r.won === true ? 1 : r.won === false ? 0 : null,
-            position: r.position,
+            rank: row.rank,
+            wins: row.wins,
+            points: row.totalPoints,
+            firsts: row.firsts,
+            seconds: row.seconds,
           },
           create: {
             tournamentId: t.id,
-            teamName: r.teamName,
-            roundNumber: round.roundNumber,
-            points: r.points,
-            wins: r.won === true ? 1 : r.won === false ? 0 : null,
-            position: r.position,
+            teamName: row.teamName,
+            roundNumber: 0,
+            rank: row.rank,
+            wins: row.wins,
+            points: row.totalPoints,
+            firsts: row.firsts,
+            seconds: row.seconds,
           },
         });
       }
-    }
 
-    // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
-    // rather than delete-then-recreate, and only when this parse actually
-    // produced motions. Upserting preserves Motion row ids across
-    // re-ingests, which matters because TagProposal rows cascade-delete
-    // with their motion — a recreate would wipe the approval audit trail
-    // (and the approved motionType/topic values, which the update branch
-    // deliberately leaves untouched). The trailing deleteMany clears only
-    // rows absent from the new parse. Motion counts are small (≤ ~15 per
-    // tournament) so per-row upserts inside the tx are cheap.
-    if (motions.length > 0) {
-      // Key each motion by its round's URL sequence, as team results are,
-      // not by the number in its label — see lib/calicotab/roundNumbers.ts.
-      const motionRounds = assignMotionRounds(
-        motions,
-        prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
-      );
-      for (let i = 0; i < motions.length; i++) {
-        const m = { ...motions[i]!, roundNumber: motionRounds[i] ?? null };
-        await tx.motion.upsert({
-          where: {
-            tournamentId_roundLabel_seq: {
+      // Per-round team results (prelims only — outrounds are persisted as
+      // EliminationResult rows below since they carry win/lose semantics
+      // rather than points-per-round and don't have a numeric round number).
+      for (const round of rounds) {
+        if (round.roundNumber == null) continue;
+        for (const r of round.teamResults) {
+          await tx.teamResult.upsert({
+            where: {
+              tournamentId_teamName_roundNumber: {
+                tournamentId: t.id,
+                teamName: r.teamName,
+                roundNumber: round.roundNumber,
+              },
+            },
+            update: {
+              points: r.points,
+              wins: r.won === true ? 1 : r.won === false ? 0 : null,
+              position: r.position,
+            },
+            create: {
               tournamentId: t.id,
+              teamName: r.teamName,
+              roundNumber: round.roundNumber,
+              points: r.points,
+              wins: r.won === true ? 1 : r.won === false ? 0 : null,
+              position: r.position,
+            },
+          });
+        }
+      }
+
+      // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
+      // rather than delete-then-recreate, and only when this parse actually
+      // produced motions. Upserting preserves Motion row ids across
+      // re-ingests, which matters because TagProposal rows cascade-delete
+      // with their motion — a recreate would wipe the approval audit trail
+      // (and the approved motionType/topic values, which the update branch
+      // deliberately leaves untouched). The trailing deleteMany clears only
+      // rows absent from the new parse. Motion counts are small (≤ ~15 per
+      // tournament) so per-row upserts inside the tx are cheap.
+      if (motions.length > 0) {
+        // Key each motion by its round's URL sequence, as team results are,
+        // not by the number in its label — see lib/calicotab/roundNumbers.ts.
+        const motionRounds = assignMotionRounds(
+          motions,
+          prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
+        );
+        for (let i = 0; i < motions.length; i++) {
+          const m = { ...motions[i]!, roundNumber: motionRounds[i] ?? null };
+          await tx.motion.upsert({
+            where: {
+              tournamentId_roundLabel_seq: {
+                tournamentId: t.id,
+                roundLabel: m.roundLabel,
+                seq: m.seq,
+              },
+            },
+            update: { roundNumber: m.roundNumber, text: m.text, infoSlide: m.infoSlide },
+            create: {
+              tournamentId: t.id,
+              roundNumber: m.roundNumber,
               roundLabel: m.roundLabel,
               seq: m.seq,
+              text: m.text,
+              infoSlide: m.infoSlide,
             },
-          },
-          update: { roundNumber: m.roundNumber, text: m.text, infoSlide: m.infoSlide },
-          create: {
+          });
+        }
+        await tx.motion.deleteMany({
+          where: {
             tournamentId: t.id,
-            roundNumber: m.roundNumber,
-            roundLabel: m.roundLabel,
-            seq: m.seq,
-            text: m.text,
-            infoSlide: m.infoSlide,
+            NOT: { OR: motions.map((m) => ({ roundLabel: m.roundLabel, seq: m.seq })) },
           },
         });
       }
-      await tx.motion.deleteMany({
-        where: {
-          tournamentId: t.id,
-          NOT: { OR: motions.map((m) => ({ roundLabel: m.roundLabel, seq: m.seq })) },
-        },
-      });
-    }
 
-    // Outround team win/loss → EliminationResult. We mark each team that
-    // appeared in an outround as 'won' or 'lost' based on the per-debate
-    // results table. Lets the CV builder compute "won the tournament" by
-    // checking whether the user's team won the deepest outround stage.
-    // Stage matches the round label from the landing-page nav (e.g. "Grand
-    // Final"), reusing the same string the speaker-rounds extractor wrote
-    // to TournamentParticipant.eliminationReached.
-    for (const round of rounds) {
-      if (!round.isOutround || !round.roundLabel) continue;
-      for (const r of round.teamResults) {
-        if (r.won == null) continue;
-        const result = r.won ? 'won' : 'lost';
-        await tx.eliminationResult.upsert({
-          where: {
-            tournamentId_stage_entityType_entityName: {
+      // Outround team win/loss → EliminationResult. We mark each team that
+      // appeared in an outround as 'won' or 'lost' based on the per-debate
+      // results table. Lets the CV builder compute "won the tournament" by
+      // checking whether the user's team won the deepest outround stage.
+      // Stage matches the round label from the landing-page nav (e.g. "Grand
+      // Final"), reusing the same string the speaker-rounds extractor wrote
+      // to TournamentParticipant.eliminationReached.
+      for (const round of rounds) {
+        if (!round.isOutround || !round.roundLabel) continue;
+        for (const r of round.teamResults) {
+          if (r.won == null) continue;
+          const result = r.won ? 'won' : 'lost';
+          await tx.eliminationResult.upsert({
+            where: {
+              tournamentId_stage_entityType_entityName: {
+                tournamentId: t.id,
+                stage: round.roundLabel,
+                entityType: 'team',
+                entityName: r.teamName,
+              },
+            },
+            update: { result },
+            create: {
               tournamentId: t.id,
               stage: round.roundLabel,
               entityType: 'team',
               entityName: r.teamName,
+              result,
             },
+          });
+        }
+      }
+
+      // People + participants (speakers).
+      //
+      // Speaker round scores are NOT written here — for tournaments at WUDC
+      // scale (~800 speakers × 9 rounds = 7200 rows), per-row upserts inside
+      // the interactive transaction blew through the 30s tx timeout. We
+      // instead collect rows into `speakerRoundScoreCreates` and bulk-write
+      // them after the tx commits with `createMany`, which is one round-trip
+      // for the entire payload. The `prepareTournamentWideRefresh` call
+      // above already deleted any prior rows when refresh applies; on the
+      // no-refresh path we rely on the (participantId, roundNumber,
+      // positionLabel) unique constraint + skipDuplicates to be idempotent.
+      const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
+      const speakerParticipantIds: bigint[] = [];
+
+      // Team-anchored fallback for redacted speaker names. See
+      // findRedactedOwnerRow for the policy. Pure helper so the matching
+      // rules are unit-testable without standing up a full ingest.
+      const ownerName = snapshot.registration.personName;
+      const ownerPersonId = ownerName ? lookupPersonId(ownerName) : null;
+      const teamAnchoredOwnerRow = findRedactedOwnerRow(
+        speakerRows,
+        ownerName,
+        snapshot.registration.teamName,
+        lookupPersonId,
+      );
+      const resolveSpeakerPersonId = (sp: (typeof speakerRows)[number]): bigint | null => {
+        const id = lookupPersonId(sp.speakerName);
+        if (id) return id;
+        if (sp === teamAnchoredOwnerRow && ownerPersonId) return ownerPersonId;
+        return null;
+      };
+
+      // Pre-compute each speaker's PRIMARY team across the parse — the team
+      // where they have the most scored prelim rounds. Iron-manning speakers
+      // appear in multiple rows with different teamNames; the upsert below
+      // would otherwise clobber teamName on every iteration. See
+      // lib/calicotab/primaryTeam.ts for the rationale (audit issue #14:
+      // resort-stability).
+      const primaryTeamRows: Array<{ row: (typeof speakerRows)[number]; lookupId: bigint }> = [];
+      for (const sp of speakerRows) {
+        const id = resolveSpeakerPersonId(sp);
+        if (id) primaryTeamRows.push({ row: sp, lookupId: id });
+      }
+      const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
+
+      // Which round each score column is — by the nav round its label names,
+      // else by position, never by the bare digit in "R1A". Every row of a
+      // speaker tab carries the same columns in the same order, so the first
+      // row with score columns stands for all. See lib/calicotab/roundNumbers.ts.
+      const scoreColumns = (
+        speakerRows.find((sp) => sp.roundScores.some((rs) => rs.positionLabel !== 'average'))
+          ?.roundScores ?? []
+      )
+        .filter((rs) => rs.positionLabel !== 'average')
+        .map((rs) => rs.roundLabel);
+      const roundByColumn = speakerColumnRounds(
+        scoreColumns,
+        prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
+      );
+
+      for (const sp of speakerRows) {
+        // Fuzzy lookup: exact-match first, then substring + token-subset
+        // fallbacks. Strict exact-match used to silently drop a user's
+        // upsert when the speaker tab spelled their name slightly
+        // differently from their claim ("Abhishek A." vs "Abhishek
+        // Acharya"), leaving rank/avg/total fields as nulls written by
+        // the prior `prepareTournamentWideRefresh`. The audit's biggest
+        // user-visible gap. The team-anchored fallback above resolves
+        // a separate edge case: redacted-name rows on the URL owner's
+        // own team.
+        const personId = resolveSpeakerPersonId(sp);
+        if (!personId) continue;
+        const teamNameToWrite = primaryTeamByPerson.get(personId) ?? sp.teamName;
+        const breakRankForTeam = teamNameToWrite
+          ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
+          : null;
+        const participant = await tx.tournamentParticipant.upsert({
+          where: { tournamentId_personId: { tournamentId: t.id, personId } },
+          update: {
+            teamName: teamNameToWrite,
+            speakerScoreTotal: sp.totalScore as unknown as undefined,
+            speakerRankOpen: sp.rank,
+            speakerRankEsl: sp.rankEsl,
+            speakerRankEfl: sp.rankEfl,
+            speakerCategories: sp.categories,
+            teamBreakRank: breakRankForTeam,
           },
-          update: { result },
           create: {
             tournamentId: t.id,
-            stage: round.roundLabel,
-            entityType: 'team',
-            entityName: r.teamName,
-            result,
+            personId,
+            teamName: teamNameToWrite,
+            speakerScoreTotal: sp.totalScore as unknown as undefined,
+            speakerRankOpen: sp.rank,
+            speakerRankEsl: sp.rankEsl,
+            speakerRankEfl: sp.rankEfl,
+            speakerCategories: sp.categories,
+            // The primary team's break rank, as on update: teamBreakRank is read
+            // beside teamName (lib/cv/teamPlacement.ts, /cv/verify), so the two
+            // must name the same team. An iron-man's first row used to create
+            // with that row's own team; a later row's update then overwrote it
+            // in the same transaction, so stored rows already agree.
+            teamBreakRank: breakRankForTeam,
           },
         });
-      }
-    }
-
-    // People + participants (speakers).
-    //
-    // Speaker round scores are NOT written here — for tournaments at WUDC
-    // scale (~800 speakers × 9 rounds = 7200 rows), per-row upserts inside
-    // the interactive transaction blew through the 30s tx timeout. We
-    // instead collect rows into `speakerRoundScoreCreates` and bulk-write
-    // them after the tx commits with `createMany`, which is one round-trip
-    // for the entire payload. The `prepareTournamentWideRefresh` call
-    // above already deleted any prior rows when refresh applies; on the
-    // no-refresh path we rely on the (participantId, roundNumber,
-    // positionLabel) unique constraint + skipDuplicates to be idempotent.
-    const speakerRoundScoreCreates: Prisma.SpeakerRoundScoreCreateManyInput[] = [];
-    const speakerParticipantIds: bigint[] = [];
-
-    // Team-anchored fallback for redacted speaker names. See
-    // findRedactedOwnerRow for the policy. Pure helper so the matching
-    // rules are unit-testable without standing up a full ingest.
-    const ownerName = snapshot.registration.personName;
-    const ownerPersonId = ownerName ? lookupPersonId(ownerName) : null;
-    const teamAnchoredOwnerRow = findRedactedOwnerRow(
-      speakerRows,
-      ownerName,
-      snapshot.registration.teamName,
-      lookupPersonId,
-    );
-    const resolveSpeakerPersonId = (sp: typeof speakerRows[number]): bigint | null => {
-      const id = lookupPersonId(sp.speakerName);
-      if (id) return id;
-      if (sp === teamAnchoredOwnerRow && ownerPersonId) return ownerPersonId;
-      return null;
-    };
-
-    // Pre-compute each speaker's PRIMARY team across the parse — the team
-    // where they have the most scored prelim rounds. Iron-manning speakers
-    // appear in multiple rows with different teamNames; the upsert below
-    // would otherwise clobber teamName on every iteration. See
-    // lib/calicotab/primaryTeam.ts for the rationale (audit issue #14:
-    // resort-stability).
-    const primaryTeamRows: Array<{ row: typeof speakerRows[number]; lookupId: bigint }> = [];
-    for (const sp of speakerRows) {
-      const id = resolveSpeakerPersonId(sp);
-      if (id) primaryTeamRows.push({ row: sp, lookupId: id });
-    }
-    const primaryTeamByPerson = buildPrimaryTeamMap(primaryTeamRows);
-
-    // Which round each score column is — by the nav round its label names,
-    // else by position, never by the bare digit in "R1A". Every row of a
-    // speaker tab carries the same columns in the same order, so the first
-    // row with score columns stands for all. See lib/calicotab/roundNumbers.ts.
-    const scoreColumns = (
-      speakerRows.find((sp) => sp.roundScores.some((rs) => rs.positionLabel !== 'average'))
-        ?.roundScores ?? []
-    )
-      .filter((rs) => rs.positionLabel !== 'average')
-      .map((rs) => rs.roundLabel);
-    const roundByColumn = speakerColumnRounds(
-      scoreColumns,
-      prelimRoundsFromNav(snapshot.navigation.resultsRoundLabels),
-    );
-
-    for (const sp of speakerRows) {
-      // Fuzzy lookup: exact-match first, then substring + token-subset
-      // fallbacks. Strict exact-match used to silently drop a user's
-      // upsert when the speaker tab spelled their name slightly
-      // differently from their claim ("Abhishek A." vs "Abhishek
-      // Acharya"), leaving rank/avg/total fields as nulls written by
-      // the prior `prepareTournamentWideRefresh`. The audit's biggest
-      // user-visible gap. The team-anchored fallback above resolves
-      // a separate edge case: redacted-name rows on the URL owner's
-      // own team.
-      const personId = resolveSpeakerPersonId(sp);
-      if (!personId) continue;
-      const teamNameToWrite = primaryTeamByPerson.get(personId) ?? sp.teamName;
-      const breakRankForTeam = teamNameToWrite
-        ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
-        : null;
-      const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        update: {
-          teamName: teamNameToWrite,
-          speakerScoreTotal: sp.totalScore as unknown as undefined,
-          speakerRankOpen: sp.rank,
-          speakerRankEsl: sp.rankEsl,
-          speakerRankEfl: sp.rankEfl,
-          speakerCategories: sp.categories,
-          teamBreakRank: breakRankForTeam,
-        },
-        create: {
-          tournamentId: t.id,
-          personId,
-          teamName: teamNameToWrite,
-          speakerScoreTotal: sp.totalScore as unknown as undefined,
-          speakerRankOpen: sp.rank,
-          speakerRankEsl: sp.rankEsl,
-          speakerRankEfl: sp.rankEfl,
-          speakerCategories: sp.categories,
-          // The primary team's break rank, as on update: teamBreakRank is read
-          // beside teamName (lib/cv/teamPlacement.ts, /cv/verify), so the two
-          // must name the same team. An iron-man's first row used to create
-          // with that row's own team; a later row's update then overwrote it
-          // in the same transaction, so stored rows already agree.
-          teamBreakRank: breakRankForTeam,
-        },
-      });
-      await tx.participantRole.upsert({
-        where: {
-          tournamentParticipantId_role: {
+        await tx.participantRole.upsert({
+          where: {
+            tournamentParticipantId_role: {
+              tournamentParticipantId: participant.id,
+              role: 'speaker',
+            },
+          },
+          update: {},
+          create: { tournamentParticipantId: participant.id, role: 'speaker' },
+        });
+        speakerParticipantIds.push(participant.id);
+        let column = 0;
+        for (const rs of sp.roundScores) {
+          const isAverageScore = rs.positionLabel === 'average';
+          const rn = isAverageScore ? 0 : roundByColumn[column++];
+          if (rn == null) continue;
+          speakerRoundScoreCreates.push({
             tournamentParticipantId: participant.id,
-            role: 'speaker',
-          },
-        },
-        update: {},
-        create: { tournamentParticipantId: participant.id, role: 'speaker' },
-      });
-      speakerParticipantIds.push(participant.id);
-      let column = 0;
-      for (const rs of sp.roundScores) {
-        const isAverageScore = rs.positionLabel === 'average';
-        const rn = isAverageScore ? 0 : roundByColumn[column++];
-        if (rn == null) continue;
-        speakerRoundScoreCreates.push({
-          tournamentParticipantId: participant.id,
-          roundNumber: rn,
-          // A blank cell (the speaker sat the round out, or the tab hides
-          // that score) is still written, as score null with label ''. It is
-          // intended: it records that the column exists for this speaker, and
-          // every score consumer (buildCvData, speakerStats, milestones,
-          // statsFacts, exportFields) filters score != null, so it never
-          // counts as a speech. Only /cv/verify's per-round list shows it,
-          // as "—".
-          positionLabel: rs.positionLabel ?? '',
-          score: rs.score as unknown as undefined,
-        });
+            roundNumber: rn,
+            // A blank cell (the speaker sat the round out, or the tab hides
+            // that score) is still written, as score null with label ''. It is
+            // intended: it records that the column exists for this speaker, and
+            // every score consumer (buildCvData, speakerStats, milestones,
+            // statsFacts, exportFields) filters score != null, so it never
+            // counts as a speech. Only /cv/verify's per-round list shows it,
+            // as "—".
+            positionLabel: rs.positionLabel ?? '',
+            score: rs.score as unknown as undefined,
+          });
+        }
       }
-    }
 
-    // Persist the derived speaker rank (ROW_NUMBER over speakerScoreTotal DESC)
-    // for this tournament. Replaces the per-CV-view derivation that used to
-    // live in buildCvData.ts:262-291 — see sub-project 7. Tournament-scoped
-    // WHERE is critical: dropping it would recompute ranks across the entire
-    // table inside this transaction. Runs after every speaker upsert in this
-    // ingest is complete so the ROW_NUMBER input set is consistent. Idempotent
-    // across reingest: the same input rows produce the same output ranks.
-    await tx.$executeRaw`
+      // Persist the derived speaker rank (ROW_NUMBER over speakerScoreTotal DESC)
+      // for this tournament. Replaces the per-CV-view derivation that used to
+      // live in buildCvData.ts:262-291 — see sub-project 7. Tournament-scoped
+      // WHERE is critical: dropping it would recompute ranks across the entire
+      // table inside this transaction. Runs after every speaker upsert in this
+      // ingest is complete so the ROW_NUMBER input set is consistent. Idempotent
+      // across reingest: the same input rows produce the same output ranks.
+      await tx.$executeRaw`
       UPDATE "TournamentParticipant" tp
       SET "speakerRankOpenDerived" = sub.r
       FROM (
@@ -1647,74 +1718,76 @@ async function writeIngestTransaction(
       WHERE tp.id = sub.id
     `;
 
-    // Adjudicator ROSTER (who's in the tournament) comes from the participants
-    // list: write a TournamentParticipant row + 'judge' role per adjudicator
-    // so the search-based claim flow on /cv can find them. Adjudicator JUDGING
-    // HISTORY (rounds judged, chaired vs paneled, deepest outround) is still
-    // sourced exclusively from the URL owner's private-URL Debates table by
-    // recordJudgeRoundsFromLanding() — never from round-results panels.
-    for (const p of mergedParticipantRows) {
-      if (p.role !== 'adjudicator') continue;
-      const personId = lookupPersonId(p.name);
-      if (!personId) continue;
-      const participant = await tx.tournamentParticipant.upsert({
-        where: { tournamentId_personId: { tournamentId: t.id, personId } },
-        update: {
-          judgeTypeTag: p.judgeTag,
-          // Only overwrite teamName when the participants list explicitly
-          // gave one — adjs typically have null and we don't want to clobber
-          // a speaker's team affiliation for swing participants.
-          ...(p.teamName ? { teamName: p.teamName } : {}),
-        },
-        create: {
-          tournamentId: t.id,
-          personId,
-          teamName: p.teamName,
-          judgeTypeTag: p.judgeTag,
-        },
-      });
-      await tx.participantRole.upsert({
-        where: {
-          tournamentParticipantId_role: {
-            tournamentParticipantId: participant.id,
-            role: 'judge',
+      // Adjudicator ROSTER (who's in the tournament) comes from the participants
+      // list: write a TournamentParticipant row + 'judge' role per adjudicator
+      // so the search-based claim flow on /cv can find them. Adjudicator JUDGING
+      // HISTORY (rounds judged, chaired vs paneled, deepest outround) is still
+      // sourced exclusively from the URL owner's private-URL Debates table by
+      // recordJudgeRoundsFromLanding() — never from round-results panels.
+      for (const p of mergedParticipantRows) {
+        if (p.role !== 'adjudicator') continue;
+        const personId = lookupPersonId(p.name);
+        if (!personId) continue;
+        const participant = await tx.tournamentParticipant.upsert({
+          where: { tournamentId_personId: { tournamentId: t.id, personId } },
+          update: {
+            judgeTypeTag: p.judgeTag,
+            // Only overwrite teamName when the participants list explicitly
+            // gave one — adjs typically have null and we don't want to clobber
+            // a speaker's team affiliation for swing participants.
+            ...(p.teamName ? { teamName: p.teamName } : {}),
           },
-        },
-        update: {},
-        create: { tournamentParticipantId: participant.id, role: 'judge' },
-      });
-    }
+          create: {
+            tournamentId: t.id,
+            personId,
+            teamName: p.teamName,
+            judgeTypeTag: p.judgeTag,
+          },
+        });
+        await tx.participantRole.upsert({
+          where: {
+            tournamentParticipantId_role: {
+              tournamentParticipantId: participant.id,
+              role: 'judge',
+            },
+          },
+          update: {},
+          create: { tournamentParticipantId: participant.id, role: 'judge' },
+        });
+      }
 
-    // Break rows -> elimination_results. The row's existence (stage +
-    // entityName) is the signal readers use — adjudicator-break detection
-    // and EUDC stage collection in buildCvData both ignore `result`.
-    // Historically this wrote `rank:N` into result; nothing ever read it
-    // back (the rank lives on TournamentParticipant.teamBreakRank), so the
-    // write stopped and the legacy rows were nulled by migration. `update`
-    // is deliberately empty: a break row must never clobber a won/lost
-    // value that the outround-results loop wrote for the same key.
-    for (const row of breakRows) {
-      await tx.eliminationResult.upsert({
-        where: {
-          tournamentId_stage_entityType_entityName: {
+      // Break rows -> elimination_results. The row's existence (stage +
+      // entityName) is the signal readers use — adjudicator-break detection
+      // and EUDC stage collection in buildCvData both ignore `result`.
+      // Historically this wrote `rank:N` into result; nothing ever read it
+      // back (the rank lives on TournamentParticipant.teamBreakRank), so the
+      // write stopped and the legacy rows were nulled by migration. `update`
+      // is deliberately empty: a break row must never clobber a won/lost
+      // value that the outround-results loop wrote for the same key.
+      for (const row of breakRows) {
+        await tx.eliminationResult.upsert({
+          where: {
+            tournamentId_stage_entityType_entityName: {
+              tournamentId: t.id,
+              stage: row.stage ?? 'break',
+              entityType: row.entityType,
+              entityName: row.entityName,
+            },
+          },
+          update: {},
+          create: {
             tournamentId: t.id,
             stage: row.stage ?? 'break',
             entityType: row.entityType,
             entityName: row.entityName,
           },
-        },
-        update: {},
-        create: {
-          tournamentId: t.id,
-          stage: row.stage ?? 'break',
-          entityType: row.entityType,
-          entityName: row.entityName,
-        },
-      });
-    }
+        });
+      }
 
-    return { tournamentId: t.id, speakerRoundScoreCreates, speakerParticipantIds };
-  }, { maxWait: 10000, timeout: txTimeoutMs });
+      return { tournamentId: t.id, speakerRoundScoreCreates, speakerParticipantIds };
+    },
+    { maxWait: 10000, timeout: txTimeoutMs },
+  );
   // Tx timeout is 45s — leaves 15s headroom under the 60s Vercel Hobby
   // function budget for the post-tx bulk SpeakerRoundScore writes plus the
   // landing-derived per-round writes (recordJudgeRounds*, recordSpeakerRounds*).
@@ -1926,9 +1999,7 @@ async function isLatestParserRun(sourceDocumentId: string): Promise<boolean> {
  * Returns a Map<normalizedName, personId> the main transaction can look up
  * without doing any further Person writes.
  */
-async function preCommitPersons(
-  names: Iterable<string>,
-): Promise<Map<string, bigint>> {
+async function preCommitPersons(names: Iterable<string>): Promise<Map<string, bigint>> {
   // Dedupe by normalizedName; remember the first displayName seen.
   const unique = new Map<string, string>();
   for (const name of names) {
@@ -1936,14 +2007,13 @@ async function preCommitPersons(
     if (!norm) continue;
     if (!unique.has(norm)) unique.set(norm, name);
   }
-  const sorted = [...unique.entries()].sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  );
+  const sorted = [...unique.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
   const result = new Map<string, bigint>();
   for (const [normalizedName, displayName] of sorted) {
-    const rows = await withDeadlockRetry(() =>
-      prisma.$queryRaw<{ id: bigint }[]>`
+    const rows = await withDeadlockRetry(
+      () =>
+        prisma.$queryRaw<{ id: bigint }[]>`
         INSERT INTO "Person" ("displayName", "normalizedName")
         VALUES (${displayName}, ${normalizedName})
         ON CONFLICT ("normalizedName")
@@ -2021,9 +2091,7 @@ async function prepareTournamentWideRefresh(
     where: {
       tournamentId,
       person: { claimedByUserId: null },
-      ...(protectedPersonIds.length > 0
-        ? { personId: { notIn: protectedPersonIds } }
-        : {}),
+      ...(protectedPersonIds.length > 0 ? { personId: { notIn: protectedPersonIds } } : {}),
     },
   });
 }
@@ -2146,7 +2214,7 @@ async function recordJudgeRoundsFromLanding(
       written: 0,
       chairedPrelims: 0,
       diagnostic:
-        "parse: 0 adjudicator rounds in private-URL Debates table — " +
+        'parse: 0 adjudicator rounds in private-URL Debates table — ' +
         "URL owner isn't on any panel, or the table heading + structure don't match the parser; " +
         'leaving any prior judge assignments in place rather than wiping them.',
     };
@@ -2156,9 +2224,11 @@ async function recordJudgeRoundsFromLanding(
   // the shared helper. See lib/calicotab/judgeAggregates.ts for the rules
   // — same semantics this writer used inline before sub-project 9 dedup.
   const aggregates = computeJudgeAggregates(
-    adjRounds.map(
-      (r): JudgeRound => ({ stage: r.stage, role: r.role, roundNumber: r.roundNumber }),
-    ),
+    adjRounds.map((r): JudgeRound => ({
+      stage: r.stage,
+      role: r.role,
+      roundNumber: r.roundNumber,
+    })),
   );
 
   const uniqueRounds = new Map<string, (typeof adjRounds)[number]>();
@@ -2354,23 +2424,14 @@ async function recordJudgeRoundsFromRoundResults(
   // role: 'chair' | 'panellist' | 'trainee', read off the adjudicator
   // cell's symbol.
   const aggregates = computeJudgeAggregates(
-    hits.map(
-      (h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber }),
-    ),
+    hits.map((h): JudgeRound => ({ stage: h.stage, role: h.role, roundNumber: h.roundNumber })),
   );
 
   // Merge with whatever the Debates card path already wrote: only fill in
   // null fields, never overwrite. Debates card data is more authoritative
   // (URL owner is explicitly bolded there) so when it ran successfully its
   // values stand.
-  await writeJudgeParticipantRole(
-    prisma,
-    tournamentId,
-    personId,
-    aggregates,
-    'fillNullsOnly',
-  );
+  await writeJudgeParticipantRole(prisma, tournamentId, personId, aggregates, 'fillNullsOnly');
 
   return { written, matched: hits.length, diagnostic: null };
 }
-

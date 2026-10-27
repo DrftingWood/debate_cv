@@ -13,7 +13,9 @@ export function askHidden(prompt) {
   return new Promise((resolvePrompt, reject) => {
     const stdin = process.stdin;
     if (!stdin.isTTY) {
-      reject(new Error('Run this in an interactive terminal, or set POSTGRES_URL_NON_POOLING first.'));
+      reject(
+        new Error('Run this in an interactive terminal, or set POSTGRES_URL_NON_POOLING first.'),
+      );
       return;
     }
     process.stdout.write(prompt);
@@ -86,7 +88,9 @@ export function directConnectionString(raw) {
 export async function resolveConnectionString(shellUrl) {
   let url = shellUrl;
   if (!url) {
-    const typed = await askHidden('Paste the Neon connection string and press Enter (it will not be shown): ');
+    const typed = await askHidden(
+      'Paste the Neon connection string and press Enter (it will not be shown): ',
+    );
     if (!typed.trim()) {
       console.error('Nothing entered.');
       process.exit(1);
