@@ -1,4 +1,4 @@
-import { formatWait } from '@/lib/rateLimit';
+import { formatWait } from '@/lib/utils/formatWait';
 
 /** Words for the whole-mailbox scan on Imports, in one place so tests can pin them. */
 export const FULL_SCAN_LABEL = 'Scan whole mailbox';

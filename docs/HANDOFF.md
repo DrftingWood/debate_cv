@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-27 - Function size trim 1: stop tracing server source maps into functions
+
+- **Finding.** Each serverless function traced ~57 MB median / 77 MB max unzipped, and 9-18 of its traced files were `.next/server/chunks/*.map` (server source maps). Those maps are uploaded to Sentry at build time (`withSentryConfig`, when `SENTRY_AUTH_TOKEN` is set), so they need not ship inside functions.
+- **Change.** `next.config.ts`: `outputFileTracingExcludes: { '*': ['**/*.map'] }`. Sentry resolves stack traces from the uploaded maps, so error reporting is unaffected. `sourcemaps.deleteSourcemapsAfterUpload` was NOT added: it exists in the installed `@sentry/nextjs` 10.76.2 types but already defaults to `true`, so setting it adds nothing. Client source-map behaviour is unchanged.
+- **Measurement (74 routes).** Local Windows builds cannot show the effect: Next joins the exclude glob with `path.join`, which yields backslashes on Windows, so nothing matches there (traces identical before/after). Docker was unavailable (engine 503), so the Linux result was computed by applying Next's exact matching (`picomatch` with `dot`, `contains`, posix paths) to the real baseline traces: median 57.4 -> 51.6 MB, max 77.2 -> 56.5 MB, 806 `.map` entries removed (~10.9 per route, ~8.9 MB per route on average). The key `'*'` was checked to match every route key.
+- **Verify on Vercel.** Open the preview deployment (branch `preview/trim-function-sourcemaps`) > Resources / Functions and compare function sizes with a recent main deployment; they should drop by roughly the amounts above. Also confirm the build still uploads source maps (Sentry release) and a test error still resolves to TypeScript.
+- **Rollback.** Revert the commit (removes the one config option).
+
+---
+
 ## 2026-10-27 - Vercel deployments only for main and preview/* branches
 
 - Hobby's ~100 deployments/day quota was exhausted by agent pushes, which also blocked production deploys. `vercel.json` `git.deploymentEnabled` now creates deployments only for `main` and `preview/*`; agent/feature prefixes are disabled. Name a branch `preview/<name>` to get a preview. `verify` (GitHub Actions) still runs on every PR. Test: `tests/vercelJson.test.ts`.

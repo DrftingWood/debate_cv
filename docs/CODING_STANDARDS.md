@@ -118,7 +118,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 **PF-1. No Prisma call inside a loop over rows.** *Why:* N+1 queries are the usual cause of slow pages and long ingest transactions (P1). *Good:* `findMany({ where: { id: { in: ids } } })`, `createMany`, or `include`/`select`. *Bad:* `for (const r of rows) await prisma.person.findUnique(...)`. *Q:* "Is there an `await prisma` inside a `for` or `map`?"
 
-**PF-2. Server Components by default; `'use client'` only on small interactive leaves.** *Why:* the directive pulls the module and everything it imports into the client bundle (N1). *Good:* `app/` pages are server components; only `error.tsx`-style files carry the directive. *Bad:* `'use client'` on a page or layout to use one hook. *Q:* "Does the new `'use client'` sit on the smallest component that needs it?"
+**PF-2. Server Components by default; `'use client'` only on small interactive leaves.** *Why:* the directive pulls the module and everything it imports into the client bundle (N1). *Good:* `app/` pages are server components; only `error.tsx`-style files carry the directive. *Bad:* `'use client'` on a page or layout to use one hook. *Q:* "Does the new `'use client'` sit on the smallest component that needs it?" *Client boundary:* a `'use client'` module must not import server modules (`@/lib/db`, `@/lib/rateLimit`, `@prisma/client`, `googleapis`, `next/server`, `@/lib/queue`, `@/lib/auth`), directly or transitively; `'use server'` actions are fine. Enforced by `tests/clientBundleBoundary.test.ts`.
 
 ## 8. Accessibility (WCAG 2.2 AA)
 
