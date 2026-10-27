@@ -263,7 +263,7 @@ export function CvRowReportButton({
                   {error}
                 </p>
               ) : null}
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button type="button" variant="ghost" size="sm" onClick={close}>
                   Cancel
                 </Button>
@@ -274,7 +274,7 @@ export function CvRowReportButton({
                   aria-describedby={error ? errorId : undefined}
                   leftIcon={!isPending ? <Send className="h-3.5 w-3.5" aria-hidden /> : undefined}
                 >
-                  Send
+                  Send report
                 </Button>
               </div>
             </form>

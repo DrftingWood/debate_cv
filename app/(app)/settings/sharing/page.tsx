@@ -5,7 +5,7 @@ import { SharingManager } from '@/components/SharingManager';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Public sharing settings' };
+export const metadata: Metadata = { title: 'Sharing · Settings' };
 
 export default function SharingSettingsPage() {
   return (
@@ -13,8 +13,9 @@ export default function SharingSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · SHARING</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Your public link
+          Public sharing
         </h1>
+        <p className="text-body text-ink-soft">Your public link and what it shows.</p>
         <hr className="hairline" />
       </header>
 

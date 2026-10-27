@@ -3,7 +3,7 @@
 import { useId, useRef, useState, useTransition, type FormEvent, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, LogOut, Trash2, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FieldError, describedBy, fieldInputClass } from '@/components/FieldError';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
@@ -110,17 +110,16 @@ export function DisconnectGoogleButton() {
 }
 
 export function DownloadDataButton() {
+  // The export is a plain GET, so it is a link (NV-29, UX-64).
   return (
-    <Button
-      type="button"
-      variant="secondary"
-      leftIcon={<Download className="h-4 w-4" aria-hidden />}
-      onClick={() => {
-        window.location.href = '/api/account/export';
-      }}
+    <a
+      href="/api/account/export"
+      download
+      className={buttonClasses({ variant: 'secondary' })}
     >
+      <Download className="h-4 w-4" aria-hidden />
       Download my data (JSON)
-    </Button>
+    </a>
   );
 }
 
@@ -139,7 +138,10 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
       <Button
         ref={triggerRef}
         type="button"
-        variant="danger"
+        // Outline with destructive text: the danger fill belongs to the final
+        // step only (NV-30, UX-69).
+        variant="outline"
+        className="border-destructive/40 text-destructive hover:bg-destructive/10"
         leftIcon={<Trash2 className="h-4 w-4" aria-hidden />}
         onClick={() => {
           setConfirming(true);
@@ -147,7 +149,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
           focusAfterRender(inputRef);
         }}
       >
-        Delete my data
+        Delete my account
       </Button>
     );
   }

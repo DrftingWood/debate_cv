@@ -90,7 +90,7 @@ export default async function AdminPage() {
       <header className="space-y-3">
         <div className="kicker">ADMIN · INTERNAL</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-          Operator tools
+          Admin: operator tools
         </h1>
         <hr className="hairline" />
       </header>
@@ -270,7 +270,7 @@ export default async function AdminPage() {
             <span className="font-medium">Ingest all</span> on the dashboard to process the queue.
           </p>
         </div>
-        <ReingestAllButton />
+        <ReingestAllButton count={Math.max(0, discoveredUrls - lockedUrls)} />
       </section>
     </div>
   );

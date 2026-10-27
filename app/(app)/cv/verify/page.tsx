@@ -12,12 +12,13 @@ import { FocusOnMount } from '@/components/FocusOnMount';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
+import { buttonClasses } from '@/components/ui/Button';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { displayNameFor } from '@/lib/privacy/suppression';
 
 export const metadata: Metadata = {
-  title: 'Extracted Data Verification',
+  title: 'Verify',
   description: 'Verify parsed tournament data from your most recent private URLs.',
   robots: { index: false, follow: false },
 };
@@ -148,7 +149,7 @@ export default async function CvVerifyPage({
         <header className="space-y-3">
           <div className="kicker uppercase">Debate CV — Verify</div>
           <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-            Check what we parsed
+            Verify what we parsed
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
@@ -165,8 +166,11 @@ export default async function CvVerifyPage({
 
       {ordered.length === 0 ? (
         <Card>
-          <CardBody className="text-ui text-ink-soft">
-            No ingested tournaments found yet.
+          <CardBody className="space-y-3 text-ui text-ink-soft">
+            <p>No ingested tournaments found yet.</p>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+              Open imports
+            </Link>
           </CardBody>
         </Card>
       ) : (
@@ -202,7 +206,7 @@ export default async function CvVerifyPage({
                         rel="noopener noreferrer"
                         className="inline-flex min-h-[44px] items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
-                        Source <span className="sr-only">(opens in a new tab)</span>
+                        Source <span className="sr-only">for {t.name} (opens in a new tab)</span>
                         <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
                       {ownUrlByTournament.get(t.id) ? <ReingestButton url={ownUrlByTournament.get(t.id)!} /> : null}
@@ -241,6 +245,7 @@ export default async function CvVerifyPage({
                     >
                       <ChevronDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                       Show what the parser read
+                      <span className="sr-only"> for {t.name}</span>
                       <span className="text-caption">
                         ({participants.length} participant
                         {participants.length === 1 ? '' : 's'} · {t.judgeAssignments.length} judge

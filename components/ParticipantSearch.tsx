@@ -44,6 +44,8 @@ export function ParticipantSearch({
   const router = useRouter();
   const toast = useToast();
   const [isClaiming, startClaim] = useTransition();
+  // Which hit is in flight, so only that row shows the pending state (NV-16).
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   // Debounced fetch — only triggers when the query has at least
   // MIN_QUERY_LENGTH characters. Older requests are ignored via `seq` so a
@@ -86,6 +88,7 @@ export function ParticipantSearch({
   }, [query, tournamentId]);
 
   const claim = (hit: SearchHit) => {
+    setClaimingId(String(hit.personId));
     startClaim(async () => {
       const result = await postJson(`/api/persons/${hit.personId}/claim`);
       if (!result.ok) {
@@ -204,15 +207,20 @@ export function ParticipantSearch({
               <Button
                 type="button"
                 size="sm"
-                variant={hit.isMine ? 'outline' : 'primary'}
+                variant="outline"
                 disabled={hit.isMine || isClaiming}
-                loading={isClaiming}
+                loading={isClaiming && claimingId === String(hit.personId)}
+                aria-label={
+                  hit.isMine ? `Already mine: ${hit.displayName}` : `This is me: ${hit.displayName}`
+                }
                 leftIcon={
-                  !isClaiming ? <UserCheck className="h-3.5 w-3.5" aria-hidden /> : undefined
+                  !(isClaiming && claimingId === String(hit.personId)) ? (
+                    <UserCheck className="h-3.5 w-3.5" aria-hidden />
+                  ) : undefined
                 }
                 onClick={() => claim(hit)}
               >
-                {hit.isMine ? 'Already mine' : isClaiming ? 'Claiming…' : 'This is me'}
+                {hit.isMine ? 'Already mine' : 'This is me'}
               </Button>
             </li>
           ))}

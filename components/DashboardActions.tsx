@@ -6,7 +6,7 @@ import {
   Search,
   Play,
   RotateCw,
-  Trash2,
+  RotateCcw,
   RefreshCw,
   Download,
   Lock,
@@ -316,7 +316,19 @@ export function UploadCsvButton() {
   );
 }
 
-export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: boolean }) {
+/** Row-action buttons share the touch scale the `link` variant skips (NV-13). */
+const ROW_ACTION_CLASS = 'coarse:min-h-[44px]';
+
+export function IngestButton({
+  url,
+  alreadyDone,
+  name,
+}: {
+  url: string;
+  alreadyDone: boolean;
+  /** Tournament name or host, so the accessible name says which row (NV-13). */
+  name?: string;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -328,6 +340,8 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
       type="button"
       variant="link"
       size="sm"
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `${label} ${name}` : undefined}
       loading={isPending}
       leftIcon={
         !isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined
@@ -379,7 +393,7 @@ export function IngestButton({ url, alreadyDone }: { url: string; alreadyDone: b
   );
 }
 
-export function ClearButton({ url }: { url: string }) {
+export function ClearButton({ url, name }: { url: string; name?: string }) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -394,17 +408,18 @@ export function ClearButton({ url }: { url: string }) {
     return (
       <span
         role="group"
-        aria-label="Confirm clearing this import"
+        aria-label="Confirm resetting this import"
         className="flex flex-wrap items-center gap-x-3 gap-y-1"
       >
         <span className="text-caption text-ink-soft">
-          Clear this import? The tournament stays on your record until you ingest it again.
+          Reset this import? The tournament stays on your record until you ingest it again.
         </span>
         <Button
           ref={cancelRef}
           type="button"
           variant="link"
           size="sm"
+          className={ROW_ACTION_CLASS}
           disabled={isPending}
           onClick={() => {
             setConfirming(false);
@@ -417,18 +432,20 @@ export function ClearButton({ url }: { url: string }) {
           type="button"
           variant="link"
           size="sm"
+          className={ROW_ACTION_CLASS}
+          aria-label={name ? `Confirm reset of ${name}` : undefined}
           loading={isPending}
-          leftIcon={!isPending ? <Trash2 className="h-3.5 w-3.5" aria-hidden /> : undefined}
+          leftIcon={!isPending ? <RotateCcw className="h-3.5 w-3.5" aria-hidden /> : undefined}
           onClick={() => {
             startTransition(async () => {
               const result = await postJson('/api/ingest/clear', { url });
               if (!result.ok) {
-                toast.show(failureToast(result, 'Clear failed'));
+                toast.show(failureToast(result, 'Reset failed'));
                 return;
               }
               toast.show({
                 kind: 'success',
-                title: 'Cleared',
+                title: 'Import reset',
                 description: 'Ingestion reset — click Ingest to retry.',
               });
               router.refresh();
@@ -436,7 +453,7 @@ export function ClearButton({ url }: { url: string }) {
             });
           }}
         >
-          Clear
+          Reset
         </Button>
       </span>
     );
@@ -448,13 +465,15 @@ export function ClearButton({ url }: { url: string }) {
       type="button"
       variant="link"
       size="sm"
-      leftIcon={<Trash2 className="h-3.5 w-3.5" aria-hidden />}
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `Reset import of ${name}` : undefined}
+      leftIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
       onClick={() => {
         setConfirming(true);
         focusAfterRender(cancelRef);
       }}
     >
-      Clear
+      Reset
     </Button>
   );
 }
@@ -592,7 +611,15 @@ export function ReingestSelectedButton() {
   );
 }
 
-export function LockUrlButton({ url, locked }: { url: string; locked: boolean }) {
+export function LockUrlButton({
+  url,
+  locked,
+  name,
+}: {
+  url: string;
+  locked: boolean;
+  name?: string;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -603,6 +630,8 @@ export function LockUrlButton({ url, locked }: { url: string; locked: boolean })
       type="button"
       variant="link"
       size="sm"
+      className={ROW_ACTION_CLASS}
+      aria-label={name ? `${locked ? 'Unlock' : 'Lock'} ${name}` : undefined}
       loading={isPending}
       leftIcon={
         !isPending ? (
