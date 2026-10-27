@@ -1,8 +1,8 @@
-import { ExternalLink } from 'lucide-react';
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { teamTabPlacement, formatTopPercent } from '@/lib/cv/teamPlacement';
 import { Badge } from '@/components/ui/Badge';
+import { TournamentCard, type TournamentCardField } from '@/components/TournamentCard';
 
 /**
  * Phone layout for the public CV (`/u/<slug>`): one card per tournament.
@@ -15,11 +15,11 @@ import { Badge } from '@/components/ui/Badge';
  * same facts as the table, labelled, with nothing truncated: touch devices
  * never show a `title` tooltip, so a clipped team name is a lost team name.
  *
- * This is a local equivalent of the `TournamentCard` the /cv record is
- * having extracted into `components/TournamentCard.tsx` (UI/UX audit,
- * 2026-10-27, task T3). Once that lands this file can be swapped for the
- * shared component. It is kept separate until then because the public view
- * deliberately differs: no report button, no round ledger, no partner list.
+ * The card itself is the shared `components/TournamentCard.tsx`, the same one
+ * /cv uses, so a fix to how a tournament link or field reads lands on both
+ * (PUB-1). This file only maps the public rows to its fields: the public view
+ * deliberately differs from /cv in having no report button, no round ledger
+ * and no partner list.
  */
 
 /** Furthest outround reached, per category when the team broke in more than one. */
@@ -47,115 +47,68 @@ export function PublicBreakMarker({ r }: { r: CvSpeakerRow }) {
 }
 
 /**
- * The tournament name as a link to the tab it was read from. It opens in a
- * new tab, so it says so in text (WCAG technique G201) and shows the icon at
- * full strength rather than on hover only.
- */
-function SourceLink({ href, name }: { href: string; name: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex min-h-6 min-w-0 items-start gap-1.5 break-words py-0.5 font-display text-h4 font-medium text-ink hover:text-primary"
-    >
-      <span className="min-w-0">{name}</span>
-      <ExternalLink className="mt-1.5 h-3.5 w-3.5 shrink-0 text-ink-soft" aria-hidden />
-      <span className="sr-only"> (opens in new tab)</span>
-    </a>
-  );
-}
-
-function CardHead({ href, name, year }: { href: string; name: string; year: number | null }) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <SourceLink href={href} name={name} />
-      <span className="num shrink-0 pt-1 text-caption text-ink-soft">{year ?? '—'}</span>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  hint,
-  mono,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <dt className="data-label">{label}</dt>
-      <dd className={'mt-0.5 break-words text-table text-ink ' + (mono ? 'num' : '')}>{value}</dd>
-      {hint ? <dd className="text-caption text-ink-soft">{hint}</dd> : null}
-    </div>
-  );
-}
-
-/**
  * Team rank always carries its field size when the tab published one, and
  * the "top N%" is the team's share of the team tab: placement is a team fact
  * (DESIGN_INSTRUCTIONS §9, PR #167), so the speaker-tab rank sits in its own
  * field labelled as the speaker tab and never stands in for it.
  */
-function teamRankField(r: CvSpeakerRow) {
-  if (r.teamRank == null) return null;
-  const p = teamTabPlacement(r.teamRank, r.totalTeams);
-  return (
-    <Field
-      label="Team rank"
-      value={p ? `#${p.rank} of ${p.of}` : `#${r.teamRank}`}
-      hint={p ? `top ${formatTopPercent(p.topPercent)} of the team tab` : undefined}
-      mono
-    />
-  );
+function speakerFields(r: CvSpeakerRow): TournamentCardField[] {
+  const out: TournamentCardField[] = [];
+  if (r.teamRank != null) {
+    const p = teamTabPlacement(r.teamRank, r.totalTeams);
+    out.push({
+      label: 'Team rank',
+      value: p ? `#${p.rank} of ${p.of}` : `#${r.teamRank}`,
+      hint: p ? `top ${formatTopPercent(p.topPercent)} of the team tab` : undefined,
+      mono: true,
+    });
+  }
+  if (r.speakerRankOpen != null) {
+    out.push({ label: 'Speaker-tab rank', value: `#${r.speakerRankOpen}`, mono: true });
+  }
+  if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
+  if (r.teamName) out.push({ label: 'Team', value: r.teamName });
+  if (r.format) out.push({ label: 'Format', value: r.format });
+  return out;
 }
 
 export function PublicSpeakerCard({ r }: { r: CvSpeakerRow }) {
-  const marker = <PublicBreakMarker r={r} />;
   return (
-    <li className="panel p-4">
-      <CardHead href={r.sourceUrl} name={r.tournamentName} year={r.year} />
-      {r.broke || fmtPublicLastOutround(r) ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">{marker}</div>
-      ) : null}
-      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-        {teamRankField(r)}
-        {r.speakerRankOpen != null ? (
-          <Field label="Speaker-tab rank" value={`#${r.speakerRankOpen}`} mono />
-        ) : null}
-        {r.speakerAvgScore ? <Field label="Speaker avg" value={r.speakerAvgScore} mono /> : null}
-        {r.teamName ? <Field label="Team" value={r.teamName} /> : null}
-        {r.format ? <Field label="Format" value={r.format} /> : null}
-      </dl>
-    </li>
+    <TournamentCard
+      name={r.tournamentName}
+      href={r.sourceUrl}
+      year={r.year}
+      result={
+        r.broke || fmtPublicLastOutround(r) ? (
+          <span className="text-caption">
+            <PublicBreakMarker r={r} />
+          </span>
+        ) : null
+      }
+      fields={speakerFields(r)}
+    />
   );
 }
 
 export function PublicJudgeCard({ r }: { r: CvJudgeRow }) {
   const chaired = formatStageForDisplay(r.lastOutroundChaired);
   const judged = formatStageForDisplay(r.lastOutroundJudged);
+  const fields: TournamentCardField[] = [
+    {
+      label: 'Prelims chaired',
+      value: r.inroundsChaired != null ? String(r.inroundsChaired) : '—',
+      mono: true,
+    },
+    {
+      label: 'Prelims judged',
+      value: r.inroundsJudged != null ? String(r.inroundsJudged) : '—',
+      mono: true,
+    },
+  ];
+  if (chaired) fields.push({ label: 'Last outround chaired', value: chaired });
+  if (judged) fields.push({ label: 'Last outround judged', value: judged });
+  if (r.format) fields.push({ label: 'Format', value: r.format });
   return (
-    <li className="panel p-4">
-      <CardHead href={r.sourceUrl} name={r.tournamentName} year={r.year} />
-      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-        <Field
-          label="Prelims chaired"
-          value={r.inroundsChaired != null ? String(r.inroundsChaired) : '—'}
-          mono
-        />
-        <Field
-          label="Prelims judged"
-          value={r.inroundsJudged != null ? String(r.inroundsJudged) : '—'}
-          mono
-        />
-        {chaired ? <Field label="Last outround chaired" value={chaired} /> : null}
-        {judged ? <Field label="Last outround judged" value={judged} /> : null}
-        {r.format ? <Field label="Format" value={r.format} /> : null}
-      </dl>
-    </li>
+    <TournamentCard name={r.tournamentName} href={r.sourceUrl} year={r.year} fields={fields} />
   );
 }

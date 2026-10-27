@@ -70,7 +70,8 @@ function WithheldSection({ id, label, title, reason }: { id: string; label: stri
  * the data (lib/cv/statsFilter.ts) and the same engine that renders the
  * unfiltered page runs again in the browser, so every section responds
  * instantly and keeps the semantics its tests pin. The filter lives in the
- * URL, so a filtered view can be bookmarked, shared, or reached with Back.
+ * URL, so a filtered view can be bookmarked or shared. Filter changes replace
+ * the history entry, so Back does not step through them.
  */
 export function FilterableStats({ data, facts }: { data: FilterableStatsData; facts: StatsFacts }) {
   const pathname = usePathname();
@@ -85,6 +86,9 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   // auth, buildCvData, the round table — and ships the whole payload again
   // for a change the browser computes in a few milliseconds. Next syncs
   // replaceState into useSearchParams, so the filter still lives in the URL.
+  // replaceState also means a filter change adds no history entry: Back leaves
+  // /cv/stats rather than undoing the last filter (STAT-14). "Clear filters"
+  // is the way back to the unfiltered view.
   const setFilter = useCallback(
     (next: StatsFilter) => {
       const qs = serializeStatsFilter(next);
@@ -100,8 +104,17 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   const bySeat = filter.seats.length > 0;
 
   const totalSpeeches = useMemo(() => facts.rounds.filter((r) => r.score != null && !r.isOutround).length, [facts]);
+  // Name the active filters (STAT-7): the pressed chips are the only other
+  // place they show, and a screen reader hears this sentence on every change.
+  const filterNames = [
+    ...filter.partners.length > 2
+      ? [`${filter.partners.length} partners`]
+      : filter.partners.map((k) => `partner ${facts.partnerNames[k] ?? 'unknown'}`),
+    ...filter.pairings.map((p) => `pairing ${p === 'pro' ? 'pro-am, you as pro' : p === 'am' ? 'pro-am, you as am' : 'peers'}`),
+    ...filter.seats.map((s) => `seat ${s.replace(':', ' ')}`),
+  ].join('; ');
   const summary = active
-    ? `Showing ${stats.scoreProfile.speeches.toLocaleString()} of ${totalSpeeches.toLocaleString()} scored prelim speeches, from ${filtered.speakerRows.length} of ${data.speakerRows.length} tournaments.`
+    ? `Showing ${stats.scoreProfile.speeches.toLocaleString()} of ${totalSpeeches.toLocaleString()} scored prelim speeches, from ${filtered.speakerRows.length} of ${data.speakerRows.length} tournaments, filtered by ${filterNames}.`
     : `All ${totalSpeeches.toLocaleString()} scored prelim speeches from ${data.speakerRows.length} tournaments. Narrow by partner, pairing or seat.`;
 
   const quirkIds = visibleQuirkIds(stats.quirks.map((q) => q.id), filter);

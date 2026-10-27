@@ -157,10 +157,13 @@ export function RetryButton({ onClick, children }: { onClick: () => void; childr
 export function ScanEmpty({
   scanned,
   scanning,
+  cooldownLabel,
   onScanAgain,
 }: {
   scanned: number;
   scanning: boolean;
+  /** Set while the scan cooldown runs: the button shows it and is disabled. */
+  cooldownLabel?: string;
   onScanAgain: () => void;
 }) {
   return (
@@ -190,10 +193,11 @@ export function ScanEmpty({
           variant="outline"
           size="sm"
           loading={scanning}
+          disabled={!!cooldownLabel}
           leftIcon={!scanning ? <Search className="h-3.5 w-3.5" aria-hidden /> : undefined}
           onClick={onScanAgain}
         >
-          Scan again
+          {cooldownLabel ?? 'Scan again'}
         </Button>
         <form action={signOutAction}>
           <Button

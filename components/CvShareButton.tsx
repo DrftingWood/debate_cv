@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Share2, Copy, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { usePopover } from '@/components/ui/usePopover';
 import { postJson } from '@/lib/utils/api';
 
 type SharingState = {
@@ -25,9 +26,8 @@ export function CvShareButton() {
   const router = useRouter();
   const toast = useToast();
   const [state, setState] = useState<SharingState | null>(null);
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
   const [pendingToggle, startToggle] = useTransition();
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Lazy-load only on first open so we don't hit /api/sharing for users
   // who never click Share.
@@ -44,23 +44,6 @@ export function CvShareButton() {
       }
     })();
   }, [open, state, toast]);
-
-  // Close on outside click + Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKeydown);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKeydown);
-    };
-  }, [open]);
 
   const setEnabled = (next: boolean) => {
     startToggle(async () => {
@@ -95,6 +78,7 @@ export function CvShareButton() {
   return (
     <div ref={containerRef} className="relative" data-print-hide="true">
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="outline"
@@ -107,9 +91,11 @@ export function CvShareButton() {
       </Button>
       {open ? (
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
           aria-label="Share your CV"
-          className="absolute right-0 z-30 mt-2 w-[320px] rounded-card border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-card outline-none border border-border bg-card p-4 shadow-lg"
         >
           {!state ? (
             <p role="status" className="text-caption text-ink-soft">

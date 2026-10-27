@@ -20,6 +20,8 @@ type TagProposalControlsProps = {
   /** Pre-computed inference for motion_type rows — passed from the server so
    *  the vocabulary module doesn't have to be bundled twice. */
   suggestedValue?: string | null;
+  /** Where the picker is, for its accessible name: "Motion type for Round 1, Worlds 2024". */
+  contextLabel?: string;
 };
 
 type ProposeResponse = { id: string; status: 'pending' };
@@ -44,6 +46,7 @@ export function TagProposalControls({
   approvedValue,
   myProposal,
   suggestedValue,
+  contextLabel,
 }: TagProposalControlsProps) {
   const router = useRouter();
   const toast = useToast();
@@ -103,11 +106,11 @@ export function TagProposalControls({
           onChange={(e) => setSelected(e.target.value)}
           disabled={!!approvedValue || isPending}
           className={
-            'h-9 min-w-0 flex-1 rounded-md border border-border bg-paper px-2.5 text-table text-ink coarse:h-auto coarse:min-h-[44px] ' +
+            'h-9 min-w-0 flex-1 rounded-md border border-input bg-paper px-2.5 text-table text-ink coarse:h-auto coarse:min-h-[44px] ' +
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 ' +
             'disabled:opacity-50 disabled:cursor-not-allowed'
           }
-          aria-label={`Select ${kind.replace('_', ' ')}`}
+          aria-label={`${kind === 'region' ? 'Region' : kind === 'motion_type' ? 'Motion type' : 'Motion topic'}${contextLabel ? ` for ${contextLabel}` : ''}`}
         >
           <option value="">Select…</option>
           {options.map((opt) => (

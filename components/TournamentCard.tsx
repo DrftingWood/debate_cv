@@ -49,6 +49,8 @@ export type TournamentCardField = {
   value: string;
   /** Figures (scores, ranks, counts) set in the tabular mono face. */
   mono?: boolean;
+  /** A second, quieter line under the value, e.g. "top 8% of the team tab". */
+  hint?: string;
 };
 
 /**
@@ -56,11 +58,12 @@ export type TournamentCardField = {
  * truncating: partners and team names are the facts most likely to be long,
  * and the card is the only view of them on a phone (UX-30).
  */
-export function TournamentCardField({ label, value, mono }: TournamentCardField) {
+export function TournamentCardField({ label, value, mono, hint }: TournamentCardField) {
   return (
     <div className="min-w-0">
       <dt className="data-label">{label}</dt>
       <dd className={cn('mt-0.5 break-words text-table text-ink', mono && 'num')}>{value}</dd>
+      {hint ? <dd className="text-caption text-ink-soft">{hint}</dd> : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Mail, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
+import { Search, Clock, Mail, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -21,7 +21,9 @@ import {
   type NameRow,
   type Phase,
 } from '@/components/OnboardingSteps';
-import { scanErrorMessage } from '@/lib/ingest/scanErrorMessage';
+import { scanErrorMessage, formatCountdown } from '@/lib/ingest/scanErrorMessage';
+import { userMessage } from '@/lib/ingest/userMessage';
+import { ScanCooldownNotice, useScanCooldown } from '@/components/ScanCooldown';
 import { postJson } from '@/lib/utils/api';
 
 type ScanResponse = { scanned: number; found: number };
@@ -93,6 +95,7 @@ export function OnboardingFlow({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const firstCheckboxRef = useRef<HTMLInputElement>(null);
   const focusAfterRender = useFocusAfterRender();
+  const cooldown = useScanCooldown();
 
   const goTo = (next: Phase) => {
     focusAfterRender(headingRef);
@@ -114,7 +117,7 @@ export function OnboardingFlow({
         const res = await postJson<PreflightResponse>('/api/onboarding/preflight');
         if (cancelled) return;
         if (!res.ok) {
-          setPreflightError(res.error);
+          setPreflightError(userMessage(res).description);
           return;
         }
         setPreflight((p) => ({
@@ -186,7 +189,11 @@ export function OnboardingFlow({
     startScan(async () => {
       const res = await postJson<ScanResponse>('/api/ingest/gmail');
       if (!res.ok) {
-        setScanError(scanErrorMessage(res).description);
+        // A refused scan that is only the cooldown is a wait, not a failure:
+        // neutral notice and a counting button, no red "did not run" (DASH-1).
+        const notice = scanErrorMessage(res);
+        if (notice.kind === 'cooldown') cooldown.start(notice);
+        else setScanError(notice.description);
         return;
       }
       const found = res.data.found ?? 0;
@@ -226,7 +233,7 @@ export function OnboardingFlow({
         { names: picked.map((n) => n.displayName) },
       );
       if (!res.ok) {
-        setConfirmError(`Your names were not saved: ${res.error}. Try again.`);
+        setConfirmError(`Your names were not saved. ${userMessage(res).description}`);
         return;
       }
       const { claimed } = res.data;
@@ -274,11 +281,28 @@ export function OnboardingFlow({
             </StepIntro>
             {scanError ? (
               <StepError title="The scan did not run" detail={scanError}>
-                <RetryButton onClick={onScan}>Try again</RetryButton>
+                <RetryButton
+                  onClick={() => {
+                    focusAfterRender(headingRef);
+                    onScan();
+                  }}
+                >
+                  Try again
+                </RetryButton>
               </StepError>
             ) : null}
             {emptyScan ? (
-              <ScanEmpty scanned={emptyScan.scanned} scanning={isScanning} onScanAgain={onScan} />
+              <ScanEmpty
+                scanned={emptyScan.scanned}
+                scanning={isScanning}
+                cooldownLabel={
+                  cooldown.active ? `Scan again in ${formatCountdown(cooldown.remainingSec)}` : undefined
+                }
+                onScanAgain={() => {
+                  focusAfterRender(headingRef);
+                  onScan();
+                }}
+              />
             ) : (
               <div className="pt-2">
                 <Button
@@ -286,13 +310,25 @@ export function OnboardingFlow({
                   variant="primary"
                   size="lg"
                   loading={isScanning}
-                  leftIcon={!isScanning ? <Search className="h-4 w-4" aria-hidden /> : undefined}
+                  disabled={cooldown.active}
+                  leftIcon={
+                    isScanning ? undefined : cooldown.active ? (
+                      <Clock className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Search className="h-4 w-4" aria-hidden />
+                    )
+                  }
                   onClick={onScan}
                 >
-                  {isScanning ? 'Scanning Gmail…' : 'Scan Gmail'}
+                  {isScanning
+                    ? 'Scanning Gmail…'
+                    : cooldown.active
+                      ? `Scan again in ${formatCountdown(cooldown.remainingSec)}`
+                      : 'Scan Gmail'}
                 </Button>
               </div>
             )}
+            <ScanCooldownNotice cooldown={cooldown} id="onboarding-scan-cooldown" />
           </CardBody>
         </Card>
       )}
@@ -333,6 +369,7 @@ export function OnboardingFlow({
               >
                 <RetryButton
                   onClick={() => {
+                    focusAfterRender(headingRef);
                     setPreflightError(null);
                     setPreflightRun((n) => n + 1);
                   }}
@@ -371,7 +408,14 @@ export function OnboardingFlow({
               </p>
             ) : namesState === 'error' ? (
               <StepError title="The names did not load">
-                <RetryButton onClick={() => void loadNames()}>Retry</RetryButton>
+                <RetryButton
+                  onClick={() => {
+                    focusAfterRender(headingRef);
+                    void loadNames();
+                  }}
+                >
+                  Retry
+                </RetryButton>
               </StepError>
             ) : names.length === 0 ? (
               <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">

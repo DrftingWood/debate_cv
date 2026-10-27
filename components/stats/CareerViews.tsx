@@ -250,11 +250,11 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
             </thead>
             <tbody>
               <Tr>
-                <Td className="pl-4 font-medium">Best speech</Td>
+                <Td rowHeader className="pl-4 font-medium">Best speech</Td>
                 <Td numeric>{m.bestSpeech ? score(m.bestSpeech.score) : <Nil />}</Td>
                 <Td>
                   {m.bestSpeech ? (
-                    <span className="block max-w-[22rem] truncate" title={m.bestSpeech.at.map((h) => `${h.tournament}, round ${h.round}`).join('\n')}>
+                    <span className="block max-w-[22rem] break-words">
                       {holders(m.bestSpeech.at)}
                     </span>
                   ) : (
@@ -264,11 +264,11 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric className="pr-4">{m.bestSpeech ? plural(m.bestSpeech.speeches, 'prelim speech', 'prelim speeches') : <Nil />}</Td>
               </Tr>
               <Tr>
-                <Td className="pl-4 font-medium">Best team-tab rank</Td>
+                <Td rowHeader className="pl-4 font-medium">Best team-tab rank</Td>
                 <Td numeric>{m.bestTeamRank ? `#${m.bestTeamRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestTeamRank ? (
-                    <span className="block max-w-[22rem] truncate" title={m.bestTeamRank.at.map((h) => h.tournament).join('\n')}>
+                    <span className="block max-w-[22rem] break-words">
                       {holders(m.bestTeamRank.at)}
                     </span>
                   ) : (
@@ -278,11 +278,11 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric className="pr-4">{m.bestTeamRank ? plural(m.bestTeamRank.of, 'team tab') : <Nil />}</Td>
               </Tr>
               <Tr>
-                <Td className="pl-4 font-medium">Best speaker-tab rank</Td>
+                <Td rowHeader className="pl-4 font-medium">Best speaker-tab rank</Td>
                 <Td numeric>{m.bestSpeakerRank ? `#${m.bestSpeakerRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestSpeakerRank ? (
-                    <span className="block max-w-[22rem] truncate" title={m.bestSpeakerRank.at.map((h) => h.tournament).join('\n')}>
+                    <span className="block max-w-[22rem] break-words">
                       {holders(m.bestSpeakerRank.at)}
                     </span>
                   ) : (
@@ -292,11 +292,11 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric className="pr-4">{m.bestSpeakerRank ? plural(m.bestSpeakerRank.of, 'ranked tab') : <Nil />}</Td>
               </Tr>
               <Tr>
-                <Td className="pl-4 font-medium">Best open break rank</Td>
+                <Td rowHeader className="pl-4 font-medium">Best open break rank</Td>
                 <Td numeric>{m.bestBreakRank ? `#${m.bestBreakRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestBreakRank ? (
-                    <span className="block max-w-[22rem] truncate" title={m.bestBreakRank.at.map((h) => h.tournament).join('\n')}>
+                    <span className="block max-w-[22rem] break-words">
                       {holders(m.bestBreakRank.at)}
                     </span>
                   ) : (
@@ -307,10 +307,10 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
               </Tr>
               {otherRank ? (
                 <Tr>
-                  <Td className="pl-4 font-medium">Best category break rank</Td>
+                  <Td rowHeader className="pl-4 font-medium">Best category break rank</Td>
                   <Td numeric>#{otherRank.rank}</Td>
                   <Td>
-                    <span className="block max-w-[22rem] truncate" title={otherRank.at.map((h) => h.tournament).join('\n')}>
+                    <span className="block max-w-[22rem] break-words">
                       {holders(otherRank.at)}
                     </span>
                   </Td>
@@ -318,7 +318,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 </Tr>
               ) : null}
               <Tr>
-                <Td className="pl-4 font-medium">Longest break run</Td>
+                <Td rowHeader className="pl-4 font-medium">Longest break run</Td>
                 <Td numeric>
                   {!run ? (
                     <Nil title="No dated breaks" />
