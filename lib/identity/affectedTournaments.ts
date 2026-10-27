@@ -92,6 +92,16 @@ import {
  * of a split round (R1A, R1B) are one round; an outround is its stage and
  * break category ("Novice Final" is not the "Open Final").
  *
+ * Two owner rules sit on top (assumptions register, ingest Q4/Q10, 2026-10-27).
+ * (1) Nobody is in both an Open final and a Novice final at one tournament:
+ * entries that between them reach both are an overlap although the round keys
+ * differ. EUDC alone runs Open and ESL outrounds side by side and lets one
+ * person be in both, so ESL pairs are left disjoint. (2) HWS-style round
+ * robins put one debate before two judging panels (independent rankings and
+ * speaks, aggregated). A results page that lists a team twice is read as that
+ * format, and a judge repeated in such a round is not flagged as sitting on
+ * two panels. This module is offline only: live ingest merging is unchanged.
+ *
  * `judgeRoleDropped` flags a participants-list group where participantByName
  * (Map.set, last row wins) ends on a non-adjudicator row while an
  * adjudicator row shares the key: ingest writes no judge role for that key,
@@ -420,6 +430,8 @@ type RoundIndex = {
   judgesByKey: Map<string, Map<string, Set<string>>>;
   /** Exact judge spelling → rounds. */
   judgeNameRounds: Map<string, Set<string>>;
+  /** Rounds whose page lists a team twice: one debate, two judging panels. */
+  doublePanelRounds: Set<string>;
   /** At least one results page named at least one judge. */
   hasJudges: boolean;
   /** Results pages read. */
@@ -431,6 +443,7 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
     teamRounds: new Map(),
     judgesByKey: new Map(),
     judgeNameRounds: new Map(),
+    doublePanelRounds: new Set(),
     hasJudges: false,
     pages: 0,
   };
@@ -438,7 +451,17 @@ function indexRounds(rounds: RoundDebate[] | undefined): RoundIndex {
     idx.pages += 1;
     const key = roundKey(r.roundLabel, r.roundNumber);
     if (!key) continue;
-    for (const t of r.teamResults) addTo(idx.teamRounds, loose(t.teamName), key);
+    // HWS-style round robins: one debate with two judging panels, each with
+    // its own ranking and speaks, shows the same team on two rows of one
+    // results page. That is the owner's exception to the same-round rule, so
+    // the round is remembered and no panel overlap is flagged in it.
+    const seenTeams = new Set<string>();
+    for (const t of r.teamResults) {
+      const team = loose(t.teamName);
+      if (seenTeams.has(team)) idx.doublePanelRounds.add(key);
+      seenTeams.add(team);
+      addTo(idx.teamRounds, team, key);
+    }
     for (const j of r.judgeAssignments) {
       const name = cleanName(j.personName);
       const k = normalizePersonName(name);
@@ -672,11 +695,43 @@ function sideVerdict(a: Side, b: Side, crossRole: boolean): PairVerdict {
       evidence: `${shared[0]}: ${a.word} (${a.from}) and ${b.word} (${b.from})`,
     };
   }
+  // Owner rule (assumptions Q4/Q10): nobody is in both an Open final and a
+  // Novice final at one tournament, so entries that between them reach both
+  // are two people even though the two finals have different round keys.
+  // (EUDC is the one event where Open and ESL outrounds run side by side and
+  // one person may be in both; ESL is not covered by this rule.)
+  const crossFinal = crossBracketFinals(ra, rb) ?? crossBracketFinals(rb, ra);
+  if (crossFinal) {
+    return {
+      cls: 'overlap',
+      crossRole,
+      evidence: `final: Open final and Novice final (${crossFinal.open} and ${crossFinal.novice})`,
+    };
+  }
   return {
     cls: 'disjoint',
     crossRole,
     evidence: `${a.word} ${formatRounds(ra)} (${a.from}); ${b.word} ${formatRounds(rb)} (${b.from})`,
   };
+}
+
+/** The bracket a final's round key belongs to; null for any other round. */
+function finalBracket(key: string): 'open' | 'novice' | null {
+  const m = /^(?:grand_final|final)(?: (.+))?$/.exec(key);
+  if (!m) return null;
+  const category = (m[1] ?? '').trim();
+  if (category === '' || category === 'open') return 'open';
+  return /novice/.test(category) ? 'novice' : null;
+}
+
+/** `open` holds an Open final and `novice` holds a Novice final: which keys. */
+function crossBracketFinals(
+  open: Set<string>,
+  novice: Set<string>,
+): { open: string; novice: string } | null {
+  const o = [...open].find((r) => finalBracket(r) === 'open');
+  const n = [...novice].find((r) => finalBracket(r) === 'novice');
+  return o && n ? { open: o, novice: n } : null;
 }
 
 /**
@@ -690,7 +745,13 @@ function judgePairVerdict(a: Entry, b: Entry, { key, ev }: KeyContext): PairVerd
   const byRound = ev.rounds.judgesByKey.get(key);
   if (!byRound || byRound.size === 0)
     return { cls: 'unknown', crossRole: false, evidence: 'no rounds for either judge' };
-  const twice = sortedRounds([...byRound].filter(([, seen]) => seen.size >= 2).map(([r]) => r));
+  // A double-panel round lists the same judge name once per panel, so a repeat
+  // there is not two judges (owner exception to the same-round rule).
+  const twice = sortedRounds(
+    [...byRound]
+      .filter(([r, seen]) => seen.size >= 2 && !ev.rounds.doublePanelRounds.has(r))
+      .map(([r]) => r),
+  );
   if (twice.length > 0)
     return { cls: 'overlap', crossRole: false, evidence: `${twice[0]}: two judges (results)` };
   const na = cleanName(a.name);

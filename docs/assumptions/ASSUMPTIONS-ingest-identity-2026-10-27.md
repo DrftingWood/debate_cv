@@ -126,14 +126,14 @@ Where: `affectedTournaments.ts:340-348` (`roundKey` uses only the number).
 Kind D. Source: documentation.
 If false: a person who speaks in R1A and judges R1B (halves run one after the other) is counted as two people sharing a name, an "overlap", when your rule would allow one person.
 Check: Q4.
-Status: unverified.
+Status: unverified. **Owner rule implemented in the offline checker only (2026-10-27):** a results page that lists one team twice is read as an HWS-style double-panel round (two panels, independent rankings and speaks, aggregated). A judge repeated in such a round is no longer counted as an overlap (the pair is reported `unknown`). Speaker/judge overlaps in that round are still flagged. Live ingest is unchanged.
 
 **I13. Two finals in different brackets are different rounds.**
 Where: `affectedTournaments.ts:344` (stage + category).
 Kind D. Source: documentation.
 If false: if Open and Novice finals run at the same time, one person cannot be in both. The checker would call such a pair "disjoint" (plausibly one person) when it is really two.
 Check: Q4.
-Status: unverified.
+Status: unverified. **Owner rule implemented in the offline checker only (2026-10-27):** two entries sharing a name where one reaches an Open final (or Grand Final) and the other a Novice final are an `overlap` (two people). ESL/other brackets are unchanged: EUDC is the only event where one person may be in both Open and ESL outrounds, and the checker does not know the event. Live ingest merging is NOT changed (too risky): it still keys on the normalised name and the round-overlap test is not applied there.
 
 **I14. The tournament format is inferred from room shape, then team size, then name: 4 teams a room means BP; 2 a side means two-team; 3 a side means AP unless the seats say Proposition/Opposition (WSDC) or Affirmative/Negative with an Australs-circuit name.**
 Where: `format.ts:59-66`, `:84-97`, `:131-160`, `:186-260`.

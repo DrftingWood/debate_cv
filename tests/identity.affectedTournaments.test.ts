@@ -359,6 +359,98 @@ describe('roundKey', () => {
   });
 });
 
+describe('owner rules: Open and Novice finals, double panels', () => {
+  const namesakes = (cols: [string, string]) =>
+    findIdentityIssues(
+      parseTournamentDocuments({ speakerTab: doc('s') }, () =>
+        vuePage([
+          {
+            head: [
+              { key: 'name' },
+              { key: 'team' },
+              { key: cols[0], title: cols[0] },
+              { key: cols[1], title: cols[1] },
+            ],
+            data: [
+              [{ text: 'Kay Obi' }, { text: 'Open Team' }, { text: '75' }, { text: '' }],
+              [{ text: 'Kay Obi' }, { text: 'Novice Team' }, { text: '' }, { text: '74' }],
+            ],
+          },
+        ]),
+      ),
+    ).sharedKeys[0];
+
+  test('an Open final and a Novice final at one tournament are two people', () => {
+    expect(namesakes(['Open Final', 'Novice Final'])).toMatchObject({
+      class: 'overlap',
+      evidence: expect.stringContaining('Open final and Novice final'),
+    });
+    expect(namesakes(['Grand Final', 'Novice Final'])).toMatchObject({ class: 'overlap' });
+    expect(namesakes(['Novice Final', 'Final'])).toMatchObject({ class: 'overlap' });
+  });
+
+  test('other pairs of different outrounds stay disjoint (a semi in one, a final in the other)', () => {
+    expect(namesakes(['Open Semifinal', 'Novice Final'])).toMatchObject({ class: 'disjoint' });
+    expect(namesakes(['Open Final', 'Gold Final'])).toMatchObject({ class: 'disjoint' });
+  });
+
+  test('a team listed twice on one results page is a double-panel debate: no panel overlap', () => {
+    const k = (rounds: string) =>
+      findIdentityIssues(
+        parseTournamentDocuments(
+          { participants: doc('p') },
+          (e) =>
+            ({
+              p: vuePage([
+                {
+                  title: 'Adjudicators',
+                  head: [{ key: 'name' }, { key: 'institution' }],
+                  data: [
+                    [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                    [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                  ],
+                },
+              ]),
+              r1: resultsPage([
+                ['Red R', rounds],
+                ['Red R', ''],
+                ['Blue B', ''],
+              ]),
+            })[e.id]!,
+          { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
+        ),
+      ).sharedKeys[0];
+    expect(k('Lou Fey (c), Lou Fey')).toMatchObject({ class: 'unknown' });
+  });
+
+  test('without a repeated team the same two panel entries are an overlap', () => {
+    const found = findIdentityIssues(
+      parseTournamentDocuments(
+        { participants: doc('p') },
+        (e) =>
+          ({
+            p: vuePage([
+              {
+                title: 'Adjudicators',
+                head: [{ key: 'name' }, { key: 'institution' }],
+                data: [
+                  [{ text: 'Lou Fey' }, { text: 'Uni A' }],
+                  [{ text: 'Lou Fey' }, { text: 'Uni B' }],
+                ],
+              },
+            ]),
+            r1: resultsPage([
+              ['Red R', 'Lou Fey (c), Lou Fey'],
+              ['Blue B', ''],
+            ]),
+          })[e.id]!,
+        { results: [doc('r1', 'https://x.calicotab.com/x/results/round/1/')] },
+      ),
+    ).sharedKeys[0];
+    expect(found).toMatchObject({ class: 'overlap' });
+  });
+});
+
 describe('isLostName', () => {
   test('letters that v1 deletes entirely', () => {
     expect(isLostName('李明')).toBe(true);
