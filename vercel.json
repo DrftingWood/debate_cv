@@ -1,4 +1,22 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "preview/*": true,
+      "worktree-agent-*": false,
+      "claude/**": false,
+      "feat/**": false,
+      "fix/**": false,
+      "chore/**": false,
+      "docs/**": false,
+      "security/**": false,
+      "stats/**": false,
+      "ux/**": false,
+      "integration/**": false,
+      "opus/**": false,
+      "wip/**": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/process-queue",

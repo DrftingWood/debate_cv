@@ -96,7 +96,7 @@ tests/                        Vitest, flat layout (`tests/*.test.ts` + `tests/ap
 - **Parser versioning**: bump `PARSER_VERSION` in `lib/calicotab/version.ts` to invalidate cached parses after changing parsing logic.
 - **Validation**: `zod` at API boundaries.
 - **Lint**: flat ESLint config extending `next/core-web-vitals` + `next/typescript`. `no-unescaped-entities` is intentionally off, `no-unused-vars` warns and allows `_`-prefixed.
-- **Comments**: existing code uses long, narrative comments explaining *why* (see `next.config.ts`, `prisma/schema.prisma`). Match that voice when the rationale is non-obvious; don't add comments that only restate the code.
+- **Comments**: existing code uses long, narrative comments explaining _why_ (see `next.config.ts`, `prisma/schema.prisma`). Match that voice when the rationale is non-obvious; don't add comments that only restate the code.
 - **Error reporting**: Sentry is live in prod; client SDK tunnels through `/monitoring`. `instrumentation.ts` + `sentry.{client,server,edge}.config.ts` wire it up.
 
 ## Tests
@@ -148,6 +148,8 @@ with two motions, a tab with no score totals. Each maps to a display branch.
 ## Deploy
 
 Vercel. `vercel.json` declares one cron (`/api/cron/process-queue`, daily 03:00 — Hobby allows daily granularity only). `.github/workflows/drain-queue.yml` supplements it for free: a GitHub Actions schedule curls the same endpoint every 15 minutes (needs `APP_URL` + `CRON_SECRET` repo secrets; no-ops until set). GH schedules are best-effort and auto-suspend after 60 days of repo inactivity — the Vercel cron is the guaranteed backstop, and it owns the daily retention prune (gated to the 03:00 UTC hour inside the route). Migrations run only for production deployments: `scripts/migrate-if-configured.mjs` skips Vercel builds where `VERCEL_ENV` is not `production` (a preview once applied an unmerged migration to a real database); set `ALLOW_PREVIEW_MIGRATIONS=1` only for a preview with its own isolated database. Sentry source-map upload runs at build when `SENTRY_AUTH_TOKEN` is set (CI only — local builds silent).
+
+Deployments are created only for `main` and `preview/*` branches (`git.deploymentEnabled` in `vercel.json`); agent and feature branches (`claude/**`, `feat/**`, `fix/**`, `worktree-agent-*`, etc.) create none, because Hobby caps deployments at ~100/day and exhausting it blocks production deploys. To get a preview, name the branch `preview/<name>`. GitHub Actions `verify` still runs on every PR; Vercel's own status check is simply absent on disabled branches (only `verify` is required to merge).
 
 ## Environment
 

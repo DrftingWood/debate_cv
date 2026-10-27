@@ -2,6 +2,12 @@
 
 ---
 
+## 2026-10-27 - Vercel deployments only for main and preview/* branches
+
+- Hobby's ~100 deployments/day quota was exhausted by agent pushes, which also blocked production deploys. `vercel.json` `git.deploymentEnabled` now creates deployments only for `main` and `preview/*`; agent/feature prefixes are disabled. Name a branch `preview/<name>` to get a preview. `verify` (GitHub Actions) still runs on every PR. Test: `tests/vercelJson.test.ts`.
+
+---
+
 ## 2026-10-27 - SAFETY: preview builds no longer run migrations (owner action needed)
 
 - **Incident.** The Vercel Preview build log for PR #201 showed `prisma migrate deploy` applying migration `20261027120000_appearance_candidate` to a real database (`neondb`). `scripts/migrate-if-configured.mjs` assumed previews have no database attached, but the Preview environment had the Postgres URL, so an unmerged migration (one that changes existing user data) ran from a PR build.
