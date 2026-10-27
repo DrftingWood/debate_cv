@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils/cn';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import {
   countByFilter,
+  failedTileHint,
   matchesFilter,
   resolvePage,
   statusFor,
@@ -120,15 +121,6 @@ export default async function Dashboard({
     const status: PillStatus = isUnmatched ? 'unmatched' : baseStatus;
     return { u, job, status };
   });
-
-  // Count abandoned separately from unavailable so the Failed tile can
-  // show a "X dead links" sub-line — abandoned is a strict subset of
-  // unavailable (the other unavailable rows are pre-migration HTTP 404
-  // legacy entries that the backfill converted, plus any future terminal
-  // types). After the migration runs, virtually all unavailable rows
-  // will be abandoned, but we track the raw job-status count here rather
-  // than relying on the derived PillStatus to avoid double-counting.
-  const abandonedCount = jobs.filter((j) => j.status === 'abandoned').length;
 
   const counts = countByFilter(allRows.map((r) => r.status));
   const rows = allRows;
@@ -237,13 +229,7 @@ export default async function Dashboard({
           // With nothing failed there is no retry chip to point at, and the
           // hint sat under a "0" telling the user to act on something that
           // was not on the page.
-          hint={
-            abandonedCount > 0
-              ? `${abandonedCount} dead link${abandonedCount === 1 ? '' : 's'}`
-              : counts.failed > 0
-                ? 'open Failed to retry'
-                : 'nothing to retry'
-          }
+          hint={failedTileHint(counts.failed, counts.unavailable)}
           tone={counts.failed > 0 ? 'danger' : 'neutral'}
           filter="failed"
           activeFilter={activeFilter}
