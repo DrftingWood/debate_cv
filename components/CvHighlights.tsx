@@ -79,7 +79,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       title: `Top 10 speaker × ${topSpeakerFinishes.length}`,
       items: topSpeakerFinishes.map(
         (b) =>
-          `#${b.rank} speaker${b.totalTeams != null ? ` (${b.totalTeams} teams)` : ''} · ${withYear(b.tournamentName, b.year)}`,
+          `#${b.rank} speaker · ${withYear(b.tournamentName, b.year)}`,
       ),
       icon: <Users className="h-3.5 w-3.5" aria-hidden />,
     });
