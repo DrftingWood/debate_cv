@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
-import { auth, signIn } from '@/lib/auth';
-import { Button } from '@/components/ui/Button';
+import { auth } from '@/lib/auth';
+import { buttonClasses } from '@/components/ui/Button';
 import { Footer } from '@/components/Footer';
-import { BrandMark } from '@/components/BrandMark';
+import { PublicHeader } from '@/components/landing/PublicHeader';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
+import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 
 export default async function Home() {
   const session = await auth();
@@ -20,8 +20,8 @@ export default async function Home() {
         leaves a screen reader with no unambiguous "skip to content" target.
       */}
       <div className="mx-auto w-full max-w-6xl flex-1 px-5">
-        <LandingMasthead />
-        <div className="space-y-20 pb-16 md:space-y-24">
+        <PublicHeader />
+        <main id="main" className="space-y-20 pb-16 md:space-y-24">
           <Hero />
           <ValueStrip />
           <StatisticsShowcase />
@@ -29,77 +29,13 @@ export default async function Home() {
           <PrivacyProof />
           <Faq />
           <FinalCta />
-        </div>
+        </main>
       </div>
       <Footer />
     </>
   );
 }
 
-async function BuildCvButton({ size = 'lg' as 'md' | 'lg' }: { size?: 'md' | 'lg' }) {
-  return (
-    <form
-      action={async () => {
-        'use server';
-        await signIn('google', { redirectTo: '/cv' });
-      }}
-    >
-      <Button
-        type="submit"
-        size={size}
-        variant="primary"
-        rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
-      >
-        Build my debate CV
-      </Button>
-    </form>
-  );
-}
-
-async function SignInLink() {
-  return (
-    <form
-      action={async () => {
-        'use server';
-        await signIn('google', { redirectTo: '/cv' });
-      }}
-    >
-      <button
-        type="submit"
-        className="rounded-md px-2 py-2 font-medium text-ink hover:text-primary"
-      >
-        Sign in
-      </button>
-    </form>
-  );
-}
-
-function LandingMasthead() {
-  return (
-    <header className="flex items-center justify-between gap-3 py-5 md:py-6">
-      <Link href="/" aria-label="debate cv home">
-        <BrandMark />
-      </Link>
-      {/*
-        The nav used to be three marketing anchors with no way back in. Every
-        route into the product was the hero's "Build my debate CV" — copy
-        aimed at someone who has never used it, shown to a returning user who
-        just wants their record. Sign in is now where a returning user looks
-        for it, and it is the same Google flow the hero button runs.
-      */}
-      <nav className="flex items-center gap-3 whitespace-nowrap text-table font-medium text-ink-soft sm:gap-6">
-        {/* Below sm there is room for Privacy + Sign in and nothing else;
-            the sample has its own full-width button in the hero, and the
-            anchors are reachable by scrolling. Crammed in, all four wrapped
-            onto two lines each at 320px. */}
-        <Link href="/sample" className="hidden py-2 hover:text-ink sm:inline">Sample CV</Link>
-        <a href="#stats" className="hidden py-2 hover:text-ink sm:inline">Statistics</a>
-        <a href="#privacy" className="py-2 hover:text-ink">Privacy</a>
-        <SignInLink />
-      </nav>
-    </header>
-  );
-}
 
 function Hero() {
   return (
@@ -117,24 +53,12 @@ function Hero() {
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
           <BuildCvButton />
-          <Link href="/sample">
-            <Button type="button" size="lg" variant="outline">
-              View sample CV
-            </Button>
+          <Link href="/sample" className={buttonClasses({ size: 'lg', variant: 'outline' })}>
+            View sample CV
           </Link>
         </div>
 
-        <div className="mt-5 grid gap-2 text-caption text-ink-soft sm:grid-cols-3 sm:gap-3">
-          <span className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> read-only Gmail
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary" aria-hidden /> private until shared
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
-          </span>
-        </div>
+        <TrustRow />
       </div>
 
       <SampleCvPreview />
@@ -281,7 +205,7 @@ function PrivacyProof() {
     ['Not stored', 'Email bodies and unrelated message metadata.'],
     ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
     ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
-    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM; legacy rows re-encrypt on next access.'],
+    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM.'],
   ];
 
   return (
@@ -384,15 +308,11 @@ function FinalCta() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
           <BuildCvButton />
-          <Link href="/sample">
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              className="border-paper/20 bg-transparent text-paper hover:bg-paper/10"
-            >
-              View sample
-            </Button>
+          <Link
+            href="/sample"
+            className={buttonClasses({ size: 'lg', variant: 'outline', className: 'border-paper/20 bg-transparent text-paper hover:bg-paper/10' })}
+          >
+            View sample
           </Link>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import type { CvSpeakerRow, CvJudgeRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 import { categoryKey, stageKey } from '@/lib/cv/roundLedger';
+import { isFourTeam, roundHit } from '@/lib/cv/roundOutcome';
 
 /**
  * One released motion, joined to whatever the user's record says about the
@@ -19,7 +20,10 @@ export type MotionEntry = {
   siblings: number;
   score: number | null;
   position: string | null;
+  /** The format's "hit": a win in a two-team room, 2nd or better in a BP room. */
   won: boolean | null;
+  /** The round was in a four-team (BP) room, where `won` means 2nd or better. */
+  fourTeam: boolean;
   points: number | null;
 };
 
@@ -85,6 +89,14 @@ export function buildMotionEntries(
         ? (row.teamRoundResults.find((t) => t.roundNumber === motion.roundNumber) ?? null)
         : null;
 
+    const isOutroundFourTeam =
+      row != null &&
+      result != null &&
+      motion.roundNumber != null &&
+      row.prelimRoundCount != null &&
+      motion.roundNumber > row.prelimRoundCount &&
+      isFourTeam(row.format, result.position);
+
     entries.push({
       tournamentKey: tid,
       tournamentName: (row ?? judgeRow)!.tournamentName,
@@ -96,7 +108,11 @@ export function buildMotionEntries(
         motion.roundNumber == null ? 0 : (siblingCount.get(`${tid}:${motion.roundNumber}`) ?? 1) - 1,
       score,
       position: result?.position ?? null,
-      won: result?.won ?? null,
+      // The format's "hit" (a win; in BP, 2nd or better), never a BP "win".
+      // An outround result is advancing, not a 2nd-or-better room.
+      won:
+        result && row && !isOutroundFourTeam ? roundHit(row.format, result) : null,
+      fourTeam: result && row ? isFourTeam(row.format, result.position) : false,
       points: result?.points ?? null,
     });
   }

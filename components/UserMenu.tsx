@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { LogOut, Settings } from 'lucide-react';
 import { signOutAction } from '@/lib/auth/signOutAction';
+import { usePopover } from '@/components/ui/usePopover';
 
 /**
  * Header avatar + popover with Account link and Sign out.
@@ -11,8 +11,10 @@ import { signOutAction } from '@/lib/auth/signOutAction';
  * Why this exists: before this, SignOutButton lived only inside the
  * dashboard's "More actions" dropdown, so a user stuck on a broken
  * /settings/account render had no global way to log out. The popover
- * follows the same a11y + dismissal pattern as NotificationBell
- * (outside-click + Escape close, aria-expanded, role="menu").
+ * shares NotificationBell's disclosure mechanics (`usePopover`): focus
+ * moves into the panel on open and back to the avatar on Escape. It was
+ * `role="menu"` with `menuitem`s and none of the arrow-key model that role
+ * promises; two links do not need a menu (UX-5).
  *
  * Avatar shows the Google profile photo when present; falls back to
  * two-letter initials drawn from `name` (preferred) or `email`. We
@@ -29,24 +31,7 @@ export function UserMenu({
   email: string | null;
   image: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKeydown);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKeydown);
-    };
-  }, [open]);
+  const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
 
   const initials = (() => {
     const source = (name?.trim() || email?.trim() || '?').replace(/[^a-zA-Z0-9 ]/g, ' ');
@@ -61,11 +46,12 @@ export function UserMenu({
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((p) => !p)}
         aria-label="Account menu"
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls="account-panel"
         className="inline-flex h-9 w-9 coarse:h-11 coarse:w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/[0.10]"
       >
         {image ? (
@@ -84,7 +70,9 @@ export function UserMenu({
       </button>
       {open ? (
         <div
-          role="menu"
+          ref={panelRef}
+          id="account-panel"
+          tabIndex={-1}
           className="absolute right-0 z-30 mt-2 w-[240px] rounded-card border border-border bg-card shadow-lg"
         >
           <div className="border-b border-border px-4 py-3">
@@ -97,27 +85,29 @@ export function UserMenu({
               </div>
             ) : null}
           </div>
-          <div className="py-1">
-            <Link
-              href="/settings/account"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2"
-            >
-              <Settings className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
-              Account
-            </Link>
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-surface-2"
+          <ul className="py-1">
+            <li>
+              <Link
+                href="/settings/account"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2"
               >
-                <LogOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
-                Sign out
-              </button>
-            </form>
-          </div>
+                <Settings className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                Account
+              </Link>
+            </li>
+            <li>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-surface-2"
+                >
+                  <LogOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                  Sign out
+                </button>
+              </form>
+            </li>
+          </ul>
         </div>
       ) : null}
     </div>

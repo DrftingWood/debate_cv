@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
+import { usePopover } from '@/components/ui/usePopover';
 import { EXPORT_FIELDS, EXPORT_FIELD_IDS } from '@/lib/cv/exportFields';
 
 type ExportFormat = 'csv' | 'xlsx';
@@ -45,10 +46,9 @@ function loadPrefs(): StoredPrefs | null {
  * Content-Disposition, so no blob handling here.
  */
 export function CvDownloadButton() {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
   const [format, setFormat] = useState<ExportFormat>('csv');
   const [selected, setSelected] = useState<Set<string>>(new Set(EXPORT_FIELD_IDS));
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const prefs = loadPrefs();
@@ -56,23 +56,6 @@ export function CvDownloadButton() {
     setFormat(prefs.format);
     if (prefs.fields.length > 0) setSelected(new Set(prefs.fields));
   }, []);
-
-  // Close on outside click + Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKeydown);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKeydown);
-    };
-  }, [open]);
 
   const persist = (nextFormat: ExportFormat, nextSelected: Set<string>) => {
     try {
@@ -143,6 +126,7 @@ export function CvDownloadButton() {
   return (
     <div ref={containerRef} className="relative" data-print-hide="true">
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="outline"
@@ -155,17 +139,17 @@ export function CvDownloadButton() {
       </Button>
       {open ? (
         <div
+          ref={panelRef}
+          tabIndex={-1}
           role="dialog"
           aria-label="Download your CV"
-          className="absolute right-0 z-30 mt-2 w-[340px] rounded-card border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-card outline-none border border-border bg-card p-4 shadow-lg"
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
               <div>
                 <div className="text-caption font-medium text-ink">PDF</div>
-                <p className="text-byline text-ink-soft">
-                  Via your browser&rsquo;s print dialog.
-                </p>
+                <p className="text-byline text-ink-soft">Via your browser&rsquo;s print dialog.</p>
               </div>
               <Button
                 type="button"
@@ -181,37 +165,35 @@ export function CvDownloadButton() {
             <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
               <div>
                 <div className="text-caption font-medium text-ink">JSON Resume</div>
-                <p className="text-byline text-ink-soft">
-                  For resume themes and portfolio sites.
-                </p>
+                <p className="text-byline text-ink-soft">For resume themes and portfolio sites.</p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}
-                onClick={() => {
-                  window.location.assign('/api/cv/export?format=json-resume');
-                  setOpen(false);
-                }}
+              {/* A GET that downloads a file is a link, not a button (NV-29). */}
+              <a
+                href="/api/cv/export?format=json-resume"
+                download
+                className={buttonClasses({ variant: 'outline', size: 'sm' })}
+                onClick={() => setOpen(false)}
               >
-                .json
-              </Button>
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Download JSON Resume
+              </a>
             </div>
 
             <div className="flex items-center justify-between gap-2">
               <span className="text-caption font-medium text-ink">Data export — columns</span>
-              <span className="flex gap-2 text-caption">
+              {/* min-h-6 + padding: bare text, these were ~15×18 px, under
+                  the 24 px target floor (CV-5, WCAG 2.5.8). */}
+              <span className="flex gap-1 text-caption">
                 <button
                   type="button"
-                  className="text-primary hover:underline"
+                  className="min-h-6 rounded px-1.5 text-primary hover:underline coarse:min-h-11"
                   onClick={() => setAll(true)}
                 >
                   All
                 </button>
                 <button
                   type="button"
-                  className="text-primary hover:underline"
+                  className="min-h-6 rounded px-1.5 text-primary hover:underline coarse:min-h-11"
                   onClick={() => setAll(false)}
                 >
                   None
@@ -228,10 +210,13 @@ export function CvDownloadButton() {
                     </legend>
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                       {g.ids.map((id) => (
-                        <label key={id} className="flex cursor-pointer items-center gap-2 text-caption text-ink">
+                        <label
+                          key={id}
+                          className="flex cursor-pointer items-center gap-2 text-caption text-ink"
+                        >
                           <input
                             type="checkbox"
-                            className="h-3.5 w-3.5 accent-current"
+                            className="h-4 w-4 shrink-0 accent-primary"
                             checked={selected.has(id)}
                             onChange={() => toggle(id)}
                           />
@@ -253,7 +238,7 @@ export function CvDownloadButton() {
                     <input
                       type="radio"
                       name="cv-export-format"
-                      className="h-3.5 w-3.5 accent-current"
+                      className="h-4 w-4 accent-primary"
                       checked={format === f}
                       onChange={() => pickFormat(f)}
                     />
@@ -266,11 +251,19 @@ export function CvDownloadButton() {
                 size="sm"
                 variant="primary"
                 disabled={selected.size === 0}
+                aria-describedby={selected.size === 0 ? 'cv-export-no-columns' : undefined}
                 onClick={download}
               >
                 Download
               </Button>
             </div>
+            {/* The button stays disabled with nothing to export, but now says
+                why, visibly and to a screen reader (FORM-7). */}
+            {selected.size === 0 ? (
+              <p id="cv-export-no-columns" className="text-caption text-ink-soft">
+                Tick at least one column to download a data file.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

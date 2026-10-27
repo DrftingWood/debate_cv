@@ -77,7 +77,7 @@ export async function scanMailbox(userId: string): Promise<ScanSummary> {
       userId,
       kind: 'new_urls_found',
       title: `Found ${summary.total} new ${summary.total === 1 ? 'URL' : 'URLs'}`,
-      body: 'Open the dashboard to ingest them.',
+      body: 'Open Imports to ingest them.',
       href: '/dashboard?filter=pending',
       dedupeWithinMs: 5 * 60 * 1000,
     });

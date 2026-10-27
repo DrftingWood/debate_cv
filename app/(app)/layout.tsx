@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { NavLink } from '@/components/NavLink';
+import { FocusOnNavigate } from '@/components/FocusOnNavigate';
+import { ScrollCurrentNav } from '@/components/ScrollCurrentNav';
+import { PublicHeader } from '@/components/landing/PublicHeader';
 import { BrandMark } from '@/components/BrandMark';
 import { Footer } from '@/components/Footer';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -26,9 +29,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Discoverability only — /admin still enforces requireAdmin server-side.
   // Without this link, admins had no in-app path to the panel at all.
   const showAdmin = isAdminEmail(session?.user?.email);
+  const signedIn = Boolean(session?.user?.id);
+
+  if (!signedIn) {
+    // Signed out, this layout only serves /privacy and /terms. They get the
+    // same header as the landing and sample pages (NV-11).
+    return (
+      <>
+        <div className="mx-auto w-full max-w-6xl px-5">
+          <PublicHeader />
+        </div>
+        <main id="main" className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">
+          {children}
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
+      <FocusOnNavigate />
       {/*
         Sticky only from md up.
 
@@ -48,18 +69,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <BrandMark />
           </Link>
           <div className="flex min-w-0 items-center gap-2">
-            <nav className="hidden items-center gap-0.5 text-table font-medium md:flex">
-              {/* Task names, not object names: "Record" is what the page is
-                  for, "Imports" is what the dashboard actually does. */}
-              <NavLink href="/cv" exact>Record</NavLink>
-              <NavLink href="/cv/stats">Statistics</NavLink>
-              <NavLink href="/dashboard">Imports</NavLink>
-              <NavLink href="/settings">Settings</NavLink>
-              {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
+            {/* Named like the mobile strip; only one of the two is ever
+                visible, so they never read as two "Sections" at once. */}
+            <nav
+              aria-label="Sections"
+              className="hidden items-center gap-0.5 text-table font-medium md:flex"
+            >
+              <SectionLinks showAdmin={showAdmin} />
             </nav>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
-              {session?.user?.id ? (
+              {signedIn && session?.user ? (
                 <>
                   <NotificationBell />
                   <UserMenu
@@ -81,21 +101,47 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           say it was there. The mask makes the cut edge visibly a cut edge
           rather than the end of the list.
         */}
-        <nav
+        <ScrollCurrentNav
           aria-label="Sections"
           className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
         >
-          <NavLink href="/cv" exact>Record</NavLink>
-          <NavLink href="/cv/stats">Statistics</NavLink>
-          <NavLink href="/dashboard">Imports</NavLink>
-          <NavLink href="/settings">Settings</NavLink>
-          {showAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-        </nav>
+          <SectionLinks showAdmin={showAdmin} />
+        </ScrollCurrentNav>
       </header>
-      {/* flex-1 keeps the footer at the bottom on short pages — see the
-          note on <main> in app/layout.tsx. */}
-      <div className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">{children}</div>
+      {/* The one <main>, a sibling of the header and footer rather than
+          their parent (UX-1; see app/layout.tsx). flex-1 keeps the footer at
+          the bottom of a short page. */}
+      <main id="main" className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">
+        {children}
+      </main>
       <Footer />
+    </>
+  );
+}
+
+/**
+ * The task destinations. Task names, not object names: "Record" is what the
+ * page is for, "Imports" is what the dashboard actually does. (Signed-out
+ * visitors never reach this: the layout gives them PublicHeader.)
+ *
+ * Header items must agree with CvSubNav about what is current (NV-3): Record
+ * also owns /cv/motions; Admin owns the /cv/tags and /cv/verify operator
+ * tools, which only an admin can open.
+ */
+function SectionLinks({ showAdmin }: { showAdmin: boolean }) {
+  return (
+    <>
+      <NavLink href="/cv" exact alsoMatch={['/cv/motions']}>
+        Record
+      </NavLink>
+      <NavLink href="/cv/stats">Statistics</NavLink>
+      <NavLink href="/dashboard">Imports</NavLink>
+      <NavLink href="/settings">Settings</NavLink>
+      {showAdmin ? (
+        <NavLink href="/admin" alsoMatch={['/cv/tags', '/cv/verify']}>
+          Admin
+        </NavLink>
+      ) : null}
     </>
   );
 }

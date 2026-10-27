@@ -272,7 +272,7 @@ describe('buildCvData characterization: top-level shape', () => {
   it('returns every top-level key with the summary for this record', async () => {
     const cv = await buildCvData(USER);
     expect(Object.keys(cv).sort()).toEqual(
-      ['fieldStats', 'highlights', 'judgeRows', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
+      ['fieldStats', 'highlights', 'judgeRows', 'lastIngestedAt', 'myDisplayName', 'speakerRows', 'summary', 'taggedMotions', 'unmatchedTournaments', 'user'].sort(),
     );
     expect(cv.user).toEqual({ name: 'Ada (Google)', email: 'ada@example.com', image: null });
     // First claimed person's display name, ahead of the Google account name.
@@ -326,6 +326,10 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
         { key: 'p20', name: 'Grace Hopper', speakerScoreTotal: 400, roundScores: [{ roundNumber: 1, positionLabel: 'DPM', score: 80 }] },
       ],
       teamName: 'Oxford A',
+      // I17: tie flags are derived for the "5=" display. Nobody shares the
+      // team rank or the speaker total in this fixture.
+      teamRankTied: false,
+      speakerRankTied: false,
       teamPoints: '12',
       teamWins: null,
       teamFirsts: 3,
@@ -484,11 +488,11 @@ describe('buildCvData characterization: the judge row (T2)', () => {
 describe('buildCvData characterization: highlights (except the placement fields)', () => {
   it('pins championships, best average, chairs, adj core, majors and active years', async () => {
     const cv = await buildCvData(USER);
-    // The placement fields (deepestBreaks, topTeamFinishes, bestTeamFinish, bestSpeakerRank)
+    // The placement fields (deepestBreaks, topSpeakerFinishes, bestTeamFinish, bestSpeakerRank)
     // are pinned in tests/cv.teamPlacement.test.ts since PR #167 reworked them.
     const {
       deepestBreaks: _deepestBreaks,
-      topTeamFinishes: _topTeamFinishes,
+      topSpeakerFinishes: _topSpeakerFinishes,
       bestTeamFinish: _bestTeamFinish,
       bestSpeakerRank: _bestSpeakerRank,
       ...rest
@@ -570,10 +574,11 @@ describe('buildCvData characterization: queries', () => {
       fieldStats: [],
       unmatchedTournaments: [],
       summary: { totalTournaments: 0, breaks: 0, totalRoundsChaired: 0 },
+      lastIngestedAt: null,
       highlights: {
         championships: [],
         deepestBreaks: [],
-        topTeamFinishes: [],
+        topSpeakerFinishes: [],
         bestTeamFinish: null,
         bestSpeakerRank: null,
         bestSpeakerAverage: null,
@@ -657,5 +662,82 @@ describe('buildCvData regressions: fixed behaviours', () => {
     // T1 (speaker and judge) + T2 (judge). Was 3.
     expect(cv.summary.breaks).toBe(2);
     expect(cv.summary.breaks).toBeLessThanOrEqual(cv.summary.totalTournaments);
+  });
+});
+
+// I17: ties are inferred (the parser drops the "="): equal team rank on the
+// tab, or equal speaker total in the loaded field.
+describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
+  const originalTeamFind = () => prismaMock.teamResult.findMany.getMockImplementation()!;
+  const originalPartFind = () => prismaMock.tournamentParticipant.findMany.getMockImplementation()!;
+
+  function withTeamRanks(ranks: Record<string, number>) {
+    const base = originalTeamFind();
+    prismaMock.teamResult.findMany.mockImplementation(async (args: unknown) => {
+      if (argsWhere(args).roundNumber === 0) {
+        return Object.entries(ranks).map(([teamName, rank]) => ({
+          tournamentId: 1n, teamName, rank, wins: null, points: 10, firsts: 1, seconds: 1,
+        }));
+      }
+      return base(args);
+    });
+  }
+
+  /** The field's published rows, plus the user's own parser rank (null = derived only). */
+  function withFieldTotals(rows: Array<[number, number | null]>, userParserRank: number | null = null) {
+    const base = originalPartFind();
+    prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
+      const w = argsWhere(args);
+      if (w.person) return MY_PARTICIPATIONS.map((p) => ({ ...p, speakerRankOpen: userParserRank }));
+      if (w.speakerScoreTotal)
+        return rows.map(([speakerScoreTotal, speakerRankOpen]) => ({ tournamentId: 1n, speakerScoreTotal, speakerRankOpen }));
+      return base(args);
+    });
+  }
+
+  it('teamRankTied is true when another team holds the same rank', async () => {
+    withTeamRanks({ 'Oxford A': 2, 'Cambridge A': 2, 'Durham A': 4 });
+    const cv = await buildCvData(USER);
+    const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+    expect(row.teamRank).toBe(2);
+    expect(row.teamRankTied).toBe(true);
+  });
+
+  it('teamRankTied is false when the rank is unique', async () => {
+    withTeamRanks({ 'Oxford A': 2, 'Cambridge A': 1, 'Durham A': 3 });
+    const cv = await buildCvData(USER);
+    const row = cv.speakerRows.find((r) => r.tournamentId === 1n)!;
+    expect(row.teamRank).toBe(2);
+    expect(row.teamRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is true when another speaker has the same total and the same parser rank', async () => {
+    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(true);
+  });
+
+  it('speakerRankTied is false for ROW_NUMBER-derived ranks on equal totals (7 and 8)', async () => {
+    withFieldTotals([[390, null], [390, null], [350, null]], null);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is false when the tab split equal totals into different ranks', async () => {
+    withFieldTotals([[390, 7], [390, 8]], 7);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is false when the total is unique in the field', async () => {
+    withFieldTotals([[390, 5], [400, 1], [350, 9]], 5);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
+  });
+
+  it('speakerRankTied is false when field stats are not loaded, even if totals would tie', async () => {
+    withFieldTotals([[390, 5], [390, 5], [350, 9]], 5);
+    const cv = await buildCvData(USER, { includeFieldStats: false });
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 });

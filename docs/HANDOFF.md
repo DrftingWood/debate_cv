@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-27 - Stats changes (owner-approved): no re-ingest needed
+
+- **BP uses straights, not wins.** A straight is points >= 2 x rounds; firsts are tracked separately as a break indicator; the BP "2nd-or-better" rate replaces win rate in the BP views.
+- **Finals ranking** now includes Gold/Silver/Bronze finals. Rank values change: **Grand Final 100 -> 95** and **partial quarters (pre-semis) 75 -> 80**. Category finals carry category titles (ESL/EFL/Novice). "Top 10 speaker" replaces "top 10% of break". Tied ranks display as "5="; the export `team_rank` stays "#5".
+- **No `PARSER_VERSION` bump and no re-ingest.** Stored `eliminationReached`, `lastOutroundChaired` and `lastOutroundPaneled` stay consistent because the shared comparator reproduces the old answers for stored data; the new rank values apply at read time.
+
+---
+
 ## 2026-10-26 — B9 pre-scrape: where it stands
 
 **Lists on main** (`scripts/prescrape/`): stage A 2023–25 (260), B 2020–22 (217), C sheet leftovers 2020–25 (108), D second-sheet 2020–25 (65), E 2026 + undated + pre-2020 (158), and `retry-timeouts.txt` (wudc2020, wudckorea). B–E were built from the Tabs tabs of the two Official Global Debating Spreadsheets, matched on host + slug.

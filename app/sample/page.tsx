@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { ArrowRight, Lock, Share2 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Lock, Share2 } from 'lucide-react';
+import { TableScroll } from '@/components/ui/DataTable';
+import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 import { Badge } from '@/components/ui/Badge';
-import { BrandMark } from '@/components/BrandMark';
+import { PublicHeader } from '@/components/landing/PublicHeader';
+import { Footer } from '@/components/Footer';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
@@ -37,7 +38,7 @@ const findings = [
     basis: '7 tournaments with six or more scored rounds',
   },
   {
-    text: 'CG is your weakest seat at 41%, against a 53% overall round win rate.',
+    text: 'CG is your weakest seat at 41%, against a 53% overall 2nd-or-better rate.',
     basis: '22 decided rounds in CG',
   },
   {
@@ -54,20 +55,15 @@ const trend = [
 ];
 
 export default function SamplePage() {
+  // The Footer carries the privacy and terms links. A visitor deciding
+  // whether to hand over Gmail access reads the sample first, and it was the
+  // one signed-out page with no route to the privacy statement (§10).
   return (
+    <>
     <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-5 md:py-6">
-      <header className="flex items-center justify-between gap-4">
-        <Link href="/" aria-label="debate cv home">
-          <BrandMark />
-        </Link>
-        <Link href="/">
-          <Button variant="primary" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-            Build my CV
-          </Button>
-        </Link>
-      </header>
+      <PublicHeader />
 
-      <div className="space-y-10 py-10 md:py-12">
+      <main id="main" className="space-y-10 py-10 md:py-12">
         {/* grid-cols-[minmax(0,1fr)] on the BASE breakpoint, not just md.
             An unspecified single-column grid track is auto-sized, so it grew
             to the 820px min-width of the ledger inside and min-w-0 on the item
@@ -104,7 +100,7 @@ export default function SamplePage() {
             }
           />
           <div className="panel min-w-0 overflow-hidden">
-            <div className="w-full overflow-x-auto">
+            <TableScroll label="Sample speaking record by tournament">
               <table className="ledger min-w-[820px] text-table">
                 <caption className="sr-only">Sample speaking record by tournament</caption>
                 <thead>
@@ -143,7 +139,7 @@ export default function SamplePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </div>
         </section>
 
@@ -155,7 +151,7 @@ export default function SamplePage() {
             meta="Motions come from the tournament's own motions tab"
           />
           <div className="panel min-w-0 overflow-hidden">
-            <div className="w-full overflow-x-auto">
+            <TableScroll label="Sample round-by-round ledger with motions">
               <table className="ledger min-w-[720px] text-table">
                 <caption className="sr-only">Sample round-by-round ledger with motions</caption>
                 <thead>
@@ -183,7 +179,7 @@ export default function SamplePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </div>
         </section>
 
@@ -204,7 +200,7 @@ export default function SamplePage() {
             </div>
             <div className="panel space-y-4 p-4">
               <Meter label="Team-tab percentile" display="92nd" value={92} tone="blue" />
-              <Meter label="Round win rate" display="53%" value={53} />
+              <Meter label="2nd-or-better rate" display="53%" value={53} />
               <div className="border-t border-border pt-3">
                 <div className="data-label mb-3">Team points per round</div>
                 <BarList
@@ -241,14 +237,13 @@ export default function SamplePage() {
             until you switch it on, and switching it off takes the link down.
           </p>
           <div className="mt-5">
-            <Link href="/">
-              <Button variant="primary" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                Build my debate CV
-              </Button>
-            </Link>
+            <BuildCvButton />
           </div>
+          <TrustRow />
         </section>
-      </div>
+      </main>
     </div>
+    <Footer />
+    </>
   );
 }

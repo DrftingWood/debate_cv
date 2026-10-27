@@ -26,19 +26,18 @@ const signed = (n: number) => {
 function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
   if (!cell)
     return (
-      <span className="text-ink-soft/50">
+      <span className="text-ink-soft">
         <span aria-hidden>–</span>
         <span className="sr-only">No rounds</span>
       </span>
     );
   if (!cell.enough) {
     return (
-      <span
-        className="text-ink-soft/60"
-        title={`${cell.rounds} round${cell.rounds === 1 ? '' : 's'} — too few to show`}
-      >
-        <span aria-hidden>·</span>
-        <span className="sr-only">{cell.rounds} rounds, too few to show</span>
+      <span className="num whitespace-nowrap text-caption text-ink-soft">
+        <span aria-hidden>· {cell.rounds} rds</span>
+        <span className="sr-only">
+          {cell.rounds} round{cell.rounds === 1 ? '' : 's'}, too few to show
+        </span>
       </span>
     );
   }
@@ -50,7 +49,7 @@ function CellValue({ cell }: { cell: HeatCell | MixedBucket | undefined }) {
       </span>
       <span className="num text-caption text-ink-soft">
         {cell.rounds}
-        <span aria-hidden>r</span>
+        <span aria-hidden> rds</span>
         <span className="sr-only"> rounds</span>
       </span>
     </span>
@@ -87,7 +86,7 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
             <tbody>
               {grid.topics.map((topic) => (
                 <Tr key={topic}>
-                  <Td className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
+                  <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
                   {grid.types.map((type, i) => (
                     <Td key={type} numeric className={i === grid.types.length - 1 ? 'pr-4' : undefined}>
                       <CellValue cell={cellAt.get(`${topic}\u0000${type}`)} />
@@ -113,7 +112,7 @@ export function TopicTypeSection({ facts }: { facts: StatsFacts }) {
       ) : null}
       <p className="text-caption text-ink-soft">
         Speaker-score difference from your mean over these rounds, prelims only. A cell with fewer than{' '}
-        {MIN_QUIRK_ROUNDS} rounds shows a dot instead of a figure. Topics are the community tags; rounds whose motion
+        {MIN_QUIRK_ROUNDS} rounds shows a dot and its round count instead of a figure. Topics are the community tags; rounds whose motion
         is untagged, or whose options disagree on topic or type, are left out.
       </p>
     </section>

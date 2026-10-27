@@ -54,7 +54,8 @@ describe('a pre-round is the partial round of the rung below', () => {
   test('ranked just below the full rung and above the rung beneath', () => {
     expect(rankOf('Pre-Finals')).toBeLessThan(rankOf('Semifinals'));
     expect(rankOf('Pre-Finals')).toBeGreaterThan(rankOf('Quarterfinals'));
-    expect(rankOf('Pre-Semifinals')).toBeLessThan(rankOf('Quarterfinals'));
+    // Pre-Semifinals (Partial Quarterfinals) is a quarterfinal: owner, C11.
+    expect(rankOf('Pre-Semifinals')).toBe(rankOf('Quarterfinals'));
     expect(rankOf('Pre-Semifinals')).toBeGreaterThan(rankOf('Octofinals'));
     expect(rankOf('Pre-Quarterfinals')).toBeLessThan(rankOf('Octofinals'));
     expect(rankOf('Pre-Quarterfinals')).toBeGreaterThan(rankOf('Double Octofinals'));

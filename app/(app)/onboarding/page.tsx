@@ -49,8 +49,8 @@ export default async function OnboardingPage() {
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
-            You&apos;re already set up. Onboarding only runs once — use the surfaces below to manage your
-            CV and identity going forward.
+            You&apos;re already set up. Onboarding only runs once — use the surfaces below to manage
+            your CV and identity going forward.
           </p>
         </header>
 
@@ -59,7 +59,7 @@ export default async function OnboardingPage() {
             <div className="inline-flex items-center gap-2 text-success">
               <CheckCircle2 className="h-4 w-4" aria-hidden />
               <span className="text-ui font-medium">
-                {claimedCount} {claimedCount === 1 ? 'identity' : 'identities'} claimed
+                {claimedCount} {claimedCount === 1 ? 'name' : 'names'} claimed
               </span>
             </div>
             <ul className="space-y-2 text-ui">
@@ -67,7 +67,7 @@ export default async function OnboardingPage() {
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/cv" className="font-medium text-primary hover:underline">
-                    My CV
+                    Record
                   </Link>{' '}
                   — view and share your tournament history.
                 </span>
@@ -76,18 +76,21 @@ export default async function OnboardingPage() {
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
                   <Link href="/dashboard" className="font-medium text-primary hover:underline">
-                    Dashboard
+                    Imports
                   </Link>{' '}
-                  — re-scan Gmail, retry failed URLs, claim unmatched tournaments.
+                  — scan Gmail again, retry failed links, claim unmatched tournaments.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
                 <span>
-                  <Link href="/settings" className="font-medium text-primary hover:underline">
-                    Settings
+                  <Link
+                    href="/settings/profile"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Settings → Profile
                   </Link>{' '}
-                  — add or remove name aliases under Your identities.
+                  — add or remove spellings of your name.
                 </span>
               </li>
             </ul>
@@ -108,9 +111,7 @@ export default async function OnboardingPage() {
           Find yourself on the rosters
         </h1>
         <hr className="hairline" />
-        <p className="text-body text-ink-soft">
-          Three quick steps and your CV is ready.
-        </p>
+        <p className="text-body text-ink-soft">Three quick steps and your CV is ready.</p>
       </header>
 
       <OnboardingFlow

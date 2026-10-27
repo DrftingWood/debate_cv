@@ -16,11 +16,7 @@ export const dynamic = 'force-dynamic';
  * menu. Each sub-page is its own route under app/settings/* so users can
  * deep-link to a specific section (e.g. from a help doc or a notification).
  */
-export default async function SettingsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
 
@@ -29,8 +25,11 @@ export default async function SettingsLayout({
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
         <aside className="md:sticky md:top-20 md:self-start">
           <div className="mb-3">
+            {/* Not a heading: it sat as an h2 above every sub-page's h1,
+                which reversed the outline (SET-12). Each page's own h1 is
+                the first heading. */}
             <div className="data-label">Account</div>
-            <h2 className="mt-1 font-display text-h3 font-medium text-ink">Settings</h2>
+            <p className="mt-1 font-display text-h3 font-medium text-ink">Settings</p>
           </div>
           <SettingsSideNav />
         </aside>

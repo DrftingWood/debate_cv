@@ -108,10 +108,7 @@ export function CvNeedsAttentionBanners({
       <div className="kicker">NEEDS ATTENTION</div>
       {pendingCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-border py-3">
-          <Loader2
-            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood"
-            aria-hidden
-          />
+          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-oxblood" aria-hidden />
           <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
@@ -131,15 +128,13 @@ export function CvNeedsAttentionBanners({
           <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-oxblood" aria-hidden />
           <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
-              {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a claim.
+              {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a
+              claim.
             </em>{' '}
             <span className="text-ink-soft">
               We ingested them but couldn&apos;t match you to a speaker or judge.{' '}
-              <Link
-                href="/dashboard?filter=unmatched"
-                className="text-oxblood hover:underline"
-              >
-                Find yourself on the dashboard
+              <Link href="/dashboard?filter=unmatched" className="text-oxblood hover:underline">
+                Find yourself on Imports
               </Link>
               .
             </span>

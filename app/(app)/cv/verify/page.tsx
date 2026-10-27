@@ -7,15 +7,18 @@ import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
+import { FocusOnMount } from '@/components/FocusOnMount';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
 import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
+import { buttonClasses } from '@/components/ui/Button';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { deepestOutroundAcrossRoles } from '@/lib/calicotab/judgeStats';
 import { displayNameFor } from '@/lib/privacy/suppression';
 
 export const metadata: Metadata = {
-  title: 'Extracted Data Verification',
+  title: 'Verify',
   description: 'Verify parsed tournament data from your most recent private URLs.',
   robots: { index: false, follow: false },
 };
@@ -34,7 +37,10 @@ export default async function CvVerifyPage({
   const userId = session.user.id;
 
   const { mine: mineParam, t: selectedParam } = await searchParams;
-  const mineOnly = mineParam === '1';
+  // Defaults to the user's own rows. This is the page for checking your own
+  // parse, and "everyone" put ~1,300 strangers and 9,700 px of scroll on a
+  // phone ahead of your own row. `?mine=0` shows every participant.
+  const mineOnly = mineParam !== '0';
 
   // Top 5 most recent tournaments: order DiscoveredUrl by message date then
   // creation, dedup by tournamentId, stop at 5.
@@ -141,9 +147,9 @@ export default async function CvVerifyPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <header className="space-y-3">
-          <div className="kicker">DEBATE CV — VERIFY</div>
+          <div className="kicker uppercase">Debate CV — Verify</div>
           <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
-            Check what we parsed
+            Verify what we parsed
           </h1>
           <hr className="hairline" />
           <p className="text-body text-ink-soft">
@@ -160,8 +166,11 @@ export default async function CvVerifyPage({
 
       {ordered.length === 0 ? (
         <Card>
-          <CardBody className="text-ui text-ink-soft">
-            No ingested tournaments found yet.
+          <CardBody className="space-y-3 text-ui text-ink-soft">
+            <p>No ingested tournaments found yet.</p>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+              Open imports
+            </Link>
           </CardBody>
         </Card>
       ) : (
@@ -197,15 +206,16 @@ export default async function CvVerifyPage({
                         rel="noopener noreferrer"
                         className="inline-flex min-h-[44px] items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
-                        Source <ExternalLink className="h-3 w-3" aria-hidden />
+                        Source <span className="sr-only">for {t.name} (opens in a new tab)</span>
+                        <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
                       {ownUrlByTournament.get(t.id) ? <ReingestButton url={ownUrlByTournament.get(t.id)!} /> : null}
                     </div>
                   </div>
 
                   {warningsByTournamentId.has(t.id) ? (
-                    <section className="space-y-2 rounded-md border border-oxblood/30 bg-oxblood/[0.04] p-3">
-                      <h3 className="text-body font-semibold text-oxblood">
+                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/[0.06] p-3">
+                      <h3 className="text-body font-semibold text-warning">
                         Parser warnings ({warningsByTournamentId.get(t.id)!.length})
                       </h3>
                       <ul className="space-y-1 text-caption text-ink">
@@ -229,12 +239,13 @@ export default async function CvVerifyPage({
                   */}
                   {!isSelected ? (
                     <Link
-                      href={`/cv/verify?t=${t.id}${mineOnly ? '&mine=1' : ''}`}
+                      href={`/cv/verify?t=${t.id}${mineOnly ? '' : '&mine=0'}`}
                       scroll={false}
                       className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
                     >
                       <ChevronDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                       Show what the parser read
+                      <span className="sr-only"> for {t.name}</span>
                       <span className="text-caption">
                         ({participants.length} participant
                         {participants.length === 1 ? '' : 's'} · {t.judgeAssignments.length} judge
@@ -242,7 +253,15 @@ export default async function CvVerifyPage({
                       </span>
                     </Link>
                   ) : (
-                    <div className="space-y-5">
+                    <div
+                      className="space-y-5 outline-none"
+                      role="region"
+                      aria-label={`What the parser read for ${t.name}`}
+                    >
+                      {/* Arriving here from the "Show what the parser read" link
+                          (scroll={false}) unmounts the focused link; move focus
+                          to the region it opened (ADM-9). */}
+                      {selectedParam ? <FocusOnMount /> : null}
 
                   {/* Participants */}
                   <section className="space-y-2">
@@ -257,71 +276,69 @@ export default async function CvVerifyPage({
                       ) : null}
                     </div>
                     {/* Desktop: 13-column table. md+ only. */}
-                    <div className="hidden max-w-full overflow-x-auto md:block">
-                      <table className="min-w-max text-table">
-                        <caption className="sr-only">
-                          Everything the parser read for {t.name}
-                        </caption>
+                    <div className="hidden max-w-full md:block panel overflow-hidden">
+                      <TableScroll>
+                      <Table className="min-w-max" label={`Everything the parser read for ${t.name}`}>
                         <thead>
-                          <tr className="border-y border-border text-left uppercase tracking-[0.14em] text-kicker font-semibold text-ink-soft">
-                            <th scope="col" className="whitespace-nowrap px-4 py-2.5 font-medium">Name</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Roles</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Team</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Speaker total</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Open / ESL / EFL rank</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Team break rank</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Broken</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround spoken</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Judge tag</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Inrounds chaired</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround chaired</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Last outround judged</th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-medium">Per-round scores</th>
+                          <tr>
+                            <Th className="pl-4">Name</Th>
+                            <Th>Roles</Th>
+                            <Th>Team</Th>
+                            <Th numeric>Speaker total</Th>
+                            <Th numeric>Open / ESL / EFL rank</Th>
+                            <Th numeric>Team break rank</Th>
+                            <Th>Broken</Th>
+                            <Th>Last outround spoken</Th>
+                            <Th>Judge tag</Th>
+                            <Th numeric>Inrounds chaired</Th>
+                            <Th>Last outround chaired</Th>
+                            <Th>Last outround judged</Th>
+                            <Th className="pr-4">Per-round scores</Th>
                           </tr>
                         </thead>
                         <tbody>
                           {participants.map((p) => (
-                            <tr key={p.id.toString()} className="border-b border-border hover:bg-surface-2">
-                              <td className="px-4 py-2.5">
+                            <Tr key={p.id.toString()}>
+                              <Td rowHeader className="pl-4">
                                 {displayNameFor(p.person)}
                                 {p.person.claimedByUserId === userId ? (
                                   <Badge variant="success" className="ml-2">You</Badge>
                                 ) : null}
-                              </td>
-                              <td className="px-3 py-2.5 text-ink-soft">
+                              </Td>
+                              <Td className="text-ink-soft">
                                 {p.roles.map((r) => r.role).join(', ') || '—'}
-                              </td>
-                              <td className="px-3 py-2.5">{p.teamName ?? '—'}</td>
-                              <td className="px-3 py-2.5 num font-mono">
+                              </Td>
+                              <Td>{p.teamName ?? '—'}</Td>
+                              <Td numeric>
                                 {p.speakerScoreTotal?.toString() ?? '—'}
-                              </td>
-                              <td className="px-3 py-2.5 num font-mono">
+                              </Td>
+                              <Td numeric>
                                 {p.speakerRankOpen ?? '—'} / {p.speakerRankEsl ?? '—'} /{' '}
                                 {p.speakerRankEfl ?? '—'}
-                              </td>
-                              <td className="px-3 py-2.5 num font-mono">
+                              </Td>
+                              <Td numeric>
                                 {p.teamBreakRank ?? '—'}
-                              </td>
-                              <td className="px-3 py-2.5">
+                              </Td>
+                              <Td>
                                 {p.eliminationReached || p.teamBreakRank != null ? (
                                   <Badge variant="success">Yes</Badge>
                                 ) : (
                                   <Badge variant="neutral">No</Badge>
                                 )}
-                              </td>
-                              <td className="px-3 py-2.5">{p.eliminationReached ?? '—'}</td>
-                              <td className="px-3 py-2.5 text-ink-soft">{p.judgeTypeTag ?? '—'}</td>
-                              <td className="px-3 py-2.5 num font-mono">
+                              </Td>
+                              <Td>{p.eliminationReached ?? '—'}</Td>
+                              <Td className="text-ink-soft">{p.judgeTypeTag ?? '—'}</Td>
+                              <Td numeric>
                                 {p.chairedPrelimRounds ?? '—'}
-                              </td>
-                              <td className="px-3 py-2.5">{p.lastOutroundChaired ?? '—'}</td>
-                              <td className="px-3 py-2.5">
+                              </Td>
+                              <Td>{p.lastOutroundChaired ?? '—'}</Td>
+                              <Td>
                                 {deepestOutroundAcrossRoles(
                                   p.lastOutroundChaired,
                                   p.lastOutroundPaneled,
                                 ) ?? '—'}
-                              </td>
-                              <td className="px-3 py-2.5">
+                              </Td>
+                              <Td className="pr-4">
                                 {p.speakerRoundScores.length === 0 ? (
                                   '—'
                                 ) : (
@@ -344,11 +361,12 @@ export default async function CvVerifyPage({
                                     </div>
                                   </details>
                                 )}
-                              </td>
-                            </tr>
+                              </Td>
+                            </Tr>
                           ))}
                         </tbody>
-                      </table>
+                      </Table>
+                      </TableScroll>
                     </div>
 
                     {/* Mobile: stacked card per participant. The 13-column table
