@@ -30,7 +30,9 @@ describe('GET /api/sharing', () => {
       publicCvEnabled: true,
       publicCvSlug: 'abhi',
       publicAvatarEnabled: false,
+      publicHiddenTournamentIds: [],
     });
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
     const res = await GET();
     const data = await readJson<{ enabled: boolean; slug: string; avatarEnabled: boolean }>(res);
     expect(data).toEqual({
@@ -95,6 +97,7 @@ describe('POST /api/sharing — slug validation', () => {
       publicCvEnabled: true,
       publicCvSlug: 'abhishek-acharya',
       publicAvatarEnabled: true,
+      publicHiddenTournamentIds: [],
     });
     const res = await POST(
       jsonRequest('/api/sharing', { body: { customSlug: 'abhishek-acharya' } }),
@@ -121,6 +124,7 @@ describe('POST /api/sharing — toggle behaviour', () => {
       publicCvEnabled: true,
       publicCvSlug: 'k7dq3m',
       publicAvatarEnabled: true,
+      publicHiddenTournamentIds: [],
     });
 
     const res = await POST(jsonRequest('/api/sharing', { body: { enabled: true } }));
@@ -140,6 +144,7 @@ describe('POST /api/sharing — toggle behaviour', () => {
       publicCvEnabled: true,
       publicCvSlug: 'existing',
       publicAvatarEnabled: true,
+      publicHiddenTournamentIds: [],
     });
 
     await POST(jsonRequest('/api/sharing', { body: { enabled: true } }));

@@ -36,7 +36,7 @@ export async function GET() {
   });
   const seen = new Set<string>();
   const tournaments: { id: string; name: string; year: number | null }[] = [];
-  for (const u of urls ?? []) {
+  for (const u of urls) {
     if (!u.tournament || seen.has(u.tournament.id.toString())) continue;
     seen.add(u.tournament.id.toString());
     tournaments.push({
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
       enabled: updated.publicCvEnabled,
       slug: updated.publicCvSlug,
       avatarEnabled: updated.publicAvatarEnabled,
-      hiddenTournamentIds: (updated.publicHiddenTournamentIds ?? []).map(String),
+      hiddenTournamentIds: updated.publicHiddenTournamentIds.map(String),
     });
   } catch (e) {
     // Unique constraint on publicCvSlug → another user already owns this
