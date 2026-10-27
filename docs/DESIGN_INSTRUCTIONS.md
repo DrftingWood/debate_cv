@@ -101,8 +101,6 @@ Header: **Record · Statistics · Imports · Settings** (plus Admin for allowlis
 
 CV sub-navigation (segmented control): **Record · Statistics · Motions · Tags · Verify**.
 
-"Segmented control" describes the look only: the CV sub-navigation changes the route, so it stays a `nav` of links with `aria-current`, never a `tablist`. The testable rules for navigation, tabs, buttons and wayfinding are UX-44 to UX-87 in `docs/UI_UX_STANDARDS.md`, the single UI/UX standard for this product.
-
 Avoid naming primary surfaces after implementation objects. "Imports" is better than "Dashboard" because it names the job. "Record" is better than "CV" in nav because it names what the page holds.
 
 ### First-run flow

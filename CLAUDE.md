@@ -14,7 +14,7 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 **Coding rules (40, each with how it is enforced) are in `docs/CODING_STANDARDS.md`; what CI checks and how to run each check locally is in `docs/CI_PLAN-2026-10-27.md`.**
 
-**UI/UX rules (87, WCAG 2.2 AA and cited sources, each with its enforcement; UX-44 to UX-87 cover navigation, tabs, buttons and wayfinding with a severity each) are in `docs/UI_UX_STANDARDS.md`, the single UI/UX standard — extend it rather than starting another file; the ranked audit of every screen against them, with the proposed fix split, is `docs/UI_UX_AUDIT-2026-10-27.md`. `npm run a11y` is a report-only axe + Playwright smoke check (setup in the header of `scripts/a11y-smoke.mjs`).**
+**UI/UX rules (43, WCAG 2.2 AA and cited sources, each with its enforcement) are in `docs/UI_UX_STANDARDS.md`; the ranked audit of every screen against them, with the proposed fix split, is `docs/UI_UX_AUDIT-2026-10-27.md`. `npm run a11y` is a report-only axe + Playwright smoke check (setup in the header of `scripts/a11y-smoke.mjs`).**
 
 ## Stack (from package.json)
 

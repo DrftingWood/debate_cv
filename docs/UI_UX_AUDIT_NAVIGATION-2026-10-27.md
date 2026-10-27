@@ -1,6 +1,6 @@
 # UI/UX audit: navigation, tabs, buttons and wayfinding (2026-10-27)
 
-This audit measures every route against the rules added to `docs/UI_UX_STANDARDS.md` in sections 11 to 14 (**UX-44 to UX-87**: navigation, tabs and segmented controls, buttons and actions, wayfinding). Where older rules overlap (UX-4, UX-8, UX-11, UX-17, UX-24, UX-43), they were rechecked too. It is a companion to `docs/UI_UX_AUDIT-2026-10-27.md`; that audit's IDs (NAV-, DASH-, SET- and so on) are cited where a finding overlaps. Findings here use the prefix **NV-**.
+This audit measures every route against rules **UX-44 to UX-87** (navigation, tabs and segmented controls, buttons and actions, wayfinding). Those rules and their sources are kept outside the repo, in the owner's research folder (`reports/ui-ux/UI_UX_STANDARDS (87 rules, navigation research) 2026-10-27.md`); `docs/UI_UX_STANDARDS.md` in the repo carries only UX-1 to UX-43. Each finding below states the rule it breaks in words, so it reads without the research file. Where older rules overlap (UX-4, UX-8, UX-11, UX-17, UX-24, UX-43), they were rechecked too. It is a companion to `docs/UI_UX_AUDIT-2026-10-27.md`; that audit's IDs (NAV-, DASH-, SET- and so on) are cited where a finding overlaps. Findings here use the prefix **NV-**.
 
 It is a docs-only change. No application code was changed.
 
