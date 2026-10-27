@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, Lock, Share2 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { BrandMark } from '@/components/BrandMark';
 import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
@@ -60,14 +60,12 @@ export default function SamplePage() {
         <Link href="/" aria-label="debate cv home">
           <BrandMark />
         </Link>
-        <Link href="/">
-          <Button variant="primary" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-            Build my CV
-          </Button>
+        <Link href="/" className={buttonClasses({ variant: 'primary' })}>
+          Build my CV <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </header>
 
-      <div className="space-y-10 py-10 md:py-12">
+      <main id="main" className="space-y-10 py-10 md:py-12">
         {/* grid-cols-[minmax(0,1fr)] on the BASE breakpoint, not just md.
             An unspecified single-column grid track is auto-sized, so it grew
             to the 820px min-width of the ledger inside and min-w-0 on the item
@@ -241,14 +239,12 @@ export default function SamplePage() {
             until you switch it on, and switching it off takes the link down.
           </p>
           <div className="mt-5">
-            <Link href="/">
-              <Button variant="primary" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                Build my debate CV
-              </Button>
+            <Link href="/" className={buttonClasses({ variant: 'primary' })}>
+              Build my debate CV <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
         </section>
-      </div>
+      </main>
     </div>
   );
 }

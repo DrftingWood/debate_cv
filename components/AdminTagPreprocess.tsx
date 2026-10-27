@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
 
@@ -61,10 +61,8 @@ export function AdminTagPreprocess() {
 
   return (
     <span className="flex items-center gap-2">
-      <a href="/api/admin/tags/export" download>
-        <Button type="button" size="sm" variant="outline" leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}>
-          Download untagged
-        </Button>
+      <a href="/api/admin/tags/export" download className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+        <Download className="h-3.5 w-3.5" aria-hidden /> Download untagged
       </a>
       <Button
         type="button"

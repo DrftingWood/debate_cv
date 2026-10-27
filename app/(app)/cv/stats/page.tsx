@@ -8,7 +8,7 @@ import { buildCvData } from '@/lib/cv/buildCvData';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { buildStatsFacts } from '@/lib/cv/statsFacts';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { CvSubNav } from '@/components/CvSubNav';
 import { FilterableStats } from '@/components/stats/FilterableStats';
 
@@ -89,8 +89,8 @@ export default async function CvStatsPage() {
           title="Not enough data yet"
           description="Statistics appear once at least one tournament with parsed results is on your record. Ingest tournaments from Imports first."
           action={
-            <Link href="/dashboard">
-              <Button variant="primary">Open imports</Button>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              Open imports
             </Link>
           }
         />

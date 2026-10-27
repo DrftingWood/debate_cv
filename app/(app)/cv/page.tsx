@@ -15,7 +15,7 @@ import type {
 import { formatStageForDisplay, formatBaseStageForDisplay } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
@@ -133,8 +133,8 @@ export default async function CvPage() {
               everything already imported.
             </p>
           </div>
-          <Link href="/dashboard">
-            <Button variant="primary">Reconnect from imports</Button>
+          <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+            Reconnect from imports
           </Link>
         </section>
       ) : null}
@@ -198,10 +198,8 @@ export default async function CvPage() {
             </>
           }
           action={
-            <Link href="/dashboard">
-              <Button variant="primary" leftIcon={<Search className="h-4 w-4" aria-hidden />}>
-                Open imports
-              </Button>
+            <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
+              <Search className="h-4 w-4" aria-hidden /> Open imports
             </Link>
           }
         />

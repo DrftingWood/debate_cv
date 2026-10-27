@@ -13,7 +13,12 @@ const config: Config = {
     extend: {
       colors: {
         border: 'hsl(var(--border) / 0.16)',  // hairline default
-        input: 'hsl(var(--input) / 0.22)',
+        // Form-control edge, distinct from the `border` hairline. It was the
+        // same 40%-lightness ink at 22% alpha, about 1.4:1, so a text box
+        // had no visible boundary (SC 1.4.11, UX-18). The token is now an
+        // opaque grey per theme, ≥3:1 against both card and canvas (see
+        // --input in globals.css). Table rules stay on `border-border`.
+        input: 'hsl(var(--input) / <alpha-value>)',
         ring: 'hsl(var(--ring) / <alpha-value>)',
         background: 'hsl(var(--background) / <alpha-value>)',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
