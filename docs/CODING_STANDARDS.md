@@ -10,7 +10,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 | ID | Rule | Enforcement |
 |---|---|---|
-| ST-1 | New files stay under 400 counted lines; none over 800 | lint `max-lines` (warn) + Q |
+| ST-1 | New files stay under 400 counted lines; none over 800 | lint `max-lines` (warn at 400); CI blocks new or grown files over 800 (`file-size`) |
 | ST-2 | Functions: ≤60 lines, complexity ≤15, ≤3 params, nesting ≤3 | lint (warn) |
 | ST-3 | Split along real seams into deep modules, not into many shallow helpers | Q |
 | ST-4 | No import cycles | CI report: dependency-cruiser `no-circular` |
@@ -53,7 +53,7 @@ Forty rules. Each has a reason, an example from this repository and an enforceme
 
 ## 1. Structure and size limits
 
-**ST-1. New files stay under 400 counted lines; none goes over 800.** *Why:* a reader cannot hold a 1,500-line file in their head, and the checklist's S5 puts the usual range at 100 to 500. *Good:* `lib/queue.ts` keeps one concern (claim, release, sweep) in a file you can read in one sitting. *Bad:* `lib/calicotab/ingest.ts`, 1,565 counted lines, mixing fetch, normalise, persist and enqueue. *Enforced by:* `max-lines` (warn at 400). *Q:* "Is any new file over 800 lines? If so, where is its split note?"
+**ST-1. New files stay under 400 counted lines; none goes over 800.** *Why:* a reader cannot hold a 1,500-line file in their head, and the checklist's S5 puts the usual range at 100 to 500. *Good:* `lib/queue.ts` keeps one concern (claim, release, sweep) in a file you can read in one sitting. *Bad:* `lib/calicotab/ingest.ts`, 1,565 counted lines, mixing fetch, normalise, persist and enqueue. *Enforced by:* `max-lines` (warn at 400), and from 2026-10-27 `npm run file-size` (`scripts/check-file-size.mjs`), **blocking in CI**: it compares the branch with its merge base and fails when a newly added file has more than 800 lines, when a file crosses 800, or when a file already over 800 grows by even one line (physical lines; generated files, lockfiles, migrations, fixtures and docs are skipped). Existing oversize files are listed with a dated split note in `scripts/file-size-allowlist.json` and are not blocked while they stay the same size or shrink; the escape hatch for a file that must grow is `"allowGrowth": true` plus a `growthReason` in that file, explained in the PR body. Run it locally with `npm run file-size` (against `origin/main`) or `npm run file-size -- --inventory` to list every oversize file.
 
 **ST-2. Functions: at most 60 lines, cyclomatic complexity 15, 3 positional parameters, 3 levels of nesting.** *Why:* these are the warn thresholds in the checklist (S2 to S4); past them, review stops catching bugs. *Good:* `claimOnePending(params: { userId?, excludeHosts? } = {})` in `lib/queue.ts` takes an options object rather than a fourth parameter. *Bad:* `writeIngestTransaction` in `ingest.ts` takes 5 positional parameters; `buildCvData` is one 760-line function. *Enforced by:* `max-lines-per-function`, `complexity`, `max-params`, `max-depth`, all `warn`; the counts are in `docs/CODE_STANDARDS_BASELINE-2026-10-27.md` and should only fall.
 
