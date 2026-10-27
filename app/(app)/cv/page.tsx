@@ -26,6 +26,7 @@ import { CvNeedsAttentionBanners } from '@/components/CvNeedsAttentionBanners';
 import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
+import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { CvSubNav } from '@/components/CvSubNav';
 import {
   TournamentCard,
@@ -137,22 +138,17 @@ export default async function CvPage() {
       */}
       {gmailToken ? <AutoScanOnVisit /> : null}
       {!gmailToken ? (
-        <section
-          aria-label="Gmail disconnected"
+        <GmailDisconnectedNotice
           data-print-hide="true"
-          className="flex flex-col gap-3 rounded-card border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.06)] p-4 sm:flex-row sm:items-center sm:justify-between"
+          action={
+            <Link href="/dashboard">
+              <Button variant="primary">Reconnect from imports</Button>
+            </Link>
+          }
         >
-          <div>
-            <div className="data-label text-warning">Gmail disconnected</div>
-            <p className="mt-1 text-table text-ink">
-              New tournaments have stopped arriving. Your record below is still accurate for
-              everything already imported.
-            </p>
-          </div>
-          <Link href="/dashboard">
-            <Button variant="primary">Reconnect from imports</Button>
-          </Link>
-        </section>
+          New tournaments have stopped arriving. Your record below is still accurate for
+          everything already imported.
+        </GmailDisconnectedNotice>
       ) : null}
       <CvNeedsAttentionBanners pendingCount={pendingCount} unmatchedCount={unmatched.length} />
 
@@ -500,7 +496,7 @@ function SpeakingTable({
       {/* Desktop ledger */}
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max" label="Speaking record by tournament">
+          <Table className="w-full" label="Speaking record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
@@ -677,7 +673,7 @@ function JudgingTable({ rows }: { rows: JudgingTableRow[] }) {
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="min-w-max" label="Judging record by tournament">
+          <Table className="w-full" label="Judging record by tournament">
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
