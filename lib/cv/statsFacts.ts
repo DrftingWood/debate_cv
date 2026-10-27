@@ -13,7 +13,12 @@
  * the browser, where filtering runs without another round trip.
  */
 
-import type { CvData, CvSpeakerRow, CvSpeakerRoundScore, CvTaggedMotion } from '@/lib/cv/buildCvData';
+import type {
+  CvData,
+  CvSpeakerRow,
+  CvSpeakerRoundScore,
+  CvTaggedMotion,
+} from '@/lib/cv/buildCvData';
 import { isFinalStage, sameKnockoutStage } from '@/lib/cv/motionEntries';
 import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { formatAbbrev } from '@/lib/calicotab/format';
@@ -159,7 +164,10 @@ export function seatKey(format: string | null, position: string | null): string 
     return `${prefix}:${canonical === 'Prop' ? sides[0] : sides[1]}`;
   }
   // Anything else is kept, case-folded so "Side A" and "side a" are one seat.
-  const folded = raw.toLowerCase().replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const folded = raw
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
   return `${prefix}:${folded}`;
 }
 
@@ -343,9 +351,9 @@ export function buildStatsFacts(input: FactsInput): StatsFacts {
     const partners = row.teammateDetails.map((t) => t.key);
     for (const t of row.teammateDetails) partnerNames[t.key] = t.name;
     const resultByRound = new Map(row.teamRoundResults.map((r) => [r.roundNumber, r]));
-    const roundNumbers = [...new Set([...pairing.mineByRound.keys(), ...resultByRound.keys()])].sort(
-      (a, b) => a - b,
-    );
+    const roundNumbers = [
+      ...new Set([...pairing.mineByRound.keys(), ...resultByRound.keys()]),
+    ].sort((a, b) => a - b);
 
     for (const round of roundNumbers) {
       const result = resultByRound.get(round);
@@ -369,7 +377,11 @@ export function buildStatsFacts(input: FactsInput): StatsFacts {
         // A BP round is never a "win" (lib/cv/roundOutcome.ts).
         won:
           result &&
-          !(isFourTeam(row.format, result.position) && row.prelimRoundCount != null && round > row.prelimRoundCount)
+          !(
+            isFourTeam(row.format, result.position) &&
+            row.prelimRoundCount != null &&
+            round > row.prelimRoundCount
+          )
             ? roundHit(row.format, result)
             : null,
       });

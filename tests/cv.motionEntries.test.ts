@@ -347,14 +347,23 @@ describe('knockout motions joined to the team result', () => {
         ko(3n, 'Semifinals', false),
       ]),
     );
-    expect(out['Quarterfinals']).toMatchObject({ debated: true, knockout: { won: true, final: false }, score: null });
-    expect(out['Semifinals']).toMatchObject({ debated: true, knockout: { won: false, final: false } });
+    expect(out['Quarterfinals']).toMatchObject({
+      debated: true,
+      knockout: { won: true, final: false },
+      score: null,
+    });
+    expect(out['Semifinals']).toMatchObject({
+      debated: true,
+      knockout: { won: false, final: false },
+    });
     expect(out['Grand Final']).toMatchObject({ debated: false, knockout: null });
     expect(out['Round 1'].knockout).toBeNull();
   });
 
   test('break categories are different stages: an Open final result never lands on the ESL or Novice final', () => {
-    const out = byLabel(attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'Final', true)]));
+    const out = byLabel(
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'Final', true)]),
+    );
     // "Final" and "Grand Final" are the same last round of the open bracket.
     expect(out['Grand Final'].knockout).toEqual({ won: true, final: true });
     expect(out['ESL Final'].knockout).toBeNull();
@@ -363,7 +372,9 @@ describe('knockout motions joined to the team result', () => {
 
   test('an ESL result joins the ESL motion only', () => {
     const out = byLabel(
-      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [ko(3n, 'ESL Grand Final', false)]),
+      attachKnockoutResults(buildMotionEntries([speaker], [], motions), [
+        ko(3n, 'ESL Grand Final', false),
+      ]),
     );
     expect(out['ESL Final'].knockout).toEqual({ won: false, final: true });
     expect(out['Grand Final'].knockout).toBeNull();
@@ -371,7 +382,9 @@ describe('knockout motions joined to the team result', () => {
 
   test('a judged-only tournament never takes a team result', () => {
     const judge = makeJudgeRow({ tournamentId: 3n, judgedOutroundStages: ['Semifinals'] });
-    const out = attachKnockoutResults(buildMotionEntries([], [judge], motions), [ko(3n, 'Semifinals', true)]);
+    const out = attachKnockoutResults(buildMotionEntries([], [judge], motions), [
+      ko(3n, 'Semifinals', true),
+    ]);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ judgedOnly: true, knockout: null, debated: false });
   });
@@ -391,7 +404,12 @@ describe('knockout motions joined to the team result', () => {
 
 describe('knockoutResultFor', () => {
   test('reads one stage across spellings, and gives null when same-stage rows disagree', () => {
-    expect(knockoutResultFor('Finals', [{ stage: 'Final', won: true }, { stage: 'Grand Final', won: true }])).toBe(true);
+    expect(
+      knockoutResultFor('Finals', [
+        { stage: 'Final', won: true },
+        { stage: 'Grand Final', won: true },
+      ]),
+    ).toBe(true);
     const clash = [
       { stage: 'Final', won: true },
       { stage: 'Grand Final', won: false },
@@ -401,7 +419,9 @@ describe('knockoutResultFor', () => {
   });
 
   test('a pre-round is its own stage, not the round it feeds', () => {
-    expect(knockoutResultFor('Pre-Quarterfinals', [{ stage: 'Quarterfinals', won: true }])).toBeNull();
+    expect(
+      knockoutResultFor('Pre-Quarterfinals', [{ stage: 'Quarterfinals', won: true }]),
+    ).toBeNull();
     expect(sameKnockoutStage('Pre-Quarterfinals', 'Partial Octofinals')).toBe(true);
   });
 });

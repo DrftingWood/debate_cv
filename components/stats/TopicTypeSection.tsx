@@ -196,7 +196,9 @@ function ScoreGrid({ grid }: { grid: TopicTypeHeatmap }) {
           <tbody>
             {grid.topics.map((topic, row) => (
               <Tr key={topic}>
-                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">{topic}</Td>
+                <Td rowHeader className="whitespace-nowrap pl-4 font-medium">
+                  {topic}
+                </Td>
                 {grid.types.map((type) => (
                   <Td key={type} numeric>
                     <CellValue cell={cellAt.get(`${topic}\u0000${type}`)} />
