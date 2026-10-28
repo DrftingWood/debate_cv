@@ -474,7 +474,7 @@ async function getList<E extends Endpoint>(
  * tabbycatApiRounds.ts so both modules fail the same way: every problem is a
  * reason string for the HTML fallback, never a throw.
  */
-export async function getApiList<S extends z.ZodTypeAny>(
+export async function getApiList<S extends z.ZodType>(
   fetcher: Fetcher,
   base: string,
   path: string,

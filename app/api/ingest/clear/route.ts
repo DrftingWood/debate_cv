@@ -8,7 +8,7 @@ import { privateUrlVariants } from '@/lib/gmail/extract';
 export const runtime = 'nodejs';
 
 const Body = z.object({
-  url: z.string().url(),
+  url: z.url(),
 });
 
 /**
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const parse = Body.safeParse(await req.json().catch(() => ({})));
   if (!parse.success) {
     return NextResponse.json(
-      { error: 'bad_request', details: parse.error.flatten() },
+      { error: 'bad_request', details: z.flattenError(parse.error) },
       { status: 400 },
     );
   }

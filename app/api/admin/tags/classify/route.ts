@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const cursors = Body.safeParse(await req.json().catch(() => ({})));
   if (!cursors.success) {
     return NextResponse.json(
-      { error: 'bad_request', details: cursors.error.flatten() },
+      { error: 'bad_request', details: z.flattenError(cursors.error) },
       { status: 400 },
     );
   }
