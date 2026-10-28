@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-28 - Zod 3 -> 4 (step 2 of the platform order)
+
+- **Change.** `zod` ^3.23 -> ^4.6.7. The 15 API routes that returned `parse.error.flatten()` now call `z.flattenError(parse.error)` (the v3 method is deprecated in v4). The response shape (`formErrors`, `fieldErrors`) is identical, so clients are unaffected.
+- **Why nothing else changed.** Typecheck was clean with v4 and no schema uses `.uuid()`, `.default()` on transforms, `z.record` with one argument, or `.errors`. 2203 tests pass.
+- **Watch.** Zod 4's string formats (`.email()`, `.url()`) still work but are deprecated in favour of `z.email()` / `z.url()`; not touched here.
+- **Lockfile gotcha.** `npm install` on Windows drops the nested `@emnapi/*@1.11.2` entries under `@oxc-resolver/binding-wasm32-wasi`, which breaks `npm ci` on Linux CI. After any install on Windows, copy those two entries back from `origin/main`'s lock.
+- **Rollback.** Revert the merge commit.
+- **Next in order.** TypeScript 6/7, then Prisma 7.
+
+---
+
 ## 2026-10-28 - Next 16 upgrade (branch `chore/next-16`, local, not pushed)
 
 - **Change.** `next` 15.5 -> 16.4.3, `eslint-config-next` -> 16.4.3. `middleware.ts` renamed to `proxy.ts` (export `proxy`; Node runtime, same nonce/CSP logic). `eslint.config.mjs` now imports `eslint-config-next/core-web-vitals` and `/typescript` directly (FlatCompat removed; v16 is a native flat config and FlatCompat crashed on it). `.claude/**` added to the ESLint ignores. `tsconfig.json` took Next's required `jsx: react-jsx` and the `.next/dev/types` include (so an unused `import * as React` in `components/ui/BarList.tsx` was dropped).
