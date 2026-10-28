@@ -17,7 +17,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const Body = z.object({
-  url: z.string().url(),
+  url: z.url(),
   force: z.boolean().optional(),
 });
 

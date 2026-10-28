@@ -48,7 +48,7 @@ const TYPE_AWARE_BASELINE = {
   '@typescript-eslint/no-base-to-string': 3,
   '@typescript-eslint/no-confusing-void-expression': 3,
   '@typescript-eslint/no-unnecessary-condition': 94,
-  '@typescript-eslint/no-unnecessary-type-assertion': 43,
+  '@typescript-eslint/no-unnecessary-type-assertion': 42,
   '@typescript-eslint/no-unnecessary-type-conversion': 6,
   '@typescript-eslint/no-unsafe-argument': 3,
   '@typescript-eslint/no-unsafe-assignment': 2,

@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const Body = z.object({
-  urls: z.array(z.string().url()).optional(),
+  urls: z.array(z.url()).optional(),
 });
 
 export async function POST(req: Request) {

@@ -8,7 +8,7 @@ import { privateUrlVariants } from '@/lib/gmail/extract';
 export const runtime = 'nodejs';
 
 const Body = z.object({
-  url: z.string().url(),
+  url: z.url(),
 });
 
 /**

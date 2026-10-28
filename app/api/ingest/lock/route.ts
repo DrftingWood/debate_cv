@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const Body = z.object({
-  url: z.string().url(),
+  url: z.url(),
   locked: z.boolean(),
 });
 

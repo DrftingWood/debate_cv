@@ -511,7 +511,7 @@ export async function fetchRestFromApi(
   // does. Without this a rate-limited host got one more call per linked round.
   let pushedBack = false;
   const PUSHBACK = 'host pushing back; API not asked';
-  const get = async <S extends z.ZodTypeAny>(path: string, schema: S) => {
+  const get = async <S extends z.ZodType>(path: string, schema: S) => {
     const got = await getApiList(fetcher, base, path, schema);
     if (!got.ok && isHostPushback(got)) pushedBack = true;
     return got;
