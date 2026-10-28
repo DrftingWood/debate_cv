@@ -48,6 +48,7 @@ export function NotificationBell() {
 
   // Initial load + 60s polling while document is visible.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch, then polling; state is set when each response arrives
     void refresh();
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void refresh();

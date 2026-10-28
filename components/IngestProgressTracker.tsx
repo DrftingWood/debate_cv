@@ -63,7 +63,8 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
   const seenRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const poll = useCallback(async () => {
+  // One poll: fetch, publish, and return the delay before the next one.
+  const poll = useCallback(async (): Promise<number> => {
     let next: ProgressScope | null = null;
     try {
       const res = await fetch('/api/ingest/progress', { cache: 'no-store' });
@@ -91,13 +92,18 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
       seenRef.current = true;
       wasActiveRef.current = active;
     }
-    const interval = next && next.pending + next.running > 0 ? ACTIVE_POLL_MS : IDLE_POLL_MS;
-    timerRef.current = setTimeout(() => void poll(), interval);
+    return next && next.pending + next.running > 0 ? ACTIVE_POLL_MS : IDLE_POLL_MS;
   }, [router, scope]);
 
   useEffect(() => {
-    void poll();
+    let cancelled = false;
+    async function loop() {
+      const interval = await poll();
+      if (!cancelled) timerRef.current = setTimeout(() => void loop(), interval);
+    }
+    void loop();
     return () => {
+      cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [poll]);

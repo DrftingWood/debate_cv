@@ -80,6 +80,7 @@ export function SharingManager() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch of the sharing state; its error state is set by the loader
     void load();
   }, []);
 

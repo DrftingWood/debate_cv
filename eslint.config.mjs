@@ -50,13 +50,7 @@ const config = [
     rules: { '@typescript-eslint/restrict-template-expressions': ['warn', { allowNumber: true }] },
   },
   {
-    files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
     rules: {
-      // New in eslint-config-next 16 (react-hooks 7, React Compiler rules).
-      // They flag 12 existing spots (11 set-state-in-effect, 1 immutability).
-      // Warnings until those are reworked; do not add new ones.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/immutability': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

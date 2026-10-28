@@ -30,6 +30,7 @@ import {
   fullScanUnavailableText,
 } from '@/lib/ingest/fullScanCopy';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
+import { refreshNow, useNow } from '@/components/useNow';
 import { ScanCooldownNotice, useScanCooldown, type ScanCooldown } from '@/components/ScanCooldown';
 
 type ScanResponse = { scanned: number; found: number };
@@ -130,17 +131,11 @@ export function FullScanButton({
   const [confirming, setConfirming] = useState(false);
   const [until, setUntil] = useState<number | null>(availableAt ? Date.parse(availableAt) : null);
   // null until mounted, so server and first client render agree.
-  const [now, setNow] = useState<number | null>(null);
+  const now = useNow();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const focusAfterRender = useFocusAfterRender();
   const reasonId = useId();
-
-  useEffect(() => {
-    setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const locked = until !== null && (now === null || until > now);
   const reason = disconnected
@@ -160,7 +155,7 @@ export function FullScanButton({
           setConfirming(false);
           if (scan.status === 429 && scan.retryAfterSec) {
             setUntil(Date.now() + scan.retryAfterSec * 1000);
-            setNow(Date.now());
+            refreshNow();
             return;
           }
           const notice = scanErrorMessage(scan);
@@ -172,7 +167,7 @@ export function FullScanButton({
           return;
         }
         setUntil(Date.now() + 86_400_000);
-        setNow(Date.now());
+        refreshNow();
         setConfirming(false);
         const text = fullScanResultText(
           scan.data.found,

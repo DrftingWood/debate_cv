@@ -180,6 +180,7 @@ export function OnboardingFlow({
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches the name list when the pick phase begins; state is set by the loader
     if (phase === 'pick') void loadNames();
   }, [phase]);
 

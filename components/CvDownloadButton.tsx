@@ -53,6 +53,7 @@ export function CvDownloadButton() {
   useEffect(() => {
     const prefs = loadPrefs();
     if (!prefs) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- saved prefs live in localStorage, which the server cannot render, so they are applied after hydration
     setFormat(prefs.format);
     if (prefs.fields.length > 0) setSelected(new Set(prefs.fields));
   }, []);
