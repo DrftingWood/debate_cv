@@ -242,7 +242,6 @@ function motionsFromCheerio(html: string): MotionRow[] {
 
     // nextUntil stops at the next same-level (or higher) heading.
     const $heading = $(el);
-    const tagName = (el as { tagName?: string }).tagName?.toLowerCase() ?? 'h2';
     const stopSelector = 'h1, h2, h3, h4';
 
     // Prefer an explicit <ul>/<ol> sibling that immediately follows.
@@ -282,10 +281,6 @@ function motionsFromCheerio(html: string): MotionRow[] {
       // motions in the same round share the round label but don't repeat it.
       infoText = null;
     }
-
-    // Suppress unused-variable warning; tagName IS used in the stop selector
-    // for future refinement but we reference it to satisfy the linter.
-    void tagName;
   });
 
   return rows;

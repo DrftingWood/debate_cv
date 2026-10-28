@@ -1,9 +1,6 @@
-import { FlatCompat } from '@eslint/eslintrc';
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
-
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
 
 // Type-aware rules (typescript-eslint `strict-type-checked`, the type-aware-only
 // half, so nothing already in next/typescript is duplicated), WARNINGS only.
@@ -41,9 +38,10 @@ const typeAware = tsPlugin.configs['flat/strict-type-checked-only'].map((c) => (
 
 const config = [
   {
-    ignores: ['.next/**', 'node_modules/**', 'prisma/migrations/**', 'next-env.d.ts'],
+    ignores: ['.next/**', '.claude/**', 'node_modules/**', 'prisma/migrations/**', 'next-env.d.ts'],
   },
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   ...typeAware,
   {
     // Numbers in template literals are harmless; the preset's default flags
@@ -52,7 +50,13 @@ const config = [
     rules: { '@typescript-eslint/restrict-template-expressions': ['warn', { allowNumber: true }] },
   },
   {
+    files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
     rules: {
+      // New in eslint-config-next 16 (react-hooks 7, React Compiler rules).
+      // They flag 12 existing spots (11 set-state-in-effect, 1 immutability).
+      // Warnings until those are reworked; do not add new ones.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

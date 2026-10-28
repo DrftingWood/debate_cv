@@ -4,7 +4,7 @@ import { ShareCard } from '@/components/landing/ShareCard';
 // Literals, not imports: Next reads these route-segment and image-metadata
 // exports statically. The card itself lives in components/landing/ShareCard
 // so the Open Graph and X/Twitter images cannot drift apart.
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export const alt = 'debate cv: your debate history, kept like an account';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';

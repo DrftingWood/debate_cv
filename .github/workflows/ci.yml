@@ -142,7 +142,7 @@ jobs:
         continue-on-error: true
         run: |
           npm run arch
-          npx depcruise app lib components middleware.ts instrumentation.ts --output-type json --output-to .reports/depcruise.json
+          npx depcruise app lib components proxy.ts instrumentation.ts --output-type json --output-to .reports/depcruise.json
 
       - name: prettier --check
         continue-on-error: true
