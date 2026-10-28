@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-28 - Next 16 upgrade (branch `chore/next-16`, local, not pushed)
+
+- **Change.** `next` 15.5 -> 16.4.3, `eslint-config-next` -> 16.4.3. `middleware.ts` renamed to `proxy.ts` (export `proxy`; Node runtime, same nonce/CSP logic). `eslint.config.mjs` now imports `eslint-config-next/core-web-vitals` and `/typescript` directly (FlatCompat removed; v16 is a native flat config and FlatCompat crashed on it). `.claude/**` added to the ESLint ignores. `tsconfig.json` took Next's required `jsx: react-jsx` and the `.next/dev/types` include (so an unused `import * as React` in `components/ui/BarList.tsx` was dropped).
+- **Not needed.** Async `params`/`cookies()`/`headers()` were already awaited (typecheck clean); no `next lint` usage, no custom webpack config, no parallel routes. The canary codemod crashed on a missing module, so the migration was done by hand.
+- **New lint rules.** `react-hooks/set-state-in-effect` (11 spots) and `react-hooks/immutability` (1) arrive with the v16 config; set to `warn` in `eslint.config.mjs` until reworked. Not new debt: the code is unchanged.
+- **Ratchet.** Dropped a dead `tagName` + `void tagName` in `lib/calicotab/parseMotions.ts` (flagged by `no-meaningless-void-operator`); `no-unnecessary-condition` baseline 95 -> 94.
+- **Checks run.** typecheck, `next build` (Turbopack, Proxy recognised), 2203 vitest tests, ratchet, file-size, arch. All pass.
+- **Verify on a preview.** Open a page and confirm the CSP header carries a nonce and the theme script runs without a violation (the proxy mints it); check `/icon`, `/opengraph-image` still render. `app/icon.tsx`, `apple-icon.tsx`, `opengraph-image.tsx`, `twitter-image.tsx` still declare `runtime = 'edge'`; the build warns it is deprecated. Left alone: moving them is a separate change.
+- **Rollback.** Revert the commit (restores `next` 15.5, `middleware.ts`, the FlatCompat ESLint config, and `tsconfig.json`).
+- **Next in order.** Zod 4, then TypeScript 6/7, then Prisma 7.
+
+---
+
 ## 2026-10-27 - Function size trim 1: stop tracing server source maps into functions
 
 - **Finding.** Each serverless function traced ~57 MB median / 77 MB max unzipped, and 9-18 of its traced files were `.next/server/chunks/*.map` (server source maps). Those maps are uploaded to Sentry at build time (`withSentryConfig`, when `SENTRY_AUTH_TOKEN` is set), so they need not ship inside functions.

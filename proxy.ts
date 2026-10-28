@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  *
  * The static headers in next.config.ts (nosniff, frame DENY, HSTS,
  * Referrer-Policy, Permissions-Policy) can't express a CSP, because a
- * useful one needs a fresh nonce per response. This middleware mints that
+ * useful one needs a fresh nonce per response. This proxy mints that
  * nonce, puts it in the CSP, and forwards it on a request header so
  * app/layout.tsx can stamp it onto the one inline script the app ships
  * (the pre-paint theme switch). Next.js reads the same nonce from the CSP
@@ -19,7 +19,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  * `strict-dynamic` means the nonce covers scripts that Next loads
  * transitively, so we don't have to enumerate chunk URLs.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   const directives = [
@@ -61,7 +61,7 @@ export const config = {
   matcher: [
     /*
      * HTML documents only. Static assets, images and the Sentry tunnel do
-     * not need a per-request nonce, and running middleware on them costs
+     * not need a per-request nonce, and running the proxy on them costs
      * an invocation each.
      */
     {

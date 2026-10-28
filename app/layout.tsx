@@ -79,7 +79,7 @@ export const viewport: Viewport = {
 const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Nonce minted per request by middleware.ts. The theme script must carry
+  // Nonce minted per request by proxy.ts. The theme script must carry
   // it or the CSP blocks it and every visitor gets a flash of the wrong
   // theme before hydration.
   const nonce = (await headers()).get('x-nonce') ?? undefined;

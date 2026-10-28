@@ -47,7 +47,7 @@ const BASELINE = {
 const TYPE_AWARE_BASELINE = {
   '@typescript-eslint/no-base-to-string': 3,
   '@typescript-eslint/no-confusing-void-expression': 3,
-  '@typescript-eslint/no-unnecessary-condition': 95,
+  '@typescript-eslint/no-unnecessary-condition': 94,
   '@typescript-eslint/no-unnecessary-type-assertion': 43,
   '@typescript-eslint/no-unnecessary-type-conversion': 6,
   '@typescript-eslint/no-unsafe-argument': 3,
@@ -64,7 +64,7 @@ const TYPE_AWARE_BASELINE = {
 
 const ROOT = process.cwd();
 const DIRS = ['app', 'lib', 'components'];
-const ROOT_FILES = ['middleware.ts', 'instrumentation.ts'];
+const ROOT_FILES = ['proxy.ts', 'instrumentation.ts'];
 
 function walk(dir, out) {
   for (const name of readdirSync(dir)) {
