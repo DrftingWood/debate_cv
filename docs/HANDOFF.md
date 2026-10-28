@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-28 - TypeScript 5.9 -> 6.0 (step 3 of the platform order)
+
+- **Change.** `typescript` ^5.7 -> ~6.0.3. No source changes: typecheck, lint, 2203 tests, ratchet and `next build` all pass unchanged.
+- **Why 6.0, not 7.** TypeScript 7.0.2 (the native port) is `latest`, but `typescript-eslint` 8.72.1 declares `typescript >=4.8.4 <6.1.0`, and the type-aware lint rules and the ratchet depend on it. Moving to 7 would break lint. **Revisit when typescript-eslint supports 7**; until then keep `~6.0`.
+- **Rollback.** Revert the merge commit.
+- **Next in order.** Prisma 7 (heaviest: new generator, no automatic env loading).
+
+---
+
 ## 2026-10-28 - Zod 3 -> 4 (step 2 of the platform order)
 
 - **Change.** `zod` ^3.23 -> ^4.6.7. The 15 API routes that returned `parse.error.flatten()` now call `z.flattenError(parse.error)` (the v3 method is deprecated in v4). The response shape (`formErrors`, `fieldErrors`) is identical, so clients are unaffected.
