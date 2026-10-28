@@ -83,6 +83,7 @@ export function IdentityManager() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time fetch of the name list; its loading and error state is set by the loader
     void load();
   }, []);
 

@@ -149,6 +149,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   const [presentIds, setPresentIds] = useState<string[]>(() => STATS_SECTIONS.map((s) => s.id));
   useEffect(() => {
     const ids = STATS_SECTIONS.filter((s) => document.getElementById(s.id)).map((s) => s.id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- which sections rendered can only be known by reading the DOM after the render commits
     setPresentIds((prev) => (prev.join() === ids.join() ? prev : ids));
   }, [filteredFacts, stats, speaks]);
   const railTargets = useMemo(

@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-28 - react-hooks rules back to errors (Next 16 follow-up)
+
+- **Change.** The 12 spots flagged by `react-hooks/set-state-in-effect` (11) and `react-hooks/immutability` (1) are resolved and the two rules are errors again (the temporary `warn` override in `eslint.config.mjs` is gone).
+- **Reworked (4 components).** `ThemeToggle` reads `document.documentElement.dataset.theme` with `useSyncExternalStore` (a MutationObserver is the subscription). `DashboardActions` takes its clock from the new `components/useNow.ts` (shared store, 30 s tick, `refreshNow()` after a scan; null on the server and first client render so hydration agrees). `CvNeedsAttentionBanners` takes fresh counts from the parent while rendering (React's "adjust state when a prop changes" pattern) instead of in an effect. `IngestProgressTracker`'s self-referencing `poll` callback became a loop declared inside the effect, with a `cancelled` flag, so no timer is scheduled after unmount.
+- **Left as effects, with an explained `eslint-disable-next-line ... -- reason` each (8).** `AdminTagProposals`, `IdentityManager`, `SharingManager`, `NotificationBell`, `OnboardingFlow`, `ParticipantSearch` (fetch-on-mount / on key change) and `CvDownloadButton` (localStorage prefs applied after hydration), `FilterableStats` (which sections rendered is only known from the DOM after commit). Removing the fetch ones properly means adopting a data-fetching library (SWR or React Query); not done here.
+- **Checked in a browser** against a local production build and database: theme toggle flips, relabels and persists; the Imports page renders signed in; the notification (60 s) and progress (30 s idle) polls fire on schedule; `/cv/stats` rail has all 21 targets; no console messages on a fresh load. Typecheck, lint, ratchet, file-size and 2208 tests pass.
+- **Rollback.** Revert the commit.
+
+---
+
 ## 2026-10-28 - pg sslmode made explicit (follow-up to Prisma 7)
 
 - **Why.** After Prisma 7 went live, Vercel logged `SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'` on `/u/[slug]` and the cron route. Behaviour today is already the strict one; the warning says pg v9 will switch those modes to the weaker libpq meaning (no certificate verification for `require`).

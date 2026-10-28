@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
 type Theme = 'light' | 'dark';
@@ -12,14 +12,19 @@ type Theme = 'light' | 'dark';
  * component just flips it and persists — no context/provider needed
  * because every themed style reads CSS variables, not React state.
  */
-export function ThemeToggle() {
-  // null until mounted: the server doesn't know the visitor's theme, so we
-  // render a neutral placeholder and hydrate the real state client-side.
-  const [theme, setTheme] = useState<Theme | null>(null);
+function subscribeTheme(notify: () => void) {
+  const observer = new MutationObserver(notify);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
 
-  useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as Theme) ?? 'light');
-  }, []);
+const readTheme = (): Theme => (document.documentElement.dataset.theme as Theme) ?? 'light';
+
+export function ThemeToggle() {
+  // null on the server and the first client render: the server doesn't know
+  // the visitor's theme, so we render a neutral placeholder and read the real
+  // value from the document once hydrated.
+  const theme = useSyncExternalStore<Theme | null>(subscribeTheme, readTheme, () => null);
 
   const flip = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
@@ -29,7 +34,6 @@ export function ThemeToggle() {
     } catch {
       // Storage blocked — the choice just won't persist across visits.
     }
-    setTheme(next);
   };
 
   return (

@@ -52,12 +52,18 @@ export function CvNeedsAttentionBanners({
   const lastPendingRef = useRef(initialPending);
   const lastUnmatchedRef = useRef(initialUnmatched);
 
-  useEffect(() => {
-    // Sync refs to props if the parent rerenders with fresh counts.
-    lastPendingRef.current = initialPending;
-    lastUnmatchedRef.current = initialUnmatched;
+  // Take fresh counts from the parent when it rerenders with them. Done
+  // while rendering (React's "adjust state when a prop changes" pattern), not
+  // in an effect, so the banner never paints the stale count first.
+  const [seenInitial, setSeenInitial] = useState({ p: initialPending, u: initialUnmatched });
+  if (seenInitial.p !== initialPending || seenInitial.u !== initialUnmatched) {
+    setSeenInitial({ p: initialPending, u: initialUnmatched });
     setPendingCount(initialPending);
     setUnmatchedCount(initialUnmatched);
+  }
+  useEffect(() => {
+    lastPendingRef.current = initialPending;
+    lastUnmatchedRef.current = initialUnmatched;
   }, [initialPending, initialUnmatched]);
 
   useEffect(() => {

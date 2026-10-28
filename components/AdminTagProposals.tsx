@@ -103,6 +103,7 @@ export function AdminTagProposals() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refetches whenever the status filter changes; the reset must run before the request
     setLoading(true);
     setError(null);
     setProposals(null);

@@ -53,6 +53,7 @@ export function ParticipantSearch({
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- debounced search keyed on the query; the reset when it is too short has to run with it
       setResults([]);
       setHasSearched(false);
       setError(null);
