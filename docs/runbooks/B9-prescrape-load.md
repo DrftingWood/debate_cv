@@ -125,9 +125,9 @@ The list is `scripts/prescrape/stage-b-2020-2022.txt` (217 Calicotab tournaments
 
 ### 8. Stage D, stage E and stage F
 
-Stages D (65), E (158) and F (308) are loaded the same way as C: run step 4 with each list, one at a time, checking storage in between.
+Stages D (65), E (158) and F (308) are loaded the same way as C: run step 4 with each list, in any order.
 
-`scripts/prescrape/stage-f-discovered.txt` holds 308 tabs found on 2026-10-28 by crawling the root pages of multi-tournament hosts (edudrift, bdc, mace, midp, wolce, sunwaydebate, dialectica, sbs, speechforces, debsocsrcc, sls, judo, lums). Each was fetched and confirmed live, and none is in stages A to E. Its size is unknown until run, so load D and E first, read the console, and only then start F. Stage B's 2 timeouts are listed in `retry-timeouts.txt`.
+`scripts/prescrape/stage-f-discovered.txt` holds 308 tabs found on 2026-10-28 by crawling the root pages of multi-tournament hosts (edudrift, bdc, mace, midp, wolce, sunwaydebate, dialectica, sbs, speechforces, debsocsrcc, sls, judo, lums). Each was fetched and confirmed live, and none is in stages A to E. The owner confirmed on 2026-10-28 that Neon has enough storage for all three, so they can run back to back; the runner still stops itself at `PRESCRAPE_MAX_DB_BYTES`. Stage B's 2 timeouts are listed in `retry-timeouts.txt`.
 
 ## If storage nears 1 GB
 
