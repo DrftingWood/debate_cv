@@ -28,9 +28,7 @@
  *
  * Usage:
  *   npm run seed:dev          # wipes the seeded user and re-creates
- *
- * Refuses to run unless the database URL points at localhost — this drops
- * rows, and it must never be pointed at production.
+ * Refuses to run unless the database URL points at localhost: it drops rows.
  */
 
 import 'dotenv/config'; // Prisma 7 no longer loads .env itself
