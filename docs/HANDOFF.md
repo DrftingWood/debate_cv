@@ -9,7 +9,8 @@
 - **New lint rules.** `react-hooks/set-state-in-effect` (11 spots) and `react-hooks/immutability` (1) arrive with the v16 config; set to `warn` in `eslint.config.mjs` until reworked. Not new debt: the code is unchanged.
 - **Ratchet.** Dropped a dead `tagName` + `void tagName` in `lib/calicotab/parseMotions.ts` (flagged by `no-meaningless-void-operator`); `no-unnecessary-condition` baseline 95 -> 94.
 - **Checks run.** typecheck, `next build` (Turbopack, Proxy recognised), 2203 vitest tests, ratchet, file-size, arch. All pass.
-- **Verify on a preview.** Open a page and confirm the CSP header carries a nonce and the theme script runs without a violation (the proxy mints it); check `/icon`, `/opengraph-image` still render. `app/icon.tsx`, `apple-icon.tsx`, `opengraph-image.tsx`, `twitter-image.tsx` still declare `runtime = 'edge'`; the build warns it is deprecated. Left alone: moving them is a separate change.
+- **Edge runtime removed.** `app/icon.tsx`, `apple-icon.tsx`, `opengraph-image.tsx`, `twitter-image.tsx` moved from `runtime = 'edge'` to `'nodejs'` (the build warned Edge is deprecated; `/u/[slug]` images were already Node). Checked on a local production server: all four return 200 `image/png`, and the CSP header and inline scripts carry a fresh nonce per request.
+- **Verify on the preview.** Branch `preview/next-16`: load `/`, `/icon`, `/opengraph-image`, a signed-in page; confirm no CSP violation in the console.
 - **Rollback.** Revert the commit (restores `next` 15.5, `middleware.ts`, the FlatCompat ESLint config, and `tsconfig.json`).
 - **Next in order.** Zod 4, then TypeScript 6/7, then Prisma 7.
 
