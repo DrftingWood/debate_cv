@@ -28,12 +28,12 @@
  *
  * Usage:
  *   npm run seed:dev          # wipes the seeded user and re-creates
- *
- * Refuses to run unless the database URL points at localhost — this drops
- * rows, and it must never be pointed at production.
+ * Refuses to run unless the database URL points at localhost: it drops rows.
  */
 
+import 'dotenv/config'; // Prisma 7 no longer loads .env itself
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
 
 const DB_URL = process.env.POSTGRES_PRISMA_URL ?? process.env.POSTGRES_URL_NON_POOLING ?? '';
@@ -45,7 +45,7 @@ if (!/@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(DB_URL)) {
   process.exit(1);
 }
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB_URL }) });
 
 // ── Deterministic RNG ─────────────────────────────────────────────────────
 let _seed = 0x2f6e2b1;

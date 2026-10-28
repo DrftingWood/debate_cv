@@ -21,10 +21,11 @@ import { existsSync, mkdirSync, appendFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { resolveConnectionString } from './lib/neon-connection.mjs';
 
-// Read the shell before the database library loads: importing @prisma/client also
-// reads any .env file in the repo into process.env, which must not be used by accident.
+// Read the shell only: Prisma 7 does not load .env files, and this script must
+// not pick one up by accident (it can point at production).
 const shellUrl = process.env.POSTGRES_URL_NON_POOLING;
 const { PrismaClient } = await import('@prisma/client');
+const { PrismaPg } = await import('@prisma/adapter-pg');
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -43,7 +44,7 @@ mkdirSync(out, { recursive: true });
 const indexPath = join(out, 'index.jsonl');
 if (!existsSync(indexPath)) writeFileSync(indexPath, '');
 
-const prisma = new PrismaClient({ datasources: { db: { url } } });
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 const privatePattern = /\/privateurls\//i;
 
 let cursor;

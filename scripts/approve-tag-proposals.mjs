@@ -42,10 +42,11 @@ import {
   beforeCsv,
 } from './lib/tag-approval-plan.mjs';
 
-// Read the shell before the database library loads: importing @prisma/client also
-// reads any .env file in the repo into process.env, which must not be used by accident.
+// Read the shell only: Prisma 7 does not load .env files, and this script must
+// not pick one up by accident (it can point at production).
 const shellUrl = process.env.POSTGRES_URL_NON_POOLING;
 const { PrismaClient } = await import('@prisma/client');
+const { PrismaPg } = await import('@prisma/adapter-pg');
 
 let opts;
 try {
@@ -56,7 +57,7 @@ try {
 }
 
 const url = await resolveConnectionString(shellUrl);
-const prisma = new PrismaClient({ datasources: { db: { url } } });
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 const kinds = opts.kind ? [opts.kind] : KIND_NAMES;
 const out = resolve(opts.out);
 const now = new Date();

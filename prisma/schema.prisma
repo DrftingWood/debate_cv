@@ -3,17 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  // Vercel Postgres / Neon auto-inject both. When bringing your own Postgres,
-  // set POSTGRES_PRISMA_URL (pooled; add `?pgbouncer=true` if using a pooler)
-  // and POSTGRES_URL_NON_POOLING (direct, for migrations).
-  //
-  // connection_limit is raised at runtime to match INGEST_DRAIN_CONCURRENCY —
-  // see poolSizedUrl in lib/db.ts. The pooled URL is integration-managed, so
-  // the pool is sized in code rather than trusting the env var to keep a
-  // hand-edited value.
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "postgresql"
+  // Prisma 7: the connection URLs live in prisma.config.ts (CLI, direct URL)
+  // and lib/db.ts (runtime, pooled URL, via the pg driver adapter).
 }
 
 // -------------------- NextAuth core --------------------
