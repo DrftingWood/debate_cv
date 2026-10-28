@@ -207,7 +207,7 @@ export function IdentityManager() {
                   <span className="flex min-w-0 items-center gap-3">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 shrink-0 accent-primary"
+                      className="h-6 w-6 shrink-0 accent-primary"
                       checked={checked}
                       onChange={() => toggle(n.normalizedName)}
                     />

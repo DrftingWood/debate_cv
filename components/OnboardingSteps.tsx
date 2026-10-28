@@ -275,7 +275,7 @@ export function NamePicker({
                   <input
                     ref={i === 0 ? firstCheckboxRef : undefined}
                     type="checkbox"
-                    className="h-4 w-4 shrink-0 accent-primary"
+                    className="h-6 w-6 shrink-0 accent-primary"
                     checked={selected.has(n.normalizedName)}
                     onChange={() => onToggle(n.normalizedName)}
                   />

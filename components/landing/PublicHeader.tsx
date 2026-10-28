@@ -14,7 +14,9 @@ import { ThemeToggle } from '@/components/ThemeToggle';
  * "Sign in" is the same Google flow as every "Build my CV" button, so one
  * label always means one action. Below 380px the Sample CV link drops out
  * (the landing hero and the sample page both have a full-width path to it)
- * so the row does not wrap at 320px.
+ * so the row does not wrap at 320px. Below 420px Privacy drops out too (it
+ * is in every footer): at 390px all three items plus the toggle were 23px
+ * wider than the row and made the page scroll sideways.
  */
 export function PublicHeader() {
   return (
@@ -30,7 +32,7 @@ export function PublicHeader() {
           <Link href="/sample" className="py-2 hover:text-ink max-[380px]:hidden">
             Sample CV
           </Link>
-          <Link href="/privacy" className="py-2 hover:text-ink">
+          <Link href="/privacy" className="py-2 hover:text-ink max-[420px]:hidden">
             Privacy
           </Link>
           <form

@@ -206,7 +206,7 @@ export function StatsFilterBar({
                       onChange={() =>
                         onChange({ ...filter, partners: toggle(filter.partners, p.key) })
                       }
-                      className="h-4 w-4 shrink-0 accent-primary"
+                      className="h-6 w-6 shrink-0 accent-primary"
                     />
                     <span className="break-words text-ink">{p.label}</span>
                   </span>

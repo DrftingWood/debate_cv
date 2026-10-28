@@ -227,7 +227,7 @@ export function CvRowReportButton({
                               (FORM-8). */}
                           <input
                             type="checkbox"
-                            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                            className="mt-0.5 h-6 w-6 shrink-0 accent-primary"
                             checked={checked}
                             onChange={() => toggleCategory(cat.code)}
                           />

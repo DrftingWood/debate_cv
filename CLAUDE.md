@@ -18,14 +18,14 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 
 ## Stack (from package.json)
 
-- **Next.js 15.1** App Router, React 19, TypeScript 5.7 (strict)
+- **Next.js 16** App Router (Turbopack; `proxy.ts` is the old middleware), React 19, TypeScript 6.0 (strict; stay on `~6.0` until typescript-eslint supports 7)
 - **Auth.js / next-auth v5 beta** (`5.0.0-beta.32`, pinned exactly; one `@auth/core` 0.41.3 shared with `@auth/prisma-adapter` 2.11.3), Google OAuth (`openid email profile gmail.readonly`)
-- **Prisma 6** against Postgres (Vercel Postgres / Neon — `POSTGRES_PRISMA_URL` pooled + `POSTGRES_URL_NON_POOLING` for migrations)
+- **Prisma 7** against Postgres (Vercel Postgres / Neon) through the `pg` driver adapter: `POSTGRES_PRISMA_URL` (pooled) feeds `lib/db.ts`, which sizes the pool in code; `POSTGRES_URL_NON_POOLING` (direct) feeds `prisma.config.ts` for migrations. Prisma 7 does not load `.env` itself
 - **Tailwind 3.4** + `@tailwindcss/typography`, custom HSL CSS-var design tokens
 - **googleapis 144** for Gmail, **cheerio 1** for scraping
 - **Sentry** (`@sentry/nextjs` 10) wired via `withSentryConfig` in `next.config.ts`, tunneled through `/monitoring`
 - **Vitest 2** for tests (Node env)
-- **zod 3** for validation, **clsx** + **tailwind-merge** for class composition, **lucide-react** for icons
+- **zod 4** for validation, **clsx** + **tailwind-merge** for class composition, **lucide-react** for icons
 - Node `>=20`. Package manager: **npm** (`package-lock.json` is the only committed lockfile; Vercel auto-detects npm from it). Previously a stale `pnpm-lock.yaml` was also committed, but it drifted and broke prod deploys — removed.
 
 ## Architecture
@@ -52,7 +52,7 @@ app/                          Next.js App Router (routes + API handlers)
 
 lib/
   auth.ts                     NextAuth config
-  db.ts                       Prisma client singleton
+  db.ts                       Prisma client singleton (pg adapter, pool sizing)
   crypto.ts                   AES-256-GCM for Gmail token encryption
   queue.ts                    FOR UPDATE SKIP LOCKED job helpers
   admin.ts                    Admin allowlist
@@ -95,7 +95,7 @@ tests/                        Vitest, flat layout (`tests/*.test.ts` + `tests/ap
 - **Queue**: `lib/queue.ts` uses Postgres advisory locks + `FOR UPDATE SKIP LOCKED`. There's a deadlock test — preserve lock ordering when touching it.
 - **Parser versioning**: bump `PARSER_VERSION` in `lib/calicotab/version.ts` to invalidate cached parses after changing parsing logic.
 - **Validation**: `zod` at API boundaries.
-- **Lint**: flat ESLint config extending `next/core-web-vitals` + `next/typescript`. `no-unescaped-entities` is intentionally off, `no-unused-vars` warns and allows `_`-prefixed.
+- **Lint**: flat ESLint config using `eslint-config-next/core-web-vitals` + `/typescript` (native flat config; `react-hooks/set-state-in-effect` is an error, so a flagged effect needs a real fix or an explained `eslint-disable-next-line -- reason`). `no-unescaped-entities` is intentionally off, `no-unused-vars` warns and allows `_`-prefixed.
 - **Comments**: existing code uses long, narrative comments explaining _why_ (see `next.config.ts`, `prisma/schema.prisma`). Match that voice when the rationale is non-obvious; don't add comments that only restate the code.
 - **Error reporting**: Sentry is live in prod; client SDK tunnels through `/monitoring`. `instrumentation.ts` + `sentry.{client,server,edge}.config.ts` wire it up.
 
@@ -173,4 +173,5 @@ See `.env.example` for the full list. Key buckets: Google OAuth, Postgres (poole
 - **Do not bump `PARSER_VERSION` casually** — it invalidates cached parses across all users.
 - **Do not change queue lock ordering** without re-running `tests/calicotab.deadlock.test.ts` and understanding why it exists.
 - **Do not commit decrypted tokens to logs, fixtures, or test snapshots.**
+- **After any `npm install` on Windows, restore the two nested `@emnapi/*@1.11.2` entries under `@oxc-resolver/binding-wasm32-wasi` in `package-lock.json` from `origin/main`**, or `npm ci` fails on Linux CI (see `docs/HANDOFF.md`).
 - **Do not re-introduce `pnpm-lock.yaml`**. The repo is npm-only; Vercel auto-detects pnpm from the lockfile's presence and will then refuse to install against a mismatched lockfile. If you have a real reason to add pnpm support, it has to be a deliberate two-lockfile maintenance discipline, not an accidental drop-in.

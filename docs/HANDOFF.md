@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-28 - a11y smoke re-run on main, and the last measured defects fixed
+
+- **Re-run.** `npm run a11y` (axe WCAG 2.2 A/AA + best-practice, plus the overflow and target-size probes) against a production build of `main` with the seeded local database: **0 axe violations in all 52 route/width/theme combinations**, no console errors. The 27 Oct baseline had violations on 6 of 13 routes (46 dark contrast nodes on /privacy, 19 + 3 + 1 `scrollable-region-focusable`, `empty-table-header`, `definition-list`).
+- **Still failing after that run, now fixed here.**
+  - `/cv/stats` scrolled sideways at 390 px (page 923 px; STAT-24). The wide split tables sit in a correct `overflow-x: auto` scroller, but their width still reached the document's scroll width. `contain: paint` on `.table-scroll` stops that (`app/globals.css`). Checked by bisecting the DOM, then trying `contain`, `overflow: clip` and `html overflow-x` in the browser: only `contain: paint` worked.
+  - The signed-out header (`components/landing/PublicHeader.tsx`) was 23 px wider than its row at 390 px, so `/`, `/sample`, `/privacy` scrolled sideways. Privacy now drops out below 420 px (it is in every footer), as Sample CV already did below 380 px.
+  - 15-ish targets under 24 px per page on `/cv/stats`, `/dashboard?filter=all`, `/settings/sharing`, `/settings/profile`, `/sample`, `/u/<slug>`: checkboxes `h-4 w-4` -> `h-6 w-6` (5 components plus the public-visibility list, which had none), `min-h-6` / `py-1` on the table-toggle summaries, the dashboard URL links and "← Summary", the sharing link, and the public footer links.
+  - `scripts/a11y-smoke.mjs` no longer counts a visually hidden 1 px input (the CSV file picker) as a target.
+- **Result.** All 52 combinations: 0 axe violations, no sideways scroll, 0 targets under 24 px, 0 nested controls.
+- **Not covered.** These are automated checks: no keyboard-order or screen-reader testing, and no judgement on the parked design decisions (theme direction, icon policy, motion).
+- **Rollback.** Revert the commit.
+
+---
+
 ## 2026-10-28 - react-hooks rules back to errors (Next 16 follow-up)
 
 - **Change.** The 12 spots flagged by `react-hooks/set-state-in-effect` (11) and `react-hooks/immutability` (1) are resolved and the two rules are errors again (the temporary `warn` override in `eslint.config.mjs` is gone).

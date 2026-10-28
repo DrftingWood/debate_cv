@@ -85,6 +85,9 @@ function measure() {
   )) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
+    // A visually hidden (1 px) input that a visible button opens, such as the CSV
+    // file picker, is not a target anyone clicks.
+    if (r.width <= 1 && r.height <= 1) continue;
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
     // Inline links inside a sentence are exempt from SC 2.5.8.

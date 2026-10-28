@@ -35,6 +35,7 @@ export function PublicTournamentVisibility({
                 <input
                   id={id}
                   type="checkbox"
+                  className="h-6 w-6 shrink-0 accent-primary"
                   checked={!hidden.has(t.id)}
                   onChange={(e) => onToggle(t.id, e.currentTarget.checked)}
                 />
