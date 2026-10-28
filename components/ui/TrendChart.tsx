@@ -323,7 +323,7 @@ export function TrendChart({
         </svg>
       </div>
       <details className="mt-2" data-print-hide="true">
-        <summary className="cursor-pointer text-caption text-ink-soft hover:text-ink coarse:py-2">
+        <summary className="cursor-pointer py-1 text-caption text-ink-soft hover:text-ink coarse:py-2">
           Show the figures as a table
         </summary>
         <div className="mt-2">

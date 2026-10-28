@@ -283,7 +283,7 @@ export default async function Dashboard({
               </div>
               <Link
                 href="/dashboard"
-                className="text-caption text-ink-soft underline underline-offset-2 hover:text-ink"
+                className="inline-flex min-h-6 items-center text-caption text-ink-soft underline underline-offset-2 hover:text-ink"
               >
                 ← Summary
               </Link>
@@ -371,7 +371,7 @@ export default async function Dashboard({
                               href={u.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="mt-1 flex items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-primary"
+                              className="mt-1 flex min-h-6 items-center gap-1 truncate font-mono text-byline text-ink-soft transition-colors hover:text-primary"
                             >
                               {u.url}
                               <span className="sr-only">(opens in a new tab)</span>
@@ -430,7 +430,7 @@ export default async function Dashboard({
                               href={u.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
+                              className="inline-flex min-h-6 max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
                             >
                               <span className="truncate">{u.url}</span>
                               <span className="sr-only">(opens in a new tab)</span>

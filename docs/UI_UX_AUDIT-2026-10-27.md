@@ -708,3 +708,7 @@ Six tasks, by file ownership, so they can run in parallel from `main`. Each task
 | Owner's name repeated under every row | Still present on desktop (`app/(app)/cv/page.tsx:525`) | covered by CV-1's card fix only; desktop is P3 polish, not listed |
 | `/cv` ledger ~80 px too wide at 1280 | Worse: 131 px over (1,369 in 1,238) | CV-2 |
 | `AutoScanOnVisit` 400s with no token | Still present | DASH-13 |
+
+## Re-check on 2026-10-28
+
+`npm run a11y` re-run against a production build of `main` (after #186, #187, #190, #191) with the same seed data: **0 axe violations in all 52 combinations**, against violations on 6 of 13 routes in the table above. It also found three things the first run had either missed or that had since appeared, all fixed in the follow-up PR: `/cv/stats` still scrolled sideways at 390 px (923 px; STAT-24), the signed-out header overflowed by 3 to 11 px at 390 px, and several 13 to 18 px targets remained (stats filters, sharing, profile, imports URL links, public footer). After the fixes all 52 combinations show 0 axe violations, no sideways scroll and 0 targets under 24 px. Automated checks only: no keyboard or screen-reader testing, and the parked design decisions are untouched.

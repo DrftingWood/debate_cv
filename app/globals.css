@@ -530,8 +530,13 @@
    * `.panel` (card) by default, the `.panel-inset` well otherwise.
    * The focus outline is drawn inset because every caller sits inside a
    * panel with overflow hidden, which clipped the default offset outline.
+   *
+   * `contain: paint` keeps a wide table's width out of the page's scroll
+   * width. Without it /cv/stats scrolled sideways at 390 px (a 914 px table
+   * inside a 348 px scroller still pushed the document to 923 px).
    */
   .table-scroll {
+    contain: paint;
     --scroll-cover: hsl(var(--card));
     background:
       linear-gradient(to right, var(--scroll-cover) 30%, transparent) left center / 2.5rem 100%

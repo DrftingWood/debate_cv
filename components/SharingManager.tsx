@@ -228,7 +228,7 @@ export function SharingManager() {
               href={fullUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 truncate font-mono text-table text-primary hover:underline"
+              className="flex-1 truncate py-0.5 font-mono text-table text-primary hover:underline"
             >
               {fullUrl}
             </a>
