@@ -123,6 +123,12 @@ The list is `scripts/prescrape/stage-b-2020-2022.txt` (217 Calicotab tournaments
 
 `scripts/prescrape/stage-c-2020-2025.txt` holds 109 Calicotab tournaments dated 2020–2025 that the Tabs sheet of the Official Global Debating Spreadsheet lists but stages A and B do not (matched on host and slug). Entries whose slug is not known are root URLs, which the runner expands into every tournament the root page links, up to 2025. Run step 4 with this list; already loaded tournaments are skipped. Some pages may not be published yet and will fail with HTTP 404, as `hufsiv2023` did. Otherwise move to Launch first, or leave stage B unloaded; those tournaments keep working through the normal ingest.
 
+### 8. Stage D, stage E and stage F
+
+Stages D (65), E (158) and F (316) are loaded the same way as C: run step 4 with each list, in any order.
+
+`scripts/prescrape/stage-f-discovered.txt` holds 316 tabs: 308 found on 2026-10-28 by crawling the root pages of multi-tournament hosts (edudrift, bdc, mace, midp, wolce, sunwaydebate, dialectica, sbs, speechforces, debsocsrcc, sls, judo, lums). Each was fetched and confirmed live, and none is in stages A to E. The other 8 are tabs the owner took part in (australs2020, cttcduds2022, indiawudcfundraiser, kclopen2021, lseopen2022, popposting2021, trivium2022, yaleivfall21); the other 11 of the 19 owner-participation tabs are already in stages A to E or in F. The owner confirmed on 2026-10-28 that Neon has enough storage for all three, so they can run back to back; the runner still stops itself at `PRESCRAPE_MAX_DB_BYTES`. Stage B's 2 timeouts are listed in `retry-timeouts.txt`.
+
 ## If storage nears 1 GB
 
 - **The runner stops itself** at `PRESCRAPE_MAX_DB_BYTES`. Do not raise the ceiling past about 0.9 GB.
