@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-28 - Prisma 6.19 -> 7.10 (step 4 of the platform order, the heavy one)
+
+- **Change.** `prisma` / `@prisma/client` 6.19 -> 7.10.1, plus `@prisma/adapter-pg` and `dotenv`.
+  - `prisma/schema.prisma`: `url` / `directUrl` removed from the datasource (v7 rejects them).
+  - New `prisma.config.ts`: the CLI uses `POSTGRES_URL_NON_POOLING`; it loads `.env` itself via `dotenv/config`. It reads the variable with `process.env`, not `env()`, because `env()` throws when it is unset and that would break `prisma generate` on installs with no database.
+  - `lib/db.ts`: the client now needs the `pg` driver adapter. `poolSizedUrl` became `poolConfig`: it reads `connection_limit`, `pool_timeout`, `connect_timeout` from the pooled URL, removes those (and `pgbouncer`) from the string handed to `pg`, and returns `max` (never below `INGEST_DRAIN_CONCURRENCY`, never lowering a higher value) and `connectionTimeoutMillis` (default 10 s, as in Prisma 6). With no URL (build, unit tests) it builds against a placeholder host `POSTGRES_PRISMA_URL-is-not-set.invalid`, because v7 throws at construction without an adapter.
+  - The four `.mjs` scripts that build their own client now pass an adapter. The two seed scripts import `dotenv/config` (v7 no longer loads `.env` on import); the two operator scripts that must never read `.env` (`approve-tag-proposals`, `export-source-documents`) stay shell-only.
+- **Kept `provider = "prisma-client-js"`** (still supported in 7.10), so the 22 `@prisma/client` imports and the `.mjs` scripts are unchanged. **Follow-up:** move to the new `prisma-client` generator (`output = ...`, TypeScript output; the `.mjs` scripts would then need tsx or a build step). A Prisma 8 RC exists; check whether it drops `prisma-client-js` before then.
+- **Tested against a local Postgres** (embedded Postgres 55432, same as `.env`): all migrations apply to an empty database; `seed:dev` runs; the production build serves `/u/<slug>`, its OG image, `/sample`, and signed-in `/cv`, `/cv/stats`, `/cv/motions`, `/dashboard`, `/settings/sharing` with the seeded data and no server errors; 2204 tests pass.
+- **Error behaviour probed through the adapter** (the code branches on these): unique violation -> `PrismaClientKnownRequestError` P2002 (sharing slug OK); serializable conflict -> P2034 (notifications dedup OK); deadlock -> P2010 whose message contains `40P01`, caught by `isDeadlockError`'s string check; interactive transaction timeout -> P2028; missing table -> P2021 (discovery budget OK); unreachable -> P1001; `count(*)` still `bigint`, BigInt ids still `bigint`, `jsonb` still parsed.
+- **One behaviour change.** Pool exhaustion no longer raises Prisma's P2024; it is a plain `Error: timeout exceeded when trying to connect`. Nothing in `lib/` or `app/` matches P2024, and `isPermanentError` only matches a landing-page 404, so such jobs stay retryable. Pool of 6 served 6 concurrent 0.5 s transactions in 0.69 s.
+- **Verify on the preview / production.** The checks above ran on a local database, not Neon. After merge, watch the first drain for `timeout exceeded when trying to connect` and for TLS errors: pg 8 treats `sslmode=require` as full certificate verification (Neon's certificates are publicly signed, so this should be fine; if it is not, the symptom is a P1010 on every query).
+- **Not changed.** No `"type": "module"`, no `PRISMA_*` engine variables to remove (none were set).
+- **Rollback.** Revert the merge commit; `npm ci` restores 6.19 and the `url` / `directUrl` datasource. No migration or data change is involved.
+
+---
+
 ## 2026-10-28 - TypeScript 5.9 -> 6.0 (step 3 of the platform order)
 
 - **Change.** `typescript` ^5.7 -> ~6.0.3. No source changes: typecheck, lint, 2203 tests, ratchet and `next build` all pass unchanged.

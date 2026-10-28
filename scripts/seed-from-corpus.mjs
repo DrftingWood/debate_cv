@@ -38,7 +38,9 @@
  * Refuses to run unless the database URL points at localhost — it drops rows.
  */
 
+import 'dotenv/config'; // Prisma 7 no longer loads .env itself
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
@@ -62,7 +64,7 @@ if (!bundlePath || !placeholderPath || !derivedPath) {
 const bundle = JSON.parse(readFileSync(bundlePath, 'utf-8'));
 const placeholders = new Set(JSON.parse(readFileSync(placeholderPath, 'utf-8')));
 const derived = JSON.parse(readFileSync(derivedPath, 'utf-8'));
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB_URL }) });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

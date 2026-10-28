@@ -4,9 +4,9 @@
 // POSTGRES_URL_NON_POOLING or a hidden prompt, never from a .env file, and it
 // is never printed, logged or echoed back in an error message.
 //
-// This module must not import @prisma/client: importing it loads .env files
-// into process.env, and callers capture the shell variable before that
-// happens.
+// Prisma 7 no longer loads .env files when @prisma/client is imported, and this
+// module still must not load one (no dotenv): the shell variable is the only
+// source, so a local .env can never stand in for production.
 
 /** Read one line from the terminal without showing it (a star per character). */
 export function askHidden(prompt) {
