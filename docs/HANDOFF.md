@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-28 - pg sslmode made explicit (follow-up to Prisma 7)
+
+- **Why.** After Prisma 7 went live, Vercel logged `SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'` on `/u/[slug]` and the cron route. Behaviour today is already the strict one; the warning says pg v9 will switch those modes to the weaker libpq meaning (no certificate verification for `require`).
+- **Change.** `poolConfig` in `lib/db.ts` rewrites `sslmode=prefer|require|verify-ca` to `sslmode=verify-full` (unless `uselibpqcompat` is set). Other values and URLs without `sslmode` (local dev) are untouched. Tests in `tests/db.poolSize.test.ts`.
+- **Verify.** After deploy the warning should stop appearing in Vercel runtime errors, and queries still succeed.
+- **Rollback.** Revert the commit.
+
+---
+
 ## 2026-10-28 - Prisma 6.19 -> 7.10 (step 4 of the platform order, the heavy one)
 
 - **Change.** `prisma` / `@prisma/client` 6.19 -> 7.10.1, plus `@prisma/adapter-pg` and `dotenv`.

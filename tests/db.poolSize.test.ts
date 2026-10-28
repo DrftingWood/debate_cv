@@ -16,7 +16,7 @@ describe('poolConfig', () => {
     )!;
     expect(out.max).toBe(6);
     const url = new URL(out.connectionString);
-    expect(url.searchParams.get('sslmode')).toBe('require');
+    expect(url.searchParams.get('sslmode')).toBe('verify-full');
     expect(url.searchParams.has('pgbouncer')).toBe(false);
     expect(url.searchParams.has('connection_limit')).toBe(false);
   });
@@ -42,5 +42,22 @@ describe('poolConfig', () => {
   it('passes through what it cannot parse rather than mangling it', () => {
     expect(poolConfig('not a url', 6)!.connectionString).toBe('not a url');
     expect(poolConfig(undefined, 6)).toBeUndefined();
+  });
+
+  it.each(['prefer', 'require', 'verify-ca'])('spells out verify-full for sslmode=%s', (mode) => {
+    const out = poolConfig(`postgres://u:p@h/db?sslmode=${mode}`, 6)!;
+    expect(new URL(out.connectionString).searchParams.get('sslmode')).toBe('verify-full');
+  });
+
+  it('leaves other ssl settings alone', () => {
+    for (const q of [
+      'sslmode=disable',
+      'sslmode=verify-full',
+      'sslmode=require&uselibpqcompat=true',
+      '',
+    ]) {
+      const out = poolConfig(`postgres://u:p@h/db?${q}`, 6)!;
+      expect(new URL(out.connectionString).search).toBe(q ? `?${q}` : '');
+    }
   });
 });

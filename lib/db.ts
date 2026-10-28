@@ -31,6 +31,11 @@ import { DRAIN_CONCURRENCY } from '@/lib/queueDrain';
  */
 export type PoolConfig = { connectionString: string; max: number; connectionTimeoutMillis: number };
 
+// pg treats these three as 'verify-full' today (full certificate check) and
+// warns that pg v9 will switch them to the weaker libpq meaning. Saying
+// 'verify-full' outright keeps the strict check across that upgrade.
+const IMPLICIT_VERIFY_FULL = new Set(['prefer', 'require', 'verify-ca']);
+
 const PRISMA_ONLY_PARAMS = ['connection_limit', 'pool_timeout', 'connect_timeout', 'pgbouncer'];
 
 export function poolConfig(raw: string | undefined, minimum: number): PoolConfig | undefined {
@@ -48,6 +53,10 @@ export function poolConfig(raw: string | undefined, minimum: number): PoolConfig
   const limit = seconds('connection_limit');
   const wait = seconds('pool_timeout') ?? seconds('connect_timeout') ?? 10;
   for (const name of PRISMA_ONLY_PARAMS) url.searchParams.delete(name);
+  const sslmode = url.searchParams.get('sslmode');
+  if (sslmode && IMPLICIT_VERIFY_FULL.has(sslmode) && !url.searchParams.has('uselibpqcompat')) {
+    url.searchParams.set('sslmode', 'verify-full');
+  }
   return {
     connectionString: url.toString(),
     max: Math.max(limit ?? 0, minimum),
