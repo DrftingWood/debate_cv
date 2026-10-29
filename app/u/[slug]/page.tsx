@@ -1,26 +1,20 @@
 import type { Metadata } from 'next';
-import { formatAbbrev } from '@/lib/calicotab/format';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
-import { buildCvData, type CvJudgeRow, type CvSpeakerRow } from '@/lib/cv/buildCvData';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
-import { computeSpeakerStats } from '@/lib/cv/speakerStats';
-import { CvHighlights } from '@/components/CvHighlights';
+import { buildCvData } from '@/lib/cv/buildCvData';
+import { openYears, recordYears } from '@/lib/cv/periodTotal';
+import { proAmKey } from '@/lib/cv/proAm';
+import { publicHighlights, type Highlight } from '@/lib/cv/publicHighlights';
+import { resolveTab } from '@/lib/utils/tabParam';
 import { DownloadPdfButton } from '@/components/DownloadPdfButton';
-import { StatTile, StatRow } from '@/components/ui/StatTile';
-import { SectionHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
-import { TournamentLink } from '@/components/TournamentCard';
-import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
-import { formatBreaks, formatBreakRates } from '@/lib/cv/headerMetrics';
-import { hashRank } from '@/lib/cv/rankDisplay';
-import {
-  PublicBreakMarker,
-  PublicJudgeCard,
-  PublicSpeakerCard,
-  fmtPublicLastOutround,
-} from './PublicRecordCards';
+import { Tabs } from '@/components/ui/Tabs';
+import { Check } from '@/components/ui/icons';
+import { OpenYearOnHash } from '@/components/OpenYearOnHash';
+import { RecordHeader } from '@/components/RecordHeader';
+import { JudgingYears, SpeakingYears } from '@/components/YearGroups';
+import { PublicJudgingTable, PublicSpeakingTable } from './PublicLedger';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,18 +45,32 @@ export async function generateMetadata({
 }
 
 /**
- * Public read-only CV (`/u/<slug>`) — the credentialing artifact.
+ * Public read-only CV (`/u/<slug>`), the credentialing artifact.
  *
  * Same data as the owner's /cv with every owner-only affordance stripped:
- * no report buttons, no banners, no share/settings links, no auto-scan, no
- * expandable round ledger (a public record should be readable in one pass,
- * and the print stylesheet forces <details> open anyway).
+ * no report buttons, no banners, no share or settings links, no auto-scan,
+ * no round detail and no Partners tab.
  *
- * Where this deliberately goes beyond the owner view is the summary strip:
- * a reader who does not know the person needs the headline position before
- * the table, the same way a statement leads with the balance.
+ * Redesign (owner decision 18, 2026-10-29), top to bottom: the header
+ * ("✓ N tournaments, each linked to its tab"), the same tiles and career
+ * charts as the Record, Highlights as two short lists side by side
+ * (Speaking and Judging, up to three each, majors first), then Ledger and
+ * Adjudication tabs grouped by year with subtotals. Hidden tournaments never
+ * appear: buildCvData drops them before anything here counts. Print and PDF
+ * carry both tabs, every year open, always light.
+ *
+ * The page follows the visitor's theme (decision 3); only print, the PDF and
+ * the share image are fixed light.
  */
-export default async function PublicCvPage({ params }: { params: Promise<{ slug: string }> }) {
+const TABS = ['ledger', 'adjudication'] as const;
+
+export default async function PublicCvPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ tab?: string | string[] }>;
+}) {
   const { slug } = await params;
   const user = await prisma.user.findUnique({
     where: { publicCvSlug: slug },
@@ -73,6 +81,8 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
       publicCvEnabled: true,
       publicAvatarEnabled: true,
       publicHiddenTournamentIds: true,
+      publicProAmEnabled: true,
+      proAmMarks: true,
     },
   });
   if (!user || !user.publicCvEnabled) notFound();
@@ -80,14 +90,38 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
   // No field stats: this page shows the owner's own figures only, and the
   // field summary is the single heaviest query in buildCvData. Skipping it
   // keeps an unauthenticated, force-dynamic route cheap to serve.
+  // No field sizes either: only the old "best speaker rank" highlight read
+  // them, and Highlights now follow team results, never speaker rank.
   const data = await buildCvData(user.id, {
     includeFieldStats: false,
-    // Only the per-tab speaker count (one grouped query), for "Nth of N".
-    includeFieldSizes: true,
     excludeTournamentIds: user.publicHiddenTournamentIds ?? [],
   });
   const { speakerRows, judgeRows, summary, highlights } = data;
-  const stats = computeSpeakerStats(data);
+  const years = recordYears(speakerRows, judgeRows);
+  const now = new Date();
+  const openSpeaking = openYears(
+    years.filter((y) => y.speakingTotal),
+    now,
+  );
+  const openJudging = openYears(
+    years.filter((y) => y.judgingTotal),
+    now,
+  );
+  const tab = resolveTab(
+    (await searchParams)?.tab,
+    TABS,
+    speakerRows.length > 0 ? 'ledger' : 'adjudication',
+  );
+  const lists = publicHighlights(speakerRows, judgeRows);
+
+  // Pro-am marks are private unless the owner opted in (decision 17): only
+  // then does the page learn which tournaments carry one.
+  const marks = new Set(user.publicProAmEnabled ? user.proAmMarks : []);
+  const proAm = new Set(
+    speakerRows
+      .filter((r) => r.teammates.some((t) => marks.has(proAmKey(r.tournamentId, t))))
+      .map((r) => r.tournamentId.toString()),
+  );
 
   // The newest ingest, not the render date (CV-10).
   const updated = data.lastIngestedAt
@@ -98,91 +132,21 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
         timeZone: 'UTC',
       })
     : null;
-
-  const summaryTiles: React.ReactNode[] = [];
-  if (summary.totalTournaments > 0) {
-    summaryTiles.push(
-      <StatTile
-        key="t"
-        label="Tournaments"
-        value={summary.totalTournaments}
-        hint={
-          speakerRows.length > 0 && judgeRows.length > 0
-            ? `${speakerRows.length} speaking · ${judgeRows.length} judging`
-            : undefined
-        }
-      />,
-    );
-  }
-  const breakSummary = {
-    speaking: summary.speakingBreaks,
-    judging: summary.judgingBreaks,
-    tournamentsSpoken: summary.tournamentsSpoken,
-    tournamentsJudged: summary.tournamentsJudged,
-  };
-  const breaksValue = formatBreaks(breakSummary);
-  if (breaksValue) {
-    // Break strength is the furthest outround reached, so the count carries it.
-    const deepest = highlights.deepestBreaks[0]?.stage;
-    summaryTiles.push(
-      <StatTile
-        key="b"
-        label="Breaks"
-        value={breaksValue}
-        accent="gold"
-        hint={
-          [
-            formatBreakRates(breakSummary),
-            summary.speakingBreaks > 0 && deepest
-              ? `Deepest team break: ${formatStageForDisplay(deepest)}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(' · ') || undefined
-        }
-      />,
-    );
-  }
-  if (stats.scoreProfile.mean != null) {
-    summaryTiles.push(
-      <StatTile
-        key="a"
-        label="Career speaker average"
-        value={stats.scoreProfile.mean.toFixed(1)}
-        hint={`${stats.scoreProfile.speeches} scored speeches`}
-      />,
-    );
-  }
-  if (highlights.activeYears) {
-    summaryTiles.push(
-      <StatTile
-        key="y"
-        label="Active"
-        value={
-          highlights.activeYears.from === highlights.activeYears.to
-            ? `${highlights.activeYears.from}`
-            : `${highlights.activeYears.from}–${highlights.activeYears.to}`
-        }
-      />,
-    );
-  }
+  const active = highlights.activeYears
+    ? highlights.activeYears.from === highlights.activeYears.to
+      ? `Active ${highlights.activeYears.from}`
+      : `Active ${highlights.activeYears.from}–${highlights.activeYears.to}`
+    : null;
+  const total = summary.totalTournaments;
 
   return (
-    <div className="w-full flex-1 space-y-8">
-      <header className="border-b border-border pb-6">
-        {/*
-          No theme toggle here. This page's layout pins `data-theme="light"`
-          on its wrapper so the credential looks identical for every viewer
-          and matches print, which meant the toggle that used to sit in this
-          corner swapped its own sun/moon icon and changed nothing else on
-          the page. A control that visibly does nothing is worse than no
-          control; the forced-light decision is the one that stands.
-        */}
+    <div className="w-full flex-1 space-y-group">
+      <header className="border-b border-border pb-panel">
         <div className="data-label">
           Public debate record{updated ? ` · updated ${updated}` : ''}
         </div>
-        <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="flex items-center gap-4">
+        <div className="mt-tight flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="flex items-center gap-stack">
             {user.publicAvatarEnabled && user.image ? (
               // The name is the h1 right beside it, so the photo is decorative
               // here: alt="" stops a screen reader saying the name twice.
@@ -206,14 +170,18 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
                 {user.name ?? 'Debater'}
               </h1>
               {/*
-                The count is the record's own tournament total, the same
-                figure as the Tournaments tile. It used to count ingested
-                tab links, which could disagree with the tile beside it on
-                the one page a stranger reads as a credential.
+                The record's own tournament total, the same figure the tiles
+                add up to. Every one of them links to the tab it was read
+                from, which is what the tick claims.
               */}
-              <p className="mt-1 text-table text-ink-soft">
-                {summary.totalTournaments} tournament
-                {summary.totalTournaments === 1 ? '' : 's'} · sourced from tournament tab pages
+              <p className="mt-hair flex flex-wrap items-center gap-x-inline text-table text-ink-soft">
+                {total > 0 ? (
+                  <span className="inline-flex items-center gap-hair text-ink">
+                    <Check className="h-3.5 w-3.5 text-primary" aria-hidden />
+                    {total} tournament{total === 1 ? '' : 's'}, each linked to its tab
+                  </span>
+                ) : null}
+                {active ? <span>{active}</span> : null}
               </p>
             </div>
           </div>
@@ -223,206 +191,148 @@ export default async function PublicCvPage({ params }: { params: Promise<{ slug:
         </div>
       </header>
 
-      {summaryTiles.length > 0 ? (
-        <StatRow columns={Math.min(summaryTiles.length, 4)}>{summaryTiles}</StatRow>
-      ) : null}
-
-      <CvHighlights highlights={highlights} />
-
-      {speakerRows.length > 0 ? <SpeakingSection rows={speakerRows} /> : null}
-      {judgeRows.length > 0 ? <JudgingSection rows={judgeRows} /> : null}
-
-      {speakerRows.length === 0 && judgeRows.length === 0 ? (
+      {total === 0 ? (
         <EmptyState
           title="No tournaments on this record yet"
           description="Tournaments appear here once their tab pages have been read."
         />
-      ) : null}
+      ) : (
+        <>
+          <RecordHeader speakerRows={speakerRows} judgeRows={judgeRows} summary={summary} />
+          <PublicHighlights speaking={lists.speaking} judging={lists.judging} />
+          <OpenYearOnHash />
+          <div data-print-all="true">
+            <Tabs
+              label="Record"
+              param="tab"
+              initialValue={tab}
+              items={[
+                ...(speakerRows.length > 0
+                  ? [
+                      {
+                        value: 'ledger',
+                        label: 'Ledger',
+                        panel: (
+                          <div className="space-y-stack">
+                            <h2 className="sr-only">Speaking, by year</h2>
+                            <SpeakingYears
+                              years={years}
+                              open={openSpeaking}
+                              table={(y, label) => (
+                                <PublicSpeakingTable
+                                  rows={y.speaking}
+                                  label={label}
+                                  proAm={proAm}
+                                />
+                              )}
+                            />
+                            {/*
+                              The column explanations used to live in `title`
+                              tooltips, which a phone never shows. Placement is
+                              a team fact (DESIGN_INSTRUCTIONS §9), so the key
+                              says which rank is the team's.
+                            */}
+                            <p className="text-caption text-ink-soft">
+                              Team rank is where the team finished on the prelim team tab, out of
+                              the teams on it. Speaker-tab rank is an individual figure on the open
+                              speaker tab, not the team&rsquo;s placement.
+                            </p>
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(judgeRows.length > 0
+                  ? [
+                      {
+                        value: 'adjudication',
+                        label: 'Adjudication',
+                        panel: (
+                          <div>
+                            <h2 className="sr-only">Judging, by year</h2>
+                            <JudgingYears
+                              years={years}
+                              open={openJudging}
+                              table={(y, label) => (
+                                <PublicJudgingTable rows={y.judging} label={label} />
+                              )}
+                            />
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </div>
+        </>
+      )}
 
-      <p className="border-t border-border pt-4 text-caption text-ink-soft">
-        Every row links to the tournament tab it was read from, at calicotab.com, yellowtabs.com or
-        herokuapp.com. Figures are as the tab published them.
+      <p className="border-t border-border pt-stack text-caption text-ink-soft">
+        Compiled from {total} public tab{total === 1 ? '' : 's'}
+        {updated ? ` · last updated ${updated}` : ''} ·{' '}
+        <Link href="/" className="text-primary underline-offset-2 hover:underline">
+          What this is
+        </Link>
+        . Every row links to the tournament tab it was read from; figures are as the tab published
+        them.
       </p>
     </div>
   );
 }
 
 /**
- * Speaking record: a ledger from md up, one card per tournament below it.
- *
- * The table is `w-full`, not `min-w-max`. Sized to its widest content it
- * pushed the Result column (the break, the single most load-bearing fact on
- * a shareable credential) to the panel's edge at 1280 px and past it with a
- * multi-category result or a long team name. The tournament and team names
- * wrap instead.
+ * Highlights as two short lists side by side (decision 18): the best three
+ * results in each role, majors first, as statement entries. A role with
+ * nothing to show is left out; with neither, the section is.
  */
-function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
+function PublicHighlights({ speaking, judging }: { speaking: Highlight[]; judging: Highlight[] }) {
+  const lists = [
+    { key: 'speaking', title: 'Speaking', items: speaking },
+    { key: 'judging', title: 'Judging', items: judging },
+  ].filter((l) => l.items.length > 0);
+  if (lists.length === 0) return null;
   return (
-    <section aria-label="Speaking" className="space-y-3">
-      <SectionHeader
-        label="Speaking"
-        title={`${rows.length} tournament${rows.length === 1 ? '' : 's'}`}
-      />
-      <div className="panel hidden overflow-hidden md:block">
-        <TableScroll>
-          <Table className="w-full" label="Speaking record by tournament">
-            <thead>
-              <tr>
-                <Th className="w-[30%] pl-4">Tournament</Th>
-                <Th numeric>Year</Th>
-                <Th>Format</Th>
-                <Th>Team</Th>
-                <Th numeric title="Where the team finished on the prelim team tab">
-                  Team rank
-                </Th>
-                <Th
-                  numeric
-                  title="Open speaker-tab rank — an individual figure, not the team's placement"
+    <section aria-labelledby="highlights" className="space-y-stack">
+      <h2 id="highlights" className="data-label">
+        Highlights
+      </h2>
+      <div className={lists.length === 2 ? 'grid gap-group md:grid-cols-2' : undefined}>
+        {lists.map((l) => (
+          <div key={l.key}>
+            <h3 className="font-display text-h4 font-medium text-ink">{l.title}</h3>
+            <ol className="mt-tight divide-y divide-border border-y border-border">
+              {l.items.map((h) => (
+                <li
+                  key={`${h.tournamentName}|${h.year}`}
+                  className="flex items-baseline justify-between gap-stack py-tight"
                 >
-                  Spk-tab rank
-                </Th>
-                <Th numeric>Avg score</Th>
-                <Th className="pr-4">Result</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <Tr key={r.tournamentId.toString()}>
-                  <Td className="pl-4">
-                    <TableSourceLink href={r.sourceUrl} name={r.tournamentName} />
-                  </Td>
-                  <Td numeric className="text-ink-soft">
-                    {r.year ?? <Nil />}
-                  </Td>
-                  <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
-                    {formatAbbrev(r.format) ?? <Nil />}
-                  </Td>
-                  <Td className="text-ink">
-                    {r.teamName ? (
-                      <span className="block max-w-48 wrap-break-word">{r.teamName}</span>
-                    ) : (
-                      <Nil />
-                    )}
-                  </Td>
-                  <Td numeric className="whitespace-nowrap" title={teamPlacementTitle(r)}>
-                    {r.teamRank != null ? (
-                      <>
-                        {hashRank(r.teamRank, r.teamRankTied)}
-                        {r.totalTeams != null ? (
-                          <span className="text-ink-soft">/{r.totalTeams}</span>
-                        ) : null}
-                      </>
-                    ) : (
-                      <Nil />
-                    )}
-                  </Td>
-                  <Td numeric>
-                    {r.speakerRankOpen != null ? (
-                      hashRank(r.speakerRankOpen, r.speakerRankTied)
-                    ) : (
-                      <Nil />
-                    )}
-                  </Td>
-                  <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
-                  <Td className="min-w-32 pr-4">
-                    {r.broke || fmtPublicLastOutround(r) ? (
-                      <PublicBreakMarker r={r} />
-                    ) : (
-                      <span className="text-ink-soft">Did not break</span>
-                    )}
-                  </Td>
-                </Tr>
+                  <span className="min-w-0">
+                    <span className="block font-medium text-ink">{h.detail}</span>
+                    <span className="block text-caption text-ink-soft">
+                      {h.tournamentName}
+                      {h.major ? <span className="ml-hair font-mono text-ink">◆</span> : null}
+                      {h.major ? <span className="sr-only"> (a major)</span> : null}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-caption text-ink-soft">
+                    {h.year ?? ''}
+                  </span>
+                </li>
               ))}
-            </tbody>
-          </Table>
-        </TableScroll>
-      </div>
-
-      <ul className="space-y-3 md:hidden" aria-label="Speaking record by tournament">
-        {rows.map((r) => (
-          <PublicSpeakerCard key={r.tournamentId.toString()} r={r} />
+            </ol>
+          </div>
         ))}
-      </ul>
-
-      {/*
-        The column explanations used to live in `title` tooltips, which a
-        phone never shows. Placement is a team fact (DESIGN_INSTRUCTIONS §9),
-        so the legend says which rank is the team's and which is individual.
-      */}
-      <p className="text-caption text-ink-soft">
-        Team rank is where the team finished on the prelim team tab, out of the teams on it.
-        Speaker-tab rank is an individual figure on the open speaker tab, not the team's placement.
-      </p>
+      </div>
     </section>
   );
-}
-
-function JudgingSection({ rows }: { rows: CvJudgeRow[] }) {
-  return (
-    <section aria-label="Judging" className="space-y-3">
-      <SectionHeader
-        label="Judging"
-        title={`${rows.length} tournament${rows.length === 1 ? '' : 's'}`}
-      />
-      <div className="panel hidden overflow-hidden md:block">
-        <TableScroll>
-          <Table className="w-full" label="Judging record by tournament">
-            <thead>
-              <tr>
-                <Th className="w-[30%] pl-4">Tournament</Th>
-                <Th numeric>Year</Th>
-                <Th>Format</Th>
-                <Th numeric>Prelims chaired</Th>
-                <Th numeric>Prelims judged</Th>
-                <Th>Last outround chaired</Th>
-                <Th className="pr-4">Last outround judged</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <Tr key={r.tournamentId.toString()}>
-                  <Td className="pl-4">
-                    <TableSourceLink href={r.sourceUrl} name={r.tournamentName} />
-                  </Td>
-                  <Td numeric className="text-ink-soft">
-                    {r.year ?? <Nil />}
-                  </Td>
-                  <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
-                    {formatAbbrev(r.format) ?? <Nil />}
-                  </Td>
-                  <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
-                  <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
-                  <Td>{formatStageForDisplay(r.lastOutroundChaired) || <Nil />}</Td>
-                  <Td className="pr-4">{formatStageForDisplay(r.lastOutroundJudged) || <Nil />}</Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableScroll>
-      </div>
-
-      <ul className="space-y-3 md:hidden" aria-label="Judging record by tournament">
-        {rows.map((r) => (
-          <PublicJudgeCard key={r.tournamentId.toString()} r={r} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/** The shared link, same as /cv: wraps, shows the external-link icon, says it opens a new tab. */
-function TableSourceLink({ href, name }: { href: string; name: string }) {
-  return <TournamentLink name={name} href={href} className="coarse:min-h-[44px]" />;
-}
-
-function teamPlacementTitle(r: CvSpeakerRow): string | undefined {
-  const p = teamTabPlacement(r.teamRank, r.totalTeams);
-  return p ? formatTeamTabPlacement(p, r.teamRankTied) : undefined;
 }
 
 function initials(name: string | null | undefined): string {
   if (!name) return '??';
   const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+  const first = parts.at(0) ?? '';
+  const last = parts.at(-1) ?? '';
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  return ((first.at(0) ?? '') + (last.at(0) ?? '')).toUpperCase();
 }

@@ -17,10 +17,11 @@ export const metadata: Metadata = {
  */
 export default function PublicCvLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Forced light: the public CV is a credentialing artifact and must
-    // look identical for every viewer (and match print) regardless of the
-    // visitor's theme. data-theme on the wrapper re-scopes the CSS vars.
-    <div data-theme="light" className="min-h-screen bg-paper text-ink">
+    // Follows the visitor's theme (redesign owner decision 3, 2026-10-29).
+    // It used to be pinned light so every viewer saw the same page; the
+    // owner chose instead that only print, the PDF and the share image are
+    // fixed light, which the print stylesheet and the OG route already do.
+    <div className="min-h-screen bg-paper text-ink">
       <div className="mx-auto max-w-5xl space-y-10 px-5 pb-16 pt-10">
         <main id="main" className="space-y-10">
           {children}

@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-10-29 - Public CV redesign (part 3)
+
+- **Layout** (`app/u/[slug]/page.tsx`, owner decision 18):
+  - the header carries "✓ N tournaments, each linked to its tab";
+  - then the same tiles and career charts as the Record (`RecordHeader`, shared);
+  - then Highlights as two short lists side by side, Speaking and Judging, up to three each, majors first (`lib/cv/publicHighlights.ts`, ranked by the career chart's own tiers);
+  - then Ledger and Adjudication tabs grouped by year with subtotals, both printed;
+  - then a footer: "Compiled from N public tabs · last updated <date> · What this is".
+  - There's no Partners tab.
+- **Shared year groups.** `components/YearGroups.tsx` now holds the year `<details>`, the subtotal lines and the Source cell for both pages. Each page passes its own table: `components/RecordLedger.tsx` for the owner, `app/u/[slug]/PublicLedger.tsx` for the public CV.
+- **Theme.** The public CV follows the visitor's theme (decision 3). The layout's forced `data-theme="light"` is gone; print and the PDF stay light through the print stylesheet.
+- **Pro-am marks** show on the public ledger (a "Pro-am" badge under the team) only when the owner turned on the Settings → Sharing switch.
+- **Lighter load.** The page no longer asks buildCvData for speaker field sizes. Only the old "best speaker rank" highlight read them, and Highlights now follow team results, never speaker rank. `components/CvHighlights.tsx` is deleted, because nothing renders it any more.
+- **Fixes found on the way.**
+  - `judgingCell` counts a chaired outround as judged when no judged stage is recorded.
+  - The `Tabs` row drew a ▲●▼ scrollbar on Windows, because the selected tab's underline sat at -1px inside an `overflow-x-auto` row. The rule under the row is now an inset shadow.
+- **Checked** in Chrome and Playwright against the seeded local DB:
+  - 1280 and 390, light and dark: 200, no console errors, no sideways scroll;
+  - print shows both panels on white.
+- **Not in this part.** The OG and Twitter share image (1200×630, speaking chart only, decision 12).
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Record redesign, part 2: Partners tab and pro-am marks
 
 - **Partners tab** (`components/RecordPartners.tsx`, model `lib/cv/proAm.ts`). A year overview lists who you debated with, how often and how many you marked pro-am. Beneath it, one row per partner per tournament carries an `aria-pressed` toggle (`components/ProAmToggle.tsx`), owner decision 17 and the 2026-10-27 rule "no automatic pro-am, users mark it". The tab never prints: the marks are private.

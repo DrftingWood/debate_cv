@@ -111,6 +111,10 @@ describe('judgingCell', () => {
     });
   });
 
+  it('counts a chaired outround as judged when no judged stage is recorded', () => {
+    expect(judgingCell(judged({ lastOutroundChaired: 'Semifinals' })).tier).toBe('sf');
+  });
+
   it('otherwise tiers by the furthest outround judged', () => {
     expect(
       judgingCell(

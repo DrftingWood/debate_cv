@@ -138,7 +138,6 @@ describe('PublicCvPage', () => {
     vi.doMock('@/lib/cv/speakerStats', () => ({
       computeSpeakerStats: () => ({ scoreProfile: { mean: 73.4, speeches: 18 } }),
     }));
-    vi.doMock('@/components/CvHighlights', () => ({ CvHighlights: () => null }));
     vi.doMock('@/components/DownloadPdfButton', () => ({ DownloadPdfButton: () => null }));
     vi.doMock('next/navigation', () => ({
       notFound: () => {
@@ -168,12 +167,8 @@ describe('PublicCvPage', () => {
 
   it('renders phone cards beside the md-and-up ledger', async () => {
     const out = await render([speakerRow()], [judgeRow()]);
-    expect(out).toMatch(
-      /<ul class="space-y-3 md:hidden" aria-label="Speaking record by tournament">/,
-    );
-    expect(out).toMatch(
-      /<ul class="space-y-3 md:hidden" aria-label="Judging record by tournament">/,
-    );
+    expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Speaking record, \d{4}">/);
+    expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Judging record, \d{4}">/);
     expect(out).toContain('panel hidden overflow-hidden md:block');
   });
 
@@ -187,14 +182,16 @@ describe('PublicCvPage', () => {
     expect(out).toContain('Team rank is where the team finished on the prelim team tab');
   });
 
-  it('has no theme toggle: the page is forced light by its layout', async () => {
+  // The page follows the visitor's theme now (owner decision 3); it still
+  // carries no theme control of its own.
+  it('has no theme toggle', async () => {
     const out = await render([speakerRow()], []);
     expect(out.toLowerCase()).not.toContain('theme');
   });
 
   it('counts tournaments from the record, as the Tournaments tile does', async () => {
     const out = await render([speakerRow()], [judgeRow()]);
-    expect(out).toContain('2 tournaments · sourced from tournament tab pages');
+    expect(out).toContain('2 tournaments, each linked to its tab');
   });
 
   it('builds the record without the tournaments the owner hid (C101)', async () => {
@@ -209,7 +206,6 @@ describe('PublicCvPage', () => {
     await render([], []);
     expect(buildCvData).toHaveBeenCalledWith('u1', {
       includeFieldStats: false,
-      includeFieldSizes: true,
       excludeTournamentIds: [7n],
     });
   });
