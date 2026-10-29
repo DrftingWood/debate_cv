@@ -90,9 +90,9 @@
   --color-score-soft: hsl(var(--score-blue) / 0.12);
 
   /* Abstract aliases kept from the previous system (ink = foreground,
-     paper = background, oxblood = accent), re-pointed at the ledger values.
-     Renaming them churns ~30 files for no visual change; the redesign does
-     it separately. */
+     paper = background), re-pointed at the ledger values. They run through
+     80+ files and say nothing misleading, so they stay. The editorial-era
+     names that did (`oxblood`, `archive-*`, `record-*`) are gone. */
   --color-paper: hsl(var(--background));
 
   --color-ink: hsl(var(--foreground));
@@ -100,17 +100,25 @@
 
   --color-rule: hsl(var(--border) / 0.16);
 
-  --color-oxblood: hsl(var(--primary));
-  --color-oxblood-soft: hsl(var(--primary-soft) / 0.08);
-
-  --color-archive-white: hsl(var(--archive-white));
-
-  --color-record-ink: hsl(var(--record-ink));
-  --color-record-muted: hsl(var(--record-muted));
-  --color-record-rule: hsl(var(--record-rule) / 0.35);
-  --color-record-surface: hsl(var(--record-surface));
-  --color-record-green: hsl(var(--record-green));
-  --color-record-green-soft: hsl(var(--record-green) / 0.1);
+  /*
+   * Career-chart tiers (redesign 2026-10-29). One stacked bar per year,
+   * one cell per tournament, ordered by how far the user got: `tier-none`
+   * (did not break) below an ink rule, then the blue ramp for quarters and
+   * below / semis / finals, then `break-gold` for champions. Every tier is
+   * a mark that carries meaning, so each clears 3:1 against `surface` and
+   * the canvas in both themes (SC 1.4.11, UX-33); tiers are told apart by
+   * position, lightness and the 1px canvas gap between cells, never by hue
+   * alone.
+   *
+   * `core-purple` means exactly one thing: a CA / DCA / adjudication-core
+   * role. It is the one colour outside the Ledger value set, and it is used
+   * nowhere else.
+   */
+  --color-tier-none: hsl(var(--tier-none));
+  --color-tier-qf: hsl(var(--tier-qf));
+  --color-tier-sf: hsl(var(--tier-sf));
+  --color-tier-f: hsl(var(--tier-f));
+  --color-core-purple: hsl(var(--core-purple));
 
   --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
@@ -143,8 +151,6 @@
   --text-ui--line-height: 1.5;
   --text-body: 15px;
   --text-body--line-height: 1.6;
-  --text-body-serif: 16px;
-  --text-body-serif--line-height: 1.6;
   --text-h4: 17px;
   --text-h4--line-height: 1.35;
   --text-h4--letter-spacing: -0.006em;
@@ -172,6 +178,30 @@
   --text-display: clamp(34px, 1rem + 7vw, 60px);
   --text-display--line-height: 1.02;
   --text-display--letter-spacing: -0.03em;
+
+  /*
+   * Spacing scale (redesign 2026-10-29). Before this the app used about 30
+   * distinct spacing utilities, half-steps included (`gap-1.5`, `mt-0.5`),
+   * so rhythm was decided per call site. These are the eight named steps on
+   * a 4px base; new and rebuilt components use the names (`p-panel`,
+   * `space-y-stack`, `mt-section`), and the numeric utilities stay for edge
+   * cases. Half-steps belong inside primitives for optical fixes only.
+   * Keep `lib/utils/cn.ts` in sync.
+   */
+  --spacing-hair: 0.25rem; /*  4px  icon to label, mono line to value */
+  --spacing-inline: 0.5rem; /*  8px  gaps inside a control or chip row */
+  --spacing-tight: 0.75rem; /* 12px  label to field, compact row padding */
+  --spacing-stack: 1rem; /* 16px  blocks inside a panel; phone panel padding */
+  --spacing-panel: 1.5rem; /* 24px  desktop panel padding; between panels */
+  --spacing-group: 2rem; /* 32px  between sections on phones */
+  --spacing-section: 3rem; /* 48px  between sections on desktop */
+  --spacing-page: 4rem; /* 64px  page top on desktop */
+
+  /* Page widths, three only: reading text uses Tailwind's own `max-w-prose`
+     (65ch); `content` is the default page; `wide` is for the record and
+     statistics tables. */
+  --container-content: 70rem; /* 1120px */
+  --container-wide: 80rem; /* 1280px */
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -530,11 +560,11 @@
    *      If a colour is not making one of those claims, it does not ship.
    *   4. One accent. Emerald carries brand, primary action and "verified".
    *
-   * Token contract: the ink / paper / oxblood aliases predate this and are
-   * an abstract contract (ink = foreground, paper = background, oxblood =
-   * accent), so they survive the retheme with new values. New work should
-   * prefer the explicit tokens below: surface / surface-2, pos / neg,
-   * break-gold, score-blue.
+   * Token contract: the ink / paper aliases predate this and are an abstract
+   * contract (ink = foreground, paper = background), so they survive the
+   * retheme with new values. New work should prefer the explicit tokens
+   * below: surface / surface-2, pos / neg, break-gold, score-blue, and the
+   * career-chart tiers.
    */
   :root,
   [data-theme='light'] {
@@ -589,19 +619,21 @@
     --radius: 0.5rem;
     --radius-card: 0.75rem;
 
-    /* Legacy semantic aliases, re-pointed at the ledger palette. */
-    --archive-white: 210 20% 97%;
-    --record-ink: 213 27% 11%;
-    --record-muted: 213 11% 43%;
-    --record-rule: 213 18% 40%;
-    --record-surface: 210 22% 96%;
-    --record-green: 166 76% 22%;
     /* Gold is the one celebratory colour and at 38% it failed AA at every
        size it ships in: 4.04:1 for the .figure headline numbers, 3.52:1 for
        a "Broke" badge on its own 12% tint. 32% clears 4.5:1 on all three
        backgrounds. Dark-theme gold (40 80% 60%) already passes at 9.4:1. */
     --break-gold: 38 74% 32%; /* standout result */
     --score-blue: 214 72% 40%; /* analysis */
+
+    /* Career-chart tiers. Contrast against white surface / canvas:
+       none 3.8 / 3.6, qf 3.9 / 3.6, sf 6.3 / 5.9, f 10.6 / 9.9,
+       core 6.9 / 6.5. Champions use --break-gold (5.4 / 5.0). */
+    --tier-none: 213 10% 52%;
+    --tier-qf: 214 62% 55%;
+    --tier-sf: 214 70% 41%;
+    --tier-f: 216 80% 28%;
+    --core-purple: 266 52% 48%;
 
     /* Shadows stay almost invisible: a statement is printed, not floating. */
     --shadow-xs: 0 1px 1px 0 hsl(213 27% 11% / 0.04);
@@ -655,15 +687,18 @@
     /* 3.6:1 on card, 3.8:1 on the canvas, 3.4:1 on surface-2. */
     --input: 213 14% 45%;
     --ring: 160 62% 48%;
-
-    --archive-white: 216 24% 7%;
-    --record-ink: 210 22% 93%;
-    --record-muted: 213 12% 60%;
-    --record-rule: 210 22% 93%;
-    --record-surface: 216 20% 14%;
-    --record-green: 160 62% 48%;
     --break-gold: 40 80% 60%;
     --score-blue: 210 82% 66%;
+
+    /* Career-chart tiers, dark. The ramp runs the other way in lightness
+       (the most prominent tier is the lightest on graphite). Contrast
+       against surface / canvas: none 4.0 / 4.3, qf 3.4 / 3.6,
+       sf 5.4 / 5.8, f 9.2 / 9.8, core 6.3 / 6.7; gold 9.4 / 10.1. */
+    --tier-none: 213 9% 48%;
+    --tier-qf: 214 45% 46%;
+    --tier-sf: 214 70% 60%;
+    --tier-f: 212 90% 76%;
+    --core-purple: 266 70% 72%;
 
     --shadow-xs: 0 1px 1px 0 hsl(216 40% 2% / 0.5);
     --shadow-sm: 0 1px 2px hsl(216 40% 2% / 0.5), 0 0 0 1px hsl(210 22% 93% / 0.04);

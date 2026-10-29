@@ -109,7 +109,7 @@ export function CvShareButton() {
               <div className="flex items-center justify-between gap-2">
                 <Link
                   href="/settings/sharing"
-                  className="text-caption text-oxblood hover:underline"
+                  className="text-caption text-primary hover:underline"
                 >
                   More options →
                 </Link>
@@ -132,7 +132,7 @@ export function CvShareButton() {
                   href={fullUrl ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 truncate font-mono text-caption text-oxblood hover:underline"
+                  className="flex-1 truncate font-mono text-caption text-primary hover:underline"
                 >
                   {fullUrl ?? '/u/...'}
                   <span className="sr-only"> (opens in new tab)</span>
@@ -176,7 +176,7 @@ export function CvShareButton() {
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
                 <Link
                   href="/settings/sharing"
-                  className="text-caption text-oxblood hover:underline"
+                  className="text-caption text-primary hover:underline"
                 >
                   Custom slug + avatar in Settings →
                 </Link>

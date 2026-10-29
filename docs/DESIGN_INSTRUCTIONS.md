@@ -137,6 +137,8 @@ Four rules govern everything:
 - Break gold for standout competitive results.
 - Score blue for analysis and charts.
 - Amber/red only for warning and destructive states.
+- Purple (`core-purple`, owner decision 2026-10-29) means one thing only: an adjudication-core role (CA, DCA, core). It is the single colour outside the value set above and appears nowhere else.
+- Career charts (one stacked bar per year) use a grey "did not break" tier below an ink rule, a blue ramp for quarters-and-below / semis / finals, and break gold for champions. Every tier clears 3:1 against the surface in both themes.
 
 ### Typography
 
@@ -154,6 +156,10 @@ No serif voice and no decorative italics. Debate CV is a record system, not an e
 - Tables use the shared `.ledger` mechanics: uppercase mono headers, hairline row rules, no vertical rules, numeric columns right-aligned.
 - Wide tables scroll inside their own container. The page body must never scroll sideways.
 - Never leave a numeric cell blank — an em dash means "the source didn't publish this"; a blank cell reads as a bug.
+
+### Spacing
+
+Eight named steps on a 4px base, defined in `app/globals.css`: `hair` 4, `inline` 8, `tight` 12, `stack` 16, `panel` 24, `group` 32, `section` 48, `page` 64. New and rebuilt components use the names; half-steps (2px, 6px) are for optical fixes inside primitives only. Page widths: `max-w-prose` for reading text, `max-w-content` (1120px) for most pages, `max-w-wide` (1280px) for the record and statistics tables.
 
 ### Layout
 
