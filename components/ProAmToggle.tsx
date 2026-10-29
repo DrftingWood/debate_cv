@@ -58,7 +58,7 @@ export function ProAmToggle({
       onClick={toggle}
       disabled={pending}
       className={cn(
-        'inline-flex h-7 items-center rounded-md border px-inline text-caption font-medium transition-colors duration-120 motion-reduce:transition-none coarse:min-h-11',
+        'inline-flex h-7 items-center whitespace-nowrap rounded-md border px-inline text-caption font-medium transition-colors duration-120 motion-reduce:transition-none coarse:min-h-11',
         marked
           ? 'border-primary bg-primary text-primary-foreground'
           : 'border-border bg-surface text-ink-soft hover:text-ink',

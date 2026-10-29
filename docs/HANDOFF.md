@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-29 - Phone check 3
+
+- Every signed-in page re-audited at 390x844 touch (local, seeded) and the public pages on production: no sideways scroll, edges at 20 px, gaps on the token scale.
+- **Partners on a phone.** "Mark pro-am" wrapped to three lines inside its pill; the button is `whitespace-nowrap` and the Year column is hidden below `sm`.
+- **Account "Your data".** Three short figures are a three-column row on every width instead of three stacked full-width tiles on a phone.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Live review 3: Adjudication, Partners, rounds, Settings cards
 
 - **Adjudication ledger.** "Last outround chaired / judged" headers overran their 11rem columns into the next; now "Last chaired / Last judged" (full text in `title`), also on the public ledger. Widths rebalanced (chaired 10rem, Source 15rem; Tournament had 450 px for 256 of content).

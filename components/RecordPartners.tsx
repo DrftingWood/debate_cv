@@ -74,7 +74,11 @@ export function RecordPartners({
               <thead>
                 <tr>
                   <Th className="pl-4">Tournament</Th>
-                  <Th numeric>Year</Th>
+                  {/* Off on a phone, where it squeezed "Mark pro-am" onto three
+                      lines; most tournament names carry the year. */}
+                  <Th numeric className="hidden sm:table-cell">
+                    Year
+                  </Th>
                   <Th>Partner</Th>
                   <Th className="pr-4">Pro-am</Th>
                 </tr>
@@ -83,7 +87,7 @@ export function RecordPartners({
                 {pairings.map((p) => (
                   <Tr key={`${p.tournamentId}|${p.partner}`}>
                     <Td className="pl-4">{p.tournamentName}</Td>
-                    <Td numeric className="text-ink-soft">
+                    <Td numeric className="hidden text-ink-soft sm:table-cell">
                       {p.year ?? '—'}
                     </Td>
                     <Td>{p.partner}</Td>
