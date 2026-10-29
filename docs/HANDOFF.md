@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-10-29 - Dataviz pass 1 (research-backed)
+
+- **Owner:** "the data visualisation is ugly"; then "don't update the charts until deep research results are in". The research (FT Visual Vocabulary, Datawrapper, GOV.UK Analysis Function, Urban, Carbon, Schwabish 2020, WCAG 1.4.1/1.4.11, Heer & Robertson 2007, NN/g 2020) and the mapped issue list are in `C:\Users\achar\reports\debate_cv-dataviz-issues-2026-10-29.md`. Owner decisions: 4-tier career chart, a score strip in place of the histogram, sans figures on tiles only.
+- **Career charts.**
+  - Four tiers: Did not break / Broke / Final / Won. Judging uses No outround / Judged an outround / Judged the final / Chaired the final / Core.
+  - Cells carry a `depth` (stage rank), so "best result" and the order inside Broke still tell semifinals from quarters.
+  - Did-not-break is a light recessive grey. Validated with the dataviz palette script: every adjacent pair clears the normal-vision floor (ΔE ≥ 21 light, ≥ 19.7 dark, up from 11.3 / 9.3), and the blues pass as an ordinal ramp.
+  - Tokens are now `tier-none`, `tier-broke` and `tier-f`; `tier-qf` and `tier-sf` are removed.
+  - Columns are 40 px, rounded only at the top. Each cap carries its count, with the star sitting on it.
+  - Majors are marked by ◆ alone, with no ring. The legend has six items.
+- **TrendChart.**
+  - Values labelled on the last point and the extremes only.
+  - One tick per year; points inset, so the "0" no longer collides.
+  - The reference line is a solid hairline.
+  - 2 px line, 10% wash, filled ringed dots.
+  - Hover, tap and arrow-key readout with the tournament name.
+  - A sample band when points carry `sub`.
+- **ScoreStrip** (new, `components/ui/ScoreStrip.tsx`) replaces the histogram.
+  - One dot per speech at half-point steps, with the middle-50% band and the median rule, plus a key.
+  - Readout per score and a table alternative.
+  - `ScoreProfile.scores` added; `meanBinIndex` and `Histogram` removed.
+- **Figures.** `.figure` is Inter semibold with proportional lining digits (tiles and hero numbers only; tables keep mono).
+- **Colour use.**
+  - Team points per round: one blue, the share only. It was green for 3 and red for 0.
+  - Funnel: the spoken row is grey; gold marks breaks only.
+- **Split tables.**
+  - "Rate" and "± you (pp/pts)" headers ("2nd-or-better rate" ran into "vs you").
+  - Thin rows show a dash, not "n = 5" in every cell.
+  - A small diverging bar beside the rate delta.
+- **Copy.** Method paragraphs under the funnel, chairing, speaker tab and milestones are cut to the data-specific "left out" sentences. Judging meta: "Not filtered". Judging and speaker-tab tile hints trimmed.
+- **Motion.**
+  - Career entrance 320 ms plus at most 120 ms of stagger (was 500 plus 200).
+  - Bar and meter fills ease to new widths over 300 ms on filter changes.
+  - Reduced motion is honoured throughout.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Phone check 3
 
 - Every signed-in page re-audited at 390x844 touch (local, seeded) and the public pages on production: no sideways scroll, edges at 20 px, gaps on the token scale.
