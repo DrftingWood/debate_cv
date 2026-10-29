@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-10-29 - Landing page: four sections, an annotated sample, privacy as a ledger
+
+- **Layout** (`app/page.tsx`, owner decision 20, design §3.1). There are four sections where there were seven:
+  1. a split hero: the headline, Build my debate CV and the trust line "Read-only Gmail · we keep tab links, never email bodies" on one side, and the annotated sample (`components/landing/AnnotatedSample.tsx`) on the other;
+  2. the privacy ledger;
+  3. How it works, in four steps (Connect · Claim your name · Review · Share);
+  4. the closing call to action.
+  - The value cards, the statistics showcase and the FAQ are gone.
+- **Annotated sample.** A fictional record with the compact speaking chart and three ledger rows. Numbered callouts ①②③ point at the source link, the gold break and the team rank, and a numbered list says each one in words. The markers are hidden from screen readers, which read the list.
+- **Privacy ledger.** Three columns, each row a fact the code backs:
+  - **What we read.**
+  - **What we keep:** the tab link; the subject line, date and message id of the email (`DiscoveredUrl`); the tab pages as fetched (`SourceDocument`); confirmed names; the encrypted token.
+  - **What we never store.**
+  - A final line gives the `gmail.readonly` scope and **Google's testing mode: only invited test users can sign in for now** (owner, 2026-10-29). Update that line when Google reviews the app.
+- **Header.** It gains "How it works" (`/#how`), hidden below `md`.
+- **Checked.**
+  - In Chrome, signed out.
+  - In Playwright: at 390×844 the headline is two lines and the sample starts at 498 px, above the fold. At 320 the sample is still above the fold. There's no sideways scroll at 320, 390 or 1280, and no console errors in either theme.
+  - New `tests/landing.render.test.ts`.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Statistics: the new sections (decision 19, part 2 of 2)
 
 - **Speaking → Speaks → Top-10 finishes** (`TopFinishesSection`, model `lib/cv/topSpeakerFinishes.ts`): each Open, ESL or EFL top-10 finish, once per tournament, newest first with majors marked. It reads `topSpeakerDetail`, the same definition as the Record chart's stars.

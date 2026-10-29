@@ -2,11 +2,28 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { buttonClasses } from '@/components/ui/Button';
+import { ShieldCheck } from '@/components/ui/icons';
 import { Footer } from '@/components/Footer';
 import { PublicHeader } from '@/components/landing/PublicHeader';
-import { SampleCvPreview } from '@/components/landing/SampleCvPreview';
-import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
+import { AnnotatedSample } from '@/components/landing/AnnotatedSample';
+import { BuildCvButton } from '@/components/landing/BuildCvButton';
 
+/**
+ * The signed-out landing page (redesign owner decision 20, design §3.1).
+ * Four sections, and the sample does the selling:
+ *
+ *   1. a split hero: headline, "Build my debate CV" and the one trust line
+ *      on one side; the annotated sample (①②③) on the other;
+ *   2. privacy as a ledger: what we read, what we keep, what we never store,
+ *      then the scope and Google's review status, stated as they are;
+ *   3. how it works, in four steps;
+ *   4. the closing call to action.
+ *
+ * Every privacy row is a fact the code backs: the Gmail scan stores the URL,
+ * the subject line, the message id and the date of the email that held the
+ * link (`DiscoveredUrl`), never its body, and the tab pages are stored as
+ * fetched (`SourceDocument`). Keep the ledger and app/(app)/privacy in step.
+ */
 export default async function Home() {
   const session = await auth();
   if (session?.user) redirect('/cv');
@@ -19,15 +36,12 @@ export default async function Home() {
         inside the root layout's — two main landmarks on one document, which
         leaves a screen reader with no unambiguous "skip to content" target.
       */}
-      <div className="mx-auto w-full max-w-6xl flex-1 px-5">
+      <div className="mx-auto w-full max-w-wide flex-1 px-5">
         <PublicHeader />
-        <main id="main" className="space-y-20 pb-16 md:space-y-24">
+        <main id="main" className="space-y-section pb-page md:space-y-page">
           <Hero />
-          <ValueStrip />
-          <StatisticsShowcase />
+          <PrivacyLedger />
           <HowItWorks />
-          <PrivacyProof />
-          <Faq />
           <FinalCta />
         </main>
       </div>
@@ -38,123 +52,107 @@ export default async function Home() {
 
 function Hero() {
   return (
-    <section className="grid items-center gap-10 pt-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:pt-12">
+    <section className="grid items-center gap-group pt-panel md:grid-cols-[0.85fr_1.15fr] md:pt-group">
       <div>
         <div className="eyebrow">Verified tournament record</div>
-        {/* Tailwind 4 lets an explicit leading/tracking beat a size token's own at
-            every breakpoint. Under v3, md:text-display's 1.02 / -0.03em won on
-            desktop, so the md: pair restates them. */}
-        <h1 className="mt-4 max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display md:leading-(--text-display--line-height) md:tracking-(--text-display--letter-spacing)">
+        {/* Two lines on a 390px phone, so the sample starts above the fold
+            (design §3.1). Tailwind 4 lets an explicit leading/tracking beat a
+            size token's own, so the md: pair restates the display values. */}
+        <h1 className="mt-tight max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display md:leading-(--text-display--line-height) md:tracking-(--text-display--letter-spacing)">
           Your debate history, kept like an account
         </h1>
-        <p className="mt-5 max-w-xl text-body leading-relaxed text-ink-soft">
-          Every tournament, every round, every motion — pulled from the tab pages you were already
-          sent, and laid out as a record you can read, measure and share. Speaker scores get the
-          context they never had: the field you were in.
+        <p className="mt-stack max-w-xl text-body leading-relaxed text-ink-soft">
+          Every tournament, round and motion, read from the tab pages you were already sent and laid
+          out as a record you can read, measure and share.
         </p>
-
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-panel flex flex-col gap-tight sm:flex-row sm:items-center">
           <BuildCvButton />
           <Link href="/sample" className={buttonClasses({ size: 'lg', variant: 'outline' })}>
             View sample CV
           </Link>
         </div>
-
-        <TrustRow />
+        <p className="mt-stack inline-flex items-center gap-inline text-caption text-ink-soft">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+          Read-only Gmail · we keep tab links, never email bodies
+        </p>
       </div>
-
-      <SampleCvPreview />
-    </section>
-  );
-}
-
-function ValueStrip() {
-  const values = [
-    {
-      title: 'Know the record',
-      body: 'Tournaments, teams, seats, breaks and speaker results in one ledger instead of forty inbox links you will never open again.',
-    },
-    {
-      title: 'Read the motion',
-      body: 'Each round carries the motion released for it, so a speaker score sits next to what you were actually arguing.',
-    },
-    {
-      title: 'Share the proof',
-      body: 'Private by default. Publish a clean link or export a PDF when another debater, society or selector asks for receipts.',
-    },
-  ];
-
-  return (
-    <section className="grid gap-3 md:grid-cols-3" aria-label="Product value">
-      {values.map((value) => (
-        <article key={value.title} className="panel p-5">
-          <h2 className="font-display text-h4 font-medium text-ink">{value.title}</h2>
-          <p className="mt-2 text-ui leading-relaxed text-ink-soft">{value.body}</p>
-        </article>
-      ))}
+      <AnnotatedSample />
     </section>
   );
 }
 
 /**
- * The statistics pitch. This is the section that justifies the product over
- * a spreadsheet, so it shows real figure shapes rather than describing them
- * — a debater should recognise the questions before reading the labels.
+ * Privacy as a statement (design §3.1): three columns of facts, then the
+ * scope and its review status on one line. Rows, not paragraphs.
  */
-function StatisticsShowcase() {
-  const questions = [
+function PrivacyLedger() {
+  const columns: { title: string; rows: string[] }[] = [
     {
-      label: 'Level',
-      figure: 'Top 8%',
-      body: 'Where your team finished on the team tab, tournament by tournament, and how far it went in the outrounds — with your own speaker-tab placement alongside, not a raw score that means something different on every circuit.',
+      title: 'What we read',
+      rows: [
+        'Gmail, read-only, searched only for Tabbycat tab links',
+        'The public tab pages those links open',
+        'Your Google name, email and photo, to sign you in',
+      ],
     },
     {
-      label: 'Consistency',
-      figure: '±2.1',
-      body: 'The spread of your speeches: median, middle 50%, floor and ceiling, and how far you swing inside a single tournament.',
+      title: 'What we keep',
+      rows: [
+        'Each tab link we found',
+        'The subject line, date and message id of the email that held the link',
+        'The tab pages as we fetched them, and the results read from them',
+        'The names you confirm as yours',
+        'A Gmail access token, encrypted (AES-256-GCM)',
+      ],
     },
     {
-      label: 'Momentum',
-      figure: '+1.4',
-      body: 'What happens across a draw. Opening rounds against closing rounds, and the fitted trend per round over every tournament long enough to have one.',
-    },
-    {
-      label: 'Seat',
-      figure: 'CG −9pp',
-      body: 'Win rate and speaker average from each position in the room, measured against your own baseline rather than an abstract average.',
-    },
-    {
-      label: 'Motion',
-      figure: 'THW +12pp',
-      body: 'Results by motion stem and subject area, joined round by round from each tournament’s published motions.',
-    },
-    {
-      label: 'Conversion',
-      figure: '9 / 23',
-      body: 'Break rate, longest winning run, outround record, and how all of it changes with the size of the field.',
+      title: 'What we never store',
+      rows: [
+        'The body of any email',
+        'Any email that holds no tab link',
+        'Your contacts, attachments or anything else in your mail',
+      ],
     },
   ];
-
   return (
-    <section id="stats" className="scroll-mt-24">
+    <section id="privacy" aria-labelledby="privacy-title" className="scroll-mt-24">
       <div className="max-w-2xl">
-        <div className="eyebrow">Statistics</div>
-        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
-          The questions you argue about after a tournament
+        <div className="eyebrow">Privacy, as a statement</div>
+        <h2
+          id="privacy-title"
+          className="mt-tight font-display text-h2 font-medium tracking-tight text-ink"
+        >
+          Exactly what we read and keep
         </h2>
-        <p className="mt-3 text-body leading-relaxed text-ink-soft">
-          Answered from the tab pages themselves, with the sample size attached to every figure.
-          Nothing here guesses at your style or scores your personality.
-        </p>
       </div>
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {questions.map((q) => (
-          <article key={q.label} className="panel p-5">
-            <div className="data-label">{q.label}</div>
-            <div className="figure mt-1.5 text-figure-md text-ink">{q.figure}</div>
-            <p className="mt-2.5 text-caption leading-relaxed text-ink-soft">{q.body}</p>
-          </article>
-        ))}
+      <div className="panel mt-panel overflow-hidden">
+        <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+          {columns.map((c) => (
+            <div key={c.title} className="p-stack md:p-panel">
+              <h3 className="data-label">{c.title}</h3>
+              <ul className="mt-tight divide-y divide-border">
+                {c.rows.map((r) => (
+                  <li key={r} className="py-inline text-ui text-ink">
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-inline border-t border-border bg-surface-2 px-stack py-tight text-caption text-ink-soft md:grid-cols-[auto_1fr] md:gap-panel md:px-panel">
+          <span>
+            Scope <code className="font-mono text-ink">gmail.readonly</code>
+          </span>
+          <span>
+            Google has not reviewed the app yet: it runs in Google&rsquo;s testing mode, so only
+            invited test users can sign in for now. Your CV stays private until you share it, and
+            you can disconnect Gmail or delete everything from Settings.{' '}
+            <Link href="/privacy" className="text-primary underline-offset-2 hover:underline">
+              The full privacy notice
+            </Link>
+          </span>
+        </div>
       </div>
     </section>
   );
@@ -163,155 +161,60 @@ function StatisticsShowcase() {
 function HowItWorks() {
   const steps = [
     {
-      label: '01',
-      title: 'Connect or import',
-      body: 'Read-only Gmail finds the Tabbycat private URLs you were sent. Paste any link the scan missed.',
+      title: 'Connect',
+      body: 'Read-only Gmail finds the Tabbycat links you were sent. Paste any it missed.',
     },
     {
-      label: '02',
-      title: 'Claim your identity',
-      body: 'Confirm which speaker and judge rows are yours. Ambiguous names stay out of the record until you approve them.',
+      title: 'Claim your name',
+      body: 'Confirm which names on the tabs are you. Nothing joins your record on a guess.',
     },
     {
-      label: '03',
-      title: 'Read the record',
-      body: 'Rounds, motions, scores and results become a structured ledger with statistics and share controls on top.',
+      title: 'Review',
+      body: 'Check what was read, year by year, and fix or report anything that looks wrong.',
+    },
+    {
+      title: 'Share',
+      body: 'Private until you say so. Publish a link or print a PDF when someone asks.',
     },
   ];
-
   return (
-    <section id="how" className="scroll-mt-24">
+    <section id="how" aria-labelledby="how-title" className="scroll-mt-24">
       <div className="max-w-2xl">
-        <div className="eyebrow">From links to record</div>
-        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
-          The import exists to get out of your way
+        <div className="eyebrow">How it works</div>
+        <h2
+          id="how-title"
+          className="mt-tight font-display text-h2 font-medium tracking-tight text-ink"
+        >
+          From inbox links to a record, in four steps
         </h2>
       </div>
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
-        {steps.map((step) => (
-          <article key={step.label} className="border-l-2 border-primary pl-4">
-            <div className="num text-caption font-medium text-primary">{step.label}</div>
-            <h3 className="mt-2 font-display text-h4 font-medium text-ink">{step.title}</h3>
-            <p className="mt-2 text-ui leading-relaxed text-ink-soft">{step.body}</p>
-          </article>
+      <ol className="mt-panel grid gap-stack sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map((step, i) => (
+          <li key={step.title} className="border-l-2 border-primary pl-stack">
+            <div className="num text-caption font-medium text-primary">0{i + 1}</div>
+            <h3 className="mt-inline font-display text-h4 font-medium text-ink">{step.title}</h3>
+            <p className="mt-inline text-ui leading-relaxed text-ink-soft">{step.body}</p>
+          </li>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function PrivacyProof() {
-  const rows = [
-    ['Gmail scope', 'gmail.readonly — used to find tournament links you were sent.'],
-    [
-      'Stored',
-      'Matched private URLs, import jobs, claimed identities, and parsed tournament data.',
-    ],
-    ['Not stored', 'Email bodies and unrelated message metadata.'],
-    ['Visibility', 'Your CV is private unless you explicitly share or export it.'],
-    ['Deletion', 'Disconnect Gmail or delete the account from settings.'],
-    ['Token storage', 'OAuth tokens are encrypted at rest with AES-256-GCM.'],
-  ];
-
-  return (
-    <section id="privacy" className="panel scroll-mt-24 overflow-hidden">
-      <div className="grid gap-6 border-b border-border p-5 md:grid-cols-[0.7fr_1.3fr] md:p-6">
-        <div>
-          <div className="eyebrow">Privacy before polish</div>
-          <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
-            The trust model, stated plainly
-          </h2>
-        </div>
-        <p className="text-body leading-relaxed text-ink-soft">
-          Debate CV asks for a sensitive permission, so the product has to say exactly what it
-          reads, what it stores, and how you leave. The import is narrow; the record stays yours.
-        </p>
-      </div>
-      <div className="divide-y divide-border">
-        {rows.map(([label, value]) => (
-          <div key={label} className="grid gap-1 px-5 py-3 md:grid-cols-[180px_1fr] md:px-6">
-            <div className="data-label">{label}</div>
-            <div className="text-ui text-ink">{value}</div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Faq() {
-  const items: { q: string; a: React.ReactNode }[] = [
-    {
-      q: 'Is this an AI tool?',
-      a: 'No. The product parses tournament pages and presents structured records. It should read like a ledger, not a chatbot.',
-    },
-    {
-      q: 'Why Gmail?',
-      a: 'Many Tabbycat private URLs arrive by email. Read-only Gmail lets the importer find those links without asking you to rebuild years of tournament history by hand.',
-    },
-    {
-      q: 'Where do the statistics come from?',
-      a: 'Entirely from the public tab pages — your own rows plus every other speaker published on the same tab, which is what makes a placement percentile possible. Nothing is modelled or estimated.',
-    },
-    {
-      q: 'What if a tournament is missing?',
-      a: 'Paste the private URL or re-run imports. Missing and ambiguous rows are treated as review tasks, not silently added guesses.',
-    },
-    {
-      q: 'Is this affiliated with Tabbycat or Calico?',
-      a: 'No. Debate CV is independent. It reads tournament pages linked from your own imports and turns them into your personal record.',
-    },
-  ];
-
-  return (
-    <section className="grid gap-8 md:grid-cols-[0.7fr_1.3fr]">
-      {/*
-        The heading column was a title floating above ~600px of nothing next
-        to five accordion rows. Sticky pins it to the questions it heads, and
-        the sub-line gives the column something to be.
-      */}
-      <div className="md:sticky md:top-24 md:self-start">
-        <div className="eyebrow">Questions worth asking</div>
-        <h2 className="mt-3 font-display text-h2 font-medium tracking-tight text-ink">
-          No magic, no elite gate
-        </h2>
-        <p className="mt-3 text-ui leading-relaxed text-ink-soft">
-          The things people actually ask before handing over a Gmail scope.
-        </p>
-      </div>
-      <div className="divide-y divide-border border-y border-border">
-        {items.map((item) => (
-          <details key={item.q} className="group">
-            {/* py-3 on the summary rather than the details, so the whole
-                44px-tall row is the click target and not just the text. */}
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-ui font-medium text-ink">
-              {item.q}
-              <span className="text-primary transition group-open:rotate-45" aria-hidden>
-                +
-              </span>
-            </summary>
-            <p className="max-w-2xl pb-4 text-ui leading-relaxed text-ink-soft">{item.a}</p>
-          </details>
-        ))}
-      </div>
+      </ol>
     </section>
   );
 }
 
 function FinalCta() {
   return (
-    <section className="panel bg-ink p-6 text-paper md:p-8">
-      <div className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
+    <section className="panel bg-ink p-panel text-paper md:p-group">
+      <div className="grid items-center gap-panel md:grid-cols-[1fr_auto]">
         <div>
           <div className="eyebrow-on-ink">Start the record</div>
-          <h2 className="mt-3 font-display text-h2 font-medium tracking-tight">
+          <h2 className="mt-tight font-display text-h2 font-medium tracking-tight">
             Know what you have done. Share it when it matters
           </h2>
-          <p className="mt-3 max-w-2xl text-ui leading-relaxed text-paper/70">
+          <p className="mt-tight max-w-2xl text-ui leading-relaxed text-paper/70">
             Build a private debate CV first. Publish or export only when the record is ready.
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
+        <div className="flex flex-col gap-tight sm:flex-row md:flex-col">
           <BuildCvButton />
           <Link
             href="/sample"
