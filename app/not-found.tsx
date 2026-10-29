@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Compass } from 'lucide-react';
+import { Compass } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { buttonClasses } from '@/components/ui/Button';
 import { Footer } from '@/components/Footer';
@@ -19,7 +19,7 @@ export default async function NotFound() {
     <>
       <main id="main" className="mx-auto w-full max-w-lg flex-1 px-5 py-20 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-ink-soft">
-          <Compass className="h-6 w-6" aria-hidden />
+          <Compass weight="light" className="h-6 w-6" aria-hidden />
         </div>
         <h1 className="mt-5 font-display text-h2 font-medium tracking-tight text-ink">
           Page not found

@@ -89,6 +89,34 @@ const config = [
     files: ['lib/db.ts', 'scripts/**'],
     rules: { 'no-restricted-syntax': 'off' },
   },
+  {
+    // Icons come from one barrel (components/ui/icons.ts). lucide-react was
+    // replaced in the 2026-10-29 redesign, and the Phosphor package root
+    // relies on React context, which fails inside a Server Component; the
+    // barrel re-exports the context-free `/ssr` build instead. Zero hits
+    // when added, so it is an error.
+    ignores: ['components/ui/icons.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'lucide-react', message: 'Icons come from @/components/ui/icons (Phosphor).' },
+            {
+              name: '@phosphor-icons/react',
+              message: 'Import icons from @/components/ui/icons, which uses the /ssr build.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@phosphor-icons/react/*'],
+              message: 'Import icons from @/components/ui/icons.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

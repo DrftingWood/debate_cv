@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import type { ReactNode, RefObject } from 'react';
-import { AlertTriangle, CheckCircle2, LogOut, RefreshCw, Search } from 'lucide-react';
+import {
+  ArrowsClockwise,
+  CheckCircle,
+  MagnifyingGlass,
+  SignOut,
+  Warning,
+} from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { FieldError } from '@/components/FieldError';
@@ -73,7 +79,7 @@ export function ProgressSteps({ phase }: { phase: Phase }) {
                     : 'bg-surface-3 text-ink')
               }
             >
-              {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+              {done ? <CheckCircle className="h-3.5 w-3.5" /> : i + 1}
             </span>
             <span
               className={
@@ -126,7 +132,7 @@ export function StepError({
       className="space-y-3 rounded-md border border-[hsl(var(--destructive)/0.4)] bg-[hsl(var(--destructive)/0.06)] p-4"
     >
       <p className="inline-flex items-center gap-1.5 text-ui font-medium text-destructive">
-        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+        <Warning className="h-4 w-4 shrink-0" aria-hidden />
         {title}
       </p>
       {detail ? <p className="text-caption text-ink-soft">{detail}</p> : null}
@@ -141,7 +147,7 @@ export function RetryButton({ onClick, children }: { onClick: () => void; childr
       type="button"
       variant="outline"
       size="sm"
-      leftIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+      leftIcon={<ArrowsClockwise className="h-3.5 w-3.5" aria-hidden />}
       onClick={onClick}
     >
       {children}
@@ -194,7 +200,7 @@ export function ScanEmpty({
           size="sm"
           loading={scanning}
           disabled={!!cooldownLabel}
-          leftIcon={!scanning ? <Search className="h-3.5 w-3.5" aria-hidden /> : undefined}
+          leftIcon={!scanning ? <MagnifyingGlass className="h-3.5 w-3.5" aria-hidden /> : undefined}
           onClick={onScanAgain}
         >
           {cooldownLabel ?? 'Scan again'}
@@ -204,7 +210,7 @@ export function ScanEmpty({
             type="submit"
             variant="ghost"
             size="sm"
-            leftIcon={<LogOut className="h-3.5 w-3.5" aria-hidden />}
+            leftIcon={<SignOut className="h-3.5 w-3.5" aria-hidden />}
           >
             Sign out
           </Button>
@@ -218,7 +224,7 @@ export function FailureWarning() {
   return (
     <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-table">
       <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
-        <AlertTriangle className="h-4 w-4" aria-hidden />
+        <Warning className="h-4 w-4" aria-hidden />
         We couldn&apos;t read most of your links
       </div>
       <p className="text-ink-soft">

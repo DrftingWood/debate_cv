@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { Users, UserCheck } from 'lucide-react';
+import { UserCheck, Users } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 
 /**

@@ -5,7 +5,7 @@
  * the filtered view share one implementation of every section.
  */
 
-import { Info } from 'lucide-react';
+import { Info } from '@/components/ui/icons';
 import type { SpeakerStats } from '@/lib/cv/speakerStats';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList, Meter, Histogram } from '@/components/ui/BarList';

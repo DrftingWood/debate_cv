@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowsClockwise, Trash, Warning } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FieldError, fieldInputClass } from '@/components/FieldError';
@@ -104,7 +104,7 @@ function ConfirmAction({
       className="space-y-3 rounded-card border border-[hsl(var(--destructive)/0.4)] bg-[hsl(var(--destructive)/0.06)] p-4"
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
+        <Warning weight="light" className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
         <div className="space-y-1">
           <p id={`${id}-summary`} className="text-ui font-semibold text-destructive">
             {summary}
@@ -153,7 +153,7 @@ export function ClearDataButton() {
   return (
     <ConfirmAction
       triggerLabel="Clear all data"
-      triggerIcon={<Trash2 className="h-4 w-4" aria-hidden />}
+      triggerIcon={<Trash className="h-4 w-4" aria-hidden />}
       summary="This permanently deletes all scraped tournament data and resets ingest state."
       detail="User identity claims (Person records) are preserved."
       confirmLabel="Delete scraped tournament data"
@@ -203,7 +203,7 @@ export function FullWipeButton() {
   return (
     <ConfirmAction
       triggerLabel="Full wipe (incl. claims & URLs)"
-      triggerIcon={<AlertTriangle className="h-4 w-4" aria-hidden />}
+      triggerIcon={<Warning className="h-4 w-4" aria-hidden />}
       summary="Full wipe is destructive across all users and cannot be undone."
       detail="This deletes scraped data plus every user's discovered URLs, claimed identities (Person rows) and rejections. User accounts and Gmail tokens are preserved, so users can re-scan."
       confirmLabel="Wipe all users' claims and URLs"
@@ -245,7 +245,7 @@ export function ReingestAllButton({ count }: { count?: number }) {
   return (
     <ConfirmAction
       triggerLabel="Re-ingest all"
-      triggerIcon={<RefreshCw className="h-4 w-4" aria-hidden />}
+      triggerIcon={<ArrowsClockwise className="h-4 w-4" aria-hidden />}
       triggerVariant="secondary"
       summary={`Queue ${what} for every user?`}
       detail="Locked URLs are skipped. Nothing is deleted; the queue is then processed with Ingest all."

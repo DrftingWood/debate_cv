@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut, Settings } from 'lucide-react';
+import { Gear, SignOut } from '@/components/ui/icons';
 import { signOutAction } from '@/lib/auth/signOutAction';
 import { usePopover } from '@/components/ui/usePopover';
 
@@ -92,7 +92,7 @@ export function UserMenu({
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2"
               >
-                <Settings className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                <Gear className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
                 Account
               </Link>
             </li>
@@ -102,7 +102,7 @@ export function UserMenu({
                   type="submit"
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-ui text-ink transition-colors hover:bg-surface-2"
                 >
-                  <LogOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                  <SignOut className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
                   Sign out
                 </button>
               </form>

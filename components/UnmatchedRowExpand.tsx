@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { UserSearch, ChevronDown } from 'lucide-react';
+import { CaretDown, UserFocus } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { ParticipantSearch } from '@/components/ParticipantSearch';
 
@@ -26,7 +26,7 @@ export function UnmatchedRowExpand({
         size="sm"
         variant="outline"
         leftIcon={
-          <ChevronDown
+          <CaretDown
             className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
             aria-hidden
           />
@@ -34,7 +34,7 @@ export function UnmatchedRowExpand({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <UserSearch className="mr-1 h-3.5 w-3.5" aria-hidden />
+        <UserFocus className="mr-1 h-3.5 w-3.5" aria-hidden />
         {open ? 'Hide search' : 'Find me'}
       </Button>
       {open ? (

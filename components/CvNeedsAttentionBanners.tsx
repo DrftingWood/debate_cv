@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, UserSearch } from 'lucide-react';
+import { CircleNotch, UserFocus } from '@/components/ui/icons';
 
 /**
  * Two transient owner-only banners that surface above the CV table:
@@ -114,7 +114,7 @@ export function CvNeedsAttentionBanners({
       <div className="kicker">NEEDS ATTENTION</div>
       {pendingCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-border py-3">
-          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
+          <CircleNotch className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
           <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
@@ -131,7 +131,7 @@ export function CvNeedsAttentionBanners({
       ) : null}
       {unmatchedCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-border py-3">
-          <UserSearch className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+          <UserFocus className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
           <p className="font-display text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a

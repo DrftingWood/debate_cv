@@ -3,19 +3,19 @@
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Search,
-  Play,
-  RotateCw,
-  RotateCcw,
-  RefreshCw,
-  Download,
-  Lock,
-  Unlock,
-  Square,
-  Upload,
+  ArrowClockwise,
+  ArrowCounterClockwise,
+  ArrowsClockwise,
   Clock,
-  Inbox,
-} from 'lucide-react';
+  DownloadSimple,
+  Lock,
+  LockOpen,
+  MagnifyingGlass,
+  Play,
+  Stop,
+  Tray,
+  UploadSimple,
+} from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -88,7 +88,7 @@ export function ScanButton({ disconnected = false }: { disconnected?: boolean })
           isPending ? undefined : cooldown.active ? (
             <Clock className="h-4 w-4" aria-hidden />
           ) : (
-            <Search className="h-4 w-4" aria-hidden />
+            <MagnifyingGlass className="h-4 w-4" aria-hidden />
           )
         }
         onClick={run}
@@ -234,7 +234,7 @@ export function FullScanButton({
         aria-disabled={blocked ? true : undefined}
         aria-describedby={reason ? reasonId : undefined}
         className={blocked ? 'cursor-not-allowed opacity-60' : undefined}
-        leftIcon={<Inbox className="h-4 w-4" aria-hidden />}
+        leftIcon={<Tray className="h-4 w-4" aria-hidden />}
         onClick={() => {
           if (blocked) return;
           setConfirming(true);
@@ -366,7 +366,7 @@ export function IngestAllButton({ pendingCount }: { pendingCount?: number }) {
           type="button"
           variant="ghost"
           size="sm"
-          leftIcon={<Square className="h-3.5 w-3.5" aria-hidden />}
+          leftIcon={<Stop className="h-3.5 w-3.5" aria-hidden />}
           disabled={stopping}
           onClick={() => {
             setStopping(true);
@@ -460,7 +460,7 @@ export function UploadCsvButton() {
         type="button"
         variant="outline"
         loading={isPending}
-        leftIcon={!isPending ? <Upload className="h-4 w-4" aria-hidden /> : undefined}
+        leftIcon={!isPending ? <UploadSimple className="h-4 w-4" aria-hidden /> : undefined}
         onClick={() => inputRef.current?.click()}
       >
         Upload CSV
@@ -500,7 +500,9 @@ export function IngestButton({
       aria-label={name ? `${label} ${name}` : undefined}
       loading={isPending}
       leftIcon={
-        !isPending && alreadyDone ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined
+        !isPending && alreadyDone ? (
+          <ArrowClockwise className="h-3.5 w-3.5" aria-hidden />
+        ) : undefined
       }
       onClick={() => {
         startTransition(async () => {
@@ -594,7 +596,9 @@ export function ClearButton({ url, name }: { url: string; name?: string }) {
           className={ROW_ACTION_CLASS}
           aria-label={name ? `Confirm reset of ${name}` : undefined}
           loading={isPending}
-          leftIcon={!isPending ? <RotateCcw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+          leftIcon={
+            !isPending ? <ArrowCounterClockwise className="h-3.5 w-3.5" aria-hidden /> : undefined
+          }
           onClick={() => {
             startTransition(async () => {
               const result = await postJson('/api/ingest/clear', { url });
@@ -626,7 +630,7 @@ export function ClearButton({ url, name }: { url: string; name?: string }) {
       size="sm"
       className={ROW_ACTION_CLASS}
       aria-label={name ? `Reset import of ${name}` : undefined}
-      leftIcon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
+      leftIcon={<ArrowCounterClockwise className="h-3.5 w-3.5" aria-hidden />}
       onClick={() => {
         setConfirming(true);
         focusAfterRender(cancelRef);
@@ -675,7 +679,7 @@ export function ReingestMineButton() {
       type="button"
       variant="outline"
       loading={isPending}
-      leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
+      leftIcon={!isPending ? <ArrowsClockwise className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {
         startTransition(async () => {
           const result = await postJson<ReingestMineResponse>('/api/ingest/reingest-mine');
@@ -728,7 +732,7 @@ export function ReingestSelectedButton() {
       type="button"
       variant="outline"
       loading={isPending}
-      leftIcon={!isPending ? <RefreshCw className="h-4 w-4" aria-hidden /> : undefined}
+      leftIcon={!isPending ? <ArrowsClockwise className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {
         // Left enabled so the reason can be given on press instead of hidden
         // behind a disabled button (FORM-7, UX-16).
@@ -795,7 +799,7 @@ export function LockUrlButton({
       leftIcon={
         !isPending ? (
           locked ? (
-            <Unlock className="h-3.5 w-3.5" aria-hidden />
+            <LockOpen className="h-3.5 w-3.5" aria-hidden />
           ) : (
             <Lock className="h-3.5 w-3.5" aria-hidden />
           )
@@ -836,7 +840,7 @@ export function ExportErrorsButton() {
       type="button"
       variant="outline"
       loading={isPending}
-      leftIcon={!isPending ? <Download className="h-4 w-4" aria-hidden /> : undefined}
+      leftIcon={!isPending ? <DownloadSimple className="h-4 w-4" aria-hidden /> : undefined}
       onClick={() => {
         startTransition(async () => {
           try {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
-import { Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowSquareOut, ArrowsClockwise, Copy } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FieldError, describedBy, fieldInputClass } from '@/components/FieldError';
@@ -185,7 +185,7 @@ export function SharingManager() {
           type="button"
           variant="outline"
           size="sm"
-          leftIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+          leftIcon={<ArrowsClockwise className="h-3.5 w-3.5" aria-hidden />}
           onClick={() => void load()}
         >
           Retry
@@ -260,7 +260,7 @@ export function SharingManager() {
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
               aria-label="Open public CV in new tab"
             >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              <ArrowSquareOut className="h-3.5 w-3.5" aria-hidden />
             </a>
           </div>
           <SlugField

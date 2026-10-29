@@ -1,7 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import { RotateCcw } from 'lucide-react';
+import { ArrowCounterClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 
 /**
@@ -59,7 +59,7 @@ function SubmitButton({
       type="submit"
       size={size}
       variant={variant}
-      leftIcon={<RotateCcw className="h-4 w-4" aria-hidden />}
+      leftIcon={<ArrowCounterClockwise className="h-4 w-4" aria-hidden />}
       loading={pending}
     >
       {label}

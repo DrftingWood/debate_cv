@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Clock, Mail, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  CheckCircle,
+  CircleNotch,
+  Clock,
+  Envelope,
+  MagnifyingGlass,
+  UserCheck,
+} from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -272,7 +279,7 @@ export function OnboardingFlow({
       {phase === 'scan' && (
         <Card>
           <CardBody className="space-y-4 p-6 md:p-8">
-            <StepIntro icon={<Mail className="h-5 w-5" aria-hidden />}>
+            <StepIntro icon={<Envelope weight="light" className="h-5 w-5" aria-hidden />}>
               {heading('Scan your Gmail for tournament links')}
               <p className="text-ui text-ink-soft">
                 We&apos;ll search your inbox for Tabbycat invitation emails and collect the private
@@ -319,7 +326,7 @@ export function OnboardingFlow({
                     isScanning ? undefined : cooldown.active ? (
                       <Clock className="h-4 w-4" aria-hidden />
                     ) : (
-                      <Search className="h-4 w-4" aria-hidden />
+                      <MagnifyingGlass className="h-4 w-4" aria-hidden />
                     )
                   }
                   onClick={onScan}
@@ -343,9 +350,9 @@ export function OnboardingFlow({
             <StepIntro
               icon={
                 preflightError ? (
-                  <Mail className="h-5 w-5" aria-hidden />
+                  <Envelope weight="light" className="h-5 w-5" aria-hidden />
                 ) : (
-                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                  <CircleNotch weight="light" className="h-5 w-5 animate-spin" aria-hidden />
                 )
               }
             >
@@ -394,7 +401,7 @@ export function OnboardingFlow({
       {phase === 'pick' && (
         <Card>
           <CardBody className="space-y-5 p-6 md:p-8">
-            <StepIntro icon={<UserCheck className="h-5 w-5" aria-hidden />}>
+            <StepIntro icon={<UserCheck weight="light" className="h-5 w-5" aria-hidden />}>
               {heading('Which of these names are you?')}
               <p className="text-ui text-ink-soft">
                 We found these names on {totals.named} of your {totals.urls} tournament links.
@@ -407,7 +414,7 @@ export function OnboardingFlow({
 
             {namesState === 'loading' ? (
               <p role="status" className="flex items-center gap-2 text-ui text-ink-soft">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
                 Loading names…
               </p>
             ) : namesState === 'error' ? (
@@ -453,7 +460,7 @@ export function OnboardingFlow({
                   size="lg"
                   loading={isConfirming}
                   leftIcon={
-                    !isConfirming ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : undefined
+                    !isConfirming ? <CheckCircle className="h-4 w-4" aria-hidden /> : undefined
                   }
                   onClick={onConfirm}
                 >
@@ -482,7 +489,7 @@ export function OnboardingFlow({
       {phase === 'done' && (
         <Card>
           <CardBody className="flex items-center gap-3 p-6 md:p-8">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+            <CircleNotch weight="light" className="h-5 w-5 animate-spin text-primary" aria-hidden />
             {heading('Loading your Record…')}
           </CardBody>
         </Card>

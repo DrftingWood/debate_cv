@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 export type JumpTarget = { id: string; label: string };

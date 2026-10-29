@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Flag } from 'lucide-react';
+import { Flag } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';

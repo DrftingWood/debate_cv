@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bell, Inbox } from 'lucide-react';
+import { Bell, Tray } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 import { postJson } from '@/lib/utils/api';
 import { formatDate } from '@/lib/utils/date';
@@ -125,7 +125,7 @@ export function NotificationBell() {
           </h2>
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 p-6 text-center text-caption text-ink-soft">
-              <Inbox className="h-5 w-5" aria-hidden />
+              <Tray weight="light" className="h-5 w-5" aria-hidden />
               <span>You&apos;re all caught up.</span>
             </div>
           ) : (

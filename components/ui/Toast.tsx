@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle, Info, WarningCircle, X } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -179,7 +179,7 @@ function ToastCard({
   onPause: () => void;
   onResume: () => void;
 }) {
-  const Icon = item.kind === 'success' ? CheckCircle2 : item.kind === 'error' ? AlertCircle : Info;
+  const Icon = item.kind === 'success' ? CheckCircle : item.kind === 'error' ? WarningCircle : Info;
   const color =
     item.kind === 'success'
       ? 'text-success'

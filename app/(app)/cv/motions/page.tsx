@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ScrollText, ChevronDown } from 'lucide-react';
+import { CaretDown, Quotes } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
@@ -120,7 +120,7 @@ export default async function CvMotionsPage() {
 
       {entries.length === 0 ? (
         <EmptyState
-          icon={<ScrollText className="h-5 w-5" aria-hidden />}
+          icon={<Quotes weight="light" className="h-5 w-5" aria-hidden />}
           title="No motions on record yet"
           description="Motions appear once a tournament on your record has published its motions tab. Older tournaments may need re-ingesting before their motions are captured."
           action={
@@ -223,7 +223,7 @@ export default async function CvMotionsPage() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-caption text-ink-soft">
                       {list.length} motion{list.length === 1 ? '' : 's'}
-                      <ChevronDown
+                      <CaretDown
                         className="h-4 w-4 text-primary transition-transform group-open:rotate-180"
                         aria-hidden
                       />

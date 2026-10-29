@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Share2, Copy, ExternalLink } from 'lucide-react';
+import { ArrowSquareOut, Copy, ShareNetwork } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { usePopover } from '@/components/ui/usePopover';
@@ -82,7 +82,7 @@ export function CvShareButton() {
         type="button"
         size="sm"
         variant="outline"
-        leftIcon={<Share2 className="h-3.5 w-3.5" aria-hidden />}
+        leftIcon={<ShareNetwork className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
@@ -170,7 +170,7 @@ export function CvShareButton() {
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
                   aria-label="Open public CV in new tab"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  <ArrowSquareOut className="h-3.5 w-3.5" aria-hidden />
                 </a>
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2">

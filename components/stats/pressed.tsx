@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check } from '@/components/ui/icons';
 
 /**
  * The pressed state of a toggle chip on /cv/stats (filter chips, cross-tab

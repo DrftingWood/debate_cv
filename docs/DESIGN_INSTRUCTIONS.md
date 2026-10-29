@@ -175,6 +175,13 @@ Above the fold, users should understand:
 
 Avoid long explanatory sections before proof. The product sample is not decoration; it is the sales argument.
 
+### Icons (owner decision 2026-10-29)
+
+- **Phosphor**, through `components/ui/icons.ts` only. Regular weight at 16px and below, Light (`weight="light"`) at 20px and above, Duotone only for large empty-state art.
+- **Label first.** A debate idea (tournaments, breaks, rounds, motions, partners) always has its text label; the icon is decoration beside it. Icon-only controls are limited to universal glyphs (theme, notifications, close, copy, external link, more), each with an accessible name.
+- **Debate marks** (`components/ui/DebateMarks.tsx`) cover what no library draws: Break (a knockout bracket), Champion (the bracket with a filled winner's dot), Major (◆), Speaker (a lectern), Core (the inner circle, in `core-purple`). They use Phosphor's 256 grid and stroke so the two sit together. Panel, partner and info-slide marks come with their pages.
+- **No trophies or medals.** Results are data: a text label and, where it helps, a mark.
+
 ## 7. Component language
 
 Prefer components that feel native to debate records:

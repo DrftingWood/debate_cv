@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight, Lock } from 'lucide-react';
+import { ArrowUpRight, Lock } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 import { Sparkline } from '@/components/ui/TrendChart';
 import { Badge } from '@/components/ui/Badge';

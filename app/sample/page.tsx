@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Lock, Share2 } from 'lucide-react';
+import { Lock, ShareNetwork } from '@/components/ui/icons';
 import { TableScroll } from '@/components/ui/DataTable';
 import { BuildCvButton, TrustRow } from '@/components/landing/BuildCvButton';
 import { Badge } from '@/components/ui/Badge';
@@ -161,7 +161,7 @@ export default function SamplePage() {
                     <Lock className="h-3.5 w-3.5" aria-hidden /> Private preview
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Share2 className="h-3.5 w-3.5" aria-hidden /> Share disabled
+                    <ShareNetwork className="h-3.5 w-3.5" aria-hidden /> Share disabled
                   </span>
                 </span>
               }

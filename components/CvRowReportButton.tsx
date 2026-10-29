@@ -8,7 +8,7 @@
  * tournament" prose mixing two distinct issues.
  */
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { AlertCircle, Send, X } from 'lucide-react';
+import { PaperPlaneTilt, WarningCircle, X } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -145,7 +145,7 @@ export function CvRowReportButton({
         type="button"
         size="sm"
         variant="ghost"
-        leftIcon={iconOnly ? undefined : <AlertCircle className="h-3.5 w-3.5" aria-hidden />}
+        leftIcon={iconOnly ? undefined : <WarningCircle className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => setOpen(true)}
         title={`Report a problem with ${tournamentName}`}
         // Always named for its row: on the mobile cards every button read
@@ -153,7 +153,7 @@ export function CvRowReportButton({
         aria-label={`Report a problem with ${tournamentName}`}
         data-print-hide="true"
       >
-        {iconOnly ? <AlertCircle className="h-3.5 w-3.5" aria-hidden /> : 'Report'}
+        {iconOnly ? <WarningCircle className="h-3.5 w-3.5" aria-hidden /> : 'Report'}
       </Button>
       {open ? (
         <div
@@ -272,7 +272,9 @@ export function CvRowReportButton({
                   size="sm"
                   loading={isPending}
                   aria-describedby={error ? errorId : undefined}
-                  leftIcon={!isPending ? <Send className="h-3.5 w-3.5" aria-hidden /> : undefined}
+                  leftIcon={
+                    !isPending ? <PaperPlaneTilt className="h-3.5 w-3.5" aria-hidden /> : undefined
+                  }
                 >
                   Send report
                 </Button>

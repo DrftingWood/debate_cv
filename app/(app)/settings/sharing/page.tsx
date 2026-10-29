@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Share2 } from 'lucide-react';
+import { ShareNetwork } from '@/components/ui/icons';
 import { Card, CardBody } from '@/components/ui/Card';
 import { SharingManager } from '@/components/SharingManager';
 
@@ -20,7 +20,7 @@ export default function SharingSettingsPage() {
       <Card>
         <CardBody className="space-y-4">
           <div className="flex items-center gap-2">
-            <Share2 className="h-4 w-4 text-ink-soft" aria-hidden />
+            <ShareNetwork className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Public sharing</h2>
           </div>
           <SharingManager />

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, UserCheck } from 'lucide-react';
+import { MagnifyingGlass, UserCheck } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
@@ -142,7 +142,7 @@ export function ParticipantSearch({
         Search the participant list for {tournamentName}
       </label>
       <span className="relative block">
-        <Search
+        <MagnifyingGlass
           className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
           aria-hidden
         />

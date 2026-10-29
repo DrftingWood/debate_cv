@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { CaretDown, X } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { PressedMark, pressedClasses } from '@/components/stats/pressed';
@@ -187,7 +187,7 @@ export function StatsFilterBar({
                     ? (partnerLabel.get(filter.partners[0]) ?? 'One partner')
                     : `${filter.partners.length} partners`}
               </span>
-              <ChevronDown
+              <CaretDown
                 className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180"
                 aria-hidden
               />

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ExternalLink, ChevronDown } from 'lucide-react';
+import { ArrowSquareOut, CaretDown } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { prisma } from '@/lib/db';
@@ -203,7 +203,7 @@ export default async function CvVerifyPage({
                         className="inline-flex min-h-[44px] items-center gap-1 text-caption text-ink-soft hover:text-primary"
                       >
                         Source <span className="sr-only">for {t.name} (opens in a new tab)</span>
-                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        <ArrowSquareOut className="h-3 w-3" aria-hidden />
                       </a>
                       {ownUrlByTournament.get(t.id) ? (
                         <ReingestButton url={ownUrlByTournament.get(t.id)!} />
@@ -243,7 +243,7 @@ export default async function CvVerifyPage({
                       scroll={false}
                       className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
                     >
-                      <ChevronDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                      <CaretDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                       Show what the parser read
                       <span className="sr-only"> for {t.name}</span>
                       <span className="text-caption">

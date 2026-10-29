@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, Printer } from 'lucide-react';
+import { DownloadSimple, Printer } from '@/components/ui/icons';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { usePopover } from '@/components/ui/usePopover';
 import { EXPORT_FIELDS, EXPORT_FIELD_IDS } from '@/lib/cv/exportFields';
@@ -131,7 +131,7 @@ export function CvDownloadButton() {
         type="button"
         size="sm"
         variant="outline"
-        leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}
+        leftIcon={<DownloadSimple className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
@@ -175,7 +175,7 @@ export function CvDownloadButton() {
                 className={buttonClasses({ variant: 'outline', size: 'sm' })}
                 onClick={() => setOpen(false)}
               >
-                <Download className="h-3.5 w-3.5" aria-hidden />
+                <DownloadSimple className="h-3.5 w-3.5" aria-hidden />
                 Download JSON Resume
               </a>
             </div>

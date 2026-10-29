@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState, useTransition, type FormEvent, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
-import { Download, LogOut, Trash2, AlertTriangle } from 'lucide-react';
+import { DownloadSimple, SignOut, Trash, Warning } from '@/components/ui/icons';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FieldError, describedBy, fieldInputClass } from '@/components/FieldError';
@@ -41,7 +41,7 @@ export function DisconnectGoogleButton() {
         ref={triggerRef}
         type="button"
         variant="secondary"
-        leftIcon={<LogOut className="h-4 w-4" aria-hidden />}
+        leftIcon={<SignOut className="h-4 w-4" aria-hidden />}
         onClick={() => {
           setConfirming(true);
           // Cancel is the safe default: Enter on a reflex does nothing harmful.
@@ -113,7 +113,7 @@ export function DownloadDataButton() {
   // The export is a plain GET, so it is a link (NV-29, UX-64).
   return (
     <a href="/api/account/export" download className={buttonClasses({ variant: 'secondary' })}>
-      <Download className="h-4 w-4" aria-hidden />
+      <DownloadSimple className="h-4 w-4" aria-hidden />
       Download my data (JSON)
     </a>
   );
@@ -138,7 +138,7 @@ export function DeleteAccountButton({ userEmail }: { userEmail: string | null })
         // step only (NV-30, UX-69).
         variant="outline"
         className="border-destructive/40 text-destructive hover:bg-destructive/10"
-        leftIcon={<Trash2 className="h-4 w-4" aria-hidden />}
+        leftIcon={<Trash className="h-4 w-4" aria-hidden />}
         onClick={() => {
           setConfirming(true);
           // Typing is harmless, so the field is a safe place for focus to land.
@@ -236,7 +236,7 @@ export function DeleteConfirmForm({
       className="space-y-3 rounded-card border border-[hsl(var(--destructive)/0.4)] bg-[hsl(var(--destructive)/0.06)] p-4"
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
+        <Warning weight="light" className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
         <div id={`${id}-warning`} className="space-y-1">
           <p id={`${id}-heading`} className="text-ui font-semibold text-destructive">
             This permanently deletes your account. It cannot be undone.

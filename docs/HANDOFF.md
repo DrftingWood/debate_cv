@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-29 - Icons: lucide-react to Phosphor, plus debate marks (foundations, PR 3 of 4; stacked on PR 2)
+
+- **Why.** Owner decision 2026-10-29: the old icons "felt mediocre and cheap". lucide has one weight, so 12-24px icons all drew the same stroke.
+- **Change.** `lucide-react` removed; `@phosphor-icons/react` 2.1.10 (MIT) added. All 56 lucide icons in 52 files are mapped to Phosphor equivalents (e.g. `Loader2` -> `CircleNotch`, `ExternalLink` -> `ArrowSquareOut`, `AlertTriangle` -> `Warning`, `Square` -> `Stop`). Icons at 20px and above get `weight="light"` (19 call sites); the rest use Regular.
+  - **One barrel, `components/ui/icons.ts`**, importing each icon from its own file in Phosphor's `dist/ssr` build. `ssr` has no React context, so it works in Server Components; per-file imports because the `/ssr` index loads all ~1,500 icons where nothing tree-shakes. The first version used the index, and two render tests (`publicCv.render`, `publicSurfaces.render`) then timed out at 5 s under the full suite. Per-file imports fixed it, and `optimizePackageImports` in `next.config.ts` is no longer needed.
+  - **ESLint `no-restricted-imports` (error)** blocks `lucide-react` and direct Phosphor imports outside the barrel.
+  - Two Phosphor names collide with ours and are aliased at their call site: `Table as TableIcon` (`/cv`) and `Link as LinkIcon` (`/dashboard`).
+- **Debate marks** (`components/ui/DebateMarks.tsx`), drawn on Phosphor's 256 grid with its stroke widths and checked at 14, 16, 20 and 40px beside Phosphor glyphs: Break (knockout bracket), Champion (bracket plus a filled winner's dot), Major (◆), Speaker (lectern), Core (inner circle). First drafts were rejected on sight: rising bars for Break read as a phone signal meter, a tab-shaped Source mark read as a folder (Phosphor's `Table` is used instead), and the first lectern read as a goblet. Panel, partner and info-slide marks come with the pages that need them.
+- **Highlights** (`components/CvHighlights.tsx`) now uses the marks instead of Trophy / Mic / GraduationCap / Gavel / Crown / Globe / Users: Championships = Champion, Deepest breaks = Break, Speaker tab = `Star` (the chart star), best speaker-tab rank and peak average = Speaker, Outrounds chaired = `Chair`, Adjudication core = Core in `core-purple`, Major circuit = Major. The `/cv` empty state uses `Table`, the motions empty state `Quotes`.
+- **Visual check.** Production vs this branch, `/`, `/sample`, `/privacy` at 390 / 1280 px, both themes: only icon pixels change (610-690 px per page), no layout shift. Phosphor Regular at 14px is a finer stroke than lucide's (about 0.9px vs 1.2px), so small icons look lighter; the padlock most of all.
+- **Bundle.** Client chunks 1.09 MB -> 1.26 MB raw in total. Each Phosphor icon carries all six weights; for the 53 icons in use that is 30 KB gzip at most, and a page only loads the icons its client components use. If it matters later, a generated two-weight copy would save about 20 KB gzip in total.
+- **Checked.** Typecheck, lint, file-size, ratchet, 2211 tests and `next build` pass. Signed-in pages not looked at (no seeded database in this session): check `/cv` (Highlights), `/dashboard`, `/settings`, the toasts and the status pills on the preview.
+- **Rollback.** Revert the merge commit; `npm ci` restores lucide.
+
+---
+
 ## 2026-10-29 - Design tokens for the redesign (foundations, PR 2 of 4; stacked on PR 1)
 
 - **Change.** New `@theme` tokens in `app/globals.css`, no visual change:

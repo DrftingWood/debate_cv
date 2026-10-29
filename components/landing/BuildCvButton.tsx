@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle, Lock, ShieldCheck } from '@/components/ui/icons';
 import { signIn } from '@/lib/auth';
 import { PendingSubmit } from '@/components/PendingSubmit';
 
@@ -44,7 +44,7 @@ export function TrustRow() {
         <Lock className="h-4 w-4 text-primary" aria-hidden /> private until shared
       </span>
       <span className="inline-flex items-center gap-2">
-        <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
+        <CheckCircle className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
       </span>
     </div>
   );
