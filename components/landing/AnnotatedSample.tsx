@@ -1,7 +1,13 @@
 import { CareerChart } from '@/components/ui/CareerChart';
 import { Badge } from '@/components/ui/Badge';
 import { ArrowSquareOut } from '@/components/ui/icons';
-import type { CareerSeries, SpeakingTier } from '@/lib/cv/careerChart';
+import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import {
+  SAMPLE_NAME,
+  SAMPLE_SPEAKER_ROWS,
+  SAMPLE_SPEAKING_SERIES,
+  SAMPLE_SUMMARY,
+} from '@/lib/sample/sampleRecord';
 
 /**
  * The landing hero's sample (redesign owner decision 20, design §3.1): a
@@ -14,40 +20,31 @@ import type { CareerSeries, SpeakingTier } from '@/lib/cv/careerChart';
  * from a screen reader, which reads the list instead.
  */
 
-type Cell = { tournamentName: string; tier: SpeakingTier; major: boolean; detail: string };
-const cell = (tier: SpeakingTier, major = false): Cell => ({
-  tournamentName: 'Sample',
-  tier,
-  major,
-  detail: '',
-});
-
-// Five seasons of a fictional record, bottom to top by tier as the chart sorts them.
-const SERIES: CareerSeries<SpeakingTier> = {
-  undated: 0,
-  years: [
-    { year: 2022, cells: [cell('none'), cell('none'), cell('qf')], stars: [] },
-    { year: 2023, cells: [cell('none'), cell('qf'), cell('sf'), cell('champion')], stars: [] },
-    {
-      year: 2024,
-      cells: [cell('none'), cell('qf', true), cell('qf'), cell('sf', true), cell('f')],
-      stars: [],
-    },
-    { year: 2025, cells: [cell('none'), cell('none'), cell('sf'), cell('f')], stars: [] },
-    { year: 2026, cells: [cell('none'), cell('qf')], stars: [] },
-  ],
-};
-
-const ROWS = [
-  {
-    name: 'World Universities',
-    host: 'wudc2024.calicotab.com',
-    rank: '9/206',
-    result: 'Octofinals',
-  },
-  { name: 'Hart House IV', host: 'harthouse.calicotab.com', rank: '2/48', result: 'Champion' },
-  { name: 'Cambridge IV', host: 'cambridge.calicotab.com', rank: '38/120', result: null },
+/*
+ * The same fictional record as /sample (lib/sample/sampleRecord.ts), so the
+ * landing preview and the sample page show one person, not two (owner
+ * review 2026-10-29). Three rows picked to carry the callouts: a source
+ * link, a title in gold, and a team rank.
+ */
+const PICK = [
+  'World Universities Debating Championship 2025',
+  'Hart House IV 2025',
+  'Oxford IV 2024',
 ];
+const ROWS = PICK.map((name) => {
+  const r = SAMPLE_SPEAKER_ROWS.find((x) => x.tournamentName === name);
+  if (!r) throw new Error(`sample row missing: ${name}`);
+  return {
+    name: r.tournamentName.replace(' Debating Championship', ''),
+    host: new URL(r.sourceUrl).host,
+    rank: `${r.teamRank}/${r.totalTeams}`,
+    result: r.broke
+      ? r.wonTournament
+        ? 'Champion'
+        : formatStageForDisplay(r.eliminationReached)
+      : null,
+  };
+});
 
 function Marker({ n }: { n: 1 | 2 | 3 }) {
   return (
@@ -67,13 +64,20 @@ export function AnnotatedSample() {
         <div className="flex flex-col gap-hair border-b border-border px-stack py-tight sm:flex-row sm:items-baseline sm:justify-between sm:gap-stack">
           <div>
             <div className="data-label">Sample record · fictional</div>
-            <div className="mt-hair font-display text-h4 font-medium text-ink">A. Debater</div>
+            <div className="mt-hair font-display text-h4 font-medium text-ink">{SAMPLE_NAME}</div>
           </div>
-          <div className="font-mono text-caption text-ink-soft">18 tournaments · 11 broke</div>
+          <div className="font-mono text-caption text-ink-soft">
+            {SAMPLE_SUMMARY.tournamentsSpoken} spoken · {SAMPLE_SUMMARY.speakingBreaks} broke
+          </div>
         </div>
 
         <div className="p-tight">
-          <CareerChart kind="speaking" title="Speaking, by year" series={SERIES} compact />
+          <CareerChart
+            kind="speaking"
+            title="Speaking, by year"
+            series={SAMPLE_SPEAKING_SERIES}
+            compact
+          />
         </div>
 
         <table className="ledger w-full text-caption">

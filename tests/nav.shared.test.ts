@@ -133,7 +133,7 @@ describe('signed-out header (NV-10, NV-11)', () => {
   it('is the header landing and sample use, and Privacy is not an in-page anchor', () => {
     for (const file of ['app/page.tsx', 'app/sample/page.tsx']) {
       const src = fs.readFileSync(file, 'utf8');
-      expect(src).toContain('<PublicHeader />');
+      expect(src).toMatch(/<PublicHeader( signedIn=\{[^}]+\})? \/>/);
       expect(src).not.toContain('href="#privacy"');
     }
   });
