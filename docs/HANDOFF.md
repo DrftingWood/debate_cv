@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-29 - Record redesign, part 2: Partners tab and pro-am marks
+
+- **Partners tab** (`components/RecordPartners.tsx`, model `lib/cv/proAm.ts`). A year overview lists who you debated with, how often and how many you marked pro-am. Beneath it, one row per partner per tournament carries an `aria-pressed` toggle (`components/ProAmToggle.tsx`), owner decision 17 and the 2026-10-27 rule "no automatic pro-am, users mark it". The tab never prints: the marks are private.
+- **Storage.** `User.proAmMarks` (text list of "<tournamentId>|<partner name key v2>") and `User.publicProAmEnabled` (default false), migration `20261029110000_user_pro_am_marks`: two additive columns with constant defaults, so no rewrite and no backfill. It is named before option B's `20261029120000_identity_v2_expand` (#223, unmerged), so the migrations stay in order whichever merges first. **Merging applies it to production** (`migrate-if-configured.mjs`). Rollback DROPs are in the SQL header.
+- **API.** `POST /api/cv/pro-am` `{tournamentId, partner, marked}`: the tournament must be on the user's record (a DiscoveredUrl), and each direction is one atomic `array_append` / `array_remove` UPDATE (it sets `updatedAt` itself, as raw SQL must). Capped at 1,000 marks; rate limit `cv:proAm` 300/hour.
+- **Sharing.** `/api/sharing` and `SharingManager` gain "Show pro-am marks on my public CV" (off). The public CV does not show marks yet: that lands with part 3.
+- **Still automatic elsewhere.** `lib/cv/statsFacts.ts` still labels pairings pro-am by the 1.5-point gap on /cv/stats. The owner's rule retires it; that goes with the Statistics phase.
+- **Checked** in Chrome against the seeded local DB: the toggle saves (`aria-pressed` flips, the year overview shows "pro-am 1" after refresh), and the switch shows in Settings → Sharing. Tests: `tests/cv.proAm.test.ts`, `tests/api/cv-pro-am.test.ts`, plus the record page and sharing suites.
+- **Rollback.** Revert the merge commit, then run the two DROPs if the columns should go.
+
+---
+
 ## 2026-10-29 - Record redesign, part 1: header charts, Ledger and Adjudication by year
 
 - **Order change (owner, 2026-10-29).** The owner moved the Record, public CV and Statistics work ahead of option B ("found changes later"). Option B phase 2 (#223) stays open until the Neon rehearsal.

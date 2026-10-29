@@ -15,6 +15,7 @@ type SharingState = {
   enabled: boolean;
   slug: string | null;
   avatarEnabled: boolean;
+  proAmPublic: boolean;
   hiddenTournamentIds: string[];
   /** Only the GET carries the picker list; POST responses omit it. */
   tournaments?: SharableTournament[];
@@ -63,6 +64,7 @@ export function SharingManager() {
   const [pendingToggle, startToggle] = useTransition();
   const [pendingSlug, startSlug] = useTransition();
   const [pendingAvatar, startAvatar] = useTransition();
+  const [pendingProAm, startProAm] = useTransition();
   const [pendingHidden, startHidden] = useTransition();
 
   const load = async () => {
@@ -113,6 +115,22 @@ export function SharingManager() {
         toast.show({
           kind: 'error',
           title: 'Photo setting not changed',
+          description: userMessage(res).description,
+        });
+        return;
+      }
+      setState((s) => ({ ...res.data, tournaments: s?.tournaments }));
+      router.refresh();
+    });
+  };
+
+  const setProAmPublic = (next: boolean) => {
+    startProAm(async () => {
+      const res = await postJson<SharingState>('/api/sharing', { proAmPublic: next });
+      if (!res.ok) {
+        toast.show({
+          kind: 'error',
+          title: 'Pro-am setting not changed',
           description: userMessage(res).description,
         });
         return;
@@ -286,6 +304,23 @@ export function SharingManager() {
               disabled={pendingAvatar}
               labelledBy="share-avatar-label"
               describedBy="share-avatar-hint"
+            />
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <div>
+              <p id="share-proam-label" className="text-table font-medium text-ink">
+                Show pro-am marks on my public CV
+              </p>
+              <p id="share-proam-hint" className="text-caption text-ink-soft">
+                The partners you marked pro-am on Record, under Partners. Off by default.
+              </p>
+            </div>
+            <Toggle
+              checked={state.proAmPublic}
+              onChange={setProAmPublic}
+              disabled={pendingProAm}
+              labelledBy="share-proam-label"
+              describedBy="share-proam-hint"
             />
           </div>
           <PublicTournamentVisibility

@@ -15,8 +15,10 @@ import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { OpenYearOnHash } from '@/components/OpenYearOnHash';
 import { RecordHeader } from '@/components/RecordHeader';
+import { RecordPartners } from '@/components/RecordPartners';
 import { JudgingLedger, SpeakingLedger } from '@/components/RecordLedger';
 import { openYears, recordYears } from '@/lib/cv/periodTotal';
+import { partnerOverview } from '@/lib/cv/proAm';
 import { resolveTab } from '@/lib/utils/tabParam';
 
 export const metadata: Metadata = {
@@ -39,10 +41,12 @@ export const dynamic = 'force-dynamic';
  * tiles per role above the speaking and judging career charts, then the
  * record sits under two tabs, Ledger (speaking) and Adjudication (judging),
  * each grouped by calendar year with a subtotal row; the current and
- * previous years start open. A Partners tab follows with the pro-am marks.
- * Print and PDF carry both tabs with every year open.
+ * previous years start open. A Partners tab follows, where the user marks
+ * pro-am partnerships (decision 17); it never prints, because the marks are
+ * private unless the user shares them. Print and PDF carry Ledger and
+ * Adjudication with every year open.
  */
-const TABS = ['ledger', 'adjudication'] as const;
+const TABS = ['ledger', 'adjudication', 'partners'] as const;
 
 export default async function CvPage({
   searchParams,
@@ -61,7 +65,7 @@ export default async function CvPage({
   });
   if (claimedCount === 0) redirect('/onboarding');
 
-  const [data, pendingCount, gmailToken] = await Promise.all([
+  const [data, pendingCount, gmailToken, marksRow] = await Promise.all([
     buildCvData(userId),
     prisma.ingestJob.count({
       where: { userId, status: { in: ['pending', 'running'] } },
@@ -71,6 +75,7 @@ export default async function CvPage({
     // design. A user who bookmarks /cv — the product's home — would watch
     // their record silently stop updating with nothing on screen to say why.
     prisma.gmailToken.findUnique({ where: { userId }, select: { userId: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { proAmMarks: true } }),
   ]);
   const {
     user,
@@ -107,6 +112,7 @@ export default async function CvPage({
     years.filter((y) => y.judgingTotal),
     now,
   );
+  const partners = partnerOverview(speakerRows, new Set(marksRow?.proAmMarks ?? []));
   const tab = resolveTab(
     (await searchParams)?.tab,
     TABS,
@@ -254,6 +260,19 @@ export default async function CvPage({
                           <div>
                             <h2 className="sr-only">Judging, by year</h2>
                             <JudgingLedger years={years} open={openJudging} />
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(speakerRows.length > 0
+                  ? [
+                      {
+                        value: 'partners',
+                        label: 'Partners',
+                        panel: (
+                          <div data-print-hide="true">
+                            <RecordPartners {...partners} />
                           </div>
                         ),
                       },
