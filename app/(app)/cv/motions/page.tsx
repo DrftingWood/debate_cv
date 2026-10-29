@@ -47,12 +47,12 @@ export const dynamic = 'force-dynamic';
  * speaker scores are not published, so a result is all there is to show.
  */
 /**
- * Motions per page (owner, 2026-10-29: "heavily truncate the motions, 30 per
- * page"). The archive ran to 234 motion cards and 16,000 DOM nodes on one
+ * Motions per page (owner, 2026-10-29: "heavily truncate the motions", then
+ * "show only 20 results per page"). The archive ran to 234 motion cards and 16,000 DOM nodes on one
  * page, which froze the browser. The summary figures above the list still
  * count the whole record; only the list is paged.
  */
-const PER_PAGE = 30;
+const PER_PAGE = 20;
 
 export default async function CvMotionsPage({
   searchParams,
@@ -238,7 +238,7 @@ export default async function CvMotionsPage({
                   className="group panel px-4 [contain-intrinsic-size:auto_5rem] [content-visibility:auto]"
                   open
                 >
-                  <summary className="flex cursor-pointer select-none items-center justify-between gap-3 py-4">
+                  <summary className="flex cursor-pointer select-none items-center justify-between gap-3 py-tight">
                     <span className="min-w-0">
                       <span className="data-label block">
                         {first.year ? `${first.year}` : 'Undated'}
@@ -260,7 +260,11 @@ export default async function CvMotionsPage({
                       />
                     </span>
                   </summary>
-                  <ul className="space-y-2 pb-4">
+                  {/* Rows divided by a rule inside the group, not bordered
+                      cards inside a bordered panel (owner review 2026-10-29:
+                      double borders and stacked padding made a one-line
+                      motion 87 px tall). */}
+                  <ul className="divide-y divide-border border-t border-border pb-tight">
                     {list.map((e) => (
                       <MotionCard key={`${e.tournamentKey}:${e.motion.seq}`} entry={e} />
                     ))}
@@ -279,7 +283,7 @@ export default async function CvMotionsPage({
 function MotionCard({ entry }: { entry: MotionEntry }) {
   const { motion } = entry;
   return (
-    <li className="panel p-4">
+    <li className="py-tight">
       {/* One tag style for every tag (owner review 2026-10-29: a blue
           chip, a bare outline and a grey chip sat in one row). */}
       <div className="flex flex-wrap items-center gap-2">
@@ -299,6 +303,16 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
             Judged
           </Badge>
         ) : null}
+        {/* Score, points and result on the tag row, right-aligned, rather
+            than a third row of their own (owner review 2026-10-29: a debated
+            motion was 122-146 px tall). Judged motions have none. */}
+        {entry.judgedOnly ? null : (
+          <dl className="ml-auto flex flex-wrap items-baseline gap-x-stack gap-y-hair">
+            <Stat label="Your score" value={entry.score != null ? entry.score.toFixed(1) : null} />
+            <Stat label="Team points" value={entry.points != null ? String(entry.points) : null} />
+            <Stat label="Result" value={resultLabel(entry)} tone={resultTone(entry)} />
+          </dl>
+        )}
       </div>
       {entry.siblings > 0 ? (
         <p className="mt-1.5 text-caption text-ink-soft">
@@ -307,13 +321,13 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
         </p>
       ) : null}
 
-      <p className="mt-2 text-body leading-relaxed text-ink">{motion.text}</p>
+      <p className="mt-hair max-w-4xl text-body leading-relaxed text-ink">{motion.text}</p>
 
       {motion.infoSlide ? (
         <details className="mt-2">
           {/* inline-flex + min-h so the disclosure is a 44px target rather
               than an 18px line of text. */}
-          <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-caption text-ink-soft hover:text-ink">
+          <summary className="inline-flex min-h-6 cursor-pointer items-center text-caption text-ink-soft hover:text-ink coarse:min-h-[44px]">
             Info slide
           </summary>
           <p className="panel-inset mt-1.5 p-3 text-caption leading-relaxed text-ink-soft">
@@ -321,16 +335,6 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
           </p>
         </details>
       ) : null}
-
-      {/* A judged motion has no score, points or result of yours, so the
-          row of three dashes is left out rather than shown empty. */}
-      {entry.judgedOnly ? null : (
-        <dl className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-border pt-3">
-          <Stat label="Your score" value={entry.score != null ? entry.score.toFixed(1) : null} />
-          <Stat label="Team points" value={entry.points != null ? String(entry.points) : null} />
-          <Stat label="Result" value={resultLabel(entry)} tone={resultTone(entry)} />
-        </dl>
-      )}
     </li>
   );
 }
@@ -363,11 +367,12 @@ function Stat({
   tone?: 'pos' | 'neg';
 }) {
   return (
-    <div>
+    // Label and value on one line, so the three sit on the tag row.
+    <div className="flex items-baseline gap-hair">
       <dt className="data-label">{label}</dt>
       <dd
         className={
-          'num mt-0.5 text-table ' +
+          'num text-table ' +
           (tone === 'pos' ? 'val-pos font-medium' : tone === 'neg' ? 'val-neg' : 'text-ink')
         }
       >

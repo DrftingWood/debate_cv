@@ -305,7 +305,7 @@ function Legend({
   return (
     // An even grid, not a wrapping row: a wrapped row left one or two items
     // orphaned on a second line (owner review 2026-10-29).
-    <ul className="mt-stack grid grid-cols-2 gap-x-stack gap-y-hair text-caption text-ink-soft sm:grid-cols-3">
+    <ul className="mt-tight grid grid-cols-2 gap-x-stack gap-y-px text-caption text-ink-soft sm:grid-cols-3">
       {tiers.map((t) => (
         <li key={t.key} className="inline-flex items-center gap-hair">
           <span className={cn('size-3 rounded-[1px]', t.swatch)} aria-hidden />
@@ -401,7 +401,7 @@ function NumbersTable({
   kind: 'speaking' | 'judging';
 }) {
   return (
-    <details className="mt-stack">
+    <details className="mt-tight">
       <summary className="inline-flex min-h-6 cursor-pointer items-center text-caption font-medium text-primary">
         See the numbers
       </summary>

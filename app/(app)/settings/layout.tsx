@@ -34,7 +34,9 @@ export default async function SettingsLayout({ children }: { children: React.Rea
           </div>
           <SettingsSideNav />
         </aside>
-        <section className="min-w-0">{children}</section>
+        {/* A form width: a switch row stretched across 1,000 px put its
+            label and its control a screen apart (owner review 2026-10-29). */}
+        <section className="min-w-0 max-w-3xl">{children}</section>
       </div>
     </div>
   );

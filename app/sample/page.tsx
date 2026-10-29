@@ -83,6 +83,7 @@ export default async function SamplePage() {
             items={[
               {
                 value: 'ledger',
+                anchor: 'y',
                 label: 'Ledger',
                 panel: (
                   <SpeakingYears
@@ -96,6 +97,7 @@ export default async function SamplePage() {
               },
               {
                 value: 'adjudication',
+                anchor: 'j',
                 label: 'Adjudication',
                 panel: (
                   <JudgingYears

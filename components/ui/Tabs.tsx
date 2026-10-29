@@ -3,6 +3,7 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { urlWithTab } from '@/lib/utils/tabParam';
+import { usePrinting } from '@/components/ui/Deferred';
 
 /*
  * Tabs that switch panels within one page (UX-56): the Statistics layout is
@@ -32,7 +33,17 @@ import { urlWithTab } from '@/lib/utils/tabParam';
  * sideways. Both controls drive the same state; only one is visible.
  */
 
-export type TabItem = { value: string; label: string; panel: ReactNode };
+export type TabItem = {
+  value: string;
+  label: string;
+  panel: ReactNode;
+  /**
+   * The year-anchor prefix this panel holds ("y" for #y2025, "j" for
+   * #j2025), so a chart link into a tab not yet built can open it first
+   * (components/OpenYearOnHash.tsx).
+   */
+  anchor?: string;
+};
 
 export function Tabs({
   label,
@@ -65,6 +76,11 @@ export function Tabs({
   const [value, setValue] = useState(
     items.some((i) => i.value === initialValue) ? (initialValue as string) : fallback,
   );
+  // Panels are built the first time they are shown and kept after (owner
+  // review 2026-10-29: hidden panels were most of the Record's 12,375 DOM
+  // nodes). Printing builds them all, because Print to PDF prints every tab.
+  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set([value]));
+  const printing = usePrinting();
   const id = useId();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const tabId = (v: string) => `${id}-tab-${v}`;
@@ -73,6 +89,7 @@ export function Tabs({
 
   const select = (next: string) => {
     setValue(next);
+    setVisited((v) => (v.has(next) ? v : new Set([...v, next])));
     window.history.replaceState(
       window.history.state,
       '',
@@ -176,6 +193,7 @@ export function Tabs({
           id={panelId(item.value)}
           aria-labelledby={tabId(item.value)}
           hidden={item.value !== value}
+          data-anchor={item.anchor}
           // A panel often opens with prose, not a control, so it takes focus
           // itself (APG) and Tab from the list lands on the content.
           tabIndex={0}
@@ -184,7 +202,7 @@ export function Tabs({
           // in. Opacity only, so reduced motion keeps it.
           className={cn('min-w-0 animate-fade-in', !vertical && 'pt-panel')}
         >
-          {item.panel}
+          {visited.has(item.value) || printing ? item.panel : null}
         </div>
       ))}
     </div>

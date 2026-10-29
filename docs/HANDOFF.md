@@ -2,6 +2,32 @@
 
 ---
 
+## 2026-10-29 - UI review 2: page weight, 20 per page, spacing
+
+The owner asked for a second live review, "very harsh about spacing… don't let any page get too heavy, show only 20 results per page".
+
+- **Built on demand** (`components/ui/Deferred.tsx`).
+  - `Tabs` builds a panel the first time it is shown and keeps it.
+  - `DetailsBody` builds a `<details>` body when it first opens (year groups).
+  - `RevealedBody` builds a hidden row's content when it is first shown (round tables).
+  - All three build everything on `beforeprint`, flushed synchronously, so Print to PDF still carries every tab, year and round.
+  - Measured on the seeded DB: /cv 854 nodes, 21 rows built (production showed 12,375 nodes and 520 rows). /cv/stats 606 (production 4,787). A print copy builds 3,806 with both tabs and all 12 round tables.
+- **Chart links into an unbuilt tab.**
+  - Tab panels carry `data-anchor` ("y" / "j"), and `OpenYearOnHash` opens the tab, then retries for up to 20 frames until the year exists.
+  - `urlWithTab` now keeps the hash; a tab switch had been dropping `#j2025`.
+- **20 per page:** Motions (`PER_PAGE`) and the Imports URL list (`IMPORT_PAGE_SIZE`, was 50).
+- **Spacing.**
+  - Folded year rows are 59 px (were 93): the subtotal sits beside the year in two left-aligned lines, not three mono lines pushed to the far right.
+  - Motions are rows divided inside each group, not bordered cards inside a bordered panel. Score, points and result sit inline on the tag row. The motion text has a `max-w-4xl` measure, and "Info slide" is 24 px tall on desktop (44 px on touch). Rows are 74-98 px (were 122-146), and the page is a third shorter.
+  - The footer gap is 48 px (was 128).
+  - Settings content is capped at 48rem (a switch row ran 1,000 px).
+  - The chart legend and table toggle are on a tighter rhythm.
+- **Not changed.** The Record's ledger still starts about 965 px down at 1920×950, under the header tiles and the two career charts the owner placed there (decisions 12-15).
+- **Tests.** Tab, year and section tests now open what they check through the URL (`?tab=`, `?group=&section=`), since unopened panels are no longer in the HTML.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - UI review, part 4: wording, polish, Motions paging
 
 - **Motions are paged, 30 per page** (owner: "heavily truncate the motions, 30 per page"). `app/(app)/cv/motions/page.tsx` slices the entries by `?page=` (clamped to the range).

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { ArrowSquareOut, CaretDown } from '@/components/ui/icons';
 import type { JudgingYearTotal, RecordYear, SpeakingYearTotal } from '@/lib/cv/periodTotal';
 import { cn } from '@/lib/utils/cn';
+import { DetailsBody } from '@/components/ui/Deferred';
 
 /*
  * The year groups shared by the Record (/cv) and the public CV (/u/<slug>):
@@ -99,8 +100,11 @@ function YearGroup({
       {/* One left edge (owner review 2026-10-29): the year sits flush with
           the rule above and the table below, and its caret follows it
           rather than pushing it 22 px in. */}
-      <summary className="flex cursor-pointer select-none items-start py-tight coarse:min-h-[44px]">
-        <span className="min-w-0 flex-1 md:flex md:items-baseline md:justify-between md:gap-stack">
+      {/* A folded year was 93 px: three mono lines pushed to the far right,
+          1,400 px from the year they describe (owner review 2026-10-29).
+          Now the subtotal sits beside the year in at most two lines. */}
+      <summary className="flex cursor-pointer select-none items-start py-inline coarse:min-h-[44px]">
+        <span className="grid min-w-0 flex-1 gap-x-panel gap-y-hair md:grid-cols-[6.5rem_minmax(0,1fr)] md:items-baseline">
           {/* Not a heading element: a heading inside <summary> loses its
               role in some screen readers, as the summary is a button. */}
           <span className="inline-flex items-center gap-inline font-display text-h3 font-medium text-ink">
@@ -110,16 +114,18 @@ function YearGroup({
               aria-hidden
             />
           </span>
-          <span className="block space-y-hair font-mono text-caption font-semibold text-ink-soft md:text-right">
+          <span className="block font-mono text-caption text-ink-soft">
             {lines.map((l, i) => (
-              <span key={i} className={cn('block', i === 0 && 'text-ink')}>
+              <span key={i} className={cn('block', i === 0 && 'font-semibold text-ink')}>
                 {l}
               </span>
             ))}
           </span>
         </span>
       </summary>
-      <div className="pb-panel">{children}</div>
+      <div className="pb-panel">
+        <DetailsBody initiallyOpen={open}>{children}</DetailsBody>
+      </div>
     </details>
   );
 }
@@ -127,13 +133,14 @@ function YearGroup({
 function speakingLines(y: RecordYear): string[] {
   const t = y.speakingTotal;
   if (!t) return [];
-  return [
-    speakingSubtotal(t),
+  // Two lines: the team's year, then the user's own speaking and judging.
+  const second = [
     t.speakerAverage
       ? `speaker-tab average ${t.speakerAverage.value.toFixed(1)} (${plural(t.speakerAverage.speeches, 'speech', 'speeches')})`
       : null,
     y.judgingTotal ? judgingSubtotal(y.judgingTotal) : null,
   ].filter((l): l is string => l !== null);
+  return [speakingSubtotal(t), ...(second.length ? [second.join(' · ')] : [])];
 }
 
 /** Speaking, year by year, with the judging line on each subtotal. */

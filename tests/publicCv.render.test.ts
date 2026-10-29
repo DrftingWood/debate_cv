@@ -153,7 +153,7 @@ describe('PublicCvPage', () => {
     });
   });
 
-  async function render(speakerRows: CvSpeakerRow[], judgeRows: CvJudgeRow[]) {
+  async function render(speakerRows: CvSpeakerRow[], judgeRows: CvJudgeRow[], tab?: string) {
     buildCvData.mockResolvedValue({
       speakerRows,
       judgeRows,
@@ -161,14 +161,19 @@ describe('PublicCvPage', () => {
       highlights: { deepestBreaks: [], activeYears: null },
     });
     const { default: PublicCvPage } = await import('@/app/u/[slug]/page');
-    const el = await PublicCvPage({ params: Promise.resolve({ slug: 'maya-rao' }) });
+    const el = await PublicCvPage({
+      params: Promise.resolve({ slug: 'maya-rao' }),
+      searchParams: Promise.resolve(tab ? { tab } : {}),
+    });
     return renderToStaticMarkup(el);
   }
 
   it('renders phone cards beside the md-and-up ledger', async () => {
     const out = await render([speakerRow()], [judgeRow()]);
     expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Speaking record, \d{4}">/);
-    expect(out).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Judging record, \d{4}">/);
+    // Only the selected tab is built (owner review 2026-10-29).
+    const judging = await render([speakerRow()], [judgeRow()], 'adjudication');
+    expect(judging).toMatch(/<ul class="space-y-3 md:hidden" aria-label="Judging record, \d{4}">/);
     expect(out).toContain('panel hidden overflow-hidden md:block');
   });
 

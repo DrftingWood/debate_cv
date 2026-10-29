@@ -90,36 +90,51 @@ const rowText = (html: string, label: string) =>
     .replace(/<[^>]+>/g, '|') ?? null;
 
 describe('/cv/stats wiring', () => {
-  test('every section id appears once, unfiltered and under a seat filter', () => {
-    for (const q of ['', 'seat=BP:OG']) {
+  // Only the selected tab at each level is built (owner review 2026-10-29:
+  // hidden panels made pages heavy), so each assertion opens its section
+  // through the URL, as a reader's link would.
+  test('section ids are unique, unfiltered and under a seat filter', () => {
+    for (const q of [
+      '',
+      'seat=BP:OG',
+      'group=conditions&section=motion-type',
+      'role=judging&group=conditions&section=stage',
+    ]) {
       const ids = sectionIds(render(q));
-      expect(ids.length).toBeGreaterThan(5);
-      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.length, q).toBeGreaterThan(0);
+      expect(new Set(ids).size, q).toBe(ids.length);
     }
+  });
+
+  test('only the selected panel at each level is built', () => {
+    const html = render('');
+    expect(section(html, 'positions')).toBeNull();
+    expect(section(html, 'judging-outrounds')).toBeNull();
   });
 
   test('a seat filter withholds tournament-level sections with a reason, keeping their slots', () => {
-    const html = render('seat=BP:OG');
-    // The slot stays (its tab is still there) and says why it is empty.
-    for (const title of [
-      'Team placement',
-      'Breaks',
-      'Speaker-tab placement',
-      'Across a tournament',
+    for (const [q, title] of [
+      ['group=results&section=team-placement', 'Team placement'],
+      ['group=results&section=breaks', 'Breaks'],
+      ['group=speaks&section=speaker-tab', 'Speaker-tab placement'],
+      ['group=conditions&section=round', 'Across a tournament'],
     ]) {
+      const html = render(`${q}&seat=BP:OG`);
       expect(html, title).toContain(`aria-label="${title}"`);
+      expect(html, title).toMatch(/filtering by seat|seat filter/);
     }
-    expect(html.match(/filtering by seat|seat filter/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
     // Momentum and milestones follow whole tournaments: under a seat they are left out.
-    expect(section(html, 'momentum')).toBeNull();
-    expect(section(html, 'milestones')).toBeNull();
+    expect(section(render('group=conditions&section=round&seat=BP:OG'), 'momentum')).toBeNull();
+    expect(section(render('group=results&section=straights&seat=BP:OG'), 'milestones')).toBeNull();
     // Teammates drops tournament breaks under a seat filter.
-    expect(section(html, 'partners') ?? '').not.toMatch(/\d+ breaks?|>Breaks</);
+    const partners = render('group=conditions&section=partner&seat=BP:OG');
+    expect(section(partners, 'partners') ?? '').not.toMatch(/\d+ breaks?|>Breaks</);
   });
 
   test('three tab levels, each in the URL (owner decision 19)', () => {
-    const html = render('');
-    const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    const tabsOf = (html: string) =>
+      [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    const first = tabsOf(render(''));
     for (const tab of [
       'Speaking',
       'Judging',
@@ -129,49 +144,46 @@ describe('/cv/stats wiring', () => {
       'Team placement',
       'Breaks',
       'Straights &amp; firsts',
-      'By motion type',
     ]) {
-      expect(tabs, tab).toContain(tab);
+      expect(first, tab).toContain(tab);
     }
+    expect(tabsOf(render('group=conditions'))).toContain('By motion type');
     // Seasons is gone (owner, 2026-10-29): the Record's yearly charts carry it.
-    expect(section(html, 'seasons')).toBeNull();
+    expect(section(render(''), 'seasons')).toBeNull();
     // The starting tab comes from the URL.
     expect(render('role=judging')).toMatch(/role="tab" [^>]*aria-selected="true"[^>]*>Judging</);
   });
 
   test('a seat keeps the delta it has on the whole record — the baseline is never the filtered slice', () => {
-    const unfiltered = rowText(section(render(''), 'positions')!, 'OG');
-    const filtered = rowText(section(render('seat=BP:OG'), 'positions')!, 'OG');
+    const at = 'group=conditions&section=position';
+    const unfiltered = rowText(section(render(at), 'positions')!, 'OG');
+    const filtered = rowText(section(render(`${at}&seat=BP:OG`), 'positions')!, 'OG');
     expect(unfiltered).not.toBeNull();
     expect(filtered).toBe(unfiltered);
   });
 
-  test('a speaking filter that matches nothing still shows judging', () => {
-    const html = render('partner=p-nobody');
-    expect(html).toContain('No rounds match these filters');
-    expect(section(html, 'judging-outrounds')).not.toBeNull();
+  test('a speaking filter that matches nothing still leaves judging whole', () => {
+    expect(render('partner=p-nobody')).toContain('No rounds match these filters');
+    const judging = render('partner=p-nobody&role=judging');
+    expect(section(judging, 'judging-outrounds')).not.toBeNull();
   });
 
   test('the new slots of decision 19 are present (part 2)', () => {
-    const html = render('');
-    const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
-    for (const tab of [
-      'Top-10 finishes',
-      'Outrounds judged',
-      'Chairing',
-      'Core roles',
-      'By stage',
+    const tabsOf = (html: string) =>
+      [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    expect(tabsOf(render('group=speaks'))).toContain('Top-10 finishes');
+    const judging = tabsOf(render('role=judging'));
+    for (const tab of ['Outrounds judged', 'Chairing', 'Core roles'])
+      expect(judging, tab).toContain(tab);
+    expect(tabsOf(render('role=judging&group=conditions'))).toContain('By stage');
+    for (const [q, id] of [
+      ['group=speaks&section=top-finishes', 'top-finishes'],
+      ['role=judging&section=chairing', 'judging-chair'],
+      ['role=judging&section=core', 'judging-roles'],
+      ['role=judging&group=conditions&section=format', 'judging-format'],
+      ['role=judging&group=conditions&section=stage', 'judging-stage'],
     ]) {
-      expect(tabs, tab).toContain(tab);
-    }
-    for (const id of [
-      'top-finishes',
-      'judging-chair',
-      'judging-roles',
-      'judging-format',
-      'judging-stage',
-    ]) {
-      expect(section(html, id), id).not.toBeNull();
+      expect(section(render(q), id), id).not.toBeNull();
     }
   });
 

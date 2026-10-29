@@ -19,14 +19,16 @@ export function resolveTab<T extends string>(
  * stays the canonical one.
  */
 export function urlWithTab(
-  location: { pathname: string; search: string },
+  location: { pathname: string; search: string; hash?: string },
   tab: { param: string; value: string; fallback: string },
 ): string {
-  const { pathname, search } = location;
+  const { pathname, search, hash = '' } = location;
   const { param, value, fallback } = tab;
   const params = new URLSearchParams(search);
   if (value === fallback) params.delete(param);
   else params.set(param, value);
   const qs = params.toString();
-  return qs ? `${pathname}?${qs}` : pathname;
+  // The hash survives: a chart link (#j2025) switches tab on its way to
+  // the year, and dropping it lost the link's target.
+  return `${qs ? `${pathname}?${qs}` : pathname}${hash}`;
 }
