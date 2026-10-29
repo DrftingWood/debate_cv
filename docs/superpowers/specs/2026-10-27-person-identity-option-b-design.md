@@ -214,6 +214,7 @@ CREATE TABLE "UserNameAlias" ( … as in 3.1 … );
 CREATE UNIQUE INDEX "UserNameAlias_userId_matchKey_key" ON "UserNameAlias"("userId","matchKey");
 ```
 
+- **As built (phase 2, 2026-10-29):** migration `20261029120000_identity_v2_expand`, generated with `prisma migrate diff`. One deviation: the `claimedByUserId` index is a plain btree, not partial, because Prisma cannot declare a partial index and an SQL-only index makes every later `prisma migrate dev` propose dropping it (about 3 MB at B9 scale). Rehearsal and ship steps: `docs/runbooks/identity-v2-expand.md`.
 - Nullable `ADD COLUMN` with no default is a catalog change, no table rewrite.
 - The FK is added on an all-NULL column, so validation is a scan with nothing to check (130k rows at B9 scale, well under a second). `NOT VALID` + `VALIDATE` is not needed at this size.
 - Index builds are plain, not `CONCURRENTLY`: Prisma runs a migration in a transaction and `CREATE INDEX CONCURRENTLY` cannot run in one ([prisma/prisma#9154](https://github.com/prisma/prisma/issues/9154)). The `claimedByUserId` index is partial over an all-NULL column (empty); `Person_matchKey_idx` is built on an all-NULL column too. Both lock their table for milliseconds.
