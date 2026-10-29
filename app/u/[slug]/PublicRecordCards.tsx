@@ -24,7 +24,8 @@ import { TournamentCard, type TournamentCardField } from '@/components/Tournamen
  * /cv uses, so a fix to how a tournament link or field reads lands on both
  * (PUB-1). This file only maps the public rows to its fields: the public view
  * deliberately differs from /cv in having no report button, no round ledger
- * and no partner list.
+ * and no partner list. A pro-am mark shows, under the team, only when the
+ * owner turned on "Show pro-am marks on my public CV".
  */
 
 /** Furthest outround reached, per category when the team broke in more than one. */
@@ -57,7 +58,7 @@ export function PublicBreakMarker({ r }: { r: CvSpeakerRow }) {
  * (DESIGN_INSTRUCTIONS §9, PR #167), so the speaker-tab rank sits in its own
  * field labelled as the speaker tab and never stands in for it.
  */
-function speakerFields(r: CvSpeakerRow): TournamentCardField[] {
+function speakerFields(r: CvSpeakerRow, proAm: boolean): TournamentCardField[] {
   const out: TournamentCardField[] = [];
   if (r.teamRank != null) {
     const p = teamTabPlacement(r.teamRank, r.totalTeams);
@@ -78,12 +79,13 @@ function speakerFields(r: CvSpeakerRow): TournamentCardField[] {
     });
   }
   if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
-  if (r.teamName) out.push({ label: 'Team', value: r.teamName });
+  if (r.teamName)
+    out.push({ label: 'Team', value: r.teamName, hint: proAm ? 'Pro-am' : undefined });
   if (r.format) out.push({ label: 'Format', value: r.format });
   return out;
 }
 
-export function PublicSpeakerCard({ r }: { r: CvSpeakerRow }) {
+export function PublicSpeakerCard({ r, proAm = false }: { r: CvSpeakerRow; proAm?: boolean }) {
   return (
     <TournamentCard
       name={r.tournamentName}
@@ -96,7 +98,7 @@ export function PublicSpeakerCard({ r }: { r: CvSpeakerRow }) {
           </span>
         ) : null
       }
-      fields={speakerFields(r)}
+      fields={speakerFields(r, proAm)}
     />
   );
 }

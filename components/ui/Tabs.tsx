@@ -123,7 +123,11 @@ export function Tabs({
         className={cn(
           vertical
             ? 'flex flex-col gap-px self-start border-l border-border'
-            : 'flex gap-hair overflow-x-auto border-b border-border',
+            : // The rule under the row is an inset shadow, not a border: a tab's
+              // own underline used to overlap the border by sitting at -1px,
+              // and with overflow-x auto that 1px made the row scroll
+              // vertically too, which Windows drew as a ▲●▼ scrollbar.
+              'flex gap-hair overflow-x-auto shadow-[inset_0_-1px_0_var(--color-border)]',
           vertical && phoneSelect && 'hidden md:flex',
         )}
       >
@@ -151,7 +155,7 @@ export function Tabs({
                 vertical
                   ? '-ml-px border-l-2 px-tight py-inline text-left coarse:min-h-11'
                   : cn(
-                      '-mb-px border-b-2 px-inline whitespace-nowrap coarse:min-h-11',
+                      'border-b-2 px-inline whitespace-nowrap coarse:min-h-11',
                       prominent ? 'py-stack' : 'py-tight',
                     ),
                 selected

@@ -158,9 +158,12 @@ export function judgingCell(row: JudgingRow): CareerCell<JudgingTier> {
       detail: `Chaired the ${formatStageForDisplay(row.lastOutroundChaired)}`,
     };
   }
+  // A chaired outround is a judged one: a row that carries only the chair
+  // (no "last outround judged") still placed the user in that outround.
   const judged = [
     ...row.judgedOutroundStages,
     ...(row.lastOutroundJudged ? [row.lastOutroundJudged] : []),
+    ...(row.lastOutroundChaired ? [row.lastOutroundChaired] : []),
   ]
     .filter((label) => bracketOf(label) !== 'consolation' && classifyOutroundStage(label) !== null)
     .map((label) => ({ label, rank: outroundRankStrict(label) ?? 0 }))
