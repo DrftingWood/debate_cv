@@ -94,10 +94,13 @@ describe('Tabs', () => {
 describe('Tooltip', () => {
   it('is a visual copy only, hidden from assistive tech', () => {
     const html = renderToStaticMarkup(
-      createElement(Tooltip, {
-        content: 'Notifications',
-        children: createElement('button', { type: 'button', 'aria-label': 'Notifications' }),
-      }),
+      createElement(
+        Tooltip,
+        // children go as the third argument (react/no-children-prop); the cast
+        // only tells TypeScript that the required prop arrives that way.
+        { content: 'Notifications' } as React.ComponentProps<typeof Tooltip>,
+        createElement('button', { type: 'button', 'aria-label': 'Notifications' }),
+      ),
     );
     expect(html).toMatch(/<span aria-hidden="true"[^>]*>.*Notifications/);
   });
