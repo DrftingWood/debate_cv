@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle, Lock, ShieldCheck } from '@/components/ui/icons';
+import { ArrowRight } from '@/components/ui/icons';
 import { signIn } from '@/lib/auth';
 import { PendingSubmit } from '@/components/PendingSubmit';
 
@@ -30,22 +30,5 @@ export async function BuildCvButton({
         {label}
       </PendingSubmit>
     </form>
-  );
-}
-
-/** The three privacy facts a visitor weighs before granting Gmail access (§10). */
-export function TrustRow() {
-  return (
-    <div className="mt-5 grid gap-2 text-caption text-ink-soft sm:grid-cols-3 sm:gap-3">
-      <span className="inline-flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> read-only Gmail
-      </span>
-      <span className="inline-flex items-center gap-2">
-        <Lock className="h-4 w-4 text-primary" aria-hidden /> private until shared
-      </span>
-      <span className="inline-flex items-center gap-2">
-        <CheckCircle className="h-4 w-4 text-primary" aria-hidden /> source-backed rows
-      </span>
-    </div>
   );
 }

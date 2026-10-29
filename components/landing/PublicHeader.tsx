@@ -18,7 +18,13 @@ import { ThemeToggle } from '@/components/ThemeToggle';
  * is in every footer): at 390px all three items plus the toggle were 23px
  * wider than the row and made the page scroll sideways.
  */
-export function PublicHeader() {
+/**
+ * `signedIn`: /sample is the one page with this header a signed-in visitor
+ * can reach (the landing page redirects them, the app has its own header),
+ * and it offered them "Sign in" (owner review 2026-10-29). With it, the last
+ * link goes to their record instead.
+ */
+export function PublicHeader({ signedIn = false }: { signedIn?: boolean } = {}) {
   return (
     <header className="flex items-center justify-between gap-3 py-5 md:py-6">
       <Link href="/" aria-label="debate cv home">
@@ -40,14 +46,20 @@ export function PublicHeader() {
           <Link href="/privacy" className="py-2 hover:text-ink max-[420px]:hidden">
             Privacy
           </Link>
-          <form
-            action={async () => {
-              'use server';
-              await signIn('google', { redirectTo: '/cv' });
-            }}
-          >
-            <PendingTextSubmit>Sign in</PendingTextSubmit>
-          </form>
+          {signedIn ? (
+            <Link href="/cv" className="py-2 text-ink hover:text-primary">
+              Your record
+            </Link>
+          ) : (
+            <form
+              action={async () => {
+                'use server';
+                await signIn('google', { redirectTo: '/cv' });
+              }}
+            >
+              <PendingTextSubmit>Sign in</PendingTextSubmit>
+            </form>
+          )}
         </nav>
         <ThemeToggle />
       </div>

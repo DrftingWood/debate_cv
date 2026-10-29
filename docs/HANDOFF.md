@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-29 - UI review, part 2: /sample is the real product
+
+- **One fictional record** (`lib/sample/sampleRecord.ts`). It holds Maya Rao, with 11 speaking and 3 judging rows shaped as real `CvSpeakerRow` / `CvJudgeRow` data. Both the landing hero's preview (`AnnotatedSample`) and `/sample` read it, so they show one person; they used to show "A. Debater" and "Maya Rao".
+- **`/sample` is rebuilt from the public CV's own components**:
+  - `RecordHeader` (tiles and career charts);
+  - `PublicHighlights`, now its own component;
+  - the Ledger and Adjudication tabs grouped by year, with `PublicSpeakingTable` / `PublicJudgingTable`.
+
+  It had drawn the pre-redesign Record by hand: a flat table, a seasons chart the owner dropped, tinted figures, and "Won/Lost" on BP rounds against the rule that a BP room is placed, not won. Built from the real components, it cannot drift from the product.
+- **Signed in on /sample.** `PublicHeader` takes `signedIn`, and `/sample` passes it, so a signed-in visitor sees "Your record" instead of "Sign in".
+- **Removed** `components/landing/SampleCvPreview.tsx` and `TrustRow` (unused after the rebuild).
+- **Checked** at 1280 and 390 in Playwright: no sideways scroll, no page errors, and the tabs work.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - UI review, part 1: alignment and type
 
 The owner asked for a critical review "as a UI expert who is very particular about layout, position, alignment and fonts". It was done in Chrome on production, against the owner's record. This PR fixes the alignment and type findings; the rest follow in parts 2-4.
