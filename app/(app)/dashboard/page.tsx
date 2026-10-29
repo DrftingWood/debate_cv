@@ -130,7 +130,7 @@ export default async function Dashboard({
 
   const filtered = allRows.filter((r) => matchesFilter(r.status, activeFilter));
 
-  // 50 rows per page, with the page in the URL (UX-81). Only these rows get
+  // IMPORT_PAGE_SIZE (20) rows per page, with the page in the URL (UX-81). Only these rows get
   // the tournament join.
   const pageInfo = resolvePage(params.page, filtered.length);
   const pageIds = filtered.slice(pageInfo.start, pageInfo.end).map((r) => r.u.id);

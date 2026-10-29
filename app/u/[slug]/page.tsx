@@ -212,6 +212,7 @@ export default async function PublicCvPage({
                   ? [
                       {
                         value: 'ledger',
+                        anchor: 'y',
                         label: 'Ledger',
                         panel: (
                           <div className="space-y-stack">
@@ -247,6 +248,7 @@ export default async function PublicCvPage({
                   ? [
                       {
                         value: 'adjudication',
+                        anchor: 'j',
                         label: 'Adjudication',
                         panel: (
                           <div>

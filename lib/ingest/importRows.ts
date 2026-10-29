@@ -12,7 +12,9 @@ export type ImportStatus = 'pending' | 'running' | 'failed' | 'unavailable' | 'd
 
 export type ImportFilterKey = 'all' | 'pending' | 'failed' | 'unmatched' | 'unavailable' | 'done';
 
-export const IMPORT_PAGE_SIZE = 50;
+// 20 a page (owner, 2026-10-29: "show only 20 results per page" so no
+// page gets heavy). It was 50.
+export const IMPORT_PAGE_SIZE = 20;
 
 export function statusFor(
   ingested: boolean,

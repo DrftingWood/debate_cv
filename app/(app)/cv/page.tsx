@@ -217,6 +217,7 @@ export default async function CvPage({
                   ? [
                       {
                         value: 'ledger',
+                        anchor: 'y',
                         label: 'Ledger',
                         panel: (
                           <div className="space-y-stack">
@@ -255,6 +256,7 @@ export default async function CvPage({
                   ? [
                       {
                         value: 'adjudication',
+                        anchor: 'j',
                         label: 'Adjudication',
                         panel: (
                           <div>

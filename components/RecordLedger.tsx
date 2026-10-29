@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/Badge';
 import { TableScroll, Table, Th, Td, Tr, Nil, Cols } from '@/components/ui/DataTable';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { RoundsToggle } from '@/components/RoundsToggle';
+import { RevealedBody } from '@/components/ui/Deferred';
 import { TournamentCard, type TournamentCardField } from '@/components/TournamentCard';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank } from '@/lib/cv/rankDisplay';
@@ -280,10 +281,13 @@ function SpeakingTable({
                         id={roundsId}
                         hidden
                         data-rounds="true"
+                        data-reveal-host
                         className="border-b border-border"
                       >
                         <td colSpan={SPEAKING_COLUMNS} className="px-4 py-0">
-                          <RoundLedger r={r} motionsByTournament={motionsByTournament} bare />
+                          <RevealedBody>
+                            <RoundLedger r={r} motionsByTournament={motionsByTournament} bare />
+                          </RevealedBody>
                         </td>
                       </tr>
                     ) : null}

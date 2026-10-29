@@ -44,9 +44,11 @@ const { ToastProvider } = await import('@/components/ui/Toast');
 
 const LONG = 'Australs Intervarsity Debating Championship hosted in Wellington 2025';
 
-async function render(data = makeCvData()) {
+// Only the selected tab is built (owner review 2026-10-29), so a test of
+// another tab opens it through the URL, as a reader's link would.
+async function render(data = makeCvData(), tab?: string) {
   buildCvDataMock.mockResolvedValue(data);
-  const page = await CvPage();
+  const page = await CvPage(tab ? { searchParams: Promise.resolve({ tab }) } : undefined);
   return renderToStaticMarkup(createElement(ToastProvider, null, page));
 }
 
@@ -137,17 +139,19 @@ describe('/cv speaking ledger (desktop)', () => {
   it('names the Report column with text, not an empty header (CV-15)', async () => {
     const out = await render(record());
     expect(out).not.toMatch(/<th[^>]*aria-label="Report"[^>]*><\/th>/);
-    expect(out.match(/<span class="sr-only">Report a problem<\/span>/g)?.length).toBe(2);
+    expect(out.match(/<span class="sr-only">Report a problem<\/span>/g)?.length).toBe(1);
+    const judging = await render(record(), 'adjudication');
+    expect(judging.match(/<span class="sr-only">Report a problem<\/span>/g)?.length).toBe(1);
   });
 
   it('marks every tournament link as opening a new tab (CV-3)', async () => {
     const out = await render(record());
     const blankLinks = out.match(/target="_blank"/g)?.length ?? 0;
     const announced = out.match(/\(opens in new tab\)/g)?.length ?? 0;
-    // Two tournaments: on the desktop ledger the Source column is the row's
-    // one link (the name is plain text since the 2026-10-29 review), and
-    // each phone card links its name.
-    expect(blankLinks).toBe(4);
+    // The Ledger tab's one speaking row: on the desktop ledger the Source
+    // column is the row's one link (the name is plain text since the
+    // 2026-10-29 review), and its phone card links the name.
+    expect(blankLinks).toBe(2);
     expect(announced).toBe(blankLinks);
     expect(out).not.toContain('opacity-0');
   });
@@ -181,7 +185,9 @@ describe('/cv mobile cards', () => {
   it('names each Report button for its tournament (CV-12)', async () => {
     const out = await render(record());
     expect(out).toContain(`aria-label="Report a problem with ${LONG}"`);
-    expect(out).toContain('aria-label="Report a problem with Judged IV"');
+    expect(await render(record(), 'adjudication')).toContain(
+      'aria-label="Report a problem with Judged IV"',
+    );
   });
 });
 
@@ -221,13 +227,13 @@ describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', (
     expect(out).toMatch(/role="tab"[^>]*>Ledger</);
     expect(out).toMatch(/role="tab"[^>]*>Adjudication</);
     expect(out).toContain('data-print-all="true"');
-    expect(out).toContain('Judging record, 2025');
+    expect(await render(record(), 'adjudication')).toContain('Judging record, 2025');
   });
 
   it('groups a year in a <details> named for the chart link, with its subtotal', async () => {
     const out = await render(record());
     expect(out).toMatch(/<details id="y2025"/);
-    expect(out).toMatch(/<details id="j2025"/);
+    expect(await render(record(), 'adjudication')).toMatch(/<details id="j2025"/);
     expect(out).toContain('1 tournament · broke 1 of 1 · best Semifinals · median top 8% (n=1)');
   });
 
@@ -265,7 +271,7 @@ describe('/cv round detail (owner, 2026-10-29: an icon in the row, not a widget)
 
 describe('/cv Partners tab (owner decision 17)', () => {
   it('lists each partner per tournament with a pressed-state pro-am toggle, never printed', async () => {
-    const out = await render(record());
+    const out = await render(record(), 'partners');
     expect(out).toMatch(/role="tab"[^>]*>Partners</);
     expect(out).toContain('Partners by year');
     // The fixture's mark matches tournament 1's partner by name key.

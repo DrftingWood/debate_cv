@@ -49,6 +49,15 @@ describe('resolveTab / urlWithTab', () => {
       ),
     ).toBe('/cv/stats');
   });
+
+  it('keeps the hash, so a chart link survives the tab switch it causes', () => {
+    expect(
+      urlWithTab(
+        { pathname: '/cv', search: '', hash: '#j2025' },
+        { param: 'tab', value: 'adjudication', fallback: 'ledger' },
+      ),
+    ).toBe('/cv?tab=adjudication#j2025');
+  });
 });
 
 describe('Tabs', () => {
@@ -65,7 +74,11 @@ describe('Tabs', () => {
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-selected="true"[^>]*tabindex="0"[^>]*>Judging/);
     expect(html).toMatch(/aria-selected="false"[^>]*tabindex="-1"[^>]*>Speaking/);
-    expect(html).toMatch(/role="tabpanel"[^>]*hidden=""[^>]*><p>S-panel/);
+    // A panel is built only once shown (owner review 2026-10-29: hidden
+    // panels made pages heavy): the hidden one is an empty shell, kept for
+    // its id and aria wiring.
+    expect(html).toMatch(/role="tabpanel"[^>]*hidden=""[^>]*><\/div>/);
+    expect(html).not.toContain('S-panel');
     expect(html).toMatch(/role="tabpanel"(?![^>]*hidden)[^>]*><p>J-panel/);
   });
 
