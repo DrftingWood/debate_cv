@@ -178,6 +178,13 @@ export function normalizePersonNameV2(name: string): string {
 }
 ```
 
+**As built (phase 1, 2026-10-29), two additions to this sketch, both measured on the 2026-10 export (68,681 distinct names):**
+
+- **Undecomposed Latin letters are spelled out** (đ, ð → d; ı → i; ł → l; ø → o; æ → ae; œ → oe; ß → ss; þ → th) after the mark fold. These letters carry no combining mark, so the sketch above kept them, and 365 names (đ in 117 of them, ı 57, ł 53) never met their plain spelling: "Nguyễn Đức" stayed `different` from "Nguyen Duc".
+- **`fold` applies NFKC before dropping a parenthetical**, so full-width brackets ("Xue Rui （Sherry）") are recognised and the nickname does not fuse onto the name. This was a bug in the old `fold` as well.
+
+Result on the export: every name with a key matches itself (44 non-Latin names could not before), and all 4,455 Latin names holding a special letter are `match` or `close` to their ASCII spelling (none `different`). Plain ASCII names key exactly as in v1.
+
 Lives next to v1 in `lib/calicotab/fingerprint.ts`. `nameProximity.fold` (`nameProximity.ts:32-35`) switches to it so there is one folding rule. v1 is unchanged until phase 7, because it is the bucket key and every ingest upserts on it.
 
 Note: `\p{L}` keeps CJK names as unspaced strings; token rules in `nameProximity` (first/last name) then see a single token and answer `different` unless exact. That is the safe direction (held for confirmation, never a wrong auto-claim).

@@ -85,3 +85,53 @@ export function normalizePersonName(name: string): string {
       .trim()
   );
 }
+
+/**
+ * Name key v2 (identity option B, phase 1;
+ * docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md 3.5).
+ *
+ * v1 above keeps only `a-z0-9`, so it deletes every other letter instead of
+ * folding it: "José" keys as "jos", "Łukasz" as "ukasz", and a name written
+ * wholly in Cyrillic, Devanagari or CJK keys as the empty string, which is
+ * why such a debater cannot have a Person today. v2:
+ *   - folds accents by decomposing (NFKD, which also unpacks ligatures and
+ *     full-width forms) and dropping every combining mark: "José" → "jose";
+ *   - keeps letters and digits of every script (`\p{L}`, `\p{N}`);
+ *   - keeps v1's separators: hyphen, underscore, period and slash become
+ *     spaces, so "Abhishek-Acharya" still keys as "abhishek acharya";
+ *   - spells out the Latin letters that carry no combining mark to drop
+ *     (`UNDECOMPOSED`), so "Đức" keys as "duc" and "Łukasz" as "lukasz".
+ *
+ * The last rule goes beyond the spec's sketch. Measured on the 2026-10 export
+ * (68,681 distinct names), 409 keys differ between v1 and v2: 44 non-Latin
+ * names v1 emptied, and 365 Latin names holding đ (117), ı (57), ł (53), ø,
+ * ð or æ. Without the table those stayed "đuc" and never met the "Duc" a
+ * profile or a forwarded tab spells, so a Vietnamese or Turkish debater's
+ * own name read as `different`.
+ *
+ * v1 stays the bucket key (`Person.normalizedName`) until phase 7, because
+ * every ingest upserts on it; v2 is for aliases and identity matching.
+ */
+const UNDECOMPOSED: Readonly<Record<string, string>> = {
+  đ: 'd',
+  ð: 'd',
+  ı: 'i',
+  ł: 'l',
+  ø: 'o',
+  æ: 'ae',
+  œ: 'oe',
+  ß: 'ss',
+  þ: 'th',
+};
+
+export function normalizePersonNameV2(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[đðıłøæœßþ]/g, (ch) => UNDECOMPOSED[ch] ?? ch)
+    .replace(/[-_./\\]+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

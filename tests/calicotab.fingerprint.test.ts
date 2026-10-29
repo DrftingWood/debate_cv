@@ -4,6 +4,7 @@ import {
   extractYearFromName,
   inferTournamentYear,
   normalizePersonName,
+  normalizePersonNameV2,
 } from '@/lib/calicotab/fingerprint';
 
 describe('computeFingerprint', () => {
@@ -76,5 +77,51 @@ describe('normalizePersonName', () => {
     expect(normalizePersonName('abhishek_acharya')).toBe('abhishek acharya');
     expect(normalizePersonName('Abhishek.Acharya')).toBe('abhishek acharya');
     expect(normalizePersonName('Acharya/Abhishek')).toBe('acharya abhishek');
+  });
+});
+
+// Name key v2 (identity option B, phase 1). v1's tests above are unchanged:
+// v1 stays the bucket key until phase 7.
+describe('normalizePersonNameV2', () => {
+  test('folds accents instead of deleting the letter', () => {
+    expect(normalizePersonNameV2('José Álvarez')).toBe('jose alvarez');
+    expect(normalizePersonNameV2('Méline Dupré')).toBe('meline dupre');
+    expect(normalizePersonName('José')).toBe('jos'); // the v1 loss v2 exists to fix
+  });
+
+  test('spells out Latin letters that carry no mark to drop', () => {
+    expect(normalizePersonNameV2('Nguyễn Văn Đức')).toBe('nguyen van duc');
+    expect(normalizePersonNameV2('Łukasz Żółć')).toBe('lukasz zolc');
+    expect(normalizePersonNameV2('Bjørn Ærø')).toBe('bjorn aero');
+    expect(normalizePersonNameV2('Işık Strauß')).toBe('isik strauss');
+  });
+
+  test('keeps letters of every script', () => {
+    expect(normalizePersonNameV2('Иван Петров')).toBe('иван петров');
+    expect(normalizePersonNameV2('अभिषेक आचार्य')).not.toBe('');
+    expect(normalizePersonNameV2('王伟')).toBe('王伟');
+    expect(normalizePersonName('王伟')).toBe(''); // v1 empties it
+  });
+
+  test("keeps v1's separators and drops other punctuation", () => {
+    expect(normalizePersonNameV2('Abhishek-Acharya')).toBe('abhishek acharya');
+    expect(normalizePersonNameV2('abhishek_acharya')).toBe('abhishek acharya');
+    expect(normalizePersonNameV2("O'Brien, Seán")).toBe('obrien sean');
+    expect(normalizePersonNameV2('  Abhishek    Acharya ')).toBe('abhishek acharya');
+  });
+
+  test('unpacks compatibility forms (ligatures, full-width letters)', () => {
+    expect(normalizePersonNameV2('Ｊｏｈｎ Ｓｍｉｔｈ')).toBe('john smith');
+    expect(normalizePersonNameV2('ﬁona')).toBe('fiona');
+  });
+
+  test('is empty only for input with no letters or digits', () => {
+    expect(normalizePersonNameV2('— . —')).toBe('');
+    expect(normalizePersonNameV2('')).toBe('');
+  });
+
+  test('agrees with v1 on plain ASCII names', () => {
+    for (const n of ['Abhishek Acharya', 'priya-rao', 'Team 3 Swing', 'A. K. Sen'])
+      expect(normalizePersonNameV2(n)).toBe(normalizePersonName(n));
   });
 });

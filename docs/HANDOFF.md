@@ -2,6 +2,28 @@
 
 ---
 
+## 2026-10-29 - Identity option B: owner decisions in the spec, phase 1 (name key v2)
+
+- **Spec.** `docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md` gains section 10, the owner's 2026-10-29 answers, overriding the text above it, with inline markers where it does:
+  - legacy claims are carried over (guarded) and shown with the "Added from public tab" mark, so `buildCvData` reads URL tournaments plus claimed participations;
+  - a `close` name never auto-claims;
+  - four guardrails on new claims (evidence, same-round, one owner, 50 a day);
+  - name-level suppression with admin exceptions;
+  - phase 7 after 1-6 with a short-list re-ingest;
+  - the owner runs production steps after an agent rehearsal, with a 14-day soak.
+- **Phase 1** (no database). `normalizePersonNameV2` in `lib/calicotab/fingerprint.ts`: NFKD, drop every combining mark, spell out undecomposed Latin letters (đ ð ı ł ø æ œ ß þ), keep letters of every script, v1's separators. `nameProximity.fold` now uses it, with NFKC first so full-width brackets are dropped as a parenthetical. v1 (`normalizePersonName`, the `Person.normalizedName` bucket key) and every caller of it are unchanged. The Found matcher (`lib/discovery/names.ts`) and the identity checker also stay on v1.
+- **Measured on the 2026-10 export** (`~/Documents/source-docs`, 68,681 distinct names from speaker tabs and participant lists, through the ingest parsers):
+  - 409 keys differ from the old `fold`: 44 non-Latin names it emptied, 365 Latin names with đ (117), ı (57), ł (53), ø, ð or æ;
+  - with v2, every keyed name matches itself;
+  - all 4,455 Latin names holding a special letter are `match` or `close` to their ASCII spelling. Before the transliteration table and the bracket fix, 6 were still `different`, all of them nicknames in full-width brackets.
+  - The comparison ran as a temporary test and was deleted; it printed counts only.
+- **Effect today.** `fold` serves only `proximityToYou` in `/api/onboarding/names`, which skips names whose v1 key is empty before comparing. So the visible change is Latin names with those letters now matching a plain spelling of the profile name (`close` → `match` or `different` → `close`).
+- **Tests.** New `normalizePersonNameV2` cases in `tests/calicotab.fingerprint.test.ts`, new proximity cases in `tests/identity.nameProximity.test.ts`, every existing answer unchanged; 2243 tests pass.
+- **Next.** Phase 2: the expand migration (columns, `UserNameAlias`, indexes; section 4.1), rehearsed on a Neon branch first.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Navigation: four header items, Imports as stages, Found in Review
 
 - **Scope (owner's choice).** The UI half of what the redesign plan put "with Found phase 2". In the discovery spec, phase 2 is identity option B phases 1-4 (alias table, per-participation claims, dual-write, backfill, read switch); that and "Add to my record" (spec phase 3) are not in this PR. Option B still has four open owner questions (phase 7 timing, legacy claims, suppression scope, who runs production steps); its Q3 is answered by the owner rule that a close name always needs the user's tick.
