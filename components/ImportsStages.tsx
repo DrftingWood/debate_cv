@@ -100,7 +100,7 @@ export function ImportsStages({
               // current one is marked as such (aria-current="true", not "page").
               aria-current={s.current ? 'true' : undefined}
               className={cn(
-                'block h-full rounded-card border bg-card p-stack transition-colors duration-150 ease-soft hover:bg-surface-2',
+                'block h-full rounded-card border bg-card p-stack transition-colors hover:bg-surface-2',
                 s.current ? 'border-primary ring-1 ring-primary/25' : 'border-border',
               )}
             >

@@ -2,6 +2,33 @@
 
 ---
 
+## 2026-10-29 - Motion (decision 23)
+
+- **Tokens** (`app/globals.css`).
+  - `--default-transition-duration: 120ms` and an ease-out default, so every bare `transition-*` utility (hover, press, focus) runs 120 ms. The three hard-coded `duration-150 ease-soft` hovers (Button, ImportsStages, NavLink) now take the default.
+  - Disclosure carets run 180 ms (year groups, round caret, round card, filter partner list, unmatched rows, motions archive).
+  - `--animate-fade-in` is now a 200 ms opacity cross-fade.
+- **Cross-fades.**
+  - Tab panels fade in on every switch: a CSS animation restarts when `hidden` comes off (`components/ui/Tabs.tsx`).
+  - Signed-in route changes fade through `app/(app)/template.tsx`, which Next remounts on each navigation.
+  - Opacity only, so reduced motion keeps them (an `.animate-fade-in` exception in the reduce block).
+- **Count-up** (`components/ui/CountUp.tsx`).
+  - The Record header's four figures count up once per session, in 600 ms ease-out. The public CV stays still (§3.6).
+  - The server renders the final value; screen readers hear only the final number.
+  - Reduced motion shows the final value at once.
+  - A figure is marked seen only when its count finishes, and a teardown mid-count restores the real figure.
+  - **Flicker rule:** on a full page load the server's figure is painted before hydration, so a hydrating figure counts only if hydration came within 150 ms of first paint. A client navigation always counts. `useSyncExternalStore` (the server snapshot during hydration) tells the two apart.
+- **Unchanged.** The career bars already grew once in 500 ms plus a stagger capped at 200 ms (≤700 ms). Nothing loops except the loading skeleton's shimmer and spinners, as before.
+- **Checked** with Playwright against the seeded local DB:
+  - computed transitions: 0.12 s ease-out, carets 0.18 s, panels `fade-in 0.2s`;
+  - a client navigation to /cv counts 0→12 over about 600 ms;
+  - a slow first load shows 12 with no flicker;
+  - with reduced motion the figures show at once and the panels still fade;
+  - no page errors.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Landing page: four sections, an annotated sample, privacy as a ledger
 
 - **Layout** (`app/page.tsx`, owner decision 20, design §3.1). There are four sections where there were seven:

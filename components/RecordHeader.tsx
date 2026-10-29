@@ -1,4 +1,5 @@
 import { StatRow, StatTile } from '@/components/ui/StatTile';
+import { CountUp } from '@/components/ui/CountUp';
 import { CareerChart } from '@/components/ui/CareerChart';
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { judgingSeries, speakingSeries } from '@/lib/cv/careerChart';
@@ -20,6 +21,7 @@ export function RecordHeader({
   speakerRows,
   judgeRows,
   summary,
+  countUp = false,
 }: {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
@@ -29,15 +31,26 @@ export function RecordHeader({
     tournamentsJudged: number;
     judgingBreaks: number;
   };
+  /**
+   * Count the four figures up once per session (decision 23). The Record
+   * does; the public CV does not, as a credential it stays still (§3.6).
+   */
+  countUp?: boolean;
 }) {
+  const fig = (value: number, id: string) =>
+    countUp ? <CountUp value={value} id={`record-${id}`} /> : value;
   const roles = [
     summary.tournamentsSpoken > 0 ? (
       <div key="speaking" className="min-w-0 space-y-stack">
         <StatRow columns={2}>
-          <StatTile label="Spoke" value={summary.tournamentsSpoken} hint="tournaments" />
+          <StatTile
+            label="Spoke"
+            value={fig(summary.tournamentsSpoken, 'spoke')}
+            hint="tournaments"
+          />
           <StatTile
             label="Broke"
-            value={summary.speakingBreaks}
+            value={fig(summary.speakingBreaks, 'broke')}
             hint={`${percent(summary.speakingBreaks, summary.tournamentsSpoken)} of ${summary.tournamentsSpoken} spoken`}
           />
         </StatRow>
@@ -51,10 +64,14 @@ export function RecordHeader({
     summary.tournamentsJudged > 0 ? (
       <div key="judging" className="min-w-0 space-y-stack">
         <StatRow columns={2}>
-          <StatTile label="Judged" value={summary.tournamentsJudged} hint="tournaments" />
+          <StatTile
+            label="Judged"
+            value={fig(summary.tournamentsJudged, 'judged')}
+            hint="tournaments"
+          />
           <StatTile
             label="Outrounds judged"
-            value={summary.judgingBreaks}
+            value={fig(summary.judgingBreaks, 'outrounds')}
             hint={`${percent(summary.judgingBreaks, summary.tournamentsJudged)} of ${summary.tournamentsJudged} judged`}
           />
         </StatRow>

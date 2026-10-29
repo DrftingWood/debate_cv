@@ -188,7 +188,7 @@ export function StatsFilterBar({
                     : `${filter.partners.length} partners`}
               </span>
               <CaretDown
-                className="h-4 w-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180"
+                className="h-4 w-4 shrink-0 text-ink-soft transition-transform duration-180 group-open:rotate-180 motion-reduce:transition-none"
                 aria-hidden
               />
             </summary>

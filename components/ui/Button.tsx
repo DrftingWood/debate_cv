@@ -7,7 +7,7 @@ type Size = 'sm' | 'md' | 'lg';
 
 const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
-  'rounded-md transition-colors duration-150 ease-soft select-none ' +
+  'rounded-md transition-colors select-none ' +
   'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
   'disabled:cursor-not-allowed';
 

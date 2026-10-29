@@ -179,7 +179,10 @@ export function Tabs({
           // A panel often opens with prose, not a control, so it takes focus
           // itself (APG) and Tab from the list lands on the content.
           tabIndex={0}
-          className={cn('min-w-0', !vertical && 'pt-panel')}
+          // The 200 ms cross-fade (decision 23): a CSS animation restarts
+          // each time `hidden` comes off, so every switch fades the new panel
+          // in. Opacity only, so reduced motion keeps it.
+          className={cn('min-w-0 animate-fade-in', !vertical && 'pt-panel')}
         >
           {item.panel}
         </div>

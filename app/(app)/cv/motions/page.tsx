@@ -221,7 +221,7 @@ export default async function CvMotionsPage() {
                     <span className="flex shrink-0 items-center gap-2 text-caption text-ink-soft">
                       {list.length} motion{list.length === 1 ? '' : 's'}
                       <CaretDown
-                        className="h-4 w-4 text-primary transition-transform group-open:rotate-180"
+                        className="h-4 w-4 text-primary transition-transform duration-180 group-open:rotate-180 motion-reduce:transition-none"
                         aria-hidden
                       />
                     </span>

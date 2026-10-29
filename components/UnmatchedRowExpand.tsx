@@ -27,7 +27,7 @@ export function UnmatchedRowExpand({
         variant="outline"
         leftIcon={
           <CaretDown
-            className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`h-3.5 w-3.5 transition-transform duration-180 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
             aria-hidden
           />
         }
