@@ -19,7 +19,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Tabs } from '@/components/ui/Tabs';
 import { StatsFilterBar } from '@/components/stats/StatsFilterBar';
 import { JudgingTabs, SpeakingTabs } from '@/components/stats/StatsTabs';
-import { Coverage, HeadlineStats, Quirks } from '@/components/stats/StatsSections';
+import { Coverage, HeadlineStats } from '@/components/stats/StatsSections';
+import { Quirks } from '@/components/stats/Findings';
 
 /** The filter's own query parameters, cleared and rewritten on each change. */
 const FILTER_PARAMS = ['partner', 'pairing', 'seat'] as const;
