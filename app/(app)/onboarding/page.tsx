@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
@@ -57,7 +57,7 @@ export default async function OnboardingPage() {
         <Card>
           <CardBody className="space-y-4 p-6">
             <div className="inline-flex items-center gap-2 text-success">
-              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              <CheckCircle className="h-4 w-4" aria-hidden />
               <span className="text-ui font-medium">
                 {claimedCount} {claimedCount === 1 ? 'name' : 'names'} claimed
               </span>

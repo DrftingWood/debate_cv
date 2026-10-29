@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3 } from 'lucide-react';
+import { ChartBar } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
@@ -85,7 +85,7 @@ export default async function CvStatsPage() {
 
       {!hasAnything ? (
         <EmptyState
-          icon={<BarChart3 className="h-5 w-5" aria-hidden />}
+          icon={<ChartBar weight="light" className="h-5 w-5" aria-hidden />}
           title="Not enough data yet"
           description="Statistics appear once at least one tournament with parsed results is on your record. Ingest tournaments from Imports first."
           action={

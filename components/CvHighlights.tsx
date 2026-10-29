@@ -1,4 +1,12 @@
-import { Trophy, Mic, GraduationCap, Gavel, Crown, Globe, Users } from 'lucide-react';
+import {
+  BreakMark,
+  Chair,
+  ChampionMark,
+  CoreMark,
+  MajorMark,
+  SpeakerMark,
+  Star,
+} from '@/components/ui/icons';
 import type { CvHighlights as CvHighlightsData } from '@/lib/cv/buildCvData';
 import { SectionHeader } from '@/components/ui/Card';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
@@ -46,6 +54,8 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
     items: string[];
     icon: React.ReactNode;
     gold?: boolean;
+    /** Adjudication core: its mark takes `core-purple`, reserved for that role (DESIGN_INSTRUCTIONS §6). */
+    core?: boolean;
   }> = [];
 
   if (championships.length > 0) {
@@ -55,7 +65,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       items: championships.map(
         (c) => withYear(c.tournamentName, c.year) + (c.category ? ` (${c.category} title)` : ''),
       ),
-      icon: <Trophy className="h-3.5 w-3.5" aria-hidden />,
+      icon: <ChampionMark className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });
   }
@@ -70,7 +80,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
         (b) =>
           `${b.stage ? breakLabel(b.stage, b.won) : 'Broke'} · ${withYear(b.tournamentName, b.year)}`,
       ),
-      icon: <Mic className="h-3.5 w-3.5" aria-hidden />,
+      icon: <BreakMark className="h-3.5 w-3.5" aria-hidden />,
       gold: true,
     });
   }
@@ -82,7 +92,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       items: topSpeakerFinishes.map(
         (b) => `#${b.rank} speaker · ${withYear(b.tournamentName, b.year)}`,
       ),
-      icon: <Users className="h-3.5 w-3.5" aria-hidden />,
+      icon: <Star className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (bestSpeakerRank) {
@@ -95,7 +105,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
             ? ` · top ${formatTopPercent(bestSpeakerRank.topPercent)}`
             : ''),
       ],
-      icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
+      icon: <SpeakerMark className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (bestSpeakerAverage) {
@@ -103,7 +113,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Peak average',
       title: bestSpeakerAverage.score.toFixed(1),
       items: [withYear(bestSpeakerAverage.tournamentName, bestSpeakerAverage.year)],
-      icon: <GraduationCap className="h-3.5 w-3.5" aria-hidden />,
+      icon: <SpeakerMark className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (outroundsChaired > 0) {
@@ -111,7 +121,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Outrounds chaired',
       title: String(outroundsChaired),
       items: [`${outroundsChaired === 1 ? 'Tournament' : 'Tournaments'} with an outround chair`],
-      icon: <Gavel className="h-3.5 w-3.5" aria-hidden />,
+      icon: <Chair className="h-3.5 w-3.5" aria-hidden />,
     });
   }
   if (adjCoreCount > 0) {
@@ -119,7 +129,8 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Adjudication core',
       title: `${adjCoreCount}×`,
       items: [`${adjCoreCount === 1 ? 'Tournament' : 'Tournaments'} on the adj core`],
-      icon: <Crown className="h-3.5 w-3.5" aria-hidden />,
+      icon: <CoreMark className="h-3.5 w-3.5" aria-hidden />,
+      core: true,
     });
   }
   if (majorEvents.length > 0) {
@@ -127,7 +138,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
       label: 'Major circuit',
       title: `${majorEvents.length} ${majorEvents.length === 1 ? 'major' : 'majors'}`,
       items: majorEvents.map((m) => withYear(m.tournamentName, m.year)),
-      icon: <Globe className="h-3.5 w-3.5" aria-hidden />,
+      icon: <MajorMark className="h-3.5 w-3.5" aria-hidden />,
     });
   }
 
@@ -140,7 +151,13 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
         {tiles.map((t, i) => (
           <article key={i} className="panel p-4">
             <div className="data-label flex items-center gap-1.5">
-              <span className={t.gold ? 'text-break-gold' : 'text-primary'}>{t.icon}</span>
+              <span
+                className={
+                  t.gold ? 'text-break-gold' : t.core ? 'text-core-purple' : 'text-primary'
+                }
+              >
+                {t.icon}
+              </span>
               {t.label}
             </div>
             <h3

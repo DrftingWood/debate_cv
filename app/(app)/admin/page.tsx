@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Download } from 'lucide-react';
+import { DownloadSimple } from '@/components/ui/icons';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
@@ -146,7 +146,7 @@ export default async function AdminPage() {
             href="/api/admin/cv-error-reports-export"
             className={buttonClasses({ variant: 'outline', size: 'sm' })}
           >
-            <Download className="h-3.5 w-3.5" aria-hidden /> Export CSV
+            <DownloadSimple className="h-3.5 w-3.5" aria-hidden /> Export CSV
           </a>
         </div>
         {cvReports.length === 0 ? (

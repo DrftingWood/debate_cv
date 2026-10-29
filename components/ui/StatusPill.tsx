@@ -1,5 +1,12 @@
 import * as React from 'react';
-import { CheckCircle2, Clock, XCircle, Loader2, Ban, UserSearch } from 'lucide-react';
+import {
+  CheckCircle,
+  CircleNotch,
+  Clock,
+  Prohibit,
+  UserFocus,
+  XCircle,
+} from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 export type Status = 'done' | 'pending' | 'running' | 'failed' | 'unavailable' | 'unmatched';
@@ -17,12 +24,12 @@ const tones: Record<Status, string> = {
 };
 
 const icons: Record<Status, React.ComponentType<{ className?: string }>> = {
-  done: CheckCircle2,
+  done: CheckCircle,
   pending: Clock,
-  running: Loader2,
+  running: CircleNotch,
   failed: XCircle,
-  unavailable: Ban,
-  unmatched: UserSearch,
+  unavailable: Prohibit,
+  unmatched: UserFocus,
 };
 
 const labels: Record<Status, string> = {

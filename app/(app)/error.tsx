@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { AlertCircle } from 'lucide-react';
+import { WarningCircle } from '@/components/ui/icons';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { ErrorReference } from '@/components/ui/ErrorReference';
 
@@ -32,7 +32,7 @@ export default function AppError({
   return (
     <section className="mx-auto max-w-lg py-16 text-center">
       <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--destructive)/0.10)] text-destructive">
-        <AlertCircle className="h-5 w-5" aria-hidden />
+        <WarningCircle weight="light" className="h-5 w-5" aria-hidden />
       </div>
       <h1 className="mt-4 font-display text-h3 font-medium text-ink">
         Something broke on this page

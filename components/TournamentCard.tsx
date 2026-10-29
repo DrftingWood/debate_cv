@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ArrowSquareOut } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 /**
@@ -38,7 +38,7 @@ export function TournamentLink({
       )}
     >
       <span className="min-w-0">{name}</span>
-      <ExternalLink className="h-3 w-3 shrink-0 self-center text-ink-soft" aria-hidden />
+      <ArrowSquareOut className="h-3 w-3 shrink-0 self-center text-ink-soft" aria-hidden />
       <span className="sr-only"> (opens in new tab)</span>
     </a>
   );

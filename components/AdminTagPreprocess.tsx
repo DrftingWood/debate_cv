@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Download, Upload } from 'lucide-react';
+import { DownloadSimple, UploadSimple } from '@/components/ui/icons';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -74,14 +74,14 @@ export function AdminTagPreprocess() {
         download
         className={buttonClasses({ variant: 'outline', size: 'sm' })}
       >
-        <Download className="h-3.5 w-3.5" aria-hidden /> Download untagged
+        <DownloadSimple className="h-3.5 w-3.5" aria-hidden /> Download untagged
       </a>
       <Button
         type="button"
         size="sm"
         variant="outline"
         loading={loading}
-        leftIcon={<Upload className="h-3.5 w-3.5" aria-hidden />}
+        leftIcon={<UploadSimple className="h-3.5 w-3.5" aria-hidden />}
         onClick={() => fileInput.current?.click()}
       >
         Load answers

@@ -1,6 +1,6 @@
 'use client';
 
-import { Download } from 'lucide-react';
+import { DownloadSimple } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 
 /**
@@ -16,7 +16,7 @@ export function DownloadPdfButton({ size = 'sm' }: { size?: 'sm' | 'md' }) {
       type="button"
       size={size}
       variant="outline"
-      leftIcon={<Download className="h-3.5 w-3.5" aria-hidden />}
+      leftIcon={<DownloadSimple className="h-3.5 w-3.5" aria-hidden />}
       onClick={() => {
         if (typeof window !== 'undefined') window.print();
       }}

@@ -2,15 +2,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
-  Inbox,
+  ArrowSquareOut,
   Clock,
+  Link as LinkIcon,
+  Prohibit,
+  Tray,
+  UserFocus,
+  Warning,
   XCircle,
-  ExternalLink,
-  Link2,
-  UserSearch,
-  Ban,
-  AlertTriangle,
-} from 'lucide-react';
+} from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isAdminEmail } from '@/lib/admin';
@@ -205,7 +205,7 @@ export default async function Dashboard({
       {/* Stat tiles — clickable filter shortcuts */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <FilterTile
-          icon={<Link2 className="h-4 w-4" aria-hidden />}
+          icon={<LinkIcon className="h-4 w-4" aria-hidden />}
           label="Private URLs"
           value={counts.all}
           hint="from your Gmail"
@@ -223,7 +223,7 @@ export default async function Dashboard({
           activeFilter={activeFilter}
         />
         <FilterTile
-          icon={<UserSearch className="h-4 w-4" aria-hidden />}
+          icon={<UserFocus className="h-4 w-4" aria-hidden />}
           label="Unmatched"
           value={counts.unmatched}
           hint="need to claim yourself"
@@ -250,7 +250,7 @@ export default async function Dashboard({
            click away. Most visits end here. */
         rows.length === 0 ? (
           <EmptyState
-            icon={<Inbox className="h-5 w-5" aria-hidden />}
+            icon={<Tray weight="light" className="h-5 w-5" aria-hidden />}
             title="No private URLs yet"
             description={emptyDescription}
             action={emptyAction}
@@ -330,14 +330,14 @@ export default async function Dashboard({
 
           {rows.length === 0 ? (
             <EmptyState
-              icon={<Inbox className="h-5 w-5" aria-hidden />}
+              icon={<Tray weight="light" className="h-5 w-5" aria-hidden />}
               title="No private URLs yet"
               description={emptyDescription}
               action={emptyAction}
             />
           ) : filtered.length === 0 ? (
             <EmptyState
-              icon={<Ban className="h-5 w-5" aria-hidden />}
+              icon={<Prohibit weight="light" className="h-5 w-5" aria-hidden />}
               title={`No ${activeFilter} URLs`}
               description="Nothing matches this filter right now."
               action={
@@ -375,7 +375,7 @@ export default async function Dashboard({
                             >
                               {u.url}
                               <span className="sr-only">(opens in a new tab)</span>
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                              <ArrowSquareOut className="h-3 w-3 shrink-0" aria-hidden />
                               <span className="sr-only"> (opens in new tab)</span>
                             </a>
                           </div>
@@ -434,7 +434,7 @@ export default async function Dashboard({
                             >
                               <span className="truncate">{u.url}</span>
                               <span className="sr-only">(opens in a new tab)</span>
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                              <ArrowSquareOut className="h-3 w-3 shrink-0" aria-hidden />
                               <span className="sr-only"> (opens in new tab)</span>
                             </a>
                           </Td>
@@ -604,7 +604,7 @@ function TournamentMetrics({
   if (ingestedAt && !hasMetrics) {
     return (
       <div className="mt-0.5 flex items-center gap-1 text-caption text-warning">
-        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <Warning className="h-3.5 w-3.5 shrink-0" aria-hidden />
         No data scraped
       </div>
     );
@@ -653,7 +653,7 @@ function ImportProblem({
         )}
       >
         {failed || finished ? (
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <Warning className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         ) : null}
         <span className="whitespace-normal">{summary}</span>
       </p>

@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, Search, ChevronDown } from 'lucide-react';
+import { CaretDown, MagnifyingGlass, Table as TableIcon } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
@@ -213,7 +213,7 @@ export default async function CvPage() {
 
       {totalTournaments === 0 ? (
         <EmptyState
-          icon={<Trophy className="h-5 w-5" aria-hidden />}
+          icon={<TableIcon weight="light" className="h-5 w-5" aria-hidden />}
           title="No tournaments ingested yet"
           description={
             <>
@@ -227,7 +227,7 @@ export default async function CvPage() {
           action={
             gmailToken ? (
               <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
-                <Search className="h-4 w-4" aria-hidden /> Open imports
+                <MagnifyingGlass className="h-4 w-4" aria-hidden /> Open imports
               </Link>
             ) : undefined
           }
@@ -406,7 +406,7 @@ function RoundLedger({
   return (
     <details className={cn('group', className)}>
       <summary className="flex cursor-pointer select-none items-center gap-1.5 py-2 text-caption text-ink-soft hover:text-ink">
-        <ChevronDown
+        <CaretDown
           className="h-3.5 w-3.5 text-primary transition-transform group-open:rotate-180"
           aria-hidden
         />

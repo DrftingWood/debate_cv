@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
+import { Sparkle } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -90,7 +90,7 @@ export function AdminClassifyMotionsButton() {
       size="sm"
       variant="outline"
       loading={running}
-      leftIcon={<Sparkles className="h-3.5 w-3.5" aria-hidden />}
+      leftIcon={<Sparkle className="h-3.5 w-3.5" aria-hidden />}
       onClick={run}
     >
       {running ? `Suggesting… ${progress}` : 'Suggest all tags'}

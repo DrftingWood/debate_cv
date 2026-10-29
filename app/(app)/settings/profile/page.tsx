@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { UserCheck } from 'lucide-react';
+import { UserCheck } from '@/components/ui/icons';
 import { Card, CardBody } from '@/components/ui/Card';
 import { IdentityManager } from '@/components/IdentityManager';
 

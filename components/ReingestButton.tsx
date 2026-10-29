@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { RotateCw } from 'lucide-react';
+import { ArrowClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -25,7 +25,7 @@ export function ReingestButton({ url }: { url: string }) {
       variant="outline"
       size="sm"
       loading={isPending}
-      leftIcon={!isPending ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      leftIcon={!isPending ? <ArrowClockwise className="h-3.5 w-3.5" aria-hidden /> : undefined}
       onClick={() => {
         startTransition(async () => {
           const res = await postJson('/api/ingest/url', { url, force: true });

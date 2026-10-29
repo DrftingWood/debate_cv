@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
+import { ArrowsClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
@@ -28,7 +28,7 @@ export function RetryFailedButton({ count }: { count: number }) {
       size="sm"
       variant="outline"
       loading={isPending}
-      leftIcon={!isPending ? <RefreshCw className="h-3.5 w-3.5" aria-hidden /> : undefined}
+      leftIcon={!isPending ? <ArrowsClockwise className="h-3.5 w-3.5" aria-hidden /> : undefined}
       onClick={() => {
         startTransition(async () => {
           const res = await postJson<RetryResponse>('/api/ingest/retry-failed');

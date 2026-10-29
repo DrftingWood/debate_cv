@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Loader2 } from 'lucide-react';
+import { CircleNotch } from '@/components/ui/icons';
 import { cn } from '@/lib/utils/cn';
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'link';
@@ -138,7 +138,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={buttonClasses({ variant, size, className, pending })}
         {...rest}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : (leftIcon ?? null)}
+        {loading ? (
+          <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          (leftIcon ?? null)
+        )}
         {children}
         {!loading && rightIcon ? rightIcon : null}
       </button>

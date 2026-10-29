@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal } from '@/components/ui/icons';
 import type { CvData } from '@/lib/cv/buildCvData';
 import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import type { StatsFacts } from '@/lib/cv/statsFacts';
@@ -167,7 +167,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
       {active && filtered.speakerRows.length === 0 ? (
         <div className="space-y-10">
           <EmptyState
-            icon={<SlidersHorizontal className="h-5 w-5" aria-hidden />}
+            icon={<SlidersHorizontal weight="light" className="h-5 w-5" aria-hidden />}
             title="No rounds match these filters"
             description="Nothing on your record fits every filter at once. Remove one to widen the view. Judging has no partner or seat, so it still shows below."
           />

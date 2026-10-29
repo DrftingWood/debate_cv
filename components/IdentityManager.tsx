@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowsClockwise, CheckCircle, CircleNotch } from '@/components/ui/icons';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
@@ -156,7 +156,7 @@ export function IdentityManager() {
   if (loading) {
     return (
       <div role="status" className="flex items-center gap-2 text-ui text-ink-soft">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
         Loading your names…
       </div>
     );
@@ -170,7 +170,7 @@ export function IdentityManager() {
           type="button"
           variant="outline"
           size="sm"
-          leftIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+          leftIcon={<ArrowsClockwise className="h-3.5 w-3.5" aria-hidden />}
           onClick={() => void load()}
         >
           Retry
@@ -256,7 +256,7 @@ export function IdentityManager() {
           variant="primary"
           size="sm"
           loading={isSaving}
-          leftIcon={!isSaving ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : undefined}
+          leftIcon={!isSaving ? <CheckCircle className="h-4 w-4" aria-hidden /> : undefined}
           onClick={onSave}
         >
           {isSaving ? 'Saving…' : 'Save changes'}

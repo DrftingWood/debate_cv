@@ -25,7 +25,7 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 - **googleapis 144** for Gmail, **cheerio 1** for scraping
 - **Sentry** (`@sentry/nextjs` 10) wired via `withSentryConfig` in `next.config.ts`, tunneled through `/monitoring`
 - **Vitest 2** for tests (Node env)
-- **zod 4** for validation, **clsx** + **tailwind-merge** for class composition, **lucide-react** for icons
+- **zod 4** for validation, **clsx** + **tailwind-merge** for class composition, **Phosphor** (`@phosphor-icons/react`) for icons, always through `components/ui/icons.ts` (lint-enforced), plus the custom marks in `components/ui/DebateMarks.tsx`
 - Node `>=20`. Package manager: **npm** (`package-lock.json` is the only committed lockfile; Vercel auto-detects npm from it). Previously a stale `pnpm-lock.yaml` was also committed, but it drifted and broke prod deploys — removed.
 
 ## Architecture
@@ -71,7 +71,7 @@ components/
   ui/                         Primitives: Button, Card (+ SectionHeader), Badge, Toast, Skeleton,
                               Spinner, StatusPill, EmptyState, DataTable (Table/Th/Td/Tr/Nil),
                               StatTile (+ StatRow, DeltaChip), TrendChart (+ Sparkline),
-                              BarList (+ Meter, Histogram)
+                              BarList (+ Meter, Histogram), icons (the one icon barrel) + DebateMarks
   (flat)                      Feature components (DashboardActions, IdentityManager, CvHighlights, SharingManager, ...)
 
 prisma/

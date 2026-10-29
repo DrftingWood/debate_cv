@@ -24,9 +24,6 @@ const config: NextConfig = {
   outputFileTracingExcludes: {
     '*': ['**/*.map'],
   },
-  experimental: {
-    optimizePackageImports: ['lucide-react'],
-  },
   async headers() {
     return [
       {
