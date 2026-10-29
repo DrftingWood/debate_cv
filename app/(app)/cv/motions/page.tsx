@@ -128,7 +128,9 @@ export default async function CvMotionsPage({
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
           Scraped from each tournament&rsquo;s motions tab and joined to the round you debated it
           in. For tournaments you judged, only the rounds you sat on a panel for are listed.
-          Tournaments that never released their motions publicly do not appear.
+          Tournaments that never released their motions publicly do not appear. Where a round
+          released more than one motion, each is tagged &ldquo;1 of n this round&rdquo; and the
+          score and result shown are the round&rsquo;s.
           {leftOut > 0
             ? ` ${leftOut} tournament${leftOut === 1 ? '' : 's'} you judged ${leftOut === 1 ? 'is' : 'are'} left out because ${leftOut === 1 ? 'its' : 'their'} panels aren’t recorded.`
             : ''}
@@ -314,12 +316,9 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
           </dl>
         )}
       </div>
-      {entry.siblings > 0 ? (
-        <p className="mt-1.5 text-caption text-ink-soft">
-          This round released more than one motion, so the round data below applies to the round,
-          not necessarily to this motion.
-        </p>
-      ) : null}
+      {/* The "1 of n this round" tag carries a multi-motion round; what it
+          means is said once in the page intro, not under every sibling
+          (owner, 2026-10-29: the repeated note made those rows 132-156 px). */}
 
       <p className="mt-hair max-w-4xl text-body leading-relaxed text-ink">{motion.text}</p>
 
