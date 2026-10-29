@@ -29,7 +29,7 @@ import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 const pct = (rate: number | null) => (rate == null ? null : `${Math.round(rate * 100)}%`);
 
-const NOT_FILTERABLE = 'Judging has no partner or seat, so filters leave it unchanged';
+const NOT_FILTERABLE = 'Not filtered';
 
 // ── Judging results and stage ───────────────────────────────────────────
 //
@@ -50,24 +50,18 @@ export function JudgingOutroundsSection({ judgeRows }: { judgeRows: JudgeLensRow
     <section id="judging-outrounds" aria-label="Outrounds judged" className="space-y-3">
       <SectionHeader label="Judging" title="Outrounds judged" meta={NOT_FILTERABLE} />
       <StatRow columns={3}>
-        <StatTile
-          label="Tournaments judged"
-          value={lens.tournaments}
-          hint="every judged tournament on record"
-        />
+        <StatTile label="Tournaments judged" value={lens.tournaments} />
         <StatTile
           label="Broke as a judge"
           value={breaks.broke}
-          hint={`open bracket, of ${plural(breaks.tournaments, 'tournament')}${breaks.rate != null ? ` · ${pct(breaks.rate)}` : ''}${
-            breaks.otherBracket > 0
-              ? ` · also ${breaks.otherBracket} judging only a novice, junior, ESL or consolation outround`
-              : ''
+          hint={`of ${plural(breaks.tournaments, 'tournament')}${breaks.rate != null ? ` · ${pct(breaks.rate)}` : ''}${
+            breaks.otherBracket > 0 ? ` · ${breaks.otherBracket} more in other brackets` : ''
           }`}
         />
         <StatTile
           label="Outround chair"
           value={depth.chairedOutround}
-          hint={`tournaments with an outround chair on record, of ${depth.withOutround} with an outround stage`}
+          hint={`of ${depth.withOutround} with an outround`}
         />
       </StatRow>
     </section>
@@ -168,16 +162,14 @@ export function JudgingChairSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
               </tbody>
             </Table>
           </TableScroll>
-          <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-            Prelims chaired over prelims judged, where both are recorded. Chairs come from the tab's
-            chaired-rounds field, which some tabs leave blank or incomplete, so the rate may
-            under-report chairing. A missing chair count beside a judged-round count is read as none
-            chaired, because that is also how a zero is stored.
-            {chairExclusions.length > 0 ? ` Left out: ${chairExclusions.join('; ')}.` : ''}
-            {chair.undated > 0
-              ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
-              : ''}
-          </p>
+          {chairExclusions.length > 0 || chair.undated > 0 ? (
+            <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
+              {chairExclusions.length > 0 ? `Left out: ${chairExclusions.join('; ')}.` : ''}
+              {chair.undated > 0
+                ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
+                : ''}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>

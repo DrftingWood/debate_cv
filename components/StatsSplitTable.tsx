@@ -16,7 +16,7 @@ import { OUTCOME_COPY, type OutcomeKind } from '@/lib/cv/roundOutcome';
  * the difference between a finding and a coincidence.
  */
 /** Seat, rounds, decided, rate, vs you, speaker avg, vs you (pts), avg pts. */
-const FIXED_WIDTHS_REM = [7, 6, 6, 9, 7, 7.5, 7.5, 6.5];
+const FIXED_WIDTHS_REM = [7, 6, 6, 6, 9, 7.5, 7.5, 6.5];
 
 export function StatsSplitTable({
   splits,
@@ -82,14 +82,17 @@ export function StatsSplitTable({
               <Th numeric title="Prelim rounds where the tab recorded a result">
                 Decided
               </Th>
-              <Th numeric>{OUTCOME_COPY[outcome].rate}</Th>
-              {/* The unit is in the visible header, not only the title: these
-                  two columns sit side by side in different units (UX-31). */}
+              {/* Short visible headers, full names in the title: "2nd-or-better
+                  rate" ran into "vs you (pp)" in the fixed columns. The unit
+                  stays visible, since the two delta columns differ (UX-31). */}
+              <Th numeric title={OUTCOME_COPY[outcome].rate}>
+                Rate
+              </Th>
               <Th
                 numeric
                 title={`${OUTCOME_COPY[outcome].rate} minus ${baselineLabel}, in percentage points`}
               >
-                vs you (pp)
+                ± you (pp)
               </Th>
               <Th numeric>Speaker avg</Th>
               <Th
@@ -97,7 +100,7 @@ export function StatsSplitTable({
                 title={`Speaker average minus ${baselineLabel}, in speaker points`}
                 className={lastScoreCell}
               >
-                vs you (pts)
+                ± you (pts)
               </Th>
               {/* No points column at all when the block has no points. An
                   empty header cell is an axe failure (empty-table-header), and
@@ -147,12 +150,15 @@ export function StatsSplitTable({
                     <>
                       <Td numeric>{pct(s.winRate) ?? <Nil />}</Td>
                       <Td numeric>
-                        <DeltaText
-                          value={s.winRateDelta}
-                          digits={0}
-                          threshold={WIN_RATE_DELTA_THRESHOLD}
-                          suffix="pp"
-                        />
+                        <span className="inline-flex items-center justify-end gap-inline">
+                          <DeltaBar value={s.winRateDelta} threshold={WIN_RATE_DELTA_THRESHOLD} />
+                          <DeltaText
+                            value={s.winRateDelta}
+                            digits={0}
+                            threshold={WIN_RATE_DELTA_THRESHOLD}
+                            suffix="pp"
+                          />
+                        </span>
                       </Td>
                       <Td numeric>{s.avgScore != null ? s.avgScore.toFixed(1) : <Nil />}</Td>
                       <Td numeric className={lastScoreCell}>
@@ -179,12 +185,40 @@ export function StatsSplitTable({
   );
 }
 
-/** "n = 2" in place of a rate on a thin row, with the reason spelled out for a screen reader. */
-function ThinCell({ n, decided = false }: { n: number; decided?: boolean }) {
+/**
+ * A small diverging bar beside the rate delta: the one column readers scan
+ * to find a seat or format that differs (inline bars on the key column only,
+ * per the dataviz research). Centre is "same as you"; a half-width is 30pp.
+ * Coloured only past the noise threshold, exactly as DeltaText tints.
+ */
+function DeltaBar({ value, threshold }: { value: number | null; threshold: number }) {
+  if (value == null) return null;
+  const half = Math.min(Math.abs(value) / 30, 1) * 50;
+  const tone = Math.abs(value) < threshold ? 'bg-ink-soft/40' : value > 0 ? 'bg-pos' : 'bg-neg';
   return (
-    <span className="text-caption text-ink-soft">
-      n = {n}
-      <span className="sr-only">{` ${decided ? 'decided ' : ''}rounds, too few to read as a pattern`}</span>
+    <span aria-hidden className="relative h-1.5 w-10 shrink-0 rounded-full bg-surface-3">
+      <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+      <span
+        className={cn('absolute inset-y-0 rounded-full', tone)}
+        style={
+          value >= 0 ? { left: '50%', width: `${half}%` } : { right: '50%', width: `${half}%` }
+        }
+      />
+    </span>
+  );
+}
+
+/** A dash in place of a rate on a thin row, with the reason spelled out for a screen reader. */
+function ThinCell({ n, decided = false }: { n: number; decided?: boolean }) {
+  // A dash, not "n = 5" in every cell: the row's "few rounds" tag and its
+  // Rounds column already give the sample (dataviz pass 2026-10-29).
+  return (
+    <span
+      className="text-ink-soft"
+      title={`${n} ${decided ? 'decided ' : ''}rounds, too few to show`}
+    >
+      <span aria-hidden>—</span>
+      <span className="sr-only">{`${n} ${decided ? 'decided ' : ''}rounds, too few to read as a pattern`}</span>
     </span>
   );
 }

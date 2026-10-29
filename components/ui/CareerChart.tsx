@@ -15,11 +15,15 @@ import { cn } from '@/lib/utils/cn';
  * Reading it:
  *   - bar height is the number of tournaments that year, scaled to the
  *     busiest year, so a busy year looks busy;
- *   - grey cells sit below an ink rule (no break / no outround); above it
- *     the blue ramp, then gold for a title (speaking) or a chaired final
- *     (judging), then purple for an adjudication-core role;
- *   - a major's cell has a heavy ink outline and a ◆ notch, so a semifinal
- *     at a major still reads as a semifinal; the year label carries ◆n;
+ *   - four tiers (owner, after the dataviz research 2026-10-29: a stack
+ *     reads with at most four parts): light grey cells below an ink rule
+ *     (no break / no outround), then two blues, broke and final, then gold
+ *     for a title (speaking) or a chaired final (judging); purple marks an
+ *     adjudication-core role;
+ *   - each column carries its count on the cap, so the total is read, not
+ *     estimated, and the light grey tier needs no 3:1 (SC 1.4.11 relief);
+ *   - a major's cell carries a ◆ notch, no outline (outlining marks is ink
+ *     that isn't data); the year label carries ◆n;
  *   - the star above a bar grows with the count (area, not radius):
  *     top-10 speaker finishes when speaking, outrounds chaired when judging.
  *
@@ -30,8 +34,8 @@ import { cn } from '@/lib/utils/cn';
  * second tap follows it. A bar is a link to that year in the ledger. The
  * full numbers are also in the "See the numbers" table (UX-32).
  *
- * Motion: bars grow once from the baseline on first render, at most 700 ms
- * including the stagger, and not at all under reduced motion. Nothing loops,
+ * Motion: bars grow once from the baseline on first render, 320 ms plus at
+ * most 120 ms of stagger, and not at all under reduced motion. Nothing loops,
  * so no pause control is needed (SC 2.2.2).
  */
 
@@ -39,17 +43,15 @@ type Tier = { key: string; label: string; swatch: string };
 
 const SPEAKING: Tier[] = [
   { key: 'none', label: 'Did not break', swatch: 'bg-tier-none' },
-  { key: 'qf', label: 'Quarters and below', swatch: 'bg-tier-qf' },
-  { key: 'sf', label: 'Semifinals', swatch: 'bg-tier-sf' },
-  { key: 'f', label: 'Finals', swatch: 'bg-tier-f' },
-  { key: 'champion', label: 'Champion', swatch: 'bg-break-gold' },
+  { key: 'broke', label: 'Broke', swatch: 'bg-tier-broke' },
+  { key: 'f', label: 'Final', swatch: 'bg-tier-f' },
+  { key: 'champion', label: 'Won', swatch: 'bg-break-gold' },
 ];
 
 const JUDGING: Tier[] = [
   { key: 'none', label: 'No outround', swatch: 'bg-tier-none' },
-  { key: 'qf', label: 'Quarters and below', swatch: 'bg-tier-qf' },
-  { key: 'sf', label: 'Semifinals', swatch: 'bg-tier-sf' },
-  { key: 'f', label: 'Final', swatch: 'bg-tier-f' },
+  { key: 'broke', label: 'Judged an outround', swatch: 'bg-tier-broke' },
+  { key: 'f', label: 'Judged the final', swatch: 'bg-tier-f' },
   { key: 'chairedFinal', label: 'Chaired the final', swatch: 'bg-break-gold' },
   { key: 'core', label: 'Adjudication core', swatch: 'bg-core-purple' },
 ];
@@ -230,19 +232,34 @@ function Bar({
   const noneCount = year.cells.filter((c) => c.tier === 'none').length;
   return (
     <>
-      {!compact ? (
-        <span className="flex h-8 shrink-0 items-end justify-center" aria-hidden>
-          {year.stars.length > 0 ? (
-            <Star weight="fill" className="text-break-gold" size={starSize(year.stars.length)} />
-          ) : null}
-        </span>
-      ) : null}
-      <span className="flex w-full min-h-0 flex-1 items-end justify-center" aria-hidden>
+      {/* The cap: the star (if any) over the count, sitting on the column
+          rather than in a strip at the top of the plot, where it floated far
+          above a short year. The padding keeps room for both on the busiest
+          year, whose bar is 100% of the content box. */}
+      <span
+        className={cn(
+          'flex w-full min-h-0 flex-1 flex-col items-center justify-end',
+          !compact && 'pt-12',
+        )}
+        aria-hidden
+      >
+        {!compact && year.stars.length > 0 ? (
+          <Star
+            weight="fill"
+            className="mb-hair shrink-0 text-break-gold"
+            size={starSize(year.stars.length)}
+          />
+        ) : null}
+        {!compact && year.cells.length > 0 ? (
+          <span className="num mb-hair text-caption leading-none text-ink">
+            {year.cells.length}
+          </span>
+        ) : null}
         <span
-          className="flex w-full max-w-12 origin-bottom flex-col-reverse gap-px motion-safe:animate-grow-up"
+          className="flex w-full max-w-10 origin-bottom flex-col-reverse gap-px motion-safe:animate-grow-up"
           style={{
             height: `${(year.cells.length / max) * 100}%`,
-            animationDelay: `${Math.min(index * 40, 200)}ms`,
+            animationDelay: `${Math.min(index * 30, 120)}ms`,
           }}
         >
           {year.cells.map((c, j) => (
@@ -253,9 +270,11 @@ function Bar({
               ) : null}
               <span
                 className={cn(
-                  'relative min-h-0.5 flex-1 rounded-[1px]',
+                  'relative min-h-0.5 flex-1',
+                  // Round only the value end, the column's top; the baseline
+                  // and the joins between cells stay square.
+                  j === year.cells.length - 1 ? 'rounded-t-[3px]' : 'rounded-none',
                   tierOf(c.tier).swatch,
-                  c.major && 'ring-2 ring-inset ring-foreground',
                 )}
               >
                 {/* Inside the cell, not hanging off its edge, where it read
@@ -313,8 +332,10 @@ function Legend({
         </li>
       ))}
       <li className="inline-flex items-center gap-hair">
-        <span className="size-3 rounded-[1px] ring-2 ring-inset ring-foreground" aria-hidden />
-        Major (◆)
+        <span className="inline-flex size-3 items-center justify-center" aria-hidden>
+          <span className="size-1.5 rotate-45 bg-foreground" />
+        </span>
+        Major
       </li>
       {!compact ? (
         <li className="inline-flex items-center gap-hair">

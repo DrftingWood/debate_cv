@@ -101,22 +101,24 @@
   --color-rule: hsl(var(--border) / 0.16);
 
   /*
-   * Career-chart tiers (redesign 2026-10-29). One stacked bar per year,
-   * one cell per tournament, ordered by how far the user got: `tier-none`
-   * (did not break) below an ink rule, then the blue ramp for quarters and
-   * below / semis / finals, then `break-gold` for champions. Every tier is
-   * a mark that carries meaning, so each clears 3:1 against `surface` and
-   * the canvas in both themes (SC 1.4.11, UX-33); tiers are told apart by
-   * position, lightness and the 1px canvas gap between cells, never by hue
-   * alone.
+   * Career-chart tiers (redesign 2026-10-29; four tiers after the dataviz
+   * research the same day). One stacked bar per year, one cell per
+   * tournament, ordered by how far the user got: `tier-none` (did not break)
+   * below an ink rule, then the two-step blue ramp, broke / final, then
+   * `break-gold` for a title. Did-not-break is the context tier, a light
+   * recessive grey (grey is the base, colour the emphasis); it sits under
+   * 3:1, which WCAG 1.4.11 allows because every column carries its count
+   * and the chart has a table view. Validated with the dataviz palette
+   * script: adjacent pairs clear the normal-vision floor (ΔE ≥ 21 light,
+   * ≥ 19.7 dark; the old grey was 11.3 / 9.3 from the first blue), and the
+   * blues pass as an ordinal ramp in both themes.
    *
    * `core-purple` means exactly one thing: a CA / DCA / adjudication-core
    * role. It is the one colour outside the Ledger value set, and it is used
    * nowhere else.
    */
   --color-tier-none: hsl(var(--tier-none));
-  --color-tier-qf: hsl(var(--tier-qf));
-  --color-tier-sf: hsl(var(--tier-sf));
+  --color-tier-broke: hsl(var(--tier-broke));
   --color-tier-f: hsl(var(--tier-f));
   --color-core-purple: hsl(var(--core-purple));
 
@@ -233,7 +235,9 @@
   --animate-shimmer: shimmer 1.4s linear infinite;
   /* Career-chart bars rising from the baseline, once (redesign motion spec:
      at most 700 ms with the stagger; callers gate it with motion-safe:). */
-  --animate-grow-up: grow-up 500ms var(--ease-soft) both;
+  /* 320 ms: an entrance sits in the 200-400 ms band (NN/g 2020; dataviz
+     research 2026-10-29), played once on first view. */
+  --animate-grow-up: grow-up 320ms var(--ease-soft) both;
 
   @keyframes fade-up {
     0% {
@@ -415,11 +419,15 @@
 }
 
 @utility figure {
-  /* The headline figure in a stat tile. */
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  letter-spacing: -0.02em;
+  /* The headline figure in a stat tile. The UI sans with proportional
+     lining figures (owner decision 2026-10-29, after the dataviz research):
+     equal-width mono digits looked loose at display size ("121"), and
+     professional guides set standalone figures in the text face, keeping
+     tabular figures for columns that align. Tables keep their mono columns. */
+  font-family: var(--font-sans);
+  font-variant-numeric: proportional-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: hsl(var(--foreground));
 }
 
@@ -662,12 +670,11 @@
     --break-gold: 38 74% 32%; /* standout result */
     --score-blue: 214 72% 40%; /* analysis */
 
-    /* Career-chart tiers. Contrast against white surface / canvas:
-       none 3.8 / 3.6, qf 3.9 / 3.6, sf 6.3 / 5.9, f 10.6 / 9.9,
-       core 6.9 / 6.5. Champions use --break-gold (5.4 / 5.0). */
-    --tier-none: 213 10% 52%;
-    --tier-qf: 214 62% 55%;
-    --tier-sf: 214 70% 41%;
+    /* Career-chart tiers. Contrast against white surface: none 1.9 (the
+       context tier, see the note on --color-tier-none), broke 3.9, final
+       10.6, core 6.9; titles use --break-gold (5.4). */
+    --tier-none: 213 14% 74%;
+    --tier-broke: 214 62% 55%;
     --tier-f: 216 80% 28%;
     --core-purple: 266 52% 48%;
 
@@ -728,12 +735,11 @@
 
     /* Career-chart tiers, dark. The ramp runs the other way in lightness
        (the most prominent tier is the lightest on graphite). Contrast
-       against surface / canvas: none 4.0 / 4.3, qf 3.4 / 3.6,
-       sf 5.4 / 5.8, f 9.2 / 9.8, core 6.3 / 6.7; gold 9.4 / 10.1. */
-    --tier-none: 213 9% 48%;
-    --tier-qf: 214 45% 46%;
-    --tier-sf: 214 70% 60%;
-    --tier-f: 212 90% 76%;
+       against surface: none 2.0 (context tier), broke 4.8, final 10.0;
+       gold 9.4. */
+    --tier-none: 216 13% 30%;
+    --tier-broke: 214 63% 56%;
+    --tier-f: 212 85% 79%;
     --core-purple: 266 70% 72%;
 
     --shadow-xs: 0 1px 1px 0 hsl(216 40% 2% / 0.5);

@@ -97,6 +97,8 @@ export type ScoreBin = { from: number; to: number; count: number };
 export type ScoreProfile = {
   /** Individual scored speeches behind every figure in this block. */
   speeches: number;
+  /** Every scored speech, ascending: one dot each in the score strip. */
+  scores: number[];
   mean: number | null;
   median: number | null;
   /** Population standard deviation — the consistency figure. */
@@ -111,8 +113,6 @@ export type ScoreProfile = {
   /** q3 − q1: the width of the middle half of the user's speeches. */
   iqr: number | null;
   bins: ScoreBin[];
-  /** Index into `bins` containing the mean; for highlighting. */
-  meanBinIndex: number | null;
   best: ScoredSpeech | null;
   worst: ScoredSpeech | null;
 };
@@ -619,6 +619,7 @@ export function computeSpeakerStats(input: {
 
   const scoreProfile: ScoreProfile = {
     speeches: scores.length,
+    scores: sortedScores,
     mean: scoreMean,
     median: quantileSorted(sortedScores, 0.5),
     stdev: stdev(scores),
@@ -634,13 +635,6 @@ export function computeSpeakerStats(input: {
       return q1 != null && q3 != null ? q3 - q1 : null;
     })(),
     bins,
-    meanBinIndex:
-      scoreMean == null
-        ? null
-        : (() => {
-            const i = bins.findIndex((b) => scoreMean >= b.from && scoreMean < b.to);
-            return i === -1 ? (bins.length ? bins.length - 1 : null) : i;
-          })(),
     best: allSpeeches.reduce<ScoredSpeech | null>(
       (best, s) => (!best || s.score > best.score ? s : best),
       null,

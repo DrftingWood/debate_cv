@@ -8,7 +8,8 @@
 import { Info } from '@/components/ui/icons';
 import type { SpeakerStats } from '@/lib/cv/speakerStats';
 import { TrendChart } from '@/components/ui/TrendChart';
-import { BarList, Meter, Histogram } from '@/components/ui/BarList';
+import { BarList, Meter } from '@/components/ui/BarList';
+import { ScoreStrip } from '@/components/ui/ScoreStrip';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
@@ -140,12 +141,12 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
       />
       <div className="grid items-start gap-3 lg:grid-cols-[1.6fr_1fr]">
         <div className="panel p-4">
-          <Histogram
-            bins={p.bins}
-            highlightIndex={p.meanBinIndex}
-            formatBin={(from) => `${from}`}
-            title="Your speaker scores by band"
-            unit="scored speeches"
+          <ScoreStrip
+            scores={p.scores}
+            median={p.median}
+            q1={p.q1}
+            q3={p.q3}
+            title="Every speaker score, one dot per speech"
           />
         </div>
 
@@ -231,7 +232,7 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
   const trend = [...t.placements]
     .filter((p) => p.year != null)
     .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
-    .map((p) => ({ label: String(p.year), value: p.percentile }));
+    .map((p) => ({ label: String(p.year), value: p.percentile, name: p.tournamentName }));
 
   return (
     <section id="team-tab" aria-label="Standing on the team tab" className="scroll-mt-24 space-y-3">
@@ -301,7 +302,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
   const trend = [...f.placements]
     .filter((p) => p.percentile != null && p.year != null && !p.incompleteDraw)
     .sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
-    .map((p) => ({ label: String(p.year), value: p.percentile! }));
+    .map((p) => ({ label: String(p.year), value: p.percentile!, name: p.tournamentName }));
 
   return (
     <section id="field" aria-label="Standing on the speaker tab" className="scroll-mt-24 space-y-3">
@@ -336,13 +337,13 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                 size="sm"
                 value={signedOrNull(f.meanDelta) ?? '—'}
                 accent={f.meanDelta == null ? undefined : TILE_ACCENT[deltaTone(f.meanDelta)]}
-                hint="Speaker points against the field mean"
+                hint="speaker points"
               />
               <StatTile
                 label="Standard deviations"
                 size="sm"
                 value={f.meanZ == null ? '—' : `${signed(f.meanZ, 2)}σ`}
-                hint="Against the field mean, in standard deviations"
+                hint="vs the field"
               />
             </div>
           </div>
@@ -446,20 +447,12 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
         </div>
       ) : null}
 
-      <p className="text-caption text-ink-soft">
-        Field averages divide the tab&rsquo;s published score totals by the tournament&rsquo;s
-        prelim round count, so they are exact when everyone spoke every round and slightly low when
-        some speakers missed rounds.
-        {f.incompleteDraws > 0 ? (
-          <>
-            {' '}
-            {f.incompleteDraws} {f.incompleteDraws === 1 ? 'tournament is' : 'tournaments are'}{' '}
-            marked as a partial draw and left out of the figures on the left: placement ranks on
-            total score, so a round you weren&rsquo;t scored in drops it regardless of how you
-            performed in the rounds you did speak.
-          </>
-        ) : null}
-      </p>
+      {f.incompleteDraws > 0 ? (
+        <p className="text-caption text-ink-soft">
+          {f.incompleteDraws} {f.incompleteDraws === 1 ? 'partial draw is' : 'partial draws are'}{' '}
+          left out of the figures on the left.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -564,8 +557,10 @@ export function ResultsSection({
   const pointBars = r.pointsDistribution.map((p) => ({
     label: `${p.points} ${p.points === 1 ? 'point' : 'points'}`,
     value: p.rounds,
-    display: `${p.rounds} · ${Math.round((p.rounds / Math.max(totalPointRounds, 1)) * 100)}%`,
-    tone: (p.points >= 3 ? 'pos' : p.points === 0 ? 'neg' : 'default') as 'pos' | 'neg' | 'default',
+    // One figure per bar, and one hue: points are an ordered scale, not a
+    // good/bad state, so green and red (which mean up and down here) are out.
+    display: `${Math.round((p.rounds / Math.max(totalPointRounds, 1)) * 100)}%`,
+    tone: 'blue' as const,
   }));
 
   return (

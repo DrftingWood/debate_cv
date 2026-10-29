@@ -10,6 +10,7 @@
  * (and hidden from assistive tech), never the only statement of it.
  */
 
+import { cn } from '@/lib/utils/cn';
 import type { CvSpeakerRow } from '@/lib/cv/buildCvData';
 import type { TournamentFact } from '@/lib/cv/statsFacts';
 import { outroundFunnel } from '@/lib/cv/outroundFunnel';
@@ -102,7 +103,12 @@ export function OutroundFunnelSection({ tournaments }: { tournaments: Tournament
                         className="h-2 w-40 overflow-hidden rounded-full bg-surface-3"
                       >
                         <div
-                          className="h-full rounded-full bg-break-gold"
+                          className={cn(
+                            'h-full rounded-full',
+                            // Gold means a break; the spoken row is the base
+                            // every break is counted from, so it is grey.
+                            r.key === 'spoken' ? 'bg-tier-none' : 'bg-break-gold',
+                          )}
                           style={{ width: `${(r.count / spoken.count) * 100}%` }}
                         />
                       </div>
@@ -153,23 +159,18 @@ export function OutroundFunnelSection({ tournaments }: { tournaments: Tournament
             : ''}
         </p>
       ) : null}
-      <p className="text-caption text-ink-soft">
-        Each open stage counts tournaments that went at least that deep in the open bracket; "went
-        out here" counts those whose run ended there. The tab records the deepest round a team
-        reached, not where its bracket began, so a small break that started at semifinals is counted
-        at quarterfinals too — which is why only two rates are shown: breaking, where every
-        tournament had a break to make, and winning the final, which every finalist played. A
-        partial round is its stage run with byes, so a team out in a partial quarterfinal (a
-        "pre-semifinal") played the quarterfinal round. Only one deepest round is kept per
-        tournament, so a team that broke in both the open and a category bracket is counted in
-        whichever went deeper. A title counts as a final even where the stage label is missing.
-        {funnel.unknownDepth > 0
-          ? ` ${plural(funnel.unknownDepth, 'break')} with no readable stage ${funnel.unknownDepth === 1 ? 'counts' : 'count'} as broke but ${funnel.unknownDepth === 1 ? 'is' : 'are'} left out of the stages below.`
-          : ''}
-        {funnel.finalsUndecided > 0
-          ? ` ${plural(funnel.finalsUndecided, 'final')} with no recorded result ${funnel.finalsUndecided === 1 ? 'is' : 'are'} left out of the title rate and the finals lost.`
-          : ''}
-      </p>
+      {/* Only what this record left out; the counting method lives in
+          lib/cv/outroundFunnel.ts (owner: show, don't tell). */}
+      {funnel.unknownDepth > 0 || funnel.finalsUndecided > 0 ? (
+        <p className="text-caption text-ink-soft">
+          {funnel.unknownDepth > 0
+            ? ` ${plural(funnel.unknownDepth, 'break')} with no readable stage ${funnel.unknownDepth === 1 ? 'counts' : 'count'} as broke but ${funnel.unknownDepth === 1 ? 'is' : 'are'} left out of the stages below.`
+            : ''}
+          {funnel.finalsUndecided > 0
+            ? ` ${plural(funnel.finalsUndecided, 'final')} with no recorded result ${funnel.finalsUndecided === 1 ? 'is' : 'are'} left out of the title rate and the finals lost.`
+            : ''}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -399,21 +400,18 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
         </TableScroll>
       </div>
 
-      <p className="text-caption text-ink-soft">
-        Tournaments are ordered by season only — the tab doesn't say which tournament in a season
-        came first. So a first is named only when it was the only one that season and no undated
-        tournament qualifies too, and the break run shows a range when the order inside a season
-        could change it: the run every possible order guarantees, and the longest any order allows.
-        Finals, titles and the break rank are the open bracket; category brackets (ESL, novice and
-        the like) are noted beside them, and consolation brackets (silver, plate) are not counted as
-        breaks. Best speech counts scored prelim speeches; the speaker-tab rank is the open tab.
-        {m.bestSpeech && m.bestSpeech.unbounded > 0
-          ? ` ${plural(m.bestSpeech.unbounded, 'speech', 'speeches')} ${m.bestSpeech.unbounded === 1 ? 'comes' : 'come'} from tabs with no prelim count or team points, where an outround score could not be told apart.`
-          : ''}
-        {m.undated > 0
-          ? ` ${plural(m.undated, 'undated tournament')} ${m.undated === 1 ? 'is' : 'are'} left out of firsts and the break run — so the run is guaranteed only among dated tournaments, and an undated miss could split it.`
-          : ''}
-      </p>
+      {/* Only what this record left out; the ordering and bracket rules live
+          in lib/cv/milestones.ts (owner: show, don't tell). */}
+      {(m.bestSpeech && m.bestSpeech.unbounded > 0) || m.undated > 0 ? (
+        <p className="text-caption text-ink-soft">
+          {m.bestSpeech && m.bestSpeech.unbounded > 0
+            ? `${plural(m.bestSpeech.unbounded, 'speech', 'speeches')} ${m.bestSpeech.unbounded === 1 ? 'comes' : 'come'} from tabs with no prelim count, so an outround score may be among them. `
+            : ''}
+          {m.undated > 0
+            ? `${plural(m.undated, 'undated tournament')} ${m.undated === 1 ? 'is' : 'are'} left out of firsts and the break run.`
+            : ''}
+        </p>
+      ) : null}
     </section>
   );
 }

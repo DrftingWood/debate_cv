@@ -150,7 +150,7 @@ describe('CareerChart', () => {
       createElement(CareerChart, { kind: 'speaking', title: 'Speaking, by year', series }),
     );
     expect(html).toContain(
-      'href="#y2024" aria-label="2024: 1 tournament, 1 semifinals, 1 major, 1 top-10 speaker finish. Go to 2024."',
+      'href="#y2024" aria-label="2024: 1 tournament, 1 broke, 1 major, 1 top-10 speaker finish. Go to 2024."',
     );
     expect(html).toContain('<caption class="sr-only">Speaking, by year, in numbers</caption>');
   });
