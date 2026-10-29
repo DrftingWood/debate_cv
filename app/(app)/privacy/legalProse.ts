@@ -17,7 +17,11 @@
  * grotesk for headings only (DESIGN_INSTRUCTIONS §6).
  */
 export const LEGAL_PROSE = [
-  'prose max-w-none font-sans',
+  // A reading measure (about 70 characters) instead of max-w-none, which ran
+  // the notice 148 characters to a line at 1920 px; and no typography-plugin
+  // backticks printed around inline code (owner review 2026-10-29).
+  'prose max-w-prose font-sans',
+  'prose-code:before:content-none prose-code:after:content-none',
   '[--tw-prose-body:hsl(var(--foreground))]',
   '[--tw-prose-headings:hsl(var(--foreground))]',
   '[--tw-prose-lead:hsl(var(--muted-foreground))]',

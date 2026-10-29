@@ -15,11 +15,7 @@ import { Badge } from '@/components/ui/Badge';
 import { TableScroll, Table, Th, Td, Tr, Nil, Cols } from '@/components/ui/DataTable';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { RoundsToggle } from '@/components/RoundsToggle';
-import {
-  TournamentCard,
-  TournamentLink,
-  type TournamentCardField,
-} from '@/components/TournamentCard';
+import { TournamentCard, type TournamentCardField } from '@/components/TournamentCard';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank } from '@/lib/cv/rankDisplay';
 import { RoundLedger, roundCount } from '@/components/RoundLedger';
@@ -188,11 +184,7 @@ function SpeakingTable({
                         ) : null}
                       </Td>
                       <Td className="pl-1">
-                        <TournamentCell
-                          name={r.tournamentName}
-                          href={r.sourceUrl}
-                          myName={r.myName}
-                        />
+                        <TournamentCell name={r.tournamentName} myName={r.myName} />
                       </Td>
                       <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                         {formatAbbrev(r.format) ?? <Nil />}
@@ -228,7 +220,7 @@ function SpeakingTable({
                         )}
                       </Td>
                       <Td numeric>
-                        {r.teamPoints ?? (r.teamWins != null ? `${r.teamWins}W` : <Nil />)}
+                        <TeamPoints r={r} />
                       </Td>
                       <Td
                         numeric
@@ -351,7 +343,7 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
               {rows.map((r) => (
                 <Tr key={r.tournamentId.toString()}>
                   <Td className="pl-4">
-                    <TournamentCell name={r.tournamentName} href={r.sourceUrl} myName={r.myName} />
+                    <TournamentCell name={r.tournamentName} myName={r.myName} />
                   </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
@@ -363,19 +355,20 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
                   <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
                   <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                   <Td className="whitespace-nowrap">
-                    {r.lastOutroundChaired ? (
-                      <span className="flex items-center gap-1.5">
-                        {r.broke ? <Badge variant="gold">Broke</Badge> : null}
-                        {formatStageForDisplay(r.lastOutroundChaired)}
-                      </span>
-                    ) : r.broke ? (
-                      <Badge variant="gold">Broke</Badge>
-                    ) : (
-                      <Nil />
-                    )}
+                    {formatStageForDisplay(r.lastOutroundChaired) || <Nil />}
                   </Td>
+                  {/* The break is a fact about the judged rounds, so it sits
+                      here, once; it used to sit under "last chaired" even on
+                      rows with nothing chaired (owner review 2026-10-29). */}
                   <Td className="whitespace-nowrap">
-                    {formatStageForDisplay(r.lastOutroundJudged) || <Nil />}
+                    {r.broke ? (
+                      <span className="flex items-center gap-1.5">
+                        <Badge variant="gold">Broke</Badge>
+                        {formatStageForDisplay(r.lastOutroundJudged)}
+                      </span>
+                    ) : (
+                      formatStageForDisplay(r.lastOutroundJudged) || <Nil />
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap">
                     <SourceLink href={r.sourceUrl} />
@@ -448,10 +441,13 @@ const JUDGING_WIDTHS = [
  * name the tab printed for the user underneath. The name wraps inside a
  * 16rem block instead of truncating behind a hover title (UX-36).
  */
-function TournamentCell({ name, href, myName }: { name: string; href: string; myName: string }) {
+function TournamentCell({ name, myName }: { name: string; myName: string }) {
+  // Plain text on the desktop ledger: the Source column is the row's one
+  // link to its tab. Both used to link the same page (owner review
+  // 2026-10-29). The phone cards, which have no Source column, keep it.
   return (
     <div className="max-w-[16rem]">
-      <TournamentLink name={name} href={href} className="coarse:min-h-[44px]" />
+      <div className="wrap-break-word font-medium text-ink">{name}</div>
       <div className="text-caption text-ink-soft">{myName}</div>
     </div>
   );
@@ -563,4 +559,19 @@ export function JudgingLedger({ years, open }: { years: RecordYear[]; open: Set<
       table={(y, label) => <JudgingTable rows={y.judging} label={label} />}
     />
   );
+}
+
+/**
+ * The Pts cell. Two-team tabs often publish the team's speaker-point total
+ * in their "points" column ("1374.5"), which beside a BP team's 11 read as
+ * one figure on two scales (owner review 2026-10-29). Team points are at
+ * most 3 a round, so a larger figure is a speaker total and is not shown
+ * as points; the wins count stands in when the tab has one.
+ */
+function TeamPoints({ r }: { r: SpeakingTableRow }) {
+  const pts = r.teamPoints == null ? null : Number.parseFloat(r.teamPoints);
+  const ceiling = 3 * (r.prelimRoundCount ?? 12);
+  if (pts != null && Number.isFinite(pts) && pts <= ceiling) return <>{r.teamPoints}</>;
+  if (r.teamWins != null) return <>{`${r.teamWins}W`}</>;
+  return <Nil title="This tab's points column counts speaker points, not team points" />;
 }
