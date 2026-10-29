@@ -34,7 +34,7 @@ export function TopFinishesSection({ speakerRows }: { speakerRows: CvSpeakerRow[
           No top-10 finish on an Open, ESL or EFL speaker tab yet.
         </div>
       ) : (
-        <div className="panel overflow-hidden">
+        <div className="panel max-w-3xl overflow-hidden">
           <TableScroll>
             <Table className="w-full" label="Top-10 speaker finishes">
               <thead>
@@ -78,7 +78,7 @@ export function JudgingFormatSection({ judgeRows }: { judgeRows: CvJudgeRow[] })
   return (
     <section id="judging-format" aria-label="Judging by format" className="space-y-3">
       <SectionHeader label="Judging" title="By format" meta={NOT_FILTERABLE} />
-      <div className="panel overflow-hidden">
+      <div className="panel max-w-3xl overflow-hidden">
         <TableScroll>
           <Table className="w-full" label="Judging by format">
             <thead>

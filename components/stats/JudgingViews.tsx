@@ -115,7 +115,7 @@ export function JudgingChairSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
             <StatTile label="Chair rate" value="—" hint="no prelim counts recorded" />
           )}
         </StatRow>
-        <div className="panel overflow-hidden">
+        <div className="panel max-w-3xl overflow-hidden">
           <div className="data-label px-4 pt-4">Chair rate by season</div>
           <TableScroll className="mt-2">
             <Table className="min-w-max" label="Chair rate by season">
@@ -197,7 +197,7 @@ export function JudgingRolesSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
   return (
     <section id="judging-roles" aria-label="Core roles" className="space-y-3">
       <SectionHeader label="Judging" title="What you were appointed as" meta={NOT_FILTERABLE} />
-      <div className="panel overflow-hidden">
+      <div className="panel max-w-3xl overflow-hidden">
         <div className="data-label px-4 pt-4">Appointments</div>
         <TableScroll className="mt-2">
           <Table className="min-w-max" label="Judge breaks by appointment">
@@ -348,7 +348,7 @@ export function SpeakingVsJudgingSection({
       />
       <p className="text-body text-ink">{headline}</p>
 
-      <div className="panel overflow-hidden">
+      <div className="panel max-w-3xl overflow-hidden">
         <TableScroll>
           <Table className="min-w-max" label="Tournaments spoken and judged by season">
             <thead>

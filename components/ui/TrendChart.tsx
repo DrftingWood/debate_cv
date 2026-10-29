@@ -326,7 +326,7 @@ export function TrendChart({
         <summary className="cursor-pointer py-1 text-caption text-ink-soft hover:text-ink coarse:py-2">
           Show the figures as a table
         </summary>
-        <div className="mt-2">
+        <div className="mt-2 max-w-md">
           <Table label={title}>
             <thead>
               <tr>

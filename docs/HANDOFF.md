@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-29 - Statistics: compact tables stop stretching
+
+- **Owner:** "some of the stats tables have a lot of whitespace".
+- **Measured on production** (every tab walked, each column's width against its widest content). The ledger is `width: 100%`, so a two-column table spread to 1,230 px.
+- **Capped at `max-w-3xl` (768 px), one shared width so their right edges agree:** Top-10 speaker finishes, Judging by format, Chair rate by season, Appointments, Spoken and judged by season. The TrendChart "Show the figures as a table" fallback is capped at `max-w-md`.
+- **Left full width:** the seven-column split tables, break margins, Career records and the outround funnel, at roughly 40-60 px spare per column.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Copy pass: show, don't tell
 
 - **Owner:** "where you feel there is unnecessary text or things are being over explained … refine it", then "if it is being shown don't tell, all the text that is present needs to be absolutely crucial and necessary".
