@@ -247,7 +247,7 @@ export function DeleteConfirmForm({
           </p>
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-hair">
         <label htmlFor={id} className="block text-ui font-medium text-ink">
           {usesPhrase ? (
             <>

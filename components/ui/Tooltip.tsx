@@ -35,8 +35,8 @@ import { cn } from '@/lib/utils/cn';
 type Side = 'top' | 'bottom' | 'left';
 
 const OUTER: Record<Side, string> = {
-  bottom: 'top-full pt-1.5',
-  top: 'bottom-full pb-1.5',
+  bottom: 'top-full pt-hair',
+  top: 'bottom-full pb-hair',
   left: 'right-full top-1/2 -translate-y-1/2 pr-1.5',
 };
 

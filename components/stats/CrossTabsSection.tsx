@@ -191,7 +191,7 @@ function Toggle<T extends string>({
           aria-checked={o.id === value}
           onClick={() => onChange(o.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
+            'inline-flex items-center gap-hair rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
             'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
             pressedClasses(o.id === value),
           )}
@@ -240,17 +240,17 @@ export function CrossTabsSection({
         <div className="grid gap-3 sm:grid-cols-2">
           {findings.map((q) => (
             <article key={q.id} className="panel p-4">
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-inline">
                 <span
                   aria-hidden
                   className={cn(
-                    'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                    'mt-hair h-1.5 w-1.5 shrink-0 rounded-full',
                     q.tone === 'pos' ? 'bg-pos' : 'bg-neg',
                   )}
                 />
                 <div className="min-w-0">
                   <p className="text-table text-ink">{q.text}</p>
-                  <p className="mt-1.5 data-label">{q.basis}</p>
+                  <p className="mt-hair data-label">{q.basis}</p>
                 </div>
               </div>
             </article>
@@ -279,12 +279,7 @@ export function CrossTabsSection({
       />
 
       <p className="text-caption text-ink-soft">
-        Prelim rounds only. A cell with fewer than {MIN_SPLIT_ROUNDS} rounds, scored speeches or
-        decided rounds shows a dot and its round count instead of a figure. Findings are the cells
-        furthest from what their row and column predict on their own — at least 0.5 speaker points,
-        across two or more tournaments — so a seat or a motion type that is simply strong everywhere
-        shows up in Positions and Motion types, not here. Team points are British Parliamentary
-        only.
+        A dot marks a cell under {MIN_SPLIT_ROUNDS} rounds. Team points are BP only.
       </p>
     </section>
   );

@@ -102,7 +102,7 @@ export function CvShareButton() {
               Loading…
             </p>
           ) : !state.enabled ? (
-            <div className="space-y-2.5">
+            <div className="space-y-inline">
               <p className="text-ui text-ink">Public sharing is off. Turn it on to get a link.</p>
               <div className="flex items-center justify-between gap-2">
                 <Link

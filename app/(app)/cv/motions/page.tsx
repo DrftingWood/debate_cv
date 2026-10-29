@@ -313,7 +313,7 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
           <summary className="inline-flex min-h-6 cursor-pointer items-center text-caption text-ink-soft hover:text-ink coarse:min-h-[44px]">
             Info slide
           </summary>
-          <p className="panel-inset mt-1.5 p-3 text-caption leading-relaxed text-ink-soft">
+          <p className="panel-inset mt-hair p-3 text-caption leading-relaxed text-ink-soft">
             {motion.infoSlide}
           </p>
         </details>

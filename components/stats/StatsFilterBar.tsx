@@ -105,7 +105,7 @@ function Chip({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
+        'inline-flex items-center gap-hair rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
         'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         pressedClasses(pressed),
       )}

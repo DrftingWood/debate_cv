@@ -120,7 +120,9 @@ export function StatsSplitTable({
                   <Td className={cn('pl-4 font-medium', pin)}>
                     {s.key}
                     {thin ? (
-                      <span className="ml-1.5 whitespace-nowrap text-caption font-normal text-ink-soft">
+                      // Its own line: inline it overran the fixed first column
+                      // ("Neg few rounds" by 10 px).
+                      <span className="block text-caption font-normal text-ink-soft">
                         few rounds
                       </span>
                     ) : null}

@@ -152,7 +152,7 @@ export function RoundLedger({
   if (bare) return table;
   return (
     <details className={cn('group', className)}>
-      <summary className="flex cursor-pointer select-none items-center gap-1.5 py-2 text-caption text-ink-soft hover:text-ink coarse:min-h-[44px]">
+      <summary className="flex cursor-pointer select-none items-center gap-hair py-2 text-caption text-ink-soft hover:text-ink coarse:min-h-[44px]">
         <CaretDown
           className="h-3.5 w-3.5 text-primary transition-transform duration-180 group-open:rotate-180 motion-reduce:transition-none"
           aria-hidden

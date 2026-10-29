@@ -352,7 +352,7 @@ export function SlugField({
   onSubmit: (e: FormEvent) => void;
 }) {
   return (
-    <form noValidate onSubmit={onSubmit} className="space-y-1.5">
+    <form noValidate onSubmit={onSubmit} className="space-y-hair">
       <label htmlFor="custom-slug" className="block text-caption font-medium text-ink">
         Custom address after /u/ (optional)
       </label>

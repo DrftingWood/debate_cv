@@ -138,9 +138,7 @@ function KnockoutView({ knockouts }: { knockouts: KnockoutFact[] }) {
       <div>
         <div className="data-label">Knockouts</div>
         <p className="mt-1 text-caption text-ink-soft">
-          Outround speaker scores are not published, so knockouts are counted by your team&rsquo;s
-          result instead: {plural(ko.rounds, 'knockout round')}, {ko.won} through (advanced or won
-          the final), {ko.lost} out.
+          {plural(ko.rounds, 'knockout round')}: {ko.won} through, {ko.lost} out.
           {gaps.length > 0 ? ` Not in the tables: ${gaps.join(', ')}.` : ''}
         </p>
       </div>

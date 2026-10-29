@@ -101,11 +101,11 @@ export function ImportsStages({
                 s.current ? 'border-primary ring-1 ring-primary/25' : 'border-border',
               )}
             >
-              <span className="data-label flex items-center gap-1.5">
+              <span className="data-label flex items-center gap-hair">
                 <span className={s.tone}>{s.icon}</span>
                 <span className="truncate">{s.label}</span>
               </span>
-              <span className="figure mt-1.5 block text-figure-md text-ink">{s.value}</span>
+              <span className="figure mt-hair block text-figure-md text-ink">{s.value}</span>
               {s.hint ? (
                 <span className="mt-1 block text-caption text-ink-soft">{s.hint}</span>
               ) : null}

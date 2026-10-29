@@ -131,7 +131,7 @@ export function StepError({
       role="alert"
       className="space-y-3 rounded-md border border-[hsl(var(--destructive)/0.4)] bg-[hsl(var(--destructive)/0.06)] p-4"
     >
-      <p className="inline-flex items-center gap-1.5 text-ui font-medium text-destructive">
+      <p className="inline-flex items-center gap-hair text-ui font-medium text-destructive">
         <Warning className="h-4 w-4 shrink-0" aria-hidden />
         {title}
       </p>
@@ -223,7 +223,7 @@ export function ScanEmpty({
 export function FailureWarning() {
   return (
     <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-table">
-      <div className="mb-1.5 inline-flex items-center gap-1.5 font-medium text-warning">
+      <div className="mb-hair inline-flex items-center gap-hair font-medium text-warning">
         <Warning className="h-4 w-4" aria-hidden />
         We couldn&apos;t read most of your links
       </div>

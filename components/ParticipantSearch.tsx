@@ -130,7 +130,7 @@ export function ParticipantSearch({
   const tooShort = query.trim().length > 0 && query.trim().length < MIN_QUERY_LENGTH;
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-inline">
       {/*
         A visible label, not a placeholder: the placeholder vanished on the
         first keystroke and took the instruction with it. `border-input`

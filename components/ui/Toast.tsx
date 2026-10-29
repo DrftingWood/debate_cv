@@ -210,7 +210,7 @@ function ToastCard({
           <Link
             href={item.action.href}
             onClick={onDismiss}
-            className="mt-1.5 inline-flex min-h-6 items-center text-caption font-medium text-primary underline-offset-2 hover:underline"
+            className="mt-hair inline-flex min-h-6 items-center text-caption font-medium text-primary underline-offset-2 hover:underline"
           >
             {item.action.label} →
           </Link>

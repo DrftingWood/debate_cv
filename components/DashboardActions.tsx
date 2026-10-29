@@ -248,7 +248,7 @@ export function FullScanButton({
         // for the button's description only.
         <p
           id={reasonId}
-          className={disconnected ? 'sr-only' : 'mt-1.5 text-caption text-ink-soft sm:text-right'}
+          className={disconnected ? 'sr-only' : 'mt-hair text-caption text-ink-soft sm:text-right'}
         >
           {reason}
         </p>

@@ -238,7 +238,7 @@ export default async function CvVerifyPage({
                     <Link
                       href={`/cv/verify?t=${t.id}${mineOnly ? '' : '&mine=0'}`}
                       scroll={false}
-                      className="inline-flex min-h-[44px] items-center gap-1.5 text-ui text-ink-soft hover:text-ink"
+                      className="inline-flex min-h-[44px] items-center gap-hair text-ui text-ink-soft hover:text-ink"
                     >
                       <CaretDown className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                       Show what the parser read
@@ -400,7 +400,7 @@ export default async function CvVerifyPage({
                             return (
                               <li
                                 key={p.id.toString()}
-                                className="rounded-md border border-border bg-paper p-3 space-y-2.5"
+                                className="rounded-md border border-border bg-paper p-3 space-y-inline"
                               >
                                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                                   <div className="font-medium text-ink">
@@ -506,7 +506,7 @@ export default async function CvVerifyPage({
                             No parsed judge assignments.
                           </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-hair">
                             {t.judgeAssignments.map((a) => (
                               <Badge
                                 key={a.id.toString()}
@@ -533,7 +533,7 @@ export default async function CvVerifyPage({
                         {t.eliminationResults.length === 0 ? (
                           <div className="text-caption text-ink-soft">No parsed break rows.</div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-hair">
                             {t.eliminationResults.map((e) => (
                               <Badge key={e.id.toString()} variant="outline">
                                 <span className="opacity-70">{e.entityType}</span>

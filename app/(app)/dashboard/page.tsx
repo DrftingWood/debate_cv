@@ -218,7 +218,7 @@ export default async function Dashboard({
           <p data-print-hide="true">
             <Link
               href="/dashboard?filter=all"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md text-ui text-ink underline underline-offset-4 hover:text-primary"
+              className="inline-flex min-h-[44px] items-center gap-hair rounded-md text-ui text-ink underline underline-offset-4 hover:text-primary"
             >
               Browse all {counts.all} URLs
               <span aria-hidden>→</span>
@@ -316,7 +316,7 @@ export default async function Dashboard({
                 {pageRows.map(({ u, job, status }) => (
                   <li key={u.id}>
                     <Card>
-                      <CardBody className="pt-5 space-y-2.5">
+                      <CardBody className="pt-5 space-y-inline">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="line-clamp-2 wrap-break-word text-body font-semibold text-ink">

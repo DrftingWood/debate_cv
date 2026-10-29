@@ -99,7 +99,7 @@ function ReportCell({
   compact?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-end gap-1.5" data-print-hide="true">
+    <div className="flex items-center justify-end gap-hair" data-print-hide="true">
       {/* Plain visible text, not a live region: the badge is a fact about
           the row present at load, not a status change (UX-19). */}
       {r.hasOpenReport ? <Badge variant="warning">Reported</Badge> : null}
@@ -377,7 +377,7 @@ function JudgingTable({
                       rows with nothing chaired (owner review 2026-10-29). */}
                   <Td className="whitespace-nowrap">
                     {r.broke ? (
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-hair">
                         <Badge variant="gold">Broke</Badge>
                         {formatStageForDisplay(r.lastOutroundJudged)}
                       </span>

@@ -88,7 +88,7 @@ export default async function ReportsSettingsPage() {
                       <span className="text-caption text-ink-soft">{formatDate(r.createdAt)}</span>
                     </div>
                     {r.categories.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-hair">
                         {r.categories.map((c) => (
                           <Badge key={c} variant="outline">
                             {categoryLabel(c)}
