@@ -15,6 +15,7 @@ import { formatAbbrev } from '@/lib/calicotab/format';
 import { Badge } from '@/components/ui/Badge';
 import { TableScroll, Table, Th, Td, Tr, Nil } from '@/components/ui/DataTable';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
+import { RoundsToggle } from '@/components/RoundsToggle';
 import {
   TournamentCard,
   TournamentLink,
@@ -22,13 +23,7 @@ import {
 } from '@/components/TournamentCard';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank } from '@/lib/cv/rankDisplay';
-import {
-  bpPlacement,
-  cumulativePoints,
-  isFourTeamRound,
-  ledgerMotions,
-  ledgerRoundNames,
-} from '@/lib/cv/roundLedger';
+import { RoundLedger, roundCount } from '@/components/RoundLedger';
 import type { JudgingYearTotal, RecordYear, SpeakingYearTotal } from '@/lib/cv/periodTotal';
 import { cn } from '@/lib/utils/cn';
 
@@ -121,152 +116,6 @@ function ReportCell({
   );
 }
 
-/**
- * The per-round ledger behind a tournament row: one line per round with the
- * side debated, the motion released for it, the speaker score and the team
- * result. This is the detail the product scrapes and, until this rebuild,
- * never showed — a speaker score without its motion and side is a number
- * with no story attached.
- *
- * Native <details> so it works without client JS and prints expanded.
- */
-function RoundLedger({
-  r,
-  motionsByTournament,
-  className,
-}: {
-  r: SpeakingTableRow;
-  motionsByTournament: Map<string, CvTaggedMotion[]>;
-  className?: string;
-}) {
-  const scoreByRound = new Map(r.roundScores.map((s) => [s.roundNumber, s]));
-  const resultByRound = new Map(r.teamRoundResults.map((t) => [t.roundNumber, t]));
-  const roundNumbers = [...new Set([...scoreByRound.keys(), ...resultByRound.keys()])].sort(
-    (a, b) => a - b,
-  );
-  if (roundNumbers.length === 0) return null;
-
-  // "Round 7" / "Quarterfinals", not "R7"; points as a running total; and a
-  // four-team (BP) room shows a placement, since nobody "wins" it outright.
-  const roundNames = ledgerRoundNames({
-    roundNumbers,
-    prelimRoundCount: r.prelimRoundCount,
-    eliminationReached: r.eliminationReached,
-  });
-  const motionsByRound = ledgerMotions({
-    roundNumbers,
-    roundNames,
-    prelimRoundCount: r.prelimRoundCount,
-    eliminationReached: r.eliminationReached,
-    multiCategoryRun: (r.eliminationReachedByCategory?.length ?? 0) > 1,
-    motions: motionsByTournament.get(r.tournamentId.toString()) ?? [],
-  });
-  const anyMotion = roundNumbers.some((n) => (motionsByRound.get(n) ?? []).length > 0);
-  const totalPoints = cumulativePoints(r.teamRoundResults);
-
-  return (
-    <details className={cn('group', className)}>
-      <summary className="flex cursor-pointer select-none items-center gap-1.5 py-2 text-caption text-ink-soft hover:text-ink">
-        <CaretDown
-          className="h-3.5 w-3.5 text-primary transition-transform group-open:rotate-180"
-          aria-hidden
-        />
-        Round ledger — {roundNumbers.length} round{roundNumbers.length === 1 ? '' : 's'}
-        {anyMotion ? ' with motions' : ''}
-      </summary>
-      <div className="panel-inset mb-3 p-3">
-        <TableScroll>
-          <Table className="text-caption" label={`Round-by-round ledger for ${r.tournamentName}`}>
-            <thead>
-              <tr>
-                <Th>Round</Th>
-                <Th>Side</Th>
-                {anyMotion ? <Th>Motion</Th> : null}
-                <Th numeric>Score</Th>
-                <Th numeric title="Team points after this round (running total)">
-                  Pts
-                </Th>
-                <Th>Result</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {roundNumbers.map((n) => {
-                const score = scoreByRound.get(n);
-                const result = resultByRound.get(n);
-                const motions = motionsByRound.get(n) ?? [];
-                const placement = isFourTeamRound({
-                  position: result?.position ?? null,
-                  format: r.format,
-                })
-                  ? bpPlacement(result?.points ?? null)
-                  : null;
-                return (
-                  <tr key={n}>
-                    <Td className="whitespace-nowrap">{roundNames.get(n) ?? `Round ${n}`}</Td>
-                    <Td className="whitespace-nowrap text-ink-soft">
-                      {result?.position ?? <Nil />}
-                    </Td>
-                    {anyMotion ? (
-                      <Td className="text-ink-soft">
-                        {motions.length === 0 ? (
-                          <Nil title="No motion released for this round" />
-                        ) : (
-                          // Every motion on its own line. A round with two
-                          // motions used to show the first and park the rest
-                          // in a hover-only title, which touch never shows
-                          // (CV-9). The width cap sits on the inner block
-                          // because browsers ignore max-width on a table cell.
-                          <span className="block max-w-lg space-y-1">
-                            {motions.map((m, i) => (
-                              <span key={i} className="block">
-                                {m.text}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </Td>
-                    ) : null}
-                    <Td numeric>{score?.score != null ? score.score.toFixed(1) : <Nil />}</Td>
-                    <Td numeric>{totalPoints.has(n) ? totalPoints.get(n) : <Nil />}</Td>
-                    <Td className="whitespace-nowrap">
-                      {isFourTeamRound({ position: result?.position ?? null, format: r.format }) ? (
-                        // A BP room has four teams and no winner: show where the
-                        // team placed. Colour only the ends, as elsewhere —
-                        // colour on a number means up or down.
-                        placement ? (
-                          <span
-                            className={
-                              placement === '1st'
-                                ? 'val-pos font-medium'
-                                : placement === '4th'
-                                  ? 'val-neg'
-                                  : undefined
-                            }
-                          >
-                            {placement}
-                          </span>
-                        ) : (
-                          <Nil />
-                        )
-                      ) : result?.won == null ? (
-                        <Nil />
-                      ) : result.won ? (
-                        <span className="val-pos font-medium">Won</span>
-                      ) : (
-                        <span className="val-neg">Lost</span>
-                      )}
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </TableScroll>
-      </div>
-    </details>
-  );
-}
-
 function SpeakingTable({
   rows,
   label,
@@ -287,7 +136,10 @@ function SpeakingTable({
           <Table className="w-full" label={label}>
             <thead>
               <tr>
-                <Th className="pl-4">Tournament</Th>
+                <Th className="w-0 pr-0 pl-2">
+                  <span className="sr-only">Rounds</span>
+                </Th>
+                <Th className="pl-1">Tournament</Th>
                 <Th>Format</Th>
                 <Th>Team</Th>
                 <Th
@@ -321,11 +173,21 @@ function SpeakingTable({
                 const field = fieldByTournament.get(r.tournamentId.toString());
                 const outround = fmtLastOutroundSpoken(r);
                 const ranks = fmtSpeakerRanks(r);
-                const hasRoundDetail = r.roundScores.length > 0 || r.teamRoundResults.length > 0;
+                const rounds = roundCount(r);
+                const roundsId = `rounds-${r.tournamentId.toString()}`;
                 return (
                   <React.Fragment key={r.tournamentId.toString()}>
                     <Tr className="align-top">
-                      <Td className="pl-4">
+                      <Td className="w-0 pr-0 pl-2">
+                        {rounds > 0 ? (
+                          <RoundsToggle
+                            controls={roundsId}
+                            tournamentName={r.tournamentName}
+                            rounds={rounds}
+                          />
+                        ) : null}
+                      </Td>
+                      <Td className="pl-1">
                         <TournamentCell
                           name={r.tournamentName}
                           href={r.sourceUrl}
@@ -414,16 +276,22 @@ function SpeakingTable({
                       </Td>
                     </Tr>
                     {/*
-                    The round ledger gets its own full-width row rather than
-                    living inside the Tournament cell. Nested in a cell, the
-                    long motion column forces that column wide and blows the
-                    whole ledger's geometry apart — and the print stylesheet
-                    forces <details> open, so it would do it on paper too.
+                    The rounds get their own full-width row rather than living
+                    inside the Tournament cell: nested in a cell, the long
+                    motion column forces that column wide and blows the whole
+                    ledger's geometry apart, on paper too. The row is hidden
+                    until the caret at the start of the tournament's row opens
+                    it; print shows it (data-rounds, globals.css).
                   */}
-                    {hasRoundDetail ? (
-                      <tr className="border-b border-border">
+                    {rounds > 0 ? (
+                      <tr
+                        id={roundsId}
+                        hidden
+                        data-rounds="true"
+                        className="border-b border-border"
+                      >
                         <td colSpan={SPEAKING_COLUMNS} className="px-4 py-0">
-                          <RoundLedger r={r} motionsByTournament={motionsByTournament} />
+                          <RoundLedger r={r} motionsByTournament={motionsByTournament} bare />
                         </td>
                       </tr>
                     ) : null}
@@ -539,7 +407,7 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
   );
 }
 
-const SPEAKING_COLUMNS = 11;
+const SPEAKING_COLUMNS = 12;
 
 /**
  * The ledger's first column: the tournament, linked out to its tab, and the
