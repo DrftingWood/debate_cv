@@ -13,7 +13,6 @@ export default function SharingSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · PUBLIC SHARING</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">Public sharing</h1>
-        <p className="text-body text-ink-soft">Your public link and what it shows.</p>
         <hr className="hairline" />
       </header>
 

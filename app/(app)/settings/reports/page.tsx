@@ -55,7 +55,6 @@ export default async function ReportsSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · REPORTS</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">Reports</h1>
-        <p className="text-body text-ink-soft">Open and resolved reports.</p>
         <hr className="hairline" />
       </header>
 

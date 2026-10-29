@@ -59,7 +59,6 @@ export default async function AccountSettingsPage() {
       <header className="space-y-3">
         <div className="kicker">SETTINGS · ACCOUNT</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">Account</h1>
-        <p className="text-body text-ink-soft">Connections and data.</p>
         <hr className="hairline" />
       </header>
 

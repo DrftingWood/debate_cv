@@ -144,7 +144,7 @@ function KnockoutView({ knockouts }: { knockouts: KnockoutFact[] }) {
           {gaps.length > 0 ? ` Not in the tables: ${gaps.join(', ')}.` : ''}
         </p>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid items-start gap-3 md:grid-cols-2">
         {ko.byTopic.length > 0 ? <KnockoutTable label="Topic" rows={ko.byTopic} /> : null}
         {ko.byType.length > 0 ? <KnockoutTable label="Class" rows={ko.byType} /> : null}
       </div>

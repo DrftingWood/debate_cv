@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-10-29 - Live review: overlaps, stretched panels, settings subtitles
+
+- **Source hosts overlapped.** On the Record ledger a long host (ilnuroundrobin.calicotab.com) ran 28 px under the Report flag, and on the public ledger and /sample hosts were clipped at the panel edge. `SourceLink` now truncates inside its fixed column (full host in `title`). The landing sample caps its host at `max-w-56`, which also stops the Worlds name wrapping to three lines.
+- **Stretched panels on Statistics.** Six panels stretched to a taller neighbour, holding 176-1,031 px of empty space (the placement meters beside a 25-row table, the speaker-tab percentile, score bands, round number, team points, knockouts by class). Those grids are now `items-start`.
+- **Public ledger.** Result widened to 11.5rem so "Final (Champion)" stays on one line; Source narrowed to match, since hosts truncate.
+- **Copy.** Settings subtitles restating their headings removed (Account, Reports, Sharing; Profile went earlier). The /sample intro is one sentence. The BP straights hint reads "18 of 20 tournaments · 57/100 firsts" (it wrapped).
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Landing on a phone
 
 - **Live phone check** of the public pages after the phone pass (no page scrolls sideways; section gaps are on the 48 px token).

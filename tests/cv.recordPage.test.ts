@@ -243,7 +243,7 @@ describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', (
   it('links the Source column to the public tab host, never a private URL', async () => {
     const out = await render(record());
     expect(out).not.toContain('privateurls');
-    expect(out).toMatch(/font-mono text-caption[^"]*">example\.calicotab\.com</);
+    expect(out).toMatch(/font-mono text-caption[^"]*"><span[^>]*>example\.calicotab\.com</);
   });
 });
 

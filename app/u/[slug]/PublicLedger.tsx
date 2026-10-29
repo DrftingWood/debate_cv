@@ -38,8 +38,8 @@ const PUBLIC_SPEAKING_WIDTHS = [
   '6.5rem', // team rank
   '7rem', // spk-tab rank
   '5.5rem', // avg score
-  '10rem', // result
-  '13rem', // source
+  '11.5rem', // result: "Final (Champion)" wrapped at 10rem
+  '11.5rem', // source (hosts truncate)
 ];
 const PUBLIC_JUDGING_WIDTHS = [
   undefined, // tournament

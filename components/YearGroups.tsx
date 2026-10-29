@@ -35,9 +35,12 @@ export function SourceLink({ href }: { href: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-6 items-center gap-1 font-mono text-caption text-ink-soft hover:text-primary coarse:min-h-[44px]"
+      title={host}
+      // Truncates inside its fixed column: a long host
+      // (ilnuroundrobin.calicotab.com) ran 28 px under the Report flag.
+      className="inline-flex min-h-6 max-w-full min-w-0 items-center gap-1 font-mono text-caption text-ink-soft hover:text-primary coarse:min-h-[44px]"
     >
-      {host}
+      <span className="min-w-0 truncate">{host}</span>
       <ArrowSquareOut className="h-3 w-3 shrink-0" aria-hidden />
       <span className="sr-only"> (opens in new tab)</span>
     </a>
