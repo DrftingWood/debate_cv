@@ -10,7 +10,7 @@
  * round count gives no chair rate, and an outround whose stage the lexicon
  * cannot read is reported as unrecognised instead of guessed at.
  *
- * SeasonTrends already shows chaired rounds, events and outround tournaments
+ * The Record's yearly judging chart already shows chaired rounds, events and outround tournaments
  * per season; this module adds the ratios and distributions it does not.
  */
 

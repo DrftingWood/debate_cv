@@ -9,7 +9,7 @@
  * the filter bar says, and the section header says as much so a filtered page
  * does not look broken when these figures stay put.
  *
- * SeasonTrends already charts chaired rounds, events and outround tournaments
+ * The Record's yearly judging chart already shows chaired rounds, events and outround tournaments
  * per season. Nothing here repeats those counts on their own; they appear only
  * as the denominators of the ratios this file adds.
  */
