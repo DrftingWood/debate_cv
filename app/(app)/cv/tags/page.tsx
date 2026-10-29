@@ -11,7 +11,6 @@ import {
   inferMotionType,
 } from '@/lib/tags/vocabulary';
 import { TagProposalControls } from '@/components/TagProposalControls';
-import { CvSubNav } from '@/components/CvSubNav';
 
 export const metadata: Metadata = {
   title: 'Tags',
@@ -117,8 +116,6 @@ export default async function CvTagsPage() {
           and feed the splits on Statistics.
         </div>
       </header>
-
-      <CvSubNav active="tags" />
 
       {tournaments.length === 0 ? (
         <p className="text-body text-ink-soft">

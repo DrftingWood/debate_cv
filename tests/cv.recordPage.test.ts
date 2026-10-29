@@ -32,13 +32,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: () => {}, replace: () => {}, push: () => {} }),
   usePathname: () => '/cv',
 }));
-// Client leaves with their own effects, and the async server sub-nav (its
-// own suite, cv.subNav), stand in as markers.
+// Client leaves with their own effects stand in as markers.
 vi.mock('@/components/AutoScanOnVisit', () => ({
   AutoScanOnVisit: () => createElement('i', { 'data-testid': 'autoscan' }),
 }));
 vi.mock('@/components/CvNeedsAttentionBanners', () => ({ CvNeedsAttentionBanners: () => null }));
-vi.mock('@/components/CvSubNav', () => ({ CvSubNav: () => null }));
 
 const { default: CvPage } = await import('@/app/(app)/cv/page');
 const { ToastProvider } = await import('@/components/ui/Toast');

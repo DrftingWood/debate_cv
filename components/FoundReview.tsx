@@ -1,78 +1,62 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
-import { isAdminEmail } from '@/lib/admin';
-import { isDiscoveryEnabled } from '@/lib/discovery/flag';
 import { loadFound } from '@/lib/discovery/loader';
 import { loadFoundWithBudget, type FoundOutcome } from '@/lib/discovery/budget';
 import { shapeFoundView, type FoundView } from '@/lib/discovery/view';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
-import { CvSubNav } from '@/components/CvSubNav';
 import { FoundList } from '@/components/FoundList';
 
-export const metadata: Metadata = {
-  title: 'Found',
-  description: 'Tournaments on public tabs that may be yours.',
-  robots: { index: false, follow: false },
-};
-
-export const dynamic = 'force-dynamic';
+/** Where the Review stage lives: the Imports page's `?stage=review` view. */
+export const REVIEW_HREF = '/dashboard?stage=review';
 
 /**
- * The Found tab, phase 1 (docs/superpowers/specs/2026-10-27-discovery-tab-design.md).
+ * The Found list, phase 1 (docs/superpowers/specs/2026-10-27-discovery-tab-design.md),
+ * as the second half of the Imports Review stage. It was its own page at
+ * /cv/found until the 2026-10-29 navigation change (Record · Statistics ·
+ * Motions · Imports, owner decision); /cv/found now redirects here.
  *
  * Lists appearances on public tabs we already store, at tournaments the user
  * has no private URL for, whose stored name equals one of the names the user
  * has claimed, or (two or more words) holds its words whole and in order
  * (owner's decision 2026-10-27; lib/discovery/names.ts). The user answers
- * "This is me" or "Not me"; the answers are recorded and nothing else happens: no row reaches the CV until
- * option B phases 1-4 and discovery phase 3 ship.
+ * "This is me" or "Not me"; the answers are recorded and nothing else
+ * happens: no row reaches the CV until option B phases 1-4 and discovery
+ * phase 3 ship.
  *
- * Behind the discovery flag (lib/discovery/flag.ts). Everyone else gets the
- * not-found page and no nav item. No loading.tsx of its own on purpose: a
- * skeleton would tell a user without the flag that the page exists.
+ * The caller checks the discovery flag (lib/discovery/flag.ts) and renders
+ * nothing of this without it. The search runs only here, inside the Review
+ * view, never on the Imports summary: it can take seconds and has a 12 s
+ * budget.
  */
-export default async function CvFoundPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect('/');
-  if (!isDiscoveryEnabled(session.user.email)) notFound();
-
-  const outcome = await loadFoundWithBudget(loadFound, session.user.id);
-  const isAdmin = isAdminEmail(session.user.email);
-
+export async function FoundReview({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
+  const outcome = await loadFoundWithBudget(loadFound, userId);
   return (
-    <div className="space-y-8">
-      <header className="border-b border-border pb-6">
-        <div className="data-label">Found</div>
-        <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
-          Tournaments that may be yours
-        </h1>
+    <section aria-labelledby="found-intro" className="space-y-6">
+      <div>
+        <div id="found-intro" className="data-label">
+          Found on public tabs
+        </div>
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
           These come from public tabs we have stored, at tournaments you have no private URL for. We
           found a name you have claimed on them, spelled exactly the same (sometimes with a title or
           a middle name around it), but we have not checked that they are you. Tell us which ones
           you were at. Nothing is added to your record yet.
         </p>
-      </header>
-
-      <CvSubNav active="found" />
-
+      </div>
       {outcome.status === 'ok' ? (
         <FoundBody view={shapeFoundView(outcome.load.input)} />
       ) : (
         <FoundFailure outcome={outcome} isAdmin={isAdmin} />
       )}
-    </div>
+    </section>
   );
 }
 
 /**
- * The loader ran past its budget or failed. Either way the page says so and
- * offers a way on, instead of an endless skeleton or the generic error page.
- * The technical detail (a missing table means a migration has not run) is for
- * an admin only; everyone else gets plain words.
+ * The loader ran past its budget or failed. Either way the section says so
+ * and offers a way on, instead of an endless skeleton or the generic error
+ * page. The technical detail (a missing table means a migration has not run)
+ * is for an admin only; everyone else gets plain words.
  */
 function FoundFailure({
   outcome,
@@ -82,7 +66,7 @@ function FoundFailure({
   isAdmin: boolean;
 }) {
   const retry = (
-    <Link href="/cv/found" prefetch={false} className={buttonClasses()}>
+    <Link href={REVIEW_HREF} prefetch={false} className={buttonClasses()}>
       Try again
     </Link>
   );
@@ -144,7 +128,7 @@ function FoundBody({ view }: { view: FoundView }) {
     return (
       <EmptyState
         title="No other tabs list your name"
-        description="No other tab we store lists a name you have claimed. We check again each time you open this page."
+        description="No other tab we store lists a name you have claimed. We check again each time you open this view."
         action={recordLink}
       />
     );

@@ -33,9 +33,12 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 ```
 app/                          Next.js App Router (routes + API handlers)
   page.tsx                    Landing → redirects to /dashboard when signed in
-  dashboard/                  Scan Gmail, ingest status, identity review
+  dashboard/                  Imports: stages Sources → In progress → Review → On record;
+                              ?stage=review holds name claims and the flagged Found list
+                              (/cv/found redirects there, next.config.ts)
   cv/                         Personal record; sub-surfaces: stats/ (deep statistics),
-                              motions/ (motion archive), tags/, verify/.
+                              motions/ (motion archive), tags/ and verify/ (admin tools,
+                              linked from /admin).
                               analytics/ is a permanent redirect → stats/
   u/                          Public CV at /u/<slug>
   settings/                   Disconnect, delete account, export JSON, sharing

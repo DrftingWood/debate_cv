@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { FocusOnMount } from '@/components/FocusOnMount';
 import { VerifyMineOnlyToggle } from '@/components/VerifyMineOnlyToggle';
-import { CvSubNav } from '@/components/CvSubNav';
 import { ReingestButton } from '@/components/ReingestButton';
 import { buttonClasses } from '@/components/ui/Button';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
@@ -161,8 +160,6 @@ export default async function CvVerifyPage({
           <VerifyMineOnlyToggle mine={mineOnly} />
         </div>
       </div>
-
-      <CvSubNav active="verify" />
 
       {ordered.length === 0 ? (
         <Card>

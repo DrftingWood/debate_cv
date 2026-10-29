@@ -28,9 +28,10 @@ export function NavLink({
   exact?: boolean;
   /**
    * Extra path prefixes that also light this item, and prefixes that never
-   * do. Needed where one header item owns pages outside its own URL space:
-   * Record owns /cv/motions, Admin owns the /cv/tags and /cv/verify
-   * operator tools. Without these no header item was current there (NV-3).
+   * do. Needed where one header item owns pages outside its own URL space
+   * (NV-3). Since the 2026-10-29 navigation change every header item owns
+   * exactly its own path, so nothing passes these today; they stay for the
+   * next destination that does.
    */
   alsoMatch?: string[];
   except?: string[];

@@ -1,5 +1,7 @@
 # Discovery tab: find a user's appearances in the pre-scrape (design)
 
+**Location note, 2026-10-29:** the Found list is no longer its own page. It is the second half of the Imports Review stage (`/dashboard?stage=review`, `components/FoundReview.tsx`), and `/cv/found` permanently redirects there; the "Found" item in `CvSubNav` went with that bar (navigation change, owner decision). Behaviour, flag and limits are unchanged.
+
 Status: **phase 1 built** (read-only list behind a flag, branch `feat/discovery-found-phase1`; the migration awaits the owner's approval before merge). Phases 2-5 not started. The owner's answers to section 9 are in section 10; where they differ from the text above, section 10 wins.
 
 **Status note, 2026-10-27 (branch `fix/found-page-hang`): matching is now exact (plus one narrow in-order rule), and this note overrides sections 3, 10 and 11 where they differ.** After the first build never left the loading screen in production, the owner replaced the matcher:

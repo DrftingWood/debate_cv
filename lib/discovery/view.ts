@@ -1,5 +1,5 @@
 /**
- * Shapes the loader's rows and the stored decisions into what /cv/found
+ * Shapes the loader's rows and the stored decisions into what the Found list
  * renders. Pure and serialisable (plain strings and numbers), because the
  * list is handed to a client component.
  */

@@ -1,8 +1,10 @@
 /**
- * /cv/found rendered to static HTML with the session and the loader mocked:
- * the flag gate (404 for everyone without it), the empty states, and the
- * markup rules the page owes the UX standards (row headers, row-named
- * buttons, visible evidence, one primary action, one live region).
+ * The Imports Review stage (ImportsReview, holding the Found list that was
+ * /cv/found until the 2026-10-29 navigation change) rendered to static HTML
+ * with the loader mocked: the flag gate (no Found section, and no search,
+ * without it), the name-claims half, the empty states, and the markup rules
+ * the list owes the UX standards (row headers, row-named buttons, visible
+ * evidence, one primary action, one live region).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
@@ -12,21 +14,12 @@ import { buildRows, type Appearance } from '@/lib/discovery/match';
 
 (globalThis as { React?: typeof React }).React = React;
 
-const authMock = vi.fn();
+// lib/admin reaches next-auth through lib/auth, which cannot load outside Next.
+vi.mock('@/lib/auth', () => ({ auth: vi.fn() }));
 const loadFoundMock = vi.fn();
-vi.mock('@/lib/auth', () => ({ auth: authMock }));
 vi.mock('@/lib/discovery/loader', () => ({ loadFound: loadFoundMock }));
-vi.mock('@/components/CvSubNav', () => ({ CvSubNav: () => null }));
-vi.mock('next/navigation', () => ({
-  redirect: (to: string) => {
-    throw new Error(`redirect ${to}`);
-  },
-  notFound: () => {
-    throw new Error('NEXT_NOT_FOUND');
-  },
-}));
 
-const { default: FoundPage } = await import('@/app/(app)/cv/found/page');
+const { ImportsReview } = await import('@/components/ImportsReview');
 
 const OWNER = 'owner@example.com';
 
@@ -67,34 +60,33 @@ function input(over: Partial<FoundInput> = {}): FoundInput {
   };
 }
 
+async function review(email: string, unmatched = 0) {
+  return renderToStaticMarkup(await ImportsReview({ userId: 'user-1', email, unmatched }));
+}
+
 async function render(email = OWNER, data: FoundInput = input()) {
-  authMock.mockResolvedValue({ user: { id: 'user-1', email, name: 'Abhishek Acharya' } });
   loadFoundMock.mockResolvedValue({ input: data, rows: data.rows });
-  return renderToStaticMarkup(await FoundPage());
+  return review(email);
 }
 
 beforeEach(() => {
-  authMock.mockReset();
   loadFoundMock.mockReset();
   process.env.ADMIN_EMAIL = OWNER;
   delete process.env.DISCOVERY_LIST;
   delete process.env.DISCOVERY_LIST_EMAILS;
 });
 
-describe('/cv/found gate', () => {
-  it('404s for a user without the flag, without loading anything', async () => {
-    await expect(render('someone@example.com')).rejects.toThrow('NEXT_NOT_FOUND');
+describe('Review stage: the Found gate', () => {
+  it('shows no Found section, and runs no search, for a user without the flag', async () => {
+    const out = await render('someone@example.com');
+    expect(out).not.toContain('Found on public tabs');
     expect(loadFoundMock).not.toHaveBeenCalled();
   });
 
-  it('404s for the owner under the kill switch', async () => {
+  it('shows none for the owner under the kill switch', async () => {
     process.env.DISCOVERY_LIST = 'off';
-    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND');
-  });
-
-  it('sends a signed-out visitor home', async () => {
-    authMock.mockResolvedValue(null);
-    await expect(FoundPage()).rejects.toThrow('redirect /');
+    expect(await render()).not.toContain('Found on public tabs');
+    expect(loadFoundMock).not.toHaveBeenCalled();
   });
 
   it('loads for the session user only (never a typed or Google name), under a budget', async () => {
@@ -103,11 +95,25 @@ describe('/cv/found gate', () => {
   });
 });
 
-describe('/cv/found list', () => {
-  it('has one h1 and one list, with no tiers', async () => {
+describe('Review stage: name claims', () => {
+  it('sends the user to the Unmatched imports when there are some', async () => {
+    loadFoundMock.mockResolvedValue({ input: input(), rows: [] });
+    const out = await review('someone@example.com', 3);
+    expect(out).toContain('We could not find you on 3 imported tabs');
+    expect(out).toContain('href="/dashboard?filter=unmatched"');
+    expect(out).toContain('Review 3 imports');
+  });
+
+  it('says so when every import has the user on it', async () => {
+    expect(await review('someone@example.com', 0)).toContain('Every import has your name on it');
+  });
+});
+
+describe('Review stage: the Found list', () => {
+  it('sits under the page h1 (no h1 of its own), as one list with no tiers', async () => {
     const out = await render();
-    expect(out.match(/<h1/g)).toHaveLength(1);
-    expect(out).toContain('Tournaments that may be yours');
+    expect(out).not.toContain('<h1');
+    expect(out).toContain('Found on public tabs');
     expect(out).toContain('Tournaments listing your name (2)');
     expect(out).not.toMatch(/Strong matches|Possible matches/);
   });
@@ -145,7 +151,7 @@ describe('/cv/found list', () => {
   });
 });
 
-describe('/cv/found empty states', () => {
+describe('Review stage: Found empty states', () => {
   it('no claimed names: points to the profile to claim them', async () => {
     const out = await render(OWNER, input({ aliasCount: 0, rows: [] }));
     expect(out).toContain('Nothing to search with yet');
@@ -164,11 +170,10 @@ describe('/cv/found empty states', () => {
   });
 });
 
-describe('/cv/found when the search is slow or fails', () => {
+describe('Review stage: when the Found search is slow or fails', () => {
   async function renderWith(email: string, impl: () => Promise<unknown>) {
-    authMock.mockResolvedValue({ user: { id: 'user-1', email, name: 'Abhishek Acharya' } });
     loadFoundMock.mockImplementation(impl);
-    return renderToStaticMarkup(await FoundPage());
+    return review(email);
   }
 
   it('past the time budget: a "taking too long" state with a retry link, not a spinner', async () => {
@@ -179,8 +184,8 @@ describe('/cv/found when the search is slow or fails', () => {
       await vi.advanceTimersByTimeAsync(12_001);
       const out = await page;
       expect(out).toContain('This is taking too long');
-      expect(out).toContain('href="/cv/found"');
-      expect(out).toContain('Tournaments that may be yours');
+      expect(out).toContain('href="/dashboard?stage=review"');
+      expect(out).toContain('Found on public tabs');
     } finally {
       vi.useRealTimers();
       vi.restoreAllMocks();

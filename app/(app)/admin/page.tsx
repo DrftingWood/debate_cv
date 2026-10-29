@@ -123,6 +123,24 @@ export default async function AdminPage() {
         <ExportErrorsButton />
       </section>
 
+      {/* Tags and Verify used to sit in the CV sub-bar (admins only). That
+          bar went with the 2026-10-29 navigation change, so the operator
+          tools are reached from here. */}
+      <section className="rounded-lg border p-6 space-y-4">
+        <h2 className="font-display text-h3 font-medium text-ink">Operator tools</h2>
+        <p className="text-body text-ink-soft">
+          Check what the parser read, and tag tournaments and motions.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/cv/verify" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            Verify parsed tournaments →
+          </Link>
+          <Link href="/cv/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            Tag tournaments and motions →
+          </Link>
+        </div>
+      </section>
+
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Tag proposals</h2>
         <p className="text-body text-ink-soft">

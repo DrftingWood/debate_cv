@@ -16,7 +16,6 @@ import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
-import { CvSubNav } from '@/components/CvSubNav';
 import { isAdminEmail } from '@/lib/admin';
 import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
 
@@ -115,8 +114,6 @@ export default async function CvMotionsPage() {
           </p>
         ) : null}
       </header>
-
-      <CvSubNav active="motions" />
 
       {entries.length === 0 ? (
         <EmptyState
