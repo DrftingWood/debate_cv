@@ -98,23 +98,45 @@ describe('/cv/stats wiring', () => {
     }
   });
 
-  test('a seat filter withholds tournament-level sections with a reason, keeping their ids', () => {
+  test('a seat filter withholds tournament-level sections with a reason, keeping their slots', () => {
     const html = render('seat=BP:OG');
-    for (const id of [
-      'field',
-      'dynamics',
-      'momentum',
-      'funnel',
-      'break-margin',
-      'seasons',
-      'milestones',
+    // The slot stays (its tab is still there) and says why it is empty.
+    for (const title of [
+      'Team placement',
+      'Breaks',
+      'Speaker-tab placement',
+      'Across a tournament',
     ]) {
-      const s = section(html, id);
-      expect(s, id).not.toBeNull();
-      expect(s!, id).toMatch(/filtering by seat|seat filter/);
+      expect(html, title).toContain(`aria-label="${title}"`);
     }
+    expect(html.match(/filtering by seat|seat filter/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    // Momentum and milestones follow whole tournaments: under a seat they are left out.
+    expect(section(html, 'momentum')).toBeNull();
+    expect(section(html, 'milestones')).toBeNull();
     // Teammates drops tournament breaks under a seat filter.
-    expect(section(html, 'partners') ?? '').not.toMatch(/\d+ breaks?\b|>Breaks</);
+    expect(section(html, 'partners') ?? '').not.toMatch(/\d+ breaks?|>Breaks</);
+  });
+
+  test('three tab levels, each in the URL (owner decision 19)', () => {
+    const html = render('');
+    const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    for (const tab of [
+      'Speaking',
+      'Judging',
+      'Results (team)',
+      'Speaks (you)',
+      'Conditions',
+      'Team placement',
+      'Breaks',
+      'Straights &amp; firsts',
+      'By motion type',
+    ]) {
+      expect(tabs, tab).toContain(tab);
+    }
+    // Seasons is gone (owner, 2026-10-29): the Record's yearly charts carry it.
+    expect(section(html, 'seasons')).toBeNull();
+    // The starting tab comes from the URL.
+    expect(render('role=judging')).toMatch(/role="tab" [^>]*aria-selected="true"[^>]*>Judging</);
   });
 
   test('a seat keeps the delta it has on the whole record — the baseline is never the filtered slice', () => {

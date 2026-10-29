@@ -240,7 +240,7 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
   );
 }
 
-export function StatLine({
+function StatLine({
   label,
   value,
   hint,
@@ -773,10 +773,13 @@ export function Splits({
   stats,
   filtered = false,
   omit = [],
+  id = 'splits',
 }: {
   stats: SpeakerStats;
   filtered?: boolean;
   omit?: string[];
+  /** Statistics shows one dimension per Conditions section, so each needs its own id. */
+  id?: string;
 }) {
   const { splits } = stats;
   // `dimension` is the column header for the split's key; `title` is the
@@ -841,7 +844,7 @@ export function Splits({
   if (blocks.length === 0) return null;
 
   return (
-    <section id="splits" aria-label="Splits" className="scroll-mt-24 space-y-6">
+    <section id={id} aria-label="Splits" className="scroll-mt-24 space-y-6">
       <SectionHeader
         label="Splits"
         title={
@@ -869,69 +872,6 @@ export function Splits({
           {b.note ? <p className="text-caption text-ink-soft">{b.note}</p> : null}
         </div>
       ))}
-    </section>
-  );
-}
-
-// ── Season trends ─────────────────────────────────────────────────────────
-
-export function SeasonTrends({
-  seasons,
-  judging,
-}: {
-  seasons: SpeakerStats['seasons'];
-  judging: SpeakerStats['judgingSeasons'];
-}) {
-  const avgTrend = seasons
-    .filter((p) => p.avgSpeakerScore != null)
-    .map((p) => ({
-      label: String(p.year),
-      value: p.avgSpeakerScore!,
-      sub: `${p.tournaments} ${p.tournaments === 1 ? 'event' : 'events'}`,
-    }));
-  const breakBars = seasons.map((p) => ({
-    label: String(p.year),
-    value: p.breakRate,
-    display: `${p.breaks}/${p.tournaments} · ${Math.round(p.breakRate * 100)}%`,
-    tone: 'gold' as const,
-  }));
-
-  if (avgTrend.length === 0 && breakBars.length === 0 && judging.length === 0) return null;
-
-  return (
-    <section id="seasons" aria-label="Season by season" className="scroll-mt-24 space-y-3">
-      <SectionHeader label="Seasons" title="Year by year" />
-      <div className="grid gap-3 lg:grid-cols-2">
-        {avgTrend.length > 0 ? (
-          <div className="panel p-4">
-            <div className="data-label mb-2">Speaker average by season</div>
-            <TrendChart
-              points={avgTrend}
-              title="Speaker average by season, with the number of tournaments behind each"
-              valueLabel="Speaker avg"
-            />
-          </div>
-        ) : null}
-        {breakBars.length > 0 ? (
-          <div className="panel p-4">
-            <div className="data-label mb-3">Break rate by season</div>
-            <BarList items={breakBars} labelWidth="3.5rem" />
-          </div>
-        ) : null}
-        {judging.length > 0 ? (
-          <div className="panel p-4 lg:col-span-2">
-            <div className="data-label mb-3">Judging by season</div>
-            <BarList
-              items={judging.map((j) => ({
-                label: String(j.year),
-                value: j.inroundsChaired,
-                display: `${j.inroundsChaired} chaired · ${j.tournaments} ${j.tournaments === 1 ? 'event' : 'events'}${j.outroundTournaments > 0 ? ` · ${j.outroundTournaments} with outrounds` : ''}`,
-              }))}
-              labelWidth="3.5rem"
-            />
-          </div>
-        ) : null}
-      </div>
     </section>
   );
 }
@@ -968,31 +908,3 @@ export function Coverage({ coverage }: { coverage: SpeakerStats['coverage'] }) {
     </section>
   );
 }
-
-// Order matches the render order below. Labels are shorter than the section
-// headings on purpose — this is a rail, not a table of contents.
-export const STATS_SECTIONS = [
-  { id: 'headline', label: 'Headline' },
-  { id: 'findings', label: 'Findings' },
-  { id: 'distribution', label: 'Distribution' },
-  { id: 'team-tab', label: 'Team tab' },
-  { id: 'field', label: 'Speaker tab' },
-  { id: 'dynamics', label: 'Across a draw' },
-  { id: 'round-curve', label: 'Round by round' },
-  { id: 'momentum', label: 'Momentum' },
-  { id: 'results', label: 'Results' },
-  { id: 'funnel', label: 'Outrounds' },
-  { id: 'break-margin', label: 'Break margin' },
-  { id: 'positions', label: 'Positions' },
-  { id: 'motion-types', label: 'Motion types' },
-  { id: 'cross-tabs', label: 'Cross-tabs' },
-  { id: 'topic-types', label: 'Topic × type' },
-  { id: 'splits', label: 'Splits' },
-  { id: 'partners', label: 'Teammates' },
-  { id: 'carry', label: 'Carry index' },
-  { id: 'seasons', label: 'Seasons' },
-  { id: 'milestones', label: 'Milestones' },
-  { id: 'speaking-judging', label: 'Speaking vs judging' },
-  { id: 'judging-lens', label: 'Judging' },
-  { id: 'coverage', label: 'Coverage' },
-];

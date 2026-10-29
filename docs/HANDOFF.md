@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-10-29 - Statistics as three tab levels (decision 19, part 1 of 2)
+
+- **Structure** (`components/stats/StatsTabs.tsx`, wired in `FilterableStats.tsx`). The long scroll and its jump rail are gone. There are three levels of APG tabs, each in the URL (`?role=…&group=…&section=…`):
+  - **Speaking**
+    - **Results (team):** Team placement · Breaks (outround funnel and break margin) · Straights & firsts (results and milestones).
+    - **Speaks (you):** Speaker tab · Score bands.
+    - **Conditions:**
+      - By position;
+      - By format (format, region and field-size splits);
+      - By round (dynamics, round curve, momentum);
+      - By motion topic (topic × type and the topic split);
+      - By motion type (motion types, the stem split, cross-tabs);
+      - By partner (teammates, carry).
+  - **Judging**
+    - **Results:** Outrounds and breaks · Speaking vs judging.
+- **Desktop and phone.** Level 3 is a vertical list on desktop and a "Section" dropdown on a phone.
+- **Above the tabs:** the summary strip (headline figures and findings). The Coverage note sits at the foot.
+- **Filters.** Partner, pairing and seat sit inside the Speaking tab, because judging has none of them. A filter change keeps the tab parameters, and a tab change keeps the filter's.
+- **Leftovers, as the owner chose.**
+  - Seasons (`SeasonTrends`) is deleted, because the Record's yearly charts carry it.
+  - Cross-tabs moved under By motion type, and Speaking vs judging under Judging.
+  - `PageJumpNav` and `STATS_SECTIONS` are deleted.
+- **Seat filter.** A tournament-level slot keeps its tab and says why it is empty. A slot whose sections all render nothing shows "Not enough on your record for … yet".
+- **Checked.**
+  - In Chrome: switching levels writes the URL; a reload restores it; a seat filter works alongside the tabs; Judging opens its own results.
+  - In Playwright at 390 (both themes) and 1280: no sideways scroll, no console errors, and the phone dropdown changes the section.
+- **Part 2** (new sections): Top-10 finishes; judging Chairing, Core roles, and Conditions by format, by stage and by motion topic.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Statistics: pro-am from the user's marks; the filter works again
 
 - **Pro-am** (owner decision for Statistics, 2026-10-29; rule 2026-10-27, "no automatic pro-am"). `RoundFact.proAm` and `TournamentFact.proAm` are now `'marked' | 'unmarked'`. They come from `User.proAmMarks` (the Record's Partners tab): marked when any partner at that tournament carries a mark, and null with no partner. `buildStatsFacts` takes `proAmMarks`, and `/cv/stats` reads them.
