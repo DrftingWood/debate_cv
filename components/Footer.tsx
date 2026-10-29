@@ -8,9 +8,10 @@ import { BrandMark } from './BrandMark';
  * the landing page's 80rem (`max-w-wide`).
  */
 export function Footer({ width = 'app' }: { width?: 'app' | 'public' } = {}) {
-  // 48 px above the footer (owner review 2026-10-29: 128 px of blank).
+  // 48 px above the footer, 32 on a phone (owner reviews 2026-10-29: 128 px
+  // of blank, then 80 on a phone where main also padded its bottom).
   return (
-    <footer className="mt-section pb-[env(safe-area-inset-bottom)]">
+    <footer className="mt-group pb-[env(safe-area-inset-bottom)] md:mt-section">
       <div
         className={
           width === 'app' ? 'mx-auto max-w-(--breakpoint-2xl) px-5' : 'mx-auto max-w-wide px-5'

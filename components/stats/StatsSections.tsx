@@ -13,7 +13,7 @@ import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import { StatsSplitTable } from '@/components/StatsSplitTable';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { TeamPlacementTable } from '@/components/stats/TeamPlacementTable';
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
 import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
 import { deltaTone, signed, signedOrNull } from '@/components/stats/format';
@@ -54,7 +54,7 @@ export function HeadlineStats({
         key="stdev"
         label="Consistency (σ)"
         value={scoreProfile.stdev.toFixed(2)}
-        hint="Lower means your speeches cluster tighter"
+        hint="Lower is steadier"
       />,
     );
   }
@@ -66,7 +66,7 @@ export function HeadlineStats({
         key="pct"
         label="Average team placement"
         value={`Top ${formatTopPercent(teamContext.meanTopPercent)}`}
-        hint={`Team tab · ${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
+        hint={`${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
       />,
     );
   }
@@ -74,7 +74,7 @@ export function HeadlineStats({
     tiles.push(
       <StatTile
         key="win"
-        label={`Round ${OUTCOME_COPY[results.outcome].rate.toLowerCase()}`}
+        label={OUTCOME_COPY[results.outcome].rate}
         value={`${Math.round(results.winRate * 100)}%`}
         hint={`${results.wins} of ${results.decidedRounds} decided prelim rounds`}
       />,
@@ -88,7 +88,7 @@ export function HeadlineStats({
         key="straights"
         label="BP straights"
         value={`${Math.round(results.bp.straightsRate * 100)}%`}
-        hint={`${results.bp.straights} of ${results.bp.tournaments} BP tournaments averaging 2nd or better · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
+        hint={`${results.bp.straights} of ${results.bp.tournaments} tournaments · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
       />,
     );
   }
@@ -263,66 +263,7 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
           </div>
         </div>
 
-        <div className="panel overflow-hidden lg:col-span-2">
-          <TableScroll>
-            <Table
-              className="min-w-max"
-              label="Your team's placement and furthest outround, tournament by tournament"
-            >
-              <thead>
-                <tr>
-                  <Th className="pl-4">Tournament</Th>
-                  <Th numeric>Year</Th>
-                  <Th numeric title="Prelim team-tab rank, of the teams on the tab">
-                    Team rank
-                  </Th>
-                  <Th numeric>Top</Th>
-                  <Th numeric title="Break seed, of the teams on the Open break where known">
-                    Break
-                  </Th>
-                  <Th className="pr-4">Furthest outround</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {t.placements.map((p) => (
-                  <Tr key={p.tournamentId}>
-                    <Td rowHeader className="max-w-56 pl-4 font-medium">
-                      <span className="block wrap-break-word">{p.tournamentName}</span>
-                    </Td>
-                    <Td numeric className="text-ink-soft">
-                      {p.year ?? <Nil />}
-                    </Td>
-                    <Td numeric>
-                      {p.teamRank}/{p.totalTeams}
-                    </Td>
-                    <Td numeric className="text-ink-soft">
-                      {formatTopPercent(p.topPercent)}
-                    </Td>
-                    <Td numeric>
-                      {p.breakRank == null ? (
-                        <Nil title="No break seed published" />
-                      ) : p.breakingTeams != null ? (
-                        `${p.breakRank}/${p.breakingTeams}`
-                      ) : (
-                        `#${p.breakRank}`
-                      )}
-                    </Td>
-                    <Td className="whitespace-nowrap pr-4">
-                      {p.outround ? (
-                        <span className="text-break-gold">
-                          {formatStageForDisplay(p.outround)}
-                          {p.won ? ' (won)' : ''}
-                        </span>
-                      ) : (
-                        <Nil title="Did not reach an outround" />
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </TableScroll>
-        </div>
+        <TeamPlacementTable placements={t.placements} />
       </div>
 
       {trend.length >= 3 ? (

@@ -44,7 +44,7 @@ describe('ImportsStages', () => {
   });
 
   it('mentions public tabs under Review only with the discovery flag', () => {
-    expect(render({ discovery: true })).toContain('tournaments found on public tabs');
+    expect(render({ discovery: true })).toContain('found on public tabs');
     expect(render()).not.toContain('public tabs');
   });
 

@@ -117,7 +117,18 @@ function YearGroup({
           <span className="block font-mono text-caption text-ink-soft">
             {lines.map((l, i) => (
               <span key={i} className={cn('block', i === 0 && 'font-semibold text-ink')}>
-                {l}
+                {/* Wrap between figures, never inside one: a phone broke
+                    "median top 33%" and "core at 1" across lines. The dot
+                    stays with the figure before it, so no line starts on one. */}
+                {l.split(' · ').map((seg, j, all) => (
+                  <React.Fragment key={j}>
+                    {j ? ' ' : null}
+                    <span className="whitespace-nowrap">
+                      {seg}
+                      {j < all.length - 1 ? ' ·' : null}
+                    </span>
+                  </React.Fragment>
+                ))}
               </span>
             ))}
           </span>

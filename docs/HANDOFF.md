@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-10-29 - Phone pass (390x844)
+
+- **Owner:** "check the phone layout too". Every signed-in page measured at 390x844 with touch emulation, plus screen-height slices of each.
+- **No page scrolls sideways.** Remaining inner scrollers are the round tables (424 in 290) and the opt-in "See the numbers" data tables.
+- **Fixed:**
+  - `StatRow` wrapped `null` children in empty cells (`Children.map`). Motions' admin-only "Tagged" tile left a blank row on a phone and a blank fifth column on desktop. It now uses `Children.toArray`.
+  - Year subtotals wrap between figures, never inside one, and no line starts with a dot.
+  - The Statistics placement table is Tournament and Team rank on a phone, with the outround under the name; the other columns return from `sm`. It used to scroll the rank out of view.
+  - `Meter` values stay on one line ("Top 11%" wrapped).
+  - Rate tile label drops "Round" (it broke at "2ND-OR-"); tile hints shortened.
+  - Footer gap: `<main>` no longer pads its bottom (it added 32 to the footer's 48; the landing and /sample added 64); the footer margin is 32 on a phone, 48 from md.
+  - Imports: the full-scan "Reconnect Gmail" note is screen-reader only while the banner says the same; tile hints trimmed; section gap on the token scale.
+  - Motions: tile hints and the tag-coverage caption cut.
+- **Not changed:** card titles and disclosure toggles are 24 px tall, which meets UX-8 (24 px; 44 only for primary controls).
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Statistics: compact tables stop stretching
 
 - **Owner:** "some of the stats tables have a lot of whitespace".

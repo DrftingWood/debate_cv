@@ -57,7 +57,7 @@ export default async function SamplePage() {
     <>
       <div className="mx-auto w-full max-w-wide flex-1 px-5">
         <PublicHeader signedIn={!!session?.user} />
-        <main id="main" className="space-y-group pb-page">
+        <main id="main" className="space-y-group">
           <header className="border-b border-border pb-panel pt-panel">
             <div className="eyebrow">Sample record · fictional</div>
             <h1 className="mt-tight font-display text-h1 font-medium tracking-tight text-ink">

@@ -244,7 +244,12 @@ export function FullScanButton({
         {FULL_SCAN_LABEL}
       </Button>
       {reason ? (
-        <p id={reasonId} className="mt-1.5 text-caption text-ink-soft sm:text-right">
+        // Disconnected, the banner below already says so; the reason stays
+        // for the button's description only.
+        <p
+          id={reasonId}
+          className={disconnected ? 'sr-only' : 'mt-1.5 text-caption text-ink-soft sm:text-right'}
+        >
           {reason}
         </p>
       ) : null}

@@ -17,7 +17,6 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
 import { isAdminEmail } from '@/lib/admin';
-import { OUTCOME_COPY } from '@/lib/cv/roundOutcome';
 
 export const metadata: Metadata = {
   title: 'Motions',
@@ -83,7 +82,6 @@ export default async function CvMotionsPage({
 
   const debated = entries.filter((e) => e.debated);
   const tagged = debated.filter((e) => e.motion.motionType || e.motion.topic).length;
-  const fullyTagged = debated.filter((e) => e.motion.motionType && e.motion.topic).length;
   const scores = debated.map((e) => e.score).filter((s): s is number => s != null);
   const knockouts = debated.filter((e) => e.knockout != null);
   const knockoutsThrough = knockouts.filter((e) => e.knockout?.won).length;
@@ -177,7 +175,7 @@ export default async function CvMotionsPage({
               }
               hint={
                 decided.length > 0
-                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds${outcome === 'win' ? '' : ` (${OUTCOME_COPY[outcome].rounds})`}`
+                  ? `${Math.round((wins / decided.length) * 100)}% of decided rounds`
                   : 'No results published'
               }
             />
@@ -185,7 +183,6 @@ export default async function CvMotionsPage({
               <StatTile
                 label="Knockout record"
                 value={`${knockoutsThrough}–${knockouts.length - knockoutsThrough}`}
-                hint="Rounds advanced from or won, against rounds you went out in"
               />
             ) : null}
             {isAdmin ? (
@@ -203,15 +200,6 @@ export default async function CvMotionsPage({
               />
             ) : null}
           </StatRow>
-
-          {debated.length > 0 ? (
-            <p className="max-w-2xl text-caption text-ink-soft">
-              {fullyTagged} of {debated.length} motion{debated.length === 1 ? '' : 's'} you debated
-              carry both a topic and a stem tag (THW, THBT, …). Knockout motions show your
-              team&rsquo;s result rather than a score, because outround speaker scores are not
-              published.
-            </p>
-          ) : null}
 
           {/*
             One <details> per tournament, and only the most recent opens.
