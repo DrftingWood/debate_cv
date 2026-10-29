@@ -125,9 +125,11 @@ export function AnnotatedSample() {
                   )}
                 </td>
                 <td className="whitespace-nowrap pr-stack font-mono text-ink-soft max-sm:hidden">
-                  <span className="inline-flex items-center gap-hair">
-                    {r.host}
-                    <ArrowSquareOut className="h-3 w-3" aria-hidden />
+                  {/* Capped: the Worlds host ran past the panel edge and its
+                      column squeezed the names to three lines. */}
+                  <span className="inline-flex max-w-56 items-center gap-hair" title={r.host}>
+                    <span className="min-w-0 truncate">{r.host}</span>
+                    <ArrowSquareOut className="h-3 w-3 shrink-0" aria-hidden />
                   </span>
                 </td>
               </tr>

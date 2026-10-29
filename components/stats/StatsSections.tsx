@@ -88,7 +88,7 @@ export function HeadlineStats({
         key="straights"
         label="BP straights"
         value={`${Math.round(results.bp.straightsRate * 100)}%`}
-        hint={`${results.bp.straights} of ${results.bp.tournaments} tournaments · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
+        hint={`${results.bp.straights} of ${results.bp.tournaments} tournaments · ${results.bp.firsts}/${results.bp.rounds} firsts`}
       />,
     );
   }
@@ -138,7 +138,7 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
         title="Every speech you have been scored on"
         meta={`${p.speeches} speeches`}
       />
-      <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid items-start gap-3 lg:grid-cols-[1.6fr_1fr]">
         <div className="panel p-4">
           <Histogram
             bins={p.bins}
@@ -241,7 +241,7 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
         meta={`${t.placements.length} tournament${t.placements.length === 1 ? '' : 's'} with a team rank`}
       />
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid items-start gap-3 lg:grid-cols-3">
         <div className="panel p-4 lg:col-span-1">
           <div className="space-y-4">
             {t.meanPercentile != null && t.meanTopPercent != null ? (
@@ -311,7 +311,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
         meta={`${rows.length} tournament${rows.length === 1 ? '' : 's'} with a comparable speaker tab`}
       />
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid items-start gap-3 lg:grid-cols-3">
         <div className="panel p-4 lg:col-span-1">
           <div className="space-y-4">
             {f.meanPercentile != null ? (
@@ -483,7 +483,7 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
         title="What happens across a tournament"
         meta={`${d.slopeSamples} tournament${d.slopeSamples === 1 ? '' : 's'} long enough to fit a trend`}
       />
-      <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid items-start gap-3 lg:grid-cols-[1.6fr_1fr]">
         <div className="panel p-4">
           <TrendChart
             points={points}
@@ -575,7 +575,7 @@ export function ResultsSection({
         title="Rounds, runs and conversions"
         meta={`${r.decidedRounds} decided prelim rounds`}
       />
-      <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+      <div className="grid items-start gap-3 lg:grid-cols-[1fr_1fr]">
         {pointBars.length > 0 ? (
           <div className="panel p-4">
             <div className="data-label mb-3">Team points per round</div>

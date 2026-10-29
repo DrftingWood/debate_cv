@@ -51,7 +51,6 @@ export default async function SamplePage() {
   );
   const lists = publicHighlights(SAMPLE_SPEAKER_ROWS, SAMPLE_JUDGE_ROWS);
   const none = new Set<string>();
-  const total = SAMPLE_SUMMARY.tournamentsSpoken + SAMPLE_SUMMARY.tournamentsJudged;
 
   return (
     <>
@@ -64,9 +63,7 @@ export default async function SamplePage() {
               {SAMPLE_NAME}
             </h1>
             <p className="mt-inline max-w-2xl text-body leading-relaxed text-ink-soft">
-              This is what a shared debate CV looks like: {total} tournaments, each linked to its
-              tab. The person and every figure are invented; the layout is the real one, the same
-              page you get from your own tabs.
+              The person and every figure are invented; the page is the one your own tabs build.
             </p>
           </header>
 
