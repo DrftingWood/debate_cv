@@ -78,6 +78,24 @@ export function Table({
   );
 }
 
+/**
+ * Fixed column widths for a table that repeats down the page (the Record's
+ * year groups): with `table-fixed` on the table, every repeat lays its
+ * columns out from these widths instead of from its own content, so a
+ * column sits at the same x in every year (owner review 2026-10-29: Format
+ * moved 47 px between 2026 and 2025). `undefined` leaves a column to take
+ * the remaining width.
+ */
+export function Cols({ widths }: { widths: (string | undefined)[] }) {
+  return (
+    <colgroup>
+      {widths.map((w, i) => (
+        <col key={i} style={w ? { width: w } : undefined} />
+      ))}
+    </colgroup>
+  );
+}
+
 export function Th({
   children,
   numeric,

@@ -96,15 +96,20 @@ function YearGroup({
 }) {
   return (
     <details id={id} open={open} className="group/year scroll-mt-24 border-t border-ink">
-      <summary className="flex cursor-pointer select-none items-start gap-inline py-tight coarse:min-h-[44px]">
-        <CaretDown
-          className="mt-1 h-3.5 w-3.5 shrink-0 -rotate-90 text-primary transition-transform duration-180 group-open/year:rotate-0 motion-reduce:transition-none"
-          aria-hidden
-        />
+      {/* One left edge (owner review 2026-10-29): the year sits flush with
+          the rule above and the table below, and its caret follows it
+          rather than pushing it 22 px in. */}
+      <summary className="flex cursor-pointer select-none items-start py-tight coarse:min-h-[44px]">
         <span className="min-w-0 flex-1 md:flex md:items-baseline md:justify-between md:gap-stack">
           {/* Not a heading element: a heading inside <summary> loses its
               role in some screen readers, as the summary is a button. */}
-          <span className="font-display text-h3 font-medium text-ink">{yearLabel(year)}</span>
+          <span className="inline-flex items-center gap-inline font-display text-h3 font-medium text-ink">
+            {yearLabel(year)}
+            <CaretDown
+              className="h-3.5 w-3.5 shrink-0 -rotate-90 text-primary transition-transform duration-180 group-open/year:rotate-0 motion-reduce:transition-none"
+              aria-hidden
+            />
+          </span>
           <span className="block space-y-hair font-mono text-caption font-semibold text-ink-soft md:text-right">
             {lines.map((l, i) => (
               <span key={i} className={cn('block', i === 0 && 'text-ink')}>

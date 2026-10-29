@@ -2,6 +2,30 @@
 
 ---
 
+## 2026-10-29 - UI review, part 1: alignment and type
+
+The owner asked for a critical review "as a UI expert who is very particular about layout, position, alignment and fonts". It was done in Chrome on production, against the owner's record. This PR fixes the alignment and type findings; the rest follow in parts 2-4.
+
+- **Columns line up down the page.** Every Record year was its own auto-layout table, so columns sat wherever that year's content pushed them (Format at 416 px in 2026, 463 px in 2025; 82 px of drift on Adjudication). The ledgers are now `table-fixed` with one shared `<Cols>` width set: the new `Cols` helper in `components/ui/DataTable.tsx`, used for the speaking, judging and both public ledgers, and opt-in on `StatsSplitTable` as `fixedColumns` for the stacked Positions tables. Measured after: one column set across all years.
+- **No sideways jump between pages.** `html { scrollbar-gutter: stable }`. A short page no longer centres 8 px off a tall one; content sits at 205 px on every page.
+- **One container width per surface.**
+  - Signed-in pages: header, content and footer all `max-w-(--breakpoint-2xl)`. The footer used to sit 192 px inside; `Footer` takes `width`.
+  - Signed-out pages: all `max-w-wide`. The privacy and terms header was 72rem over 96rem content.
+  - Admin drops its own narrower column.
+- **Record edges.**
+  - The chart panels pad 16 px, like the KPI tiles above them. They were 24 px, so the captions sat 8 px off the tile labels.
+  - The year group's caret follows the year, so the rule, year and table share one edge.
+  - The Partners year list is in the same panel and inset as the table below.
+- **Type.**
+  - Every uppercase mono label tracks 0.08em (it was 0.08, 0.09, 0.11, 0.12 and 0.14em across `.data-label`, `.eyebrow`, `.kicker`, `Badge`, `StatusPill` and two inline uses).
+  - The Needs-attention banner body is Inter, not the display face.
+- **Colour on a number means up or down.** The blue "Top 10%" and the gold break-rate tiles on Statistics and `/sample` are plain ink now; delta tints stay.
+- **Numbers.** The admin counts group thousands ("1,163").
+- **Checked** with Playwright at 1920 against the seeded local DB: one ledger column set on Record and Adjudication; Positions shared columns identical; header, content and footer at 205 px on /cv, /dashboard and /admin; tile labels and chart captions both at 222 px; label tracking 0.080em only.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Redesign QA: browser walk, accessibility, Core Web Vitals
 
 - **Fixed.**

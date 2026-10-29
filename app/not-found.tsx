@@ -39,7 +39,7 @@ export default async function NotFound() {
           </Link>
         </div>
       </main>
-      <Footer />
+      <Footer width="public" />
     </>
   );
 }

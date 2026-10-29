@@ -1,10 +1,20 @@
 import Link from 'next/link';
 import { BrandMark } from './BrandMark';
 
-export function Footer() {
+/**
+ * `width` matches the page the footer closes, so its left edge lines up
+ * with the header and the content above it (owner review 2026-10-29: it sat
+ * 192 px inside them). Signed-in pages are 96rem wide; signed-out pages,
+ * the landing page's 80rem (`max-w-wide`).
+ */
+export function Footer({ width = 'app' }: { width?: 'app' | 'public' } = {}) {
   return (
     <footer className="mt-24 pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto max-w-6xl px-5">
+      <div
+        className={
+          width === 'app' ? 'mx-auto max-w-(--breakpoint-2xl) px-5' : 'mx-auto max-w-wide px-5'
+        }
+      >
         <hr className="hairline" />
         <div className="flex flex-col gap-4 py-8 text-table text-ink-soft sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">

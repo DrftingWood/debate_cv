@@ -4,7 +4,7 @@ import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement';
 import { hashRank } from '@/lib/cv/rankDisplay';
 import { Badge } from '@/components/ui/Badge';
-import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
+import { Table, Th, Td, Tr, Nil, TableScroll, Cols } from '@/components/ui/DataTable';
 import { TournamentLink } from '@/components/TournamentCard';
 import { SourceLink } from '@/components/YearGroups';
 import {
@@ -30,6 +30,27 @@ import {
  * the panel's edge at 1280 px. The names wrap instead.
  */
 
+// One set of widths per ledger, so every year's columns line up (as on /cv).
+const PUBLIC_SPEAKING_WIDTHS = [
+  undefined, // tournament
+  '4.5rem', // format
+  '20%', // team
+  '6.5rem', // team rank
+  '7rem', // spk-tab rank
+  '5.5rem', // avg score
+  '10rem', // result
+  '13rem', // source
+];
+const PUBLIC_JUDGING_WIDTHS = [
+  undefined, // tournament
+  '4.5rem', // format
+  '7rem', // prelims chaired
+  '7rem', // prelims judged
+  '11rem', // last outround chaired
+  '11rem', // last outround judged
+  '13rem', // source
+];
+
 export function PublicSpeakingTable({
   rows,
   label,
@@ -44,10 +65,11 @@ export function PublicSpeakingTable({
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full" label={label}>
+          <Table className="w-full min-w-[56rem] table-fixed" label={label}>
+            <Cols widths={PUBLIC_SPEAKING_WIDTHS} />
             <thead>
               <tr>
-                <Th className="w-[30%] pl-4">Tournament</Th>
+                <Th className="pl-4">Tournament</Th>
                 <Th>Format</Th>
                 <Th>Team</Th>
                 <Th numeric title="Where the team finished on the prelim team tab">
@@ -140,10 +162,11 @@ export function PublicJudgingTable({ rows, label }: { rows: CvJudgeRow[]; label:
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full" label={label}>
+          <Table className="w-full min-w-[56rem] table-fixed" label={label}>
+            <Cols widths={PUBLIC_JUDGING_WIDTHS} />
             <thead>
               <tr>
-                <Th className="w-[30%] pl-4">Tournament</Th>
+                <Th className="pl-4">Tournament</Th>
                 <Th>Format</Th>
                 <Th numeric>Prelims chaired</Th>
                 <Th numeric>Prelims judged</Th>

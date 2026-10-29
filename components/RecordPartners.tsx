@@ -32,11 +32,13 @@ export function RecordPartners({
         <h2 id="partners-by-year" className="data-label">
           Partners by year
         </h2>
-        <dl className="divide-y divide-border border-y border-border">
+        {/* The same panel and 16 px inset as the table below, so the two
+            lists of this tab share one left edge (owner review 2026-10-29). */}
+        <dl className="panel divide-y divide-border overflow-hidden">
           {years.map((y) => (
             <div
               key={y.year ?? 'undated'}
-              className="grid gap-inline py-tight md:grid-cols-[6rem_minmax(0,1fr)]"
+              className="grid gap-inline px-4 py-tight md:grid-cols-[6rem_minmax(0,1fr)]"
             >
               <dt className="font-mono text-table text-ink">{y.year ?? 'Undated'}</dt>
               <dd className="flex flex-wrap gap-x-stack gap-y-hair text-table text-ink">

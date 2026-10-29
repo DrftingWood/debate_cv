@@ -45,7 +45,7 @@ export default async function Home() {
           <FinalCta />
         </main>
       </div>
-      <Footer />
+      <Footer width="public" />
     </>
   );
 }
