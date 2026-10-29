@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { CheckCircle, Clock, Link as LinkIcon, UserFocus } from '@/components/ui/icons';
+import { ArrowRight, CheckCircle, Clock, Link as LinkIcon, UserFocus } from '@/components/ui/icons';
 import { REVIEW_HREF } from '@/components/FoundReview';
 import { deadLinksText, type ImportFilterKey } from '@/lib/ingest/importRows';
 import { cn } from '@/lib/utils/cn';
@@ -113,12 +113,14 @@ export function ImportsStages({
             </Link>
             {i < stages.length - 1 ? (
               // The flow arrow, desktop only: on a phone the 2x2 grid has no
-              // single reading direction for it to point along.
+              // single reading direction for it to point along. An icon, not
+              // a "→" glyph: in the 12px gap between tiles the text arrow's
+              // head was too small to see and it read as a dash.
               <span
                 aria-hidden
-                className="absolute -right-tight top-1/2 hidden w-tight -translate-y-1/2 text-center text-ink-soft md:block"
+                className="absolute -right-tight top-1/2 hidden w-tight -translate-y-1/2 justify-center text-ink-soft md:flex"
               >
-                →
+                <ArrowRight className="h-3 w-3" />
               </span>
             ) : null}
           </li>
