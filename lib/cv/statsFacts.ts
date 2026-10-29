@@ -24,14 +24,16 @@ import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { isFourTeam, roundHit } from '@/lib/cv/roundOutcome';
 import { classifyMotion, type MotionClass } from '@/lib/motions/classify';
+import { proAmKey } from '@/lib/cv/proAm';
 
 /**
- * A pairing is pro-am when your speaker average and your partners' differ by
- * MORE than this at the same tournament. Exactly 1.5 is peers.
+ * Whether the user marked a tournament's partnership pro-am on the Record's
+ * Partners tab (lib/cv/proAm.ts). The owner's rule (2026-10-27, confirmed
+ * for Statistics 2026-10-29) is that the product never decides it: the
+ * 1.5-point score-gap label this replaced is gone, and the gap itself stays
+ * only as a number (`partnerGap`).
  */
-export const PRO_AM_GAP = 1.5;
-
-export type ProAm = 'pro' | 'am' | 'peers';
+export type ProAm = 'marked' | 'unmarked';
 
 export type RoundFact = {
   tournamentId: string;
@@ -172,23 +174,24 @@ export function seatKey(format: string | null, position: string | null): string 
 }
 
 /**
- * Your average against your partners' mean at one tournament. The gap is
- * returned to two decimals for display; the label is decided on the true gap.
+ * Your average against your partners' mean at one tournament, to two
+ * decimals. A number only: it no longer decides a pro-am label.
  */
-export function proAmFor(
-  mine: number | null,
-  partners: Array<number | null>,
-): { gap: number | null; label: ProAm | null } {
-  if (mine == null || partners.length === 0 || partners.some((p) => p == null)) {
-    return { gap: null, label: null };
-  }
+export function partnerGapFor(mine: number | null, partners: Array<number | null>): number | null {
+  if (mine == null || partners.length === 0 || partners.some((p) => p == null)) return null;
   const mean = (partners as number[]).reduce((s, v) => s + v, 0) / partners.length;
-  // Label from the true gap; round only what is shown. A gap of 1.504 is
-  // pro, and rounding first would call it peers. The epsilon keeps a gap of
-  // exactly 1.5, which floating point may store as 1.5000000001, as peers.
-  const raw = mine - mean;
-  const label: ProAm = raw - PRO_AM_GAP > 1e-9 ? 'pro' : -raw - PRO_AM_GAP > 1e-9 ? 'am' : 'peers';
-  return { gap: Math.round(raw * 100) / 100, label };
+  return Math.round((mine - mean) * 100) / 100;
+}
+
+/**
+ * The user's own mark for a tournament: marked when any partner there
+ * carries one, unmarked otherwise, and null with no partner to mark.
+ */
+function proAmMark(row: CvSpeakerRow, marks: ReadonlySet<string>): ProAm | null {
+  if (row.teammates.length === 0) return null;
+  return row.teammates.some((t) => marks.has(proAmKey(row.tournamentId, t)))
+    ? 'marked'
+    : 'unmarked';
 }
 
 function prelimScores(scores: CvSpeakerRoundScore[], prelims: number | null): Map<number, number> {
@@ -222,7 +225,11 @@ function pairingFor(row: CvSpeakerRow) {
   // unlabel the pairing — as long as someone else on the team was scored.
   const spoke = matesByRound.filter((m) => m.size > 0);
   const compared = spoke.length > 0 ? spoke : matesByRound;
-  return { ...proAmFor(meanOf(mineByRound), compared.map(meanOf)), mineByRound, matesByRound };
+  return {
+    gap: partnerGapFor(meanOf(mineByRound), compared.map(meanOf)),
+    mineByRound,
+    matesByRound,
+  };
 }
 
 /**
@@ -314,7 +321,10 @@ function knockoutsFor(
 }
 
 type FactsInput = Pick<CvData, 'speakerRows' | 'taggedMotions'> &
-  Partial<Pick<CvData, 'teamOutroundResults'>>;
+  Partial<Pick<CvData, 'teamOutroundResults'>> & {
+    /** User.proAmMarks: the pro-am marks set on the Record's Partners tab. */
+    proAmMarks?: readonly string[];
+  };
 
 /** Motions by prelim round and, for knockouts, by tournament; team results by tournament. */
 function indexInput(input: FactsInput) {
@@ -344,10 +354,12 @@ export function buildStatsFacts(input: FactsInput): StatsFacts {
   const knockouts: KnockoutFact[] = [];
   const tournaments: TournamentFact[] = [];
   const partnerNames: Record<string, string> = {};
+  const marks = new Set(input.proAmMarks ?? []);
 
   for (const row of input.speakerRows) {
     const tournamentId = row.tournamentId.toString();
     const pairing = pairingFor(row);
+    const proAm = proAmMark(row, marks);
     const partners = row.teammateDetails.map((t) => t.key);
     for (const t of row.teammateDetails) partnerNames[t.key] = t.name;
     const resultByRound = new Map(row.teamRoundResults.map((r) => [r.roundNumber, r]));
@@ -366,7 +378,7 @@ export function buildStatsFacts(input: FactsInput): StatsFacts {
         seat: seatKey(row.format, result?.position ?? null),
         partners,
         partnerGap: pairing.gap,
-        proAm: pairing.label,
+        proAm,
         ...motionFor(motionsByRound.get(`${tournamentId}:${round}`) ?? []),
         score: pairing.mineByRound.get(round) ?? null,
         partnerScores: pairing.matesByRound
@@ -402,7 +414,7 @@ export function buildStatsFacts(input: FactsInput): StatsFacts {
       format: row.format,
       partners,
       partnerGap: pairing.gap,
-      proAm: pairing.label,
+      proAm,
       broke: row.broke,
       breakRank: row.teamBreakRank,
       deepestOutround: row.eliminationReached,

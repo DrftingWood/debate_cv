@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-29 - Statistics: pro-am from the user's marks; the filter works again
+
+- **Pro-am** (owner decision for Statistics, 2026-10-29; rule 2026-10-27, "no automatic pro-am"). `RoundFact.proAm` and `TournamentFact.proAm` are now `'marked' | 'unmarked'`. They come from `User.proAmMarks` (the Record's Partners tab): marked when any partner at that tournament carries a mark, and null with no partner. `buildStatsFacts` takes `proAmMarks`, and `/cv/stats` reads them.
+  - `PRO_AM_GAP` and the 1.5-point label are gone. `partnerGapFor` keeps the gap as a number only.
+- **Labels follow.**
+  - The pairing filter is "Marked pro-am / Not marked".
+  - The Teammates table shows "Pro-am ×n", and its note says marks are never guessed from scores.
+  - Cross-tabs read "in pairings you marked pro-am".
+  - The Carry section loses its "true by construction" caveat, because the label is no longer defined by the gap it measures.
+- **Bug fixed: the filters did nothing.** `FilterableStats` derived its filter from `useSearchParams` and relied on Next syncing `history.replaceState` into it. On Next 16 it did not: a chip changed the URL and nothing re-rendered (seen in Chrome on the seeded local DB, for the seat and pairing chips). The filter is now component state, read once from the URL and written back, the same as `Tabs`. This was live on production before this PR.
+- **Checked** in Chrome: "Marked pro-am" presses and narrows to "Showing 8 of 69 scored prelim speeches, from 1 of 12 tournaments".
+- **Next:** the three tab levels (decision 19), then the new sections.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Share image: the person card carries the speaking chart
 
 - **Person card** (`components/landing/ShareCard.tsx`, owner decision 12). The 1200×630 card for `/u/<slug>` (Open Graph and X) now shows:

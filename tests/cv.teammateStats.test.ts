@@ -11,7 +11,7 @@ const round = (o: Partial<RoundFact>): RoundFact => ({
   seat: 'BP:OG',
   partners: ['Ann'],
   partnerGap: 2,
-  proAm: 'pro',
+  proAm: 'marked',
   motionType: null,
   hasMotion: true,
   contextLed: false,
@@ -29,7 +29,7 @@ const tournament = (o: Partial<TournamentFact>): TournamentFact => ({
   format: 'British Parliamentary',
   partners: ['Ann'],
   partnerGap: 2,
-  proAm: 'pro',
+  proAm: 'marked',
   broke: true,
   breakRank: 3,
   deepestOutround: null,
@@ -41,19 +41,25 @@ const tournament = (o: Partial<TournamentFact>): TournamentFact => ({
 const facts = {
   partnerNames: {} as Record<string, string>,
   tournaments: [
-    tournament({ tournamentId: '1', partners: ['Ann'], partnerGap: 2, proAm: 'pro', broke: true }),
+    tournament({
+      tournamentId: '1',
+      partners: ['Ann'],
+      partnerGap: 2,
+      proAm: 'marked',
+      broke: true,
+    }),
     tournament({
       tournamentId: '2',
       partners: ['Ann'],
       partnerGap: 0.5,
-      proAm: 'peers',
+      proAm: 'unmarked',
       broke: false,
     }),
     tournament({
       tournamentId: '3',
       partners: ['Bob', 'Cy'],
       partnerGap: -2,
-      proAm: 'am',
+      proAm: 'marked',
       broke: true,
     }),
     tournament({
@@ -67,14 +73,14 @@ const facts = {
   rounds: [
     round({ tournamentId: '1', score: 78, won: true }),
     round({ tournamentId: '1', round: 2, score: 80, won: false }),
-    round({ tournamentId: '2', score: 76, won: true, partnerGap: 0.5, proAm: 'peers' }),
+    round({ tournamentId: '2', score: 76, won: true, partnerGap: 0.5, proAm: 'unmarked' }),
     round({
       tournamentId: '3',
       score: 74,
       won: false,
       partners: ['Bob', 'Cy'],
       partnerGap: -2,
-      proAm: 'am',
+      proAm: 'marked',
     }),
     round({
       tournamentId: '3',
@@ -102,16 +108,16 @@ describe('teammateStats — per partner', () => {
     expect(partners.map((p) => p.name)).toEqual(['Ann', 'Bob', 'Cy']);
   });
 
-  test('tournaments, breaks and how each pairing was labelled', () => {
+  test('tournaments, breaks and how many pairings the user marked pro-am', () => {
     expect(partners[0]).toMatchObject({
       tournaments: 2,
       breaks: 1,
-      pairings: { pro: 1, am: 0, peers: 1, unlabelled: 0 },
+      pairings: { marked: 1, unmarked: 1, unlabelled: 0 },
     });
     expect(partners[1]).toMatchObject({
       tournaments: 2,
       breaks: 1,
-      pairings: { pro: 0, am: 1, peers: 0, unlabelled: 1 },
+      pairings: { marked: 1, unmarked: 0, unlabelled: 1 },
     });
   });
 
@@ -127,23 +133,12 @@ describe('teammateStats — per partner', () => {
 describe('teammateStats — by pairing', () => {
   const { pairings } = teammateStats(facts);
 
-  test('a summary line per label that occurs, in pro, am, peers order', () => {
-    expect(pairings.map((p) => p.label)).toEqual(['pro', 'am', 'peers']);
-    expect(pairings[0]).toMatchObject({
-      tournaments: 1,
-      breaks: 1,
-      avgScore: 79,
-      decided: 2,
-      wins: 1,
-    });
+  test('a summary line per mark that occurs, marked first', () => {
+    expect(pairings.map((p) => p.label)).toEqual(['marked', 'unmarked']);
+    // Marked: tournaments 1 and 3. Speeches 78, 80 and 74 → 77.33; 3 decided, 1 won.
+    expect(pairings[0]).toMatchObject({ tournaments: 2, breaks: 2, decided: 3, wins: 1 });
+    expect(pairings[0]!.avgScore).toBeCloseTo(77.33, 1);
     expect(pairings[1]).toMatchObject({
-      tournaments: 1,
-      breaks: 1,
-      avgScore: 74,
-      decided: 1,
-      wins: 0,
-    });
-    expect(pairings[2]).toMatchObject({
       tournaments: 1,
       breaks: 0,
       avgScore: 76,

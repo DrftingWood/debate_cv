@@ -11,7 +11,7 @@ const round = (o: Partial<RoundFact>): RoundFact => ({
   seat: 'BP:OG',
   partners: ['Ann'],
   partnerGap: 0,
-  proAm: 'peers',
+  proAm: 'unmarked',
   motionType: 'Policy',
   hasMotion: true,
   contextLed: false,

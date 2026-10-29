@@ -43,10 +43,15 @@ export default async function CvStatsPage() {
   });
   if (claimedCount === 0) redirect('/onboarding');
 
-  const data = await buildCvData(session.user.id);
+  const [data, marksRow] = await Promise.all([
+    buildCvData(session.user.id),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { proAmMarks: true } }),
+  ]);
   const stats = computeSpeakerStats(data);
   const { scoreProfile, results, volume } = stats;
-  const facts = buildStatsFacts(data);
+  // Pro-am is the user's own mark from the Record's Partners tab, never a
+  // score gap (owner rule 2026-10-27, applied to Statistics 2026-10-29).
+  const facts = buildStatsFacts({ ...data, proAmMarks: marksRow?.proAmMarks ?? [] });
 
   const hasAnything =
     scoreProfile.speeches > 0 ||

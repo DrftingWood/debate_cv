@@ -41,7 +41,7 @@ export const FORMAT_NAME: Record<string, string> = {
 
 export const SEAT_ORDER = ['OG', 'OO', 'CG', 'CO', 'Gov', 'Aff', 'Prop', 'Opp', 'Neg'];
 export const MOTION_ORDER = ['Policy', 'Actor', 'Belief', 'Stance', 'Regret', 'Preference'];
-const PAIRING_ORDER = ['pro', 'am', 'peers'];
+const PAIRING_ORDER = ['marked', 'unmarked'];
 
 export type CrossTabCell = {
   row: string;
@@ -194,14 +194,12 @@ export function crossTab(
 // ── Findings ──────────────────────────────────────────────────────────────
 
 const PAIRING_PHRASE: Record<string, string> = {
-  pro: 'as the pro',
-  am: 'as the am',
-  peers: 'with peers',
+  marked: 'in pairings you marked pro-am',
+  unmarked: 'in pairings you did not mark',
 };
 const PAIRING_NOUN: Record<string, string> = {
-  pro: 'being the pro',
-  am: 'being the am',
-  peers: 'pairing with peers',
+  marked: 'a pairing you marked pro-am',
+  unmarked: 'a pairing you did not mark',
 };
 
 /** "OG" from "BP:OG" — the format is named in the comparison instead. */

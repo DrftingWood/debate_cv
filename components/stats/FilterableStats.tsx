@@ -90,20 +90,24 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const filter = useMemo(
-    () => parseStatsFilter(new URLSearchParams(searchParams.toString())),
-    [searchParams],
+  // The filter is component state, read once from the URL and written back
+  // to it. It used to be derived from useSearchParams on the strength of
+  // Next syncing history.replaceState into it; on Next 16 that sync did not
+  // happen, so a chip changed the URL and nothing else (found 2026-10-29).
+  // Tabs (components/ui/Tabs.tsx) keeps its selection the same way.
+  const [filter, setFilterState] = useState<StatsFilter>(() =>
+    parseStatsFilter(new URLSearchParams(searchParams.toString())),
   );
   // history.replaceState, not router.replace. The page is force-dynamic, so
   // a router navigation to new search params refetches the server component —
   // auth, buildCvData, the round table — and ships the whole payload again
-  // for a change the browser computes in a few milliseconds. Next syncs
-  // replaceState into useSearchParams, so the filter still lives in the URL.
-  // replaceState also means a filter change adds no history entry: Back leaves
-  // /cv/stats rather than undoing the last filter (STAT-14). "Clear filters"
-  // is the way back to the unfiltered view.
+  // for a change the browser computes in a few milliseconds. replaceState
+  // also means a filter change adds no history entry: Back leaves /cv/stats
+  // rather than undoing the last filter (STAT-14). "Clear filters" is the
+  // way back to the unfiltered view.
   const setFilter = useCallback(
     (next: StatsFilter) => {
+      setFilterState(next);
       const qs = serializeStatsFilter(next);
       window.history.replaceState(window.history.state, '', qs ? `${pathname}?${qs}` : pathname);
     },
@@ -127,8 +131,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
       ? [`${filter.partners.length} partners`]
       : filter.partners.map((k) => `partner ${facts.partnerNames[k] ?? 'unknown'}`)),
     ...filter.pairings.map(
-      (p) =>
-        `pairing ${p === 'pro' ? 'pro-am, you as pro' : p === 'am' ? 'pro-am, you as am' : 'peers'}`,
+      (p) => `pairing ${p === 'marked' ? 'marked pro-am' : 'not marked pro-am'}`,
     ),
     ...filter.seats.map((s) => `seat ${s.replace(':', ' ')}`),
   ].join('; ');
@@ -248,11 +251,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
             <TopicTypeSection facts={filteredFacts} knockoutsWithheld={bySeat} />
             <Splits stats={stats} filtered={active} omit={['position', 'motionType']} />
             <TeammatesSection facts={filteredFacts} perRoundOnly={bySeat} />
-            <CarrySection
-              facts={filteredFacts}
-              baseline={facts.rounds}
-              byPairing={filter.pairings.length > 0}
-            />
+            <CarrySection facts={filteredFacts} baseline={facts.rounds} />
             {bySeat ? (
               <WithheldSection
                 id="seasons"

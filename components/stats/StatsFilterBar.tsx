@@ -8,10 +8,10 @@ import { PressedMark, pressedClasses } from '@/components/stats/pressed';
 import type { ProAm, StatsFacts } from '@/lib/cv/statsFacts';
 import type { StatsFilter } from '@/lib/cv/statsFilter';
 
+// The user's own marks from the Record's Partners tab, never inferred.
 const PAIRING_LABELS: Record<ProAm, string> = {
-  pro: 'Pro-am · you as pro',
-  am: 'Pro-am · you as am',
-  peers: 'Peers',
+  marked: 'Marked pro-am',
+  unmarked: 'Not marked',
 };
 
 /** Seat order within a format, the order a debater reads a room in. */
@@ -54,7 +54,7 @@ function useOptions(facts: StatsFacts) {
           .map(([key, count]) => ({ key, name: facts.partnerNames[key] ?? key, count }))
           .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       ),
-      pairings: (['pro', 'am', 'peers'] as const)
+      pairings: (['marked', 'unmarked'] as const)
         .map((p) => ({ value: p, count: pairingCounts.get(p) ?? 0 }))
         .filter((p) => p.count > 0),
       seatGroups: [...seatGroups].sort(

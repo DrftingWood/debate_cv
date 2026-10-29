@@ -1,3 +1,4 @@
+import { proAmKey } from '@/lib/cv/proAm';
 import { describe, expect, test } from 'vitest';
 import {
   EMPTY_FILTER,
@@ -60,13 +61,15 @@ const data = {
   taggedMotions: [],
   fieldStats: [],
 };
-const facts = buildStatsFacts(data);
+// The user marked tournament 1's partnership pro-am (Record → Partners);
+// the pairing filter reads only that mark, never a score gap.
+const facts = buildStatsFacts({ ...data, proAmMarks: [proAmKey(1n, 'Ann')] });
 
 describe('parse / serialize', () => {
   test('round-trips every dimension through the query string', () => {
     const filter = {
       partners: ['Ann', 'Bob Lee'],
-      pairings: ['pro' as const],
+      pairings: ['marked' as const],
       seats: ['BP:CG', 'AP:Gov'],
     };
     const qs = serializeStatsFilter(filter);
@@ -75,10 +78,10 @@ describe('parse / serialize', () => {
 
   test('ignores unknown pairing values and blank entries', () => {
     expect(
-      parseStatsFilter(new URLSearchParams('pairing=pro&pairing=best&partner=&seat=BP:OG')),
+      parseStatsFilter(new URLSearchParams('pairing=marked&pairing=pro&partner=&seat=BP:OG')),
     ).toEqual({
       partners: [],
-      pairings: ['pro'],
+      pairings: ['marked'],
       seats: ['BP:OG'],
     });
   });
@@ -101,7 +104,7 @@ describe('filterCvData', () => {
   });
 
   test('pairing filter keeps tournaments with that label', () => {
-    const out = filterCvData(data, facts, { ...EMPTY_FILTER, pairings: ['pro'] });
+    const out = filterCvData(data, facts, { ...EMPTY_FILTER, pairings: ['marked'] });
     expect(out.speakerRows.map((r) => r.tournamentId)).toEqual([1n]);
   });
 
@@ -109,7 +112,7 @@ describe('filterCvData', () => {
     const out = filterCvData(data, facts, {
       ...EMPTY_FILTER,
       partners: ['Ann', 'Bob'],
-      pairings: ['peers'],
+      pairings: ['unmarked'],
     });
     expect(out.speakerRows.map((r) => r.tournamentId)).toEqual([2n, 3n]);
   });
@@ -175,9 +178,9 @@ describe('findings under a seat filter', () => {
 
   test('partner and pairing filters keep whole tournaments, so every finding stays', () => {
     const ids = ['momentum', 'field-percentile', 'break-rate'];
-    expect(visibleQuirkIds(ids, { ...EMPTY_FILTER, partners: ['Ann'], pairings: ['pro'] })).toEqual(
-      ids,
-    );
+    expect(
+      visibleQuirkIds(ids, { ...EMPTY_FILTER, partners: ['Ann'], pairings: ['marked'] }),
+    ).toEqual(ids);
   });
 });
 

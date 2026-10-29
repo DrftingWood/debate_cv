@@ -1,6 +1,7 @@
 /**
  * Teammates, over the round and tournament tables: who you debated with, how
- * each pairing was labelled (pro-am or peers), and your figures with them.
+ * many of those pairings you marked pro-am (the Record's Partners tab; never
+ * inferred), and your figures with them.
  *
  * Deliberately your figures, not the partner's. In three-a-side formats a
  * round's partner speeches cannot be tied to one named teammate, so a
@@ -18,7 +19,7 @@ export type PartnerRow = {
   tournaments: number;
   breaks: number;
   pairings: Record<ProAm | 'unlabelled', number>;
-  /** Mean pro-am gap over the tournaments where one could be measured. */
+  /** Mean score gap to the partner over the tournaments where one could be measured. */
   meanGap: number | null;
   avgScore: number | null;
   decided: number;
@@ -81,9 +82,8 @@ export function teammateStats(facts: StatsFacts): {
         tournaments: ts.length,
         breaks: ts.filter((t) => t.broke).length,
         pairings: {
-          pro: ts.filter((t) => t.proAm === 'pro').length,
-          am: ts.filter((t) => t.proAm === 'am').length,
-          peers: ts.filter((t) => t.proAm === 'peers').length,
+          marked: ts.filter((t) => t.proAm === 'marked').length,
+          unmarked: ts.filter((t) => t.proAm === 'unmarked').length,
           unlabelled: ts.filter((t) => t.proAm == null).length,
         },
         meanGap: mean(gaps),
@@ -92,7 +92,7 @@ export function teammateStats(facts: StatsFacts): {
     })
     .sort((a, b) => b.tournaments - a.tournaments || a.name.localeCompare(b.name));
 
-  const pairings: PairingSummary[] = (['pro', 'am', 'peers'] as const).flatMap((label) => {
+  const pairings: PairingSummary[] = (['marked', 'unmarked'] as const).flatMap((label) => {
     const ts = facts.tournaments.filter((t) => t.proAm === label);
     if (ts.length === 0) return [];
     return [
