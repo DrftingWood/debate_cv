@@ -42,9 +42,8 @@ const LEDGER = {
 
 // The career chart's light-theme tiers (app/globals.css), as hex for Satori.
 const TIER: Record<SpeakingTier, string> = {
-  none: '#788391', // --tier-none 213 10% 52%
-  qf: '#4583D3', // --tier-qf 214 62% 55%
-  sf: '#1F5FB2', // --tier-sf 214 70% 41%
+  none: '#B4BCC6', // --tier-none 213 14% 74%
+  broke: '#4583D3', // --tier-broke 214 62% 55%
   f: '#0E3C81', // --tier-f 216 80% 28%
   champion: '#8E6215', // --break-gold 38 74% 32%
 };

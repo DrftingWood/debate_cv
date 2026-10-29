@@ -57,12 +57,14 @@ function median(values: number[]): number | null {
 export function speakingYearTotal(rows: readonly CvSpeakerRow[]): SpeakingYearTotal | null {
   if (rows.length === 0) return null;
   const cells = rows.map(speakingCell);
-  // Highest tier wins; within a tier a major beats a non-major.
+  // Highest tier wins, then the deeper stage (the tiers merge quarters and
+  // semis), then a major over a non-major.
   const best = cells
     .filter((c) => c.tier !== 'none')
     .sort(
       (a, b) =>
         SPEAKING_TIERS.indexOf(b.tier) - SPEAKING_TIERS.indexOf(a.tier) ||
+        b.depth - a.depth ||
         Number(b.major) - Number(a.major),
     )
     .at(0);

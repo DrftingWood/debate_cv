@@ -75,8 +75,8 @@ describe('link-preview card (COPY-2)', () => {
     // Broke is the speaking figure alone, never speaking plus judging.
     expect(out).toMatch(/Broke<\/div><div[^>]*>3</);
     expect(out).not.toContain('>7<');
-    // One cell per tournament, in the tier colours (semifinal blue here).
-    expect(out).toContain('#1F5FB2');
+    // One cell per tournament, in the tier colours (the broke blue here).
+    expect(out).toContain('#4583D3');
     expect(out).toContain('&#x27;24');
   });
 });

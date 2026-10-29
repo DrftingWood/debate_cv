@@ -16,7 +16,7 @@ import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 
 const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 const pct = (rate: number | null) => (rate == null ? null : `${Math.round(rate * 100)}%`);
-const NOT_FILTERABLE = 'Judging has no partner or seat, so filters leave it unchanged';
+const NOT_FILTERABLE = 'Not filtered';
 
 /** Speaks → Top-10 finishes: the speaking chart's stars, as a list. */
 export function TopFinishesSection({ speakerRows }: { speakerRows: CvSpeakerRow[] }) {

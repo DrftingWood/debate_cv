@@ -32,11 +32,14 @@ import { breakDepth, isTopSpeaker } from '@/lib/cv/teamPlacement';
  */
 
 /** Bottom to top. `none` sits below the ink rule; the rest are breaks. */
-export const SPEAKING_TIERS = ['none', 'qf', 'sf', 'f', 'champion'] as const;
+// Four tiers (owner, 2026-10-29, after the dataviz research: a stack reads
+// with at most four parts). `broke` covers every outround short of the
+// final; the stage itself stays in each cell's detail.
+export const SPEAKING_TIERS = ['none', 'broke', 'f', 'champion'] as const;
 export type SpeakingTier = (typeof SPEAKING_TIERS)[number];
 
 /** Bottom to top. `chairedFinal` is judging's champion tier; `core` is purple. */
-export const JUDGING_TIERS = ['none', 'qf', 'sf', 'f', 'chairedFinal', 'core'] as const;
+export const JUDGING_TIERS = ['none', 'broke', 'f', 'chairedFinal', 'core'] as const;
 export type JudgingTier = (typeof JUDGING_TIERS)[number];
 
 export type CareerCell<T extends string> = {
@@ -45,6 +48,12 @@ export type CareerCell<T extends string> = {
   major: boolean;
   /** What happened, for the details panel: "Semifinals", "ESL Champion". */
   detail: string;
+  /**
+   * The stage rank reached (JUDGE_STATS_RANK; 0 when none or unknown). The
+   * four tiers merge quarters and semis into "broke", so this keeps "best
+   * result" and the order inside a tier telling a semifinal from a quarter.
+   */
+  depth: number;
 };
 
 export type CareerYear<T extends string> = {
@@ -65,12 +74,9 @@ export type CareerSeries<T extends string> = {
 // Canonical stage ranks (JUDGE_STATS_RANK in judgeStats.ts): final and grand
 // final 95, semifinal 90, partial semifinal 85, everything earlier below.
 const FINAL_RANK = 95;
-const SEMI_RANK = 85;
 
-function stageTier(rank: number): 'qf' | 'sf' | 'f' {
-  if (rank >= FINAL_RANK) return 'f';
-  if (rank >= SEMI_RANK) return 'sf';
-  return 'qf';
+function stageTier(rank: number): 'broke' | 'f' {
+  return rank >= FINAL_RANK ? 'f' : 'broke';
 }
 
 type SpeakingRow = Pick<
@@ -93,30 +99,55 @@ export function speakingCell(row: SpeakingRow): CareerCell<SpeakingTier> {
   // break, so it is not a break (the same exclusion championshipHighlights
   // makes).
   if (depth && bracketOf(depth.stage) === 'consolation') {
-    return { tournamentName: row.tournamentName, tier: 'none', major, detail: 'Did not break' };
+    return {
+      tournamentName: row.tournamentName,
+      tier: 'none',
+      major,
+      detail: 'Did not break',
+      depth: 0,
+    };
   }
   if (!depth) {
     // Broke, but the outround draw was never published: a break of unknown
     // depth sits in the lowest break tier rather than vanishing.
     return row.broke
-      ? { tournamentName: row.tournamentName, tier: 'qf', major, detail: 'Broke' }
-      : { tournamentName: row.tournamentName, tier: 'none', major, detail: 'Did not break' };
+      ? { tournamentName: row.tournamentName, tier: 'broke', major, detail: 'Broke', depth: 0 }
+      : {
+          tournamentName: row.tournamentName,
+          tier: 'none',
+          major,
+          detail: 'Did not break',
+          depth: 0,
+        };
   }
   const stage = formatStageForDisplay(depth.stage) || 'Broke';
   // tierRank: Gold 3, Silver 2, Bronze 1, untiered 0.
   const tiered = tierRank(depth.stage);
   if (row.wonTournament === true) {
     if (tiered === 1 || tiered === 2) {
-      return { tournamentName: row.tournamentName, tier: 'f', major, detail: `Won the ${stage}` };
+      return {
+        tournamentName: row.tournamentName,
+        tier: 'f',
+        major,
+        detail: `Won the ${stage}`,
+        depth: depth.rank,
+      };
     }
     return {
       tournamentName: row.tournamentName,
       tier: 'champion',
       major,
       detail: championTitle(depth.stage),
+      depth: depth.rank,
     };
   }
-  return { tournamentName: row.tournamentName, tier: stageTier(depth.rank), major, detail: stage };
+  return {
+    tournamentName: row.tournamentName,
+    tier: stageTier(depth.rank),
+    major,
+    detail: stage,
+    depth: depth.rank,
+  };
 }
 
 /** Open top 10, or top 10 in an ESL / EFL category; null when neither. */
@@ -150,12 +181,15 @@ function isOpenOrCategoryFinal(label: string | null): boolean {
 export function judgingCell(row: JudgingRow): CareerCell<JudgingTier> {
   const major = isMajor(row.tournamentName);
   const base = { tournamentName: row.tournamentName, major };
-  if (row.judgeTypeTag === 'core') return { ...base, tier: 'core', detail: 'Adjudication core' };
+  if (row.judgeTypeTag === 'core') {
+    return { ...base, tier: 'core', detail: 'Adjudication core', depth: 0 };
+  }
   if (isOpenOrCategoryFinal(row.lastOutroundChaired)) {
     return {
       ...base,
       tier: 'chairedFinal',
       detail: `Chaired the ${formatStageForDisplay(row.lastOutroundChaired)}`,
+      depth: outroundRankStrict(row.lastOutroundChaired ?? '') ?? 0,
     };
   }
   // A chaired outround is a judged one: a row that carries only the chair
@@ -169,17 +203,20 @@ export function judgingCell(row: JudgingRow): CareerCell<JudgingTier> {
     .map((label) => ({ label, rank: outroundRankStrict(label) ?? 0 }))
     .sort((a, b) => b.rank - a.rank);
   const deepest = judged.at(0);
-  if (!deepest) return { ...base, tier: 'none', detail: 'No outround' };
+  if (!deepest) return { ...base, tier: 'none', detail: 'No outround', depth: 0 };
   return {
     ...base,
     tier: stageTier(deepest.rank),
     detail: `Judged the ${formatStageForDisplay(deepest.label)}`,
+    depth: deepest.rank,
   };
 }
 
 function byTierThenMajor<T extends string>(order: readonly T[]) {
   return (a: CareerCell<T>, b: CareerCell<T>) =>
     order.indexOf(a.tier) - order.indexOf(b.tier) ||
+    // Bottom to top, so a semifinal sits above a quarterfinal inside "broke".
+    a.depth - b.depth ||
     Number(b.major) - Number(a.major) ||
     a.tournamentName.localeCompare(b.tournamentName);
 }

@@ -44,15 +44,15 @@ describe('speakingCell', () => {
   it('tiers a break by its furthest stage', () => {
     const tier = (stage: string) =>
       speakingCell(spoke({ broke: true, eliminationReached: stage })).tier;
-    expect(tier('Octofinals')).toBe('qf');
-    expect(tier('Quarterfinals')).toBe('qf');
-    expect(tier('Semifinals')).toBe('sf');
+    expect(tier('Octofinals')).toBe('broke');
+    expect(tier('Quarterfinals')).toBe('broke');
+    expect(tier('Semifinals')).toBe('broke');
     expect(tier('Grand Final')).toBe('f');
-    expect(tier('ESL Semifinals')).toBe('sf');
+    expect(tier('ESL Semifinals')).toBe('broke');
   });
 
   it('keeps a break of unknown depth as a break', () => {
-    expect(speakingCell(spoke({ broke: true }))).toMatchObject({ tier: 'qf', detail: 'Broke' });
+    expect(speakingCell(spoke({ broke: true }))).toMatchObject({ tier: 'broke', detail: 'Broke' });
   });
 
   it('makes an Open or category final win a champion, with the category named', () => {
@@ -112,7 +112,7 @@ describe('judgingCell', () => {
   });
 
   it('counts a chaired outround as judged when no judged stage is recorded', () => {
-    expect(judgingCell(judged({ lastOutroundChaired: 'Semifinals' })).tier).toBe('sf');
+    expect(judgingCell(judged({ lastOutroundChaired: 'Semifinals' })).tier).toBe('broke');
   });
 
   it('otherwise tiers by the furthest outround judged', () => {
@@ -123,7 +123,7 @@ describe('judgingCell', () => {
           judgedOutroundStages: ['Quarterfinals', 'Semifinals'],
         }),
       ),
-    ).toMatchObject({ tier: 'sf', detail: 'Judged the Semifinals' });
+    ).toMatchObject({ tier: 'broke', detail: 'Judged the Semifinals' });
     expect(judgingCell(judged({ lastOutroundJudged: 'Grand Final' })).tier).toBe('f');
     expect(judgingCell(judged({ judgedOutroundStages: ['Plate Final'] })).tier).toBe('none');
     expect(judgingCell(judged()).tier).toBe('none');
