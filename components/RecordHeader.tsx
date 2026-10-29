@@ -1,6 +1,7 @@
 import { StatRow, StatTile } from '@/components/ui/StatTile';
 import { CountUp } from '@/components/ui/CountUp';
 import { CareerChart } from '@/components/ui/CareerChart';
+import { CollapsibleCharts } from '@/components/CollapsibleCharts';
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { judgingSeries, speakingSeries } from '@/lib/cv/careerChart';
 
@@ -22,6 +23,7 @@ export function RecordHeader({
   judgeRows,
   summary,
   countUp = false,
+  collapsible = false,
 }: {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
@@ -36,12 +38,25 @@ export function RecordHeader({
    * does; the public CV does not, as a credential it stays still (§3.6).
    */
   countUp?: boolean;
+  /**
+   * The charts fold behind "Show career charts" (owner, 2026-10-29), so the
+   * Record's ledger starts above the fold. The public CV and /sample keep
+   * them open: there the charts are the point.
+   */
+  collapsible?: boolean;
 }) {
   const fig = (value: number, id: string) =>
     countUp ? <CountUp value={value} id={`record-${id}`} /> : value;
-  const roles = [
-    summary.tournamentsSpoken > 0 ? (
-      <div key="speaking" className="min-w-0 space-y-stack">
+  const speaks = summary.tournamentsSpoken > 0;
+  const judges = summary.tournamentsJudged > 0;
+  if (!speaks && !judges) return null;
+  // Tiles and charts are two rows on the same two-column grid, so each tile
+  // pair still sits over its chart, and the charts can fold away as one.
+  // 16 px between the stacked role rows on a phone, 32 px side by side.
+  const grid = speaks && judges ? 'grid gap-stack lg:grid-cols-2 lg:gap-group' : undefined;
+  const tiles = (
+    <div className={grid}>
+      {speaks ? (
         <StatRow columns={2}>
           <StatTile
             label="Spoke"
@@ -54,15 +69,8 @@ export function RecordHeader({
             hint={`${percent(summary.speakingBreaks, summary.tournamentsSpoken)} of ${summary.tournamentsSpoken} spoken`}
           />
         </StatRow>
-        <CareerChart
-          kind="speaking"
-          title="Speaking, by year"
-          series={speakingSeries(speakerRows)}
-        />
-      </div>
-    ) : null,
-    summary.tournamentsJudged > 0 ? (
-      <div key="judging" className="min-w-0 space-y-stack">
+      ) : null}
+      {judges ? (
         <StatRow columns={2}>
           <StatTile
             label="Judged"
@@ -75,22 +83,32 @@ export function RecordHeader({
             hint={`${percent(summary.judgingBreaks, summary.tournamentsJudged)} of ${summary.tournamentsJudged} judged`}
           />
         </StatRow>
+      ) : null}
+    </div>
+  );
+  const charts = (
+    <div className={grid}>
+      {speaks ? (
+        <CareerChart
+          kind="speaking"
+          title="Speaking, by year"
+          series={speakingSeries(speakerRows)}
+        />
+      ) : null}
+      {judges ? (
         <CareerChart
           kind="judging"
           title="Judging, by year"
           series={judgingSeries(judgeRows)}
           yearAnchor="j"
         />
-      </div>
-    ) : null,
-  ].filter(Boolean);
-  if (roles.length === 0) return null;
+      ) : null}
+    </div>
+  );
   return (
-    <section
-      aria-label="Speaking and judging at a glance"
-      className={roles.length === 2 ? 'grid gap-group lg:grid-cols-2' : undefined}
-    >
-      {roles}
+    <section aria-label="Speaking and judging at a glance" className="space-y-stack">
+      {tiles}
+      {collapsible ? <CollapsibleCharts>{charts}</CollapsibleCharts> : charts}
     </section>
   );
 }

@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-10-29 - Record: career charts fold away, ledger above the fold
+
+- **Owner:** "make the charts collapsible so the ledger is above the fold".
+- **`CollapsibleCharts`** (`components/CollapsibleCharts.tsx`) folds the two career charts behind "Show career charts" on `/cv` only (`RecordHeader collapsible`).
+  - Closed by default. The choice is remembered per browser (`localStorage` key `debate-cv:record-charts-open`).
+  - A native `<details>`, with the charts built on first open (`DetailsBody`) and on `beforeprint`, so they still print.
+  - The public CV and `/sample` keep them open.
+- **`RecordHeader`** renders tiles and charts as two rows on the same two-column grid, so each tile pair still sits over its chart and the charts fold as one unit.
+- **Phone gaps.** The /cv block gaps are 24 px on a phone (32 from md), the role rows 16 px (32 at lg), and the header gap and padding tighter, so the ledger clears the fold on a 390×844 phone too.
+- **Measured** on the seeded DB:
+
+  | Screen | Ledger tabs start | First row |
+  | --- | --- | --- |
+  | 1920×950, 1440×900, 1280×800 | 521 px | 691 px |
+  | 390×844 | 784 px | |
+
+  Opening shows both charts; a reload keeps them open; printing builds them when folded; no page errors.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - UI review 2: page weight, 20 per page, spacing
 
 The owner asked for a second live review, "very harsh about spacing… don't let any page get too heavy, show only 20 results per page".

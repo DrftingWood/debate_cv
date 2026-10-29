@@ -131,7 +131,7 @@ export default async function CvPage({
     : null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-panel md:space-y-8">
       {/*
         No Gmail grant, no scan: the request can only 400, and the banner
         below already says what to do. Firing it anyway logged a console
@@ -155,7 +155,7 @@ export default async function CvPage({
 
       {/* Account header — identity on the left, statement actions on the
           right, exactly where a banking dashboard puts them. */}
-      <header className="flex flex-col gap-5 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-stack border-b border-border pb-stack md:flex-row md:gap-5 md:pb-6 md:items-end md:justify-between">
         <div className="min-w-0">
           <div className="data-label">Debate record{updated ? ` · updated ${updated}` : ''}</div>
           <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
@@ -204,7 +204,13 @@ export default async function CvPage({
         />
       ) : (
         <>
-          <RecordHeader speakerRows={speakerRows} judgeRows={judgeRows} summary={summary} countUp />
+          <RecordHeader
+            speakerRows={speakerRows}
+            judgeRows={judgeRows}
+            summary={summary}
+            countUp
+            collapsible
+          />
           <OpenYearOnHash />
           {/* Every panel prints, one after another (globals.css). */}
           <div data-print-all="true">
