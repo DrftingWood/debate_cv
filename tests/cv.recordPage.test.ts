@@ -281,3 +281,13 @@ describe('/cv Partners tab (owner decision 17)', () => {
     expect(out).toMatch(/<div data-print-hide="true"><div class="space-y-section">/);
   });
 });
+
+describe('/cv career charts fold away (owner, 2026-10-29)', () => {
+  it('keeps the tiles and folds the charts behind a toggle, so the ledger starts above the fold', async () => {
+    const out = await render(record());
+    expect(out).toContain('wrap-break-word">Spoke<');
+    expect(out).toContain('Show career charts');
+    // Closed by default and not yet built: no chart figure in the page.
+    expect(out).not.toContain('<figure');
+  });
+});

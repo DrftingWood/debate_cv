@@ -94,6 +94,9 @@ describe('public CV, redesign', () => {
     const html = await render();
     expect(html).toContain('Speaking, by year');
     expect(html).toContain('Judging, by year');
+    // The public CV keeps its charts open: only the Record folds them.
+    expect(html).toContain('<figure');
+    expect(html).not.toContain('Show career charts');
     expect(html).toMatch(/<details id="y2025"/);
     expect(html).toMatch(/role="tab"[^>]*>Adjudication</);
     expect(html).not.toMatch(/role="tab"[^>]*>Partners</);
