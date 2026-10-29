@@ -32,6 +32,11 @@ export function PublicHeader() {
           <Link href="/sample" className="py-2 hover:text-ink max-[380px]:hidden">
             Sample CV
           </Link>
+          {/* Sample · How it works · Privacy (design §3.1); the middle one
+              drops first on a narrow phone, then the others. */}
+          <Link href="/#how" className="py-2 hover:text-ink max-md:hidden">
+            How it works
+          </Link>
           <Link href="/privacy" className="py-2 hover:text-ink max-[420px]:hidden">
             Privacy
           </Link>

@@ -124,7 +124,7 @@ describe('signed-out header (NV-10, NV-11)', () => {
       html(await AppLayout({ children: h('p', null, 'x') })),
     ]) {
       const links = [...(out.match(NAV)?.[0] ?? '').matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
-      expect(links).toEqual(['/sample', '/privacy']);
+      expect(links).toEqual(['/sample', '/#how', '/privacy']);
       expect(out).toContain('Sign in');
       expect(out).toContain('Switch to');
     }
