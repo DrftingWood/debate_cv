@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-29 - Landing on a phone
+
+- **Live phone check** of the public pages after the phone pass (no page scrolls sideways; section gaps are on the 48 px token).
+- **Hero buttons.** "Build my debate CV" was its own width over a full-width "View sample CV". It is now full width on a phone (`BuildCvButton`, also the final CTA and /sample) and its own width from `sm`.
+- **Sample table.** The "Team rank" header in mono caps set its column's width and squeezed tournament names to three lines. It reads "Rank" below `sm`; note 3 still says the rank is the team's.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Phone pass (390x844)
 
 - **Owner:** "check the phone layout too". Every signed-in page measured at 390x844 with touch emulation, plus screen-height slices of each.
