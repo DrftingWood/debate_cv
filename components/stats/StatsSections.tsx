@@ -117,18 +117,8 @@ export function HeadlineStats({
     <section id="headline" aria-label="Headline figures" className="scroll-mt-24 space-y-3">
       <StatRow columns={Math.min(tiles.length, 5)}>{tiles.slice(0, 5)}</StatRow>
       {perRoundOnly ? (
-        <p className="text-caption text-ink-soft">
-          Filtered by seat, so only per-round figures are shown. Team placement and break rate
-          describe whole tournaments and are left out.
-        </p>
-      ) : (
-        <p className="text-caption text-ink-soft">
-          Placement is your team&rsquo;s rank on the team tab against the number of teams, and a
-          break is measured by the furthest outround reached. Speaker scores are an individual
-          figure: circuits scale them differently, so the speaker-tab section below compares them
-          only with the speakers who were in the same rooms.
-        </p>
-      )}
+        <p className="text-caption text-ink-soft">Seat filter on: per-round figures only.</p>
+      ) : null}
     </section>
   );
 }
@@ -157,10 +147,6 @@ export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
             title="Your speaker scores by band"
             unit="scored speeches"
           />
-          <p className="mt-3 text-caption text-ink-soft">
-            Each column is a one-band slice of your scores, labelled by where the band starts; the
-            figure above a column is how many speeches fell in it.
-          </p>
         </div>
 
         <div className="panel divide-y divide-border">
@@ -274,10 +260,6 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
                 tone="gold"
               />
             ) : null}
-            <p className="border-t border-border pt-3 text-caption text-ink-soft">
-              Rank on the prelim team tab against the number of teams. The top 10% of a 40-team tab
-              is rank 4 or better.
-            </p>
           </div>
         </div>
 
@@ -593,12 +575,12 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
           <StatLine
             label="Trend per round"
             value={signedOrNull(d.slopePerRound, 2)}
-            hint="Mean least-squares slope of score against round number"
+            hint="Average score change per round"
           />
           <StatLine
             label="Swing within an event"
             value={d.withinTournamentStdev?.toFixed(2)}
-            hint="Mean standard deviation of your scores inside one tournament"
+            hint="Average spread within a tournament"
           />
           {d.bestRoundNumber ? (
             <StatLine
@@ -668,8 +650,7 @@ export function ResultsSection({
 
         {perRoundOnly ? (
           <div className="panel p-4 text-caption text-ink-soft">
-            Runs, breaks and finals need whole tournaments in order, so they are not shown while
-            filtering by seat.
+            Runs, breaks and finals are hidden under a seat filter.
           </div>
         ) : (
           <div className="panel divide-y divide-border">
@@ -689,12 +670,12 @@ export function ResultsSection({
                 <StatLine
                   label="BP straights"
                   value={r.bp.tournaments > 0 ? `${r.bp.straights} of ${r.bp.tournaments}` : null}
-                  hint="Tournaments with a points total of at least 2 × rounds, i.e. averaging 2nd or better"
+                  hint="Tournaments averaging 2nd or better"
                 />
                 <StatLine
                   label="BP firsts"
                   value={r.bp.rounds > 0 ? `${r.bp.firsts} of ${r.bp.rounds} rounds` : null}
-                  hint="Rounds placed 1st — tracked apart from straights as a strong sign of breaking"
+                  hint="Rounds placed 1st"
                 />
               </>
             ) : null}
@@ -717,7 +698,7 @@ export function ResultsSection({
             <StatLine
               label="Finals reached"
               value={r.finals > 0 ? String(r.finals) : null}
-              hint="Any bracket, ESL and novice included — Outrounds below splits open from the rest"
+              hint="Any bracket, ESL and novice included"
             />
           </div>
         )}

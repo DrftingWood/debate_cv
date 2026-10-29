@@ -67,10 +67,6 @@ export function TopFinishesSection({ speakerRows }: { speakerRows: CvSpeakerRow[
           </TableScroll>
         </div>
       )}
-      <p className="text-caption text-ink-soft">
-        Open top 10, or top 10 in an ESL or EFL category, counted once per tournament: the same
-        finishes the stars on your Record&rsquo;s speaking chart count.
-      </p>
     </section>
   );
 }
@@ -114,10 +110,6 @@ export function JudgingFormatSection({ judgeRows }: { judgeRows: CvJudgeRow[] })
           </Table>
         </TableScroll>
       </div>
-      <p className="text-caption text-ink-soft">
-        The chair rate counts only tournaments that record prelims judged, and none that record more
-        chaired than judged, as on the Chairing section.
-      </p>
     </section>
   );
 }
@@ -166,10 +158,6 @@ export function JudgingTopicSection({
           </div>
         </>
       )}
-      <p className="text-caption text-ink-soft">
-        Prelim rounds only, each under the topic its motion was tagged with. A round with motions on
-        two topics, or none tagged, is left out rather than guessed.
-      </p>
     </section>
   );
 }

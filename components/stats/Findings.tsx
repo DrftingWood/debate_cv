@@ -17,11 +17,7 @@ export function Quirks({ stats, visibleIds }: { stats: SpeakerStats; visibleIds?
   const more = quirks.slice(FINDINGS_SHOWN);
   return (
     <section id="findings" aria-label="What the numbers say" className="scroll-mt-24 space-y-3">
-      <SectionHeader
-        label="Findings"
-        title="What the numbers say"
-        meta="Each one rests on the figures in the tabs below"
-      />
+      <SectionHeader label="Findings" title="What the numbers say" />
       <FindingGrid quirks={shown} />
       {/*
         The rest fold away (owner review 2026-10-29: nine finding cards

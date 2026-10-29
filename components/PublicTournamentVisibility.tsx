@@ -22,10 +22,7 @@ export function PublicTournamentVisibility({
   return (
     <fieldset className="space-y-2 border-t border-border pt-3" disabled={disabled}>
       <legend className="text-table font-medium text-ink">Tournaments shown publicly</legend>
-      <p className="text-caption text-ink-soft">
-        Untick a tournament to hide it from your public page and its preview image. Your own CV
-        still shows everything.
-      </p>
+      <p className="text-caption text-ink-soft">Hidden tournaments still show on your own CV.</p>
       <ul className="max-h-64 space-y-1 overflow-y-auto">
         {tournaments.map((t) => {
           const id = `pub-t-${t.id}`;

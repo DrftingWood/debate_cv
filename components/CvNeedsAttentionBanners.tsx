@@ -117,10 +117,10 @@ export function CvNeedsAttentionBanners({
           <CircleNotch className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
           <p className="text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
-              Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
+              Importing {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
             </em>{' '}
             <span className="text-ink-soft">
-              Rows below will fill in as each finishes.{' '}
+              Rows fill in as each finishes.{' '}
               <Link href="/dashboard?filter=pending" className="text-primary hover:underline">
                 View queue
               </Link>
@@ -138,9 +138,9 @@ export function CvNeedsAttentionBanners({
               claim.
             </em>{' '}
             <span className="text-ink-soft">
-              We ingested them but couldn&apos;t match you to a speaker or judge.{' '}
+              We couldn&apos;t find you on their tabs.{' '}
               <Link href="/dashboard?filter=unmatched" className="text-primary hover:underline">
-                Find yourself on Imports
+                Claim your name on Imports
               </Link>
               .
             </span>

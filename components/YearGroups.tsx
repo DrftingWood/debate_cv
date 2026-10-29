@@ -52,11 +52,11 @@ function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** "5 tournaments · broke 2 of 5 · best Semifinals · median top 24% (n=4)". */
+/** "5 tournaments · broke 2 · best Semifinals · median top 24% (n=4)". */
 function speakingSubtotal(t: SpeakingYearTotal): string {
   return [
     plural(t.tournaments, 'tournament'),
-    `broke ${t.broke} of ${t.tournaments}`,
+    `broke ${t.broke}`,
     t.bestResult ? `best ${t.bestResult}` : null,
     t.medianTeamPlace ? `median ${t.medianTeamPlace.label} (n=${t.medianTeamPlace.n})` : null,
   ]
@@ -64,13 +64,13 @@ function speakingSubtotal(t: SpeakingYearTotal): string {
     .join(' · ');
 }
 
-/** "Judged 3 · 2 outrounds · chaired 1 · core 1". */
+/** "judged 3 · broke at 2 · chaired outrounds at 1 · core at 1". */
 function judgingSubtotal(t: JudgingYearTotal): string {
   return [
-    `judged ${plural(t.tournaments, 'tournament')}`,
-    t.outrounds ? `${t.outrounds} with an outround` : null,
-    t.chaired ? `chaired an outround at ${t.chaired}` : null,
-    t.core ? `adjudication core at ${t.core}` : null,
+    `judged ${t.tournaments}`,
+    t.outrounds ? `broke at ${t.outrounds}` : null,
+    t.chaired ? `chaired outrounds at ${t.chaired}` : null,
+    t.core ? `core at ${t.core}` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -136,7 +136,7 @@ function speakingLines(y: RecordYear): string[] {
   // Two lines: the team's year, then the user's own speaking and judging.
   const second = [
     t.speakerAverage
-      ? `speaker-tab average ${t.speakerAverage.value.toFixed(1)} (${plural(t.speakerAverage.speeches, 'speech', 'speeches')})`
+      ? `speaker average ${t.speakerAverage.value.toFixed(1)} over ${plural(t.speakerAverage.speeches, 'speech', 'speeches')}`
       : null,
     y.judgingTotal ? judgingSubtotal(y.judgingTotal) : null,
   ].filter((l): l is string => l !== null);

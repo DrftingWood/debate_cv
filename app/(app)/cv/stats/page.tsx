@@ -48,7 +48,7 @@ export default async function CvStatsPage() {
     prisma.user.findUnique({ where: { id: session.user.id }, select: { proAmMarks: true } }),
   ]);
   const stats = computeSpeakerStats(data);
-  const { scoreProfile, results, volume } = stats;
+  const { scoreProfile, results } = stats;
   // Pro-am is the user's own mark from the Record's Partners tab, never a
   // score gap (owner rule 2026-10-27, applied to Statistics 2026-10-29).
   const facts = buildStatsFacts({ ...data, proAmMarks: marksRow?.proAmMarks ?? [] });
@@ -88,19 +88,13 @@ export default async function CvStatsPage() {
         <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
           Your record, measured
         </h1>
-        <p className="mt-2 max-w-2xl text-body text-ink-soft">
-          Built from {volume.speechesScored.toLocaleString()} scored speeches across{' '}
-          {volume.tournamentsSpoken} tournament{volume.tournamentsSpoken === 1 ? '' : 's'}. Every
-          figure is computed from the tab pages themselves — nothing here is an estimate or an
-          interpretation of style.
-        </p>
       </header>
 
       {!hasAnything ? (
         <EmptyState
           icon={<ChartBar weight="light" className="h-5 w-5" aria-hidden />}
           title="Not enough data yet"
-          description="Statistics appear once at least one tournament with parsed results is on your record. Ingest tournaments from Imports first."
+          description="Statistics appear once a tournament with results is on your record. Import one first."
           action={
             <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
               Open imports

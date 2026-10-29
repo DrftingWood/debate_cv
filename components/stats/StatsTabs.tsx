@@ -236,7 +236,7 @@ export function SpeakingTabs({
             <Withheld
               label="Round dynamics"
               title="Across a tournament"
-              reason="Openings, closings and momentum follow the order of rounds within a tournament, which a seat filter breaks up."
+              reason="Openings, closings and momentum need rounds in order, which a seat filter breaks up."
             />
           ) : (
             <RoundDynamicsSection stats={stats} />

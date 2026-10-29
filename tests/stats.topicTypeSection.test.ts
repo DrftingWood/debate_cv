@@ -72,8 +72,8 @@ describe('TopicTypeSection', () => {
   it('labels the class honestly as read from the wording, not the stem tag', () => {
     const out = html(many(6, {}));
     expect(out).toContain('Topic × motion class');
-    expect(out).toContain('It is not the stem tag on the Motions page');
-    expect(out).toContain('at least 6 rounds');
+    expect(out).toContain('Class is read from the wording');
+    expect(out).toContain('under 6 rounds');
   });
 
   it('shows the knockout record by topic and class for the tournaments the filter kept', () => {
@@ -107,7 +107,7 @@ describe('TopicTypeSection', () => {
       createElement(TopicTypeSection, { facts, knockoutsWithheld: true }),
     );
     expect(withheld).not.toContain('Knockout results by topic');
-    expect(withheld).toContain('filtering by seat');
+    expect(withheld).toContain('hidden under a seat filter');
   });
 
   it('shows the topic, the type and a signed delta for a cell over the gate', () => {
@@ -128,7 +128,6 @@ describe('TopicTypeSection', () => {
       many(6, { choiceRound: true, motionType: null, motionTopic: null, score: 80 }),
     );
     expect(out).toContain('Choice of motions');
-    expect(out).toContain('three');
   });
 
   it('shows a dot, not a figure, for a thin cell next to a full one', () => {

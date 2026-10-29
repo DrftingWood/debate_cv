@@ -258,30 +258,19 @@ export function TopicTypeSection({
         <div className="panel flex items-center justify-between gap-4 px-4 py-3">
           <div className="min-w-0">
             <div className="font-medium text-ink">Choice of motions</div>
-            <div className="text-caption text-ink-soft">
-              Rounds that released several motions of different topics or classes (Asian
-              Parliamentary's three), clubbed together because the motion debated is not recorded.
-            </div>
           </div>
           <CellValue cell={grid.mixed} />
         </div>
       ) : null}
       {grid.scoredRounds > 0 ? (
         <p className="text-caption text-ink-soft">
-          Speaker-score difference from your mean over these rounds, prelims only. A figure needs at
-          least {MIN_QUIRK_ROUNDS} rounds behind it, the minimum this page uses before naming any
-          pattern, because over fewer one unusual round can swing the mean; below that a cell shows
-          a dot. &ldquo;All classes&rdquo; and &ldquo;All topics&rdquo; also count rounds whose
-          other side is unknown. Topics are the community tags. Class is read from the wording:
-          Policy (THW), Belief (THBT), Stance (THS, THO), Regret (THR), Preference (THP), Actor
-          (&ldquo;TH, as X, would&rdquo;). It is not the stem tag on the Motions page.
+          A dot means under {MIN_QUIRK_ROUNDS} rounds. Class is read from the wording: Policy (THW),
+          Belief (THBT), Stance (THS, THO), Regret (THR), Preference (THP), Actor (&ldquo;TH, as X,
+          would&rdquo;).
         </p>
       ) : null}
       {knockoutsWithheld && (facts.knockouts?.length ?? 0) > 0 ? (
-        <p className="text-caption text-ink-soft">
-          Knockout results are facts about a team&rsquo;s run, not a seat, so they aren&rsquo;t
-          shown while filtering by seat.
-        </p>
+        <p className="text-caption text-ink-soft">Knockouts are hidden under a seat filter.</p>
       ) : (
         <KnockoutView knockouts={knockouts} />
       )}

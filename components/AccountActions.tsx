@@ -57,7 +57,7 @@ export function DisconnectGoogleButton() {
     <div role="group" aria-labelledby={headingId} className="space-y-3">
       <p id={headingId} className="text-ui text-ink">
         <strong className="font-semibold">Disconnect Gmail?</strong> New tournaments stop arriving.
-        Your record stays and you stay signed in. You can reconnect at any time.
+        Your record stays.
       </p>
       {error ? (
         <p role="alert" className="text-caption font-medium text-destructive">
@@ -242,9 +242,8 @@ export function DeleteConfirmForm({
             This permanently deletes your account. It cannot be undone.
           </p>
           <p className="text-caption text-ink-soft">
-            Your sign-in, Gmail connection, tournament links, imports, claimed names and public link
-            are removed. Tournament results shared by other users stay, because they are public tab
-            data.
+            Your sign-in, Gmail connection, links, imports, claimed names and public link go. Public
+            tab results stay.
           </p>
         </div>
       </div>

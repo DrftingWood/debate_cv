@@ -174,9 +174,6 @@ export default async function Dashboard({
               ? `Importing ${counts.pending} ${counts.pending === 1 ? 'tournament' : 'tournaments'}`
               : 'Imports'}
           </h1>
-          <p className="mt-1.5 text-table text-ink-soft">
-            Scanning finds the private URLs; ingesting turns each one into rows on your record.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending > 0 ? <IngestAllButton pendingCount={counts.pending} /> : null}
@@ -195,7 +192,7 @@ export default async function Dashboard({
         <GmailDisconnectedNotice
           action={<ReconnectGmailButton redirectTo="/dashboard" variant="primary" />}
         >
-          Your Google grant was removed. Reconnect to keep scanning your inbox for tournament URLs.
+          Gmail access was removed. Reconnect to keep scanning.
         </GmailDisconnectedNotice>
       ) : null}
 

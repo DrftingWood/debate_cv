@@ -268,7 +268,7 @@ export function StatsFilterBar({
             ))}
           </div>
           <p className="text-caption text-ink-soft">
-            Counts are prelim rounds per seat and tournaments per partner, across your whole record.
+            Counts: rounds per seat, tournaments per partner.
           </p>
         </div>
       </div>

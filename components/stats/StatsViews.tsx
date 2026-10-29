@@ -107,11 +107,7 @@ export function PositionsSection({
           />
         </div>
       ))}
-      <p className="text-caption text-ink-soft">
-        British Parliamentary rounds are never counted as wins: the rate there is the share of
-        rounds finished 2nd or better (2 points or more). Two-team formats count a win. Seats are
-        only compared within a format.
-      </p>
+      <p className="text-caption text-ink-soft">BP counts 2nd or better as a win.</p>
     </section>
   );
 }
@@ -168,9 +164,7 @@ export function TeammatesSection({
         </StatRow>
       ) : null}
       <p className="text-caption text-ink-soft">
-        A pairing is pro-am only when you marked it so, on your Record under Partners. It is never
-        guessed from scores. The gap column is your speaker average minus your partners', from
-        scored speeches, as a number only.
+        Pro-am is what you marked under Partners on your Record.
       </p>
 
       <div className="panel overflow-hidden">
@@ -358,11 +352,6 @@ export function RoundCurveSection({
         thinBelow={MIN_SPLIT_ROUNDS}
         baselineLabel="your whole record in each round's format"
       />
-      <p className="text-caption text-ink-soft">
-        Prelim rounds grouped by their number, so this stays meaningful under a seat filter. Late
-        round numbers exist only at longer tournaments, and power-pairing puts you in stronger rooms
-        as a tournament goes on — a dip in round 8 can be the draw, not the debater.
-      </p>
     </section>
   );
 }
@@ -432,11 +421,6 @@ export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline:
           baselineLabel="your whole record in each round's format"
         />
       ) : null}
-      <p className="text-caption text-ink-soft">
-        In three-a-side formats your partners' speeches are averaged. Reply speeches are not on the
-        speaker tab, so they never enter the comparison. A round where no partner was scored is left
-        out.
-      </p>
     </section>
   );
 }
@@ -478,10 +462,8 @@ export function MomentumSection({ facts, baseline }: { facts: StatsFacts; baseli
         baselineLabel="your whole record in each round's format"
       />
       <p className="text-caption text-ink-soft">
-        Each row is the next prelim at the same tournament, paired only when the round before it has
-        a recorded result. Tabs power-pair, so a good round sends you into a stronger room and a bad
-        one into a weaker one: the rate after a good round falls for almost everyone. The speaker
-        average is the fairer read of whether a result carries into the next speech.
+        Power-pairing puts winners in stronger rooms, so the rate after a good round falls for
+        almost everyone.
       </p>
     </section>
   );

@@ -125,7 +125,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
         <EmptyState
           icon={<SlidersHorizontal weight="light" className="h-5 w-5" aria-hidden />}
           title="No rounds match these filters"
-          description="Nothing on your record fits every filter at once. Remove one to widen the view. Judging has no partner or seat, so its tab still shows your whole record."
+          description="Remove a filter. Judging ignores partner and seat."
         />
       ) : (
         <SpeakingTabs
