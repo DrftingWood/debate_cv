@@ -209,7 +209,7 @@ export function CvDownloadButton() {
                     <legend className="text-byline uppercase tracking-[0.08em] text-ink-soft">
                       {g.title}
                     </legend>
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <div className="mt-hair grid grid-cols-2 gap-x-3 gap-y-hair">
                       {g.ids.map((id) => (
                         <label
                           key={id}
@@ -235,7 +235,7 @@ export function CvDownloadButton() {
             <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
               <div role="radiogroup" aria-label="File format" className="flex gap-3 text-caption">
                 {(['csv', 'xlsx'] as const).map((f) => (
-                  <label key={f} className="flex cursor-pointer items-center gap-1.5">
+                  <label key={f} className="flex cursor-pointer items-center gap-hair">
                     <input
                       type="radio"
                       name="cv-export-format"

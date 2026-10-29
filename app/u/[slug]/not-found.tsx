@@ -26,7 +26,7 @@ export default function PublicCvNotFound() {
       <p className="mt-2 text-ui text-ink-soft">
         The link may be mistyped, or the owner may have stopped sharing it.
       </p>
-      <div className="mt-7 flex justify-center">
+      <div className="mt-group flex justify-center">
         <Link href="/" className={buttonClasses({ variant: 'primary' })}>
           Build your own debate CV
         </Link>

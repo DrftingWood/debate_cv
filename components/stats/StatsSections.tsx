@@ -10,6 +10,7 @@ import type { SpeakerStats } from '@/lib/cv/speakerStats';
 import { TrendChart } from '@/components/ui/TrendChart';
 import { BarList, Meter } from '@/components/ui/BarList';
 import { ScoreStrip } from '@/components/ui/ScoreStrip';
+import { useFirstRows } from '@/components/ui/useFirstRows';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { SectionHeader } from '@/components/ui/Card';
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
@@ -294,6 +295,7 @@ const TILE_ACCENT = { 'val-pos': 'pos', 'val-neg': 'neg', 'val-flat': undefined 
 export function FieldStanding({ stats }: { stats: SpeakerStats }) {
   const f = stats.fieldContext;
   const rows = f.placements.filter((p) => p.percentile != null || p.delta != null);
+  const { shown, more } = useFirstRows(rows);
   if (rows.length === 0) return null;
 
   // Label by YEAR, not tournament name. Eleven truncated names at this
@@ -377,7 +379,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((p) => (
+                {shown.map((p) => (
                   <Tr
                     key={p.tournamentId}
                     className={p.incompleteDraw ? 'text-ink-soft' : undefined}
@@ -426,6 +428,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
               </tbody>
             </Table>
           </TableScroll>
+          {more}
         </div>
       </div>
 
@@ -773,14 +776,14 @@ export function Coverage({ coverage }: { coverage: SpeakerStats['coverage'] }) {
 
   return (
     <section id="coverage" aria-label="Coverage" className="scroll-mt-24 panel p-4">
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-inline">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
         <div className="min-w-0">
           <div className="data-label">What these figures are built on</div>
-          <p className="mt-1.5 text-caption text-ink-soft">
-            Of your {coverage.tournaments} speaking{' '}
-            {coverage.tournaments === 1 ? 'tournament' : 'tournaments'},{' '}
-            {lines.map((l) => `${l.have} ${l.have === 1 ? 'has' : 'have'} ${l.label}`).join(', ')}.
+          <p className="mt-hair text-caption text-ink-soft">
+            Of {coverage.tournaments} speaking{' '}
+            {coverage.tournaments === 1 ? 'tournament' : 'tournaments'}:{' '}
+            {lines.map((l) => `${l.have} with ${l.label}`).join(' · ')}.
           </p>
         </div>
       </div>

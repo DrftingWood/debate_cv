@@ -33,7 +33,7 @@ export function TournamentLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'inline-flex min-h-6 items-baseline gap-1.5 wrap-break-word font-medium text-ink hover:text-primary',
+        'inline-flex min-h-6 items-baseline gap-hair wrap-break-word font-medium text-ink hover:text-primary',
         className,
       )}
     >
@@ -114,9 +114,9 @@ export function TournamentCard({
         </Heading>
         <span className="num shrink-0 pt-1 text-caption text-ink-soft">{year ?? '—'}</span>
       </div>
-      {result ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{result}</div> : null}
+      {result ? <div className="mt-2 flex flex-wrap items-center gap-hair">{result}</div> : null}
       {fields.length > 0 ? (
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
+        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-inline">
           {fields.map((f) => (
             <TournamentCardField key={f.label} {...f} />
           ))}

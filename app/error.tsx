@@ -32,7 +32,7 @@ export default function GlobalError({
         This page did not load. Try again, or go back to the home page.
       </p>
       <ErrorReference digest={error.digest} />
-      <div className="mt-7 flex justify-center gap-3">
+      <div className="mt-group flex justify-center gap-3">
         <Button variant="primary" onClick={() => reset()}>
           Try again
         </Button>

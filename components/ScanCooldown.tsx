@@ -67,7 +67,7 @@ export function ScanCooldownNotice({ cooldown, id }: { cooldown: ScanCooldown; i
   return (
     <div role="status" className="text-caption text-ink-soft sm:text-right">
       {notice ? (
-        <p id={id} className="mt-1.5">
+        <p id={id} className="mt-hair">
           <span className="font-medium text-ink">{notice.title}.</span> {notice.description}
           <span className="sr-only"> {cooldownSpoken(cooldownSeconds(notice))}</span>
         </p>

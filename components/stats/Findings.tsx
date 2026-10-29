@@ -49,7 +49,7 @@ function FindingGrid({ quirks }: { quirks: SpeakerStats['quirks'] }) {
     <div className="grid gap-3 sm:grid-cols-2">
       {quirks.map((q) => (
         <article key={q.id} className="panel p-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex items-start gap-inline">
             <span
               aria-hidden
               className={
@@ -61,7 +61,7 @@ function FindingGrid({ quirks }: { quirks: SpeakerStats['quirks'] }) {
             </span>
             <div className="min-w-0">
               <p className="text-table text-ink">{q.text}</p>
-              <p className="mt-1.5 data-label">{q.basis}</p>
+              <p className="mt-hair data-label">{q.basis}</p>
             </div>
           </div>
         </article>

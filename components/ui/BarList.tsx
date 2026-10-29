@@ -41,7 +41,7 @@ export function BarList({
   };
 
   return (
-    <ul className={cn('space-y-1.5', className)}>
+    <ul className={cn('space-y-hair', className)}>
       {items.map((item) => (
         <li
           key={item.label}
@@ -120,7 +120,7 @@ export function Meter({
           ) : null}
         </div>
       ) : null}
-      <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-surface-3">
+      <div className="relative mt-hair h-2 overflow-hidden rounded-full bg-surface-3">
         <div
           className={cn(
             'h-full rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none',

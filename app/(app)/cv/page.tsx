@@ -161,7 +161,7 @@ export default async function CvPage({
             <span className="sr-only">Debate record of </span>
             {user?.name ?? 'Debater'}
           </h1>
-          <p className="mt-1.5 text-table text-ink-soft">
+          <p className="mt-hair text-table text-ink-soft">
             {[
               user?.email,
               highlights.activeYears

@@ -113,7 +113,7 @@ function ConfirmAction({
         </div>
       </div>
       {phrase ? (
-        <div className="space-y-1.5">
+        <div className="space-y-hair">
           <label htmlFor={`${id}-phrase`} className="block text-ui font-medium text-ink">
             Type <strong>{phrase}</strong> to confirm
           </label>

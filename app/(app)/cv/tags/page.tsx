@@ -105,7 +105,7 @@ export default async function CvTagsPage() {
   const typeLabels: Record<string, string> = MOTION_TYPE_LABELS;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-group">
       <header className="space-y-4">
         <div className="kicker uppercase">Debate CV — Tags</div>
         <h1 className="font-display text-h1 font-medium tracking-tight text-ink">Tags</h1>
@@ -140,7 +140,7 @@ export default async function CvTagsPage() {
                 </header>
 
                 {/* Region row */}
-                <div className="space-y-1.5">
+                <div className="space-y-hair">
                   <div className="text-table font-medium text-ink">Region</div>
                   <TagProposalControls
                     kind="region"

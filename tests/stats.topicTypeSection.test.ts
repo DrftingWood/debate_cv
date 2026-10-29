@@ -101,7 +101,7 @@ describe('TopicTypeSection', () => {
       partnerNames: {},
     };
     const out = renderToStaticMarkup(createElement(TopicTypeSection, { facts }));
-    expect(out).toContain('2 knockout rounds, 1 through');
+    expect(out).toContain('2 knockout rounds: 1 through');
     expect(out).toContain('Knockout results by topic');
     const withheld = renderToStaticMarkup(
       createElement(TopicTypeSection, { facts, knockoutsWithheld: true }),

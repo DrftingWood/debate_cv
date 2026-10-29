@@ -222,11 +222,10 @@ export function JudgingRolesSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
           </Table>
         </TableScroll>
         <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-          As the tab's participant list records it. Broke means the open break: a tournament whose
-          deepest round judged was a novice, junior, ESL or consolation outround is not counted
+          Broke counts the open break only.
           {appointments.some((a) => a.key === 'unstated')
-            ? '. "Not stated" covers tournaments whose list gave no appointment, including ones known only from the round pages.'
-            : '.'}
+            ? ' "Not stated": the tab listed no appointment.'
+            : ''}
         </p>
       </div>
     </section>
@@ -254,16 +253,15 @@ export function JudgingStageSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
           }))}
         />
         <p className="mt-3 text-caption text-ink-soft">
-          {plural(lens.tournaments, 'judged tournament')}, each counted once at the deepest round
-          judged, chair or panel.
+          Each judged tournament counts once, at its deepest round.
           {depth.secondaryBracket > 0
-            ? ` ${depth.secondaryBracket} of those rounds ran in a secondary bracket (novice, ESL, junior and the like), which can rank above an open-bracket round judged at the same event.`
+            ? ` ${depth.secondaryBracket} ran in a secondary bracket (novice, ESL, junior).`
             : ''}
           {depth.buckets.some((b) => b.key === 'broke_unstaged')
-            ? ' "Broke, stage not recorded" means the break is on record but the round is not.'
+            ? ' "Broke, stage not recorded": the break is on record, the round is not.'
             : ''}
           {depth.buckets.some((b) => b.key === 'unrecognised')
-            ? ' "Stage unrecognised" is an outround whose name the stage reader does not know, left unranked rather than guessed.'
+            ? ' "Stage unrecognised": an outround name the reader does not know.'
             : ''}
         </p>
       </div>
@@ -378,12 +376,7 @@ export function SpeakingVsJudgingSection({
         </TableScroll>
       </div>
       <p className="text-caption text-ink-soft">
-        Tournaments per season on each side; one you both spoke and judged at counts on both. A
-        season is called only when the side ahead has at least {MIN_LEADING_SIDE} tournaments. The
-        turn is the first season of the unbroken run, to the latest called season, in which judging
-        outnumbered speaking; years with no tournaments, or too few to call, neither break nor
-        extend it. No turn is called when undated tournaments, placed in the right seasons, could
-        change the answer.
+        A season is called only when the side ahead has at least {MIN_LEADING_SIDE} tournaments.
         {undated.length > 0 ? ` Undated and left out: ${undated.join(' and ')}.` : ''}
       </p>
     </section>

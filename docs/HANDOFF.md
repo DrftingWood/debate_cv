@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-10-29 - Consistency pass against the agreed guidelines
+
+- **Owner:** "check for consistencies and spaces and ensure the previously listed guidelines are being followed", plus the phone layout.
+- **How.** A scripted audit, run live in Chrome (desktop, every Statistics tab walked) and locally at 390x844 touch on every signed-in page. It checks:
+  - content edges;
+  - label styles;
+  - the font of tile figures;
+  - gaps against the spacing tokens;
+  - stretched panels;
+  - text overrunning a table cell;
+  - dashed chart strokes;
+  - paragraphs over 170 characters;
+  - rows per table;
+  - text under 12 px.
+- **Spacing on the token scale.** 35 files used steps that are not tokens. They are mapped as follows:
+  - 6 px (`mt/mb/pt/pb/space-y/gap-1.5`) to `hair`, 4 px;
+  - 10 px (`space-y/gap-2.5`) to `inline`, 8 px;
+  - 28 px (`mt-7`) and 40 px (`space-y/pt-10`) to `group`, 32 px.
+  - Kept: 2 px optical nudges, the 20 px card inset that matches the 20 px page gutter, and padding inside badges and buttons.
+- **Show, don't tell (remaining).** Method paragraphs cut to the facts a reader needs:
+  - break line;
+  - cross-tab cells;
+  - appointments;
+  - speaking vs judging;
+  - motion types;
+  - knockouts;
+  - judging stages.
+  - The coverage line is a compact list.
+- **About 20 to a page.** New `useFirstRows` (`components/ui/useFirstRows.tsx`) shows 20 rows with "Show all N" (every row when printing). It is used on the team-placement and speaker-tab tables, which reached 25 on production.
+- **Overrun.** The split tables' "few rounds" tag sits on its own line (it ran 10 px past the fixed first column).
+- **Verified after the change.**
+  - Desktop, local: no off-scale gaps, no stretched panels, no cell overrun, one label style, all tile figures in Inter 600.
+  - Phone: all 13 pages at 20 px edges with no off-scale gaps.
+  - Live before the change: Settings was already clean.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Dataviz pass 1 (research-backed)
 
 - **Owner:** "the data visualisation is ugly"; then "don't update the charts until deep research results are in". The research (FT Visual Vocabulary, Datawrapper, GOV.UK Analysis Function, Urban, Carbon, Schwabish 2020, WCAG 1.4.1/1.4.11, Heer & Robertson 2007, NN/g 2020) and the mapped issue list are in `C:\Users\achar\reports\debate_cv-dataviz-issues-2026-10-29.md`. Owner decisions: 4-tier career chart, a score strip in place of the histogram, sans figures on tiles only.

@@ -211,7 +211,7 @@ export function CvRowReportButton({
                 });
               }}
             >
-              <fieldset className="space-y-1.5">
+              <fieldset className="space-y-hair">
                 <legend className="mb-1 text-caption font-medium text-ink">
                   What looks wrong?
                 </legend>

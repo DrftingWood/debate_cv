@@ -2,6 +2,7 @@ import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import type { TeamPlacementRow } from '@/lib/cv/speakerStats';
 import { formatStageForDisplay } from '@/lib/cv/formatStage';
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
+import { useFirstRows } from '@/components/ui/useFirstRows';
 
 /**
  * The Team placement section's per-tournament table: team rank, top
@@ -10,6 +11,7 @@ import { formatTopPercent } from '@/lib/cv/teamPlacement';
  * rank out of view); the other columns return from `sm`.
  */
 export function TeamPlacementTable({ placements }: { placements: TeamPlacementRow[] }) {
+  const { shown, more } = useFirstRows(placements);
   return (
     <div className="panel overflow-hidden lg:col-span-2">
       <TableScroll>
@@ -46,7 +48,7 @@ export function TeamPlacementTable({ placements }: { placements: TeamPlacementRo
             </tr>
           </thead>
           <tbody>
-            {placements.map((p) => (
+            {shown.map((p) => (
               <Tr key={p.tournamentId}>
                 <Td rowHeader className="max-w-56 pl-4 font-medium">
                   <span className="block wrap-break-word">{p.tournamentName}</span>
@@ -90,6 +92,7 @@ export function TeamPlacementTable({ placements }: { placements: TeamPlacementRo
           </tbody>
         </Table>
       </TableScroll>
+      {more}
     </div>
   );
 }

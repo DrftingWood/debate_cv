@@ -27,7 +27,7 @@ export default async function NotFound() {
         <p className="mt-2 text-ui text-ink-soft">
           The page you're looking for doesn't exist or has moved.
         </p>
-        <div className="mt-7 flex flex-wrap justify-center gap-3">
+        <div className="mt-group flex flex-wrap justify-center gap-3">
           <Link
             href={signedIn ? '/cv' : '/sample'}
             className={buttonClasses({ variant: 'primary' })}

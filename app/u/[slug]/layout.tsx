@@ -22,8 +22,8 @@ export default function PublicCvLayout({ children }: { children: React.ReactNode
     // owner chose instead that only print, the PDF and the share image are
     // fixed light, which the print stylesheet and the OG route already do.
     <div className="min-h-screen bg-paper text-ink">
-      <div className="mx-auto max-w-5xl space-y-10 px-5 pb-16 pt-10">
-        <main id="main" className="space-y-10">
+      <div className="mx-auto max-w-5xl space-y-group px-5 pb-16 pt-group">
+        <main id="main" className="space-y-group">
           {children}
         </main>
         <footer className="pt-8">

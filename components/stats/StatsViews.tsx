@@ -282,10 +282,7 @@ export function MotionTypesSection({
       />
       <p className="text-caption text-ink-soft">
         Types come from the wording: Policy (THW), Actor (TH, as X, would), Belief (THBT), Stance
-        (THS / THO), Regret (THR), Preference (THP). A round that offered a choice of motions is
-        typed only when every option shares a type — the tab does not say which one a room chose.
-        Info slides and framing below cover all {withMotion.length} prelim rounds with a known
-        motion; a choice round counts when every option had the slide or the framing.
+        (THS / THO), Regret (THR), Preference (THP).
       </p>
 
       {byInfo.length > 1 || byFraming.length > 1 ? (

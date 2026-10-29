@@ -184,11 +184,8 @@ export function BreakMarginSection({ speakerRows }: { speakerRows: CvSpeakerRow[
         <FormatBlock key={f.format} f={f} />
       ))}
       <p className="text-caption text-ink-soft">
-        The line is the team-tab total of the lowest team on the Open break — points in British
-        Parliamentary, wins elsewhere — and formats are never added together. Teams level with the
-        line are split by the tournament's tiebreak (usually speaker scores), so "on the line" can
-        go either way. A team that broke in ESL, EFL or novice is still measured against the Open
-        line.
+        The line is the lowest Open-breaking team's total (BP points, otherwise wins); teams level
+        with it split on the tiebreak.
         {exclusions.length > 0 ? ` Left out: ${exclusions.join('; ')}.` : ''}
       </p>
     </section>
