@@ -91,7 +91,10 @@ export function AnnotatedSample() {
               </th>
               <th scope="col" className="text-right">
                 <span className="inline-flex items-center">
-                  Team rank
+                  {/* "Team rank" in mono caps squeezed the names to three
+                      lines on a phone; note 3 says whose rank it is. */}
+                  <span className="sm:hidden">Rank</span>
+                  <span className="max-sm:hidden">Team rank</span>
                   <Marker n={3} />
                 </span>
               </th>

@@ -25,6 +25,8 @@ export async function BuildCvButton({
       <PendingSubmit
         size={size}
         variant="primary"
+        // Full width on a phone, like the outline button stacked under it.
+        className="w-full sm:w-auto"
         rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}
       >
         {label}
