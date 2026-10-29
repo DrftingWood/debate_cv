@@ -96,6 +96,7 @@ describe('/cv speaking ledger (desktop)', () => {
   it('drops the Teams and Partner columns and carries the field size on the rank (CV-2)', async () => {
     const out = await render(record());
     expect(speakingHeaders(out)).toEqual([
+      'Rounds',
       'Tournament',
       'Format',
       'Team',
@@ -232,5 +233,30 @@ describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', (
     const out = await render(record());
     expect(out).not.toContain('privateurls');
     expect(out).toMatch(/font-mono text-caption[^"]*">example\.calicotab\.com</);
+  });
+});
+
+describe('/cv round detail (owner, 2026-10-29: an icon in the row, not a widget)', () => {
+  it('opens the rounds from a caret in the row, folded until clicked and printed regardless', async () => {
+    const out = await render(
+      makeCvData({
+        speakerRows: [
+          makeSpeakerRow({ roundScores: [{ roundNumber: 1, positionLabel: null, score: 75 }] }),
+        ],
+        summary: {
+          totalTournaments: 1,
+          speakingBreaks: 0,
+          judgingBreaks: 0,
+          tournamentsSpoken: 1,
+          tournamentsJudged: 0,
+          totalRoundsChaired: 0,
+        },
+      }),
+    );
+    expect(out).toMatch(
+      /aria-expanded="false" aria-controls="rounds-1" aria-label="Rounds of Test Open \(1\)"/,
+    );
+    expect(out).toMatch(/<tr id="rounds-1" hidden="" data-rounds="true"/);
+    expect(out).not.toContain('Round ledger —');
   });
 });

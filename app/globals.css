@@ -1061,5 +1061,9 @@
     [data-print-all='true'] [role='tabpanel'][hidden] {
       display: block !important;
     }
+    /* A ledger row's rounds, folded on screen behind its caret. */
+    tr[data-rounds='true'][hidden] {
+      display: table-row !important;
+    }
   }
 }
