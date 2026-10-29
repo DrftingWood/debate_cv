@@ -135,39 +135,6 @@ export function HeadlineStats({
 
 // ── Quirks ────────────────────────────────────────────────────────────────
 
-export function Quirks({ stats, visibleIds }: { stats: SpeakerStats; visibleIds?: string[] }) {
-  const quirks = visibleIds ? stats.quirks.filter((q) => visibleIds.includes(q.id)) : stats.quirks;
-  if (quirks.length === 0) return null;
-  return (
-    <section id="findings" aria-label="What the numbers say" className="scroll-mt-24 space-y-3">
-      <SectionHeader
-        label="Findings"
-        title="What the numbers say"
-        meta="Each claim is checkable against the tables below"
-      />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {quirks.map((q) => (
-          <article key={q.id} className="panel p-4">
-            <div className="flex items-start gap-2.5">
-              <span
-                aria-hidden
-                className={
-                  'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ' +
-                  (q.tone === 'pos' ? 'bg-pos' : q.tone === 'neg' ? 'bg-neg' : 'bg-ink-soft/50')
-                }
-              />
-              <div className="min-w-0">
-                <p className="text-table text-ink">{q.text}</p>
-                <p className="mt-1.5 data-label">{q.basis}</p>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 // ── Score distribution ────────────────────────────────────────────────────
 
 export function ScoreDistribution({ stats }: { stats: SpeakerStats }) {
