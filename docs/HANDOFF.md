@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-10-29 - Identity option B phase 2: expand migration (do not merge before the rehearsal)
+
+- **Change.** Migration `20261029120000_identity_v2_expand` and `schema.prisma`:
+  - `TournamentParticipant.listedName`, `claimedByUserId` (FK to `User`, `ON DELETE SET NULL`, indexed), `claimedAt` and `claimSource` (`registration | onboarding | search | admin | backfill | legacy | discovery`);
+  - `Person.matchKey` (indexed, non-unique);
+  - a new `UserNameAlias` table (unique per user on `matchKey`, cascades from `User`).
+  - All empty, and read and written by nothing until phase 3.
+- **Deviation from spec 4.1.** The `claimedByUserId` index is plain, not partial: Prisma cannot declare a partial index, and an SQL-only index makes `migrate dev` propose dropping it.
+- **Merging applies it to production** (the production build runs `prisma migrate deploy`). Owner decision Q5: the owner rehearses on a Neon branch first. Runbook: `docs/runbooks/identity-v2-expand.md`, steps 1-4 on the branch, step 5 merge.
+- **Tested locally**, on a throwaway Postgres 17 at 55432 started from the installed binaries in the session scratchpad and stopped afterwards:
+  - all migrations apply to an empty database with no drift against the schema;
+  - on seeded data, the new migration applies in about 3 s with every count unchanged;
+  - the constraints were exercised in a rolled-back transaction (one alias for two users is allowed, the same alias twice for one user is refused, deleting a user clears the claim and keeps the row).
+- **Signed-in pages checked for the first time since the redesign PRs** (`next dev`, seeded user): Record (with the new Highlights marks), Statistics, Motions, Imports and the Review stage, the URL table and Settings render with no console errors and no sideways scroll at 390 and 1280 px, in both themes. The header is the four items, and `/cv/found` lands on Review. Not checked: the admin view (Admin link, Found list), because the seeded user is not an admin.
+- **Small follow-up spotted.** The Imports stage arrows ("→") render as a short dash on desktop: the 12 px slot is narrower than the glyph. A Phosphor `ArrowRight` at 12 px would fix it.
+- **Rollback.** Before merge: nothing to undo. After merge: the columns are harmless if left; the `DROP` statements are in the migration's header.
+
+---
+
 ## 2026-10-29 - Identity option B: owner decisions in the spec, phase 1 (name key v2)
 
 - **Spec.** `docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md` gains section 10, the owner's 2026-10-29 answers, overriding the text above it, with inline markers where it does:

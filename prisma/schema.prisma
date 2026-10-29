@@ -26,26 +26,29 @@ model User {
   /// view (per Q10 user-toggle). Defaults: disabled, random slug
   /// generated lazily on first enable, avatar hidden until the owner opts in
   /// (C100).
-  publicCvEnabled       Boolean @default(false)
-  publicCvSlug          String? @unique
-  publicAvatarEnabled   Boolean @default(false)
+  publicCvEnabled           Boolean  @default(false)
+  publicCvSlug              String?  @unique
+  publicAvatarEnabled       Boolean  @default(false)
   /// Tournaments the owner hid from the public CV and its share image
   /// (C101). Plain id list, not a join table: it is read only with the
   /// user row, written only by the owner, and a stale id for a deleted
   /// tournament matches nothing. Empty means everything is shown.
   publicHiddenTournamentIds BigInt[] @default([])
 
-  accounts          Account[]
-  sessions          Session[]
-  gmailToken        GmailToken?
-  discoveredUrls    DiscoveredUrl[]
-  ingestJobs        IngestJob[]
-  claimedPersons    Person[]            @relation("ClaimedByUser")
-  personRejections  PersonRejection[]
-  cvErrorReports    CvErrorReport[]
-  notifications     Notification[]
-  tagProposals      TagProposal[]
+  accounts             Account[]
+  sessions             Session[]
+  gmailToken           GmailToken?
+  discoveredUrls       DiscoveredUrl[]
+  ingestJobs           IngestJob[]
+  claimedPersons       Person[]                @relation("ClaimedByUser")
+  personRejections     PersonRejection[]
+  cvErrorReports       CvErrorReport[]
+  notifications        Notification[]
+  tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
+  /// Identity option B (docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md).
+  participationClaims  TournamentParticipant[] @relation("ParticipationClaims")
+  nameAliases          UserNameAlias[]
 }
 
 /// In-app activity feed surfaced via the notification bell in the header.
@@ -131,36 +134,36 @@ model GmailToken {
 // -------------------- Discovered URLs + ingest queue --------------------
 
 model DiscoveredUrl {
-  id                     String    @id @default(cuid())
-  userId                 String
-  url                    String
-  host                   String
+  id                   String    @id @default(cuid())
+  userId               String
+  url                  String
+  host                 String
   /// tournamentSlug / token / subject are written at Gmail-scan time and
   /// never queried by application code (slug and token are re-derivable
   /// from `url`). Kept deliberately: they surface in the user's account
   /// data export (/api/account/export) as provenance for "which email
   /// gave us this URL", which the privacy page commits to. Don't add new
   /// read paths without checking the export's schemaVersion implications.
-  tournamentSlug         String?
-  token                  String?
-  subject                String?
-  messageId              String?
-  messageDate            DateTime?
-  tournamentId           BigInt?
-  registrationPersonId   BigInt?
-  registrationName       String?
-  lastPreflightError     String?
-  ingestedAt             DateTime?
-  reingestLocked         Boolean   @default(false)
-  createdAt              DateTime  @default(now())
+  tournamentSlug       String?
+  token                String?
+  subject              String?
+  messageId            String?
+  messageDate          DateTime?
+  tournamentId         BigInt?
+  registrationPersonId BigInt?
+  registrationName     String?
+  lastPreflightError   String?
+  ingestedAt           DateTime?
+  reingestLocked       Boolean   @default(false)
+  createdAt            DateTime  @default(now())
   /// Maintained by the Prisma client (@updatedAt) — note the queue's raw
   /// SQL paths set it explicitly with NOW(); any future raw UPDATE must
   /// do the same or this column silently goes stale for those writes.
-  updatedAt              DateTime  @default(now()) @updatedAt
+  updatedAt            DateTime  @default(now()) @updatedAt
 
-  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament           Tournament? @relation(fields: [tournamentId], references: [id])
-  registrationPerson   Person?     @relation("DiscoveredUrlPerson", fields: [registrationPersonId], references: [id], onDelete: SetNull)
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament         Tournament? @relation(fields: [tournamentId], references: [id])
+  registrationPerson Person?     @relation("DiscoveredUrlPerson", fields: [registrationPersonId], references: [id], onDelete: SetNull)
 
   @@unique([userId, url])
   // No standalone (userId) index: the (userId, url) unique above serves
@@ -216,12 +219,12 @@ model IngestJob {
 // -------------------- Tabbycat tournament data --------------------
 
 model Tournament {
-  id                   BigInt   @id @default(autoincrement())
-  name                 String
-  format               String?
-  year                 Int?
-  totalParticipants    Int?
-  totalTeams           Int?
+  id                BigInt    @id @default(autoincrement())
+  name              String
+  format            String?
+  year              Int?
+  totalParticipants Int?
+  totalTeams        Int?
   /// Number of prelim rounds parsed from the landing nav (non-outround
   /// `/results/round/N/` URLs). Authoritative divisor for the speaker
   /// average fallback (`total / prelimRoundCount`) when the speaker tab
@@ -229,13 +232,13 @@ model Tournament {
   /// per-round columns. Null on legacy ingests before this field was
   /// added; CV builder falls back to MAX(TeamResult.roundNumber) in
   /// that case.
-  prelimRoundCount     Int?
+  prelimRoundCount  Int?
   /// Approved region tag from lib/tags/vocabulary.ts REGIONS. Tab pages
   /// don't expose location, so this is community-proposed (TagProposal)
   /// and admin-approved — never scraped. Null until someone tags it.
-  region               String?
-  sourceUrlRaw         String
-  fingerprint          String   @unique
+  region            String?
+  sourceUrlRaw      String
+  fingerprint       String    @unique
   /// PARSER_VERSION that produced the stored data. The cache-freshness
   /// check compares this against the current constant — tournament-scoped
   /// on purpose. The old check (latest ParserRun on the caller's landing
@@ -243,7 +246,7 @@ model Tournament {
   /// first touch of a cached tournament had no runs on THEIR landing doc
   /// and so triggered a full redundant re-scrape. Null on rows written
   /// before this column existed (falls back to the per-doc check).
-  parserVersion        String?
+  parserVersion     String?
   /// Short-lived scrape claim (see acquireScrapeClaim in ingest.ts):
   /// set just before the tab-fetch phase, cleared by the write tx on
   /// success, expired by TTL on failure. Prevents two concurrent
@@ -251,9 +254,9 @@ model Tournament {
   /// ~15-fetch scrape — the advisory lock in the write tx only
   /// serializes writes, by which point the duplicate fetches already
   /// happened.
-  scrapeClaimedAt      DateTime?
-  scrapedAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  scrapeClaimedAt   DateTime?
+  scrapedAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]
@@ -269,14 +272,18 @@ model Tournament {
 }
 
 model Person {
-  id                BigInt   @id @default(autoincrement())
-  displayName       String
-  normalizedName    String   @unique
-  claimedByUserId   String?
+  id              BigInt    @id @default(autoincrement())
+  displayName     String
+  normalizedName  String    @unique
+  claimedByUserId String?
   /// When the claim was made. Null for rows claimed before this column
   /// existed. Exists so a disputed claim can be reasoned about — who took
   /// an identity, and when — rather than only "someone holds it now".
-  claimedAt         DateTime?
+  claimedAt       DateTime?
+  /// Name key v2 (identity option B), non-unique: lets readers match across
+  /// accent variants while the unique bucket key `normalizedName` stays v1
+  /// until phase 7. Empty until the phase 3 backfill fills it.
+  matchKey        String?
   /// Set when this person has asked to be withdrawn from the product.
   /// They are almost never account holders — the database holds names
   /// scraped from public tabs for thousands of debaters who never signed
@@ -285,17 +292,18 @@ model Person {
   /// be claimed. The participation rows stay so the tournament record and
   /// other users' teammate slots do not corrupt — it is the NAME that
   /// identifies a person, not an anonymous score in a draw.
-  suppressedAt      DateTime?
-  createdAt         DateTime @default(now())
+  suppressedAt    DateTime?
+  createdAt       DateTime  @default(now())
 
-  claimedByUser     User?                 @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
-  participations    TournamentParticipant[]
-  judgeAssignments  JudgeAssignment[]
-  discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
-  rejections        PersonRejection[]
+  claimedByUser        User?                   @relation("ClaimedByUser", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  participations       TournamentParticipant[]
+  judgeAssignments     JudgeAssignment[]
+  discoveredOnUrls     DiscoveredUrl[]         @relation("DiscoveredUrlPerson")
+  rejections           PersonRejection[]
   appearanceCandidates AppearanceCandidate[]
 
   @@index([claimedByUserId])
+  @@index([matchKey])
   // Created by migration 20260725162000_person_suppression but never
   // declared here, so every later `prisma migrate dev` proposed dropping
   // it. Declared now so the schema matches the database.
@@ -366,7 +374,7 @@ model AppearanceCandidate {
 }
 
 model TournamentParticipant {
-  id                     BigInt   @id @default(autoincrement())
+  id                     BigInt    @id @default(autoincrement())
   tournamentId           BigInt
   personId               BigInt
   teamName               String?
@@ -388,17 +396,60 @@ model TournamentParticipant {
   lastOutroundChaired    String?
   lastOutroundPaneled    String?
   eliminationReached     String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  // ── Identity option B (spec 3.1; expand migration, phase 2) ─────────────
+  // Added empty and read by nothing until phase 4's read switch; phase 3
+  // starts writing them alongside Person.claimedByUserId (dual-write).
+  /// The name exactly as this tournament listed it. Null on rows written
+  /// before this column existed, until their tournament is re-ingested;
+  /// readers fall back to person.displayName.
+  listedName             String?
+  /// Who has claimed THIS participation as themselves. Identity lives here,
+  /// not on Person: a name is shared by many people across tournaments, a
+  /// participation belongs to exactly one.
+  claimedByUserId        String?
+  claimedAt              DateTime?
+  /// registration | onboarding | search | admin | backfill | legacy |
+  /// discovery. String, not an enum (Notification.kind precedent), so later
+  /// phases add sources without a migration. `legacy` and `discovery` are
+  /// the owner's 2026-10-29 additions (spec section 10).
+  claimSource            String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  tournament          Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  person              Person               @relation(fields: [personId], references: [id], onDelete: Cascade)
-  roles               ParticipantRole[]
-  speakerRoundScores  SpeakerRoundScore[]
+  tournament         Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person             Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+  claimedByUser      User?               @relation("ParticipationClaims", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  roles              ParticipantRole[]
+  speakerRoundScores SpeakerRoundScore[]
 
   @@unique([tournamentId, personId])
   @@index([tournamentId])
   @@index([personId])
+  // A plain index, not the spec's partial `WHERE claimedByUserId IS NOT
+  // NULL`: Prisma cannot declare a partial index, and one that exists only
+  // in SQL makes every later `prisma migrate dev` propose dropping it (see
+  // Person.suppressedAt). At B9 scale a full btree here is about 3 MB.
+  @@index([claimedByUserId])
+}
+
+/// A name the user has said is theirs (identity option B, spec 3.1). Per
+/// user, never global: two people called Rahul Sharma each hold their own
+/// row. Will drive auto-claim at ingest and the onboarding / identity picker
+/// (phases 3-5); read by nothing yet.
+model UserNameAlias {
+  id          String   @id @default(cuid())
+  userId      String
+  displayName String
+  /// normalizePersonNameV2(displayName) (lib/calicotab/fingerprint.ts):
+  /// accents folded, undecomposed letters spelled out, every script kept.
+  matchKey    String
+  /// onboarding | claim | registration | backfill
+  source      String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchKey])
 }
 
 model ParticipantRole {
@@ -429,21 +480,21 @@ model SpeakerRoundScore {
 }
 
 model TeamResult {
-  id            BigInt   @id @default(autoincrement())
-  tournamentId  BigInt
-  teamName      String
-  roundNumber   Int?
-  rank          Int?
-  wins          Int?
-  points        Decimal?
+  id           BigInt   @id @default(autoincrement())
+  tournamentId BigInt
+  teamName     String
+  roundNumber  Int?
+  rank         Int?
+  wins         Int?
+  points       Decimal?
   /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
   /// BP scores 3/2/1/0; these are among the tiebreaks a tournament can rank
   /// on, but the order is the tournament's own setting — most tabs in the
   /// corpus separate teams level on points by speaker score first, so a
   /// team can sit above another with more firsts. Null for the two-team
   /// formats, which publish a wins column instead.
-  firsts        Int?
-  seconds       Int?
+  firsts       Int?
+  seconds      Int?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
   /// column said on two-team formats. Null on roundNumber=0 standings
@@ -451,7 +502,7 @@ model TeamResult {
   /// ingested before the parser started persisting it (the value was
   /// parsed and discarded for those — re-ingest backfills it). Feeds the
   /// by-position slice on /cv/stats.
-  position      String?
+  position     String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
@@ -532,7 +583,7 @@ model TagProposal {
 }
 
 model EliminationResult {
-  id           BigInt @id @default(autoincrement())
+  id           BigInt  @id @default(autoincrement())
   tournamentId BigInt
   stage        String
   entityType   String
@@ -552,7 +603,7 @@ model EliminationResult {
 }
 
 model JudgeAssignment {
-  id           BigInt @id @default(autoincrement())
+  id           BigInt  @id @default(autoincrement())
   tournamentId BigInt
   personId     BigInt
   stage        String?
@@ -624,7 +675,7 @@ model CvErrorReport {
 /// One row per (url, contentHash) fetched from a Tabbycat page. Dedup'd on
 /// content hash so re-fetching an unchanged page is free after the first time.
 model SourceDocument {
-  id            String      @id @default(cuid())
+  id            String   @id @default(cuid())
   url           String
   status        Int
   contentHash   String
@@ -638,9 +689,9 @@ model SourceDocument {
   /// MAX_STORED_BODY_BYTES in fetch.ts). Dedup'd by the (url,
   /// contentHash) unique, so unchanged pages cost one stored copy.
   bodyGzip      Bytes?
-  fetchedAt     DateTime    @default(now())
+  fetchedAt     DateTime @default(now())
 
-  parserRuns    ParserRun[]
+  parserRuns ParserRun[]
 
   @@unique([url, contentHash])
   @@index([url])
@@ -651,16 +702,16 @@ model SourceDocument {
 /// old snapshots when PARSER_VERSION bumps and track selector-miss warnings
 /// as a production signal.
 model ParserRun {
-  id               String         @id @default(cuid())
+  id               String   @id @default(cuid())
   sourceDocumentId String
   parserName       String
   parserVersion    String
   success          Boolean
-  warnings         String[]       @default([])
+  warnings         String[] @default([])
   durationMs       Int?
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime @default(now())
 
-  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  sourceDocument SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
 
   @@index([sourceDocumentId])
   @@index([parserVersion, parserName])
