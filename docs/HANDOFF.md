@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-29 - Share image: the person card carries the speaking chart
+
+- **Person card** (`components/landing/ShareCard.tsx`, owner decision 12). The 1200×630 card for `/u/<slug>` (Open Graph and X) now shows:
+  - the name and active years;
+  - three figures: Tournaments, Broke (speaking breaks only, never added to judging, per the 2026-10-27 rule) and Best finish;
+  - the speaking career chart drawn in flex boxes, one cell per tournament in the light tier colours, a major's cell outlined, the last 12 years;
+  - one emerald rule above the trust line.
+- **Light always**, like print.
+- **Unchanged.** The generic card for the landing page and for a private or missing slug names no one, and the privacy re-check and the short cache stay as they were.
+- **Route** (`app/u/[slug]/opengraph-image.tsx`; the X card re-exports it). It adds `speakingSeries(speakerRows)` and the best result from `speakingYearTotal`. Both come from the same buildCvData call, with the hidden tournaments excluded.
+- **Checked** by rendering both PNGs locally against the seeded DB (1200×630).
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Public CV redesign (part 3)
 
 - **Layout** (`app/u/[slug]/page.tsx`, owner decision 18):

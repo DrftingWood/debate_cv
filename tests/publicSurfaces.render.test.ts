@@ -52,8 +52,10 @@ describe('link-preview card (COPY-2)', () => {
     const { ShareCard } = await import('@/components/landing/ShareCard');
     const { speakingSeries } = await import('@/lib/cv/careerChart');
     const { makeSpeakerRow } = await import('./setup/cv-fixtures');
+    // Called directly: ShareCard's props default to {}, which createElement's
+    // overloads cannot see through.
     const out = renderToStaticMarkup(
-      React.createElement(ShareCard, {
+      ShareCard({
         person: {
           name: 'Maya Rao',
           tournaments: 9,
