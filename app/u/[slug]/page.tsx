@@ -271,7 +271,7 @@ export default async function PublicCvPage({
       <p className="border-t border-border pt-stack text-caption text-ink-soft">
         Compiled from {total} public tab{total === 1 ? '' : 's'}
         {updated ? ` · last updated ${updated}` : ''} ·{' '}
-        <Link href="/" className="text-primary underline-offset-2 hover:underline">
+        <Link href="/" className="text-primary underline underline-offset-2">
           What this is
         </Link>
         . Every row links to the tournament tab it was read from; figures are as the tab published
