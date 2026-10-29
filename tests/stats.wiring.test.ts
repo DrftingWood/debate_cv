@@ -149,7 +149,30 @@ describe('/cv/stats wiring', () => {
   test('a speaking filter that matches nothing still shows judging', () => {
     const html = render('partner=p-nobody');
     expect(html).toContain('No rounds match these filters');
-    expect(section(html, 'judging-lens')).not.toBeNull();
+    expect(section(html, 'judging-outrounds')).not.toBeNull();
+  });
+
+  test('the new slots of decision 19 are present (part 2)', () => {
+    const html = render('');
+    const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    for (const tab of [
+      'Top-10 finishes',
+      'Outrounds judged',
+      'Chairing',
+      'Core roles',
+      'By stage',
+    ]) {
+      expect(tabs, tab).toContain(tab);
+    }
+    for (const id of [
+      'top-finishes',
+      'judging-chair',
+      'judging-roles',
+      'judging-format',
+      'judging-stage',
+    ]) {
+      expect(section(html, id), id).not.toBeNull();
+    }
   });
 
   test('partners filter by person key', () => {

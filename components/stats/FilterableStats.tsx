@@ -27,7 +27,10 @@ const FILTER_PARAMS = ['partner', 'pairing', 'seat'] as const;
 export type FilterableStatsData = Pick<
   CvData,
   'speakerRows' | 'judgeRows' | 'taggedMotions' | 'fieldStats'
->;
+> & {
+  /** Motions of the prelim rounds the user judged (Judging → By motion topic). */
+  judgedMotions?: CvData['taggedMotions'];
+};
 
 /**
  * /cv/stats, filterable by partner, pairing and seat.
@@ -166,6 +169,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
                     <JudgingTabs
                       speakerRows={data.speakerRows}
                       judgeRows={data.judgeRows}
+                      judgedMotions={data.judgedMotions ?? []}
                       initial={initial}
                     />
                   ),

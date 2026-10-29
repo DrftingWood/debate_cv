@@ -4,13 +4,24 @@ import type { ReactNode } from 'react';
 import { Tabs, type TabItem } from '@/components/ui/Tabs';
 import { SectionHeader } from '@/components/ui/Card';
 import type { SpeakerStats } from '@/lib/cv/speakerStats';
-import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
+import type { CvJudgeRow, CvSpeakerRow, CvTaggedMotion } from '@/lib/cv/buildCvData';
 import type { RoundFact, StatsFacts } from '@/lib/cv/statsFacts';
 import { CrossTabsSection } from '@/components/stats/CrossTabsSection';
 import { TopicTypeSection } from '@/components/stats/TopicTypeSection';
 import { BreakMarginSection } from '@/components/stats/BreakViews';
 import { MilestonesSection, OutroundFunnelSection } from '@/components/stats/CareerViews';
-import { JudgingLensSection, SpeakingVsJudgingSection } from '@/components/stats/JudgingViews';
+import {
+  JudgingChairSection,
+  JudgingOutroundsSection,
+  JudgingRolesSection,
+  JudgingStageSection,
+  SpeakingVsJudgingSection,
+} from '@/components/stats/JudgingViews';
+import {
+  JudgingFormatSection,
+  JudgingTopicSection,
+  TopFinishesSection,
+} from '@/components/stats/NewSlotViews';
 import {
   CarrySection,
   MomentumSection,
@@ -36,17 +47,16 @@ import {
  *
  *   Speaking
  *     Results (team): Team placement · Breaks · Straights & firsts
- *     Speaks (you):   Speaker tab · Score bands
+ *     Speaks (you):   Speaker tab · Score bands · Top-10 finishes
  *     Conditions:     By position · By format · By round · By motion topic ·
  *                     By motion type · By partner
  *   Judging
- *     Results:        Outrounds and breaks · Speaking vs judging
+ *     Results:        Outrounds judged · Chairing · Core roles · Speaking vs judging
+ *     Conditions:     By format · By stage · By motion topic
  *
  * Every section that was on the long page has a slot (owner, 2026-10-29):
  * Cross-tabs sits under By motion type, Speaking vs judging under Judging.
- * Seasons is gone, as the Record's yearly charts carry it. The sections
- * still to be built (Top-10 finishes; judging Chairing, Core roles and
- * Conditions) come in the next PR and slot in here.
+ * Seasons is gone, as the Record's yearly charts carry it.
  *
  * Desktop: level 3 is a vertical list beside one section; a phone gets it as
  * a "Section" dropdown. A level whose only item would be one section still
@@ -183,6 +193,15 @@ export function SpeakingTabs({
       ),
     },
     { value: 'score-bands', label: 'Score bands', panel: <ScoreDistribution stats={stats} /> },
+    {
+      value: 'top-finishes',
+      label: 'Top-10 finishes',
+      panel: bySeat ? (
+        wholeTournament('Speaker tab', 'Top-10 finishes')
+      ) : (
+        <TopFinishesSection speakerRows={speakerRows} />
+      ),
+    },
   ];
 
   const keepOnly = (keep: string[]) =>
@@ -301,22 +320,35 @@ export function SpeakingTabs({
 export function JudgingTabs({
   speakerRows,
   judgeRows,
+  judgedMotions,
   initial,
 }: {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
+  judgedMotions: CvTaggedMotion[];
   initial: Initial;
 }) {
   const results: TabItem[] = [
     {
       value: 'outrounds',
-      label: 'Outrounds and breaks',
-      panel: <JudgingLensSection judgeRows={judgeRows} />,
+      label: 'Outrounds judged',
+      panel: <JudgingOutroundsSection judgeRows={judgeRows} />,
     },
+    { value: 'chairing', label: 'Chairing', panel: <JudgingChairSection judgeRows={judgeRows} /> },
+    { value: 'core', label: 'Core roles', panel: <JudgingRolesSection judgeRows={judgeRows} /> },
     {
       value: 'speaking-vs-judging',
       label: 'Speaking vs judging',
       panel: <SpeakingVsJudgingSection speakerRows={speakerRows} judgeRows={judgeRows} />,
+    },
+  ];
+  const conditions: TabItem[] = [
+    { value: 'format', label: 'By format', panel: <JudgingFormatSection judgeRows={judgeRows} /> },
+    { value: 'stage', label: 'By stage', panel: <JudgingStageSection judgeRows={judgeRows} /> },
+    {
+      value: 'motion-topic',
+      label: 'By motion topic',
+      panel: <JudgingTopicSection judgeRows={judgeRows} motions={judgedMotions} />,
     },
   ];
   return (
@@ -329,6 +361,13 @@ export function JudgingTabs({
           value: 'results',
           label: 'Results',
           panel: <Sections label="Judging results" items={results} initial={initial.section} />,
+        },
+        {
+          value: 'conditions',
+          label: 'Conditions',
+          panel: (
+            <Sections label="Judging conditions" items={conditions} initial={initial.section} />
+          ),
         },
       ]}
     />
