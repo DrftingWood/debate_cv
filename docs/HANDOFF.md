@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-29 - Record redesign, part 1: header charts, Ledger and Adjudication by year
+
+- **Order change (owner, 2026-10-29).** The owner moved the Record, public CV and Statistics work ahead of option B ("found changes later"). Option B phase 2 (#223) stays open until the Neon rehearsal.
+- **Header** (`components/RecordHeader.tsx`): two tiles per role (Spoke · Broke | Judged · Outrounds judged), each pair above its career chart, side by side from `lg` and stacked below it with Speaking first (owner decisions 5, 12, 13). A role with no tournaments is left out. The old header tiles (`pickHeaderMetrics`) and the Highlights block no longer render on /cv; both still serve `/u/[slug]` and `/sample` until part 3 rebuilds those.
+- **Tabs Ledger · Adjudication** (`components/RecordLedger.tsx`, moved out of `app/(app)/cv/page.tsx`, 858 → 275 lines). Each calendar year is a `<details>` whose summary is the year's subtotal (`lib/cv/periodTotal.ts`): tournaments · broke n of N · best result · median team place (n), then the speaker-tab average over n speeches, then a judging line (owner decision 14). The current and previous years start open, per tab; a record ending earlier opens its latest year. The Year column became **Source** (tab host in mono, ↗, the public tab page; decision 16).
+- **Chart → year.** A speaking bar links to `#y2025`, a judging bar to `#j2025`; `components/OpenYearOnHash.tsx` switches to the tab, opens the year and scrolls to it. `CareerChart`'s `yearHref` function became `yearAnchor` (a prefix string), because a server component cannot pass a function to a client one.
+- **Print.** A tab set inside `data-print-all="true"` prints every panel without the tab row (`app/globals.css`, in `@layer base`: Tailwind's preflight `[hidden]` rule is `!important` in that layer, so an unlayered override loses).
+- **Checked** signed in against the seeded local DB at 1280 and 390, light and dark: 200, no console errors, no sideways scroll, a judging bar switches to Adjudication and opens the year, print media shows both panels.
+- **Not in this part.** Partners tab with the pro-am toggle (needs a schema field and a Settings → Sharing switch: part 2); public CV header, two-list Highlights, footer and OG card (part 3). The purple core segment is only right after the 9 CA/DCA re-ingest; the "Added from public tab" mark waits for option B.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Identity option B: owner decisions in the spec, phase 1 (name key v2)
 
 - **Spec.** `docs/superpowers/specs/2026-10-27-person-identity-option-b-design.md` gains section 10, the owner's 2026-10-29 answers, overriding the text above it, with inline markers where it does:
