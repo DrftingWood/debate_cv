@@ -28,7 +28,7 @@ export function Badge({ className, variant = 'neutral', ...rest }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 font-mono text-kicker font-medium uppercase tracking-[0.09em]',
+        'inline-flex items-center gap-1 font-mono text-kicker font-medium uppercase tracking-[0.08em]',
         isQuiet ? '' : 'rounded border px-1.5 py-0.5',
         variants[variant],
         className,

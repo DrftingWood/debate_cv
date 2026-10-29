@@ -1,5 +1,5 @@
 import { MIN_QUIRK_ROUNDS, type Split } from '@/lib/cv/speakerStats';
-import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
+import { Table, Th, Td, Tr, Nil, TableScroll, Cols } from '@/components/ui/DataTable';
 import { deltaTone, signed } from '@/components/stats/format';
 import { cn } from '@/lib/utils/cn';
 import { OUTCOME_COPY, type OutcomeKind } from '@/lib/cv/roundOutcome';
@@ -15,6 +15,9 @@ import { OUTCOME_COPY, type OutcomeKind } from '@/lib/cv/roundOutcome';
  * in its own column rather than in a footnote, because on this page it is
  * the difference between a finding and a coincidence.
  */
+/** Seat, rounds, decided, rate, vs you, speaker avg, vs you (pts), avg pts. */
+const FIXED_WIDTHS_REM = [7, 6, 6, 9, 7, 7.5, 7.5, 6.5];
+
 export function StatsSplitTable({
   splits,
   dimensionLabel,
@@ -26,6 +29,7 @@ export function StatsSplitTable({
    */
   thinBelow = MIN_QUIRK_ROUNDS,
   showPoints = false,
+  fixedColumns = false,
   /** What the "vs you" columns compare with, for their header titles. */
   baselineLabel = 'your overall figure',
   /** Words for the outcome column: "Win rate", or "2nd-or-better rate" in BP (never "win"). */
@@ -36,6 +40,13 @@ export function StatsSplitTable({
   dimensionLabel: string;
   thinBelow?: number;
   showPoints?: boolean;
+  /**
+   * Fixed column widths, for tables stacked one above another (Positions:
+   * one per format). Each table is then the sum of its columns, so every
+   * shared column sits at the same x and BP's extra Avg pts column simply
+   * extends the row (owner review 2026-10-29).
+   */
+  fixedColumns?: boolean;
   baselineLabel?: string;
 }) {
   if (splits.length === 0) return null;
@@ -50,7 +61,20 @@ export function StatsSplitTable({
   return (
     <div className="panel overflow-hidden">
       <TableScroll>
-        <Table className="min-w-max" label={`Results split by ${dimensionLabel.toLowerCase()}`}>
+        <Table
+          className={fixedColumns ? 'table-fixed' : 'min-w-max'}
+          style={
+            fixedColumns
+              ? {
+                  width: `${FIXED_WIDTHS_REM.slice(0, showPoints ? 8 : 7).reduce((a, b) => a + b, 0)}rem`,
+                }
+              : undefined
+          }
+          label={`Results split by ${dimensionLabel.toLowerCase()}`}
+        >
+          {fixedColumns ? (
+            <Cols widths={FIXED_WIDTHS_REM.slice(0, showPoints ? 8 : 7).map((w) => `${w}rem`)} />
+          ) : null}
           <thead>
             <tr>
               <Th className={cn('pl-4', pin)}>{dimensionLabel}</Th>

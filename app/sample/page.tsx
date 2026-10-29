@@ -124,7 +124,7 @@ export default function SamplePage() {
   // one signed-out page with no route to the privacy statement (§10).
   return (
     <>
-      <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-5 md:py-6">
+      <div className="mx-auto w-full max-w-wide flex-1 px-5 py-5 md:py-6">
         <PublicHeader />
 
         <main id="main" className="space-y-10 py-10 md:py-12">
@@ -279,10 +279,9 @@ export default function SamplePage() {
               <StatTile
                 label="Average team placement"
                 value="Top 8%"
-                accent="blue"
                 hint="Team tab · 23 tournaments"
               />
-              <StatTile label="Break rate" value="39%" accent="gold" hint="9 of 23 entries" />
+              <StatTile label="Break rate" value="39%" hint="9 of 23 entries" />
             </StatRow>
 
             <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
@@ -335,7 +334,7 @@ export default function SamplePage() {
           </section>
         </main>
       </div>
-      <Footer />
+      <Footer width="public" />
     </>
   );
 }

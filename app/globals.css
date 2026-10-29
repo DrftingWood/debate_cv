@@ -139,7 +139,7 @@
    */
   --text-kicker: 12px;
   --text-kicker--line-height: 1.2;
-  --text-kicker--letter-spacing: 0.11em;
+  --text-kicker--letter-spacing: 0.08em;
   --text-kicker--font-weight: 600;
   --text-byline: 12px;
   --text-byline--line-height: 1.45;
@@ -280,6 +280,16 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
+  /*
+   * Reserve the scrollbar's width on every page, scrolling or not, so the
+   * centred layout does not jump ~8 px sideways between a short page and a
+   * tall one (owner review 2026-10-29: Record content at 203 px, Imports at
+   * 212 px).
+   */
+  html {
+    scrollbar-gutter: stable;
+  }
+
   *,
   ::after,
   ::before,
@@ -343,7 +353,10 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.09em;
+  /* One tracking for every uppercase mono label: data labels, eyebrows,
+     kickers and column headers all use 0.08em (owner review 2026-10-29
+     found 0.08, 0.09 and 0.11em side by side on one page). */
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: hsl(var(--muted-foreground));
 }
@@ -362,7 +375,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: hsl(160 62% 58%);
   [data-theme='dark'] & {
@@ -374,7 +387,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: hsl(var(--primary));
 }
@@ -383,7 +396,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: hsl(var(--primary));
 }

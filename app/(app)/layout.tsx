@@ -36,13 +36,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // same header as the landing and sample pages (NV-11).
     return (
       <>
-        <div className="mx-auto w-full max-w-6xl px-5">
+        <div className="mx-auto w-full max-w-wide px-5">
           <PublicHeader />
         </div>
-        <main id="main" className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 px-5 py-8">
+        <main id="main" className="mx-auto w-full max-w-wide flex-1 px-5 py-8">
           {children}
         </main>
-        <Footer />
+        <Footer width="public" />
       </>
     );
   }

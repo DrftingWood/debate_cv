@@ -66,7 +66,6 @@ export function HeadlineStats({
         key="pct"
         label="Average team placement"
         value={`Top ${formatTopPercent(teamContext.meanTopPercent)}`}
-        accent="blue"
         hint={`Team tab · ${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
       />,
     );
@@ -99,7 +98,6 @@ export function HeadlineStats({
         key="break"
         label="Break rate"
         value={`${Math.round(results.breakRate * 100)}%`}
-        accent="gold"
         hint={`${results.breaks} of ${results.tournamentsSpoken} entries`}
       />,
     );

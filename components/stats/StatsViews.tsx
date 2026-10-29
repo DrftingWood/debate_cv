@@ -102,6 +102,7 @@ export function PositionsSection({
             dimensionLabel="Seat"
             thinBelow={MIN_SPLIT_ROUNDS}
             showPoints={group === 'BP'}
+            fixedColumns
             baselineLabel="your whole record in this format"
           />
         </div>

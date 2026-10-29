@@ -115,7 +115,7 @@ export function CareerChart({
   if (series.years.length === 0) return null;
 
   return (
-    <figure aria-labelledby={titleId} className="panel min-w-0 p-stack md:p-panel">
+    <figure aria-labelledby={titleId} className="panel min-w-0 p-stack">
       <figcaption id={titleId} className="data-label">
         {title}
       </figcaption>

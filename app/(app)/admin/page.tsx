@@ -87,7 +87,7 @@ export default async function AdminPage() {
     .slice(0, 20);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="space-y-8">
       <header className="space-y-3">
         <div className="kicker">ADMIN · INTERNAL</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
@@ -103,19 +103,21 @@ export default async function AdminPage() {
         <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
           <div>
             <dt className="text-ink-soft">Tournaments</dt>
-            <dd className="text-stat font-semibold mt-1">{tournaments}</dd>
+            <dd className="text-stat font-semibold mt-1">{tournaments.toLocaleString('en-GB')}</dd>
           </div>
           <div>
             <dt className="text-ink-soft">Discovered URLs</dt>
-            <dd className="text-stat font-semibold mt-1">{discoveredUrls}</dd>
+            <dd className="text-stat font-semibold mt-1">
+              {discoveredUrls.toLocaleString('en-GB')}
+            </dd>
           </div>
           <div>
             <dt className="text-ink-soft">Locked URLs</dt>
-            <dd className="text-stat font-semibold mt-1">{lockedUrls}</dd>
+            <dd className="text-stat font-semibold mt-1">{lockedUrls.toLocaleString('en-GB')}</dd>
           </div>
           <div>
             <dt className="text-ink-soft">Pending jobs</dt>
-            <dd className="text-stat font-semibold mt-1">{pendingJobs}</dd>
+            <dd className="text-stat font-semibold mt-1">{pendingJobs.toLocaleString('en-GB')}</dd>
           </div>
         </dl>
         {/* Raw ingest-error dump (.txt). Lived on the user dashboard until

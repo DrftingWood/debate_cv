@@ -206,7 +206,7 @@ export function CvDownloadButton() {
               {groups.map((g) =>
                 g.ids.length > 0 ? (
                   <fieldset key={g.title}>
-                    <legend className="text-byline uppercase tracking-[0.12em] text-ink-soft">
+                    <legend className="text-byline uppercase tracking-[0.08em] text-ink-soft">
                       {g.title}
                     </legend>
                     <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">

@@ -12,7 +12,7 @@ import {
 } from '@/lib/cv/formatStage';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { Badge } from '@/components/ui/Badge';
-import { TableScroll, Table, Th, Td, Tr, Nil } from '@/components/ui/DataTable';
+import { TableScroll, Table, Th, Td, Tr, Nil, Cols } from '@/components/ui/DataTable';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { RoundsToggle } from '@/components/RoundsToggle';
 import {
@@ -132,10 +132,11 @@ function SpeakingTable({
       {/* Desktop ledger */}
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full" label={label}>
+          <Table className="w-full min-w-[68rem] table-fixed" label={label}>
+            <Cols widths={SPEAKING_WIDTHS} />
             <thead>
               <tr>
-                <Th className="w-0 pr-0 pl-2">
+                <Th className="pr-0 pl-2">
                   <span className="sr-only">Rounds</span>
                 </Th>
                 <Th className="pl-1">Tournament</Th>
@@ -328,7 +329,8 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full" label={label}>
+          <Table className="w-full min-w-[68rem] table-fixed" label={label}>
+            <Cols widths={JUDGING_WIDTHS} />
             <thead>
               <tr>
                 <Th className="pl-4">Tournament</Th>
@@ -407,6 +409,39 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
 }
 
 const SPEAKING_COLUMNS = 12;
+
+/*
+ * One set of widths for every year's table, so the columns line up down the
+ * page. Tournament takes what is left; Team gets a share; the figures are
+ * fixed. The min-width keeps the fixed columns readable below xl, where the
+ * table scrolls inside its panel instead of crushing them.
+ */
+const SPEAKING_WIDTHS = [
+  '2.75rem', // round caret
+  undefined, // tournament
+  '4.5rem', // format
+  '17%', // team
+  '6.5rem', // team rank
+  '5rem', // pts
+  '5.5rem', // spk avg
+  '5.5rem', // spk tab
+  '7.5rem', // spk rank
+  '9.5rem', // result
+  '13rem', // source
+  '3.25rem', // report
+];
+const JUDGING_WIDTHS = [
+  undefined, // tournament
+  '4.5rem', // format
+  '4.5rem', // teams
+  '8rem', // judge type
+  '5rem', // judged
+  '5rem', // chaired
+  '11rem', // last outround chaired
+  '11rem', // last outround judged
+  '13rem', // source
+  '3.25rem', // report
+];
 
 /**
  * The ledger's first column: the tournament, linked out to its tab, and the

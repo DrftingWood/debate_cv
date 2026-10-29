@@ -170,7 +170,7 @@ export default async function CvTagsPage() {
                           <div key={mIdStr} className="space-y-3 border-l-2 border-border pl-4">
                             {/* Round label + motion text */}
                             <div>
-                              <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                              <div className="text-caption text-ink-soft uppercase tracking-[0.08em]">
                                 {m.roundLabel}
                               </div>
                               <p className="mt-0.5 font-display text-base text-ink leading-snug">
@@ -181,7 +181,7 @@ export default async function CvTagsPage() {
                             {/* Type and topic pickers side by side on wider viewports */}
                             <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                               <div className="space-y-1">
-                                <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                                <div className="text-caption text-ink-soft uppercase tracking-[0.08em]">
                                   Motion type
                                 </div>
                                 <TagProposalControls
@@ -197,7 +197,7 @@ export default async function CvTagsPage() {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
+                                <div className="text-caption text-ink-soft uppercase tracking-[0.08em]">
                                   Topic
                                 </div>
                                 <TagProposalControls

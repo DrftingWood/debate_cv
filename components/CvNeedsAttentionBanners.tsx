@@ -115,7 +115,7 @@ export function CvNeedsAttentionBanners({
       {pendingCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-border py-3">
           <CircleNotch className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
-          <p className="font-display text-body leading-relaxed text-ink">
+          <p className="text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               Ingesting {pendingCount} {pendingCount === 1 ? 'tournament' : 'tournaments'}.
             </em>{' '}
@@ -132,7 +132,7 @@ export function CvNeedsAttentionBanners({
       {unmatchedCount > 0 ? (
         <div className="flex items-start gap-3 border-t border-border py-3">
           <UserFocus className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-          <p className="font-display text-body leading-relaxed text-ink">
+          <p className="text-body leading-relaxed text-ink">
             <em className="not-italic font-medium">
               {unmatchedCount} {unmatchedCount === 1 ? 'tournament needs' : 'tournaments need'} a
               claim.
