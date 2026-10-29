@@ -9,7 +9,6 @@ import { computeSpeakerStats } from '@/lib/cv/speakerStats';
 import { buildStatsFacts } from '@/lib/cv/statsFacts';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClasses } from '@/components/ui/Button';
-import { CvSubNav } from '@/components/CvSubNav';
 import { FilterableStats } from '@/components/stats/FilterableStats';
 
 export const metadata: Metadata = {
@@ -80,8 +79,6 @@ export default async function CvStatsPage() {
           interpretation of style.
         </p>
       </header>
-
-      <CvSubNav active="stats" />
 
       {!hasAnything ? (
         <EmptyState

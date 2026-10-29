@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   countByFilter,
-  failedTileHint,
+  deadLinksText,
   matchesFilter,
   resolvePage,
   statusFor,
@@ -54,23 +54,15 @@ describe('resolvePage', () => {
   });
 });
 
-describe('failedTileHint (caption under the Failed tile)', () => {
-  it('never contradicts a zero: dead links are named as a separate, unretried bucket', () => {
-    expect(failedTileHint(0, 34)).toBe(
-      'Nothing to retry. 34 links no longer load (dead, not retried)',
-    );
-    expect(failedTileHint(0, 1)).toBe(
-      'Nothing to retry. 1 link no longer loads (dead, not retried)',
-    );
+describe('deadLinksText (the dead-links half of the Imports problem line)', () => {
+  it('names dead links as a separate, unretried bucket', () => {
+    expect(deadLinksText(34)).toBe('34 links no longer load (dead, not retried).');
+    expect(deadLinksText(1)).toBe('1 link no longer loads (dead, not retried).');
   });
-  it('points at the Failed filter only when something can be retried', () => {
-    expect(failedTileHint(3, 0)).toBe('open Failed to retry');
-    expect(failedTileHint(3, 2)).toBe(
-      'open Failed to retry. 2 links no longer load (dead, not retried)',
-    );
-    expect(failedTileHint(0, 0)).toBe('nothing to retry');
+  it('says nothing when there are none', () => {
+    expect(deadLinksText(0)).toBeNull();
   });
   it('no longer uses the old "dead links" caption', () => {
-    expect(failedTileHint(0, 34)).not.toMatch(/^\d+ dead links?$/);
+    expect(deadLinksText(34)).not.toMatch(/^\d+ dead links?$/);
   });
 });

@@ -31,7 +31,6 @@ import { CvHighlights } from '@/components/CvHighlights';
 import { CvShareButton } from '@/components/CvShareButton';
 import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
-import { CvSubNav } from '@/components/CvSubNav';
 import {
   TournamentCard,
   TournamentLink,
@@ -208,8 +207,6 @@ export default async function CvPage() {
           ))}
         </StatRow>
       ) : null}
-
-      <CvSubNav active="record" />
 
       {totalTournaments === 0 ? (
         <EmptyState

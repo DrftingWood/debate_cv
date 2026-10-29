@@ -1,19 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import {
-  ArrowSquareOut,
-  Clock,
-  Link as LinkIcon,
-  Prohibit,
-  Tray,
-  UserFocus,
-  Warning,
-  XCircle,
-} from '@/components/ui/icons';
+import { ArrowSquareOut, Prohibit, Tray, Warning } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isAdminEmail } from '@/lib/admin';
+import { isDiscoveryEnabled } from '@/lib/discovery/flag';
 import { fullScanAvailableAt } from '@/lib/gmail/fullScan';
 import {
   ScanButton,
@@ -29,6 +21,8 @@ import { UnmatchedRowExpand } from '@/components/UnmatchedRowExpand';
 import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
+import { ImportsStages } from '@/components/ImportsStages';
+import { ImportsReview } from '@/components/ImportsReview';
 import { Card, CardBody } from '@/components/ui/Card';
 import { buttonClasses } from '@/components/ui/Button';
 import { StatusPill, type Status as PillStatus } from '@/components/ui/StatusPill';
@@ -38,7 +32,6 @@ import { cn } from '@/lib/utils/cn';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import {
   countByFilter,
-  failedTileHint,
   matchesFilter,
   resolvePage,
   statusFor,
@@ -64,7 +57,7 @@ function isFilterKey(value: string | undefined): value is FilterKey {
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; page?: string }>;
+  searchParams: Promise<{ filter?: string; page?: string; stage?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
@@ -83,7 +76,11 @@ export default async function Dashboard({
   // opts in via a tile or the browse link (?filter=...). The table is the
   // single biggest source of "this feels like an engineering panel" — most
   // visits just want "did anything new arrive, is it processing".
-  const browsing = isFilterKey(params.filter);
+  // The Review stage is a third view (`?stage=review`, owner decision
+  // 2026-10-29): name claims and, with the discovery flag, the Found list
+  // that used to be /cv/found (which now redirects here).
+  const reviewing = params.stage === 'review';
+  const browsing = !reviewing && isFilterKey(params.filter);
   const activeFilter: FilterKey = isFilterKey(params.filter) ? params.filter : 'all';
 
   // Every URL and job is loaded, uncapped, as a light row: the tile counts
@@ -202,50 +199,15 @@ export default async function Dashboard({
         </GmailDisconnectedNotice>
       ) : null}
 
-      {/* Stat tiles — clickable filter shortcuts */}
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <FilterTile
-          icon={<LinkIcon className="h-4 w-4" aria-hidden />}
-          label="Private URLs"
-          value={counts.all}
-          hint="from your Gmail"
-          tone="info"
-          filter="all"
-          activeFilter={activeFilter}
-        />
-        <FilterTile
-          icon={<Clock className="h-4 w-4" aria-hidden />}
-          label="Pending"
-          value={counts.pending}
-          hint="queued / running"
-          tone={counts.pending > 0 ? 'warning' : 'neutral'}
-          filter="pending"
-          activeFilter={activeFilter}
-        />
-        <FilterTile
-          icon={<UserFocus className="h-4 w-4" aria-hidden />}
-          label="Unmatched"
-          value={counts.unmatched}
-          hint="need to claim yourself"
-          tone={counts.unmatched > 0 ? 'warning' : 'neutral'}
-          filter="unmatched"
-          activeFilter={activeFilter}
-        />
-        <FilterTile
-          icon={<XCircle className="h-4 w-4" aria-hidden />}
-          label="Failed"
-          value={counts.failed}
-          // With nothing failed there is no retry chip to point at, and the
-          // hint sat under a "0" telling the user to act on something that
-          // was not on the page.
-          hint={failedTileHint(counts.failed, counts.unavailable)}
-          tone={counts.failed > 0 ? 'danger' : 'neutral'}
-          filter="failed"
-          activeFilter={activeFilter}
-        />
-      </section>
+      <ImportsStages
+        counts={counts}
+        view={reviewing ? 'review' : browsing ? activeFilter : null}
+        discovery={isDiscoveryEnabled(session.user.email)}
+      />
 
-      {!browsing ? (
+      {reviewing ? (
+        <ImportsReview userId={userId} email={session.user.email} unmatched={counts.unmatched} />
+      ) : !browsing ? (
         /* Summary view: the tiles above carry the counts; the table is one
            click away. Most visits end here. */
         rows.length === 0 ? (
@@ -678,53 +640,4 @@ function formatDate(d: Date): string {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function FilterTile({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-  filter,
-  activeFilter,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  hint?: string;
-  tone: 'info' | 'success' | 'warning' | 'danger' | 'neutral';
-  filter: FilterKey;
-  activeFilter: FilterKey;
-}) {
-  // Tone tints the ICON only. The figure itself stays ink: a count of
-  // pending imports is not a value judgement, and colouring the number
-  // would break the rule that tint on a figure means up or down.
-  const toneClass: Record<typeof tone, string> = {
-    info: 'text-primary',
-    success: 'text-pos',
-    warning: 'text-warning',
-    danger: 'text-neg',
-    neutral: 'text-ink-soft',
-  };
-  const active = activeFilter === filter;
-  return (
-    // No aria-current here: the filter chip for the same URL carries it, and
-    // on the bare /dashboard summary no filter is applied at all, so the
-    // "Private URLs" tile announced itself as the current page when it was not.
-    <Link
-      href={`/dashboard?filter=${filter}`}
-      className={cn(
-        'block rounded-card border bg-card p-4 transition-colors duration-150 ease-soft hover:bg-surface-2',
-        active ? 'border-primary ring-1 ring-primary/25' : 'border-border',
-      )}
-    >
-      <div className="data-label flex items-center gap-1.5">
-        <span className={toneClass[tone]}>{icon}</span>
-        <span className="truncate">{label}</span>
-      </div>
-      <div className="figure mt-1.5 text-figure-md text-ink">{value}</div>
-      {hint ? <div className="mt-1 text-caption text-ink-soft">{hint}</div> : null}
-    </Link>
-  );
 }

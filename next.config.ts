@@ -24,6 +24,12 @@ const config: NextConfig = {
   outputFileTracingExcludes: {
     '*': ['**/*.map'],
   },
+  // The Found list moved into the Imports Review stage (navigation change,
+  // 2026-10-29). Permanent, so bookmarks and the bell notifications that link
+  // the old path keep working.
+  async redirects() {
+    return [{ source: '/cv/found', destination: '/dashboard?stage=review', permanent: true }];
+  },
   async headers() {
     return [
       {

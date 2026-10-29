@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-29 - Navigation: four header items, Imports as stages, Found in Review
+
+- **Scope (owner's choice).** The UI half of what the redesign plan put "with Found phase 2". In the discovery spec, phase 2 is identity option B phases 1-4 (alias table, per-participation claims, dual-write, backfill, read switch); that and "Add to my record" (spec phase 3) are not in this PR. Option B still has four open owner questions (phase 7 timing, legacy claims, suppression scope, who runs production steps); its Q3 is answered by the owner rule that a close name always needs the user's tick.
+- **Header.** Record · Statistics · Motions · Imports (`app/(app)/layout.tsx`). Settings and, for admins, Admin moved into the account menu (`UserMenu`, now "Settings" → `/settings` instead of "Account" → `/settings/account`). `CvSubNav` and its test are deleted, so each destination is in one nav level (closes **NV-4** and **NV-23**). The admin page gains an "Operator tools" section linking `/cv/verify` and `/cv/tags`, which were reachable only from that bar.
+- **Imports as stages** (`components/ImportsStages.tsx`): Sources → In progress → Review → On record, one link per tile, replacing the four filter tiles. Failures are a line under the strip (`deadLinksText` replaces `failedTileHint`).
+- **Review stage** (`?stage=review`, `components/ImportsReview.tsx`): imports needing the user's name (link to the Unmatched table) and, behind the discovery flag, the Found list (`components/FoundReview.tsx`, moved from `app/(app)/cv/found/page.tsx` unchanged in behaviour). The Found search runs only in this view. `/cv/found` is a permanent redirect in `next.config.ts`.
+- **Tests.** `tests/discovery.page.test.ts` became `tests/discovery.review.test.ts` (every case kept, plus the name-claims half); new `tests/imports.stages.test.ts`; `tests/nav.shared.test.ts` pins the four header items.
+- **Not checked in a browser signed in.** The local embedded Postgres on 55432 that earlier sessions used is not running, and only the system PostgreSQL 17 service (port 5432, other credentials) is. Check on the preview or production: the header at 320 / 390 / 1280, the account menu's Settings / Admin, Imports stages and `?stage=review` (with the flag, as the owner), and that `/cv/found` lands on Review.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Primitives: Tooltip, Tabs, CareerChart (foundations, PR 4 of 4; stacked on PR 3)
 
 - **What.** The three building blocks the page rebuilds need. Only Tooltip is wired in now; Tabs and CareerChart land on pages with the Record / Statistics rebuild (after identity option B phase 6, per the agreed order).

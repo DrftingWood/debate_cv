@@ -139,6 +139,23 @@ describe('signed-out header (NV-10, NV-11)', () => {
   });
 });
 
+describe('signed-in header (navigation change 2026-10-29)', () => {
+  beforeEach(() => authMock.mockReset());
+
+  const SECTIONS = /<nav aria-label="Sections"[\s\S]*?<\/nav>/;
+
+  it('holds the four task destinations only, in order, with Settings and Admin out of it', async () => {
+    process.env.ADMIN_EMAIL = 'owner@example.com';
+    authMock.mockResolvedValue({ user: { id: 'u1', email: 'owner@example.com' } });
+    const out = html(await AppLayout({ children: h('p', null, 'x') }));
+    const nav = out.match(SECTIONS)?.[0] ?? '';
+    const links = [...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(links).toEqual(['/cv', '/cv/stats', '/cv/motions', '/dashboard']);
+    expect(nav).not.toContain('/settings');
+    expect(nav).not.toContain('/admin');
+  });
+});
+
 describe('pageTitle', () => {
   it('puts the specific page first', () => {
     expect(pageTitle('Profile', 'Settings')).toBe('Profile · Settings');

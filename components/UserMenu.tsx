@@ -1,13 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { Gear, SignOut } from '@/components/ui/icons';
+import { Gear, ShieldCheck, SignOut } from '@/components/ui/icons';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { signOutAction } from '@/lib/auth/signOutAction';
 import { usePopover } from '@/components/ui/usePopover';
 
 /**
- * Header avatar + popover with Account link and Sign out.
+ * Header avatar + popover with Settings, Admin (for an admin) and Sign out.
+ *
+ * Settings and Admin live here, not in the header, since the 2026-10-29
+ * navigation change (owner decision): the header holds the four task
+ * destinations only (Record · Statistics · Motions · Imports), which also
+ * fits a 320px phone strip without scrolling. UX-53 puts the account menu
+ * top right, after the section links.
  *
  * Why this exists: before this, SignOutButton lived only inside the
  * dashboard's "More actions" dropdown, so a user stuck on a broken
@@ -27,10 +33,13 @@ export function UserMenu({
   name,
   email,
   image,
+  showAdmin = false,
 }: {
   name: string | null;
   email: string | null;
   image: string | null;
+  /** Allowlisted operators get an Admin link (the pages check again). */
+  showAdmin?: boolean;
 }) {
   const { open, setOpen, containerRef, triggerRef, panelRef } = usePopover();
 
@@ -91,14 +100,26 @@ export function UserMenu({
           <ul className="py-1">
             <li>
               <Link
-                href="/settings/account"
+                href="/settings"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2"
+                className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2 coarse:min-h-11"
               >
                 <Gear className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
-                Account
+                Settings
               </Link>
             </li>
+            {showAdmin ? (
+              <li>
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 text-ui text-ink transition-colors hover:bg-surface-2 coarse:min-h-11"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-ink-soft" aria-hidden />
+                  Admin
+                </Link>
+              </li>
+            ) : null}
             <li>
               <form action={signOutAction}>
                 <button

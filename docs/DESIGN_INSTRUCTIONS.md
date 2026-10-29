@@ -97,9 +97,9 @@ Do not lead signed-out users into inaccessible app furniture such as Dashboard/M
 
 Signed-in users are managing a record. Navigation should be task-based.
 
-Header: **Record · Statistics · Imports · Settings** (plus Admin for allowlisted operators).
+Header: **Record · Statistics · Motions · Imports** (owner decision 2026-10-29). Settings, and Admin for allowlisted operators, live in the account menu at top right. There is no second navigation bar under the CV pages: each destination lives in one nav level, and four items fit a 320px phone strip.
 
-CV sub-navigation (segmented control): **Record · Statistics · Motions · Tags · Verify**.
+Imports is a pipeline of stages: **Sources → In progress → Review → On record**. Review (`/dashboard?stage=review`) holds everything the user must answer before a row reaches the record: imports where we could not find their name, and (behind the discovery flag) the Found list of public-tab matches, which was `/cv/found` and now redirects there. The operator tools (Tags, Verify) are reached from the Admin page.
 
 Avoid naming primary surfaces after implementation objects. "Imports" is better than "Dashboard" because it names the job. "Record" is better than "CV" in nav because it names what the page holds.
 

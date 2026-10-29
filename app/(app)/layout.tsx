@@ -75,7 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               aria-label="Sections"
               className="hidden items-center gap-0.5 text-table font-medium md:flex"
             >
-              <SectionLinks showAdmin={showAdmin} />
+              <SectionLinks />
             </nav>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
@@ -86,6 +86,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                     name={session.user.name ?? null}
                     email={session.user.email ?? null}
                     image={session.user.image ?? null}
+                    showAdmin={showAdmin}
                   />
                 </>
               ) : null}
@@ -105,7 +106,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           aria-label="Sections"
           className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium mask-[linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:mask-none"
         >
-          <SectionLinks showAdmin={showAdmin} />
+          <SectionLinks />
         </ScrollCurrentNav>
       </header>
       {/* The one <main>, a sibling of the header and footer rather than
@@ -120,28 +121,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 }
 
 /**
- * The task destinations. Task names, not object names: "Record" is what the
- * page is for, "Imports" is what the dashboard actually does. (Signed-out
- * visitors never reach this: the layout gives them PublicHeader.)
- *
- * Header items must agree with CvSubNav about what is current (NV-3): Record
- * also owns /cv/motions and /cv/found (the flagged Found tab); Admin owns the
- * /cv/tags and /cv/verify operator tools, which only an admin can open.
+ * The task destinations, and only those (navigation change, owner decision
+ * 2026-10-29): Record · Statistics · Motions · Imports. Settings and Admin
+ * moved into the account menu (UserMenu), and the old second bar under the
+ * CV pages (CvSubNav) is gone, so each destination lives in one nav level
+ * (UX-48) and four items fit a 320px phone strip (UX-45). Task names, not
+ * object names: "Record" is what the page is for, "Imports" is what the
+ * dashboard actually does. The Found list is the Imports Review stage.
+ * (Signed-out visitors never reach this: the layout gives them PublicHeader.)
  */
-function SectionLinks({ showAdmin }: { showAdmin: boolean }) {
+function SectionLinks() {
   return (
     <>
-      <NavLink href="/cv" exact alsoMatch={['/cv/motions', '/cv/found']}>
+      <NavLink href="/cv" exact>
         Record
       </NavLink>
       <NavLink href="/cv/stats">Statistics</NavLink>
+      <NavLink href="/cv/motions">Motions</NavLink>
       <NavLink href="/dashboard">Imports</NavLink>
-      <NavLink href="/settings">Settings</NavLink>
-      {showAdmin ? (
-        <NavLink href="/admin" alsoMatch={['/cv/tags', '/cv/verify']}>
-          Admin
-        </NavLink>
-      ) : null}
     </>
   );
 }

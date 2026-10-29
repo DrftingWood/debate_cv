@@ -222,7 +222,7 @@ function checkAborted(signal: AbortSignal | undefined): void {
 export type FoundLoad = { input: FoundInput; rows: FoundRow[] };
 
 /**
- * Everything /cv/found shows, and what the decision route validates against.
+ * Everything the Found list (Imports Review stage) shows, and what the decision route validates against.
  */
 export async function loadFound(
   userId: string,
