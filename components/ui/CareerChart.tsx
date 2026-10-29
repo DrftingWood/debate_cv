@@ -72,14 +72,18 @@ export function CareerChart({
   kind,
   title,
   series,
-  yearHref = (year) => `#y${year}`,
+  yearAnchor = 'y',
   compact = false,
 }: {
   kind: 'speaking' | 'judging';
   title: string;
   series: CareerSeries<string>;
-  /** Where a year's bar links to; null to render bars without links. */
-  yearHref?: ((year: number) => string) | null;
+  /**
+   * A bar links to `#<yearAnchor><year>` ("#y2025"); null renders bars
+   * without links. A prefix, not a function, because the server renders
+   * this client component and a function cannot cross that boundary.
+   */
+  yearAnchor?: string | null;
   /** Static: no stars, links, details or table (the landing sample). */
   compact?: boolean;
 }) {
@@ -92,6 +96,7 @@ export function CareerChart({
   const touch = useRef(false);
   const titleId = useId();
   const activeYear = series.years.find((y) => y.year === active) ?? null;
+  const yearHref = yearAnchor == null ? null : (year: number) => `#${yearAnchor}${year}`;
 
   const describe = (y: CareerYear<string>) => {
     const counts = tiers

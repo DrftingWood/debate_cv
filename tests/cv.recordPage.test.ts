@@ -79,7 +79,7 @@ function record() {
 
 /** The desktop speaking ledger's header row, as a list of visible header texts. */
 function speakingHeaders(html: string): string[] {
-  const table = html.slice(html.indexOf('Speaking record by tournament'));
+  const table = html.slice(html.indexOf('Speaking record, '));
   const thead = table.slice(table.indexOf('<thead>'), table.indexOf('</thead>'));
   return [...thead.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) =>
     m[1].replace(/<[^>]+>/g, '').trim(),
@@ -97,7 +97,6 @@ describe('/cv speaking ledger (desktop)', () => {
     const out = await render(record());
     expect(speakingHeaders(out)).toEqual([
       'Tournament',
-      'Year',
       'Format',
       'Team',
       'Team rank',
@@ -106,6 +105,7 @@ describe('/cv speaking ledger (desktop)', () => {
       'Spk tab',
       'Spk rank',
       'Result',
+      'Source',
       'Report a problem',
     ]);
     expect(out).toContain('#3<span class="text-ink-soft">/40</span>');
@@ -142,8 +142,9 @@ describe('/cv speaking ledger (desktop)', () => {
     const out = await render(record());
     const blankLinks = out.match(/target="_blank"/g)?.length ?? 0;
     const announced = out.match(/\(opens in new tab\)/g)?.length ?? 0;
-    // Two tournaments, each linked once in the ledger and once on its card.
-    expect(blankLinks).toBe(4);
+    // Two tournaments, each linked once in the ledger and once on its card,
+    // plus each row's Source link to the same public tab.
+    expect(blankLinks).toBe(6);
     expect(announced).toBe(blankLinks);
     expect(out).not.toContain('opacity-0');
   });
@@ -198,5 +199,38 @@ describe('/cv header and Gmail state', () => {
 
   it('still auto-scans with a Gmail grant', async () => {
     expect(await render(record())).toContain('data-testid="autoscan"');
+  });
+});
+
+describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', () => {
+  it('shows two tiles per role above its chart, and leaves out a role with no tournaments', async () => {
+    const out = await render(record());
+    expect(out).toContain('wrap-break-word">Spoke<');
+    expect(out).toContain('>Broke<');
+    expect(out).toContain('Speaking, by year');
+    // tournamentsJudged is 0 in this fixture: no "Judged 0" tile, no chart.
+    expect(out).not.toContain('wrap-break-word">Judged<');
+    expect(out).not.toContain('Judging, by year</figcaption>');
+  });
+
+  it('puts speaking under Ledger and judging under Adjudication, both printed', async () => {
+    const out = await render(record());
+    expect(out).toMatch(/role="tab"[^>]*>Ledger</);
+    expect(out).toMatch(/role="tab"[^>]*>Adjudication</);
+    expect(out).toContain('data-print-all="true"');
+    expect(out).toContain('Judging record, 2025');
+  });
+
+  it('groups a year in a <details> named for the chart link, with its subtotal', async () => {
+    const out = await render(record());
+    expect(out).toMatch(/<details id="y2025"/);
+    expect(out).toMatch(/<details id="j2025"/);
+    expect(out).toContain('1 tournament · broke 1 of 1 · best Semifinals · median top 8% (n=1)');
+  });
+
+  it('links the Source column to the public tab host, never a private URL', async () => {
+    const out = await render(record());
+    expect(out).not.toContain('privateurls');
+    expect(out).toMatch(/font-mono text-caption[^"]*">example\.calicotab\.com</);
   });
 });

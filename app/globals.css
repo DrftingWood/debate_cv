@@ -1044,3 +1044,22 @@
     scroll-padding-top: 4.5rem;
   }
 }
+
+/*
+ * A tab set marked data-print-all (the Record's Ledger and Adjudication)
+ * prints every panel, one after another, without the tab row: paper has no
+ * tabs to click, and the PDF must carry the whole record (owner decision
+ * 15). In the base layer on purpose: Tailwind's preflight hides [hidden]
+ * with !important there, and an !important in an earlier layer beats one
+ * outside every layer, so only a more specific rule in the same layer wins.
+ */
+@layer base {
+  @media print {
+    [data-print-all='true'] [role='tablist'] {
+      display: none !important;
+    }
+    [data-print-all='true'] [role='tabpanel'][hidden] {
+      display: block !important;
+    }
+  }
+}
