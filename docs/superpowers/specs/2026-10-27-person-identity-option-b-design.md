@@ -1,6 +1,8 @@
 # Person identity, option B: claims bind to participations, names bind to users (design)
 
-Status: design only, for the owner. No code, schema or migration is changed by this document.
+Status: design; **the owner answered every open question on 2026-10-29 (section 10), and section 10 overrides the text above it where they differ.** Phase 1 (normaliser v2) is built on branch `preview/option-b-phase1`; phases 2-7 are not started. No schema or migration is changed by this document.
+
+**Override note (2026-10-29), in short:** claims now reach the CV wherever they are, including tournaments with no private URL (shown with the "Added from public tab" mark), so the attendance rule in 3.3 and the CV-build row in section 5 change; legacy Person claims are **carried over**, not dropped (4.2 step 1, V5); a `close` name **never** auto-claims (3.4); four guardrails apply to every new claim; phase 7 runs after phases 1-6 with a short-list re-ingest.
 Finding: H2 in `docs/DATABASE_REVIEW-2026-10-26.md` (detail in `docs/DATABASE_AUDIT-2026-10-26.md`, H2).
 Owner's choice: option B, the proper fix (per-participation claims and/or an alias table), not the normaliser-only stop-gap.
 
@@ -135,7 +137,7 @@ model Person {
 
 A claim is the pair (user, participation). It is created when **both** hold:
 
-1. **Attendance.** The user has a `DiscoveredUrl` with that `tournamentId` (same rule as `claim/route.ts:57-71`, now evaluated per participation, not per Person).
+1. **Attendance.** The user has a `DiscoveredUrl` with that `tournamentId` (same rule as `claim/route.ts:57-71`, now evaluated per participation, not per Person). *Superseded in part by section 10: a claim at a tournament without a private URL is allowed for the legacy carry-over and, later, for Found ("Added from public tab"), under the section 10 guardrails.*
 2. **Identity.** The participation's name (`listedName ?? person.displayName`) is `match` or `close` under `nameProximity` to at least one reference: the registration name on the user's URL for that tournament, the user's Google profile name, or one of the user's aliases.
 
 Claim paths:
@@ -155,6 +157,7 @@ Unclaim: unticking a name in the identity manager deletes the alias and unclaims
 
 Decision A (`docs/superpowers/specs/2026-10-26-paste-a-url-threat-model.md:43,50`): a name close to the user's Google profile name is acceptable proof; for Gmail-found URLs the registration name must match or be close to the profile name, else the URL is held for confirmation.
 
+- *Superseded by section 10 (owner rule, 2026-10-27, confirmed 2026-10-29): only `match` auto-claims; a `close` name is offered for one tap and never claimed on its own.*
 - That rule becomes the identity half of the claim (3.3, rule 2) and the **auto-claim gate** at ingest. It replaces today's gate, "the user already claims this exact v1 key" (`ingest.ts:2031-2035`), which a namesake could never pass and which ignored accents.
 - `nameProximity` is the single predicate for identity. The claim route stops using the looser `personNameMatches` (`claim/route.ts:109`), which accepts substring hits such as "Ann Lee" for "Ann Leeson" and which `nameProximity.ts:11-13` already calls too loose for credentials. `personNameMatches` stays where it belongs, matching names **within one tournament** at ingest.
 - `different` → the URL is held: no claim, shown in the identity manager flagged, as `onboarding/names/route.ts:89` already does. The user can still tick it, which records an alias with `source='onboarding'`; that is the explicit-confirmation path decision A asks for, and the alias makes later tournaments under that name auto-claim.
@@ -228,6 +231,7 @@ CREATE UNIQUE INDEX "UserNameAlias_userId_matchKey_key" ON "UserNameAlias"("user
                    AND du."tournamentId" = tp."tournamentId");
    ```
    The `EXISTS` is the attendance rule and the same intersection `buildCvData.ts:356-393` applies. Participations of a claimed Person at tournaments the user never had a URL for are **not** claimed: they are the namesake leak (2.4 item 2). The script writes their count per user to its report (open question 2).
+   *Superseded by section 10: the owner chose to carry those participations over too (step 1b there), with guardrails, and to show them on the CV with the source mark.*
    Note `buildCvData` also requires `ingestedAt IS NOT NULL`; the backfill deliberately does not, so a URL mid-ingest keeps its claim when it finishes.
 2. **Aliases**, one per claimed Person, plus the raw registration spellings that map to it (they keep the accents the v1 key lost):
    - from `Person` where `claimedByUserId` is set: `(userId, displayName, v2(displayName), 'backfill')`;
@@ -311,6 +315,8 @@ SELECT tp.id FROM "TournamentParticipant" tp JOIN "Person" p ON p.id = tp."perso
 WHERE tp."claimedByUserId" IS NOT NULL AND p."suppressedAt" IS NOT NULL;
 
 -- V5. Leak report (not an error): legacy participations NOT carried over.
+--     After section 10 this lists only the rows a guardrail refused (same-round
+--     conflict, claimed by another user, suppressed), with the reason.
 SELECT p."claimedByUserId" AS u, COUNT(*) AS not_carried
 FROM "TournamentParticipant" tp JOIN "Person" p ON p.id = tp."personId"
 WHERE p."claimedByUserId" IS NOT NULL AND tp."claimedByUserId" IS NULL
@@ -329,7 +335,7 @@ SELECT pg_size_pretty(pg_database_size(current_database())),
 
 | Surface | Change |
 | --- | --- |
-| CV build (`buildCvData.ts`) | `myParticipations` = `TournamentParticipant WHERE claimedByUserId = user AND tournamentId IN (user's URL tournaments)` (replaces `349-352`, `388-393`). Per-tournament display name = `listedName` of the claimed row, then alias match on `registrationName`, then `person.displayName` (replaces `378-386`). Judge assignments by `(tournamentId, personId)` pairs of claimed rows, not a global personId set (`570`). Teammates exclude claimed participation ids, not Person ids (`781`). Judge-broke matches break-page names against the user's alias `matchKey`s (`846-848`). |
+| CV build (`buildCvData.ts`) | *Superseded by section 10: drop the `tournamentId IN (user's URL tournaments)` restriction; the CV reads every participation the user has claimed, and rows without a private URL carry the "Added from public tab" mark.* `myParticipations` = `TournamentParticipant WHERE claimedByUserId = user AND tournamentId IN (user's URL tournaments)` (replaces `349-352`, `388-393`). Per-tournament display name = `listedName` of the claimed row, then alias match on `registrationName`, then `person.displayName` (replaces `378-386`). Judge assignments by `(tournamentId, personId)` pairs of claimed rows, not a global personId set (`570`). Teammates exclude claimed participation ids, not Person ids (`781`). Judge-broke matches break-page names against the user's alias `matchKey`s (`846-848`). |
 | Public CV `/u/<slug>` | No change of its own; it uses `buildCvData` (`app/u/[slug]/page.tsx:87`). Same rows as the private CV, so V1 passing means the public CV is unchanged for every existing user. |
 | CSV / XLSX export, `cv.json` | Same: via `buildCvData`. The append-only field registry is untouched. |
 | Account export | `claimedPersons` (all participations of a name) is replaced by `claimedParticipations` and `nameAliases`; `schemaVersion` 1 → 2. This stops exporting a namesake's tournaments. The privacy page's "what we export" text needs a line. |
@@ -355,7 +361,7 @@ New and changed Vitest cases, following existing files:
 4. `tests/api/onboarding-confirm.test.ts`: writes aliases, claims only participations at the user's URL tournaments, never touches another user's claim, unclaims on untick only `onboarding`/`registration` claims; stand-ins still skipped.
 5. `tests/api/onboarding-names.test.ts`: `isMine` from aliases; accent variants group under one v2 key.
 6. `tests/cv.test.ts`: CV reads participation claims; two users with the same name each see only their own rows; teammate exclusion by participation id; per-tournament display name prefers `listedName`.
-7. Ingest (new `tests/ingest.identityClaims.test.ts`, alongside the existing `tests/ingest.*.test.ts`): `linkRegistrationPerson` claims on `match`/`close`, holds on `different`; refresh keeps participation-claimed rows of an otherwise unclaimed Person; `listedName` written.
+7. Ingest (new `tests/ingest.identityClaims.test.ts`, alongside the existing `tests/ingest.*.test.ts`): `linkRegistrationPerson` claims on `match` only (section 10; `close` is held for one tap), holds on `different`; refresh keeps participation-claimed rows of an otherwise unclaimed Person; `listedName` written.
 8. `tests/api/account-export.test.ts`: schemaVersion 2, no namesake tournaments.
 9. Backfill script: a pure function computing the plan from fixture rows (claims, aliases, skipped leak rows), tested without a DB; plus a local-Postgres run of the script followed by V1-V6 in `npm run seed:dev` data.
 10. Deadlock: participation claims are single-row `updateMany` with a `claimedByUserId IS NULL OR = self` guard, like today. Re-run `tests/calicotab.deadlock.test.ts` in the ingest PR; no lock ordering changes.
@@ -384,6 +390,8 @@ Each PR is small and shippable alone. Flags are env vars read in one helper (`li
 - **Non-Latin names appearing.** v2 is only used for aliases and matching in phases 1-6; Persons with an empty v1 key are still not created until phase 7. So non-Latin debaters still cannot get a CV before phase 7. This is the main thing option B (phases 1-6) does **not** fix.
 
 ## 9. Open questions for the owner
+
+*All answered on 2026-10-29: see section 10.*
 
 1. **Same-name pairs at one tournament, and non-Latin names (phase 7).** Do phase 7 now, as part of H2, or after phases 1-6 have shipped? It needs a parser version bump and a full re-ingest. **Recommended default: after.** First measure how often two people share a name at one tournament, from the corpus (not production), and do phase 7 only if it is more than a handful of tournaments or a non-Latin user asks. *(Measured since; see "Owner's rule: not in the same round" below: it is far more than a handful, and the default is revised.)*
 2. **Legacy participations not carried over.** Old claims cover a namesake's tournaments the user never had a URL for (report V5). These never showed on the CV, but they appear in the account export and dashboard counts today. **Recommended default: do not carry them over**, and keep the V5 report for the owner to look over once.
@@ -422,6 +430,53 @@ What this means for the model:
 | Global `PARSER_VERSION` bump | all 855 in the export | about 6 hours, and every user's cached parses are invalidated |
 
 The short list is 18-26 % of the export, not "a handful". So the recommended default for open question 1 stays **do phase 7**, with a short-list re-ingest of the checker's list instead of a global bump. Runbook step 2's caveat still applies: the v1-to-v2 re-key of `Person` is a data migration and must run first. The disjoint speaker+judge people are not on the strict list (nothing collides), but their lost judge role is fixed only by phase 7's merge change plus a re-ingest, so add those tournaments to the list once that change ships.
+
+## 10. Owner decisions (2026-10-29, final)
+
+These answer section 9 and override the sections above where they differ.
+
+### 10.1 The principle
+
+A claim that does not show on the CV has no point. Once a user holds an appearance, it shows on the CV, statistics, public CV and exports. Safety comes from guardrails on **how** a claim is made (10.4), not from keeping claims off the record.
+
+### 10.2 Answers
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Phase 7 (same-name people at one tournament, non-Latin names) | **Do it, after phases 1-6 are live and soaked.** Re-key `Person` v1 to v2 first, then re-ingest only the checker's short list (158 tournaments, 221 with the rounds-unknown groups) plus the 19 where a judge role was lost (about 66-92 minutes of Actions time). **No global `PARSER_VERSION` bump.** Discovery phase 5 waits for it. |
+| 2 | Legacy participations | **Carry all of them over, and show them.** Reverses the default. Guardrails and display in 10.3. |
+| 3 | Auto-claim on a `close` name | **No.** Only `match` auto-claims; `close` is offered for one tap (owner rule 2026-10-27: a close name always needs the user's tick). |
+| 4 | Suppression scope | **Stays on the name for now**, so namesakes are masked and blocked too. An admin can grant a namesake a per-user exception for their own appearances. Revisit after phase 7. |
+| 5 | Production steps and soak | An agent rehearses each step on a Neon branch of production and writes the runbook with exact commands and expected outputs; **the owner runs** the backfill, the `IDENTITY_V2_READS` flip and the contract migration. The read switch soaks **14 days** with V1-V4 clean; a Neon restore point is taken immediately before the contract and kept 14 days. |
+
+### 10.3 Legacy carry-over (replaces the exclusion in 4.2 step 1)
+
+- **Step 1a:** as written in 4.2 step 1, the participations at the user's private-URL tournaments.
+- **Step 1b:** every other participation of a Person the user claims, **except** where a guardrail refuses it:
+  - **same-round conflict:** at that tournament, another entry with the same name key has rounds that overlap this one (two entries in one round are two people, the owner's rule above);
+  - **claimed by another user:** the participation already carries another user's claim;
+  - **suppressed:** the Person is suppressed (V4 still expects 0).
+- Step 1b claims use `claimSource='legacy'`. Refused rows go to the V5 report with the reason.
+- **Display:** a `legacy` (or later `discovery`) claim at a tournament with no private URL shows on the CV, statistics, public CV and exports with the **"Added from public tab"** source mark and a link to the public tab page (redesign decision: never the private URL).
+- **Notification:** after the backfill, each affected user gets one bell notification listing what was added, each with **Remove**. Remove unclaims that participation and records it like a discovery "Not me", so it is not re-added.
+- **Consequence:** `buildCvData` reads URL tournaments **plus** claimed participations (the union discovery phase 3 planned). That moves into this design's phase 4 (read switch).
+
+### 10.4 Guardrails on every new claim (all four)
+
+1. **Names need evidence.** A name is claimable only if it appears on one of the user's own private URLs (registration name), or is an exact or close match to one under `nameProximity`. Onboarding stops accepting free-typed names; the identity manager offers only evidenced names. This also closes the "onboarding confirm accepts any 50 names" hole.
+2. **Same-round check at claim time.** A claim is refused with 409 and a plain message when the appearance's rounds overlap an appearance the user already holds at that tournament.
+3. **One owner per appearance.** A second claimant sees "claimed by someone else" and can file a report (the existing `CvErrorReport`). A private-URL holder still wins a dispute over a discovery or legacy claim, and the other user is notified (discovery decision 6).
+4. **Claim rate limit.** At most 50 claims a day per user across onboarding, Found and Review, server-enforced, matching the discovery decision limit.
+
+### 10.5 Changes to the phase list (section 7)
+
+| Phase | Change |
+| --- | --- |
+| 1 | Unchanged: `normalizePersonNameV2` + tests; `nameProximity.fold` uses it. |
+| 3 | Backfill adds step 1b (10.3) with `claimSource='legacy'`; the V5 report lists guardrail refusals; the runbook gains the notification step. Guardrails 2-4 (same-round, one owner, rate limit) ship with dual-write in the claim writers. |
+| 4 | Read switch: `buildCvData` reads the union of URL tournaments and claimed participations; the "Added from public tab" mark and Remove ship here. Account export v2 lists legacy claims with their source. |
+| 5 | Auto-claim on `match` only (not `close`); guardrail 1 (names need evidence) replaces onboarding's free-typed names. |
+| 7 | Confirmed (10.2 row 1), with the short-list re-ingest. |
 
 ## Sources
 
