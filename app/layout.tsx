@@ -5,11 +5,10 @@ import { cn } from '@/lib/utils/cn';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
-// Tab Room Terminal type stack (2026-06 retheme): Space Grotesk carries the
-// display voice (it fills BOTH the --font-display and --font-display slots so
-// the hundreds of `font-display` heading call sites lean into oblique
-// grotesk headlines without churn), IBM Plex Mono carries every numeral and
-// identifier via `.num` / `font-mono`, Inter stays on body copy.
+// Type stack (Ledger, 2026-07): Space Grotesk is the display voice for
+// headings and the brand mark, at medium weight with tight tracking; IBM Plex
+// Mono carries every numeral and identifier via `.num` / `font-mono`; Inter
+// is the interface and body face. No serif voice (DESIGN_INSTRUCTIONS §6).
 const fontSans = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
@@ -68,8 +67,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F7F6F1' },
-    { media: '(prefers-color-scheme: dark)', color: '#0C1311' },
+    { media: '(prefers-color-scheme: light)', color: '#F6F7F9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0E1116' },
   ],
 };
 

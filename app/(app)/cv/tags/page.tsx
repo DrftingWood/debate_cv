@@ -176,7 +176,7 @@ export default async function CvTagsPage() {
                               <div className="text-caption text-ink-soft uppercase tracking-[0.12em]">
                                 {m.roundLabel}
                               </div>
-                              <p className="mt-0.5 font-display text-body-serif text-ink leading-snug">
+                              <p className="mt-0.5 font-display text-base text-ink leading-snug">
                                 {m.text}
                               </p>
                             </div>

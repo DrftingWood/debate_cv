@@ -342,7 +342,7 @@ export default async function CvVerifyPage({
                                         '—'
                                       ) : (
                                         <details>
-                                          <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-oxblood hover:underline">
+                                          <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-primary hover:underline">
                                             {p.speakerRoundScores.length} rounds
                                           </summary>
                                           <div className="mt-1 flex flex-wrap gap-1">
@@ -475,7 +475,7 @@ export default async function CvVerifyPage({
                                 ) : null}
                                 {p.speakerRoundScores.length > 0 ? (
                                   <details className="text-caption border-t border-border pt-2">
-                                    <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-oxblood hover:underline">
+                                    <summary className="inline-flex min-h-[44px] cursor-pointer items-center text-primary hover:underline">
                                       Per-round scores ({p.speakerRoundScores.length})
                                     </summary>
                                     <div className="mt-1 flex flex-wrap gap-1">

@@ -150,7 +150,7 @@ function NotificationRow({ item, onClick }: { item: NotificationItem; onClick: (
     <div
       className={cn(
         'flex flex-col gap-0.5 px-4 py-3 text-ui transition-colors hover:bg-surface-2',
-        !item.readAt && 'bg-oxblood/6',
+        !item.readAt && 'bg-primary/6',
       )}
     >
       <span className="font-medium text-ink">{item.title}</span>

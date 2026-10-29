@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-29 - Design tokens for the redesign (foundations, PR 2 of 4; stacked on PR 1)
+
+- **Change.** New `@theme` tokens in `app/globals.css`, no visual change:
+  - Spacing, eight named steps on a 4px base: `hair` 4, `inline` 8, `tight` 12, `stack` 16, `panel` 24, `group` 32, `section` 48, `page` 64 (`p-panel`, `space-y-stack`, `mt-section`, ...). Nothing uses them yet; the rebuilt components will.
+  - Page widths `max-w-content` (1120px) and `max-w-wide` (1280px); reading text uses Tailwind's built-in `max-w-prose` (65ch), which outranks a custom key of the same name.
+  - Career-chart colours: `tier-none`, `tier-qf`, `tier-sf`, `tier-f` (plus the existing `break-gold`) and `core-purple`. Every one clears 3:1 against surface and canvas in both themes; the measured ratios are in the comments next to the channels.
+- **`cn()`** now knows the spacing and width names, so `cn('p-4', 'p-panel')` resolves to `p-panel` instead of shipping both. New `tests/utils.cn.test.ts` covers that and the older font-size/colour case.
+- **Removed.** `oxblood` (same value as `primary`; 7 files now use `primary`); the unused `archive-white` and `record-*` colour tokens and their channels; `text-body-serif` (one caller, now `text-base`, still 16px, its `leading-snug` already overrode the token's line-height). `ink` / `paper` stay (80+ files, an abstract contract per CLAUDE.md).
+- **Fixed.** The `theme-color` meta was the warm and green tints of an older theme (`#F7F6F1`, `#0C1311`); it is now the Statement canvas (`#F6F7F9`, `#0E1116`). The `app/layout.tsx` font comment described the 2026-06 Tab Room Terminal theme.
+- **Docs.** `docs/DESIGN_INSTRUCTIONS.md` §6 gains the purple rule (owner decision 2026-10-29: purple means only an adjudication-core role), the chart tiers and a Spacing section. CLAUDE.md's token notes are updated.
+- **Deferred on purpose.** Merging the type scale (16 named sizes to 11) changes rendered sizes (`caption` 12.5px vs `table` 13.5px), so it lands with the page rebuilds, not here.
+- **Checked.** Pixel diff against production for `/`, `/sample`, `/privacy` at 390 / 1280 px, light and dark: 0 differing pixels in all 12. Typecheck, lint, file-size, ratchet, 2211 tests and `next build` pass.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Tailwind 3.4 -> 4.3 (redesign foundations, PR 1 of 4)
 
 - **Why.** First step of the redesign agreed on 2026-10-29 (design doc outside the repo: `reports/ui-ux/Design architecture - reimagined site 2026-10-29.md`, section 0). The new tokens (spacing scale, renamed colour aliases, `core-purple`) will be written as v4 `@theme` variables, so the platform moves first, on its own, with no visual change.

@@ -153,7 +153,7 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
           <div
             className={
               'h-full rounded-sm transition-[width] duration-700 ease-soft ' +
-              (active > 0 ? 'bg-oxblood' : 'bg-ink/60')
+              (active > 0 ? 'bg-primary' : 'bg-ink/60')
             }
             style={{ width: `${Math.round(fraction * 100)}%` }}
           />

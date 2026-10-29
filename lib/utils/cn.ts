@@ -30,7 +30,6 @@ const FONT_SIZES = [
   'table',
   'ui',
   'body',
-  'body-serif',
   'h4',
   'h3',
   'h2',
@@ -42,8 +41,21 @@ const FONT_SIZES = [
   'display',
 ] as const;
 
+/**
+ * The named spacing steps and page widths from the same `@theme` block.
+ * tailwind-merge only knows the numeric spacing scale, so without these
+ * `cn('p-4', 'p-panel')` would keep both classes and the winner would be
+ * whichever Tailwind happens to emit last, not the one passed last.
+ */
+const SPACING = ['hair', 'inline', 'tight', 'stack', 'panel', 'group', 'section', 'page'] as const;
+const CONTAINERS = ['content', 'wide'] as const;
+
 const twMerge = extendTailwindMerge({
   extend: {
+    theme: {
+      spacing: [...SPACING],
+      container: [...CONTAINERS],
+    },
     classGroups: {
       'font-size': [{ text: [...FONT_SIZES] }],
     },

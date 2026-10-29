@@ -10,7 +10,7 @@ export type Status = 'done' | 'pending' | 'running' | 'failed' | 'unavailable' |
 const tones: Record<Status, string> = {
   done: 'text-success',
   pending: 'text-warning',
-  running: 'text-oxblood',
+  running: 'text-primary',
   failed: 'text-destructive',
   unavailable: 'text-ink-soft',
   unmatched: 'text-warning',

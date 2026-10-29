@@ -185,7 +185,7 @@ function ToastCard({
       ? 'text-success'
       : item.kind === 'error'
         ? 'text-destructive'
-        : 'text-oxblood';
+        : 'text-primary';
   return (
     <div
       onMouseEnter={onPause}
@@ -210,7 +210,7 @@ function ToastCard({
           <Link
             href={item.action.href}
             onClick={onDismiss}
-            className="mt-1.5 inline-flex min-h-6 items-center text-caption font-medium text-oxblood underline-offset-2 hover:underline"
+            className="mt-1.5 inline-flex min-h-6 items-center text-caption font-medium text-primary underline-offset-2 hover:underline"
           >
             {item.action.label} →
           </Link>
