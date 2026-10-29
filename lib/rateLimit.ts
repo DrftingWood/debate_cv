@@ -56,6 +56,8 @@ export const RATE_LIMITS = {
   'tags:propose': { limit: 120, windowSec: 3600 },
   'cv:errorReport': { limit: 20, windowSec: 3600 },
   'sharing:update': { limit: 60, windowSec: 3600 },
+  // Record → Partners pro-am toggles: one request per tap.
+  'cv:proAm': { limit: 300, windowSec: 3600 },
   // Found tab "This is me" / "Not me" / undo. Counted per decision, not per
   // request (a bulk confirm of 6 rows costs 6), so the owner's 50-a-day cap
   // means 50 decisions. A real career is a few dozen tournaments.

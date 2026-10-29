@@ -23,6 +23,7 @@ vi.mock('@/lib/db', () => ({
     person: { count: async () => 1 },
     ingestJob: { count: async () => 0 },
     gmailToken: { findUnique: gmailTokenMock },
+    user: { findUnique: async () => ({ proAmMarks: ['1|partner with a long name'] }) },
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -258,5 +259,18 @@ describe('/cv round detail (owner, 2026-10-29: an icon in the row, not a widget)
     );
     expect(out).toMatch(/<tr id="rounds-1" hidden="" data-rounds="true"/);
     expect(out).not.toContain('Round ledger —');
+  });
+});
+
+describe('/cv Partners tab (owner decision 17)', () => {
+  it('lists each partner per tournament with a pressed-state pro-am toggle, never printed', async () => {
+    const out = await render(record());
+    expect(out).toMatch(/role="tab"[^>]*>Partners</);
+    expect(out).toContain('Partners by year');
+    // The fixture's mark matches tournament 1's partner by name key.
+    expect(out).toMatch(
+      /aria-pressed="true" aria-label="Pro-am with Partner With A Long Name at Australs/,
+    );
+    expect(out).toMatch(/<div data-print-hide="true"><div class="space-y-section">/);
   });
 });

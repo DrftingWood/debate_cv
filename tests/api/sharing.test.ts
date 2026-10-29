@@ -31,6 +31,7 @@ describe('GET /api/sharing', () => {
       publicCvSlug: 'abhi',
       publicAvatarEnabled: false,
       publicHiddenTournamentIds: [],
+      publicProAmEnabled: true,
     });
     prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
     const res = await GET();
@@ -40,6 +41,7 @@ describe('GET /api/sharing', () => {
       slug: 'abhi',
       avatarEnabled: false,
       hiddenTournamentIds: [],
+      proAmPublic: true,
       tournaments: [],
     });
   });

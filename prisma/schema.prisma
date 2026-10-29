@@ -34,6 +34,14 @@ model User {
   /// user row, written only by the owner, and a stale id for a deleted
   /// tournament matches nothing. Empty means everything is shown.
   publicHiddenTournamentIds BigInt[] @default([])
+  /// Pro-am marks (redesign owner decision 17, 2026-10-29; owner rule
+  /// 2026-10-27: no automatic pro-am, the user marks it). One entry per
+  /// partner per tournament, "<tournamentId>|<partner name key v2>"
+  /// (lib/cv/proAm.ts). A plain list for the same reason as the hidden
+  /// tournaments: read only with the user row, written only by the owner.
+  /// Private: the public CV shows them only when publicProAmEnabled is on.
+  proAmMarks                String[] @default([])
+  publicProAmEnabled        Boolean  @default(false)
 
   accounts          Account[]
   sessions          Session[]
