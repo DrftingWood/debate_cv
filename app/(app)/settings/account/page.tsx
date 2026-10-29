@@ -139,9 +139,8 @@ export default async function AccountSettingsPage() {
             <h2 className="font-display text-h3 font-medium text-ink">Delete account</h2>
           </div>
           <p className="text-body text-ink-soft">
-            Removes your account, your Gmail connection, your tournament links, imports and claimed
-            names. Tournament results shared with other users stay, because they are public tab
-            data.
+            Removes your account, Gmail connection, links, imports and claimed names. Public tab
+            results stay.
           </p>
           <DeleteAccountButton userEmail={user?.email ?? null} />
         </CardBody>

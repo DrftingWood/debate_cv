@@ -311,16 +311,12 @@ export function SharingManager() {
               <p id="share-proam-label" className="text-table font-medium text-ink">
                 Show pro-am marks on my public CV
               </p>
-              <p id="share-proam-hint" className="text-caption text-ink-soft">
-                The partners you marked pro-am on Record, under Partners. Off by default.
-              </p>
             </div>
             <Toggle
               checked={state.proAmPublic}
               onChange={setProAmPublic}
               disabled={pendingProAm}
               labelledBy="share-proam-label"
-              describedBy="share-proam-hint"
             />
           </div>
           <PublicTournamentVisibility

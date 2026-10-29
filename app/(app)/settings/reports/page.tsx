@@ -68,8 +68,7 @@ export default async function ReportsSettingsPage() {
 
           {reports.length === 0 ? (
             <p className="text-ui text-ink-soft">
-              You haven&apos;t reported any CV issues yet. The Report button on each row of{' '}
-              <strong>Record</strong> opens a quick form for telling us when something looks wrong.
+              No reports yet. Use <strong>Report</strong> on any Record row.
             </p>
           ) : (
             <ul className="divide-y divide-border rounded-card border border-border bg-card">

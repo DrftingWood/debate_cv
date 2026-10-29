@@ -182,7 +182,7 @@ export function IdentityManager() {
   if (names.length === 0) {
     return (
       <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
-        No names found on your tournament links yet. Scan Gmail from Imports to fill this list.
+        No names yet. Scan Gmail from Imports.
       </p>
     );
   }
@@ -190,8 +190,7 @@ export function IdentityManager() {
   return (
     <div className="space-y-4" aria-busy={isSaving || undefined}>
       <p className="text-ui text-ink-soft">
-        Tick every spelling that's you — we'll merge them into one identity on your CV. Untick a
-        name to remove it (e.g. a teammate's link that was matched to you by mistake).
+        Tick every spelling of your name. Untick any that aren&rsquo;t you.
       </p>
 
       <fieldset>

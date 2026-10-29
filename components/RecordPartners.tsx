@@ -63,9 +63,7 @@ export function RecordPartners({
             By tournament
           </h2>
           <p className="mt-hair max-w-2xl text-caption text-ink-soft">
-            Mark a partnership pro-am when one of you was the experienced speaker. We never guess
-            it. Marks are private unless you turn on &ldquo;Show pro-am marks on my public CV&rdquo;
-            in Settings, under Sharing.
+            Pro-am marks are private unless shown in Settings, under Sharing.
           </p>
         </div>
         <div className="panel overflow-hidden">

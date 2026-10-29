@@ -234,11 +234,6 @@ export default async function PublicCvPage({
                               a team fact (DESIGN_INSTRUCTIONS §9), so the key
                               says which rank is the team's.
                             */}
-                            <p className="text-caption text-ink-soft">
-                              Team rank is where the team finished on the prelim team tab, out of
-                              the teams on it. Speaker-tab rank is an individual figure on the open
-                              speaker tab, not the team&rsquo;s placement.
-                            </p>
                           </div>
                         ),
                       },
@@ -277,8 +272,6 @@ export default async function PublicCvPage({
         <Link href="/" className="text-primary underline underline-offset-2">
           What this is
         </Link>
-        . Every row links to the tournament tab it was read from; figures are as the tab published
-        them.
       </p>
     </div>
   );

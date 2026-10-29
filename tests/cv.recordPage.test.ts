@@ -234,7 +234,7 @@ describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', (
     const out = await render(record());
     expect(out).toMatch(/<details id="y2025"/);
     expect(await render(record(), 'adjudication')).toMatch(/<details id="j2025"/);
-    expect(out).toContain('1 tournament · broke 1 of 1 · best Semifinals · median top 8% (n=1)');
+    expect(out).toContain('1 tournament · broke 1 · best Semifinals · median top 8% (n=1)');
   });
 
   it('links the Source column to the public tab host, never a private URL', async () => {

@@ -184,7 +184,6 @@ describe('PublicCvPage', () => {
     // The PR #167 wording survives on the headers and the cell.
     expect(out).toContain('Spk-tab rank');
     expect(out).toContain('3 of 40 teams · top 8%');
-    expect(out).toContain('Team rank is where the team finished on the prelim team tab');
   });
 
   // The page follows the visitor's theme now (owner decision 3); it still

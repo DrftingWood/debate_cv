@@ -2,6 +2,17 @@
 
 ---
 
+## 2026-10-29 - Copy pass: show, don't tell
+
+- **Owner:** "where you feel there is unnecessary text or things are being over explained … refine it", then "if it is being shown don't tell, all the text that is present needs to be absolutely crucial and necessary".
+- **Rule applied.** A note stays only if it prevents a misreading (BP counts 2nd or better as a win; a multi-motion round shows the round's result; power-pairing and the post-win rate), decodes an abbreviation (Spk avg / tab / rank, the motion-class wording), or states a consequence (privacy, account deletion).
+- **Deleted.** The Statistics header line and headline note, the histogram, placement, round-number, three-a-side, top-10, chair-rate and topic notes, the Findings meta, the choice-of-motions subtitle, the public CV rank key and footer sentence, the Imports subtitle, the Profile subtitle and the Sharing pro-am hint.
+- **Shortened.** Record banners, year subtotals ("broke 1", "judged 6 · broke at 5 · chaired outrounds at 1"), the ledger key, motions intro, empty states, account and disconnect warnings, identity and visibility hints, Statistics tile hints and seat-filter notes.
+- Tests that pinned old wording were updated (`cv.recordPage`, `publicCv.render`, `stats.topicTypeSection`).
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Record: career charts fold away, ledger above the fold
 
 - **Owner:** "make the charts collapsible so the ledger is above the fold".

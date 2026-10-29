@@ -147,8 +147,7 @@ export default async function CvPage({
             </Link>
           }
         >
-          New tournaments have stopped arriving. Your record below is still accurate for everything
-          already imported.
+          New tournaments have stopped arriving.
         </GmailDisconnectedNotice>
       ) : null}
       <CvNeedsAttentionBanners pendingCount={pendingCount} unmatchedCount={unmatched.length} />
@@ -184,12 +183,10 @@ export default async function CvPage({
       {totalTournaments === 0 ? (
         <EmptyState
           icon={<TableIcon weight="light" className="h-5 w-5" aria-hidden />}
-          title="No tournaments ingested yet"
+          title="No tournaments yet"
           description={
             <>
-              Two steps from Imports: <strong>Scan Gmail</strong> finds the tournament links, then{' '}
-              <strong>Ingest all</strong> parses each one. Your record populates here as they
-              finish.
+              On Imports, <strong>Scan Gmail</strong>, then <strong>Ingest all</strong>.
             </>
           }
           // The disconnect notice above already carries the one primary to
@@ -242,16 +239,11 @@ export default async function CvPage({
                               the labels out already.
                             */}
                             <p className="hidden text-caption text-ink-soft md:block">
-                              <span className="font-medium text-ink">Team rank</span> is where your
-                              team finished on the prelim team tab, out of how many teams (#3/40 is
-                              third of forty), your placement.{' '}
-                              <span className="font-medium text-ink">Spk avg</span> is your speaker
-                              score per prelim round.{' '}
-                              <span className="font-medium text-ink">Spk tab</span> is where that
-                              average placed among every speaker on the speaker tab.{' '}
-                              <span className="font-medium text-ink">Spk rank</span> is the speaker
-                              tab&rsquo;s own rank within each break category: Open, ESL (English as
-                              Second Language) and EFL (English as Foreign Language).
+                              <span className="font-medium text-ink">Spk avg</span> speaker score
+                              per prelim · <span className="font-medium text-ink">Spk tab</span>{' '}
+                              place on the speaker tab ·{' '}
+                              <span className="font-medium text-ink">Spk rank</span> rank in your
+                              break category
                             </p>
                           </div>
                         ),

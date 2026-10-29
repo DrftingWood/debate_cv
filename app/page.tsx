@@ -62,8 +62,8 @@ function Hero() {
           Your debate history, kept like an account
         </h1>
         <p className="mt-stack max-w-xl text-body leading-relaxed text-ink-soft">
-          Every tournament, round and motion, read from the tab pages you were already sent and laid
-          out as a record you can read, measure and share.
+          Every tournament, round and motion, read from the tab links in your inbox, as one record
+          to read, measure and share.
         </p>
         <div className="mt-panel flex flex-col gap-tight sm:flex-row sm:items-center">
           <BuildCvButton />

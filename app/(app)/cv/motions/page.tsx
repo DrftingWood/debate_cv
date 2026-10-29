@@ -126,11 +126,7 @@ export default async function CvMotionsPage({
         {/* One paragraph in one style (owner review 2026-10-29: two body
             paragraphs and a smaller third note sat stacked here). */}
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
-          Scraped from each tournament&rsquo;s motions tab and joined to the round you debated it
-          in. For tournaments you judged, only the rounds you sat on a panel for are listed.
-          Tournaments that never released their motions publicly do not appear. Where a round
-          released more than one motion, each is tagged &ldquo;1 of n this round&rdquo; and the
-          score and result shown are the round&rsquo;s.
+          Where a round had several motions, the result shown is the round&rsquo;s.
           {leftOut > 0
             ? ` ${leftOut} tournament${leftOut === 1 ? '' : 's'} you judged ${leftOut === 1 ? 'is' : 'are'} left out because ${leftOut === 1 ? 'its' : 'their'} panels aren’t recorded.`
             : ''}
@@ -141,7 +137,7 @@ export default async function CvMotionsPage({
         <EmptyState
           icon={<Quotes weight="light" className="h-5 w-5" aria-hidden />}
           title="No motions on record yet"
-          description="Motions appear once a tournament on your record has published its motions tab. Older tournaments may need re-ingesting before their motions are captured."
+          description="Motions appear once a tournament on your record publishes its motions tab. Older imports may need re-importing."
           action={
             <Link href="/dashboard" className={buttonClasses({ variant: 'primary' })}>
               Open imports
