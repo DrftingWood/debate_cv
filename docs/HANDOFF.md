@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-10-29 - Statistics: the new sections (decision 19, part 2 of 2)
+
+- **Speaking → Speaks → Top-10 finishes** (`TopFinishesSection`, model `lib/cv/topSpeakerFinishes.ts`): each Open, ESL or EFL top-10 finish, once per tournament, newest first with majors marked. It reads `topSpeakerDetail`, the same definition as the Record chart's stars.
+- **Judging → Results.** The old single judging section is four slot sections in `components/stats/JudgingViews.tsx`:
+  - Outrounds judged (tournaments judged, broke as a judge, outround chairs);
+  - Chairing (chair rate overall and by season);
+  - Core roles (appointments). The core count stays low until the 9 CA/DCA roles are re-ingested.
+  - Speaking vs judging is unchanged.
+- **Judging → Conditions:**
+  - By format (`judgingByFormat`: tournaments, breaks, chair rate, using judgingLens's own `isMeasurable`, now exported);
+  - By stage (the deepest-outround distribution);
+  - By motion topic (`judgingByTopic`: prelim rounds judged, by the single topic of their motions; mixed or untagged rounds are left out).
+- **Data.** `/cv/stats` now also sends `judgedMotions`, the motions of the prelim rounds the user judged. They are kept apart from `taggedMotions`, so speaking figures never see a round the user did not speak in.
+- **Checked** in Chrome against the seeded local DB: By motion topic opens straight from its URL (4 topics, 6 of 11 judged prelims tagged), Core roles and Top-10 render, and there are no console errors.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Statistics as three tab levels (decision 19, part 1 of 2)
 
 - **Structure** (`components/stats/StatsTabs.tsx`, wired in `FilterableStats.tsx`). The long scroll and its jump rail are gone. There are three levels of APG tabs, each in the URL (`?role=…&group=…&section=…`):

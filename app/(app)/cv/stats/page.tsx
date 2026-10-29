@@ -63,10 +63,21 @@ export default async function CvStatsPage() {
   // email, and only motions from tournaments the user spoke at (a judge-only
   // tournament's motions feed the archive on /cv/motions, not these figures).
   const spoken = new Set(data.speakerRows.map((r) => r.tournamentId.toString()));
+  const judgedRounds = new Map(
+    data.judgeRows.map((r) => [r.tournamentId.toString(), new Set(r.judgedRoundNumbers)]),
+  );
   const clientData = {
     speakerRows: data.speakerRows,
     judgeRows: data.judgeRows,
     taggedMotions: data.taggedMotions.filter((m) => spoken.has(m.tournamentId.toString())),
+    // Judging → By motion topic reads the motions of the prelim rounds the
+    // user judged, and only those: kept apart from taggedMotions so the
+    // speaking figures never see a round the user did not speak in.
+    judgedMotions: data.taggedMotions.filter(
+      (m) =>
+        m.roundNumber != null &&
+        (judgedRounds.get(m.tournamentId.toString())?.has(m.roundNumber) ?? false),
+    ),
     fieldStats: data.fieldStats,
   };
 

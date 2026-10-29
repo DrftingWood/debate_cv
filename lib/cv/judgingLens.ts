@@ -149,7 +149,7 @@ function chairFigures(rows: JudgeLensRow[]): ChairFigures {
  * rounds themselves were captured. Chaired above judged means the landing
  * page and the round pages disagree, and neither is obviously right.
  */
-function isMeasurable(r: JudgeLensRow): boolean {
+export function isMeasurable(r: Pick<JudgeLensRow, 'inroundsJudged' | 'inroundsChaired'>): boolean {
   if (r.inroundsJudged == null || r.inroundsJudged <= 0) return false;
   return (r.inroundsChaired ?? 0) <= r.inroundsJudged;
 }
