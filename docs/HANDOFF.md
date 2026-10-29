@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-29 - Primitives: Tooltip, Tabs, CareerChart (foundations, PR 4 of 4; stacked on PR 3)
+
+- **What.** The three building blocks the page rebuilds need. Only Tooltip is wired in now; Tabs and CareerChart land on pages with the Record / Statistics rebuild (after identity option B phase 6, per the agreed order).
+- **Tooltip** (`components/ui/Tooltip.tsx`). Closes **NV-21**: the theme toggle, notification bell, account menu and back-to-top button now show their name on hover (400 ms delay) and at once on keyboard focus (`:focus-visible`), never on touch, never while their own menu is open. It is `aria-hidden` (each control already has its accessible name). WCAG 1.4.13: Escape dismisses without moving focus, hovering the label keeps it, it stays until pointer or focus leaves. The theme toggle's native `title` is gone. Closed, it is `display: none`: a first version only made it invisible, and the invisible label centred on the right-edge theme toggle made `/`, `/sample` and `/privacy` 393px wide at 390 (caught by the screenshot diff); header controls also use `align="end"`. Back to top: the fixed positioning moved from the button to the Tooltip wrapper.
+- **Tabs** (`components/ui/Tabs.tsx`, helpers in `lib/utils/tabParam.ts`). APG tabs (UX-59): one tab stop, arrows by orientation, Home/End, automatic activation, `aria-selected` / `aria-controls`. Selection in the URL via `history.replaceState` (UX-60, same reasoning as FilterableStats); the server resolves the first tab with `resolveTab`, so no flash. Vertical lists with `phoneSelect` become a labelled `<select>` below `md` (UX-63). `prominent` for the top level of a nested set. Checked in a browser: keyboard, URL updates, the default tab dropping the parameter, reload restoring the tab, 390px with no sideways scroll.
+- **CareerChart** (`components/ui/CareerChart.tsx`, model `lib/cv/careerChart.ts`). The owner's 2026-10-29 chart spec: one stacked bar per calendar year (gaps included), one cell per tournament, height = tournaments that year. Speaking tiers: did not break / ink rule / quarters and below / semis / finals / champion (gold). Judging: no outround / ink rule / QF and below / semis / final / chaired the final (gold) / adjudication core (purple, counted once). Majors: ink outline and ◆ notch plus `◆n` under the year. Stars sized by the square root of the count: top-10 speaker finishes (Open or ESL/EFL, once per tournament) or outrounds chaired. The tier rules reuse `breakDepth`, `wonTournament` + `bracketOf`, `isTopSpeaker`, `judgeTypeTag === 'core'` and `lastOutroundChaired`, the same definitions as Highlights; gold/silver/bronze finals are finals and only a gold win is a champion; Plate is not a break.
+  - Each bar is a link to `#y<year>` named with its counts; hover or keyboard focus fills a details strip; on touch the first tap fills it and the second follows the link (a tap focuses before it clicks, so focus only counts when `:focus-visible`). A "See the numbers" ledger table and a compact static form (landing sample) with a text alternative. Bars grow once (500 ms, stagger capped at 200 ms), not under reduced motion.
+  - Checked in a browser with a realistic two-career fixture at 1280 and 390, both themes; tests in `tests/cv.careerChart.test.ts` (one per owner rule) and `tests/ui.primitives.test.ts`.
+- **Not done here.** The adapter from `CvData` to the chart and the page layouts (Record header, public CV, Statistics tabs) come with the page PRs. Tests and CareerChart do not cover a real database record yet.
+- **Checked.** Public pages at 390 / 1280 in both themes are pixel-identical to PR 3; typecheck, lint, file-size, ratchet (167/167), 2234 tests and `next build` pass.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Icons: lucide-react to Phosphor, plus debate marks (foundations, PR 3 of 4; stacked on PR 2)
 
 - **Why.** Owner decision 2026-10-29: the old icons "felt mediocre and cheap". lucide has one weight, so 12-24px icons all drew the same stroke.

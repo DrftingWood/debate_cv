@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { Moon, Sun } from '@/components/ui/icons';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 type Theme = 'light' | 'dark';
 
@@ -37,19 +38,20 @@ export function ThemeToggle() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={flip}
-      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
-      data-print-hide="true"
-    >
-      {theme === 'dark' ? (
-        <Sun className="h-4 w-4" aria-hidden />
-      ) : (
-        <Moon className="h-4 w-4" aria-hidden />
-      )}
-    </button>
+    <Tooltip content={theme === 'dark' ? 'Light mode' : 'Dark mode'} align="end">
+      <button
+        type="button"
+        onClick={flip}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
+        data-print-hide="true"
+      >
+        {theme === 'dark' ? (
+          <Sun className="h-4 w-4" aria-hidden />
+        ) : (
+          <Moon className="h-4 w-4" aria-hidden />
+        )}
+      </button>
+    </Tooltip>
   );
 }
