@@ -26,7 +26,7 @@ type Stage = {
   key: string;
   label: string;
   value: number;
-  hint: string;
+  hint?: string;
   href: string;
   icon: ReactNode;
   /** Tints the icon only; a count is not a value judgement (Ledger rule 3). */
@@ -49,7 +49,7 @@ export function ImportsStages({
       key: 'sources',
       label: 'Sources',
       value: counts.all,
-      hint: 'private URLs from Gmail, links and CSV',
+      hint: 'Gmail, links and CSV',
       href: '/dashboard?filter=all',
       icon: <LinkIcon className="h-4 w-4" aria-hidden />,
       tone: 'text-primary',
@@ -59,7 +59,7 @@ export function ImportsStages({
       key: 'progress',
       label: 'In progress',
       value: counts.pending,
-      hint: counts.pending > 0 ? 'queued or running' : 'nothing running',
+      hint: counts.pending > 0 ? 'queued or running' : undefined,
       href: '/dashboard?filter=pending',
       icon: <Clock className="h-4 w-4" aria-hidden />,
       tone: counts.pending > 0 ? 'text-warning' : 'text-ink-soft',
@@ -69,9 +69,7 @@ export function ImportsStages({
       key: 'review',
       label: 'Review',
       value: counts.unmatched,
-      hint: discovery
-        ? 'imports that need your name, and tournaments found on public tabs'
-        : 'imports that need your name',
+      hint: discovery ? 'need your name, or found on public tabs' : 'need your name',
       href: REVIEW_HREF,
       icon: <UserFocus className="h-4 w-4" aria-hidden />,
       tone: counts.unmatched > 0 ? 'text-warning' : 'text-ink-soft',
@@ -81,7 +79,6 @@ export function ImportsStages({
       key: 'done',
       label: 'On record',
       value: counts.done,
-      hint: 'imports on your record',
       href: '/dashboard?filter=done',
       icon: <CheckCircle className="h-4 w-4" aria-hidden />,
       tone: 'text-pos',
@@ -109,7 +106,9 @@ export function ImportsStages({
                 <span className="truncate">{s.label}</span>
               </span>
               <span className="figure mt-1.5 block text-figure-md text-ink">{s.value}</span>
-              <span className="mt-1 block text-caption text-ink-soft">{s.hint}</span>
+              {s.hint ? (
+                <span className="mt-1 block text-caption text-ink-soft">{s.hint}</span>
+              ) : null}
             </Link>
             {i < stages.length - 1 ? (
               // The flow arrow, desktop only: on a phone the 2x2 grid has no

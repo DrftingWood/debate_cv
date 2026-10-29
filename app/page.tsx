@@ -38,7 +38,7 @@ export default async function Home() {
       */}
       <div className="mx-auto w-full max-w-wide flex-1 px-5">
         <PublicHeader />
-        <main id="main" className="space-y-section pb-page md:space-y-page">
+        <main id="main" className="space-y-section md:space-y-page">
           <Hero />
           <PrivacyLedger />
           <HowItWorks />

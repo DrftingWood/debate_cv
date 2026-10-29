@@ -161,7 +161,7 @@ export default async function Dashboard({
   const emptyAction = gmailToken ? <ScanButton /> : <UploadCsvButton />;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-group md:space-y-section">
       {/* Page masthead. No AutoScanOnVisit here — the background scan fires
           on /cv only; this page is where scans are triggered deliberately. */}
       <header className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">

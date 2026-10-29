@@ -54,7 +54,7 @@ export function HeadlineStats({
         key="stdev"
         label="Consistency (σ)"
         value={scoreProfile.stdev.toFixed(2)}
-        hint="Lower means your speeches cluster tighter"
+        hint="Lower is steadier"
       />,
     );
   }
@@ -66,7 +66,7 @@ export function HeadlineStats({
         key="pct"
         label="Average team placement"
         value={`Top ${formatTopPercent(teamContext.meanTopPercent)}`}
-        hint={`Team tab · ${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
+        hint={`${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`}
       />,
     );
   }
@@ -74,7 +74,7 @@ export function HeadlineStats({
     tiles.push(
       <StatTile
         key="win"
-        label={`Round ${OUTCOME_COPY[results.outcome].rate.toLowerCase()}`}
+        label={OUTCOME_COPY[results.outcome].rate}
         value={`${Math.round(results.winRate * 100)}%`}
         hint={`${results.wins} of ${results.decidedRounds} decided prelim rounds`}
       />,
@@ -88,7 +88,7 @@ export function HeadlineStats({
         key="straights"
         label="BP straights"
         value={`${Math.round(results.bp.straightsRate * 100)}%`}
-        hint={`${results.bp.straights} of ${results.bp.tournaments} BP tournaments averaging 2nd or better · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
+        hint={`${results.bp.straights} of ${results.bp.tournaments} tournaments · ${results.bp.firsts} firsts in ${results.bp.rounds} rounds`}
       />,
     );
   }
@@ -272,15 +272,29 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
               <thead>
                 <tr>
                   <Th className="pl-4">Tournament</Th>
-                  <Th numeric>Year</Th>
-                  <Th numeric title="Prelim team-tab rank, of the teams on the tab">
+                  {/* A phone keeps tournament and rank, with the outround under
+                      the name; the rest scrolled the rank out of view. */}
+                  <Th numeric className="hidden sm:table-cell">
+                    Year
+                  </Th>
+                  <Th
+                    numeric
+                    className="pr-4 sm:pr-3"
+                    title="Prelim team-tab rank, of the teams on the tab"
+                  >
                     Team rank
                   </Th>
-                  <Th numeric>Top</Th>
-                  <Th numeric title="Break seed, of the teams on the Open break where known">
+                  <Th numeric className="hidden sm:table-cell">
+                    Top
+                  </Th>
+                  <Th
+                    numeric
+                    className="hidden sm:table-cell"
+                    title="Break seed, of the teams on the Open break where known"
+                  >
                     Break
                   </Th>
-                  <Th className="pr-4">Furthest outround</Th>
+                  <Th className="hidden sm:table-cell pr-4">Furthest outround</Th>
                 </tr>
               </thead>
               <tbody>
@@ -288,17 +302,23 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
                   <Tr key={p.tournamentId}>
                     <Td rowHeader className="max-w-56 pl-4 font-medium">
                       <span className="block wrap-break-word">{p.tournamentName}</span>
+                      {p.outround ? (
+                        <span className="block text-caption font-normal text-break-gold sm:hidden">
+                          {formatStageForDisplay(p.outround)}
+                          {p.won ? ' (won)' : ''}
+                        </span>
+                      ) : null}
                     </Td>
-                    <Td numeric className="text-ink-soft">
+                    <Td numeric className="hidden sm:table-cell text-ink-soft">
                       {p.year ?? <Nil />}
                     </Td>
-                    <Td numeric>
+                    <Td numeric className="pr-4 sm:pr-3">
                       {p.teamRank}/{p.totalTeams}
                     </Td>
-                    <Td numeric className="text-ink-soft">
+                    <Td numeric className="hidden sm:table-cell text-ink-soft">
                       {formatTopPercent(p.topPercent)}
                     </Td>
-                    <Td numeric>
+                    <Td numeric className="hidden sm:table-cell">
                       {p.breakRank == null ? (
                         <Nil title="No break seed published" />
                       ) : p.breakingTeams != null ? (
@@ -307,7 +327,7 @@ export function TeamStanding({ stats }: { stats: SpeakerStats }) {
                         `#${p.breakRank}`
                       )}
                     </Td>
-                    <Td className="whitespace-nowrap pr-4">
+                    <Td className="hidden sm:table-cell whitespace-nowrap pr-4">
                       {p.outround ? (
                         <span className="text-break-gold">
                           {formatStageForDisplay(p.outround)}

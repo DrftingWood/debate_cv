@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto w-full max-w-wide px-5">
           <PublicHeader />
         </div>
-        <main id="main" className="mx-auto w-full max-w-wide flex-1 px-5 py-8">
+        <main id="main" className="mx-auto w-full max-w-wide flex-1 px-5 pt-8">
           {children}
         </main>
         <Footer width="public" />
@@ -112,7 +112,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* The one <main>, a sibling of the header and footer rather than
           their parent (UX-1; see app/layout.tsx). flex-1 keeps the footer at
           the bottom of a short page. */}
-      <main id="main" className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 px-5 py-8">
+      <main id="main" className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 px-5 pt-8">
         {children}
       </main>
       <Footer />

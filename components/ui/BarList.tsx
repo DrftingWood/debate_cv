@@ -112,7 +112,9 @@ export function Meter({
       {label || display ? (
         <div className="flex items-baseline justify-between gap-2">
           {label ? <span className="text-caption text-ink-soft">{label}</span> : <span />}
-          {display ? <span className="num text-caption text-ink">{display}</span> : null}
+          {display ? (
+            <span className="num shrink-0 whitespace-nowrap text-caption text-ink">{display}</span>
+          ) : null}
         </div>
       ) : null}
       <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-surface-3">

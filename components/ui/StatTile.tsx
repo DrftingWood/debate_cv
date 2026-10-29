@@ -114,7 +114,11 @@ export function StatRow({
   /** Column count at md and up. Defaults to the child count. */
   columns?: number;
 }) {
-  const count = columns ?? React.Children.count(children);
+  // toArray drops null and false children; Children.map wrapped a skipped
+  // tile (Motions' admin-only "Tagged") in an empty cell, a blank row on a
+  // phone and a blank fifth column on desktop.
+  const tiles = React.Children.toArray(children);
+  const count = columns ?? tiles.length;
   const cols =
     count >= 5
       ? 'md:grid-cols-5'
@@ -137,7 +141,7 @@ export function StatRow({
         className,
       )}
     >
-      {React.Children.map(children, (child, i) => (
+      {tiles.map((child, i) => (
         <div key={i} className="bg-card px-4 py-4">
           {child}
         </div>
