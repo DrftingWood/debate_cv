@@ -1261,7 +1261,7 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
       text: up
         ? `You finish stronger than you start: your last three prelims average ${fmt(roundDynamics.momentum)} more than your first three.`
         : `You start stronger than you finish: your last three prelims average ${fmt(Math.abs(roundDynamics.momentum))} less than your first three.`,
-      basis: `${roundDynamics.momentumSamples} tournaments with six or more scored rounds`,
+      basis: `${roundDynamics.momentumSamples} tournaments with 6+ scored rounds`,
       tone: up ? 'pos' : 'neg',
     });
   }
@@ -1283,7 +1283,7 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     quirks.push({
       id: 'team-percentile',
       text: `Across your tournaments your team finishes in the top ${formatTopPercent(teamContext.meanTopPercent)} of the team tab on average.`,
-      basis: `${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams ranked against`,
+      basis: `${teamContext.placements.length} tournaments · ${teamContext.teamsFaced.toLocaleString()} teams`,
       tone: teamContext.meanTopPercent <= 50 ? 'pos' : 'neutral',
     });
   }
@@ -1291,7 +1291,7 @@ export function deriveQuirks(stats: Omit<SpeakerStats, 'quirks'>): Quirk[] {
     quirks.push({
       id: 'field-percentile',
       text: `On the speaker tab, your own scores place you in the top ${pct(100 - fieldContext.meanPercentile)} of speakers on average.`,
-      basis: `${fieldContext.placements.length} tournaments · ${fieldContext.speakersFaced.toLocaleString()} speakers ranked against`,
+      basis: `${fieldContext.placements.length} tournaments · ${fieldContext.speakersFaced.toLocaleString()} speakers`,
       tone: fieldContext.meanPercentile >= 50 ? 'pos' : 'neutral',
     });
   }

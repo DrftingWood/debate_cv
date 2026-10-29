@@ -556,7 +556,7 @@ export function RoundDynamicsSection({ stats }: { stats: SpeakerStats }) {
           <StatLine
             label="First three rounds"
             value={d.openingAvg?.toFixed(1)}
-            hint="Mean over tournaments with six or more scored rounds"
+            hint="Tournaments with 6+ scored rounds"
           />
           <StatLine label="Last three rounds" value={d.closingAvg?.toFixed(1)} />
           <StatLine
@@ -845,9 +845,6 @@ export function Coverage({ coverage }: { coverage: SpeakerStats['coverage'] }) {
             Of your {coverage.tournaments} speaking{' '}
             {coverage.tournaments === 1 ? 'tournament' : 'tournaments'},{' '}
             {lines.map((l) => `${l.have} ${l.have === 1 ? 'has' : 'have'} ${l.label}`).join(', ')}.
-            Sections backed by fewer tournaments are correspondingly thinner — a gap here usually
-            means the tab site never published that column, or the tournament was ingested before
-            the parser captured it.
           </p>
         </div>
       </div>

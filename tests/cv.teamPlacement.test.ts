@@ -445,7 +445,7 @@ describe('statistics: team context', () => {
     expect(q?.text).toBe(
       'Across your tournaments your team finishes in the top 18% of the team tab on average.',
     );
-    expect(q?.basis).toBe('3 tournaments · 110 teams ranked against');
+    expect(q?.basis).toBe('3 tournaments · 110 teams');
   });
 });
 

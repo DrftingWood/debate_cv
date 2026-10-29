@@ -8,6 +8,7 @@
 - **Rule applied.** A note stays only if it prevents a misreading (BP counts 2nd or better as a win; a multi-motion round shows the round's result; power-pairing and the post-win rate), decodes an abbreviation (Spk avg / tab / rank, the motion-class wording), or states a consequence (privacy, account deletion).
 - **Deleted.** The Statistics header line and headline note, the histogram, placement, round-number, three-a-side, top-10, chair-rate and topic notes, the Findings meta, the choice-of-motions subtitle, the public CV rank key and footer sentence, the Imports subtitle, the Profile subtitle and the Sharing pro-am hint.
 - **Shortened.** Record banners, year subtotals ("broke 1", "judged 6 · broke at 5 · chaired outrounds at 1"), the ledger key, motions intro, empty states, account and disconnect warnings, identity and visibility hints, Statistics tile hints and seat-filter notes.
+- **Follow-up (live check).** Dropped "Narrow by partner, pairing or seat", the coverage panel's closing caveat and "It fills in as more tabs…"; Findings bases read "25 tournaments · 1,655 teams".
 - Tests that pinned old wording were updated (`cv.recordPage`, `publicCv.render`, `stats.topicTypeSection`).
 - **Rollback.** Revert the merge commit.
 

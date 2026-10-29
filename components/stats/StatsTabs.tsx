@@ -87,8 +87,7 @@ function Sections({
       <>
         <div className="peer space-y-section">{i.panel}</div>
         <p className="hidden text-body text-ink-soft peer-empty:block">
-          Not enough on your record for {i.label.toLowerCase()} yet. It fills in as more tabs with
-          this detail are read.
+          Not enough on your record for {i.label.toLowerCase()} yet.
         </p>
       </>
     ),

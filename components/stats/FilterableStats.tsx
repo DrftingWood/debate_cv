@@ -99,7 +99,7 @@ export function FilterableStats({ data, facts }: { data: FilterableStatsData; fa
   ].join('; ');
   const summary = active
     ? `Showing ${stats.scoreProfile.speeches.toLocaleString()} of ${totalSpeeches.toLocaleString()} scored prelim speeches, from ${filtered.speakerRows.length} of ${data.speakerRows.length} tournaments, filtered by ${filterNames}.`
-    : `All ${totalSpeeches.toLocaleString()} scored prelim speeches from ${data.speakerRows.length} tournaments. Narrow by partner, pairing or seat.`;
+    : `All ${totalSpeeches.toLocaleString()} scored prelim speeches from ${data.speakerRows.length} tournaments.`;
 
   const quirkIds = visibleQuirkIds(
     stats.quirks.map((q) => q.id),
