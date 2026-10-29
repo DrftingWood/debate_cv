@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-10-29 - Redesign QA: browser walk, accessibility, Core Web Vitals
+
+- **Fixed.**
+  - The Record and public CV **Source links** were 18 px tall, under SC 2.5.8's 24 px. They are now `min-h-6` (`components/YearGroups.tsx`).
+  - Two **links in running text** (the landing ledger's "The full privacy notice", the public CV footer's "What this is") were told apart by colour alone (axe `link-in-text-block`). They are now underlined.
+- **`npm run a11y`** (axe on 13 routes × 390/1280 × light/dark, seeded local DB). After the fixes: 0 violations, no sideways scroll, no target under 24 px, no nested controls.
+  - With `A11Y_BEST_PRACTICE=1`, the only finding is `page-has-heading-one` on `/admin`. That is an artifact: a non-admin is redirected to `/cv`, and axe ran on its loading skeleton. `/cv` passes on its own.
+  - In Git Bash, run it with `MSYS_NO_PATHCONV=1`, or `A11Y_ONLY=/` is rewritten into a Windows path and the landing route is skipped.
+- **320 px walk** (Playwright, both themes): 18 routes, including every Record tab, the Statistics levels, Imports Review, Settings and Admin. All are 200, with no sideways scroll and no console errors.
+- **Core Web Vitals** (lab, production, median of 3). Phone: 390 px, 4× CPU slowdown, 1.6 Mb/s and 150 ms RTT. Desktop: 1280, no throttling.
+
+  | Page | LCP phone / desktop | CLS | Tap response phone / desktop |
+  | --- | --- | --- | --- |
+  | `/` | 1.90 s / 0.97 s | 0 | 253 / 77 ms |
+  | `/sample` | 2.22 s / 1.00 s | 0 | 260 / 76 ms |
+  | `/privacy` | 1.75 s / 0.70 s | 0 | 214 / 59 ms |
+
+  - LCP is under 2.5 s and CLS is 0 everywhere.
+  - The phone tap times are an INP proxy (a theme-toggle tap timed to the next frame, including Playwright's click dispatch on a 4× slowed CPU), so read them as an upper bound.
+  - Signed-in pages need the owner's login and were not measured on production.
+  - There is no real-user monitoring (no Speed Insights); add it if field data is wanted.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Motion (decision 23)
 
 - **Tokens** (`app/globals.css`).

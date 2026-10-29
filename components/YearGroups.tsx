@@ -34,7 +34,7 @@ export function SourceLink({ href }: { href: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-caption text-ink-soft hover:text-primary coarse:min-h-[44px]"
+      className="inline-flex min-h-6 items-center gap-1 font-mono text-caption text-ink-soft hover:text-primary coarse:min-h-[44px]"
     >
       {host}
       <ArrowSquareOut className="h-3 w-3 shrink-0" aria-hidden />

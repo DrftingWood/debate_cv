@@ -148,7 +148,7 @@ function PrivacyLedger() {
             Google has not reviewed the app yet: it runs in Google&rsquo;s testing mode, so only
             invited test users can sign in for now. Your CV stays private until you share it, and
             you can disconnect Gmail or delete everything from Settings.{' '}
-            <Link href="/privacy" className="text-primary underline-offset-2 hover:underline">
+            <Link href="/privacy" className="text-primary underline underline-offset-2">
               The full privacy notice
             </Link>
           </span>
