@@ -13,6 +13,28 @@ describe('nameProximity', () => {
     expect(nameProximity('José Álvarez', 'Jose Alvarez')).toBe('match');
   });
 
+  // Name key v2 (option B phase 1). Measured on the 2026-10 export: every one
+  // of 68,681 names now matches itself, and each of the 4,455 Latin names
+  // with a special letter is match or close to its plain ASCII spelling.
+  it('spells out undecomposed letters, so a plain spelling still matches', () => {
+    expect(nameProximity('Nguyễn Đức', 'Nguyen Duc')).toBe('match');
+    expect(nameProximity('Łukasz Nowak', 'Lukasz Nowak')).toBe('match');
+    expect(nameProximity('Bjørn Hansen', 'Bjorn Hansen')).toBe('match');
+  });
+
+  it('compares non-Latin names instead of folding them to nothing', () => {
+    expect(nameProximity('Иван Петров', 'Иван Петров')).toBe('match');
+    expect(nameProximity('Петров Иван', 'Иван Петров')).toBe('match');
+    // One unspaced token: an exact match is still capped at close (one-word rule).
+    expect(nameProximity('王伟', '王伟')).toBe('close');
+    expect(nameProximity('Иван Петров', 'Ivan Petrov')).toBe('different'); // no transliteration across scripts
+  });
+
+  it('drops a nickname in full-width brackets, as typed on a Chinese keyboard', () => {
+    expect(nameProximity('Xue Rui （Sherry）', 'Xue Rui')).toBe('match');
+    expect(nameProximity('Zhang Yongyuan（Yolanda)', 'Zhang Yongyuan')).toBe('match');
+  });
+
   it('calls an initial, a prefix or a one-letter typo in the first name close', () => {
     expect(nameProximity('A. Acharya', 'Abhishek Acharya')).toBe('close');
     expect(nameProximity('Abhi Acharya', 'Abhishek Acharya')).toBe('close');

@@ -21,19 +21,26 @@
  * Pure and deterministic, so the thresholds are tested rather than tuned.
  */
 
-import { normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { normalizePersonNameV2 } from '@/lib/calicotab/fingerprint';
 
 export type NameProximity = 'match' | 'close' | 'different';
 
 /**
- * Drop a parenthetical, fold accents ("José" → "jose") and normalise. The
- * app's normaliser alone would drop an accented letter outright. Exported
- * for the Found tab's matcher (lib/discovery), which must agree with this
- * file on what counts as the same name.
+ * Drop a parenthetical and apply name key v2 (identity option B, phase 1):
+ * accents folded ("José" → "jose"), undecomposed letters spelled out
+ * ("Đức" → "duc"), and letters of every script kept. It used to fold accents
+ * itself and then run the v1 key, which deleted any letter outside a-z, so a
+ * name in Cyrillic or Chinese folded to nothing and could never match even
+ * itself. One folding rule now serves identity matching everywhere
+ * (spec 3.5). Name buckets (`Person.normalizedName`) still use v1.
+ *
+ * NFKC first, so full-width brackets ("Xue Rui （Sherry）", common in names
+ * typed on a Chinese keyboard) are brackets by the time the parenthetical is
+ * dropped. Before, the nickname survived and fused onto the name
+ * ("xue rui sherry"), and the name no longer matched its own plain spelling.
  */
 export function fold(name: string): string {
-  const withoutParens = name.replace(/\([^)]*\)/g, ' ');
-  return normalizePersonName(withoutParens.normalize('NFD').replace(/[̀-ͯ]/g, ''));
+  return normalizePersonNameV2(name.normalize('NFKC').replace(/\([^)]*\)/g, ' '));
 }
 
 /** Levenshtein distance, giving up above `max`. */
