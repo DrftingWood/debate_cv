@@ -107,7 +107,7 @@ export default async function AccountSettingsPage() {
             <Database className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Your data</h2>
           </div>
-          <dl className="grid grid-cols-1 gap-3 text-ui sm:grid-cols-3">
+          <dl className="grid grid-cols-3 gap-3 text-ui">
             <DataStat label="Tournament links" value={counts.urls} />
             <DataStat label="Imports" value={counts.jobs} />
             <DataStat label="Names you claimed" value={counts.claimed} />
