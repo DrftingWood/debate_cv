@@ -18,7 +18,7 @@ export default function ProfileSettingsPage() {
       </header>
 
       <Card>
-        <CardBody className="space-y-4">
+        <CardBody className="pt-5 space-y-4">
           <div className="flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Your identities</h2>

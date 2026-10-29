@@ -2,6 +2,19 @@
 
 ---
 
+## 2026-10-29 - Live review 3: Adjudication, Partners, rounds, Settings cards
+
+- **Adjudication ledger.** "Last outround chaired / judged" headers overran their 11rem columns into the next; now "Last chaired / Last judged" (full text in `title`), also on the public ledger. Widths rebalanced (chaired 10rem, Source 15rem; Tournament had 450 px for 256 of content).
+- **Printed name.** The name under each tournament shows only where the tab spelled it differently from the usual spelling (the most frequent across that ledger's rows). It was "Abhishek Acharya" under 12 of 15 rows.
+- **Round detail.** Motion text capped at `max-w-2xl` (was `max-w-lg`), so it stops wrapping to four lines beside 280 px of empty column.
+- **Partners table** capped at `max-w-3xl`, like the other compact tables.
+- **Settings cards.** A lone `CardBody` has no top padding, so each Settings card's heading sat 1 px under its border. The nine lone uses (Settings, Imports' URL cards, verify) take `pt-5`; the primitive is unchanged because onboarding passes its own `p-6`.
+- **Copy.** Account "Your data" hints removed; the Found intro is one sentence and the list's repeat paragraph is gone.
+- **Checked, fine:** career charts (light and dark), Imports URL list, Profile.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - Live review: overlaps, stretched panels, settings subtitles
 
 - **Source hosts overlapped.** On the Record ledger a long host (ilnuroundrobin.calicotab.com) ran 28 px under the Report flag, and on the public ledger and /sample hosts were clipped at the panel edge. `SourceLink` now truncates inside its fixed column (full host in `title`). The landing sample caps its host at `max-w-56`, which also stops the Worlds name wrapping to three lines.

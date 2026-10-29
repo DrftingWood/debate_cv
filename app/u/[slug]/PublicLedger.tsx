@@ -170,8 +170,8 @@ export function PublicJudgingTable({ rows, label }: { rows: CvJudgeRow[]; label:
                 <Th>Format</Th>
                 <Th numeric>Prelims chaired</Th>
                 <Th numeric>Prelims judged</Th>
-                <Th>Last outround chaired</Th>
-                <Th>Last outround judged</Th>
+                <Th title="Last outround chaired">Last chaired</Th>
+                <Th title="Last outround judged">Last judged</Th>
                 <Th className="pr-4">Source</Th>
               </tr>
             </thead>

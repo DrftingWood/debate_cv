@@ -37,10 +37,9 @@ export async function FoundReview({ userId, isAdmin }: { userId: string; isAdmin
           Found on public tabs
         </div>
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
-          These come from public tabs we have stored, at tournaments you have no private URL for. We
-          found a name you have claimed on them, spelled exactly the same (sometimes with a title or
-          a middle name around it), but we have not checked that they are you. Tell us which ones
-          you were at. Nothing is added to your record yet.
+          Stored public tabs, at tournaments you have no private link for, list a name you have
+          claimed. The same name can be someone else&rsquo;s, and nothing joins your record until
+          you answer.
         </p>
       </div>
       {outcome.status === 'ok' ? (

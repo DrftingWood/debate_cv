@@ -64,7 +64,7 @@ export default async function AccountSettingsPage() {
 
       {/* Gmail */}
       <Card>
-        <CardBody className="space-y-4">
+        <CardBody className="pt-5 space-y-4">
           <div className="flex items-center gap-2">
             <Envelope className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Gmail connection</h2>
@@ -102,27 +102,15 @@ export default async function AccountSettingsPage() {
 
       {/* Data */}
       <Card>
-        <CardBody className="space-y-4">
+        <CardBody className="pt-5 space-y-4">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Your data</h2>
           </div>
           <dl className="grid grid-cols-1 gap-3 text-ui sm:grid-cols-3">
-            <DataStat
-              label="Tournament links"
-              value={counts.urls}
-              hint="Private Tabbycat links found in your Gmail."
-            />
-            <DataStat
-              label="Imports"
-              value={counts.jobs}
-              hint="One per tournament link. Most finish within minutes of a scan."
-            />
-            <DataStat
-              label="Names you claimed"
-              value={counts.claimed}
-              hint="Each spelling of your name you confirmed as you, across tournaments."
-            />
+            <DataStat label="Tournament links" value={counts.urls} />
+            <DataStat label="Imports" value={counts.jobs} />
+            <DataStat label="Names you claimed" value={counts.claimed} />
           </dl>
           <div className="pt-1">
             <DownloadDataButton />
@@ -132,7 +120,7 @@ export default async function AccountSettingsPage() {
 
       {/* Danger zone */}
       <Card>
-        <CardBody className="space-y-4">
+        <CardBody className="pt-5 space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-destructive" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Delete account</h2>
