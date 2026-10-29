@@ -117,12 +117,14 @@ function SpeakingTable({
   label,
   motionsByTournament,
   fieldByTournament,
+  usual,
 }: {
   rows: SpeakingTableRow[];
   /** Accessible name of the table ("Speaking record, 2025"). */
   label: string;
   motionsByTournament: Map<string, CvTaggedMotion[]>;
   fieldByTournament: Map<string, CvFieldStat>;
+  usual: string | null;
 }) {
   return (
     <>
@@ -185,7 +187,7 @@ function SpeakingTable({
                         ) : null}
                       </Td>
                       <Td className="pl-1">
-                        <TournamentCell name={r.tournamentName} myName={r.myName} />
+                        <TournamentCell name={r.tournamentName} myName={r.myName} usual={usual} />
                       </Td>
                       <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                         {formatAbbrev(r.format) ?? <Nil />}
@@ -320,7 +322,15 @@ function SpeakingTable({
   );
 }
 
-function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string }) {
+function JudgingTable({
+  rows,
+  label,
+  usual,
+}: {
+  rows: JudgingTableRow[];
+  label: string;
+  usual: string | null;
+}) {
   return (
     <>
       <div className="panel hidden overflow-hidden md:block">
@@ -335,8 +345,9 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
                 <Th>Judge type</Th>
                 <Th numeric>Judged</Th>
                 <Th numeric>Chaired</Th>
-                <Th>Last outround chaired</Th>
-                <Th>Last outround judged</Th>
+                {/* Short: "Last outround chaired" overran its column into the next. */}
+                <Th title="Last outround chaired">Last chaired</Th>
+                <Th title="Last outround judged">Last judged</Th>
                 <Th>Source</Th>
                 <Th className="pr-4">
                   <span className="sr-only">Report a problem</span>
@@ -347,7 +358,7 @@ function JudgingTable({ rows, label }: { rows: JudgingTableRow[]; label: string 
               {rows.map((r) => (
                 <Tr key={r.tournamentId.toString()}>
                   <Td className="pl-4">
-                    <TournamentCell name={r.tournamentName} myName={r.myName} />
+                    <TournamentCell name={r.tournamentName} myName={r.myName} usual={usual} />
                   </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
@@ -434,9 +445,9 @@ const JUDGING_WIDTHS = [
   '8rem', // judge type
   '5rem', // judged
   '5rem', // chaired
-  '11rem', // last outround chaired
+  '10rem', // last outround chaired
   '11rem', // last outround judged
-  '13rem', // source
+  '15rem', // source
   '3.25rem', // report
 ];
 
@@ -445,16 +456,45 @@ const JUDGING_WIDTHS = [
  * name the tab printed for the user underneath. The name wraps inside a
  * 16rem block instead of truncating behind a hover title (UX-36).
  */
-function TournamentCell({ name, myName }: { name: string; myName: string }) {
+function TournamentCell({
+  name,
+  myName,
+  usual,
+}: {
+  name: string;
+  myName: string;
+  usual: string | null;
+}) {
   // Plain text on the desktop ledger: the Source column is the row's one
   // link to its tab. Both used to link the same page (owner review
   // 2026-10-29). The phone cards, which have no Source column, keep it.
+  // The printed name shows only where the tab spelled it differently: the
+  // usual spelling under every row said nothing (owner review 2026-10-29).
+  const differs = usual === null || sameName(myName) !== sameName(usual);
   return (
     <div className="max-w-[16rem]">
       <div className="wrap-break-word font-medium text-ink">{name}</div>
-      <div className="text-caption text-ink-soft">{myName}</div>
+      {differs ? <div className="text-caption text-ink-soft">{myName}</div> : null}
     </div>
   );
+}
+
+function sameName(n: string): string {
+  return n.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/** The spelling the user's tabs print most often, or null with no rows. */
+function usualName(names: readonly string[]): string | null {
+  const counts = new Map<string, { name: string; n: number }>();
+  for (const name of names) {
+    const k = sameName(name);
+    const c = counts.get(k);
+    if (c) c.n++;
+    else counts.set(k, { name, n: 1 });
+  }
+  let best: { name: string; n: number } | null = null;
+  for (const c of counts.values()) if (!best || c.n > best.n) best = c;
+  return best?.name ?? null;
 }
 
 /**
@@ -538,6 +578,7 @@ export function SpeakingLedger({
   motionsByTournament: Map<string, CvTaggedMotion[]>;
   fieldByTournament: Map<string, CvFieldStat>;
 }) {
+  const usual = usualName(years.flatMap((y) => y.speaking.map((r) => r.myName)));
   return (
     <SpeakingYears
       years={years}
@@ -548,6 +589,7 @@ export function SpeakingLedger({
           label={label}
           motionsByTournament={motionsByTournament}
           fieldByTournament={fieldByTournament}
+          usual={usual}
         />
       )}
     />
@@ -556,11 +598,12 @@ export function SpeakingLedger({
 
 /** The Adjudication tab: judging, year by year. */
 export function JudgingLedger({ years, open }: { years: RecordYear[]; open: Set<number> }) {
+  const usual = usualName(years.flatMap((y) => y.judging.map((r) => r.myName)));
   return (
     <JudgingYears
       years={years}
       open={open}
-      table={(y, label) => <JudgingTable rows={y.judging} label={label} />}
+      table={(y, label) => <JudgingTable rows={y.judging} label={label} usual={usual} />}
     />
   );
 }

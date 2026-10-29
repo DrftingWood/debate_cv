@@ -66,7 +66,9 @@ export function RecordPartners({
             Pro-am marks are private unless shown in Settings, under Sharing.
           </p>
         </div>
-        <div className="panel overflow-hidden">
+        {/* Four short columns: capped at the compact-table width rather than
+            stretched across the page (owner review 2026-10-29). */}
+        <div className="panel max-w-3xl overflow-hidden">
           <TableScroll>
             <Table className="w-full" label="Partners by tournament">
               <thead>

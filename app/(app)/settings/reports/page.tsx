@@ -59,7 +59,7 @@ export default async function ReportsSettingsPage() {
       </header>
 
       <Card>
-        <CardBody className="space-y-4">
+        <CardBody className="pt-5 space-y-4">
           <div className="flex items-center gap-2">
             <Flag className="h-4 w-4 text-ink-soft" aria-hidden />
             <h2 className="font-display text-h3 font-medium text-ink">Your reports</h2>

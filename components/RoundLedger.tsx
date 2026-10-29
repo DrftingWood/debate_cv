@@ -101,7 +101,7 @@ export function RoundLedger({
                         // in a hover-only title, which touch never shows
                         // (CV-9). The width cap sits on the inner block
                         // because browsers ignore max-width on a table cell.
-                        <span className="block max-w-lg space-y-1">
+                        <span className="block max-w-2xl space-y-1">
                           {motions.map((m, i) => (
                             <span key={i} className="block">
                               {m.text}

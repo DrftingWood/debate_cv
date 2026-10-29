@@ -163,7 +163,7 @@ export default async function CvVerifyPage({
 
       {ordered.length === 0 ? (
         <Card>
-          <CardBody className="space-y-3 text-ui text-ink-soft">
+          <CardBody className="pt-5 space-y-3 text-ui text-ink-soft">
             <p>No ingested tournaments found yet.</p>
             <Link href="/dashboard" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
               Open imports
@@ -180,7 +180,7 @@ export default async function CvVerifyPage({
 
             return (
               <Card key={t.id.toString()}>
-                <CardBody className="space-y-5">
+                <CardBody className="pt-5 space-y-5">
                   {/* Tournament metadata */}
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>

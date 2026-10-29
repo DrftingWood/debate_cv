@@ -141,10 +141,6 @@ export function FoundList({ view }: { view: FoundView }) {
             >
               {LIST_TITLE} ({view.candidates.length})
             </h2>
-            <p className="mt-1 text-ui text-ink-soft">
-              Each lists a name you have claimed, spelled exactly the same, alone or with other
-              words around it. The same name can belong to someone else, so answer each one.
-            </p>
           </div>
           <FoundRows rows={view.candidates} label={LIST_TITLE} {...rowsProps} />
         </section>

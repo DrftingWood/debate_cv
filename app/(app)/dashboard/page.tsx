@@ -316,7 +316,7 @@ export default async function Dashboard({
                 {pageRows.map(({ u, job, status }) => (
                   <li key={u.id}>
                     <Card>
-                      <CardBody className="space-y-2.5">
+                      <CardBody className="pt-5 space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="line-clamp-2 wrap-break-word text-body font-semibold text-ink">
