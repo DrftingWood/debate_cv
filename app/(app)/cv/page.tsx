@@ -204,7 +204,7 @@ export default async function CvPage({
         />
       ) : (
         <>
-          <RecordHeader speakerRows={speakerRows} judgeRows={judgeRows} summary={summary} />
+          <RecordHeader speakerRows={speakerRows} judgeRows={judgeRows} summary={summary} countUp />
           <OpenYearOnHash />
           {/* Every panel prints, one after another (globals.css). */}
           <div data-print-all="true">
