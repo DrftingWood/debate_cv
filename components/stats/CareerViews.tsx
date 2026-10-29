@@ -281,7 +281,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric>{m.bestSpeech ? score(m.bestSpeech.score) : <Nil />}</Td>
                 <Td>
                   {m.bestSpeech ? (
-                    <span className="block max-w-[22rem] break-words">
+                    <span className="block max-w-88 wrap-break-word">
                       {holders(m.bestSpeech.at)}
                     </span>
                   ) : (
@@ -303,7 +303,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric>{m.bestTeamRank ? `#${m.bestTeamRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestTeamRank ? (
-                    <span className="block max-w-[22rem] break-words">
+                    <span className="block max-w-88 wrap-break-word">
                       {holders(m.bestTeamRank.at)}
                     </span>
                   ) : (
@@ -321,7 +321,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric>{m.bestSpeakerRank ? `#${m.bestSpeakerRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestSpeakerRank ? (
-                    <span className="block max-w-[22rem] break-words">
+                    <span className="block max-w-88 wrap-break-word">
                       {holders(m.bestSpeakerRank.at)}
                     </span>
                   ) : (
@@ -339,7 +339,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                 <Td numeric>{m.bestBreakRank ? `#${m.bestBreakRank.rank}` : <Nil />}</Td>
                 <Td>
                   {m.bestBreakRank ? (
-                    <span className="block max-w-[22rem] break-words">
+                    <span className="block max-w-88 wrap-break-word">
                       {holders(m.bestBreakRank.at)}
                     </span>
                   ) : (
@@ -357,7 +357,7 @@ export function MilestonesSection({ speakerRows }: { speakerRows: CvSpeakerRow[]
                   </Td>
                   <Td numeric>#{otherRank.rank}</Td>
                   <Td>
-                    <span className="block max-w-[22rem] break-words">{holders(otherRank.at)}</span>
+                    <span className="block max-w-88 wrap-break-word">{holders(otherRank.at)}</span>
                   </Td>
                   <Td numeric className="pr-4">
                     {plural(otherRank.of, 'ranked category break')}

@@ -50,7 +50,9 @@ describe('delete-account confirmation (SET-1, SET-2)', () => {
     );
     expect(out).toContain('id="delete-confirm"');
     expect(out).toContain('aria-describedby="delete-confirm-warning"');
-    expect(out).not.toContain('aria-invalid');
+    // The attribute, not the substring: the field's class list carries Tailwind 4's
+    // `aria-invalid:border-destructive` variant whether or not the field is invalid.
+    expect(out).not.toMatch(/\saria-invalid=/);
     expect(out).toContain('autoCapitalize="none"');
     expect(out).toContain('spellCheck="false"');
     expect(out).not.toContain('placeholder');

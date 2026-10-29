@@ -192,7 +192,7 @@ export default async function AdminPage() {
                   </div>
                 ) : null}
                 {report.comment ? (
-                  <p className="whitespace-pre-wrap break-words rounded-md bg-surface-2 px-3 py-2 text-ui text-ink">
+                  <p className="whitespace-pre-wrap wrap-break-word rounded-md bg-surface-2 px-3 py-2 text-ui text-ink">
                     {report.comment}
                   </p>
                 ) : null}
@@ -247,7 +247,7 @@ export default async function AdminPage() {
         <ClearDataButton />
       </section>
 
-      <section className="rounded-lg border border-destructive/30 bg-destructive/[0.03] p-6 space-y-4">
+      <section className="rounded-lg border border-destructive/30 bg-destructive/3 p-6 space-y-4">
         <div>
           <h2 className="font-display text-h3 font-medium text-ink">Full wipe (destructive)</h2>
           <p className="text-body text-ink-soft mt-1">

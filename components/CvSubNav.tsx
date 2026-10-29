@@ -40,7 +40,7 @@ export async function CvSubNav({ active }: { active: CvTab }) {
     <ScrollCurrentNav
       aria-label="CV sections"
       data-print-hide="true"
-      className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] sm:mx-0 sm:px-0 sm:[mask-image:none]"
+      className="-mx-4 min-w-0 max-w-full overflow-x-auto px-4 mask-[linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] sm:mx-0 sm:px-0 sm:mask-none"
     >
       <div className="inline-flex gap-1 rounded-lg border border-border bg-surface-2 p-1">
         {tabs.map((tab) => (

@@ -2,8 +2,8 @@ import { clsx, type ClassValue } from 'clsx';
 import { extendTailwindMerge } from 'tailwind-merge';
 
 /**
- * The project's custom font-size scale, exactly as declared under
- * `theme.extend.fontSize` in tailwind.config.ts.
+ * The project's custom font-size scale, exactly as declared by
+ * the `--text-*` tokens of the `@theme` block in app/globals.css.
  *
  * This list is not decoration — it fixes a silent, app-wide rendering bug.
  *
@@ -20,8 +20,8 @@ import { extendTailwindMerge } from 'tailwind-merge';
  * The same trap applies to any `text-<custom-size>` + `text-<colour>` pair,
  * so it is fixed once here rather than by reordering call sites.
  *
- * Keep in sync with tailwind.config.ts. A name here that is not in the
- * config is harmless; a name in the config but missing here re-opens the bug.
+ * Keep in sync with app/globals.css. A name here that is not in the
+ * theme is harmless; a name in the theme but missing here re-opens the bug.
  */
 const FONT_SIZES = [
   'kicker',

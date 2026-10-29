@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto w-full max-w-6xl px-5">
           <PublicHeader />
         </div>
-        <main id="main" className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">
+        <main id="main" className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 px-5 py-8">
           {children}
         </main>
         <Footer />
@@ -64,7 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         clear of a notch when the browser is in landscape.
       */}
       <header className="z-40 border-b border-border bg-background/90 backdrop-blur-md md:sticky md:top-0">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-5 py-3">
+        <div className="mx-auto flex max-w-(--breakpoint-2xl) items-center justify-between gap-4 px-5 py-3">
           <Link href={logoHref} className="inline-flex shrink-0 items-center">
             <BrandMark />
           </Link>
@@ -103,7 +103,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         */}
         <ScrollCurrentNav
           aria-label="Sections"
-          className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium [mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:[mask-image:none]"
+          className="flex snap-x items-center gap-0.5 overflow-x-auto border-t border-border px-5 py-1 text-table font-medium mask-[linear-gradient(to_right,black_calc(100%-2rem),transparent)] md:hidden md:mask-none"
         >
           <SectionLinks showAdmin={showAdmin} />
         </ScrollCurrentNav>
@@ -111,7 +111,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* The one <main>, a sibling of the header and footer rather than
           their parent (UX-1; see app/layout.tsx). flex-1 keeps the footer at
           the bottom of a short page. */}
-      <main id="main" className="mx-auto w-full max-w-screen-2xl flex-1 px-5 py-8">
+      <main id="main" className="mx-auto w-full max-w-(--breakpoint-2xl) flex-1 px-5 py-8">
         {children}
       </main>
       <Footer />

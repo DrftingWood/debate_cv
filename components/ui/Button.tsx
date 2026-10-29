@@ -8,7 +8,7 @@ type Size = 'sm' | 'md' | 'lg';
 const base =
   'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap ' +
   'rounded-md transition-colors duration-150 ease-soft select-none ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
+  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
   'disabled:cursor-not-allowed';
 
 // Disabled treatment lives per-variant, not in `base`: a blanket
@@ -62,7 +62,7 @@ const pendingStyle: Record<Variant, string> = {
  *
  * A statement UI genuinely does want tight controls beside a table, so the
  * dense values stay as the base and `coarse:` (a pointer media query, see
- * tailwind.config.ts) overrides them wherever the input device is a finger.
+ * app/globals.css) overrides them wherever the input device is a finger.
  * A width breakpoint would have missed a phone in landscape, which is
  * 844px wide and still driven by a thumb. `min-h` rather than `h` so a
  * button that wraps its label on a narrow screen grows instead of clipping.

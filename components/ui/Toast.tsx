@@ -200,7 +200,9 @@ function ToastCard({
       <div className="flex-1 min-w-0">
         <div className="text-ui font-semibold text-ink">{item.title}</div>
         {item.description ? (
-          <div className="mt-0.5 text-caption text-ink-soft break-words">{item.description}</div>
+          <div className="mt-0.5 text-caption text-ink-soft wrap-break-word">
+            {item.description}
+          </div>
         ) : null}
         {item.action ? (
           // next/link, not a raw <a>: the action is always an in-app route

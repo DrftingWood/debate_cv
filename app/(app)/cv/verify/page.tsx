@@ -212,7 +212,7 @@ export default async function CvVerifyPage({
                   </div>
 
                   {warningsByTournamentId.has(t.id) ? (
-                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/[0.06] p-3">
+                    <section className="space-y-2 rounded-md border border-warning/30 bg-warning/6 p-3">
                       <h3 className="text-body font-semibold text-warning">
                         Parser warnings ({warningsByTournamentId.get(t.id)!.length})
                       </h3>
@@ -254,7 +254,7 @@ export default async function CvVerifyPage({
                     </Link>
                   ) : (
                     <div
-                      className="space-y-5 outline-none"
+                      className="space-y-5 outline-hidden"
                       role="region"
                       aria-label={`What the parser read for ${t.name}`}
                     >

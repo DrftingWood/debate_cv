@@ -68,7 +68,7 @@ function EntryRow({ e, unit }: { e: MarginEntry; unit: MarginUnit }) {
   return (
     <Tr>
       <Td rowHeader className="pl-4">
-        <span className="block max-w-[22rem] break-words">
+        <span className="block max-w-88 wrap-break-word">
           {e.tournamentName}
           {e.year != null && !e.tournamentName.includes(String(e.year)) ? ` (${e.year})` : ''}
         </span>

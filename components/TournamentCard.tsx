@@ -25,7 +25,7 @@ export function TournamentLink({
   className?: string;
 }) {
   if (!href) {
-    return <span className={cn('break-words font-medium text-ink', className)}>{name}</span>;
+    return <span className={cn('wrap-break-word font-medium text-ink', className)}>{name}</span>;
   }
   return (
     <a
@@ -33,7 +33,7 @@ export function TournamentLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'inline-flex min-h-6 items-baseline gap-1.5 break-words font-medium text-ink hover:text-primary',
+        'inline-flex min-h-6 items-baseline gap-1.5 wrap-break-word font-medium text-ink hover:text-primary',
         className,
       )}
     >
@@ -62,7 +62,7 @@ export function TournamentCardField({ label, value, mono, hint }: TournamentCard
   return (
     <div className="min-w-0">
       <dt className="data-label">{label}</dt>
-      <dd className={cn('mt-0.5 break-words text-table text-ink', mono && 'num')}>{value}</dd>
+      <dd className={cn('mt-0.5 wrap-break-word text-table text-ink', mono && 'num')}>{value}</dd>
       {hint ? <dd className="text-caption text-ink-soft">{hint}</dd> : null}
     </div>
   );

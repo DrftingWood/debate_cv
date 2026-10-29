@@ -44,7 +44,7 @@ export function StatsSplitTable({
   // The first column is pinned while the figures scroll under it, so a phone
   // reader never loses which row a number belongs to (UX-30). It needs its
   // own background, or the scrolled cells show through it.
-  const pin = 'sticky left-0 z-[1] bg-card';
+  const pin = 'sticky left-0 z-1 bg-card';
   const lastScoreCell = showPoints ? undefined : 'pr-4';
 
   return (

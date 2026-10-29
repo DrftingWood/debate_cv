@@ -1,6 +1,513 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/*
+ * Tailwind 4 reads its configuration from this file; `tailwind.config.ts` is
+ * gone. The upgrade tool does not carry plugins across, so both live here.
+ *
+ * Typography: no call site uses `prose` today (the legal pages are hand-set),
+ * but the plugin was registered under v3 and stays registered so this
+ * migration changes no output.
+ */
+@plugin '@tailwindcss/typography';
+
+/*
+ * `coarse:` — a media query on the POINTER rather than the viewport.
+ *
+ * Every other responsive prefix here is a width query, which quietly
+ * assumes width predicts input device. It does not: a phone in landscape is
+ * 844px wide and still operated by a thumb, so it was being handed the dense
+ * 32px desktop controls. Touch sizing keys off `coarse:`; visual density
+ * keys off `md:`. They are different questions and have different answers.
+ */
+@custom-variant coarse (@media (pointer: coarse));
+@custom-variant fine (@media (pointer: fine));
+
+@theme {
+  /*
+   * Token bridge. The raw HSL channels live in `:root` / `[data-theme]`
+   * below and are what the two themes swap; these `--color-*` names are what
+   * Tailwind turns into utilities. Under v3 every colour had to carry an
+   * `<alpha-value>` placeholder or an opacity modifier (`text-ink-soft/60`)
+   * silently compiled to nothing. v4 applies modifiers with color-mix() on
+   * any colour, so the placeholder is gone and every token can be dimmed.
+   */
+  --color-border: hsl(var(--border) / 0.16); /* hairline default */
+  /* Form-control edge, distinct from the `border` hairline: an opaque grey
+     per theme, at least 3:1 against card and canvas (SC 1.4.11, UX-18). */
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-soft: hsl(var(--primary-soft) / 0.08);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  /* Ledger surface tiers, in order of depth: `surface` is the statement
+     sheet, `surface-2` a zebra row or well, `surface-3` a chart gutter or
+     progress track. */
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+  --color-surface: hsl(var(--surface));
+
+  /* Directional value colours. The ONLY tints allowed on a number, and they
+     always mean up/down: never brand, never mood. */
+  --color-pos: hsl(var(--pos));
+  --color-pos-soft: hsl(var(--pos) / 0.1);
+
+  --color-neg: hsl(var(--neg));
+  --color-neg-soft: hsl(var(--neg) / 0.1);
+
+  --color-break-gold: hsl(var(--break-gold));
+  --color-break-soft: hsl(var(--break-gold) / 0.12);
+
+  --color-score-blue: hsl(var(--score-blue));
+  --color-score-soft: hsl(var(--score-blue) / 0.12);
+
+  /* Abstract aliases kept from the previous system (ink = foreground,
+     paper = background, oxblood = accent), re-pointed at the ledger values.
+     Renaming them churns ~30 files for no visual change; the redesign does
+     it separately. */
+  --color-paper: hsl(var(--background));
+
+  --color-ink: hsl(var(--foreground));
+  --color-ink-soft: hsl(var(--muted-foreground));
+
+  --color-rule: hsl(var(--border) / 0.16);
+
+  --color-oxblood: hsl(var(--primary));
+  --color-oxblood-soft: hsl(var(--primary-soft) / 0.08);
+
+  --color-archive-white: hsl(var(--archive-white));
+
+  --color-record-ink: hsl(var(--record-ink));
+  --color-record-muted: hsl(var(--record-muted));
+  --color-record-rule: hsl(var(--record-rule) / 0.35);
+  --color-record-surface: hsl(var(--record-surface));
+  --color-record-green: hsl(var(--record-green));
+  --color-record-green-soft: hsl(var(--record-green) / 0.1);
+
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  /* The statement UI has no serif voice. The slot stays mapped to the
+     display grotesk so a stray `font-serif` renders as a heading rather than
+     falling back to Times. */
+  --font-serif: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /*
+   * Micro labels → body → headings → figures. 12px is the floor: at 10.5px
+   * this tier carried every column header and stat caption, the text that
+   * says what each number IS, below a legible size for uppercase mono.
+   * `figure-*` steps are for monospaced numbers in stat tiles and sit
+   * tighter than the heading scale at the same optical size. From `h3` up
+   * the scale is fluid: the clamp() floor is the phone size and the ceiling
+   * is exactly what desktop rendered before. Keep `lib/utils/cn.ts` in sync.
+   */
+  --text-kicker: 12px;
+  --text-kicker--line-height: 1.2;
+  --text-kicker--letter-spacing: 0.11em;
+  --text-kicker--font-weight: 600;
+  --text-byline: 12px;
+  --text-byline--line-height: 1.45;
+  --text-caption: 12.5px;
+  --text-caption--line-height: 1.45;
+  --text-table: 13.5px;
+  --text-table--line-height: 1.5;
+  --text-ui: 14px;
+  --text-ui--line-height: 1.5;
+  --text-body: 15px;
+  --text-body--line-height: 1.6;
+  --text-body-serif: 16px;
+  --text-body-serif--line-height: 1.6;
+  --text-h4: 17px;
+  --text-h4--line-height: 1.35;
+  --text-h4--letter-spacing: -0.006em;
+  --text-h3: clamp(19px, 1rem + 0.6vw, 21px);
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.012em;
+  --text-stat: clamp(22px, 1rem + 1.6vw, 26px);
+  --text-stat--line-height: 1.1;
+  --text-stat--letter-spacing: -0.02em;
+  --text-figure-sm: clamp(18px, 1rem + 0.7vw, 20px);
+  --text-figure-sm--line-height: 1.1;
+  --text-figure-sm--letter-spacing: -0.02em;
+  --text-figure-md: clamp(23px, 1rem + 2vw, 28px);
+  --text-figure-md--line-height: 1.05;
+  --text-figure-md--letter-spacing: -0.025em;
+  --text-figure-lg: clamp(30px, 1rem + 4vw, 40px);
+  --text-figure-lg--line-height: 1;
+  --text-figure-lg--letter-spacing: -0.03em;
+  --text-h2: clamp(24px, 1rem + 2.6vw, 32px);
+  --text-h2--line-height: 1.15;
+  --text-h2--letter-spacing: -0.018em;
+  --text-h1: clamp(30px, 1rem + 4.6vw, 44px);
+  --text-h1--line-height: 1.08;
+  --text-h1--letter-spacing: -0.024em;
+  --text-display: clamp(34px, 1rem + 7vw, 60px);
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.03em;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-card: var(--radius-card);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: -400px 0;
+    }
+    100% {
+      background-position: 400px 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility panel {
+  /* ── Surfaces ─────────────────────────────────────────────────────────
+   * Three tiers only. `panel` is the default statement sheet; `panel-inset`
+   * is a well drilled into it (chart gutters, code/URL blocks); `panel-raised`
+   * is reserved for things that genuinely float (popovers, menus).
+   */
+  @apply rounded-card border bg-card;
+  border-color: hsl(var(--border) / 0.16);
+}
+
+@utility panel-inset {
+  @apply rounded-md;
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border) / 0.12);
+  & .table-scroll {
+    --scroll-cover: hsl(var(--surface-2));
+  }
+}
+
+@utility panel-raised {
+  @apply rounded-card border bg-popover shadow-lg;
+  border-color: hsl(var(--border) / 0.18);
+}
+
+@utility record-panel {
+  /* Back-compat aliases for surfaces named in the previous system. */
+  @apply panel;
+}
+
+@utility surface-card {
+  @apply panel;
+}
+
+@utility surface-elevated {
+  @apply panel shadow-md;
+}
+
+@utility data-label {
+  /* ── Micro-labels ─────────────────────────────────────────────────────
+   * The statement vocabulary: every figure sits under a small, uppercase,
+   * letterspaced mono label. `.data-label` is the neutral one; `.eyebrow`
+   * is the accented section marker; `.kicker` survives as an alias so the
+   * older call sites keep rendering something sensible.
+   */
+  /*
+   * 12px floor. These labels were 10.5px, which put 648 text nodes — every
+   * column header, stat caption and section eyebrow, i.e. the text that
+   * explains what each number IS — below the size at which uppercase
+   * letterspaced mono stays legible. Tracking is trimmed slightly so the
+   * larger size does not widen the ledger columns it labels.
+   */
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+@utility eyebrow-on-ink {
+  /*
+   * The eyebrow for a panel painted `bg-ink` — the inverted CTA band.
+   *
+   * `.eyebrow` uses `--primary`, which is tuned for the normal canvas, so
+   * on an inverted panel it measured 2.4:1 in light mode and 1.85:1 in
+   * dark: the worst contrast in the product, on its final call to action.
+   * The fix flips the accent with the surface. `--primary` and `--ink`
+   * both invert between themes, so the two swap places: light mode gets
+   * the bright emerald (dark panel), dark mode the deep one (light panel).
+   */
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: hsl(160 62% 58%);
+  [data-theme='dark'] & {
+    color: hsl(166 76% 22%);
+  }
+}
+
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+}
+
+@utility kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+}
+
+@utility byline {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+@utility num {
+  /* Figures. `.num` is the workhorse: mono, tabular, slightly tightened. */
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility figure {
+  /* The headline figure in a stat tile. */
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+}
+
+@utility val-pos {
+  /* Directional value colours — the only place tint is allowed to mean
+     something on a number. */
+  color: hsl(var(--pos));
+}
+
+@utility val-neg {
+  color: hsl(var(--neg));
+}
+
+@utility val-flat {
+  color: hsl(var(--muted-foreground));
+}
+
+@utility hairline {
+  height: 1px;
+  background: hsl(var(--border) / 0.16);
+  border: 0;
+}
+
+@utility table-scroll {
+  /*
+   * Scroll cue for `TableScroll` (UX-29). The "background-attachment:
+   * local" pattern: two covers in the sheet colour scroll WITH the content,
+   * two shadows stay pinned to the box edges. At the left end the left
+   * cover sits over the left shadow and hides it; scroll right and the
+   * cover moves away, so a shadow appears exactly on the edges that have
+   * more table beyond them. Pure CSS, so it costs nothing on a table that
+   * fits, and it works on the server-rendered page before any script.
+   *
+   * `--scroll-cover` is the colour of whatever the table sits on: a
+   * `.panel` (card) by default, the `.panel-inset` well otherwise.
+   * The focus outline is drawn inset because every caller sits inside a
+   * panel with overflow hidden, which clipped the default offset outline.
+   *
+   * `contain: paint` keeps a wide table's width out of the page's scroll
+   * width. Without it /cv/stats scrolled sideways at 390 px (a 914 px table
+   * inside a 348 px scroller still pushed the document to 923 px).
+   */
+  contain: paint;
+  --scroll-cover: hsl(var(--card));
+  background:
+    linear-gradient(to right, var(--scroll-cover) 30%, transparent) left center / 2.5rem 100%
+      no-repeat local,
+    linear-gradient(to left, var(--scroll-cover) 30%, transparent) right center / 2.5rem 100%
+      no-repeat local,
+    radial-gradient(farthest-side at 0 50%, hsl(var(--foreground) / 0.16), transparent) left
+      center / 0.75rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, hsl(var(--foreground) / 0.16), transparent) right
+      center / 0.75rem 100% no-repeat scroll;
+  background-color: var(--scroll-cover);
+  .panel-inset & {
+    --scroll-cover: hsl(var(--surface-2));
+  }
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+@utility ledger {
+  /* Ledger table: hairline row rules, no vertical rules, numeric columns
+     right-aligned by the `.cell-num` helper. */
+  width: 100%;
+  border-collapse: collapse;
+  & thead th {
+    font-family: var(--font-mono);
+    /* 12px floor, same as .data-label — these ARE the labels that name every
+       column of every ledger in the product, and they were the largest
+       remaining block of sub-12px text after the micro-label fix. Tracking
+       trimmed so the wider glyphs do not push the column out. */
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    text-align: left;
+    /* Symmetric vertical padding: these tables sit flush against the top
+       edge of a panel, so a zero top pad puts the header hard on the
+       border. */
+    padding: 0.7rem 0.75rem 0.5rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.22);
+    white-space: nowrap;
+  }
+  & tbody td {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.1);
+    vertical-align: middle;
+  }
+  & tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  /* A row header (<Td rowHeader> -> th scope="row") looks like a body cell. */
+  & tbody th[scope='row'] {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.1);
+    vertical-align: middle;
+  }
+  & tbody tr:last-child th[scope='row'] {
+    border-bottom: 0;
+  }
+  /*
+   * Numeric headers must sit over their own numbers.
+   *
+   * `.ledger thead th` above sets `text-align: left` at specificity (0,1,2),
+   * which silently outranks the `text-right` utility (0,1,0) that
+   * `<Th numeric>` emits. Every numeric column in the product was therefore
+   * a left-aligned header over a right-aligned column of figures — YEAR,
+   * TEAMS, RANK, PTS, SPK AVG and FIELD on the speaking ledger alone, plus
+   * the judging table, both stats tables, the public CV and the sample.
+   *
+   * Matching both class names covers the `<Th numeric>` component and the
+   * hand-written `<th className="text-right">` on /sample, which does not
+   * go through it.
+   */
+  & thead th.text-right {
+    text-align: right;
+  }
+  & thead th.cell-num {
+    text-align: right;
+  }
+}
+
+@utility cell-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@utility dropcap {
+  /* Deprecated editorial signatures. Kept as no-op-ish shims so any missed
+     call site degrades to plain text instead of an italic drop-cap. */
+  &::first-letter {
+    font-size: inherit;
+    float: none;
+    padding: 0;
+    color: inherit;
+  }
+}
+
+@utility pull-quote {
+  border-left: 2px solid hsl(var(--border) / 0.3);
+  padding-left: 14px;
+  color: hsl(var(--muted-foreground));
+  font-style: normal;
+}
+
+@utility font-hero {
+  font-family: var(--font-display);
+  font-feature-settings: 'ss01';
+}
 
 @layer base {
   /*
@@ -394,253 +901,6 @@
       animation-duration: 1.6s !important;
       animation-iteration-count: infinite !important;
     }
-  }
-}
-
-@layer components {
-  /* ── Surfaces ─────────────────────────────────────────────────────────
-   * Three tiers only. `panel` is the default statement sheet; `panel-inset`
-   * is a well drilled into it (chart gutters, code/URL blocks); `panel-raised`
-   * is reserved for things that genuinely float (popovers, menus).
-   */
-  .panel {
-    @apply rounded-card border bg-card;
-    border-color: hsl(var(--border) / 0.16);
-  }
-  .panel-inset {
-    @apply rounded-md;
-    background: hsl(var(--surface-2));
-    border: 1px solid hsl(var(--border) / 0.12);
-  }
-  .panel-raised {
-    @apply rounded-card border bg-popover shadow-lg;
-    border-color: hsl(var(--border) / 0.18);
-  }
-
-  /* Back-compat aliases for surfaces named in the previous system. */
-  .record-panel,
-  .surface-card {
-    @apply panel;
-  }
-  .surface-elevated {
-    @apply panel shadow-md;
-  }
-
-  /* ── Micro-labels ─────────────────────────────────────────────────────
-   * The statement vocabulary: every figure sits under a small, uppercase,
-   * letterspaced mono label. `.data-label` is the neutral one; `.eyebrow`
-   * is the accented section marker; `.kicker` survives as an alias so the
-   * older call sites keep rendering something sensible.
-   */
-  /*
-   * 12px floor. These labels were 10.5px, which put 648 text nodes — every
-   * column header, stat caption and section eyebrow, i.e. the text that
-   * explains what each number IS — below the size at which uppercase
-   * letterspaced mono stays legible. Tracking is trimmed slightly so the
-   * larger size does not widen the ledger columns it labels.
-   */
-  .data-label {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: hsl(var(--muted-foreground));
-  }
-  /*
-   * The eyebrow for a panel painted `bg-ink` — the inverted CTA band.
-   *
-   * `.eyebrow` uses `--primary`, which is tuned for the normal canvas, so
-   * on an inverted panel it measured 2.4:1 in light mode and 1.85:1 in
-   * dark: the worst contrast in the product, on its final call to action.
-   * The fix flips the accent with the surface. `--primary` and `--ink`
-   * both invert between themes, so the two swap places: light mode gets
-   * the bright emerald (dark panel), dark mode the deep one (light panel).
-   */
-  .eyebrow-on-ink {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: hsl(160 62% 58%);
-  }
-  [data-theme='dark'] .eyebrow-on-ink {
-    color: hsl(166 76% 22%);
-  }
-
-  .eyebrow,
-  .kicker {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: hsl(var(--primary));
-  }
-  .byline {
-    font-family: var(--font-sans);
-    font-size: 12px;
-    color: hsl(var(--muted-foreground));
-  }
-
-  /* Figures. `.num` is the workhorse: mono, tabular, slightly tightened. */
-  .num {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-  }
-  /* The headline figure in a stat tile. */
-  .figure {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    color: hsl(var(--foreground));
-  }
-
-  /* Directional value colours — the only place tint is allowed to mean
-     something on a number. */
-  .val-pos {
-    color: hsl(var(--pos));
-  }
-  .val-neg {
-    color: hsl(var(--neg));
-  }
-  .val-flat {
-    color: hsl(var(--muted-foreground));
-  }
-
-  .hairline {
-    height: 1px;
-    background: hsl(var(--border) / 0.16);
-    border: 0;
-  }
-
-  /*
-   * Scroll cue for `TableScroll` (UX-29). The "background-attachment:
-   * local" pattern: two covers in the sheet colour scroll WITH the content,
-   * two shadows stay pinned to the box edges. At the left end the left
-   * cover sits over the left shadow and hides it; scroll right and the
-   * cover moves away, so a shadow appears exactly on the edges that have
-   * more table beyond them. Pure CSS, so it costs nothing on a table that
-   * fits, and it works on the server-rendered page before any script.
-   *
-   * `--scroll-cover` is the colour of whatever the table sits on: a
-   * `.panel` (card) by default, the `.panel-inset` well otherwise.
-   * The focus outline is drawn inset because every caller sits inside a
-   * panel with overflow hidden, which clipped the default offset outline.
-   *
-   * `contain: paint` keeps a wide table's width out of the page's scroll
-   * width. Without it /cv/stats scrolled sideways at 390 px (a 914 px table
-   * inside a 348 px scroller still pushed the document to 923 px).
-   */
-  .table-scroll {
-    contain: paint;
-    --scroll-cover: hsl(var(--card));
-    background:
-      linear-gradient(to right, var(--scroll-cover) 30%, transparent) left center / 2.5rem 100%
-        no-repeat local,
-      linear-gradient(to left, var(--scroll-cover) 30%, transparent) right center / 2.5rem 100%
-        no-repeat local,
-      radial-gradient(farthest-side at 0 50%, hsl(var(--foreground) / 0.16), transparent) left
-        center / 0.75rem 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, hsl(var(--foreground) / 0.16), transparent) right
-        center / 0.75rem 100% no-repeat scroll;
-    background-color: var(--scroll-cover);
-  }
-  .panel-inset .table-scroll {
-    --scroll-cover: hsl(var(--surface-2));
-  }
-  .table-scroll:focus-visible {
-    outline-offset: -2px;
-  }
-
-  /* Ledger table: hairline row rules, no vertical rules, numeric columns
-     right-aligned by the `.cell-num` helper. */
-  .ledger {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .ledger thead th {
-    font-family: var(--font-mono);
-    /* 12px floor, same as .data-label — these ARE the labels that name every
-       column of every ledger in the product, and they were the largest
-       remaining block of sub-12px text after the micro-label fix. Tracking
-       trimmed so the wider glyphs do not push the column out. */
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: hsl(var(--muted-foreground));
-    text-align: left;
-    /* Symmetric vertical padding: these tables sit flush against the top
-       edge of a panel, so a zero top pad puts the header hard on the
-       border. */
-    padding: 0.7rem 0.75rem 0.5rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.22);
-    white-space: nowrap;
-  }
-  .ledger tbody td {
-    padding: 0.7rem 0.75rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.1);
-    vertical-align: middle;
-  }
-  .ledger tbody tr:last-child td {
-    border-bottom: 0;
-  }
-  /* A row header (<Td rowHeader> -> th scope="row") looks like a body cell. */
-  .ledger tbody th[scope='row'] {
-    padding: 0.7rem 0.75rem;
-    border-bottom: 1px solid hsl(var(--border) / 0.1);
-    vertical-align: middle;
-  }
-  .ledger tbody tr:last-child th[scope='row'] {
-    border-bottom: 0;
-  }
-  /*
-   * Numeric headers must sit over their own numbers.
-   *
-   * `.ledger thead th` above sets `text-align: left` at specificity (0,1,2),
-   * which silently outranks the `text-right` utility (0,1,0) that
-   * `<Th numeric>` emits. Every numeric column in the product was therefore
-   * a left-aligned header over a right-aligned column of figures — YEAR,
-   * TEAMS, RANK, PTS, SPK AVG and FIELD on the speaking ledger alone, plus
-   * the judging table, both stats tables, the public CV and the sample.
-   *
-   * Matching both class names covers the `<Th numeric>` component and the
-   * hand-written `<th className="text-right">` on /sample, which does not
-   * go through it.
-   */
-  .ledger thead th.text-right,
-  .ledger thead th.cell-num {
-    text-align: right;
-  }
-
-  .cell-num {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  /* Deprecated editorial signatures. Kept as no-op-ish shims so any missed
-     call site degrades to plain text instead of an italic drop-cap. */
-  .dropcap::first-letter {
-    font-size: inherit;
-    float: none;
-    padding: 0;
-    color: inherit;
-  }
-  .pull-quote {
-    border-left: 2px solid hsl(var(--border) / 0.3);
-    padding-left: 14px;
-    color: hsl(var(--muted-foreground));
-    font-style: normal;
-  }
-  .font-hero {
-    font-family: var(--font-display);
-    font-feature-settings: 'ss01';
   }
 }
 

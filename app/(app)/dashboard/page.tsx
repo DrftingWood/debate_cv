@@ -360,7 +360,7 @@ export default async function Dashboard({
                       <CardBody className="space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 break-words text-body font-semibold text-ink">
+                            <div className="line-clamp-2 wrap-break-word text-body font-semibold text-ink">
                               {u.tournament?.name ?? '—'}
                             </div>
                             <TournamentMetrics
@@ -430,7 +430,7 @@ export default async function Dashboard({
                               href={u.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex min-h-6 max-w-[28rem] items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
+                              className="inline-flex min-h-6 max-w-md items-center gap-1 truncate font-mono text-caption text-ink transition-colors hover:text-primary"
                             >
                               <span className="truncate">{u.url}</span>
                               <span className="sr-only">(opens in a new tab)</span>

@@ -269,7 +269,7 @@ export function IdentityManager() {
         ref={savedRef}
         tabIndex={-1}
         role="status"
-        className="text-caption text-ink-soft outline-none"
+        className="text-caption text-ink-soft outline-hidden"
       >
         {savedMessage ?? ''}
       </p>

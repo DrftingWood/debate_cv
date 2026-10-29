@@ -197,7 +197,7 @@ export function TeammatesSection({
               {partners.map((p) => (
                 <Tr key={p.key}>
                   <Td className="pl-4 font-medium">
-                    <span className="block max-w-[14rem] truncate" title={p.name}>
+                    <span className="block max-w-56 truncate" title={p.name}>
                       {p.name}
                     </span>
                   </Td>

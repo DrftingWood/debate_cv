@@ -71,7 +71,8 @@ describe('TournamentCard', () => {
     expect(out).toContain('Alexandria Montgomery-Fitzwilliam, Second Person');
     expect(out).not.toContain('truncate');
     expect(out).not.toContain('title=');
-    expect(out).toContain('break-words');
+    // Tailwind 4 renamed v3's `break-words` (overflow-wrap: break-word) to `wrap-break-word`.
+    expect(out).toContain('wrap-break-word');
   });
 
   it('is a list item with the name as a heading, and the year beside it', () => {

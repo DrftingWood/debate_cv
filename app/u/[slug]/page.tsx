@@ -299,7 +299,7 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                   </Td>
                   <Td className="text-ink">
                     {r.teamName ? (
-                      <span className="block max-w-[12rem] break-words">{r.teamName}</span>
+                      <span className="block max-w-48 wrap-break-word">{r.teamName}</span>
                     ) : (
                       <Nil />
                     )}
@@ -324,7 +324,7 @@ function SpeakingSection({ rows }: { rows: CvSpeakerRow[] }) {
                     )}
                   </Td>
                   <Td numeric>{r.speakerAvgScore ?? <Nil />}</Td>
-                  <Td className="min-w-[8rem] pr-4">
+                  <Td className="min-w-32 pr-4">
                     {r.broke || fmtPublicLastOutround(r) ? (
                       <PublicBreakMarker r={r} />
                     ) : (

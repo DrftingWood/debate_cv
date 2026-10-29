@@ -217,7 +217,7 @@ export default async function CvMotionsPage() {
                       <span className="data-label block">
                         {first.year ? `${first.year}` : 'Undated'}
                       </span>
-                      <span className="mt-1 block break-words font-display text-h4 font-medium text-ink">
+                      <span className="mt-1 block wrap-break-word font-display text-h4 font-medium text-ink">
                         {first.tournamentName}
                       </span>
                     </span>

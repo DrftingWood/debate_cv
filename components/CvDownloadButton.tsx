@@ -144,7 +144,7 @@ export function CvDownloadButton() {
           tabIndex={-1}
           role="dialog"
           aria-label="Download your CV"
-          className="absolute right-0 z-30 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-card outline-none border border-border bg-card p-4 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-card outline-hidden border border-border bg-card p-4 shadow-lg"
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 border-b border-border pb-3">

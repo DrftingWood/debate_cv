@@ -106,7 +106,7 @@ function Chip({
       onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-table font-medium transition-colors coarse:min-h-[44px] coarse:py-0',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         pressedClasses(pressed),
       )}
     >
@@ -208,7 +208,7 @@ export function StatsFilterBar({
                       }
                       className="h-6 w-6 shrink-0 accent-primary"
                     />
-                    <span className="break-words text-ink">{p.label}</span>
+                    <span className="wrap-break-word text-ink">{p.label}</span>
                   </span>
                   <span className="num text-caption text-ink-soft">
                     {p.count}

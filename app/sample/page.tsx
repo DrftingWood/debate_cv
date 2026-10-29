@@ -135,7 +135,10 @@ export default function SamplePage() {
           <section className="grid grid-cols-[minmax(0,1fr)] items-end gap-8 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div>
               <div className="eyebrow">Sample record</div>
-              <h1 className="mt-4 font-display text-h1 font-medium leading-[1.04] tracking-tight text-ink md:text-display">
+              {/* Tailwind 4 lets an explicit leading/tracking beat a size token's own at
+                  every breakpoint. Under v3, md:text-display's 1.02 / -0.03em won on
+                  desktop, so the md: pair restates them. */}
+              <h1 className="mt-4 font-display text-h1 font-medium leading-[1.04] tracking-tight text-ink md:text-display md:leading-(--text-display--line-height) md:tracking-(--text-display--letter-spacing)">
                 This is the artifact, before you sign in
               </h1>
               <p className="mt-5 text-body leading-relaxed text-ink-soft">
@@ -248,7 +251,7 @@ export default function SamplePage() {
                       <tr key={r.round}>
                         <td className="num pl-4">{r.round}</td>
                         <td className="text-ink-soft">{r.side}</td>
-                        <td className="max-w-[30rem] text-ink-soft">{r.motion}</td>
+                        <td className="max-w-120 text-ink-soft">{r.motion}</td>
                         <td className="cell-num">{r.score}</td>
                         <td className="pr-4">
                           <span className={r.result === 'Won' ? 'val-pos font-medium' : 'val-neg'}>

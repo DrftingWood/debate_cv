@@ -51,7 +51,7 @@ export function BarList({
           {/* Wraps instead of truncating: the `detail` slot carries sample-size
               notes, and a note cut to "…" with the rest only in `title` is
               unreadable on a phone (SC 1.4.13). */}
-          <span className="min-w-0 break-words text-caption text-ink">
+          <span className="min-w-0 wrap-break-word text-caption text-ink">
             {item.label}
             {item.detail ? <span className="ml-1.5 text-ink-soft">{item.detail}</span> : null}
           </span>

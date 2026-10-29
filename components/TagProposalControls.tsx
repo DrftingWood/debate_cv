@@ -103,7 +103,7 @@ export function TagProposalControls({
           disabled={!!approvedValue || isPending}
           className={
             'h-9 min-w-0 flex-1 rounded-md border border-input bg-paper px-2.5 text-table text-ink coarse:h-auto coarse:min-h-[44px] ' +
-            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 ' +
+            'focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-1 ' +
             'disabled:opacity-50 disabled:cursor-not-allowed'
           }
           aria-label={`${kind === 'region' ? 'Region' : kind === 'motion_type' ? 'Motion type' : 'Motion topic'}${contextLabel ? ` for ${contextLabel}` : ''}`}
