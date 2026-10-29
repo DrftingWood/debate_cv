@@ -12,7 +12,7 @@ const round = (o: Partial<RoundFact>): RoundFact => ({
   seat: 'BP:OG',
   partners: ['Ann'],
   partnerGap: 0,
-  proAm: 'peers',
+  proAm: 'unmarked',
   motionType: 'Policy',
   hasMotion: true,
   contextLed: false,
@@ -30,7 +30,7 @@ const tournament = (o: Partial<TournamentFact>): TournamentFact => ({
   format: 'British Parliamentary',
   partners: ['Ann'],
   partnerGap: 0,
-  proAm: 'peers',
+  proAm: 'unmarked',
   broke: false,
   breakRank: null,
   deepestOutround: null,
@@ -165,8 +165,8 @@ describe('filterFacts', () => {
   const facts = {
     partnerNames: {},
     tournaments: [
-      tournament({ tournamentId: '1', partners: ['Ann'], proAm: 'pro' }),
-      tournament({ tournamentId: '2', partners: ['Bob'], proAm: 'peers' }),
+      tournament({ tournamentId: '1', partners: ['Ann'], proAm: 'marked' }),
+      tournament({ tournamentId: '2', partners: ['Bob'], proAm: 'unmarked' }),
     ],
     rounds: [
       round({ tournamentId: '1', seat: 'BP:OG' }),
@@ -180,7 +180,7 @@ describe('filterFacts', () => {
   });
 
   test('partner and pairing narrow tournaments and their rounds', () => {
-    const out = filterFacts(facts, { ...EMPTY_FILTER, pairings: ['pro'] });
+    const out = filterFacts(facts, { ...EMPTY_FILTER, pairings: ['marked'] });
     expect(out.tournaments.map((t) => t.tournamentId)).toEqual(['1']);
     expect(out.rounds.map((r) => [r.tournamentId, r.seat])).toEqual([
       ['1', 'BP:OG'],

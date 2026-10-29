@@ -51,9 +51,8 @@ const METRICS: Array<{ id: Metric; label: string }> = [
 ];
 
 const PAIRING_LABEL: Record<string, string> = {
-  pro: 'As the pro',
-  am: 'As the am',
-  peers: 'With peers',
+  marked: 'Marked pro-am',
+  unmarked: 'Not marked',
 };
 
 function keyLabel(dimension: CrossTabDimension, key: string, multiFormat: boolean) {

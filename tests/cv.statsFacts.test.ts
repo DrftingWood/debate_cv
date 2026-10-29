@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { buildStatsFacts, proAmFor, seatKey, PRO_AM_GAP } from '@/lib/cv/statsFacts';
+import { buildStatsFacts, partnerGapFor, seatKey } from '@/lib/cv/statsFacts';
+import { proAmKey } from '@/lib/cv/proAm';
 import { makeSpeakerRow, makeMotion } from './setup/cv-fixtures';
 
 const scores = (...pairs: Array<[number, number | null]>) =>
@@ -37,30 +38,18 @@ describe('seatKey', () => {
   });
 });
 
-describe('proAmFor', () => {
-  test('threshold is 1.5', () => {
-    expect(PRO_AM_GAP).toBe(1.5);
-  });
-
-  test.each([
-    [78, [76], 'pro'],
-    [76, [78], 'am'],
-    [77, [76], 'peers'],
-    [77.5, [76], 'peers'], // exactly 1.5 is peers
-    [74.5, [76], 'peers'], // exactly −1.5 is peers
-  ])('you %s vs %j → %s', (me, partners, expected) => {
-    expect(proAmFor(me, partners).label).toBe(expected);
-  });
-
+describe('partnerGapFor', () => {
+  // A number only: since 2026-10-29 the gap never decides a pro-am label
+  // (owner rule: the user marks pro-am on the Record's Partners tab).
   test('three a side compares with the mean of both teammates', () => {
-    expect(proAmFor(78, [77, 75])).toEqual({ gap: 2, label: 'pro' });
-    expect(proAmFor(76.5, [77, 76])).toEqual({ gap: 0, label: 'peers' });
+    expect(partnerGapFor(78, [77, 75])).toBe(2);
+    expect(partnerGapFor(76.5, [77, 76])).toBe(0);
   });
 
-  test('any missing average leaves the pairing unlabelled', () => {
-    expect(proAmFor(null, [76])).toEqual({ gap: null, label: null });
-    expect(proAmFor(78, [null])).toEqual({ gap: null, label: null });
-    expect(proAmFor(78, [])).toEqual({ gap: null, label: null });
+  test('any missing average leaves no gap', () => {
+    expect(partnerGapFor(null, [76])).toBeNull();
+    expect(partnerGapFor(78, [null])).toBeNull();
+    expect(partnerGapFor(78, [])).toBeNull();
   });
 });
 
@@ -137,13 +126,30 @@ describe('buildStatsFacts — rounds', () => {
     });
   });
 
-  test('pairing label and gap come from round-score means at that tournament', () => {
-    // You 79.0; teammates 75.0 and 76.0 → mean 75.5; gap +3.5 → pro.
+  test('the gap comes from round-score means; without a mark the pairing is unmarked', () => {
+    // You 79.0; teammates 75.0 and 76.0 → mean 75.5; gap +3.5, which no
+    // longer makes anyone "pro": only the user's own mark does.
     for (const r of facts.rounds) {
       expect(r.partners).toEqual(['Ann', 'Bob']);
       expect(r.partnerGap).toBeCloseTo(3.5);
-      expect(r.proAm).toBe('pro');
+      expect(r.proAm).toBe('unmarked');
     }
+  });
+
+  test('the pairing is marked when the user marked any partner there (Record → Partners)', () => {
+    const row = makeSpeakerRow({ tournamentId: 1n, teammates: ['Ann', 'Bob'] });
+    const marked = buildStatsFacts({
+      speakerRows: [row],
+      taggedMotions: [],
+      proAmMarks: [proAmKey(1n, 'bob')],
+    });
+    expect(marked.tournaments[0].proAm).toBe('marked');
+    const none = buildStatsFacts({
+      speakerRows: [makeSpeakerRow({ tournamentId: 1n, teammates: [] })],
+      taggedMotions: [],
+      proAmMarks: [proAmKey(1n, 'bob')],
+    });
+    expect(none.tournaments[0].proAm).toBeNull();
   });
 
   // A tab total cannot be turned into an average without knowing how many
@@ -167,7 +173,12 @@ describe('buildStatsFacts — rounds', () => {
       ],
       taggedMotions: [],
     });
-    expect(f.rounds[0]).toMatchObject({ seat: 'BP:OG', points: 3, proAm: null, partnerGap: null });
+    expect(f.rounds[0]).toMatchObject({
+      seat: 'BP:OG',
+      points: 3,
+      proAm: 'unmarked',
+      partnerGap: null,
+    });
   });
 
   test('a partner who spoke fewer rounds is averaged over the rounds they spoke', () => {
@@ -185,7 +196,7 @@ describe('buildStatsFacts — rounds', () => {
       ],
       taggedMotions: [],
     });
-    expect(f.rounds[0]).toMatchObject({ partnerGap: 3, proAm: 'pro' });
+    expect(f.rounds[0]).toMatchObject({ partnerGap: 3, proAm: 'unmarked' });
   });
 
   test('a choice round takes a motion type only when every motion shares it', () => {
@@ -245,7 +256,7 @@ describe('buildStatsFacts — tournaments', () => {
         format: 'British Parliamentary',
         partners: ['Dee'],
         partnerGap: 3, // 75.0 vs 72.0
-        proAm: 'pro',
+        proAm: 'unmarked',
         broke: true,
         breakRank: 4,
         deepestOutround: 'Semifinals',
@@ -257,11 +268,6 @@ describe('buildStatsFacts — tournaments', () => {
 });
 
 describe('red-team regressions', () => {
-  test('the pro-am threshold compares the true gap, not a rounded one', () => {
-    expect(proAmFor(76.504, [75]).label).toBe('pro');
-    expect(proAmFor(77.5, [76]).label).toBe('peers');
-  });
-
   test('a squad member who never spoke does not unlabel the pairing', () => {
     const f = buildStatsFacts({
       speakerRows: [
@@ -277,7 +283,7 @@ describe('red-team regressions', () => {
       ],
       taggedMotions: [],
     });
-    expect(f.tournaments[0]).toMatchObject({ partnerGap: 3, proAm: 'pro' });
+    expect(f.tournaments[0]).toMatchObject({ partnerGap: 3, proAm: 'unmarked' });
   });
 
   test('info-slide and framing flags do not depend on the round having one motion type', () => {

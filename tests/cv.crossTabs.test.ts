@@ -12,7 +12,7 @@ const round = (o: Partial<RoundFact>): RoundFact => ({
   seat: 'BP:OG',
   partners: ['Ann'],
   partnerGap: 0,
-  proAm: 'peers',
+  proAm: 'unmarked',
   motionType: 'Policy',
   hasMotion: true,
   contextLed: false,
@@ -80,11 +80,11 @@ describe('crossTab', () => {
 
   test('pairing is a dimension, unlabelled tournaments excluded', () => {
     const tab = crossTab(
-      [...many(6, { proAm: 'pro' }), ...many(6, { proAm: null }, 20)],
+      [...many(6, { proAm: 'marked' }), ...many(6, { proAm: null }, 20)],
       'pairing',
       'motionType',
     );
-    expect(tab.rows).toEqual(['pro']);
+    expect(tab.rows).toEqual(['marked']);
   });
 });
 
@@ -222,11 +222,16 @@ describe('crossTabFindings', () => {
     expect(mislabelled[0].text).toContain('British Parliamentary');
 
     const pairingDims = {
-      rows: ['pro', 'peers'] as [string, string],
+      rows: ['marked', 'unmarked'] as [string, string],
       cols: ['Belief', 'Policy'] as [string, string],
       rowField: 'proAm' as const,
     };
-    const cells = { 'pro|Belief': 79, 'pro|Policy': 75, 'peers|Belief': 73, 'peers|Policy': 73 };
+    const cells = {
+      'marked|Belief': 79,
+      'marked|Policy': 75,
+      'unmarked|Belief': 73,
+      'unmarked|Policy': 73,
+    };
     const bp = grid(cells, { format: 'British Parliamentary', seat: 'BP:OG' }, pairingDims);
     const ap = grid(
       Object.fromEntries(Object.entries(cells).map(([k, s]) => [k, s + 5])),
@@ -234,7 +239,7 @@ describe('crossTabFindings', () => {
       pairingDims,
     ).map((r, i) => ({ ...r, round: r.round + 100, tournamentId: String(5 + (i % 2)) }));
     const [top] = crossTabFindings([crossTab([...bp, ...ap], 'pairing', 'motionType')]);
-    expect(top.text).toMatch(/^As the pro/);
+    expect(top.text).toMatch(/^In pairings you marked pro-am/);
     expect(top.text).toContain('each format');
   });
 });

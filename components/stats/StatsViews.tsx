@@ -117,7 +117,7 @@ export function PositionsSection({
 
 // ── Teammates ─────────────────────────────────────────────────────────────
 
-const PAIRING_TITLE = { pro: 'As the pro', am: 'As the am', peers: 'With peers' } as const;
+const PAIRING_TITLE = { marked: 'Marked pro-am', unmarked: 'Not marked' } as const;
 
 /**
  * `perRoundOnly` (seat filter): breaks describe whole tournaments, which a
@@ -167,9 +167,9 @@ export function TeammatesSection({
         </StatRow>
       ) : null}
       <p className="text-caption text-ink-soft">
-        A pairing is pro-am when your speaker average and your partners' differ by more than 1.5 at
-        that tournament, measured from scored speeches. Without them the pairing is left unlabelled
-        rather than estimated.
+        A pairing is pro-am only when you marked it so, on your Record under Partners. It is never
+        guessed from scores. The gap column is your speaker average minus your partners', from
+        scored speeches, as a number only.
       </p>
 
       <div className="panel overflow-hidden">
@@ -205,12 +205,8 @@ export function TeammatesSection({
                   <Td className="whitespace-nowrap">
                     <span className="inline-flex gap-1">
                       {/* Neutral, not gold: gold means a break (Ledger rule 3). */}
-                      {p.pairings.pro ? (
-                        <Badge variant="neutral">Pro ×{p.pairings.pro}</Badge>
-                      ) : null}
-                      {p.pairings.am ? <Badge>Am ×{p.pairings.am}</Badge> : null}
-                      {p.pairings.peers ? (
-                        <Badge variant="neutral">Peers ×{p.pairings.peers}</Badge>
+                      {p.pairings.marked ? (
+                        <Badge variant="neutral">Pro-am ×{p.pairings.marked}</Badge>
                       ) : null}
                       {p.tournaments === p.pairings.unlabelled ? <Nil /> : null}
                     </span>
@@ -379,19 +375,12 @@ const CARRY_LABEL: Record<string, string> = {
 };
 
 /**
- * `byPairing`: a pro-am label is DEFINED by the speaker gap at a tournament,
- * so under a pairing filter the carry figures are true by construction ("as
- * the pro you out-spoke your partners"). They still show, with that said.
+ * Your speech against your partners', round by round, as a number. It used
+ * to sit beside a pro-am label defined by this same gap, which made the
+ * figures circular under a pairing filter; pro-am is now the user's own mark
+ * (2026-10-29), so the two are independent and need no caveat.
  */
-export function CarrySection({
-  facts,
-  baseline,
-  byPairing = false,
-}: {
-  facts: StatsFacts;
-  baseline: RoundFact[];
-  byPairing?: boolean;
-}) {
+export function CarrySection({ facts, baseline }: { facts: StatsFacts; baseline: RoundFact[] }) {
   const c = carryIndex(facts.rounds, baseline);
   if (c.rounds === 0) return null;
   const thin = c.rounds < MIN_SPLIT_ROUNDS;
@@ -441,12 +430,6 @@ export function CarrySection({
           thinBelow={MIN_SPLIT_ROUNDS}
           baselineLabel="your whole record in each round's format"
         />
-      ) : null}
-      {byPairing ? (
-        <p className="text-caption text-ink-soft">
-          A pairing filter is on, and pro-am is defined by the gap between your speeches and your
-          partners&rsquo; — so these figures follow from the filter rather than reveal anything new.
-        </p>
       ) : null}
       <p className="text-caption text-ink-soft">
         In three-a-side formats your partners' speeches are averaged. Reply speeches are not on the

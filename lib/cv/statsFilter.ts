@@ -8,7 +8,7 @@
  * which rounds and tournaments match.
  *
  *   partner   tournaments where any chosen partner (by person key) was on the team
- *   pairing   tournaments with a chosen pro-am label (pro / am / peers)
+ *   pairing   tournaments the user marked pro-am, or did not (marked / unmarked)
  *   seat      rounds debated from a chosen seat, e.g. 'BP:CG', 'AP:Gov'
  *
  * Choices within a dimension combine with OR, dimensions with AND. A seat is
@@ -33,7 +33,7 @@ export type StatsFilter = {
 
 export const EMPTY_FILTER: StatsFilter = { partners: [], pairings: [], seats: [] };
 
-const PAIRINGS: readonly ProAm[] = ['pro', 'am', 'peers'];
+const PAIRINGS: readonly ProAm[] = ['marked', 'unmarked'];
 
 type FilterableData = Pick<CvData, 'speakerRows' | 'judgeRows' | 'taggedMotions' | 'fieldStats'>;
 
