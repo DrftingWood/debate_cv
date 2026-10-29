@@ -115,9 +115,17 @@ export function CareerChart({
   if (series.years.length === 0) return null;
 
   return (
-    <figure aria-labelledby={titleId} className="panel min-w-0 p-stack">
-      <figcaption id={titleId} className="data-label">
-        {title}
+    <figure aria-labelledby={titleId} className="panel relative min-w-0 p-stack">
+      {/* The figcaption stays a direct child of the figure (a wrapper div
+          around it is invalid HTML and broke hydration); the hint sits
+          inside it, hidden from assistive tech, which has the bar labels. */}
+      <figcaption id={titleId} className="flex items-baseline justify-between gap-inline">
+        <span className="data-label">{title}</span>
+        {!compact ? (
+          <span className="text-caption text-ink-soft" aria-hidden>
+            Hover or tap a year
+          </span>
+        ) : null}
       </figcaption>
 
       <div
@@ -170,13 +178,21 @@ export function CareerChart({
       <YearLabels years={series.years} />
       <Legend tiers={tiers} kind={kind} compact={compact} />
 
+      {/*
+        The year's details float over the legend, below the bars, only while
+        a year is active (over the bars they would sit under the pointer and
+        flicker)
+        (owner review 2026-10-29: the always-on box was 96 px of chrome
+        saying "hover a year" under each chart). A live region, so a
+        keyboard or screen-reader user hears the details as focus moves.
+      */}
       {!compact ? (
-        <div className="panel-inset mt-stack min-h-24 p-tight text-caption">
+        <div aria-live="polite" className="contents">
           {activeYear ? (
-            <YearDetails year={activeYear} kind={kind} tierOf={tierOf} yearHref={yearHref} />
-          ) : (
-            <p className="text-ink-soft">Hover, focus or tap a year for its tournaments.</p>
-          )}
+            <div className="panel-raised absolute inset-x-stack bottom-stack z-10 max-h-[55%] overflow-y-auto p-tight text-caption shadow-md">
+              <YearDetails year={activeYear} kind={kind} tierOf={tierOf} yearHref={yearHref} />
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -242,8 +258,10 @@ function Bar({
                   c.major && 'ring-2 ring-inset ring-foreground',
                 )}
               >
+                {/* Inside the cell, not hanging off its edge, where it read
+                    as a rendering glitch (owner review 2026-10-29). */}
                 {c.major ? (
-                  <span className="absolute -left-1 top-1/2 size-1.5 -translate-y-1/2 rotate-45 bg-foreground" />
+                  <span className="absolute left-0.5 top-1/2 size-1.5 -translate-y-1/2 rotate-45 bg-foreground" />
                 ) : null}
               </span>
             </span>
@@ -285,7 +303,9 @@ function Legend({
   compact: boolean;
 }) {
   return (
-    <ul className="mt-stack flex flex-wrap gap-x-stack gap-y-hair text-caption text-ink-soft">
+    // An even grid, not a wrapping row: a wrapped row left one or two items
+    // orphaned on a second line (owner review 2026-10-29).
+    <ul className="mt-stack grid grid-cols-2 gap-x-stack gap-y-hair text-caption text-ink-soft sm:grid-cols-3">
       {tiers.map((t) => (
         <li key={t.key} className="inline-flex items-center gap-hair">
           <span className={cn('size-3 rounded-[1px]', t.swatch)} aria-hidden />

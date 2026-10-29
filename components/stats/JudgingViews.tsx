@@ -90,86 +90,95 @@ export function JudgingChairSection({ judgeRows }: { judgeRows: JudgeLensRow[] }
   return (
     <section id="judging-chair" aria-label="Chairing" className="space-y-3">
       <SectionHeader label="Judging" title="How often you chaired" meta={NOT_FILTERABLE} />
-      <StatRow columns={1}>
-        {chair.overall.chairRate != null ? (
-          <StatTile
-            label="Chair rate"
-            value={pct(chair.overall.chairRate)}
-            hint={`${chair.overall.roundsChaired} of ${plural(chair.overall.roundsJudged, 'prelim')} judged · ${plural(chair.overall.measured, 'tournament')}`}
-          />
-        ) : chair.chairedWithoutCount.tournaments > 0 ? (
-          // No tournament carries a judged-round count, so there is nothing to
-          // divide by; a per-tournament chair count is the most the rows say.
-          <StatTile
-            label="Prelims chaired per tournament"
-            value={(
-              chair.chairedWithoutCount.rounds / chair.chairedWithoutCount.tournaments
-            ).toFixed(1)}
-            hint={`${chair.chairedWithoutCount.rounds} chaired over ${plural(chair.chairedWithoutCount.tournaments, 'tournament')}; prelims judged not recorded`}
-          />
-        ) : (
-          <StatTile label="Chair rate" value="—" hint="no prelim counts recorded" />
-        )}
-      </StatRow>
-      <div className="panel overflow-hidden">
-        <div className="data-label px-4 pt-4">Chair rate by season</div>
-        <TableScroll className="mt-2">
-          <Table className="min-w-max" label="Chair rate by season">
-            <thead>
-              <tr>
-                <Th className="pl-4">Season</Th>
-                <Th
-                  numeric
-                  title="Tournaments with a count of prelims judged, of those judged that season"
-                >
-                  Events counted
-                </Th>
-                <Th numeric>Prelims judged</Th>
-                <Th numeric>Chaired</Th>
-                <Th numeric className="pr-4">
-                  Chair rate
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {chair.seasons.map((s) => (
-                <Tr key={s.year}>
-                  <Td className="pl-4 num">{s.year}</Td>
-                  <Td numeric>
-                    {s.measured === s.tournaments ? (
-                      s.tournaments
-                    ) : (
-                      <span
-                        title={`${s.measured} of ${s.tournaments} carry a count of prelims judged`}
-                      >
-                        {s.measured} of {s.tournaments}
-                      </span>
-                    )}
-                  </Td>
-                  <Td numeric>
-                    {s.measured > 0 ? s.roundsJudged : <Nil title="No count of prelims judged" />}
-                  </Td>
-                  <Td numeric>
-                    {s.measured > 0 ? s.roundsChaired : <Nil title="No count of prelims judged" />}
-                  </Td>
-                  <Td numeric className="pr-4">
-                    {pct(s.chairRate) ?? <Nil title="No count of prelims judged" />}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableScroll>
-        <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
-          Prelims chaired over prelims judged, where both are recorded. Chairs come from the tab's
-          chaired-rounds field, which some tabs leave blank or incomplete, so the rate may
-          under-report chairing. A missing chair count beside a judged-round count is read as none
-          chaired, because that is also how a zero is stored.
-          {chairExclusions.length > 0 ? ` Left out: ${chairExclusions.join('; ')}.` : ''}
-          {chair.undated > 0
-            ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
-            : ''}
-        </p>
+      {/* Figure and table side by side: alone, the one tile stretched across
+          the section and the five-column table ran thin over 1,000 px
+          (owner review 2026-10-29). */}
+      <div className="grid items-start gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <StatRow columns={1}>
+          {chair.overall.chairRate != null ? (
+            <StatTile
+              label="Chair rate"
+              value={pct(chair.overall.chairRate)}
+              hint={`${chair.overall.roundsChaired} of ${plural(chair.overall.roundsJudged, 'prelim')} judged · ${plural(chair.overall.measured, 'tournament')}`}
+            />
+          ) : chair.chairedWithoutCount.tournaments > 0 ? (
+            // No tournament carries a judged-round count, so there is nothing to
+            // divide by; a per-tournament chair count is the most the rows say.
+            <StatTile
+              label="Prelims chaired per tournament"
+              value={(
+                chair.chairedWithoutCount.rounds / chair.chairedWithoutCount.tournaments
+              ).toFixed(1)}
+              hint={`${chair.chairedWithoutCount.rounds} chaired over ${plural(chair.chairedWithoutCount.tournaments, 'tournament')}; prelims judged not recorded`}
+            />
+          ) : (
+            <StatTile label="Chair rate" value="—" hint="no prelim counts recorded" />
+          )}
+        </StatRow>
+        <div className="panel overflow-hidden">
+          <div className="data-label px-4 pt-4">Chair rate by season</div>
+          <TableScroll className="mt-2">
+            <Table className="min-w-max" label="Chair rate by season">
+              <thead>
+                <tr>
+                  <Th className="pl-4">Season</Th>
+                  <Th
+                    numeric
+                    title="Tournaments with a count of prelims judged, of those judged that season"
+                  >
+                    Events counted
+                  </Th>
+                  <Th numeric>Prelims judged</Th>
+                  <Th numeric>Chaired</Th>
+                  <Th numeric className="pr-4">
+                    Chair rate
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {chair.seasons.map((s) => (
+                  <Tr key={s.year}>
+                    <Td className="pl-4 num">{s.year}</Td>
+                    <Td numeric>
+                      {s.measured === s.tournaments ? (
+                        s.tournaments
+                      ) : (
+                        <span
+                          title={`${s.measured} of ${s.tournaments} carry a count of prelims judged`}
+                        >
+                          {s.measured} of {s.tournaments}
+                        </span>
+                      )}
+                    </Td>
+                    <Td numeric>
+                      {s.measured > 0 ? s.roundsJudged : <Nil title="No count of prelims judged" />}
+                    </Td>
+                    <Td numeric>
+                      {s.measured > 0 ? (
+                        s.roundsChaired
+                      ) : (
+                        <Nil title="No count of prelims judged" />
+                      )}
+                    </Td>
+                    <Td numeric className="pr-4">
+                      {pct(s.chairRate) ?? <Nil title="No count of prelims judged" />}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableScroll>
+          <p className="px-4 pb-4 pt-2 text-caption text-ink-soft">
+            Prelims chaired over prelims judged, where both are recorded. Chairs come from the tab's
+            chaired-rounds field, which some tabs leave blank or incomplete, so the rate may
+            under-report chairing. A missing chair count beside a judged-round count is read as none
+            chaired, because that is also how a zero is stored.
+            {chairExclusions.length > 0 ? ` Left out: ${chairExclusions.join('; ')}.` : ''}
+            {chair.undated > 0
+              ? ` ${plural(chair.undated, 'undated tournament')} ${chair.undated === 1 ? 'counts' : 'count'} in the overall rate but no season.`
+              : ''}
+          </p>
+        </div>
       </div>
     </section>
   );

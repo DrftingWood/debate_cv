@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-10-29 - UI review, part 3: charts and Statistics
+
+- **Career charts** (`components/ui/CareerChart.tsx`).
+  - The always-on 96 px "Hover, focus or tap a year" box is gone. A one-line hint sits in the figcaption, and the year's details appear only while a year is active, floating over the legend (not the bars, where they would sit under the pointer and flicker) in a polite live region. The panel height stays the same either way: 460 px measured.
+  - The major ◆ notch is inside its cell, not hanging off the bar's edge, where it read as a glitch.
+  - The legend is an even 2/3-column grid, not a wrapping row with orphans.
+  - Bar height still follows tournaments per year (owner decision 5).
+  - Hydration note: the figcaption must stay a direct child of `<figure>`. A wrapper div around it is invalid HTML and broke hydration on /cv during this change.
+- **Statistics summary strip.**
+  - The four strongest findings show; the rest fold behind "Show N more findings". The tabs now start at 783 px; they were 1,021 px down.
+  - A finding's direction is a ▲/▼ glyph as well as a colour.
+  - The stale "checkable against the tables below" copy is replaced.
+- **Chairing.** The rate tile and the by-season table sit side by side (16rem + the rest). Before, one tile stretched across the section and the five-column table ran thin over 1,000 px.
+- **Checked** in Playwright on the seeded local DB: hover shows and leaving hides the details; the notch is inside its cell; the legend is a grid; the stats tabs start at 783 px with 4 findings and the fold; the chairing grid is 256 px + rest; no page errors on /cv, /cv?tab=adjudication or /sample.
+- **Rollback.** Revert the merge commit.
+
+---
+
 ## 2026-10-29 - UI review, part 2: /sample is the real product
 
 - **One fictional record** (`lib/sample/sampleRecord.ts`). It holds Maya Rao, with 11 speaking and 3 judging rows shaped as real `CvSpeakerRow` / `CvJudgeRow` data. Both the landing hero's preview (`AnnotatedSample`) and `/sample` read it, so they show one person; they used to show "A. Debater" and "Maya Rao".
