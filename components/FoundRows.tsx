@@ -160,7 +160,7 @@ export function FoundRows(props: RowsProps) {
             <h3 className="text-body">
               <TournamentLink name={rowLabel(row)} href={row.publicUrl} />
             </h3>
-            <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-table">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-table">
               <dt className="data-label">Listed as</dt>
               <dd className="text-ink">{row.listedName}</dd>
               <dt className="data-label">Role</dt>

@@ -148,7 +148,7 @@ export function IngestProgressTracker({ scope }: { scope: 'user' | 'global' }) {
           aria-valuemin={0}
           aria-valuemax={data.batchTotal}
           aria-valuenow={completed}
-          className="h-1.5 overflow-hidden rounded-sm bg-ink/[0.08]"
+          className="h-1.5 overflow-hidden rounded-sm bg-ink/8"
         >
           <div
             className={

@@ -89,7 +89,7 @@ export function StatTile({
     <div className={cn('min-w-0', className)}>
       {/* Wraps rather than truncating: a label cut to "Career speaker a…"
           with the rest only in `title` cannot be read on a phone (SC 1.4.13). */}
-      <div className="data-label break-words">{label}</div>
+      <div className="data-label wrap-break-word">{label}</div>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span className={cn('figure', figureSize, accentClass)}>{value}</span>
         {delta ? <DeltaChip value={delta} trend={trend} /> : null}

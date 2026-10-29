@@ -295,11 +295,11 @@ export function AdminTagProposals() {
                       {p.currentValue ?? <span className="text-ink-soft">none</span>}
                     </Td>
                     <Td>
-                      <span className="block max-w-[14rem] break-words">{p.tournamentName}</span>
+                      <span className="block max-w-56 wrap-break-word">{p.tournamentName}</span>
                     </Td>
                     <Td>
                       {p.motionText ? (
-                        <span className="block max-w-[18rem] break-words text-ink-soft">
+                        <span className="block max-w-[18rem] wrap-break-word text-ink-soft">
                           {p.motionText}
                         </span>
                       ) : (
@@ -346,7 +346,7 @@ export function AdminTagProposals() {
                             }
                             className={
                               'h-7 w-48 rounded border border-input bg-paper px-2 text-caption ' +
-                              'text-ink placeholder:text-ink-soft focus:outline-none ' +
+                              'text-ink placeholder:text-ink-soft focus:outline-hidden ' +
                               'focus:ring-1 focus:ring-ring'
                             }
                           />

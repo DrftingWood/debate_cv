@@ -22,12 +22,12 @@ export function FieldError({ id, children }: { id: string; children: ReactNode }
  * `border-border`: a hairline is right for a table rule and wrong for the
  * thing you have to find before you can type in it (FORM-5, UX-18; the token
  * itself is raised to 3:1 in the shared-primitives change). No
- * `outline-none`: the global `:focus-visible` outline is the visible focus
+ * `outline-hidden`: the global `:focus-visible` outline is the visible focus
  * (UX-10). An invalid field turns its edge red as well as getting the text.
  */
 export const fieldInputClass =
   'block w-full rounded-md border border-input bg-card px-3.5 py-2.5 text-base text-ink shadow-xs md:text-ui ' +
-  'aria-[invalid=true]:border-2 aria-[invalid=true]:border-destructive';
+  'aria-invalid:border-2 aria-invalid:border-destructive';
 
 /** Join describedby ids, dropping the ones whose element is not rendered. */
 export function describedBy(...ids: (string | false | null | undefined)[]): string | undefined {

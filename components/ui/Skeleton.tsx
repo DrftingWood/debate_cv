@@ -6,7 +6,7 @@ export function Skeleton({ className, ...rest }: React.HTMLAttributes<HTMLDivEle
     <div
       aria-hidden
       className={cn(
-        'animate-shimmer rounded-md bg-gradient-to-r from-muted via-secondary to-muted bg-[length:400px_100%]',
+        'animate-shimmer rounded-md bg-linear-to-r from-muted via-secondary to-muted bg-size-[400px_100%]',
         className,
       )}
       {...rest}

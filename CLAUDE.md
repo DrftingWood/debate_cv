@@ -21,7 +21,7 @@ Personal debate CV builder. Signs the user in with Google, reads Gmail (read-onl
 - **Next.js 16** App Router (Turbopack; `proxy.ts` is the old middleware), React 19, TypeScript 6.0 (strict; stay on `~6.0` until typescript-eslint supports 7)
 - **Auth.js / next-auth v5 beta** (`5.0.0-beta.32`, pinned exactly; one `@auth/core` 0.41.3 shared with `@auth/prisma-adapter` 2.11.3), Google OAuth (`openid email profile gmail.readonly`)
 - **Prisma 7** against Postgres (Vercel Postgres / Neon) through the `pg` driver adapter: `POSTGRES_PRISMA_URL` (pooled) feeds `lib/db.ts`, which sizes the pool in code; `POSTGRES_URL_NON_POOLING` (direct) feeds `prisma.config.ts` for migrations. Prisma 7 does not load `.env` itself
-- **Tailwind 3.4** + `@tailwindcss/typography`, custom HSL CSS-var design tokens
+- **Tailwind 4** (`@tailwindcss/postcss`; no JS config, the theme is the `@theme` block in `app/globals.css`) + `@tailwindcss/typography` via `@plugin`, custom HSL CSS-var design tokens
 - **googleapis 144** for Gmail, **cheerio 1** for scraping
 - **Sentry** (`@sentry/nextjs` 10) wired via `withSentryConfig` in `next.config.ts`, tunneled through `/monitoring`
 - **Vitest 2** for tests (Node env)
@@ -87,7 +87,7 @@ tests/                        Vitest, flat layout (`tests/*.test.ts` + `tests/ap
 
 - **Path alias**: `@/*` → repo root (e.g. `@/lib/db`, `@/components/ui/Button`). Both tsconfig and vitest are configured.
 - **Components**: flat in `components/`, no per-component folders, no colocated styles (Tailwind only). Primitive UI lives in `components/ui/`; feature components sit alongside.
-- **Styling**: Tailwind with HSL CSS variables (see `tailwind.config.ts` + `app/globals.css`). Use `cn()` from `lib/utils/cn.ts` for conditional classes. Custom font-size scale (`caption`/`body`/`h1`–`h4`/`figure-sm|md|lg`/`display`) and shadow/radius tokens — prefer these over raw values.
+- **Styling**: Tailwind with HSL CSS variables (the `@theme` block and the theme variables in `app/globals.css`). Use `cn()` from `lib/utils/cn.ts` for conditional classes. Custom font-size scale (`caption`/`body`/`h1`–`h4`/`figure-sm|md|lg`/`display`) and shadow/radius tokens — prefer these over raw values.
 - **Design language ("Ledger", 2026-07)**: the UI is a bank statement, not an editorial page. Read `docs/DESIGN_INSTRUCTIONS.md` §6 before any visual change. In practice: surfaces are `panel` / `panel-inset` / `panel-raised`; tables use the `.ledger` mechanics with `.cell-num` for numeric columns; micro-labels are `.data-label` (neutral) or `.eyebrow` (accented); headline figures use `.figure`; directional values use `.val-pos` / `.val-neg`. Colour on a number always means up/down — never brand or mood. The `ink` / `paper` / `oxblood` Tailwind aliases are an abstract contract (foreground / background / accent) and survive rethemes; prefer the explicit `surface-*`, `pos`, `neg`, `break-gold`, `score-blue` tokens in new work.
 - **Server-first**: App Router; API routes in `app/api/**/route.ts`. Heavy deps (`@prisma/client`, `googleapis`) declared in `serverExternalPackages`.
 - **DB access**: always via the `lib/db.ts` singleton, never `new PrismaClient()`.

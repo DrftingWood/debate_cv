@@ -52,7 +52,7 @@ export function UserMenu({
         aria-label="Account menu"
         aria-expanded={open}
         aria-controls="account-panel"
-        className="inline-flex h-9 w-9 coarse:h-11 coarse:w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/[0.10]"
+        className="inline-flex h-9 w-9 coarse:h-11 coarse:w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/10"
       >
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element

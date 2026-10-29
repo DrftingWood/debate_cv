@@ -455,7 +455,7 @@ function RoundLedger({
                           // in a hover-only title, which touch never shows
                           // (CV-9). The width cap sits on the inner block
                           // because browsers ignore max-width on a table cell.
-                          <span className="block max-w-[32rem] space-y-1">
+                          <span className="block max-w-lg space-y-1">
                             {motions.map((m, i) => (
                               <span key={i} className="block">
                                 {m.text}
@@ -583,7 +583,7 @@ function SpeakingTable({
                       block because a table cell ignores max-width.
                     */}
                       <Td>
-                        <div className="max-w-[13rem] break-words">
+                        <div className="max-w-52 wrap-break-word">
                           {r.teamName ?? <Nil />}
                           {r.teammates.length ? (
                             <div className="text-caption text-ink-soft">

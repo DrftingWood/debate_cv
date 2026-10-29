@@ -41,7 +41,10 @@ function Hero() {
     <section className="grid items-center gap-10 pt-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:pt-12">
       <div>
         <div className="eyebrow">Verified tournament record</div>
-        <h1 className="mt-4 max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display">
+        {/* Tailwind 4 lets an explicit leading/tracking beat a size token's own at
+            every breakpoint. Under v3, md:text-display's 1.02 / -0.03em won on
+            desktop, so the md: pair restates them. */}
+        <h1 className="mt-4 max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display md:leading-(--text-display--line-height) md:tracking-(--text-display--letter-spacing)">
           Your debate history, kept like an account
         </h1>
         <p className="mt-5 max-w-xl text-body leading-relaxed text-ink-soft">

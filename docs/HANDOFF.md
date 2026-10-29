@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-10-29 - Tailwind 3.4 -> 4.3 (redesign foundations, PR 1 of 4)
+
+- **Why.** First step of the redesign agreed on 2026-10-29 (design doc outside the repo: `reports/ui-ux/Design architecture - reimagined site 2026-10-29.md`, section 0). The new tokens (spacing scale, renamed colour aliases, `core-purple`) will be written as v4 `@theme` variables, so the platform moves first, on its own, with no visual change.
+- **Change.** `tailwindcss` 3.4 -> 4.3, `@tailwindcss/postcss` replaces `tailwindcss` + `autoprefixer` in `postcss.config.mjs`. `tailwind.config.ts` is deleted: its theme is the `@theme` block at the top of `app/globals.css`, and the `@layer components` classes (`panel`, `ledger`, `data-label`, ...) are now `@utility` blocks. Done with `npx @tailwindcss/upgrade`, then corrected by hand.
+- **What the upgrade tool got wrong, fixed here.**
+  - It dropped both plugins. `coarse:` / `fine:` are now `@custom-variant`s (18 files use `coarse:`); typography is `@plugin` (no call site uses `prose`, kept for parity).
+  - It rewrote the Button and Badge **variant name** `'outline'` to `'outline-solid'` in 7 places, treating a TypeScript string as a class. Reverted.
+  - It turned the numeric-header rule into `@utility text-right`, shadowing Tailwind's own utility, with an invalid `&th` selector. Removed; the `ledger` utility already right-aligns `th.text-right` and `th.cell-num`.
+  - It emitted a `container` utility with the wrong padding. Nothing uses `container`, so it is gone.
+  - It deleted the config's rationale comments; the ones that still apply are carried into `@theme`.
+  - Windows `npm install` dropped the two nested `@emnapi/*@1.11.2` lockfile entries; restored from `origin/main`.
+- **One real v4 behaviour change, compensated.** v4 lets an explicit `leading-*` / `tracking-*` beat a font-size token's own line-height and letter-spacing at every breakpoint; v3 let a later `md:text-display` win. That loosened the two desktop headlines (`/`, `/sample`). Both now restate the display token's values at `md:`. No other class list mixes a responsive size token with explicit leading or tracking.
+- **Renamed classes (mechanical, same output).** `break-words` -> `wrap-break-word`, `outline-none` -> `outline-hidden`, `outline` -> `outline-solid`, `bg-gradient-to-r` -> `bg-linear-to-r`, `[mask-image:...]` -> `mask-[...]`, arbitrary sizes to named ones of the same value (`max-w-[32rem]` -> `max-w-lg`), `bg-x/[0.06]` -> `bg-x/6`, `aria-[invalid=true]:` -> `aria-invalid:`. Two tests asserted on the old strings and are updated; the settings one now checks the `aria-invalid=` attribute, not the substring.
+- **Checked.** Production build of this branch vs production (`main`), full-page screenshots of `/`, `/sample`, `/privacy` at 390 and 1280 px in light and dark: **0 differing pixels in all 12**. Typecheck, lint, file-size, ratchet, 2208 tests and `next build` pass. **Not checked:** signed-in pages (no seeded database in this session); look at `/cv`, `/cv/stats`, `/dashboard` and `/settings` on the preview.
+- **Behaviour notes for v4.** `hover:` now applies only on devices that can hover, so taps no longer leave sticky hover states. Browser floor: Safari 16.4, Chrome 111, Firefox 128.
+- **Rollback.** Revert the merge commit; `npm ci` restores 3.4 and `tailwind.config.ts`. No data or migration involved.
+
+---
+
 ## 2026-10-28 - a11y smoke re-run on main, and the last measured defects fixed
 
 - **Re-run.** `npm run a11y` (axe WCAG 2.2 A/AA + best-practice, plus the overflow and target-size probes) against a production build of `main` with the seeded local database: **0 axe violations in all 52 route/width/theme combinations**, no console errors. The 27 Oct baseline had violations on 6 of 13 routes (46 dark contrast nodes on /privacy, 19 + 3 + 1 `scrollable-region-focusable`, `empty-table-header`, `definition-list`).

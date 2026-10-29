@@ -150,7 +150,7 @@ export function CvHighlights({ highlights }: { highlights: CvHighlightsData }) {
             </h3>
             <ul className="mt-2 space-y-1 text-caption leading-relaxed text-ink-soft">
               {t.items.map((item, j) => (
-                <li key={j} className="break-words">
+                <li key={j} className="wrap-break-word">
                   {item}
                 </li>
               ))}

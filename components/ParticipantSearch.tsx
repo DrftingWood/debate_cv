@@ -135,7 +135,7 @@ export function ParticipantSearch({
         A visible label, not a placeholder: the placeholder vanished on the
         first keystroke and took the instruction with it. `border-input`
         rather than the hairline `border-border` (a field edge must reach 3:1,
-        SC 1.4.11), and no `outline-none`: the global :focus-visible outline
+        SC 1.4.11), and no `outline-hidden`: the global :focus-visible outline
         is the visible focus, where the old 30% ring was close to invisible.
       */}
       <label htmlFor={inputId} className="block text-caption font-medium text-ink">
