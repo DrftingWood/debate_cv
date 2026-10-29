@@ -1,6 +1,8 @@
 import { ImageResponse } from 'next/og';
 import { prisma } from '@/lib/db';
 import { buildCvData } from '@/lib/cv/buildCvData';
+import { speakingSeries } from '@/lib/cv/careerChart';
+import { speakingYearTotal } from '@/lib/cv/periodTotal';
 import { ShareCard, type ShareCardPerson } from '@/components/landing/ShareCard';
 
 // Literals: Next reads these exports statically. Node runtime because Prisma
@@ -33,7 +35,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     if (user?.publicCvEnabled) {
       // Same hidden list as the page: the share card must not count or reveal
       // a tournament the owner hid (C101).
-      const { summary, highlights } = await buildCvData(user.id, {
+      const { summary, highlights, speakerRows } = await buildCvData(user.id, {
         includeFieldStats: false,
         excludeTournamentIds: user.publicHiddenTournamentIds ?? [],
       });
@@ -44,6 +46,9 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         speakingBreaks: summary.speakingBreaks,
         judgingBreaks: summary.judgingBreaks,
         activeYears: y ? (y.from === y.to ? `${y.from}` : `${y.from}–${y.to}`) : null,
+        // The career's deepest speaking result, by the chart's own tiers.
+        bestFinish: speakingYearTotal(speakerRows)?.bestResult ?? null,
+        speaking: speakingSeries(speakerRows),
       };
     }
   } catch {

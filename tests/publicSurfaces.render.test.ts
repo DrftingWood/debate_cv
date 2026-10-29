@@ -47,6 +47,38 @@ describe('link-preview card (COPY-2)', () => {
       expect(out).not.toContain(retired);
     }
   });
+
+  it("draws a person's card with the speaking chart and speaking breaks only (decision 12)", async () => {
+    const { ShareCard } = await import('@/components/landing/ShareCard');
+    const { speakingSeries } = await import('@/lib/cv/careerChart');
+    const { makeSpeakerRow } = await import('./setup/cv-fixtures');
+    // Called directly: ShareCard's props default to {}, which createElement's
+    // overloads cannot see through.
+    const out = renderToStaticMarkup(
+      ShareCard({
+        person: {
+          name: 'Maya Rao',
+          tournaments: 9,
+          speakingBreaks: 3,
+          judgingBreaks: 4,
+          activeYears: '2023–2025',
+          bestFinish: 'Semifinals',
+          speaking: speakingSeries([
+            makeSpeakerRow({ year: 2024, broke: true, eliminationReached: 'Semifinals' }),
+            makeSpeakerRow({ year: 2025 }),
+          ]),
+        },
+      }),
+    );
+    expect(out).toContain('Maya Rao');
+    expect(out).toContain('Best finish');
+    // Broke is the speaking figure alone, never speaking plus judging.
+    expect(out).toMatch(/Broke<\/div><div[^>]*>3</);
+    expect(out).not.toContain('>7<');
+    // One cell per tournament, in the tier colours (semifinal blue here).
+    expect(out).toContain('#1F5FB2');
+    expect(out).toContain('&#x27;24');
+  });
 });
 
 describe('approveAllInPasses (ADM-1)', () => {
