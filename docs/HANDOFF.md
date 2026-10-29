@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-10-29 - UI review, part 4: wording, polish, Motions paging
+
+- **Motions are paged, 30 per page** (owner: "heavily truncate the motions, 30 per page"). `app/(app)/cv/motions/page.tsx` slices the entries by `?page=` (clamped to the range).
+  - The summary figures still count the whole record.
+  - Groups on a page are open; a tournament split across pages is marked "continued".
+  - A pager shows "31–60 of 234 · page 2 of 8" with Previous and Next links.
+  - Measured on the seeded DB: 30 cards and about 745 DOM nodes per page (production showed 16,662 nodes on one page).
+  - Each group also has `content-visibility: auto`.
+- **Motion cards.** Every tag uses one style (outline): stem, topic, position, "1 of n" and "Judged" had been three looks. Judged motions drop the empty score, points and result row. The header's left-out note joins the main paragraph, in one text style.
+- **Record ledger.**
+  - On desktop the tournament name is plain text; the Source column is the row's one link (both used to link the same tab). Phone cards keep the name link.
+  - Pts never shows a speaker total: a figure above 3 × prelims is a two-team tab's speaker-point column and is replaced by the wins count or "—" (`TeamPoints`).
+  - On Adjudication the "Broke" badge sits once, with the last outround judged, not under "last chaired".
+  - The report button is a flag, not ⓘ.
+- **Settings.** The Sharing card is "Your public link" (the page title is "Public sharing"), and the eyebrow reads "Settings · Public sharing". The side nav loses its "Account" label, since Account is also a nav item. The Reports empty state is plain text, not a box inside a card.
+- **Legal pages** (`legalProse.ts`). A `max-w-prose` measure (656 px; it was 1,496 px, about 148 characters a line) and no typography-plugin backticks around inline code.
+- **Loading.**
+  - The root `app/loading.tsx` keeps a header-height bar and a content block. It was a bare centred spinner, the first paint of every full load before the async app layout streams.
+  - The Record skeleton matches the redesigned page: name, two tile and chart columns, the tab row and year rules.
+- **Checked** in Playwright against the seeded local DB: motions pages 1, 2 and 99; one link per ledger row; the flag icon; the Sharing titles; the privacy measure; no page errors.
 ## 2026-10-29 - UI review, part 3: charts and Statistics
 
 - **Career charts** (`components/ui/CareerChart.tsx`).

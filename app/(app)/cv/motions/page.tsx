@@ -46,7 +46,19 @@ export const dynamic = 'force-dynamic';
  * user's team's result in that stage (advanced, won, eliminated): outround
  * speaker scores are not published, so a result is all there is to show.
  */
-export default async function CvMotionsPage() {
+/**
+ * Motions per page (owner, 2026-10-29: "heavily truncate the motions, 30 per
+ * page"). The archive ran to 234 motion cards and 16,000 DOM nodes on one
+ * page, which froze the browser. The summary figures above the list still
+ * count the whole record; only the list is paged.
+ */
+const PER_PAGE = 30;
+
+export default async function CvMotionsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string | string[] }>;
+} = {}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const isAdmin = isAdminEmail(session.user.email);
@@ -87,8 +99,18 @@ export default async function CvMotionsPage() {
   const debatedTournaments = new Set(debated.map((e) => e.tournamentKey)).size;
   const judgedEntries = entries.filter((e) => e.judgedOnly);
 
+  const pages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
+  const raw = (await searchParams)?.page;
+  const asked = Number.parseInt(Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? ''), 10);
+  const page = Number.isFinite(asked) ? Math.min(Math.max(asked, 1), pages) : 1;
+  const from = (page - 1) * PER_PAGE;
+  const pageEntries = entries.slice(from, from + PER_PAGE);
+  // A tournament whose motions straddle a page boundary says so on the
+  // later page, rather than looking like a second tournament.
+  const continued = from > 0 ? entries[from - 1]?.tournamentKey : undefined;
+
   const byTournament = new Map<string, MotionEntry[]>();
-  for (const e of entries) {
+  for (const e of pageEntries) {
     const list = byTournament.get(e.tournamentKey) ?? [];
     list.push(e);
     byTournament.set(e.tournamentKey, list);
@@ -101,18 +123,16 @@ export default async function CvMotionsPage() {
         <h1 className="mt-2 font-display text-h1 font-medium tracking-tight text-ink">
           Every motion on your record
         </h1>
+        {/* One paragraph in one style (owner review 2026-10-29: two body
+            paragraphs and a smaller third note sat stacked here). */}
         <p className="mt-2 max-w-2xl text-body text-ink-soft">
           Scraped from each tournament&rsquo;s motions tab and joined to the round you debated it
           in. For tournaments you judged, only the rounds you sat on a panel for are listed.
           Tournaments that never released their motions publicly do not appear.
+          {leftOut > 0
+            ? ` ${leftOut} tournament${leftOut === 1 ? '' : 's'} you judged ${leftOut === 1 ? 'is' : 'are'} left out because ${leftOut === 1 ? 'its' : 'their'} panels aren’t recorded.`
+            : ''}
         </p>
-        {leftOut > 0 ? (
-          <p className="mt-2 max-w-2xl text-caption text-ink-soft">
-            {leftOut} tournament{leftOut === 1 ? '' : 's'} you judged {leftOut === 1 ? 'is' : 'are'}{' '}
-            not listed here because {leftOut === 1 ? 'its' : 'their'} panels aren&rsquo;t recorded,
-            so there is no telling which rounds you sat on.
-          </p>
-        ) : null}
       </header>
 
       {entries.length === 0 ? (
@@ -204,11 +224,20 @@ export default async function CvMotionsPage() {
             existed; it just was not foldable, so the grouping bought
             nothing. The headers now act as the archive's table of contents.
           */}
+          <MotionPager page={page} pages={pages} total={entries.length} from={from} />
           <div className="space-y-3">
-            {[...byTournament.entries()].map(([key, list], index) => {
+            {[...byTournament.entries()].map(([key, list]) => {
               const first = list[0];
               return (
-                <details key={key} className="group panel px-4" open={index === 0}>
+                // content-visibility: an archive of 200+ motions is 16,000+
+                // nodes, and laying out every group froze the page (owner
+                // review 2026-10-29). Off-screen groups now skip layout and
+                // paint; they stay in the DOM, so find-in-page still works.
+                <details
+                  key={key}
+                  className="group panel px-4 [contain-intrinsic-size:auto_5rem] [content-visibility:auto]"
+                  open
+                >
                   <summary className="flex cursor-pointer select-none items-center justify-between gap-3 py-4">
                     <span className="min-w-0">
                       <span className="data-label block">
@@ -216,6 +245,11 @@ export default async function CvMotionsPage() {
                       </span>
                       <span className="mt-1 block wrap-break-word font-display text-h4 font-medium text-ink">
                         {first.tournamentName}
+                        {key === continued ? (
+                          <span className="ml-inline text-caption font-normal text-ink-soft">
+                            continued
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-caption text-ink-soft">
@@ -235,6 +269,7 @@ export default async function CvMotionsPage() {
               );
             })}
           </div>
+          <MotionPager page={page} pages={pages} total={entries.length} from={from} />
         </>
       )}
     </div>
@@ -245,20 +280,22 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
   const { motion } = entry;
   return (
     <li className="panel p-4">
+      {/* One tag style for every tag (owner review 2026-10-29: a blue
+          chip, a bare outline and a grey chip sat in one row). */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="num text-caption font-medium text-ink">{motion.roundLabel}</span>
-        {entry.position ? <Badge variant="neutral">{entry.position}</Badge> : null}
+        {entry.position ? <Badge variant="outline">{entry.position}</Badge> : null}
         {motion.motionType ? (
-          <Badge variant="info" title="Stem tag, approved by a moderator">
+          <Badge variant="outline" title="Stem tag, approved by a moderator">
             {motion.motionType}
           </Badge>
         ) : null}
         {motion.topic ? <Badge variant="outline">{motion.topic}</Badge> : null}
         {entry.siblings > 0 ? (
-          <Badge variant="neutral">1 of {entry.siblings + 1} this round</Badge>
+          <Badge variant="outline">1 of {entry.siblings + 1} this round</Badge>
         ) : null}
         {entry.judgedOnly ? (
-          <Badge variant="neutral" title="You judged at this tournament rather than speaking.">
+          <Badge variant="outline" title="You judged at this tournament rather than speaking.">
             Judged
           </Badge>
         ) : null}
@@ -285,11 +322,15 @@ function MotionCard({ entry }: { entry: MotionEntry }) {
         </details>
       ) : null}
 
-      <dl className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-border pt-3">
-        <Stat label="Your score" value={entry.score != null ? entry.score.toFixed(1) : null} />
-        <Stat label="Team points" value={entry.points != null ? String(entry.points) : null} />
-        <Stat label="Result" value={resultLabel(entry)} tone={resultTone(entry)} />
-      </dl>
+      {/* A judged motion has no score, points or result of yours, so the
+          row of three dashes is left out rather than shown empty. */}
+      {entry.judgedOnly ? null : (
+        <dl className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-border pt-3">
+          <Stat label="Your score" value={entry.score != null ? entry.score.toFixed(1) : null} />
+          <Stat label="Team points" value={entry.points != null ? String(entry.points) : null} />
+          <Stat label="Result" value={resultLabel(entry)} tone={resultTone(entry)} />
+        </dl>
+      )}
     </li>
   );
 }
@@ -333,5 +374,47 @@ function Stat({
         {value ?? <Nil />}
       </dd>
     </div>
+  );
+}
+
+/**
+ * Page links for the archive: previous, "31–60 of 234", next. Plain links,
+ * so each page is its own URL and the browser's Back steps through them.
+ */
+function MotionPager({
+  page,
+  pages,
+  total,
+  from,
+}: {
+  page: number;
+  pages: number;
+  total: number;
+  from: number;
+}) {
+  if (pages <= 1) return null;
+  const to = Math.min(from + PER_PAGE, total);
+  const href = (n: number) => (n === 1 ? '/cv/motions' : `/cv/motions?page=${n}`);
+  return (
+    <nav
+      aria-label="Motion pages"
+      className="flex flex-wrap items-center justify-between gap-tight border-y border-border py-tight"
+    >
+      <span className="font-mono text-caption text-ink-soft">
+        {from + 1}–{to} of {total} · page {page} of {pages}
+      </span>
+      <span className="flex items-center gap-inline">
+        {page > 1 ? (
+          <Link href={href(page - 1)} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            ← Previous
+          </Link>
+        ) : null}
+        {page < pages ? (
+          <Link href={href(page + 1)} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            Next →
+          </Link>
+        ) : null}
+      </span>
+    </nav>
   );
 }

@@ -67,7 +67,7 @@ export default async function ReportsSettingsPage() {
           </div>
 
           {reports.length === 0 ? (
-            <p className="rounded-md border border-border bg-paper p-4 text-caption text-ink-soft">
+            <p className="text-ui text-ink-soft">
               You haven&apos;t reported any CV issues yet. The Report button on each row of{' '}
               <strong>Record</strong> opens a quick form for telling us when something looks wrong.
             </p>

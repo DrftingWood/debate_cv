@@ -144,9 +144,10 @@ describe('/cv speaking ledger (desktop)', () => {
     const out = await render(record());
     const blankLinks = out.match(/target="_blank"/g)?.length ?? 0;
     const announced = out.match(/\(opens in new tab\)/g)?.length ?? 0;
-    // Two tournaments, each linked once in the ledger and once on its card,
-    // plus each row's Source link to the same public tab.
-    expect(blankLinks).toBe(6);
+    // Two tournaments: on the desktop ledger the Source column is the row's
+    // one link (the name is plain text since the 2026-10-29 review), and
+    // each phone card links its name.
+    expect(blankLinks).toBe(4);
     expect(announced).toBe(blankLinks);
     expect(out).not.toContain('opacity-0');
   });

@@ -27,9 +27,10 @@ export default async function SettingsLayout({ children }: { children: React.Rea
           <div className="mb-3">
             {/* Not a heading: it sat as an h2 above every sub-page's h1,
                 which reversed the outline (SET-12). Each page's own h1 is
-                the first heading. */}
-            <div className="data-label">Account</div>
-            <p className="mt-1 font-display text-h3 font-medium text-ink">Settings</p>
+                the first heading. No "Account" label above it: Account is
+                also an item in the list, so the word named two things
+                (owner review 2026-10-29). */}
+            <p className="font-display text-h3 font-medium text-ink">Settings</p>
           </div>
           <SettingsSideNav />
         </aside>
