@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Bell, Tray } from '@/components/ui/icons';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils/cn';
 import { postJson } from '@/lib/utils/api';
 import { formatDate } from '@/lib/utils/date';
@@ -81,29 +82,31 @@ export function NotificationBell() {
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-controls="notifications-panel"
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
-      >
-        <Bell className="h-4 w-4" aria-hidden />
-        {unreadCount > 0 ? (
-          <span
-            aria-hidden
-            className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground ring-2 ring-background"
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        ) : null}
-        {/* The button's name. It used to be overridden by an aria-label of
+      <Tooltip content="Notifications" align="end">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls="notifications-panel"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink coarse:h-11 coarse:w-11"
+        >
+          <Bell className="h-4 w-4" aria-hidden />
+          {unreadCount > 0 ? (
+            <span
+              aria-hidden
+              className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground ring-2 ring-background"
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          ) : null}
+          {/* The button's name. It used to be overridden by an aria-label of
             plain "Notifications", so the unread count was never read out. */}
-        <span className="sr-only">
-          {unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-        </span>
-      </button>
+          <span className="sr-only">
+            {unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+          </span>
+        </button>
+      </Tooltip>
       {open ? (
         // A disclosure, not role="menu" (UX-5): the panel holds a heading
         // and plain links, none of them menu items, so the menu role was a

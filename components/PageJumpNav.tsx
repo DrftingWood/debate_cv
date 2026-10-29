@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowUp } from '@/components/ui/icons';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils/cn';
 
 export type JumpTarget = { id: string; label: string };
@@ -97,29 +98,37 @@ export function PageJumpNav({ targets, className }: { targets: JumpTarget[]; cla
         reduced motion itself, because the globals.css guard covers CSS
         scroll-behavior, not a scrollTo() option.
       */}
-      <button
-        type="button"
-        onClick={() =>
-          window.scrollTo({
-            top: 0,
-            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-              ? 'auto'
-              : 'smooth',
-          })
-        }
-        tabIndex={showTop ? 0 : -1}
-        aria-hidden={!showTop}
-        aria-label="Back to top"
-        data-print-hide="true"
-        className={cn(
-          'fixed right-5 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-ink shadow-md transition-opacity hover:bg-surface-2 md:h-11 md:w-11',
-          // Clear of the home indicator on a notched phone.
-          'bottom-[calc(1.25rem+env(safe-area-inset-bottom))]',
-          showTop ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
+      <Tooltip
+        content="Back to top"
+        side="left"
+        disabled={!showTop}
+        // The wrapper carries the fixed position so the label sits beside
+        // the button, which is laid out normally inside it. Bottom offset:
+        // clear of the home indicator on a notched phone.
+        className="fixed right-5 z-40 bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"
       >
-        <ArrowUp className="h-4 w-4" aria-hidden />
-      </button>
+        <button
+          type="button"
+          onClick={() =>
+            window.scrollTo({
+              top: 0,
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                ? 'auto'
+                : 'smooth',
+            })
+          }
+          tabIndex={showTop ? 0 : -1}
+          aria-hidden={!showTop}
+          aria-label="Back to top"
+          data-print-hide="true"
+          className={cn(
+            'inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-ink shadow-md transition-opacity hover:bg-surface-2 md:h-11 md:w-11',
+            showTop ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+        >
+          <ArrowUp className="h-4 w-4" aria-hidden />
+        </button>
+      </Tooltip>
     </>
   );
 }

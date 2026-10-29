@@ -72,6 +72,8 @@ components/
                               Spinner, StatusPill, EmptyState, DataTable (Table/Th/Td/Tr/Nil),
                               StatTile (+ StatRow, DeltaChip), TrendChart (+ Sparkline),
                               BarList (+ Meter, Histogram), icons (the one icon barrel) + DebateMarks
+                              Tooltip (icon-only controls), Tabs (APG, URL-synced), CareerChart
+                              (yearly speaking/judging bars; model in lib/cv/careerChart.ts)
   (flat)                      Feature components (DashboardActions, IdentityManager, CvHighlights, SharingManager, ...)
 
 prisma/

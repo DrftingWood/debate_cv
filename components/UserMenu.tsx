@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Gear, SignOut } from '@/components/ui/icons';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { signOutAction } from '@/lib/auth/signOutAction';
 import { usePopover } from '@/components/ui/usePopover';
 
@@ -45,29 +46,31 @@ export function UserMenu({
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((p) => !p)}
-        aria-label="Account menu"
-        aria-expanded={open}
-        aria-controls="account-panel"
-        className="inline-flex h-9 w-9 coarse:h-11 coarse:w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/10"
-      >
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            alt=""
-            width={36}
-            height={36}
-            className="h-full w-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span aria-hidden>{initials}</span>
-        )}
-      </button>
+      <Tooltip content="Account" align="end">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((p) => !p)}
+          aria-label="Account menu"
+          aria-expanded={open}
+          aria-controls="account-panel"
+          className="inline-flex h-9 w-9 coarse:h-11 coarse:w-11 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-2 text-byline font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink/10"
+        >
+          {image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={image}
+              alt=""
+              width={36}
+              height={36}
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span aria-hidden>{initials}</span>
+          )}
+        </button>
+      </Tooltip>
       {open ? (
         <div
           ref={panelRef}

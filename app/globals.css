@@ -219,6 +219,9 @@
   --animate-fade-up: fade-up 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade-in: fade-in 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-shimmer: shimmer 1.4s linear infinite;
+  /* Career-chart bars rising from the baseline, once (redesign motion spec:
+     at most 700 ms with the stagger; callers gate it with motion-safe:). */
+  --animate-grow-up: grow-up 500ms var(--ease-soft) both;
 
   @keyframes fade-up {
     0% {
@@ -236,6 +239,14 @@
     }
     100% {
       opacity: 1;
+    }
+  }
+  @keyframes grow-up {
+    0% {
+      transform: scaleY(0);
+    }
+    100% {
+      transform: scaleY(1);
     }
   }
   @keyframes shimmer {
