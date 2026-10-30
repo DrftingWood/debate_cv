@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import {
   acquireScrapeClaim,
@@ -139,4 +140,55 @@ export async function rescrapePieces(
     await releaseScrapeClaim(tournamentId);
   }
   return result;
+}
+
+/*
+ * Time one tournament's retry needs before it is worth starting: a landing
+ * page, the requested pages and the write. Starting with less leaves a
+ * half-done scrape for the platform to kill, so the loop ends the tick instead.
+ */
+const RETRY_HEADROOM_MS = 20_000;
+
+/**
+ * Retries every piece whose back-off has run out (status 'failed', nextRetryAt
+ * due), one tournament at a time: calicotab is treated as one host, so
+ * tournaments are not hit in parallel. The oldest due piece goes first. A
+ * tournament another scrape holds is skipped (its pieces stay due for the next
+ * tick); any other error is reported and the loop moves on, because one broken
+ * tournament must not starve the rest. `rescrape` is injectable for tests.
+ */
+export async function retryDuePieces(opts: {
+  deadline: number;
+  now?: Date;
+  rescrape?: typeof rescrapePieces;
+}): Promise<{ tournaments: number; loaded: number; failed: number }> {
+  const rescrape = opts.rescrape ?? rescrapePieces;
+  const due = await prisma.scrapePiece.findMany({
+    where: { status: 'failed', nextRetryAt: { lte: opts.now ?? new Date() } },
+    orderBy: { nextRetryAt: 'asc' },
+    select: { tournamentId: true, kind: true, key: true },
+  });
+  const byTournament = new Map<bigint, PieceRef[]>();
+  for (const p of due) {
+    const refs = byTournament.get(p.tournamentId) ?? [];
+    refs.push({ kind: p.kind as PieceKind, key: p.key });
+    byTournament.set(p.tournamentId, refs);
+  }
+  const total = { tournaments: 0, loaded: 0, failed: 0 };
+  for (const [tournamentId, refs] of byTournament) {
+    if (Date.now() >= opts.deadline - RETRY_HEADROOM_MS) break;
+    try {
+      const r = await rescrape(tournamentId, refs, { deadline: opts.deadline });
+      total.tournaments += 1;
+      total.loaded += r.loaded.length;
+      total.failed += r.failed.length;
+    } catch (err) {
+      if (err instanceof ScrapeBusyError) continue;
+      Sentry.captureException(err, {
+        tags: { stage: 'piece-retry' },
+        extra: { tournamentId: String(tournamentId) },
+      });
+    }
+  }
+  return total;
 }

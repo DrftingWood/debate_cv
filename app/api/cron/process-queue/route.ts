@@ -12,6 +12,7 @@ import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
+import { retryDuePieces } from '@/lib/calicotab/partialScrape';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -149,19 +150,41 @@ async function runBackgroundScan() {
   );
 }
 
+// A scan failure must never stop the drain.
+async function scanSafely() {
+  try {
+    return await runBackgroundScan();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
+    });
+    return null;
+  }
+}
+
+/*
+ * Failed pieces of stored tournaments retry here, after the drain so new
+ * imports keep priority. They share the drain's TIME_BUDGET_MS from the tick's
+ * start; retryDuePieces starts no tournament without 20s left. A failure here
+ * is reported and never fails the tick.
+ */
+async function retryPiecesSafely(startedAt: number) {
+  try {
+    return await retryDuePieces({ deadline: startedAt + TIME_BUDGET_MS });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'piece-retry' },
+    });
+    return null;
+  }
+}
+
 async function runOnce() {
+  const startedAt = Date.now();
   try {
     await resetStuckRunning({});
 
-    // A scan failure must never stop the drain.
-    let scan: Awaited<ReturnType<typeof runBackgroundScan>> = null;
-    try {
-      scan = await runBackgroundScan();
-    } catch (err) {
-      Sentry.captureException(err, {
-        tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
-      });
-    }
+    const scan = await scanSafely();
 
     const report = await drainQueue(
       {
@@ -184,6 +207,7 @@ async function runOnce() {
       },
     );
     const { results, stoppedForBudget } = report;
+    const piecesRetried = await retryPiecesSafely(startedAt);
 
     // Retention pass for pipeline history (superseded SourceDocument
     // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
@@ -221,6 +245,7 @@ async function runOnce() {
       results,
       scan,
       pruned,
+      piecesRetried,
       stoppedForBudget,
       peakInFlight: report.peakInFlight,
       elapsedMs: report.elapsedMs,

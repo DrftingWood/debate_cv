@@ -16,6 +16,9 @@ vi.mock('@/lib/calicotab/ingest', () => ({
   isDeadlockError: () => false,
 }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
+vi.mock('@/lib/calicotab/partialScrape', () => ({
+  retryDuePieces: vi.fn(async () => ({ tournaments: 0, loaded: 0, failed: 0 })),
+}));
 // The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
 const scanDueMailboxes = vi.fn();
 vi.mock('@/lib/gmail/backgroundScan', () => ({ scanDueMailboxes }));
