@@ -69,12 +69,16 @@ export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
       `All ${rooms.size} prelim rounds have ${typical} rooms.`,
     );
   }
-  // Every round not listed equals the median, so "the other rounds" is exact.
   const listed = listText(odd.map((o) => `R${o.round} has ${o.n} ${plural(o.n, 'room', 'rooms')}`));
+  // A round not listed equals the median, so "the other rounds" is exact when
+  // there are any; with an even split (16/16/12/12) no round sits at the
+  // median and the sentence names the median itself.
+  const others =
+    odd.length < rooms.size ? `the other rounds have ${typical}` : `the median is ${typical}`;
   return result(
     'rooms_consistent',
     worst(odd.map((o) => o.status)),
-    `${listed}; the other rounds have ${typical}.`,
+    `${listed}; ${others}.`,
     odd.map((o) => prelimPiece(inputs.pieces, o.round)),
   );
 }
@@ -87,10 +91,13 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
   const pieces = [tabPiece(inputs.pieces, 'team'), prelimPiece(inputs.pieces, 1)];
   const tab = teamTabKeys(inputs);
   if (tab.size === 0) return result('team_coverage', 'fail', 'There is no team tab.', pieces);
+  // Only R1 teams that are on the tab count: a swing team in R1 is not on
+  // the tab, and counting it would hide a real team missing from the round.
   const r1 = new Set(
     prelimRows(inputs)
       .filter((r) => r.round === 1)
-      .map((r) => teamKey(r.team)),
+      .map((r) => teamKey(r.team))
+      .filter((k) => tab.has(k)),
   );
   const share = r1.size / tab.size;
   const status: CheckStatus = share < 0.8 ? 'fail' : share < 0.95 ? 'warn' : 'pass';
@@ -155,20 +162,23 @@ export function checkPanels(inputs: AuditInputs): CheckResult {
   if (short.length === 0) {
     return result('panels', 'pass', 'Every prelim round has a chair and a judge for each room.');
   }
-  // Between 90% and every room is short of the rule but not past the fail line.
-  const failed = short.some((r) => Math.min(r.chairs, r.judges) < 0.9 * r.n);
   const listed = listText(
     short.map((r) => `R${r.round} has ${r.chairs} chairs and ${r.judges} judges for ${r.n} rooms`),
   );
+  // The spec's only line is 90%: a round at 90% or more of its rooms passes
+  // at full weight (a room or two can run a scratch panel), though the
+  // detail still names the shortfall.
+  const failing = short.filter((r) => Math.min(r.chairs, r.judges) < 0.9 * r.n);
+  if (failing.length === 0) return result('panels', 'pass', `${listed}, within 90% of rooms.`);
   return result(
     'panels',
-    failed ? 'fail' : 'warn',
+    'fail',
     `${listed}.`,
-    short.map((r) => prelimPiece(inputs.pieces, r.round)),
+    failing.map((r) => prelimPiece(inputs.pieces, r.round)),
   );
 }
 
-type Mismatch = { team: string; tab: number; sum: number; missing: number[] };
+type Mismatch = { team: string; tab: number; sum: number; missing: number[]; played: number[] };
 
 /**
  * Teams whose tab total differs from their prelim rows. A team with a null
@@ -191,7 +201,13 @@ function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
     const sum = rows.reduce((s, r) => s + (r[field] ?? 0), 0);
     if (Math.abs(sum - tab) < 0.001) continue;
     const played = new Set(rows.map((r) => r.round));
-    off.push({ team: t.team, tab, sum, missing: expected.filter((n) => !played.has(n)) });
+    off.push({
+      team: t.team,
+      tab,
+      sum,
+      missing: expected.filter((n) => !played.has(n)),
+      played: [...played],
+    });
   }
   return { checked, off };
 }
@@ -220,9 +236,12 @@ export function checkPointsAddUp(inputs: AuditInputs): CheckResult {
     `${off.length} of ${checked} teams ${plural(off.length, 'has', 'have')} tab ${field} that differ ` +
     `from ${plural(off.length, 'its', 'their')} round total (${first.team}: ${first.tab} on the tab, ` +
     `${first.sum} in the rounds).`;
-  // The rounds involved are the ones a mismatched team has no row in: a
-  // missing row is the likeliest reason a total is short.
-  const rounds = [...new Set(off.flatMap((o) => o.missing))].sort((a, b) => a - b);
+  // The rounds involved: for a team short of a row, the rounds it has no row
+  // in (the likeliest reason its total is short); for a team with every row,
+  // a value in one of them is wrong and cannot be told apart, so all of its
+  // rounds.
+  const involved = off.flatMap((o) => (o.missing.length > 0 ? o.missing : o.played));
+  const rounds = [...new Set(involved)].sort((a, b) => a - b);
   return result('points_add_up', off.length / checked > 0.05 ? 'fail' : 'warn', detail, [
     tabPiece(inputs.pieces, 'team'),
     ...rounds.map((n) => prelimPiece(inputs.pieces, n)),

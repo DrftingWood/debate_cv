@@ -56,6 +56,40 @@ describe('champion', () => {
     const o = [...cleanOpen, ...stage('Novice Final', names('N', 4), 2)];
     expect(check(inputs({ outrounds: o }), 'champion').status).toBe('pass');
   });
+});
+
+// Owner ruling 7: with no Open bracket at all, the top category's final names
+// the champion; with one, a category final never does.
+describe('champion across brackets', () => {
+  it("a Senior/Junior-only tab: the top bracket's final names the champion", () => {
+    const o = [
+      ...stage('Senior Semifinals', names('S', 8), 4),
+      ...stage('Senior Grand Final', names('S', 4), 1),
+      ...stage('Junior Grand Final', names('J', 4), 1),
+    ];
+    const c = check(inputs({ outrounds: o }), 'champion');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('S1 won the Senior Grand Final.');
+  });
+  it('a category-only tab whose top final has two winners fails', () => {
+    const o = [
+      ...stage('Varsity Semifinals', names('V', 8), 4),
+      ...stage('Varsity Final', names('V', 4), 2),
+      ...stage('Novice Final', names('N', 4), 1),
+    ];
+    expect(check(inputs({ outrounds: o }), 'champion').status).toBe('fail');
+  });
+  it('an Open break with only a category final still fails: Open exists', () => {
+    const o = stage('ESL Grand Final', names('E', 4), 1);
+    expect(check(inputs({ breakRows: openBreak(8), outrounds: o }), 'champion').status).toBe(
+      'fail',
+    );
+  });
+  it('the champion detail counts only the Open break', () => {
+    const esl = names('E', 4).map((team) => ({ stage: 'ESL', team }));
+    const c = check(inputs({ breakRows: [...openBreak(8), ...esl] }), 'champion');
+    expect(c.detail).toBe('8 teams broke, but no outround results are stored.');
+  });
   it('a Gold final counts as the main final when there is no plain one', () => {
     expect(
       check(inputs({ outrounds: stage('Gold Final', names('G', 4), 1) }), 'champion').status,

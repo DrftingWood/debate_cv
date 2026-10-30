@@ -197,13 +197,10 @@ export function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
-/**
- * The typical value of a list. For an even count the upper middle is taken,
- * not the average of the two: the common fault is rooms missing, not rooms
- * invented, so the larger value is the better guess at the true one, and it
- * is always a value some round actually has.
- */
+/** The median; for an even count, the mean of the two middle values (owner ruling 8). */
 export function median(values: number[]): number {
+  if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)] ?? 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }

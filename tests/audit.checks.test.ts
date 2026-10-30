@@ -118,6 +118,23 @@ describe('rooms_consistent', () => {
       'pass',
     );
   });
+  it('an even count uses the true median: 16/16/12/12 is a median of 14', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 4, roundRows: bpRows([64, 64, 48, 48]) }),
+      'rooms_consistent',
+    );
+    expect(c.status).toBe('fail');
+    expect(c.detail).toBe(
+      'R1 has 16 rooms, R2 has 16 rooms, R3 has 12 rooms and R4 has 12 rooms; the median is 14.',
+    );
+  });
+  it('an even count with an odd one out: 16/16/16/12 has a median of 16', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 4, roundRows: bpRows([64, 64, 64, 48]) }),
+      'rooms_consistent',
+    );
+    expect(c.detail).toBe('R4 has 12 rooms; the other rounds have 16.');
+  });
   it('na with no prelim rows', () => {
     expect(check(inputs(), 'rooms_consistent').status).toBe('na');
   });
@@ -138,6 +155,19 @@ describe('team_coverage', () => {
   it('fail under 80%', () => {
     const r = rows.filter((x) => !(x.round === 1 && Number(x.team.slice(1)) > 70));
     expect(check(inputs({ roundRows: r, teamTab: tab }), 'team_coverage').status).toBe('fail');
+  });
+  it('swing teams in R1 do not cover for missing tab teams', () => {
+    const r = rows.filter((x) => !(x.round === 1 && Number(x.team.slice(1)) > 90));
+    const swings = names('Swing ', 12).map((team) => ({
+      team,
+      round: 1,
+      points: 0,
+      wins: null,
+      position: 'CO',
+    }));
+    const c = check(inputs({ roundRows: [...r, ...swings], teamTab: tab }), 'team_coverage');
+    expect(c.status).toBe('warn');
+    expect(c.detail).toBe('R1 has 90 teams; the team tab has 100.');
   });
 });
 
@@ -194,11 +224,20 @@ describe('panels', () => {
     expect(c.detail).toBe('R2 has 6 chairs and 20 judges for 10 rooms.');
     expect(keys(c)).toEqual(['round:2']);
   });
-  it('warn when short but at or over 90%', () => {
-    expect(
-      check(inputs({ ...base, judgesByRound: { ...full, 2: { chairs: 9, judges: 20 } } }), 'panels')
-        .status,
-    ).toBe('warn');
+  it('a round at 96% of rooms passes at full weight, naming the shortfall', () => {
+    const r = bpRows([100, 100, 100]);
+    const ok = { chairs: 25, judges: 60 };
+    const c = check(
+      inputs({
+        ...base,
+        roundRows: r,
+        judgesByRound: { 1: ok, 2: { chairs: 24, judges: 60 }, 3: ok },
+      }),
+      'panels',
+    );
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('R2 has 24 chairs and 60 judges for 25 rooms, within 90% of rooms.');
+    expect(c.pieces).toEqual([]);
   });
   it("only the owner's panels stored: panels is na", () => {
     const c = check(
@@ -216,14 +255,14 @@ describe('points_add_up', () => {
   it('pass when BP tab points equal the round sums', () => {
     expect(check(inputs({ roundRows: rows, teamTab: tab }), 'points_add_up').status).toBe('pass');
   });
-  it('BP with one team off warns (1 of 24 is under 5%) and suggests the team tab', () => {
+  it('BP with one team off warns (1 of 24 is under 5%) and suggests the tab and its rounds', () => {
     const off = tab.map((t) => (t.team === 'T1' ? { ...t, points: 7 } : t));
     const c = check(inputs({ roundRows: rows, teamTab: off }), 'points_add_up');
     expect(c.status).toBe('warn');
     expect(c.detail).toBe(
       '1 of 24 teams has tab points that differ from its round total (T1: 7 on the tab, 9 in the rounds).',
     );
-    expect(keys(c)).toEqual(['team:']);
+    expect(keys(c)).toEqual(['team:', 'round:1', 'round:2', 'round:3']);
   });
   it('a team missing a round fails over 5% and suggests that round', () => {
     const r = rows.filter((x) => !(x.round === 3 && ['T1', 'T2'].includes(x.team)));

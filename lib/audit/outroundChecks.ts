@@ -93,14 +93,53 @@ function championPieces(pieces: AuditPiece[], finalLabel: string | null): Sugges
   return open.length > 0 ? open : breakPieces(pieces);
 }
 
+/**
+ * The bracket that stands in for Open on a tab with no Open bracket at all
+ * (Senior/Junior, Varsity/Novice; owner ruling 7): the one with the most
+ * teams in its outrounds, as the main draw is the larger one, with
+ * compareOutroundDepth breaking a tie between their finals.
+ */
+function topCategoryFinal(stages: Stage[]): Stage | null {
+  const size = new Map<string, Set<string>>();
+  for (const s of stages) {
+    const set = size.get(s.bracket) ?? new Set<string>();
+    s.teams.forEach((t) => set.add(t));
+    size.set(s.bracket, set);
+  }
+  const finals = stages.filter((s) => s.rank >= FINAL_RANK);
+  const teamsIn = (s: Stage) => size.get(s.bracket)?.size ?? 0;
+  return (
+    [...finals].sort((a, b) => teamsIn(b) - teamsIn(a) || compareOutroundDepth(b, a))[0] ?? null
+  );
+}
+
+/**
+ * The final that names the champion. With an Open bracket (in the outrounds
+ * or the break), only its final, or a tier final, counts, so an ESL final
+ * never stands in for a missing Open one. Without any Open bracket, the top
+ * category's final does.
+ */
+function championFinal(inputs: AuditInputs): Stage | null {
+  const stages = outroundStages(inputs.outrounds);
+  const main = deepest(stages.filter((s) => isMainFinal(s.label, s.rank)));
+  if (main) return main;
+  const hasOpen =
+    stages.some((s) => s.bracket === 'open') ||
+    inputs.breakRows.some((r) => bracketOfBreak(r.stage) === 'open');
+  return hasOpen ? null : topCategoryFinal(stages);
+}
+
 export function checkChampion(inputs: AuditInputs): CheckResult {
   const { outrounds, breakRows, pieces } = inputs;
   if (outrounds.length === 0 && breakRows.length === 0) {
     return result('champion', 'na', 'The tournament has no break and no outround results.');
   }
-  const final = deepest(outroundStages(outrounds).filter((s) => isMainFinal(s.label, s.rank)));
+  const final = championFinal(inputs);
   if (!final) {
-    const teams = new Set(breakRows.map((r) => teamKey(r.team))).size;
+    // The Open break's size; a tab with no Open bracket counts its whole break.
+    const openBroke = breakRows.filter((r) => bracketOfBreak(r.stage) === 'open');
+    const counted = openBroke.length > 0 ? openBroke : breakRows;
+    const teams = new Set(counted.map((r) => teamKey(r.team))).size;
     const detail =
       outrounds.length === 0
         ? `${teams} teams broke, but no outround results are stored.`
