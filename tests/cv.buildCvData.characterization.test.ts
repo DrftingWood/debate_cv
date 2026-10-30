@@ -416,6 +416,8 @@ function installFixture() {
 
   prismaMock.cvErrorReport.findMany.mockResolvedValue([{ tournamentIds: ['2', '999'] }]);
   prismaMock.motion.findMany.mockResolvedValue(MOTIONS);
+  // No failed scrape pieces by default: every tournament is fully loaded.
+  prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 }
 
 beforeEach(() => {
@@ -502,6 +504,28 @@ describe('buildCvData characterization: top-level shape', () => {
   });
 });
 
+describe('buildCvData characterization: partly loaded', () => {
+  it('flags a row whose tournament has a failed scrape piece, and only that row', async () => {
+    prismaMock.scrapePiece.findMany.mockResolvedValue([{ tournamentId: 1n }]);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.partlyLoaded).toBe(true);
+    expect(cv.speakerRows.filter((r) => r.tournamentId !== 1n).every((r) => !r.partlyLoaded)).toBe(
+      true,
+    );
+    expect(prismaMock.scrapePiece.findMany).toHaveBeenCalledWith({
+      where: { tournamentId: { in: expect.any(Array) }, status: 'failed' },
+      select: { tournamentId: true },
+    });
+  });
+
+  it('is false everywhere when no piece failed', async () => {
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.every((r) => r.partlyLoaded === false)).toBe(true);
+    expect(cv.judgeRows.every((r) => r.partlyLoaded === false)).toBe(true);
+  });
+});
+
 describe('buildCvData characterization: the speaker row (T1)', () => {
   it('pins every field except teamRank', async () => {
     const cv = await buildCvData(USER);
@@ -558,6 +582,7 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
       openBreak: { teams: 2, userOnBreak: true, linePoints: 12, lineWins: null },
       wonTournament: true,
       hasOpenReport: false,
+      partlyLoaded: false,
       roundScores: [
         { roundNumber: 1, positionLabel: 'PM', score: 77 },
         { roundNumber: 2, positionLabel: 'LO', score: 78 },
@@ -684,6 +709,7 @@ describe('buildCvData characterization: the judge row (T2)', () => {
       lastOutroundJudged: 'Semifinals',
       broke: true,
       hasOpenReport: true,
+      partlyLoaded: false,
     });
   });
 

@@ -5,6 +5,7 @@ import { teamTabPlacement, formatTeamTabPlacement } from '@/lib/cv/teamPlacement
 import { hashRank } from '@/lib/cv/rankDisplay';
 import { Badge } from '@/components/ui/Badge';
 import { Table, Th, Td, Tr, Nil, TableScroll, Cols } from '@/components/ui/DataTable';
+import { PartlyLoadedBadge } from '@/components/PartlyLoadedBadge';
 import { TournamentLink } from '@/components/TournamentCard';
 import { SourceLink } from '@/components/YearGroups';
 import {
@@ -99,6 +100,11 @@ export function PublicSpeakingTable({
                       href={r.sourceUrl}
                       className="coarse:min-h-[44px]"
                     />
+                    {r.partlyLoaded ? (
+                      <div className="mt-hair">
+                        <PartlyLoadedBadge inTable />
+                      </div>
+                    ) : null}
                   </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
@@ -188,6 +194,11 @@ export function PublicJudgingTable({ rows, label }: { rows: CvJudgeRow[]; label:
                       href={r.sourceUrl}
                       className="coarse:min-h-[44px]"
                     />
+                    {r.partlyLoaded ? (
+                      <div className="mt-hair">
+                        <PartlyLoadedBadge inTable />
+                      </div>
+                    ) : null}
                   </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}

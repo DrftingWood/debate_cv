@@ -45,6 +45,7 @@ function speakerRow(over: Partial<CvSpeakerRow> = {}): CvSpeakerRow {
     openBreak: null,
     wonTournament: false,
     hasOpenReport: false,
+    partlyLoaded: false,
     roundScores: [],
     teamRoundResults: [],
     ...over,
@@ -70,9 +71,48 @@ function judgeRow(over: Partial<CvJudgeRow> = {}): CvJudgeRow {
     lastOutroundJudged: 'Semifinals',
     broke: true,
     hasOpenReport: false,
+    partlyLoaded: false,
     ...over,
   };
 }
+
+describe('partly loaded mark', () => {
+  const TEXT = 'Partly loaded';
+
+  it('shows on speaker and judge phone cards only when the row is partly loaded', async () => {
+    const { PublicSpeakerCard, PublicJudgeCard } = await import('@/app/u/[slug]/PublicRecordCards');
+    const on = { partlyLoaded: true };
+    expect(
+      renderToStaticMarkup(React.createElement(PublicSpeakerCard, { r: speakerRow(on) })),
+    ).toContain(TEXT);
+    expect(
+      renderToStaticMarkup(React.createElement(PublicJudgeCard, { r: judgeRow(on) })),
+    ).toContain(TEXT);
+    expect(
+      renderToStaticMarkup(React.createElement(PublicSpeakerCard, { r: speakerRow() })),
+    ).not.toContain(TEXT);
+  });
+
+  it('shows in the public desktop tables too, with the tooltip copy as a title', async () => {
+    const { PublicSpeakingTable, PublicJudgingTable } = await import('@/app/u/[slug]/PublicLedger');
+    const speaking = renderToStaticMarkup(
+      React.createElement(PublicSpeakingTable, {
+        rows: [speakerRow({ partlyLoaded: true })],
+        label: 'x',
+        proAm: new Set<string>(),
+      }),
+    );
+    expect(speaking).toContain(TEXT);
+    const judging = renderToStaticMarkup(
+      React.createElement(PublicJudgingTable, {
+        rows: [judgeRow({ partlyLoaded: true })],
+        label: 'x',
+      }),
+    );
+    expect(judging).toContain(TEXT);
+    expect(judging).toContain('Some pages of this tournament&#x27;s tab didn&#x27;t load.');
+  });
+});
 
 describe('public CV phone cards', () => {
   it('shows every result a recipient needs, with the team placement and its field', async () => {
