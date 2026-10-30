@@ -1,0 +1,230 @@
+import type { AuditInputs } from './auditInputs';
+import {
+  expectedPrelims,
+  listText,
+  median,
+  minSpeakers,
+  plural,
+  prelimPiece,
+  prelimRows,
+  result,
+  roomsByRound,
+  tabPiece,
+  teamKey,
+  teamsPerRoom,
+  worst,
+} from './checkHelpers';
+import type { CheckResult, CheckStatus } from './types';
+
+/**
+ * The prelim-round checks: is every round there, are the rounds the same
+ * size, do the rounds cover the team tab, do teams have partners, are the
+ * panels full, and do the tab's totals add up from the rounds. Thresholds are
+ * the spec's (docs/superpowers/specs/2026-10-31-data-accuracy-design.md).
+ */
+
+export function checkRoundsComplete(inputs: AuditInputs): CheckResult {
+  const expected = expectedPrelims(inputs);
+  if (expected.length === 0) {
+    return result('rounds_complete', 'na', 'The number of prelim rounds is not known.');
+  }
+  const have = new Set(prelimRows(inputs).map((r) => r.round));
+  const missing = expected.filter((n) => !have.has(n));
+  if (missing.length === 0) {
+    return result('rounds_complete', 'pass', `All ${expected.length} prelim rounds have results.`);
+  }
+  const names = listText(missing.map((n) => `R${n}`));
+  return result(
+    'rounds_complete',
+    'fail',
+    `${names} ${plural(missing.length, 'has', 'have')} no results, out of ${expected.length} prelim rounds.`,
+    missing.map((n) => prelimPiece(inputs.pieces, n)),
+  );
+}
+
+/** Off by one room warns; more than one room, or more than 10% of the typical round, fails. */
+function roomStatus(rooms: number, typical: number): CheckStatus {
+  const diff = Math.abs(rooms - typical);
+  if (diff === 0) return 'pass';
+  if (diff > 1 || diff > 0.1 * typical) return 'fail';
+  return 'warn';
+}
+
+/**
+ * Rounds are compared with the median round, not with R1, because a short R1
+ * (a late draw release, a missing page) is exactly what this should catch.
+ */
+export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
+  const rooms = roomsByRound(inputs);
+  if (rooms.size === 0)
+    return result('rooms_consistent', 'na', 'No prelim round results are stored.');
+  const typical = median([...rooms.values()]);
+  const odd = [...rooms]
+    .map(([round, n]) => ({ round, n, status: roomStatus(n, typical) }))
+    .filter((o) => o.status !== 'pass');
+  if (odd.length === 0) {
+    return result(
+      'rooms_consistent',
+      'pass',
+      `All ${rooms.size} prelim rounds have ${typical} rooms.`,
+    );
+  }
+  // Every round not listed equals the median, so "the other rounds" is exact.
+  const listed = listText(odd.map((o) => `R${o.round} has ${o.n} ${plural(o.n, 'room', 'rooms')}`));
+  return result(
+    'rooms_consistent',
+    worst(odd.map((o) => o.status)),
+    `${listed}; the other rounds have ${typical}.`,
+    odd.map((o) => prelimPiece(inputs.pieces, o.round)),
+  );
+}
+
+function teamTabKeys(inputs: AuditInputs): Set<string> {
+  return new Set(inputs.teamTab.map((t) => teamKey(t.team)));
+}
+
+export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
+  const pieces = [tabPiece(inputs.pieces, 'team'), prelimPiece(inputs.pieces, 1)];
+  const tab = teamTabKeys(inputs);
+  if (tab.size === 0) return result('team_coverage', 'fail', 'There is no team tab.', pieces);
+  const r1 = new Set(
+    prelimRows(inputs)
+      .filter((r) => r.round === 1)
+      .map((r) => teamKey(r.team)),
+  );
+  const share = r1.size / tab.size;
+  const status: CheckStatus = share < 0.8 ? 'fail' : share < 0.95 ? 'warn' : 'pass';
+  return result(
+    'team_coverage',
+    status,
+    `R1 has ${r1.size} teams; the team tab has ${tab.size}.`,
+    status === 'pass' ? [] : pieces,
+  );
+}
+
+export function checkPartners(inputs: AuditInputs): CheckResult {
+  const tab = [...teamTabKeys(inputs)];
+  if (tab.length === 0)
+    return result('partners', 'na', 'There is no team tab to check partners on.');
+  const min = minSpeakers(inputs.format);
+  const counts = new Map<string, number>();
+  for (const [team, n] of Object.entries(inputs.speakersByTeam)) {
+    counts.set(teamKey(team), (counts.get(teamKey(team)) ?? 0) + n);
+  }
+  const short = tab.filter((t) => (counts.get(t) ?? 0) < min).length;
+  if (short === 0) {
+    return result(
+      'partners',
+      'pass',
+      `All ${tab.length} teams have at least ${min} speakers on record.`,
+    );
+  }
+  return result(
+    'partners',
+    short / tab.length > 0.1 ? 'fail' : 'warn',
+    `${short} of ${tab.length} teams ${plural(short, 'has', 'have')} fewer than ${min} speakers on record.`,
+    [tabPiece(inputs.pieces, 'speaker')],
+  );
+}
+
+/**
+ * Panels are judged only where every judge's panels were stored. A private-URL
+ * ingest stores just the URL owner's own rounds, so a tournament known only
+ * that way would look as if every room had no chair; the 50% rule tells the
+ * two apart and returns na rather than a false fail.
+ */
+export function checkPanels(inputs: AuditInputs): CheckResult {
+  const { judgeParticipants: all, roundResultJudges: stored } = inputs;
+  if (all === 0) return result('panels', 'na', 'No judges are on record.');
+  if (stored < 0.5 * all) {
+    return result(
+      'panels',
+      'na',
+      `Panels are stored for ${stored} of ${all} judges, too few to check.`,
+    );
+  }
+  const rooms = roomsByRound(inputs);
+  if (rooms.size === 0) return result('panels', 'na', 'No prelim round results are stored.');
+  const short = [...rooms]
+    .map(([round, n]) => ({
+      round,
+      n,
+      ...(inputs.judgesByRound[round] ?? { chairs: 0, judges: 0 }),
+    }))
+    .filter((r) => Math.min(r.chairs, r.judges) < r.n);
+  if (short.length === 0) {
+    return result('panels', 'pass', 'Every prelim round has a chair and a judge for each room.');
+  }
+  // Between 90% and every room is short of the rule but not past the fail line.
+  const failed = short.some((r) => Math.min(r.chairs, r.judges) < 0.9 * r.n);
+  const listed = listText(
+    short.map((r) => `R${r.round} has ${r.chairs} chairs and ${r.judges} judges for ${r.n} rooms`),
+  );
+  return result(
+    'panels',
+    failed ? 'fail' : 'warn',
+    `${listed}.`,
+    short.map((r) => prelimPiece(inputs.pieces, r.round)),
+  );
+}
+
+type Mismatch = { team: string; tab: number; sum: number; missing: number[] };
+
+/**
+ * Teams whose tab total differs from their prelim rows. A team with a null
+ * value on the tab or on any of its rows is skipped rather than counted:
+ * nulls mean the column was not published, which is not a mismatch.
+ */
+function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
+  const byTeam = new Map<string, AuditInputs['roundRows']>();
+  for (const r of prelimRows(inputs)) {
+    byTeam.set(teamKey(r.team), [...(byTeam.get(teamKey(r.team)) ?? []), r]);
+  }
+  const expected = expectedPrelims(inputs);
+  let checked = 0;
+  const off: Mismatch[] = [];
+  for (const t of inputs.teamTab) {
+    const rows = byTeam.get(teamKey(t.team)) ?? [];
+    const tab = t[field];
+    if (tab == null || rows.some((r) => r[field] == null)) continue;
+    checked++;
+    const sum = rows.reduce((s, r) => s + (r[field] ?? 0), 0);
+    if (Math.abs(sum - tab) < 0.001) continue;
+    const played = new Set(rows.map((r) => r.round));
+    off.push({ team: t.team, tab, sum, missing: expected.filter((n) => !played.has(n)) });
+  }
+  return { checked, off };
+}
+
+export function checkPointsAddUp(inputs: AuditInputs): CheckResult {
+  // Two-team tabs rank on wins, and their points column is often speaker
+  // points rather than a team total, so wins are what must add up there.
+  const field = teamsPerRoom(inputs.format, inputs.roundRows) === 2 ? 'wins' : 'points';
+  const { checked, off } = pointMismatches(inputs, field);
+  if (checked === 0) {
+    return result(
+      'points_add_up',
+      'na',
+      `No team has ${field} on both the team tab and the rounds.`,
+    );
+  }
+  if (off.length === 0) {
+    return result(
+      'points_add_up',
+      'pass',
+      `All ${checked} teams' tab ${field} equal their round totals.`,
+    );
+  }
+  const first = off[0];
+  const detail =
+    `${off.length} of ${checked} teams ${plural(off.length, 'has', 'have')} tab ${field} that differ ` +
+    `from ${plural(off.length, 'its', 'their')} round total (${first.team}: ${first.tab} on the tab, ` +
+    `${first.sum} in the rounds).`;
+  // The rounds involved are the ones a mismatched team has no row in: a
+  // missing row is the likeliest reason a total is short.
+  const rounds = [...new Set(off.flatMap((o) => o.missing))].sort((a, b) => a - b);
+  return result('points_add_up', off.length / checked > 0.05 ? 'fail' : 'warn', detail, [
+    tabPiece(inputs.pieces, 'team'),
+    ...rounds.map((n) => prelimPiece(inputs.pieces, n)),
+  ]);
+}
