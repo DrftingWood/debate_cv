@@ -640,6 +640,24 @@ describe('buildCvData characterization: the speaker row (T1)', () => {
     }
   });
 
+  it('with no outround from a private-URL page, the team’s public outround results give it (NPD 2023)', async () => {
+    // A tournament linked from stored data, or an appearance claimed from the
+    // public tab, never reads the private-URL page, the only writer of
+    // eliminationReached. The champion of NPD 2023 showed as broke, no
+    // outround, not won, with the won Grand Final stored all along.
+    MY_PARTICIPATIONS[0]!.eliminationReached = null;
+    MY_PARTICIPATIONS[1]!.eliminationReached = null;
+    try {
+      const cv = await buildCvData(USER);
+      expect(cv.speakerRows[0]!.eliminationReached).toBe('Grand Final');
+      expect(cv.speakerRows[0]!.wonTournament).toBe(true);
+      expect(cv.highlights.championships).toHaveLength(1);
+    } finally {
+      MY_PARTICIPATIONS[0]!.eliminationReached = 'Grand Final';
+      MY_PARTICIPATIONS[1]!.eliminationReached = 'Semifinals';
+    }
+  });
+
   it('masks a withdrawn teammate by name but keeps their figures', async () => {
     prismaMock.tournamentParticipant.findMany.mockImplementation(async (args: unknown) => {
       const w = argsWhere(args);

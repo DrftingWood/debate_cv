@@ -3,8 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
-import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
-import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { grantGoneResponse } from '@/lib/gmail/grantGone';
 import { NoGmailTokenError, scanMailbox } from '@/lib/gmail/scanUser';
 
 export const runtime = 'nodejs';
@@ -68,26 +67,8 @@ export async function POST() {
     }
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/ingest/gmail]', msg);
-    if (isRefreshTokenInvalid(err)) {
-      // Not reported to Sentry: it is expected user action (they revoked our
-      // access in Google) and we give them a clear way back below.
-      // Clear the stale token so the next sign-in writes a fresh one. The
-      // goal is the local row, so errors from the revoke call are ignored.
-      if (userId) {
-        try {
-          await revokeAndForgetGmailToken(userId);
-        } catch {
-          /* intentional: token already invalid upstream */
-        }
-      }
-      return NextResponse.json(
-        {
-          error: 'token_invalid',
-          hint: 'Your Google access was revoked or expired. Sign out and sign back in to grant Gmail access again.',
-        },
-        { status: 401 },
-      );
-    }
+    const gone = await grantGoneResponse(err, userId);
+    if (gone) return gone;
     // A genuine unexpected error: report with the userId so it can be correlated.
     Sentry.captureException(err, {
       tags: { route: 'api/ingest/gmail' },

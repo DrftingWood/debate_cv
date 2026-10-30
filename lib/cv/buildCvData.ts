@@ -8,7 +8,7 @@ import {
   deepestOutroundAcrossRoles,
   outroundRank,
 } from '@/lib/calicotab/judgeStats';
-import { mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
+import { deepestOutroundLabel, mergeSpeakerCvSignals } from '@/lib/cv/speakerSignals';
 import { computeSpeakerAvg } from '@/lib/cv/computeSpeakerAvg';
 import { buildTeamRankLookup, teamResultKey } from '@/lib/cv/teamRanks';
 import { isMajor } from '@/lib/cv/majors';
@@ -925,6 +925,14 @@ export async function buildCvData(
     );
   }
 
+  // Every decided outround per (tournament, team), from the public results
+  // pages. The fallback for a stage when no private-URL page was read.
+  const decidedOutroundStagesByKey = new Map<string, string[]>();
+  for (const r of teamOutroundRows) {
+    const key = `${r.tournamentId}:${r.entityName}`;
+    decidedOutroundStagesByKey.set(key, [...(decidedOutroundStagesByKey.get(key) ?? []), r.stage]);
+  }
+
   const teamOutroundStagesByKey = new Map<string, string[]>();
   for (const r of eudcOutroundRows) {
     const key = `${r.tournamentId}:${r.entityName}`;
@@ -1114,6 +1122,16 @@ export async function buildCvData(
     const tr = teamKey ? teamPointsByKey.get(teamKey) : null;
     const speakerParticipations = speakerParticipationsByTournament.get(tid) ?? [p];
     const speakerSignals = mergeSpeakerCvSignals(speakerParticipations);
+    // eliminationReached is written only from the user's private-URL page. A
+    // tournament linked from stored data, or an appearance claimed from the
+    // public tab, never reads that page, so the deepest outround the team
+    // has a public result in stands in. Without it the champion check below
+    // never ran: NPD 2023's winner showed as broke, no outround, not won.
+    const eliminationReached =
+      speakerSignals.eliminationReached ??
+      (p.teamName
+        ? deepestOutroundLabel(decidedOutroundStagesByKey.get(`${tid}:${p.teamName}`) ?? [])
+        : null);
 
     const averageScore = (p.speakerRoundScores ?? []).find(
       (s) => s.roundNumber === 0 || s.positionLabel === 'average',
@@ -1142,8 +1160,8 @@ export async function buildCvData(
     // "Grand Final" (> finalRank) eligible — a tournament's last round
     // can be labeled either way depending on the Tabbycat install.
     let wonTournament: boolean | null = null;
-    if (p.teamName && speakerSignals.eliminationReached) {
-      const deepest = speakerSignals.eliminationReached;
+    if (p.teamName && eliminationReached) {
+      const deepest = eliminationReached;
       const stageRank = outroundRank({ roundLabel: deepest, roundNumber: null, isOutround: true });
       const finalRank = outroundRank({ roundLabel: 'Final', roundNumber: null, isOutround: true });
       const isFinalStage = stageRank >= finalRank;
@@ -1206,9 +1224,9 @@ export async function buildCvData(
       speakerRankEfl: p.speakerRankEfl,
       speakerCategories: p.speakerCategories ?? [],
       teamBreakRank: speakerSignals.teamBreakRank,
-      eliminationReached: speakerSignals.eliminationReached,
+      eliminationReached,
       eliminationReachedByCategory,
-      broke: speakerSignals.broke,
+      broke: speakerSignals.broke || eliminationReached != null,
       openBreak: openBreakNamesByTournament.has(tid)
         ? deriveOpenBreak(
             standingsByTournament.get(tid) ?? [],
