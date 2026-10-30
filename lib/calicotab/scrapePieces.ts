@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/db';
+import type { NavigationStructure } from './parseNav';
+import type { ApiTabsResult } from './tabbycatApi';
 
 // A scrape is recorded as pieces (one per tab, per break category, per
 // results round) so a single flaky page can be retried and re-scraped alone
@@ -44,6 +46,105 @@ export function roundPieceLabel(roundNumber: number | null, roundLabel: string |
     return `R${roundNumber}`;
   }
   return roundLabel ?? (roundNumber != null ? `R${roundNumber}` : '');
+}
+
+const TAB_LABELS: Record<Exclude<PieceKind, 'break' | 'round'>, string> = {
+  team: 'Team tab',
+  speaker: 'Speaker tab',
+  participants: 'Participants',
+  motions: 'Motions',
+};
+
+/**
+ * What the owner sees for a piece. The nav carries no names for break tabs,
+ * so a break is named by its URL category ("open" → "Break: Open"); a round
+ * by the nav's own link text for it.
+ */
+export function pieceLabel(
+  kind: PieceKind,
+  url: string,
+  roundLabels: Record<string, string> = {},
+): string {
+  if (kind === 'break') {
+    let path = url;
+    try {
+      path = new URL(url).pathname;
+    } catch {
+      // Not an absolute URL: treat the input as the path itself.
+    }
+    const seg = path.split('/').filter(Boolean).pop() ?? '';
+    return `Break: ${seg.charAt(0).toUpperCase()}${seg.slice(1)}`;
+  }
+  if (kind === 'round') {
+    const key = pieceRefForUrl('round', url).key;
+    const n = /^\d+$/.test(key) ? Number(key) : null;
+    return roundPieceLabel(n, roundLabels[url] ?? null);
+  }
+  return TAB_LABELS[kind];
+}
+
+/**
+ * One page's outcome: failed when `error` is set. A status of 0 (the request
+ * never got an answer: timeout, network) is stored as null, as is the status
+ * of an API answer standing in for a page.
+ */
+export function pieceOutcome(
+  kind: PieceKind,
+  url: string,
+  result: { status: number | null; error?: string; roundLabels?: Record<string, string> },
+): PieceOutcome {
+  return {
+    ...pieceRefForUrl(kind, url),
+    label: pieceLabel(kind, url, result.roundLabels),
+    url,
+    ok: result.error == null,
+    httpStatus: result.status || null,
+    error: result.error ?? null,
+  };
+}
+
+/** Whether `only` asks for this piece; no `only` means every piece. */
+export function wantsPiece(only: PieceRef[] | undefined, ref: PieceRef): boolean {
+  return !only || only.some((o) => o.kind === ref.kind && o.key === ref.key);
+}
+
+/**
+ * The landing nav cut down to the pages `only` asks for. A partial re-scrape
+ * runs the same fetch code as a full one; it just sees fewer links, so a page
+ * nobody asked for is never requested.
+ */
+export function navForPieces(
+  nav: NavigationStructure,
+  only: PieceRef[] | undefined,
+): NavigationStructure {
+  if (!only) return nav;
+  const keep = (kind: PieceKind, url: string | null) =>
+    url && wantsPiece(only, pieceRefForUrl(kind, url)) ? url : null;
+  return {
+    ...nav,
+    teamTab: keep('team', nav.teamTab),
+    speakerTab: keep('speaker', nav.speakerTab),
+    motionsTab: keep('motions', nav.motionsTab),
+    participants: keep('participants', nav.participants),
+    resultsRounds: nav.resultsRounds.filter((u) => keep('round', u)),
+    breakTabs: nav.breakTabs.filter((u) => keep('break', u)),
+  };
+}
+
+/**
+ * The Tabbycat API answers team and speaker standings together. On a partial
+ * re-scrape the tab nobody asked for is sent back to `html`, whose nav link
+ * navForPieces has already dropped, so it yields neither rows nor a warning.
+ */
+export function apiTabsForPieces(
+  result: ApiTabsResult,
+  only: PieceRef[] | undefined,
+): ApiTabsResult {
+  const skip = { source: 'html', reason: 'not requested' } as const;
+  return {
+    teams: wantsPiece(only, { kind: 'team', key: '' }) ? result.teams : skip,
+    speakers: wantsPiece(only, { kind: 'speaker', key: '' }) ? result.speakers : skip,
+  };
 }
 
 const RETRY_DELAYS_MS = [15 * 60_000, 60 * 60_000, 6 * 60 * 60_000, 24 * 60 * 60_000];

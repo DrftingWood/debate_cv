@@ -283,7 +283,11 @@ vi.mock('@/lib/calicotab/parseMotions', () => ({
 }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
-import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import {
+  fetchAndParseTabs,
+  ingestPrivateUrl,
+  loadLandingAndFingerprint,
+} from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
 import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
@@ -1257,5 +1261,66 @@ describe('ingestPrivateUrl: a core judge who then judges keeps the core tag', ()
     const judy = [...rows.values()].find((r) => r.personId === 104n)!;
     expect(judy.judgeTypeTag).toBe('Adjudicator');
     expect(judy.chairedPrelimRounds).toBe(2);
+  });
+});
+
+describe('fetchAndParseTabs: per-page outcomes and pieces', () => {
+  const load = () => loadLandingAndFingerprint(PRIVATE_URL, USER);
+
+  it('records an outcome per page, ok and failed', async () => {
+    install();
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? { ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 } : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    const byKey = new Map(fetched.pieceOutcomes.map((o) => [`${o.kind}:${o.key}`, o]));
+    expect(byKey.get('round:2')).toMatchObject({
+      label: 'R2',
+      url: R2,
+      ok: false,
+      httpStatus: 504,
+    });
+    expect(byKey.get('team:')).toMatchObject({ label: 'Team tab', url: TEAM_TAB, ok: true });
+    expect(byKey.get('break:open')).toMatchObject({ label: 'Break: Open', ok: true });
+    expect(byKey.get('round:3')).toMatchObject({ label: 'Grand Final', ok: true });
+    // One outcome per page tried: 4 tabs, 1 break, 3 rounds.
+    expect(fetched.pieceOutcomes).toHaveLength(8);
+    expect(fetched.fetchedPieces).toHaveLength(7);
+    expect(fetched.fetchedPieces).not.toContainEqual({ kind: 'round', key: '2' });
+    // The warning text is unchanged.
+    expect(fetched.fetchLevelFailures).toEqual([`fetch: round ${R2} HTTP 504`]);
+  });
+
+  it('a withheld optional page records no outcome', async () => {
+    install();
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PARTICIPANTS
+        ? { ok: false, url, status: 403, cdnBlocked: false, bodyPreview: '', elapsedMs: 1 }
+        : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.pieceOutcomes.map((o) => o.kind)).not.toContain('participants');
+    expect(fetched.pieceOutcomes.every((o) => o.ok)).toBe(true);
+  });
+
+  it('fetches only the requested pieces', async () => {
+    install();
+    const loaded = await load();
+    h.fetchHtml.mockClear();
+    const fetched = await fetchAndParseTabs(loaded, [{ kind: 'round', key: '2' }]);
+    expect(h.fetchRound.mock.calls.map((c) => c[0])).toEqual([R2]);
+    expect(h.fetchHtml).not.toHaveBeenCalled();
+    expect(fetched.pieceOutcomes).toEqual([
+      { kind: 'round', key: '2', label: 'R2', url: R2, ok: true, httpStatus: 200, error: null },
+    ]);
+    expect(fetched.fetchedPieces).toEqual([{ kind: 'round', key: '2' }]);
+    expect(fetched.rounds).toHaveLength(1);
+    expect(fetched.teamRows).toEqual([]);
+    expect(fetched.speakerRows).toEqual([]);
+    expect(fetched.mergedParticipantRows).toEqual([]);
+    expect(fetched.breakRows).toEqual([]);
+    expect(fetched.motions).toEqual([]);
+    // From the nav's prelim links (Round 1, Round 2), not the one round parsed.
+    expect(fetched.prelimRoundCount).toBe(2);
   });
 });

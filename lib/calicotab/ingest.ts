@@ -15,6 +15,7 @@ import { findTournamentByHostSlug, linkFromStoredTournament } from './storedFirs
 import { fillTournamentYearFromEmails } from './yearFromEmail';
 import {
   API_TIMEOUT_MS,
+  apiBaseFromTournamentUrl,
   fetchTabsFromApi,
   htmlOnly,
   htmlTabsToFetch,
@@ -23,6 +24,15 @@ import {
   type ApiTabsResult,
 } from './tabbycatApi';
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
+import {
+  apiTabsForPieces,
+  navForPieces,
+  pieceOutcome,
+  wantsPiece,
+  type PieceKind,
+  type PieceOutcome,
+  type PieceRef,
+} from './scrapePieces';
 import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
@@ -137,6 +147,10 @@ type FetchedTabs = {
   format: ReturnType<typeof inferTournamentFormat>;
   teamBreakRankByTeam: Map<string, number>;
   fetchLevelFailures: string[];
+  /** One per page the scrape tried; an API answer counts for the tab it stands in for. */
+  pieceOutcomes: PieceOutcome[];
+  /** The pieces that loaded (outcomes with ok), for a partial re-scrape's scoped deletes. */
+  fetchedPieces: PieceRef[];
 };
 
 type RegressionGuardResult =
@@ -594,7 +608,7 @@ async function storedFirstResult(url: string, userId: string): Promise<IngestRes
   };
 }
 
-async function loadLandingAndFingerprint(
+export async function loadLandingAndFingerprint(
   url: string,
   userId: string,
   deadline?: number,
@@ -863,16 +877,35 @@ const API_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
+export async function fetchAndParseTabs(
+  loaded: LoadedState,
+  only?: PieceRef[],
+): Promise<FetchedTabs> {
   const { normalized, fetchSession, snapshot, landingHtml, fetchWarnings } = loaded;
   // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
-  const nav = snapshot.navigation;
+  //
+  // `only` (a partial re-scrape) narrows the nav to the requested pieces, and
+  // everything below reads `nav`, so a page nobody asked for is never fetched
+  // and its fields come back empty. The full nav is kept for the prelim-count
+  // fallback, which describes the tournament rather than this fetch.
+  const fullNav = snapshot.navigation;
+  const nav = navForPieces(fullNav, only);
+  // Every page tried leaves an outcome beside its warning, so a failed piece
+  // can be retried alone. A page the tournament withholds leaves none: no
+  // retry will bring it into existence.
+  const pieceOutcomes: PieceOutcome[] = [];
+  const noteOutcome = (
+    kind: PieceKind,
+    url: string,
+    result: { status: number | null; error?: string } = { status: null },
+  ) =>
+    pieceOutcomes.push(pieceOutcome(kind, url, { ...result, roundLabels: nav.resultsRoundLabels }));
 
   // Build a shared fetch helper for this ingest that records failures into
   // the fetchWarnings buffer so the landing ParserRun tells the operator
   // exactly which tabs upstream refused to serve.
   //
-  // `enrichment` marks a page the CV can do without (participants: it adds
+  // Participants is enrichment, a page the CV can do without (it adds
   // institutions and everyone's role, while the owner's own registration card
   // comes from the landing page). When the tournament itself withholds such a
   // page — Tabbycat's own "Permission Denied (403)" or a 404 — that is a fact
@@ -882,13 +915,17 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const fetchTab = async (
     targetUrl: string,
     label: string,
-    enrichment = false,
+    kind: PieceKind,
   ): Promise<string | null> => {
+    const enrichment = kind === 'participants';
     const r = await fetchHtmlWithProvenance(targetUrl, {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return r.html;
+    if (r.ok) {
+      noteOutcome(kind, targetUrl, { status: r.status });
+      return r.html;
+    }
     // Never when we already hold participants for this tournament: a forced
     // re-ingest skips the regression guard and would rewrite them from the
     // landing page alone, losing the institutions and roles stored earlier.
@@ -914,6 +951,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       });
     }
     fetchWarnings.push(`fetch: ${label} HTTP ${r.status}${hint}`);
+    noteOutcome(kind, targetUrl, { status: r.status, error: `HTTP ${r.status}${hint}` });
     return null;
   };
   const fetchRound = async (targetUrl: string): Promise<{ url: string; html: string } | null> => {
@@ -921,8 +959,14 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return { url: r.url, html: r.html };
+    // Keyed on the nav URL, not r.url (often its by-debate view), so the
+    // piece is the same one the nav and a later re-scrape name.
+    if (r.ok) {
+      noteOutcome('round', targetUrl, { status: r.status });
+      return { url: r.url, html: r.html };
+    }
     fetchWarnings.push(`fetch: round ${targetUrl} HTTP ${r.status}`);
+    noteOutcome('round', targetUrl, { status: r.status, error: `HTTP ${r.status}` });
     return null;
   };
 
@@ -945,9 +989,13 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return r.html;
+    if (r.ok) {
+      noteOutcome('motions', targetUrl, { status: r.status });
+      return r.html;
+    }
     if (guessed && isWithheldByTournament(r)) return null;
     fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
+    noteOutcome('motions', targetUrl, { status: r.status, error: `HTTP ${r.status}` });
     return null;
   };
 
@@ -982,9 +1030,22 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
     return res;
   });
-  const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
-    ? await fetchTabsFromApi(normalized, apiFetcher)
-    : htmlOnly('TABBYCAT_API_TABS=0');
+  // A partial re-scrape asks the API only when it wants the team or speaker
+  // tab, and keeps only the tab it asked for (apiTabsForPieces).
+  const wantsApiTab = !only || only.some((p) => p.kind === 'team' || p.kind === 'speaker');
+  const apiTabs: ApiTabsResult = apiTabsForPieces(
+    !tabbycatApiTabsEnabled()
+      ? htmlOnly('TABBYCAT_API_TABS=0')
+      : wantsApiTab
+        ? await fetchTabsFromApi(normalized, apiFetcher)
+        : htmlOnly('not requested'),
+    only,
+  );
+  // An API answer stands in for its tab's page; its outcome names the API
+  // endpoint the rows came from.
+  const apiBase = apiBaseFromTournamentUrl(normalized) ?? normalized;
+  if (apiTabs.teams.source === 'api') noteOutcome('team', `${apiBase}/teams/standings`);
+  if (apiTabs.speakers.source === 'api') noteOutcome('speaker', `${apiBase}/speakers/standings`);
   console.info('[ingest] tabbycat api', {
     url: normalized,
     teams:
@@ -1001,9 +1062,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // opt-in with TABBYCAT_API_ROUNDS=1 until the owner turns it on. Same
   // contract as the tabs: a page the API answered skips its HTML fetch; any
   // other page is scraped exactly as before. See lib/calicotab/tabbycatApiRounds.ts.
-  const apiRest = tabbycatApiRoundsEnabled()
-    ? await fetchRestFromApi(normalized, nav, apiFetcher)
-    : null;
+  const wantsApiRest =
+    !only || nav.resultsRounds.length > 0 || nav.breakTabs.length > 0 || !!nav.participants;
+  const apiRest =
+    tabbycatApiRoundsEnabled() && wantsApiRest
+      ? await fetchRestFromApi(normalized, nav, apiFetcher)
+      : null;
   if (apiRest) {
     const count = (xs: Iterable<{ source: string }>) =>
       [...xs].filter((x) => x.source === 'api').length;
@@ -1016,12 +1080,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   }
   const apiParticipants =
     apiRest?.participants?.source === 'api' ? apiRest.participants.value : null;
+  if (apiParticipants && nav.participants) noteOutcome('participants', nav.participants);
 
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
-    htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
-    htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
+    htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab', 'team') : Promise.resolve(null),
+    htmlTabs.speakerTab
+      ? fetchTab(htmlTabs.speakerTab, 'speakerTab', 'speaker')
+      : Promise.resolve(null),
     nav.participants && !apiParticipants
-      ? fetchTab(nav.participants, 'participants', true)
+      ? fetchTab(nav.participants, 'participants', 'participants')
       : Promise.resolve(null),
     nav.motionsTab
       ? fetchOptionalTab(nav.motionsTab, 'motionsTab', nav.meta?.constructed.includes('motionsTab'))
@@ -1033,7 +1100,10 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const roundPages = await Promise.all(
     nav.resultsRounds.map(async (u): Promise<RoundPage | null> => {
       const fromApi = apiRest?.rounds.get(u);
-      if (fromApi?.source === 'api') return { kind: 'api', debate: fromApi.value };
+      if (fromApi?.source === 'api') {
+        noteOutcome('round', u);
+        return { kind: 'api', debate: fromApi.value };
+      }
       const page = await fetchRound(u);
       return page ? { kind: 'html', ...page } : null;
     }),
@@ -1041,8 +1111,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const breakPages = await Promise.all(
     nav.breakTabs.map(async (u): Promise<BreakPage | null> => {
       const fromApi = apiRest?.breaks.get(u);
-      if (fromApi?.source === 'api') return { kind: 'api', rows: fromApi.value };
-      const html = await fetchTab(u, 'break');
+      if (fromApi?.source === 'api') {
+        noteOutcome('break', u);
+        return { kind: 'api', rows: fromApi.value };
+      }
+      const html = await fetchTab(u, 'break', 'break');
       return html ? { kind: 'html', url: u, html } : null;
     }),
   );
@@ -1077,7 +1150,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // (e.g. "Independent adjudicator") is the only reliable signal for some
   // tournaments. Merge those rows in so role classification doesn't depend
   // solely on /participants table availability/shape.
-  const landingParticipantRows = parseParticipantsList(landingHtml);
+  // Not on a partial re-scrape that left participants out: those fields come
+  // back empty, and the stored list is not this fetch's to touch.
+  const landingParticipantRows = wantsPiece(only, { kind: 'participants', key: '' })
+    ? parseParticipantsList(landingHtml)
+    : [];
   const participantByName = new Map<string, (typeof participantRows)[number]>();
   for (const r of participantRows) participantByName.set(normalizePersonName(r.name), r);
   for (const r of landingParticipantRows) {
@@ -1148,8 +1225,13 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const parsedPrelimCount = rounds.filter(
     (r) => !r.isOutround && r.roundNumber != null && isPrelimRoundLabel(r.roundLabel),
   ).length;
-  const prelimRoundCount =
-    parsedPrelimCount > 0 ? parsedPrelimCount : nav.resultsRounds.length || null;
+  // A partial re-scrape parses only some rounds, so counting them would
+  // shrink the tournament; it counts the nav's prelim links instead.
+  const prelimRoundCount = only
+    ? prelimRoundsFromNav(fullNav.resultsRoundLabels).length || fullNav.resultsRounds.length || null
+    : parsedPrelimCount > 0
+      ? parsedPrelimCount
+      : nav.resultsRounds.length || null;
   const format = inferTournamentFormat({
     tournamentName,
     teamRows,
@@ -1181,6 +1263,8 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     format,
     teamBreakRankByTeam,
     fetchLevelFailures,
+    pieceOutcomes,
+    fetchedPieces: pieceOutcomes.filter((o) => o.ok).map(({ kind, key }) => ({ kind, key })),
   };
 }
 
