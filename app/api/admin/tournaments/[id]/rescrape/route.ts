@@ -13,8 +13,10 @@ export const dynamic = 'force-dynamic';
 // A rescrape fetches live pages; the deadline below keeps it inside this.
 export const maxDuration = 60;
 
-// Stop fetching 5s before the platform would kill the function, so the write
-// still happens and a slow page costs a failed piece, not a lost request.
+// Stop 5s before the platform would kill the function. A scrape that runs out
+// of time writes nothing; rescrapePieces answers it as a result, with every
+// piece it could not write under `failed` (and their back-off advanced), so
+// a slow page costs a failed piece, not a 500.
 const DEADLINE_MS = 55_000;
 
 const Body = z.object({

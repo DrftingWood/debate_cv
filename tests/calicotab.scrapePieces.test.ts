@@ -114,3 +114,28 @@ describe('recordPieceOutcomes', () => {
     });
   });
 });
+
+describe('recordPieceOutcomes: withheld pages', () => {
+  // Final review (2026-10-31): a page the tournament withholds is a fact
+  // about the tournament, not a fault; retrying it only fills the logs.
+  it('records a withheld page as withheld, never to be retried', async () => {
+    prismaMock.scrapePiece.upsert.mockResolvedValue({ id: 7n, attempts: 0 });
+    await recordPieceOutcomes(
+      5n,
+      [outcome({ kind: 'motions', ok: false, withheld: true, httpStatus: 403, error: 'HTTP 403' })],
+      NOW,
+    );
+    const arg = prismaMock.scrapePiece.upsert.mock.calls[0][0];
+    expect(arg.update).toEqual({
+      label: 'Team tab',
+      url: 'https://x.calicotab.com/t/tab/team/',
+      lastAttemptAt: NOW,
+      status: 'withheld',
+      httpStatus: 403,
+      lastError: 'HTTP 403',
+      nextRetryAt: null,
+    });
+    expect(arg.create).toMatchObject({ status: 'withheld', attempts: 0, nextRetryAt: null });
+    expect(prismaMock.scrapePiece.update).not.toHaveBeenCalled();
+  });
+});

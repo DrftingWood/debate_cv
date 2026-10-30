@@ -18,6 +18,13 @@ export type PieceOutcome = PieceRef & {
   ok: boolean;
   httpStatus: number | null;
   error: string | null;
+  /**
+   * The tournament itself refuses the page (its own 403, or a 404 for a page
+   * the nav links): not loaded, but not a fault either. Recorded as
+   * 'withheld' and never retried, since no retry brings the page into
+   * existence. Set only when true.
+   */
+  withheld?: true;
 };
 
 /**
@@ -93,7 +100,12 @@ export function pieceLabel(
 export function pieceOutcome(
   kind: PieceKind,
   url: string,
-  result: { status: number | null; error?: string; roundLabels?: Record<string, string> },
+  result: {
+    status: number | null;
+    error?: string;
+    roundLabels?: Record<string, string>;
+    withheld?: boolean;
+  },
 ): PieceOutcome {
   return {
     ...pieceRefForUrl(kind, url),
@@ -102,6 +114,7 @@ export function pieceOutcome(
     ok: result.error == null,
     httpStatus: result.status || null,
     error: result.error ?? null,
+    ...(result.withheld && result.error != null ? { withheld: true as const } : {}),
   };
 }
 
@@ -182,6 +195,11 @@ export function retryDelayMs(failures: number): number | null {
  * Upserts one row per outcome. A failure must not forget the last good load,
  * so `loadedAt` is only written on success. The new attempt count is only
  * known after the increment, so the retry time is set in a second write.
+ *
+ * A withheld page is neither: it is recorded as 'withheld' with no retry and
+ * no attempt counted. The CV's "Partly loaded" mark and the admin's failing
+ * counts read status 'failed' only, so a page the tournament keeps private
+ * leaves no permanent public mark (final review ruling, 2026-10-31).
  */
 export async function recordPieceOutcomes(
   tournamentId: bigint,
@@ -207,6 +225,21 @@ export async function recordPieceOutcomes(
       });
       continue;
     }
+    if (o.withheld) {
+      const withheld = {
+        ...base,
+        status: 'withheld',
+        httpStatus: o.httpStatus,
+        lastError: o.error,
+        nextRetryAt: null,
+      };
+      await prisma.scrapePiece.upsert({
+        where,
+        create: { tournamentId, kind: o.kind, key: o.key, ...withheld, attempts: 0 },
+        update: withheld,
+      });
+      continue;
+    }
     const failed = { ...base, status: 'failed', httpStatus: o.httpStatus, lastError: o.error };
     const row = await prisma.scrapePiece.upsert({
       where,
@@ -216,6 +249,53 @@ export async function recordPieceOutcomes(
     const delay = retryDelayMs(row.attempts);
     await prisma.scrapePiece.update({
       where: { id: row.id },
+      data: { nextRetryAt: delay == null ? null : new Date(now.getTime() + delay) },
+    });
+  }
+}
+
+/**
+ * A retry that ended before any of these pieces' pages answered: the landing
+ * page failed, the tournament no longer matches or has no public address,
+ * or the deadline came first. Nothing was learnt about the pages themselves,
+ * but the attempt still has to count: a piece whose back-off never advances
+ * heads the retry queue on every tick (it is ordered by nextRetryAt), and a
+ * tournament that always fails this way would take every tick.
+ *
+ * Only rows already 'failed' are touched. A piece that is ok or withheld
+ * keeps its status: its stored rows are as good as before, and an attempt
+ * that never reached its page is no evidence against it. `retry: false`
+ * stops automatic retries at once (a tournament with no public address will
+ * not grow one).
+ */
+export async function recordPiecesNotReached(
+  tournamentId: bigint,
+  refs: PieceRef[],
+  why: { error: string; httpStatus: number | null; retry: boolean; now?: Date },
+): Promise<void> {
+  if (refs.length === 0) return;
+  const now = why.now ?? new Date();
+  const rows = await prisma.scrapePiece.findMany({
+    where: {
+      tournamentId,
+      status: 'failed',
+      OR: refs.map((r) => ({ kind: r.kind, key: r.key })),
+    },
+    select: { id: true },
+  });
+  for (const { id } of rows) {
+    const row = await prisma.scrapePiece.update({
+      where: { id },
+      data: {
+        lastAttemptAt: now,
+        lastError: why.error.slice(0, 500),
+        httpStatus: why.httpStatus || null,
+        attempts: { increment: 1 },
+      },
+    });
+    const delay = why.retry ? retryDelayMs(row.attempts) : null;
+    await prisma.scrapePiece.update({
+      where: { id },
       data: { nextRetryAt: delay == null ? null : new Date(now.getTime() + delay) },
     });
   }

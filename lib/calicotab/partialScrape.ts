@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import {
   acquireScrapeClaim,
+  FetchCutOffError,
   loadPublicLanding,
   NothingLoadedError,
   recordEveryJudgeFromRoundResults,
@@ -12,7 +13,13 @@ import {
 import { isIngestDeadlineError } from './fetchSession';
 import type { NavigationStructure } from './parseNav';
 import { publicTournamentBase } from './prescrape';
-import { pieceRefForUrl, type PieceKind, type PieceRef } from './scrapePieces';
+import {
+  pieceRefForUrl,
+  recordPieceOutcomes,
+  recordPiecesNotReached,
+  type PieceKind,
+  type PieceRef,
+} from './scrapePieces';
 
 /**
  * Partial scrapes (owner decision 2026-10-30): re-scrape one tab, one break
@@ -70,8 +77,14 @@ function navPieceIds(nav: NavigationStructure): Set<string> {
 /**
  * Re-scrapes the given pieces of a stored tournament; `'failed'` means every
  * piece whose last attempt failed. Throws ScrapeBusyError when another scrape
- * of the tournament holds the claim, and a plain Error when the tournament is
- * unknown or has no public address to read.
+ * of the tournament holds the claim, TournamentNotFoundError when the
+ * tournament is unknown or has no public address to read, and a plain Error
+ * when its landing page fails or no longer leads back to it.
+ *
+ * Every way of failing except ScrapeBusyError counts as an attempt for the
+ * requested pieces (recordPiecesNotReached), so the retry's back-off always
+ * advances. Running out of time is a result, not an error: the pieces not
+ * written are reported failed, as a page that timed out would be.
  *
  * Nothing left to do (no pieces requested, or none still on the tab) returns
  * after at most the landing page, without taking the claim.
@@ -82,36 +95,16 @@ export async function rescrapePieces(
   opts: { deadline?: number } = {},
 ): Promise<PartialResult> {
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  // Its ScrapePiece rows went with it (onDelete: Cascade): nothing to record.
   if (!tournament) throw new TournamentNotFoundError(`tournament ${tournamentId} not found`);
-  let publicUrl: string;
-  try {
-    publicUrl = publicTournamentBase(tournament.sourceUrlRaw).base;
-  } catch (err) {
-    throw new TournamentNotFoundError(
-      `tournament ${tournamentId} has no public address to re-scrape: ${(err as Error).message}`,
-    );
-  }
 
-  const requestedRaw: PieceRef[] =
-    pieces === 'failed'
-      ? (
-          await prisma.scrapePiece.findMany({
-            where: { tournamentId, status: 'failed' },
-            select: { kind: true, key: true },
-          })
-        ).map((p) => ({ kind: p.kind as PieceKind, key: p.key }))
-      : pieces;
-  // One entry per piece, whatever the caller sent.
-  const requested = [...new Map(requestedRaw.map((p) => [refId(p), p])).values()];
+  const requested = await requestedPieces(tournamentId, pieces);
   const result: PartialResult = { tournamentId, loaded: [], failed: [], notOnTab: [] };
   if (requested.length === 0) return result;
 
-  const { base, loaded } = await loadPublicLanding(publicUrl, opts.deadline);
-  // The landing page must lead back to this tournament: writing its pieces
-  // under another row's fingerprint would mix two tournaments' results.
-  if (loaded.existing?.id !== tournamentId) {
-    throw new Error(`the public page ${base} no longer matches tournament ${tournamentId}`);
-  }
+  const landing = await landingFor(tournament, requested, opts.deadline);
+  if (!landing) return { ...result, failed: requested };
+  const { base, loaded } = landing;
 
   // A piece the tab no longer links (a round withdrawn, a break category
   // renamed) has nothing to fetch. Its stored rows stay: clearing them on
@@ -142,6 +135,11 @@ export async function rescrapePieces(
       }
     });
   } catch (err) {
+    if (isIngestDeadlineError(err)) {
+      await recordCutOff(tournamentId, only, err);
+      result.failed = only;
+      return result;
+    }
     // Every requested page failed. runFullScrape has recorded each failure
     // (so its back-off advances); to the caller that is a result, not an
     // error: these pieces failed, and their stored rows are untouched.
@@ -153,6 +151,91 @@ export async function rescrapePieces(
     await releaseScrapeClaim(tournamentId);
   }
   return result;
+}
+
+/** The pieces asked for, one entry each; `'failed'` reads them from the table. */
+async function requestedPieces(
+  tournamentId: bigint,
+  pieces: PieceRef[] | 'failed',
+): Promise<PieceRef[]> {
+  const raw: PieceRef[] =
+    pieces === 'failed'
+      ? (
+          await prisma.scrapePiece.findMany({
+            where: { tournamentId, status: 'failed' },
+            select: { kind: true, key: true },
+          })
+        ).map((p) => ({ kind: p.kind as PieceKind, key: p.key }))
+      : pieces;
+  return [...new Map(raw.map((p) => [refId(p), p])).values()];
+}
+
+/**
+ * The tournament's public landing page, checked to lead back to it. Any
+ * failure counts as an attempt for the requested pieces before it is thrown;
+ * a deadline is not thrown but answered with null (every piece failed).
+ */
+async function landingFor(
+  tournament: { id: bigint; sourceUrlRaw: string },
+  refs: PieceRef[],
+  deadline: number | undefined,
+): Promise<Awaited<ReturnType<typeof loadPublicLanding>> | null> {
+  const target = { tournamentId: tournament.id, refs };
+  let publicUrl: string;
+  try {
+    publicUrl = publicTournamentBase(tournament.sourceUrlRaw).base;
+  } catch (err) {
+    const notFound = new TournamentNotFoundError(
+      `tournament ${tournament.id} has no public address to re-scrape: ${(err as Error).message}`,
+    );
+    // No address will appear on its own: stop the automatic retries now
+    // rather than after five more failures.
+    await notReached(target, notFound, false);
+    throw notFound;
+  }
+  try {
+    const landing = await loadPublicLanding(publicUrl, deadline);
+    // The landing page must lead back to this tournament: writing its pieces
+    // under another row's fingerprint would mix two tournaments' results.
+    if (landing.loaded.existing?.id !== tournament.id) {
+      throw new Error(
+        `the public page ${landing.base} no longer matches tournament ${tournament.id}`,
+      );
+    }
+    return landing;
+  } catch (err) {
+    await notReached(target, err, true);
+    if (isIngestDeadlineError(err)) return null;
+    throw err;
+  }
+}
+
+/**
+ * Out of time before the write: nothing was written, so every piece asked
+ * for failed. A page that answered with an error is recorded as that
+ * failure; the rest (never reached, or read but not written) count an
+ * attempt without a verdict on their page.
+ */
+async function recordCutOff(tournamentId: bigint, only: PieceRef[], err: unknown) {
+  const answered = err instanceof FetchCutOffError ? err.outcomes.filter((o) => !o.ok) : [];
+  await recordPieceOutcomes(tournamentId, answered);
+  const answeredIds = new Set(answered.map(refId));
+  const refs = only.filter((p) => !answeredIds.has(refId(p)));
+  await notReached({ tournamentId, refs }, err, true);
+}
+
+/** recordPiecesNotReached with the error's own words and HTTP status. */
+function notReached(
+  target: { tournamentId: bigint; refs: PieceRef[] },
+  err: unknown,
+  retry: boolean,
+) {
+  const httpStatus = (err as { httpStatus?: unknown }).httpStatus;
+  return recordPiecesNotReached(target.tournamentId, target.refs, {
+    error: err instanceof Error ? err.message : String(err),
+    httpStatus: typeof httpStatus === 'number' ? httpStatus : null,
+    retry,
+  });
 }
 
 /*
