@@ -169,6 +169,11 @@ export type PieceRow = {
   lastAttemptAt: Date;
   nextRetryAt: Date | null;
   lastError: string | null;
+  /**
+   * The page's address as stored: it may be a private URL, so it only
+   * leaves the server through toPieceCard, which makes it public.
+   */
+  url?: string | null;
 };
 
 /** Numeric round keys ascending, then the outrounds (non-numeric keys) by label. */
@@ -204,6 +209,7 @@ export async function getTournamentPieces(id: bigint): Promise<{
       lastAttemptAt: true,
       nextRetryAt: true,
       lastError: true,
+      url: true,
     },
   });
   const all: PieceRow[] = rows.map((r) => ({

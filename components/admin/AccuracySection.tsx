@@ -127,7 +127,9 @@ function FailingChecks({ overview: o }: { overview: AccuracyOverview }) {
  */
 function OpenQuestions({ questions, audited }: { questions: OpenQuestion[]; audited: number }) {
   return (
-    <div className="space-y-tight">
+    // The id is the target of the "Open question" links on each tournament's
+    // accuracy checks (/admin#open-questions).
+    <div id="open-questions" className="scroll-mt-group space-y-tight">
       <h3 className="font-display text-h4 font-medium text-ink">Open questions</h3>
       {questions.length === 0 ? (
         <p className="text-ui text-ink-soft">Every rule the checks use is settled.</p>

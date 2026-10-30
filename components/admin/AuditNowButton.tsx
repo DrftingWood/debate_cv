@@ -20,7 +20,14 @@ export function auditedTitle(n: number): string {
  * the rest. Reads the stored data only, so nothing to confirm. The count is
  * a toast, as passive news; a refusal stays on screen (UX-20).
  */
-export function AuditNowButton() {
+export function AuditNowButton({
+  tournamentId,
+  tournamentName,
+}: {
+  /** Audit just this tournament ("Audit again") instead of the stale batch. */
+  tournamentId?: string;
+  tournamentName?: string;
+} = {}) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
@@ -32,7 +39,10 @@ export function AuditNowButton() {
     setError(null);
     startTransition(async () => {
       const result = await flight.run(() =>
-        postJson<{ audited: number }>('/api/admin/audit', { stale: true }),
+        postJson<{ audited: number }>(
+          '/api/admin/audit',
+          tournamentId ? { tournamentId } : { stale: true },
+        ),
       );
       if (!result) return;
       if (!result.ok) {
@@ -44,7 +54,14 @@ export function AuditNowButton() {
     });
   };
 
-  return <AuditNowView pending={pending} error={error} onRun={run} />;
+  const view = tournamentId
+    ? {
+        label: 'Audit again',
+        busyLabel: 'Auditing…',
+        status: `Auditing ${tournamentName ?? 'this tournament'}.`,
+      }
+    : {};
+  return <AuditNowView pending={pending} error={error} onRun={run} {...view} />;
 }
 
 /**
@@ -57,10 +74,17 @@ export function AuditNowView({
   pending,
   error,
   onRun,
+  label = 'Audit now',
+  busyLabel = 'Auditing…',
+  status = 'Auditing the tournaments not checked in 24 h. This can take up to a minute.',
 }: {
   pending: boolean;
   error: string | null;
   onRun: () => void;
+  label?: string;
+  busyLabel?: string;
+  /** The status line while it runs (UX-22). */
+  status?: string;
 }) {
   const errorId = useId();
   const statusId = useId();
@@ -75,16 +99,14 @@ export function AuditNowView({
         aria-describedby={error ? errorId : pending ? statusId : undefined}
         onClick={onRun}
       >
-        {pending ? 'Auditing…' : 'Audit now'}
+        {pending ? busyLabel : label}
       </Button>
       <p
         id={statusId}
         role="status"
         className="max-w-64 text-right text-caption whitespace-normal text-ink-soft empty:hidden"
       >
-        {pending
-          ? 'Auditing the tournaments not checked in 24 h. This can take up to a minute.'
-          : null}
+        {pending ? status : null}
       </p>
       {error ? (
         <p

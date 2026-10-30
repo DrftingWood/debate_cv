@@ -1,5 +1,6 @@
 import type { PieceRow } from '@/lib/admin/scrapeHealth';
-import type { PieceKind } from '@/lib/calicotab/scrapePieces';
+import { publicPieceUrl } from '@/lib/audit/types';
+import type { PieceKind, PieceRef } from '@/lib/calicotab/scrapePieces';
 import { postJson } from '@/lib/utils/api';
 import { relativeTime } from '@/lib/utils/relativeTime';
 
@@ -31,6 +32,8 @@ export type PieceCard = {
   timeLabel: 'Loaded' | 'Last tried';
   time: { text: string; iso: string };
   attempts: number;
+  /** The piece's public page on the tab, never a private URL; null when unknown. */
+  url: string | null;
 };
 
 export const pieceId = (p: { kind: string; key: string }) => `${p.kind}:${p.key}`;
@@ -61,6 +64,8 @@ export function toPieceCard(p: PieceRow, now: Date): PieceCard {
     timeLabel: ok ? 'Loaded' : 'Last tried',
     time: { text: relativeTime(at, now), iso: at.toISOString() },
     attempts: p.attempts,
+    // Made public here, on the server, before the card becomes a client prop.
+    url: p.url ? publicPieceUrl(p.url) : null,
   };
 }
 
@@ -79,6 +84,19 @@ export function orderTabs<T extends { kind: PieceKind; label: string }>(tabs: re
 /** "Select failed": every failed piece on the page. */
 export function selectFailed(pieces: readonly PieceCard[]): Set<string> {
   return new Set(pieces.filter((p) => p.status === 'failed').map((p) => p.id));
+}
+
+/**
+ * "Select suggested": the pieces the audit points at that this grid has.
+ * A suggestion the grid does not list (a round the tab no longer shows) is
+ * dropped, so the count on the button never promises more than it will send.
+ */
+export function selectSuggested(
+  pieces: readonly PieceCard[],
+  suggested: readonly PieceRef[],
+): Set<string> {
+  const wanted = new Set(suggested.map(pieceId));
+  return new Set(pieces.filter((p) => wanted.has(p.id)).map((p) => p.id));
 }
 
 /**

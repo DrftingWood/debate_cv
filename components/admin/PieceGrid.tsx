@@ -4,6 +4,7 @@ import { useId, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
+import { TabLink } from '@/components/admin/TabLink';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { rescrapeFailureMessage } from '@/lib/admin/actionMessage';
 import {
@@ -11,9 +12,11 @@ import {
   rescrapePieces,
   resultLine,
   selectFailed,
+  selectSuggested,
   validateSelection,
   type PieceCard,
 } from '@/lib/admin/pieceGrid';
+import type { PieceRef } from '@/lib/calicotab/scrapePieces';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -31,18 +34,23 @@ export function PieceGrid({
   tournamentId,
   tabs,
   rounds,
+  suggested = [],
 }: {
   tournamentId: string;
   tabs: PieceCard[];
   rounds: PieceCard[];
+  /** Pieces the audit's failing and warning checks point at. */
+  suggested?: PieceRef[];
 }) {
   const all = [...tabs, ...rounds];
-  const picker = usePiecePicker(tournamentId, all);
-  return <PieceGridView tabs={tabs} rounds={rounds} {...picker} />;
+  const picker = usePiecePicker(tournamentId, all, suggested);
+  // Counted against the grid, so the button never promises pieces it lacks.
+  const suggestedCount = selectSuggested(all, suggested).size;
+  return <PieceGridView tabs={tabs} rounds={rounds} suggestedCount={suggestedCount} {...picker} />;
 }
 
 /** The selection, the request and its outcome, as the view's props. */
-function usePiecePicker(tournamentId: string, all: PieceCard[]) {
+function usePiecePicker(tournamentId: string, all: PieceCard[], suggested: PieceRef[]) {
   const router = useRouter();
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   // Only ids still on the page count: after a refresh a piece the tab no
@@ -99,6 +107,10 @@ function usePiecePicker(tournamentId: string, all: PieceCard[]) {
       setError(null);
       setTicked((prev) => new Set([...prev, ...selectFailed(all)]));
     },
+    onSelectSuggested: () => {
+      setError(null);
+      setTicked((prev) => new Set([...prev, ...selectSuggested(all, suggested)]));
+    },
     onClear: () => {
       setError(null);
       setTicked(new Set());
@@ -116,6 +128,9 @@ type ViewProps = {
   result: string | null;
   onToggle: (id: string) => void;
   onSelectFailed: () => void;
+  /** Pieces in the grid the audit suggests; the button shows only when above zero. */
+  suggestedCount?: number;
+  onSelectSuggested?: () => void;
   onClear: () => void;
   onSubmit: () => void;
 };
@@ -143,6 +158,11 @@ export function PieceGridView({ tabs, rounds, selected, onToggle, ...actions }: 
   );
 }
 
+type BarProps = Pick<
+  ViewProps,
+  'running' | 'error' | 'result' | 'onSelectFailed' | 'onSelectSuggested' | 'onClear'
+> & { count: number; suggestedCount?: number };
+
 /**
  * The three actions, the status line and the error.
  *
@@ -160,11 +180,11 @@ function ActionBar({
   running,
   error,
   result,
+  suggestedCount = 0,
   onSelectFailed,
+  onSelectSuggested,
   onClear,
-}: Pick<ViewProps, 'running' | 'error' | 'result' | 'onSelectFailed' | 'onClear'> & {
-  count: number;
-}) {
+}: BarProps) {
   const errorId = useId();
   const statusId = useId();
   const busy = running != null;
@@ -183,6 +203,11 @@ function ActionBar({
         <Button type="button" variant="outline" size="sm" onClick={onSelectFailed}>
           Select failed
         </Button>
+        {suggestedCount > 0 ? (
+          <Button type="button" variant="outline" size="sm" onClick={onSelectSuggested}>
+            Select suggested ({suggestedCount})
+          </Button>
+        ) : null}
         <Button type="button" variant="ghost" size="sm" onClick={onClear}>
           Clear
         </Button>
@@ -234,8 +259,16 @@ function PieceGroup({
           column) to 1280px (four). The gap is the same 12px both ways. */}
       <ul className="grid grid-cols-1 gap-tight sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {pieces.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className="flex flex-col gap-hair">
             <PieceCardView piece={p} checked={selected.has(p.id)} onToggle={onToggle} />
+            {/* Beside the card, not inside its label: a link in a label would
+                tick the box as well as open the page. */}
+            <TabLink
+              url={p.url}
+              text="Open on tab"
+              of={p.label}
+              className="self-start px-hair text-caption"
+            />
           </li>
         ))}
       </ul>
@@ -265,7 +298,7 @@ function PieceCardView({
 }) {
   const detailId = useId();
   return (
-    <label className="panel flex h-full cursor-pointer items-start gap-tight p-tight transition-colors hover:bg-surface-2 has-checked:border-primary has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-background">
+    <label className="panel flex flex-1 cursor-pointer items-start gap-tight p-tight transition-colors hover:bg-surface-2 has-checked:border-primary has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-background">
       <input
         type="checkbox"
         className="h-6 w-6 shrink-0 accent-primary"

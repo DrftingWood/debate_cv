@@ -167,6 +167,8 @@ describe('parseChecks', () => {
       {
         code: 'panels',
         status: 'fail',
+        // No stored sentence reads as an empty one.
+        detail: '',
         assumptions: [],
         pieces: [
           // A private URL stored by mistake is made public again here.

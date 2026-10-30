@@ -77,6 +77,8 @@ export type AccuracyOverview = {
 export type ParsedCheck = {
   code: CheckCode;
   status: CheckStatus;
+  /** The one-sentence finding; empty when the stored row has none. */
+  detail: string;
   pieces: SuggestedPiece[];
   assumptions: AssumptionCode[];
 };
@@ -117,6 +119,7 @@ export function parseChecks(json: unknown): ParsedCheck[] {
     out.push({
       code: c.code,
       status: c.status as CheckStatus,
+      detail: typeof c.detail === 'string' ? c.detail : '',
       pieces: pieces.filter((p): p is SuggestedPiece => p != null),
       assumptions,
     });
@@ -133,7 +136,7 @@ const isFailing = (c: ParsedCheck) =>
   c.status === 'fail' || (c.code === 'user_reports' && c.status === 'warn');
 
 /** Union of failing and warning pieces, first seen first, capped at the route's limit. */
-function suggestedPieces(checks: ParsedCheck[]): SuggestedPiece[] {
+export function suggestedPieces(checks: ParsedCheck[]): SuggestedPiece[] {
   const seen = new Set<string>();
   const out: SuggestedPiece[] = [];
   for (const c of checks) {

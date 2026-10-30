@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PieceGrid } from '@/components/admin/PieceGrid';
 import { requireAdmin } from '@/lib/admin';
 import { orderTabs, toPieceCard } from '@/lib/admin/pieceGrid';
+import { AccuracyChecks } from '@/components/admin/AccuracyChecks';
+import { getTournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
 import { getTournamentPieces } from '@/lib/admin/scrapeHealth';
 import { TabLink } from '@/components/admin/TabLink';
 
@@ -38,7 +40,10 @@ export default async function AdminTournamentPiecesPage({
   // BigInt(' 5') quietly reads 5.
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
-  const data = await getTournamentPieces(BigInt(id));
+  const [data, audit] = await Promise.all([
+    getTournamentPieces(BigInt(id)),
+    getTournamentAccuracy(BigInt(id)),
+  ]);
   if (!data) notFound();
 
   // One clock for every relative time on the page, worked out here so the
@@ -51,33 +56,20 @@ export default async function AdminTournamentPiecesPage({
 
   return (
     <div className="space-y-group">
-      <header className="space-y-tight">
-        <div className="kicker">ADMIN · TOURNAMENT</div>
-        <h1 className="font-display text-h2 font-medium tracking-tight wrap-break-word text-ink">
-          {data.tournament.name}
-        </h1>
-        <hr className="hairline" />
-        <div className="flex flex-col gap-tight sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-mono text-caption tabular-nums text-ink-soft">
-            {total === 0
-              ? 'No pieces tracked'
-              : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed`}
-          </p>
-          <div className="flex flex-wrap items-center gap-inline">
-            {/* A new tab, so the grid keeps its place; TabLink keeps the
-                href public and names the tournament (UX-11). */}
-            <TabLink
-              url={data.tournament.sourceUrl}
-              text="Public tab"
-              of={data.tournament.name}
-              asButton
-            />
-            <Link href="/admin" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-              ← Admin
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        name={data.tournament.name}
+        sourceUrl={data.tournament.sourceUrl}
+        total={total}
+        failed={failed}
+      />
+
+      <AccuracyChecks
+        tournamentId={id}
+        tournamentName={data.tournament.name}
+        tabUrl={data.tournament.sourceUrl}
+        audit={audit}
+        now={now}
+      />
 
       {total === 0 ? (
         <EmptyState
@@ -86,8 +78,50 @@ export default async function AdminTournamentPiecesPage({
           headingLevel={2}
         />
       ) : (
-        <PieceGrid tournamentId={id} tabs={tabs} rounds={rounds} />
+        <PieceGrid
+          tournamentId={id}
+          tabs={tabs}
+          rounds={rounds}
+          suggested={(audit?.suggested ?? []).map(({ kind, key }) => ({ kind, key }))}
+        />
       )}
     </div>
+  );
+}
+
+function PageHeader({
+  name,
+  sourceUrl,
+  total,
+  failed,
+}: {
+  name: string;
+  sourceUrl: string;
+  total: number;
+  failed: number;
+}) {
+  return (
+    <header className="space-y-tight">
+      <div className="kicker">ADMIN · TOURNAMENT</div>
+      <h1 className="font-display text-h2 font-medium tracking-tight wrap-break-word text-ink">
+        {name}
+      </h1>
+      <hr className="hairline" />
+      <div className="flex flex-col gap-tight sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-mono text-caption tabular-nums text-ink-soft">
+          {total === 0
+            ? 'No pieces tracked'
+            : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed`}
+        </p>
+        <div className="flex flex-wrap items-center gap-inline">
+          {/* A new tab, so the grid keeps its place; TabLink keeps the
+              href public and names the tournament (UX-11). */}
+          <TabLink url={sourceUrl} text="Public tab" of={name} asButton />
+          <Link href="/admin" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
+            ← Admin
+          </Link>
+        </div>
+      </div>
+    </header>
   );
 }

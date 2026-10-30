@@ -13,7 +13,7 @@ const PRIVATE = `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`;
 const h = vi.hoisted(() => ({
   db: {
     tournament: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
-    tournamentAudit: { findMany: vi.fn() },
+    tournamentAudit: { findMany: vi.fn(), findUnique: vi.fn() },
     scrapePiece: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     ingestJob: { findMany: vi.fn() },
   },
@@ -25,6 +25,7 @@ const { getAccuracyOverview } = await import('@/lib/admin/accuracy');
 const { toPartlyLoadedRows } = await import('@/components/admin/ScrapeHealthSection');
 const { toFailedJobRows } = await import('@/components/admin/FailedImportsSection');
 const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
+const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
 
@@ -118,9 +119,33 @@ describe('props crossing into client components carry no private key', () => {
     expectNoKey(o.openQuestions);
   });
 
-  it('PieceGrid cards', async () => {
+  it('PieceGrid cards, with their Open on tab links', async () => {
     const data = await getTournamentPieces(1n);
-    expectNoKey([...data!.tabs, ...data!.rounds].map((p) => toPieceCard(p, NOW)));
+    const cards = [...data!.tabs, ...data!.rounds].map((p) =>
+      toPieceCard({ ...p, url: `${PRIVATE}results/round/3/` }, NOW),
+    );
+    expect(cards[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expectNoKey(cards);
+  });
+});
+
+describe('the accuracy checks panel carries no private key', () => {
+  it('AccuracyChecks audit and the suggested pieces', async () => {
+    h.db.tournamentAudit.findUnique.mockResolvedValue({
+      score: 10,
+      computedAt: NOW,
+      checks: [
+        {
+          code: 'rounds_complete',
+          status: 'fail',
+          detail: 'Round 3 is missing.',
+          pieces: [{ kind: 'round', key: '3', label: 'R3', url: `${PRIVATE}results/round/3/` }],
+        },
+      ],
+    });
+    const audit = await getTournamentAccuracy(1n);
+    expect(audit!.suggested[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expectNoKey(audit);
   });
 });
 

@@ -19,6 +19,12 @@ vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' }
 vi.mock('@/lib/admin/scrapeHealth', () => ({
   getTournamentPieces: vi.fn(async () => data.current),
 }));
+vi.mock('@/lib/admin/tournamentAccuracy', () => ({
+  getTournamentAccuracy: vi.fn(async () => null),
+}));
+vi.mock('@/components/ui/Toast', () => ({
+  useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
+}));
 vi.mock('@/lib/utils/api', () => ({ postJson: post }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
