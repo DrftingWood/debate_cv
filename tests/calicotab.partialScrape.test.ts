@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   fetchHtml: vi.fn(),
   fetchRound: vi.fn(),
   recordPieceOutcomes: vi.fn(),
+  // Per-test break page parse (null: one Open row for Oxford A).
+  breakRows: null as unknown[] | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -117,18 +119,31 @@ vi.mock('@/lib/calicotab/parseTabs', async (importActual) => ({
       seconds: 1,
     },
   ],
-  parseSpeakerTab: () => [],
-  parseRoundResults: (_html: string, url: string) => structuredClone(ROUNDS[url]),
-  parseBreakPage: () => [
+  parseSpeakerTab: () => [
     {
       rank: 1,
-      entityType: 'team',
-      entityName: 'Oxford A',
+      rankEsl: null,
+      rankEfl: null,
+      categories: [],
+      speakerName: 'Ada Lovelace',
+      teamName: 'Oxford A',
       institution: 'Oxford',
-      score: 5,
-      stage: 'Open',
+      totalScore: 160,
+      roundScores: [],
     },
   ],
+  parseRoundResults: (_html: string, url: string) => structuredClone(ROUNDS[url]),
+  parseBreakPage: () =>
+    h.breakRows ?? [
+      {
+        rank: 1,
+        entityType: 'team',
+        entityName: 'Oxford A',
+        institution: 'Oxford',
+        score: 5,
+        stage: 'Open',
+      },
+    ],
   parseParticipantsList: () => [],
   diagnoseVueData: () => 'diagnosis',
 }));
@@ -242,6 +257,7 @@ beforeEach(() => {
   h.fetchHtml.mockReset();
   h.fetchRound.mockReset();
   h.recordPieceOutcomes.mockReset();
+  h.breakRows = null;
   resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -318,6 +334,10 @@ describe('rescrapePieces: what it refuses or reports', () => {
     // Nothing to re-scrape: only the landing page was read, no claim taken.
     expect(fetchedUrls()).toEqual([BASE]);
     expect(prismaMock.tournament.updateMany).not.toHaveBeenCalled();
+    // It is no longer a piece of the tournament: its ScrapePiece row goes.
+    expect(callsOf(prismaMock.scrapePiece.deleteMany)).toEqual([
+      { where: { tournamentId: 7n, OR: [{ kind: 'round', key: '9' }] } },
+    ]);
   });
 
   it('refuses while another scrape holds the claim', async () => {
@@ -355,5 +375,65 @@ describe("rescrapePieces: 'failed'", () => {
     expect(callsOf(prismaMock.eliminationResult.deleteMany)).toContainEqual({
       where: { tournamentId: 7n, stage: 'Open', result: null },
     });
+  });
+});
+
+describe('rescrapePieces: what a partial re-scrape must leave alone', () => {
+  const failedPage = (url: string) => ({
+    ok: false,
+    url,
+    status: 504,
+    bodyPreview: '',
+    elapsedMs: 1,
+  });
+
+  it('every requested page failing records the failures and reports them', async () => {
+    install();
+    h.fetchRound.mockImplementation(async (url: string) => failedPage(url));
+    const result = await rescrapePieces(7n, [{ kind: 'round', key: '3' }]);
+
+    expect(result).toEqual({
+      tournamentId: 7n,
+      loaded: [],
+      failed: [{ kind: 'round', key: '3' }],
+      notOnTab: [],
+    });
+    // Recorded, so the piece's attempts and back-off advance.
+    expect(h.recordPieceOutcomes).toHaveBeenCalledTimes(1);
+    expect(h.recordPieceOutcomes.mock.calls[0]![0]).toBe(7n);
+    expect(h.recordPieceOutcomes.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({ kind: 'round', key: '3', ok: false, httpStatus: 504 }),
+    ]);
+    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
+    expect(allDeletes()).toEqual([]);
+  });
+
+  it('speaker piece leaves teamBreakRank untouched', async () => {
+    install();
+    await rescrapePieces(7n, [{ kind: 'speaker', key: '' }]);
+
+    const upserts = callsOf(prismaMock.tournamentParticipant.upsert);
+    expect(upserts.length).toBeGreaterThan(0);
+    for (const u of upserts) {
+      expect(u.update).toHaveProperty('teamBreakRank', undefined);
+    }
+  });
+
+  it('an empty break parse deletes nothing', async () => {
+    install();
+    h.breakRows = [];
+    await rescrapePieces(7n, [{ kind: 'break', key: 'open' }]);
+
+    expect(prismaMock.eliminationResult.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp the tournament current or fresh', async () => {
+    install();
+    await rescrapePieces(7n, [{ kind: 'round', key: '3' }]);
+
+    const update = callsOf(prismaMock.tournament.upsert)[0]!.update;
+    expect(update.parserVersion).toBeUndefined();
+    expect(update.scrapedAt).toBeUndefined();
+    expect(update.scrapeClaimedAt).toBeNull();
   });
 });

@@ -237,13 +237,19 @@ export type ClearablePiece = PieceRef & {
  * stage comes from its URL through breakPageKind, as the write's does.
  *
  * A page that loaded but parsed to nothing (a round with no results, a team
- * tab with no rows) is not cleared: an empty parse is more likely a layout
+ * tab with no rows, a break category with no rows under its stage) is not
+ * cleared: an empty parse is more likely a layout
  * the parser missed than a tournament that deleted its results, and clearing
  * would replace stored rows with nothing.
  */
 export function piecesToClear(
   outcomes: PieceOutcome[],
-  parsed: { rounds: (RoundDebate | null | undefined)[]; teamRowCount: number },
+  parsed: {
+    rounds: (RoundDebate | null | undefined)[];
+    teamRowCount: number;
+    /** Stages the parsed break rows are written under. */
+    breakStages: Set<string>;
+  },
 ): ClearablePiece[] {
   const out: ClearablePiece[] = [];
   const none = { roundNumber: null, roundLabel: null, breakStage: null };
@@ -256,7 +262,8 @@ export function piecesToClear(
       if (!round || round.teamResults.length === 0) continue;
       out.push({ ...ref, ...none, roundNumber: n, roundLabel: round.roundLabel });
     } else if (o.kind === 'break') {
-      out.push({ ...ref, ...none, breakStage: breakPageKind(o.url).stage ?? 'break' });
+      const stage = breakPageKind(o.url).stage ?? 'break';
+      if (parsed.breakStages.has(stage)) out.push({ ...ref, ...none, breakStage: stage });
     } else if (o.kind === 'team') {
       if (parsed.teamRowCount > 0) out.push({ ...ref, ...none });
     } else {

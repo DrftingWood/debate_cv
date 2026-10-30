@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import {
   acquireScrapeClaim,
   loadPublicLanding,
+  NothingLoadedError,
   recordEveryJudgeFromRoundResults,
   releaseScrapeClaim,
   runFullScrape,
@@ -100,10 +101,17 @@ export async function rescrapePieces(
 
   // A piece the tab no longer links (a round withdrawn, a break category
   // renamed) has nothing to fetch. Its stored rows stay: clearing them on
-  // the strength of a missing link would delete data no page replaces.
+  // the strength of a missing link would delete data no page replaces. Its
+  // ScrapePiece row goes, though: it is no longer a piece of the tournament,
+  // and a 'failed' row left behind would be asked for again on every retry.
   const onNav = navPieceIds(loaded.snapshot.navigation);
   const only = requested.filter((p) => onNav.has(refId(p)));
   result.notOnTab = requested.filter((p) => !onNav.has(refId(p)));
+  if (result.notOnTab.length > 0) {
+    await prisma.scrapePiece.deleteMany({
+      where: { tournamentId, OR: result.notOnTab.map((p) => ({ kind: p.kind, key: p.key })) },
+    });
+  }
   if (only.length === 0) return result;
 
   const claim = await acquireScrapeClaim(tournamentId);
@@ -119,6 +127,12 @@ export async function rescrapePieces(
         (o.ok ? result.loaded : result.failed).push({ kind: o.kind, key: o.key });
       }
     });
+  } catch (err) {
+    // Every requested page failed. runFullScrape has recorded each failure
+    // (so its back-off advances); to the caller that is a result, not an
+    // error: these pieces failed, and their stored rows are untouched.
+    if (!(err instanceof NothingLoadedError)) throw err;
+    result.failed = err.outcomes.map((o) => ({ kind: o.kind, key: o.key }));
   } finally {
     // The write transaction clears the claim on success; this covers a
     // failure before it, so the next attempt need not wait out the TTL.

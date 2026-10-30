@@ -474,9 +474,16 @@ export async function runFullScrape(
   // no pages at all tried none, failed none, and goes on as before.
   const outcomes = fetched.pieceOutcomes;
   if (outcomes.length > 0 && !outcomes.some((o) => o.ok)) {
-    throw new Error(
+    // A partial re-scrape whose every page failed still counts as an attempt
+    // for each piece: without the record, attempts never grow and the retry
+    // back-off never advances, so the retry cron would ask again every tick.
+    if (options.only && loaded.existing) {
+      await recordPieceOutcomes(loaded.existing.id, outcomes);
+    }
+    throw new NothingLoadedError(
       `Aborting ingest: no page loaded — ` +
         fetched.fetchLevelFailures.map((w) => w.slice(0, 120)).join('; '),
+      outcomes,
     );
   }
 
@@ -572,6 +579,17 @@ export class ScrapeBusyError extends Error {
   constructor(base: string) {
     super(`another scrape of ${base} is in progress`);
     this.name = 'ScrapeBusyError';
+  }
+}
+
+/** No page of the scrape loaded; `outcomes` says what each one answered. */
+export class NothingLoadedError extends Error {
+  constructor(
+    message: string,
+    readonly outcomes: PieceOutcome[],
+  ) {
+    super(message);
+    this.name = 'NothingLoadedError';
   }
 }
 
@@ -1584,11 +1602,14 @@ async function writeIngestTransaction(
           totalTeams: storedTeams,
           prelimRoundCount,
           sourceUrlRaw: storedSourceUrl,
-          scrapedAt: new Date(),
           // Stamp the version that produced this data (tournament-scoped
           // cache invalidation) and release the scrape claim — committing
           // the write IS the success signal concurrent waiters poll for.
-          parserVersion: PARSER_VERSION,
+          // A partial re-scrape rewrote one piece, not the tournament: it
+          // must not mark old-parser data current or the rest fresh, or the
+          // pre-scrape and parser-bump re-scrapes would skip it.
+          scrapedAt: options.only ? undefined : new Date(),
+          parserVersion: options.only ? undefined : PARSER_VERSION,
           scrapeClaimedAt: null,
         },
         create: {
@@ -1614,7 +1635,11 @@ async function writeIngestTransaction(
         await clearPieces(
           tx,
           t.id,
-          piecesToClear(fetched.pieceOutcomes, { rounds, teamRowCount: teamRows.length }),
+          piecesToClear(fetched.pieceOutcomes, {
+            rounds,
+            teamRowCount: teamRows.length,
+            breakStages: new Set(breakRows.map((r) => r.stage ?? 'break')),
+          }),
         );
       }
 
@@ -1833,6 +1858,10 @@ async function writeIngestTransaction(
         const breakRankForTeam = teamNameToWrite
           ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
           : null;
+        // The break rank belongs to the break pieces. A partial re-scrape
+        // that read none has no ranks, and must keep the stored ones rather
+        // than null them (Prisma leaves an undefined field untouched).
+        const breakRankUpdate = options.only && !loadedKind('break') ? undefined : breakRankForTeam;
         const participant = await tx.tournamentParticipant.upsert({
           where: { tournamentId_personId: { tournamentId: t.id, personId } },
           update: {
@@ -1842,7 +1871,7 @@ async function writeIngestTransaction(
             speakerRankEsl: sp.rankEsl,
             speakerRankEfl: sp.rankEfl,
             speakerCategories: sp.categories,
-            teamBreakRank: breakRankForTeam,
+            teamBreakRank: breakRankUpdate,
           },
           create: {
             tournamentId: t.id,
