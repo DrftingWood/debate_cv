@@ -6,6 +6,7 @@ import { ingestPrivateUrl, isDeadlockError } from '@/lib/calicotab/ingest';
 import { isIngestDeadlineError } from '@/lib/calicotab/fetchSession';
 import { estimateIngestMs, FETCH_MIN_INTERVAL_MS } from '@/lib/calicotab/fetch';
 import { IngestJobStatus } from '@prisma/client';
+import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 import {
   claimOnePending,
   isPermanentError,
@@ -53,6 +54,8 @@ export async function POST() {
     }> = [];
 
     await resetStuckRunning({ userId });
+    // Stored tournaments first: no request, never behind a live scrape.
+    const storedLinked = await linkStoredJobsFirst({ userId });
 
     while (Date.now() - started < TIME_BUDGET_MS) {
       // Don't START another job we can't finish in the remaining budget.
@@ -60,7 +63,7 @@ export async function POST() {
       // drain call never returns a no-op even when budget is tight — the
       // client-side drainUntilEmpty loop relies on that to make progress.
       const remaining = TIME_BUDGET_MS - (Date.now() - started);
-      if (results.length > 0 && remaining < ESTIMATED_JOB_MS) break;
+      if (results.length + storedLinked > 0 && remaining < ESTIMATED_JOB_MS) break;
       const job = await claimOnePending({ userId });
       if (!job) break;
 
@@ -113,7 +116,8 @@ export async function POST() {
       where: { userId, status: { in: [IngestJobStatus.pending, IngestJobStatus.running] } },
     });
 
-    return NextResponse.json({ processed: results.length, remaining, results });
+    const processed = results.length + storedLinked;
+    return NextResponse.json({ processed, remaining, results });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/ingest/drain]', msg);

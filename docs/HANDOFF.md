@@ -2,6 +2,18 @@
 
 ---
 
+## 2026-10-30 - Stored tournaments before the queue
+
+- **Owner's question.** "First check all the URLs, see if they exist in the pre-scrape, load them, then tackle the new ones. Is this being followed?" **It wasn't.**
+- **Before.** The queue ran oldest first (`claimOnePending`, `ORDER BY scheduledAt`), one calicotab job at a time. A stored tournament was spotted only when its own job came up, so it waited behind live scrapes (each minutes long while calicotab answers in 10-40 s a page), although linking it needs no request.
+- **Now.** `linkStoredJobsFirst` (`lib/calicotab/storedFirst.ts`) runs ahead of the queue in the signed-in drain (`/api/ingest/drain`, that user's jobs) and the cron (everyone's).
+  - For every pending job whose tournament is stored and finished (`findServableStoredTournament`), it claims the job (pending to running, so a concurrent drain never takes it too), links it with `linkFromStoredTournament`, and finishes it with `markJobDone`, so the CV-ready notice still fires.
+  - Database only, so it doesn't use the calicotab slot.
+  - A stored tournament the user's names aren't in goes back to pending, attempt untouched, for the queue to read its page.
+- Stored links count toward the drain's `processed`, so a call that only linked stored tournaments isn't mistaken for no progress by `drainUntilEmpty`. The cron reports `storedLinked`.
+
+---
+
 ## 2026-10-30 - A champion with no private-URL page read
 
 - **Owner report.** NPD 2023: champion, not shown. Production export: `broke: true`, `outroundReached: null`, `won: null`.
