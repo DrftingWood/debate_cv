@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
   recordParserRun: vi.fn(),
   recordPieceOutcomes: vi.fn(),
   captureMessage: vi.fn(),
+  loadAuditInputs: vi.fn(),
   // Per-test replacement for the speaker tab parse (null: the default rows).
   speakerTab: null as unknown[] | null,
   // Per-test override of who the private URL's owner is (null: Ada Lovelace).
@@ -64,6 +65,10 @@ vi.mock('@/lib/calicotab/scrapePieces', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/calicotab/scrapePieces')>()),
   recordPieceOutcomes: h.recordPieceOutcomes,
 }));
+// The audit after a scrape has its own tests (audit.run.test.ts); here only
+// that it runs, and that its failure cannot fail the ingest. Its loader is the
+// seam: an empty answer audits nothing.
+vi.mock('@/lib/audit/load', () => ({ loadAuditInputs: h.loadAuditInputs }));
 // The year fill has its own tests (calicotab.yearFromEmail.test.ts).
 vi.mock('@/lib/calicotab/yearFromEmail', () => ({
   fillTournamentYearFromEmails: async () => null,
@@ -445,6 +450,7 @@ beforeEach(() => {
   h.recordParserRun.mockReset();
   h.recordPieceOutcomes.mockReset();
   h.captureMessage.mockReset();
+  h.loadAuditInputs.mockReset().mockResolvedValue(new Map());
   h.speakerTab = null;
   h.ownerName = null;
   h.judyTag = null;
@@ -804,6 +810,23 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
 });
 
 // ─── Freshness and skip decisions on a stored tournament ───────────────────
+
+describe('ingest: the data-accuracy audit after a write', () => {
+  it('audits the tournament after the write', async () => {
+    install();
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(h.loadAuditInputs).toHaveBeenCalledWith([1n]);
+  });
+
+  it('an audit failure never fails the scrape', async () => {
+    install();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    h.loadAuditInputs.mockRejectedValue(new Error('audit down'));
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(result.tournamentId).toBe(1n);
+  });
+});
 
 describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
   it('serves a fresh, complete, current-version tournament from the cache without fetching tabs', async () => {

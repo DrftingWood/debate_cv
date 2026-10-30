@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { auditAfterScrape } from '@/lib/audit/run';
 import {
   FETCH_MIN_INTERVAL_MS,
   fetchHtmlWithProvenance,
@@ -522,6 +523,10 @@ export async function runFullScrape(
   // Only after the write: a piece is "ok" because its rows are stored.
   await recordPieceOutcomes(txResult.tournamentId, outcomes);
   if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
+  // Re-score the tournament's data accuracy against what was just written.
+  // After afterWrite, so a partial re-scrape's judge panels are counted.
+  // Best-effort: it catches its own errors and never fails the ingest.
+  await auditAfterScrape(txResult.tournamentId);
   console.info('[ingest] write phase', {
     url: loaded.normalized,
     // Both halves of the budget: the tab phase, then the write. Together
