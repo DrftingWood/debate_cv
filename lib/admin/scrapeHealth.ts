@@ -34,6 +34,8 @@ export type ScrapeHealth = {
   partlyLoadedTournaments: Array<{
     id: bigint;
     name: string;
+    /** The stored source URL; links go through publicPieceUrl first. */
+    sourceUrl: string | null;
     failed: FailedPiece[];
     lastAttemptAt: Date;
   }>;
@@ -81,7 +83,7 @@ async function loadFailedDetail(ids: bigint[]) {
     }),
     prisma.tournament.findMany({
       where: { id: { in: ids } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, sourceUrlRaw: true },
     }),
   ]);
   return { pieces, tournaments };
@@ -114,7 +116,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
   const ids = newest.map((t) => t.id);
 
   const { pieces, tournaments } = await loadFailedDetail(ids);
-  const nameById = new Map(tournaments.map((t) => [t.id, t.name] as const));
+  const byId = new Map(tournaments.map((t) => [t.id, t] as const));
 
   return {
     tracked,
@@ -126,7 +128,8 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
     failingByKind: byKind.map((g) => ({ kind: g.kind as PieceKind, count: g._count._all })),
     partlyLoadedTournaments: newest.map((t) => ({
       id: t.id,
-      name: nameById.get(t.id) ?? `Tournament ${t.id}`,
+      name: byId.get(t.id)?.name ?? `Tournament ${t.id}`,
+      sourceUrl: byId.get(t.id)?.sourceUrlRaw ?? null,
       lastAttemptAt: t.lastAttemptAt,
       failed: pieces
         .filter((p) => p.tournamentId === t.id)

@@ -1,0 +1,74 @@
+import { publicPieceUrl } from '@/lib/audit/types';
+import { buttonClasses } from '@/components/ui/Button';
+import { cn } from '@/lib/utils/cn';
+
+/**
+ * A link out to a page of a tournament's tab, so an admin can check a hint
+ * by eye (owner, 2026-10-31: "Links to check by hand", and "tournament url
+ * should be a clickable link").
+ *
+ * The href always goes through publicPieceUrl, here, whatever the caller
+ * passed: a stored URL can be a user's `/privateurls/<key>/` address, and that
+ * key signs in as the participant, so it must never reach an href. When no
+ * public address can be made, the text shows without a link rather than a
+ * link to nowhere.
+ *
+ * It opens in a new tab (the admin page keeps its place) with
+ * `noopener noreferrer`, and the visible "↗" says so. The accessible name
+ * starts with the visible words, then says whose page it is and that it
+ * opens a new tab (UX-11): twenty links all named "Tab" cannot be told apart
+ * in a screen reader's list of links.
+ */
+export function TabLink({
+  url,
+  text,
+  of,
+  asButton = false,
+  missing,
+  className,
+}: {
+  url: string | null | undefined;
+  /** The visible words, before the arrow. */
+  text: string;
+  /** Whose page it is, for the accessible name; omit when `text` says it. */
+  of?: string;
+  /**
+   * An outline button (a page header's action) rather than inline text. A
+   * button with nowhere to go would look pressable, so without a public
+   * address it renders nothing.
+   */
+  asButton?: boolean;
+  /**
+   * Words for "no public address" in place of `text`, for a column where an
+   * unlinked "Tab" would read as a broken link (UX-27: a real state gets a word).
+   */
+  missing?: string;
+  className?: string;
+}) {
+  const href = url ? publicPieceUrl(url) : null;
+  if (!href) {
+    if (asButton) return null;
+    return missing ? (
+      <span className={cn('text-ink-soft', className)}>{missing}</span>
+    ) : (
+      <span className={className}>{text}</span>
+    );
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${text}${of ? ` of ${of}` : ''}, opens in a new tab`}
+      className={cn(
+        asButton
+          ? buttonClasses({ variant: 'outline', size: 'sm' })
+          : 'text-ink underline-offset-4 hover:underline',
+        className,
+      )}
+    >
+      {text}
+      <span aria-hidden> ↗</span>
+    </a>
+  );
+}

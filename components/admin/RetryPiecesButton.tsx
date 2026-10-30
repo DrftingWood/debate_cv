@@ -9,14 +9,17 @@ import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
 import { rescrapeFailureMessage } from '@/lib/admin/actionMessage';
 
-type RescrapeResponse = {
+export type RescrapeResponse = {
   loaded: unknown[];
   failed: unknown[];
   notOnTab: unknown[];
 };
 
-/** "Loaded 3, still failing 1." with the pieces the tab no longer lists. */
-function summary(data: RescrapeResponse): string {
+/**
+ * "Loaded 3, still failing 1." with the pieces the tab no longer lists. Shared
+ * with the accuracy table's "Re-scrape suggested", which calls the same route.
+ */
+export function rescrapeSummary(data: RescrapeResponse): string {
   const gone = data.notOnTab?.length ?? 0;
   return (
     `Loaded ${data.loaded?.length ?? 0}, still failing ${data.failed?.length ?? 0}.` +
@@ -61,7 +64,11 @@ export function RetryPiecesButton({
         setError(rescrapeFailureMessage(result));
         return;
       }
-      toast.show({ kind: 'success', title: tournamentName, description: summary(result.data) });
+      toast.show({
+        kind: 'success',
+        title: tournamentName,
+        description: rescrapeSummary(result.data),
+      });
       // Inside its own transition so `pending` holds until the refreshed
       // rows arrive; otherwise the old row flashes up as retryable again.
       startTransition(() => router.refresh());

@@ -79,6 +79,22 @@ describe('champion across brackets', () => {
     ];
     expect(check(inputs({ outrounds: o }), 'champion').status).toBe('fail');
   });
+  // Ruling 9: the no-Open fallback is an unsettled rule, so a result it
+  // decided says so, and the admin's Open questions panel can count it.
+  it('a champion found by the no-Open fallback is tagged with its assumption', () => {
+    const pass = check(
+      inputs({ outrounds: stage('Senior Grand Final', names('S', 4), 1) }),
+      'champion',
+    );
+    expect(pass.assumptions).toEqual(['no_open_bracket_champion']);
+    const fail = check(inputs({ outrounds: stage('Varsity Final', names('V', 4), 2) }), 'champion');
+    expect(fail.assumptions).toEqual(['no_open_bracket_champion']);
+  });
+  it('an Open or tier final names the champion with no assumption', () => {
+    expect(check(inputs({ outrounds: cleanOpen }), 'champion').assumptions).toBeUndefined();
+    const gold = check(inputs({ outrounds: stage('Gold Final', names('G', 4), 1) }), 'champion');
+    expect(gold.assumptions).toBeUndefined();
+  });
   it('an Open break with only a category final still fails: Open exists', () => {
     const o = stage('ESL Grand Final', names('E', 4), 1);
     expect(check(inputs({ breakRows: openBreak(8), outrounds: o }), 'champion').status).toBe(

@@ -47,3 +47,11 @@ export function rescrapeFailureMessage(failure: FailureLike): string {
 export function retryFailureMessage(failure: FailureLike): string {
   return lookup(RETRY, failure.error) ?? generic(failure);
 }
+
+/**
+ * Why "Audit now" did not run. POST /api/admin/audit answers only the shared
+ * codes (and `bad_request` / `unauthorized`, which `userMessage` words).
+ */
+export function auditFailureMessage(failure: FailureLike): string {
+  return lookup(SHARED, failure.error) ?? generic(failure);
+}

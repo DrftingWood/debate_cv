@@ -8,6 +8,7 @@ import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable'
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { useFirstRows } from '@/components/ui/useFirstRows';
+import { TabLink } from '@/components/admin/TabLink';
 import { retryFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
@@ -17,6 +18,8 @@ export type FailedJobRow = {
   id: string;
   user: string | null;
   url: string;
+  /** The tab's public address for the link (never the private one); null shows text only. */
+  href: string | null;
   attempts: number;
   /** Plain-language summary of `lastError`; null when none was recorded. */
   error: string | null;
@@ -286,7 +289,7 @@ function JobRow({
         <span className={row.user ? undefined : 'text-ink-soft'}>{user}</span>
       </Td>
       <Td rowHeader className="wrap-break-word">
-        <span className="font-mono text-caption">{row.url}</span>
+        <TabLink url={row.href} text={row.url} className="font-mono text-caption" />
         <span className="block text-caption text-ink-soft md:hidden">{user}</span>
       </Td>
       <Td numeric className="hidden md:table-cell">

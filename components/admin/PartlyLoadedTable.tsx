@@ -5,11 +5,14 @@ import { Badge } from '@/components/ui/Badge';
 import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { RetryPiecesButton } from '@/components/admin/RetryPiecesButton';
+import { TabLink } from '@/components/admin/TabLink';
 
 /** A row as the server prepared it: ids as strings, times already in words. */
 export type PartlyLoadedRow = {
   id: string;
   name: string;
+  /** The stored source URL; TabLink makes it public before linking. */
+  tabUrl: string | null;
   missing: string[];
   lastTried: { text: string; iso: string };
   /** Null when at least one piece has used up its automatic retries. */
@@ -35,10 +38,11 @@ export function PartlyLoadedTable({ rows }: { rows: PartlyLoadedRow[] }) {
           {/* Fixed widths so the time columns sit at the same x whatever the
               tournament names are, and the action column never squeezes the
               button onto two lines. */}
-          <Cols widths={['16rem', '20rem', '7rem', '8rem', '10rem']} />
+          <Cols widths={['16rem', '5rem', '20rem', '7rem', '8rem', '10rem']} />
           <thead>
             <tr>
               <Th className="pl-stack">Tournament</Th>
+              <Th>Tab</Th>
               <Th>Missing</Th>
               <Th>Last tried</Th>
               <Th>Next retry</Th>
@@ -70,6 +74,9 @@ function PartlyLoadedRowView({ row }: { row: PartlyLoadedRow }) {
         >
           {row.name}
         </Link>
+      </Td>
+      <Td>
+        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
       </Td>
       <Td>
         <ul

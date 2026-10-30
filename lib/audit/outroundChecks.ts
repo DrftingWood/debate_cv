@@ -117,16 +117,19 @@ function topCategoryFinal(stages: Stage[]): Stage | null {
  * The final that names the champion. With an Open bracket (in the outrounds
  * or the break), only its final, or a tier final, counts, so an ESL final
  * never stands in for a missing Open one. Without any Open bracket, the top
- * category's final does.
+ * category's final does; that rule is not settled (ruling 9), so `assumed`
+ * says when it was the one that decided.
  */
-function championFinal(inputs: AuditInputs): Stage | null {
+function championFinal(inputs: AuditInputs): { final: Stage | null; assumed: boolean } {
   const stages = outroundStages(inputs.outrounds);
   const main = deepest(stages.filter((s) => isMainFinal(s.label, s.rank)));
-  if (main) return main;
+  if (main) return { final: main, assumed: false };
   const hasOpen =
     stages.some((s) => s.bracket === 'open') ||
     inputs.breakRows.some((r) => bracketOfBreak(r.stage) === 'open');
-  return hasOpen ? null : topCategoryFinal(stages);
+  if (hasOpen) return { final: null, assumed: false };
+  const fallback = topCategoryFinal(stages);
+  return { final: fallback, assumed: fallback != null };
 }
 
 export function checkChampion(inputs: AuditInputs): CheckResult {
@@ -134,7 +137,7 @@ export function checkChampion(inputs: AuditInputs): CheckResult {
   if (outrounds.length === 0 && breakRows.length === 0) {
     return result('champion', 'na', 'The tournament has no break and no outround results.');
   }
-  const final = championFinal(inputs);
+  const { final, assumed } = championFinal(inputs);
   if (!final) {
     // The Open break's size; a tab with no Open bracket counts its whole break.
     const openBroke = breakRows.filter((r) => bracketOfBreak(r.stage) === 'open');
@@ -146,15 +149,19 @@ export function checkChampion(inputs: AuditInputs): CheckResult {
         : 'The outround results have no Open final.';
     return result('champion', 'fail', detail, championPieces(pieces, null));
   }
+  // Pass or fail alike, the fallback chose which final to judge, so the
+  // result carries the assumption either way.
+  const tag = (r: CheckResult): CheckResult =>
+    assumed ? { ...r, assumptions: ['no_open_bracket_champion'] } : r;
   if (final.winners.length === 1) {
-    return result('champion', 'pass', `${final.winners[0]} won the ${final.label}.`);
+    return tag(result('champion', 'pass', `${final.winners[0]} won the ${final.label}.`));
   }
   const n = final.winners.length;
   const detail =
     n === 0
       ? `The ${final.label} has no winner on record.`
       : `The ${final.label} has ${n} winners; it should have one.`;
-  return result('champion', 'fail', detail, championPieces(pieces, final.label));
+  return tag(result('champion', 'fail', detail, championPieces(pieces, final.label)));
 }
 
 type Problem = { stages: Stage[]; text: string };

@@ -30,7 +30,28 @@ export type CheckResult = {
   detail: string;
   /** Pieces a re-scrape should fetch. `url` is always public (publicPieceUrl). */
   pieces: Array<PieceRef & { label: string; url: string | null }>;
+  /**
+   * Unsettled rules that decided this result (see ASSUMPTIONS). Absent when
+   * the result rests only on rules the owner has agreed.
+   */
+  assumptions?: AssumptionCode[];
 };
+
+/**
+ * A rule a check relies on that the owner has not settled. Each code is
+ * listed in the admin overview's "Open questions" panel with the tournaments
+ * it decided, so the owner can see what the choice affects before ruling.
+ */
+export type AssumptionCode = 'no_open_bracket_champion';
+
+export const ASSUMPTIONS: Record<AssumptionCode, { title: string; rule: string; status: string }> =
+  {
+    no_open_bracket_champion: {
+      title: 'Champion when a tab has no Open bracket',
+      rule: 'When a tab has no Open bracket (for example schools Senior/Junior or APDA Varsity/Novice), the bracket with the most outround teams names the champion.',
+      status: 'On hold — owner to decide',
+    },
+  };
 
 /**
  * Weight of each check in the tournament score. user_reports has none: it is

@@ -15,6 +15,8 @@ import { StatRow, StatTile } from '@/components/ui/StatTile';
 import { ScrapeHealthSection } from '@/components/admin/ScrapeHealthSection';
 import { FailedImportsSection } from '@/components/admin/FailedImportsSection';
 import { getScrapeHealth } from '@/lib/admin/scrapeHealth';
+import { AccuracySection } from '@/components/admin/AccuracySection';
+import { getAccuracyOverview } from '@/lib/admin/accuracy';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -39,6 +41,7 @@ export default async function AdminPage() {
     health,
     recentParserRuns,
     cvReports,
+    accuracy,
   ] = await Promise.all([
     prisma.tournament.count(),
     prisma.discoveredUrl.count(),
@@ -62,6 +65,7 @@ export default async function AdminPage() {
       take: 50,
       include: { user: { select: { name: true, email: true } } },
     }),
+    getAccuracyOverview(),
   ]);
 
   const cvReportTournamentIds = [
@@ -143,6 +147,8 @@ export default async function AdminPage() {
       <ScrapeHealthSection health={health} now={now} />
 
       <FailedImportsSection jobs={health.failedJobs} total={failedJobCount} now={now} />
+
+      <AccuracySection overview={accuracy} now={now} />
 
       {/* Tags and Verify used to sit in the CV sub-bar (admins only). That
           bar went with the 2026-10-29 navigation change, so the operator

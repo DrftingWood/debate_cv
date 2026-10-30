@@ -54,6 +54,7 @@ export function ScrapeHealthSection({ health, now }: { health: ScrapeHealth; now
   const rows: PartlyLoadedRow[] = health.partlyLoadedTournaments.map((t) => ({
     id: t.id.toString(),
     name: t.name,
+    tabUrl: t.sourceUrl,
     missing: t.failed.map((p) => p.label),
     lastTried: { text: relativeTime(t.lastAttemptAt, now), iso: t.lastAttemptAt.toISOString() },
     nextRetry: nextRetry(t.failed, now),

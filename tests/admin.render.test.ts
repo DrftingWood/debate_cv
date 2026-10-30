@@ -18,6 +18,21 @@ vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' }
 vi.mock('@/lib/admin/scrapeHealth', () => ({
   getScrapeHealth: vi.fn(async () => health.current),
 }));
+// The accuracy section has its own render suite (admin.accuracy.render.test.ts).
+vi.mock('@/lib/admin/accuracy', () => ({
+  getAccuracyOverview: vi.fn(async () => ({
+    weighted: null,
+    unweighted: null,
+    n: 0,
+    onCvs: 0,
+    bands: { good: 0, check: 0, rescrape: 0 },
+    failingByCheck: [],
+    stale: 0,
+    tournaments: 0,
+    lowest: [],
+    openQuestions: [],
+  })),
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
@@ -55,6 +70,7 @@ const full: ScrapeHealth = {
     {
       id: BigInt(5),
       name: 'Oxford IV 2025',
+      sourceUrl: 'https://oxiv.calicotab.com/oxiv2025/',
       lastAttemptAt: minutes(-90),
       failed: [
         {
@@ -78,6 +94,7 @@ const full: ScrapeHealth = {
     {
       id: BigInt(8),
       name: 'Cambridge Open',
+      sourceUrl: null,
       lastAttemptAt: minutes(-10),
       failed: [
         {

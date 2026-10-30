@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowSquareOut } from '@/components/ui/icons';
 import { buttonClasses } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PieceGrid } from '@/components/admin/PieceGrid';
 import { requireAdmin } from '@/lib/admin';
 import { orderTabs, toPieceCard } from '@/lib/admin/pieceGrid';
 import { getTournamentPieces } from '@/lib/admin/scrapeHealth';
-import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
+import { TabLink } from '@/components/admin/TabLink';
 
 export const metadata: Metadata = {
   title: 'Tournament pieces · Admin',
@@ -49,8 +48,6 @@ export default async function AdminTournamentPiecesPage({
   const rounds = data.rounds.map((p) => toPieceCard(p, now));
   const total = tabs.length + rounds.length;
   const failed = [...tabs, ...rounds].filter((p) => p.status === 'failed').length;
-  // Never the stored value: on an old row it can be someone's private URL.
-  const publicUrl = publicTournamentUrl(data.tournament.sourceUrl);
 
   return (
     <div className="space-y-group">
@@ -67,11 +64,14 @@ export default async function AdminTournamentPiecesPage({
               : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed`}
           </p>
           <div className="flex flex-wrap items-center gap-inline">
-            {publicUrl ? (
-              <a href={publicUrl} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-                Public tab <ArrowSquareOut className="h-4 w-4" aria-hidden />
-              </a>
-            ) : null}
+            {/* A new tab, so the grid keeps its place; TabLink keeps the
+                href public and names the tournament (UX-11). */}
+            <TabLink
+              url={data.tournament.sourceUrl}
+              text="Public tab"
+              of={data.tournament.name}
+              asButton
+            />
             <Link href="/admin" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
               ← Admin
             </Link>
