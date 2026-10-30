@@ -1,6 +1,6 @@
 import { Table, Th, Td, Tr, Nil, TableScroll } from '@/components/ui/DataTable';
 import type { TeamPlacementRow } from '@/lib/cv/speakerStats';
-import { formatStageForDisplay } from '@/lib/cv/formatStage';
+import { championTitle, formatStageForDisplay } from '@/lib/cv/formatStage';
 import { formatTopPercent } from '@/lib/cv/teamPlacement';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 
@@ -54,8 +54,7 @@ export function TeamPlacementTable({ placements }: { placements: TeamPlacementRo
                   <span className="block wrap-break-word">{p.tournamentName}</span>
                   {p.outround ? (
                     <span className="block text-caption font-normal text-break-gold sm:hidden">
-                      {formatStageForDisplay(p.outround)}
-                      {p.won ? ' (won)' : ''}
+                      {p.won ? championTitle(p.outround) : formatStageForDisplay(p.outround)}
                     </span>
                   ) : null}
                 </Td>
@@ -80,8 +79,7 @@ export function TeamPlacementTable({ placements }: { placements: TeamPlacementRo
                 <Td className="hidden sm:table-cell whitespace-nowrap pr-4">
                   {p.outround ? (
                     <span className="text-break-gold">
-                      {formatStageForDisplay(p.outround)}
-                      {p.won ? ' (won)' : ''}
+                      {p.won ? championTitle(p.outround) : formatStageForDisplay(p.outround)}
                     </span>
                   ) : (
                     <Nil title="Did not reach an outround" />

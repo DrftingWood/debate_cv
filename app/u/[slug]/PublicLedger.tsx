@@ -38,10 +38,10 @@ import {
 const PUBLIC_SPEAKING_WIDTHS = [
   undefined, // tournament
   '4.5rem', // format
-  '8rem', // team (long names and a pro-am mark wrap)
+  '7.5rem', // team (long names and a pro-am mark wrap)
   '6.5rem', // team rank
   '7rem', // spk-tab rank
-  '5.5rem', // avg score
+  '6rem', // avg speaks
   '11.5rem', // result: "Final (Champion)" wrapped at 10rem
   '7.5rem', // source (hosts truncate, full host on hover)
 ];
@@ -83,10 +83,10 @@ export function PublicSpeakingTable({
                   numeric
                   title="Open speaker-tab rank: an individual figure, not the team's placement"
                 >
-                  Spk-tab rank
+                  Speaker rank
                 </Th>
-                <Th numeric>Avg score</Th>
-                <Th>Result</Th>
+                <Th numeric>Avg speaks</Th>
+                <Th>Broke to</Th>
                 <Th className="pr-4">Source</Th>
               </tr>
             </thead>
@@ -174,8 +174,8 @@ export function PublicJudgingTable({ rows, label }: { rows: CvJudgeRow[]; label:
                 <Th>Format</Th>
                 <Th numeric>Prelims chaired</Th>
                 <Th numeric>Prelims judged</Th>
-                <Th title="Last outround chaired">Last chaired</Th>
-                <Th title="Last outround judged">Last judged</Th>
+                <Th title="Furthest outround chaired">Furthest chaired</Th>
+                <Th title="Furthest outround judged">Furthest judged</Th>
                 <Th className="pr-4">Source</Th>
               </tr>
             </thead>

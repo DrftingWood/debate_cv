@@ -38,9 +38,9 @@ const GRIDS: Array<{
   rows: CrossTabDimension;
   cols: CrossTabDimension;
 }> = [
-  { id: 'seat-type', label: 'Seat × motion type', rows: 'seat', cols: 'motionType' },
+  { id: 'seat-type', label: 'Position × motion type', rows: 'seat', cols: 'motionType' },
   { id: 'pairing-type', label: 'Pairing × motion type', rows: 'pairing', cols: 'motionType' },
-  { id: 'seat-pairing', label: 'Seat × pairing', rows: 'seat', cols: 'pairing' },
+  { id: 'seat-pairing', label: 'Position × pairing', rows: 'seat', cols: 'pairing' },
 ];
 
 const METRICS: Array<{ id: Metric; label: string }> = [
@@ -134,7 +134,7 @@ function Grid({ tab, metric, label }: { tab: CrossTab; metric: Metric; label: st
             <tr>
               <Th className="pl-4">
                 {tab.rowDimension === 'seat'
-                  ? 'Seat'
+                  ? 'Position'
                   : tab.rowDimension === 'pairing'
                     ? 'Pairing'
                     : 'Type'}

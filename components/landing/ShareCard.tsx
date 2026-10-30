@@ -236,7 +236,7 @@ export function ShareCard({ person }: { person?: ShareCardPerson } = {}) {
               maxWidth: 1000,
             }}
           >
-            Your debate history, kept like an account
+            Your debate record, built from your tabs
           </div>
           <div style={{ fontSize: 28, color: LEDGER.muted, maxWidth: 940, lineHeight: 1.4 }}>
             {'Every tournament, round and motion, read from the tab pages you were already sent.'}

@@ -54,7 +54,7 @@ export function HeadlineStats({
     tiles.push(
       <StatTile
         key="stdev"
-        label="Consistency (σ)"
+        label="Consistency (SD)"
         value={scoreProfile.stdev.toFixed(2)}
         hint="Lower is steadier"
       />,
@@ -119,7 +119,7 @@ export function HeadlineStats({
     <section id="headline" aria-label="Headline figures" className="scroll-mt-24 space-y-3">
       <StatRow columns={Math.min(tiles.length, 5)}>{tiles.slice(0, 5)}</StatRow>
       {perRoundOnly ? (
-        <p className="text-caption text-ink-soft">Seat filter on: per-round figures only.</p>
+        <p className="text-caption text-ink-soft">Position filter on: per-round figures only.</p>
       ) : null}
     </section>
   );
@@ -374,7 +374,7 @@ export function FieldStanding({ stats }: { stats: SpeakerStats }) {
                     className="pr-4"
                     title="Your place among every speaker on the speaker tab"
                   >
-                    Spk tab
+                    Speaker tab
                   </Th>
                 </tr>
               </thead>
@@ -681,7 +681,7 @@ export function Splits({
     {
       key: 'position',
       title: 'By position in the room',
-      dimension: 'Seat',
+      dimension: 'Position',
       splits: splits.byPosition,
       note: 'Positions come from the round-results pages. Tournaments ingested before June 2026 carry none until they are re-ingested.',
       points: true,
