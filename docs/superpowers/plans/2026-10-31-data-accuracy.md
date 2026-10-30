@@ -232,7 +232,7 @@ The final review of `feat/partial-scrapes` found the problem. A break-only run, 
 Owner request, 2026-10-31: "I also need a view if that tournament is present in the database or not".
 
 **Files:**
-- Create: `lib/admin/tournamentLookup.ts`, `app/api/admin/lookup/route.ts` (POST), `components/admin/TournamentLookup.tsx` (client)
+- Create: `lib/admin/tournamentLookup.ts`, `lib/admin/tournamentList.ts`, `app/(app)/admin/tournaments/page.tsx`, `app/api/admin/lookup/route.ts` (POST), `components/admin/TournamentLookup.tsx`
 - Modify: `app/(app)/admin/page.tsx` (lookup panel near the top, after the tiles), `lib/admin/scrapeHealth.ts` (failed jobs carry `stored`), `components/admin/FailedJobsTable.tsx`, `components/admin/PartlyLoadedTable.tsx`, the accuracy table and the open-questions list (an "In database" cell)
 - Test: `tests/admin.lookup.test.ts`, `tests/api/admin-lookup.test.ts`, and render assertions in the existing admin render tests
 
@@ -248,6 +248,22 @@ Owner request, 2026-10-31: "I also need a view if that tournament is present in 
   - 400 `bad_request`, 401/403, 500 `server_error`.
 - `storedTournamentIdsByUrl(urls: string[]): Promise<Map<string, { id: string; name: string }>>`, a batched lookup for table rows (one query per batch: group the URLs by host and slug, then one `findMany` with `OR` `startsWith` prefixes). Failed jobs whose `DiscoveredUrl.tournamentId` is set use that directly.
 - "In database" cell: "Stored" plus a link "Open" to `/admin/tournaments/[id]` and the scrape date (relative, mono), or "Not stored" as a quiet Badge. Text carries the meaning (UX-34).
+- **Tournaments page `/admin/tournaments`** (owner, 2026-10-31: "make it a page with a page, 20 per page, I click Next"):
+  - It is a server component, admin-gated (redirect `/` otherwise). Its one h1 is "Tournaments in the database".
+  - A search form at the top (`q`): a name (case-insensitive contains), or a pasted tab or private URL, which is resolved through `lookupTournament`. A URL that isn't stored shows "Not in the database", with "Tab ↗" when a public URL is known.
+  - A ledger `DataTable` with 20 rows per page from `?page=`, ordered newest scrape first. Columns:
+    - Tournament: a link to `/admin/tournaments/[id]`;
+    - Tab: "Tab ↗", public, new tab;
+    - Year;
+    - Format;
+    - Scraped: relative, mono, plus "Old parser" when not current;
+    - Score: `.cell-num` with a band badge, or an em dash;
+    - Partly loaded: a badge or an em dash;
+    - On CVs: `.cell-num`.
+  - A pager like the record ledger's (find the existing pager component or markup used for the Record ledger's "31–60 of 234 · page 2 of 8" with Previous and Next, and reuse it). It reads "21–40 of N · page 2 of M" with Previous and Next links that keep `q`. Out-of-range pages clamp to the last page.
+  - Read model: `listTournaments({ page, q }): Promise<{ rows, total, page, pages }>`, using `count` plus `findMany` with `skip`/`take` 20. Score, partly loaded and on-CVs come from batched queries for the page's ids only.
+  - `/admin` links to it ("All tournaments →") from the tiles area. The lookup panel on `/admin` is this same search form posting to `/admin/tournaments?q=`, so there is one implementation.
+  - Empty states: "No tournaments stored yet" when the database is empty; "Nothing matches '<q>'" when a search finds nothing (UX-24 keeps these two apart).
 - Lookup panel:
   - a labelled input "Tournament or private URL";
   - a "Look up" button (validates on press, UX-16; single-flight);
@@ -262,7 +278,11 @@ Owner request, 2026-10-31: "I also need a view if that tournament is present in 
   - garbage gives `invalid`;
   - the batched lookup issues one `findMany` for 30 URLs across 3 tournaments;
   - the route returns 403 for non-admins and 400 for a missing url;
-  - render: a failed-job row shows "Stored" with a link to `/admin/tournaments/<id>`, or "Not stored".
+  - render: a failed-job row shows "Stored" with a link to `/admin/tournaments/<id>`, or "Not stored";
+  - `listTournaments({page:2})` uses skip 20 and take 20;
+  - page 99 clamps to the last page;
+  - the pager text reads "21–40 of 45 · page 2 of 3", and its Previous/Next hrefs keep `q`;
+  - the two empty states differ.
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
