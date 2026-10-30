@@ -41,6 +41,11 @@ const BY_CODE: Record<string, UserMessage> = {
     kind: 'error',
     description: 'Google access was revoked or has expired. Reconnect Gmail, then scan again.',
   },
+  gmail_scope_missing: {
+    kind: 'error',
+    description:
+      "Google didn't give us access to your Gmail. Reconnect Gmail, and on Google's screen tick the box that lets us read your email.",
+  },
   bad_request: {
     kind: 'error',
     description: 'That request could not be read. Reload the page and try again.',
