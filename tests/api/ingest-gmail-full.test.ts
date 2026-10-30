@@ -215,3 +215,22 @@ describe('POST /api/ingest/gmail/full', () => {
     expect(rows.size).toBe(0);
   });
 });
+
+describe('POST /api/ingest/gmail/full: Gmail left unticked at sign-in', () => {
+  it('a token granted without Gmail access is a 403 gmail_scope_missing, not a 500', async () => {
+    const rows = fakeRateLimitTable();
+    authMock.mockResolvedValue(fakeSession('u1'));
+    prismaMock.$queryRaw.mockResolvedValue([{ count: 1, windowStart: new Date() }]);
+    prismaMock.gmailToken.findUnique.mockResolvedValue({ userId: 'u1' });
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
+    extractMock.mockRejectedValue(
+      Object.assign(new Error('Insufficient Permission'), { status: 403 }),
+    );
+    const res = await POST();
+    expect(res.status).toBe(403);
+    expect((await readJson<{ error: string }>(res)).error).toBe('gmail_scope_missing');
+    const { revokeAndForgetGmailToken } = await import('@/lib/gmail/client');
+    expect(revokeAndForgetGmailToken).toHaveBeenCalledWith('u1');
+    expect(rows.size).toBe(0);
+  });
+});

@@ -26,7 +26,10 @@ vi.mock('@/lib/queue', () => ({
   resetStuckRunning: vi.fn(),
 }));
 
+vi.mock('@/lib/calicotab/storedFirst', () => ({ linkStoredJobsFirst: vi.fn(async () => 0) }));
+
 const { POST } = await import('@/app/api/ingest/drain/route');
+const { linkStoredJobsFirst } = await import('@/lib/calicotab/storedFirst');
 const { claimOnePending } = await import('@/lib/queue');
 
 /** Stand-in for the IngestJob table, counted through the where clause. */
@@ -70,5 +73,21 @@ describe('POST /api/ingest/drain', () => {
 
     const body = await readJson<{ remaining: number }>(await POST());
     expect(body.remaining).toBe(0);
+  });
+
+  it('links stored tournaments before the queue, and counts them as progress', async () => {
+    // A call that only linked stored tournaments must not read as a no-op:
+    // drainUntilEmpty stops on processed 0.
+    authMock.mockResolvedValue(fakeSession('user-1'));
+    vi.mocked(linkStoredJobsFirst).mockResolvedValueOnce(3);
+    vi.mocked(claimOnePending).mockResolvedValue(null);
+    seedJobs([{ status: 'pending' }]);
+
+    const body = await readJson<{ processed: number; remaining: number }>(await POST());
+    expect(linkStoredJobsFirst).toHaveBeenCalledWith({ userId: 'user-1' });
+    expect(vi.mocked(linkStoredJobsFirst).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(claimOnePending).mock.invocationCallOrder[0]!,
+    );
+    expect(body).toMatchObject({ processed: 3, remaining: 1 });
   });
 });
