@@ -227,6 +227,47 @@ The final review of `feat/partial-scrapes` found the problem. A break-only run, 
 - [ ] **Step 4:** Run, typecheck and lint. Expected: PASS.
 - [ ] **Step 5: Commit:** `feat(admin): accuracy checks on the tournament page, with Select suggested`
 
+### Task 5b: "Is this tournament in the database?"
+
+Owner request, 2026-10-31: "I also need a view if that tournament is present in the database or not".
+
+**Files:**
+- Create: `lib/admin/tournamentLookup.ts`, `app/api/admin/lookup/route.ts` (POST), `components/admin/TournamentLookup.tsx` (client)
+- Modify: `app/(app)/admin/page.tsx` (lookup panel near the top, after the tiles), `lib/admin/scrapeHealth.ts` (failed jobs carry `stored`), `components/admin/FailedJobsTable.tsx`, `components/admin/PartlyLoadedTable.tsx`, the accuracy table and the open-questions list (an "In database" cell)
+- Test: `tests/admin.lookup.test.ts`, `tests/api/admin-lookup.test.ts`, and render assertions in the existing admin render tests
+
+**Interfaces:**
+- `lookupTournament(url: string): Promise<LookupResult>`. `LookupResult` is one of:
+  - `{ kind: 'invalid' }`
+  - `{ kind: 'not_stored'; host: string; slug: string | null; publicUrl: string | null }`
+  - `{ kind: 'stored'; id: string; name: string; publicUrl: string | null; scrapedAt: Date; parserCurrent: boolean; score: number | null; band: 'good'|'check'|'rescrape'|null; partlyLoaded: boolean }`
+
+  It parses the URL (private or public) to host plus slug and uses `findTournamentByHostSlug` (`lib/calicotab/storedFirst.ts`). It never returns a private key.
+- `POST /api/admin/lookup`:
+  - body `{ url: string ≤ 500 }` → 200 `LookupResult` (dates as ISO strings);
+  - 400 `bad_request`, 401/403, 500 `server_error`.
+- `storedTournamentIdsByUrl(urls: string[]): Promise<Map<string, { id: string; name: string }>>`, a batched lookup for table rows (one query per batch: group the URLs by host and slug, then one `findMany` with `OR` `startsWith` prefixes). Failed jobs whose `DiscoveredUrl.tournamentId` is set use that directly.
+- "In database" cell: "Stored" plus a link "Open" to `/admin/tournaments/[id]` and the scrape date (relative, mono), or "Not stored" as a quiet Badge. Text carries the meaning (UX-34).
+- Lookup panel:
+  - a labelled input "Tournament or private URL";
+  - a "Look up" button (validates on press, UX-16; single-flight);
+  - the result in a polite live region;
+  - stored: name with "Tab ↗", "Stored <relative>", score and band, "Partly loaded" if so, and a link to the tournament page;
+  - not stored: "Not in the database" with "Tab ↗" when a public URL is known;
+  - invalid: "That isn't a tab URL".
+
+- [ ] **Step 1: Write the failing tests:**
+  - a private URL resolves to its stored tournament, and the result has no "privateurls" or key;
+  - an unknown slug gives `not_stored`;
+  - garbage gives `invalid`;
+  - the batched lookup issues one `findMany` for 30 URLs across 3 tournaments;
+  - the route returns 403 for non-admins and 400 for a missing url;
+  - render: a failed-job row shows "Stored" with a link to `/admin/tournaments/<id>`, or "Not stored".
+- [ ] **Step 2:** Run. Expected: FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
+- [ ] **Step 5: Commit:** `feat(admin): see whether a tournament is in the database, per row and by URL`
+
 ### Task 6: Seed, browser check, docs
 
 **Files:**
