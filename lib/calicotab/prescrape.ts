@@ -153,25 +153,65 @@ export function judgeHitsFromRounds(
   const hits: JudgeHit[] = [];
   for (const round of rounds) {
     if (!round) continue;
+    const { stage, roundNumber } = judgeRoundKey(round);
     for (const j of round.judgeAssignments) {
       if (!matches(j.personName)) continue;
-      const stage = normalizeStageLabel(
-        round.roundLabel ||
-          (round.isOutround
-            ? round.roundNumber != null
-              ? `Round ${round.roundNumber}`
-              : 'Outround'
-            : `Round ${round.roundNumber ?? '?'}`),
-      );
       hits.push({
         stage,
         role:
           j.panelRole === 'chair' ? 'chair' : j.panelRole === 'trainee' ? 'trainee' : 'panellist',
-        roundNumber: round.isOutround ? null : round.roundNumber,
+        roundNumber,
       });
     }
   }
   return hits;
+}
+
+/**
+ * How a round's JudgeAssignment rows are keyed: by round number for a prelim,
+ * by normalised stage label for an outround (whose number is stored null).
+ */
+function judgeRoundKey(round: RoundDebate): { stage: string; roundNumber: number | null } {
+  const stage = normalizeStageLabel(
+    round.roundLabel ||
+      (round.isOutround
+        ? round.roundNumber != null
+          ? `Round ${round.roundNumber}`
+          : 'Outround'
+        : `Round ${round.roundNumber ?? '?'}`),
+  );
+  return { stage, roundNumber: round.isOutround ? null : round.roundNumber };
+}
+
+export type JudgeRowScope = {
+  OR: ({ roundNumber: { in: number[] } } | { roundNumber: null; stage: { in: string[] } })[];
+};
+
+/**
+ * The JudgeAssignment rows that the given rounds own, as a Prisma `where`
+ * fragment, so a rewrite from them replaces only what they cover. Since
+ * partial scrapes (owner decision 2026-10-30), a round page can fail while
+ * the rest of the tournament is written, and a wholesale delete would then
+ * drop the failed round's stored panels with nothing to replace them. Null
+ * when no round loaded: there is nothing to replace, so delete nothing. Keys
+ * match judgeHitsFromRounds exactly: prelims by number (any stage), anything
+ * stored without a number by its stage.
+ */
+export function judgeRowsOwnedByRounds(
+  rounds: (RoundDebate | null | undefined)[],
+): JudgeRowScope | null {
+  const numbers = new Set<number>();
+  const stages = new Set<string>();
+  for (const round of rounds) {
+    if (!round) continue;
+    const key = judgeRoundKey(round);
+    if (key.roundNumber != null) numbers.add(key.roundNumber);
+    else stages.add(key.stage);
+  }
+  const OR: JudgeRowScope['OR'] = [];
+  if (numbers.size > 0) OR.push({ roundNumber: { in: [...numbers] } });
+  if (stages.size > 0) OR.push({ roundNumber: null, stage: { in: [...stages] } });
+  return OR.length > 0 ? { OR } : null;
 }
 
 /** One row per (stage, role, round): the JudgeAssignment unique, with NULL rounds deduped too. */

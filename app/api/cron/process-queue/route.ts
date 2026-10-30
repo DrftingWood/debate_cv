@@ -12,6 +12,7 @@ import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { isGmailScopeMissing, isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
+import { retryDuePieces } from '@/lib/calicotab/partialScrape';
 import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 
 export const runtime = 'nodejs';
@@ -163,6 +164,23 @@ async function scanSafely(): Promise<Awaited<ReturnType<typeof runBackgroundScan
   }
 }
 
+/*
+ * Failed pieces of stored tournaments retry here, after the drain so new
+ * imports keep priority. They share the drain's TIME_BUDGET_MS from the tick's
+ * start; retryDuePieces starts no tournament without 20s left. A failure here
+ * is reported and never fails the tick.
+ */
+async function retryPiecesSafely(startedAt: number) {
+  try {
+    return await retryDuePieces({ deadline: startedAt + TIME_BUDGET_MS });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'piece-retry' },
+    });
+    return null;
+  }
+}
+
 /**
  * Stored tournaments first, for every user: linked with no request, so they
  * are not held behind live scrapes for the one calicotab slot. A failure here
@@ -180,6 +198,7 @@ async function linkStoredFirstForAll(): Promise<number> {
 }
 
 async function runOnce() {
+  const startedAt = Date.now();
   try {
     await resetStuckRunning({});
 
@@ -206,6 +225,7 @@ async function runOnce() {
       },
     );
     const { results, stoppedForBudget } = report;
+    const piecesRetried = await retryPiecesSafely(startedAt);
 
     // Retention pass for pipeline history (superseded SourceDocument
     // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
@@ -244,6 +264,7 @@ async function runOnce() {
       results,
       scan,
       pruned,
+      piecesRetried,
       stoppedForBudget,
       peakInFlight: report.peakInFlight,
       elapsedMs: report.elapsedMs,

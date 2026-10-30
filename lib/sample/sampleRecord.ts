@@ -51,6 +51,7 @@ function speaking(
     broke: false,
     wonTournament: null,
     hasOpenReport: false,
+    partlyLoaded: false,
     roundScores: [],
     teamRoundResults: [],
     ...o,
@@ -76,6 +77,7 @@ function judging(o: Partial<CvJudgeRow> & Pick<CvJudgeRow, 'tournamentName' | 'y
     lastOutroundJudged: null,
     broke: false,
     hasOpenReport: false,
+    partlyLoaded: false,
     ...o,
   };
 }

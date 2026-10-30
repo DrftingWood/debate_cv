@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-30 - Partial scrapes: keep what loaded, retry the rest, show it
+
+- **Problem.** One failed tab or round page used to fail the whole import, or leave a tournament silently thin. Calicotab is slow and flaky (see the entry below), so a single 503 on the speaker tab cost a user the whole tournament.
+- **What changed.**
+  - **Keep what loaded.** `lib/calicotab/ingest.ts` stores every page that came back and records each page as a piece (`lib/calicotab/scrapePieces.ts`): team tab, speaker tab, participants, motions, each break category, each round. A failed round keeps its stored judge panels (it is not cleared).
+  - **Retry on its own.** The cron (`/api/cron/process-queue`) calls `retryDuePieces` (`lib/calicotab/partialScrape.ts`). Back-off is `retryDelayMs`; once the retries run out `nextRetryAt` is null and only an admin re-scrape moves the piece again.
+  - **Say so on the CV.** A tournament with a failed piece still counts on the record (owner decision 2026-10-30) and shows a "Partly loaded" badge on `/cv` and `/u/<slug>` (`components/PartlyLoadedBadge.tsx`; the explanation is reachable by keyboard and screen reader).
+  - **Admin.** `/admin` has the Partly loaded tile, Scrape health and Failed imports (retry selected or all). `/admin/tournaments/[id]` is the per-page grid with a re-scrape picker and "Select failed". APIs: `POST /api/admin/tournaments/[id]/rescrape` (deletes only the chosen pieces' rows, then re-reads them) and `POST /api/admin/jobs/retry`.
+- **Migration.** `20261030160000_scrape_pieces` adds the `ScrapePiece` table (unique per tournament, kind and key; cascades with the tournament). It runs on the next production build. Tournaments imported before it have no rows and show no badge until they are next scraped.
+- **Dev data.** `npm run seed:dev` now seeds pieces for two tournaments (Delhi Open 2025 all ok; Hart House IV 2023 with a failed speaker tab, retry queued, and a failed R2 with retries exhausted) plus one failed import job, so the admin pages and the badge have data. On 2026-10-31 the embedded Postgres on 55432 was not running and the system PostgreSQL 17 (5432) needs credentials this session did not have, so the check used a throwaway cluster started on 55432 with trust auth.
+- **Checked.** Browser check at 1280 and 390, light and dark, signed in with the seed cookie: no console errors, no sideways scroll, 20 px gutter at 390, "Select failed" ticks 2, "Partly loaded" shows on Hart House in the 2023 group of `/cv`. `A11Y_ONLY=/admin npm run a11y`: no axe violations. Re-checked on 2026-10-31 after the review fixes below: the Failed imports row is 180 px at 390 (was about 1400 px) and 63 px at 1280, and the table fits its panel at 390 without scrolling.
+- **Withheld pages.** A page the tournament itself refuses (its own 403, or a 404 for a page the nav links: a motions page, or the participants list when participants are already stored) is recorded with status `withheld`. It is never retried, does not mark the CV "Partly loaded", is left out of the failing counts, and shows as "Withheld by the tournament" in the admin grid, with a count line under Scrape health. `status` is a string column, so no migration. To pick up such a page if it is later made public, re-scrape it from the grid.
+- **Review fixes (2026-10-31).** A failed break page no longer nulls stored `teamBreakRank`, and a break-only run (a retry, or a scrape whose speaker tab failed) writes the ranks onto stored participants by team name. A failed prelim round no longer shrinks `prelimRoundCount`, and a speaker-only count no longer overwrites a stored participants-list count. A retry that fails before any page answers (landing page down, tournament no longer matching, deadline) still advances the failed pieces' back-off; a tournament with no public address stops retrying at once. A deadline during an admin re-scrape returns the pieces as failed instead of a 500. A partial run never writes the tournament's format. A break-only run now fills only missing break ranks (`teamBreakRank: null`) and never overwrites a stored one, so a retry of just the ESL break cannot replace an Open rank; a rank that needs correcting waits for a full scrape (which carries the rank on the speaker rows).
+- **Rollback.** Revert the merge commit, then drop the table: `DROP TABLE "ScrapePiece";` (and delete its row from `_prisma_migrations`). Nothing else reads it after the revert.
+
+---
+
 ## 2026-10-30 - Import ETA from the queue's pace
 
 - **Owner:** "the time estimate is way way off". Production, all users: 145 queued, ETA 403 s (~7 min). 66 jobs had finished in the last hour, so about 2 hours.

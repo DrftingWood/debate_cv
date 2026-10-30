@@ -29,7 +29,8 @@ import { cn } from '@/lib/utils/cn';
  * merely invisible: an invisible box still counts towards the page's width,
  * and a label centred on a control at the right edge of a 390px screen made
  * every page scroll sideways by 3px (UX-39). A control near the right edge
- * also passes `align="end"`, so the open label grows leftwards.
+ * also passes `align="end"`, so the open label grows leftwards; one at the
+ * left edge passes `align="start"`, so it grows rightwards.
  */
 
 type Side = 'top' | 'bottom' | 'left';
@@ -40,7 +41,11 @@ const OUTER: Record<Side, string> = {
   left: 'right-full top-1/2 -translate-y-1/2 pr-1.5',
 };
 
-const ALIGN = { center: 'left-1/2 -translate-x-1/2', end: 'right-0' } as const;
+const ALIGN = {
+  center: 'left-1/2 -translate-x-1/2',
+  end: 'right-0',
+  start: 'left-0',
+} as const;
 
 const HOVER_DELAY_MS = 400;
 
@@ -49,15 +54,22 @@ export function Tooltip({
   side = 'bottom',
   align = 'center',
   disabled = false,
+  wrap = false,
   className,
   children,
 }: {
   content: string;
   side?: Side;
-  /** Top and bottom only: `end` lines the label up with the control's right edge. */
+  /** Top and bottom only: `end` / `start` line the label up with the control's right / left edge. */
   align?: keyof typeof ALIGN;
   /** Suppress the tooltip, e.g. while the control itself is hidden. */
   disabled?: boolean;
+  /**
+   * Let a sentence-length label wrap inside a fixed width instead of running
+   * on one line (which at 390px ran off the screen). Off by default: the
+   * short names on icon buttons stay single-line.
+   */
+  wrap?: boolean;
   /** Classes for the wrapper; a fixed-position control puts its positioning here. */
   className?: string;
   children: ReactNode;
@@ -117,7 +129,12 @@ export function Tooltip({
           open && !disabled ? 'block' : 'hidden',
         )}
       >
-        <span className="block whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background shadow-md">
+        <span
+          className={cn(
+            'block rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background shadow-md',
+            wrap ? 'w-max max-w-[16rem] whitespace-normal text-left' : 'whitespace-nowrap',
+          )}
+        >
           {content}
         </span>
       </span>

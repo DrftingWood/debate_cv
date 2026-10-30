@@ -7,6 +7,7 @@ import {
 import { teamTabPlacement, formatTopPercent } from '@/lib/cv/teamPlacement';
 import { Badge } from '@/components/ui/Badge';
 import { hashRank } from '@/lib/cv/rankDisplay';
+import { PartlyLoadedBadge } from '@/components/PartlyLoadedBadge';
 import { TournamentCard, type TournamentCardField } from '@/components/TournamentCard';
 
 /**
@@ -92,10 +93,15 @@ export function PublicSpeakerCard({ r, proAm = false }: { r: CvSpeakerRow; proAm
       href={r.sourceUrl}
       year={r.year}
       result={
-        r.broke || fmtPublicLastOutround(r) ? (
-          <span className="text-caption">
-            <PublicBreakMarker r={r} />
-          </span>
+        r.broke || fmtPublicLastOutround(r) || r.partlyLoaded ? (
+          <>
+            {r.broke || fmtPublicLastOutround(r) ? (
+              <span className="text-caption">
+                <PublicBreakMarker r={r} />
+              </span>
+            ) : null}
+            {r.partlyLoaded ? <PartlyLoadedBadge /> : null}
+          </>
         ) : null
       }
       fields={speakerFields(r, proAm)}
@@ -122,6 +128,12 @@ export function PublicJudgeCard({ r }: { r: CvJudgeRow }) {
   if (judged) fields.push({ label: 'Furthest outround judged', value: judged });
   if (r.format) fields.push({ label: 'Format', value: r.format });
   return (
-    <TournamentCard name={r.tournamentName} href={r.sourceUrl} year={r.year} fields={fields} />
+    <TournamentCard
+      name={r.tournamentName}
+      href={r.sourceUrl}
+      year={r.year}
+      result={r.partlyLoaded ? <PartlyLoadedBadge /> : null}
+      fields={fields}
+    />
   );
 }

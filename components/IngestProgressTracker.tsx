@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { shortUrl } from '@/lib/utils/shortUrl';
 
 type ProgressScope = {
   pending: number;
@@ -32,15 +33,6 @@ function formatEta(seconds: number): string {
   if (minutes < 60) return `~${minutes} min left`;
   const hours = Math.floor(minutes / 60);
   return `~${hours}h ${minutes % 60}m left`;
-}
-
-function shortUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.host}${u.pathname.replace(/\/privateurls\/.*/, '/…')}`;
-  } catch {
-    return url;
-  }
 }
 
 /**

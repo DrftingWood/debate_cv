@@ -16,6 +16,8 @@ vi.mock('@/lib/calicotab/ingest', () => ({
   isDeadlockError: () => false,
 }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
+const retryDuePieces = vi.fn();
+vi.mock('@/lib/calicotab/partialScrape', () => ({ retryDuePieces }));
 // The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
 const scanDueMailboxes = vi.fn();
 vi.mock('@/lib/gmail/backgroundScan', () => ({ scanDueMailboxes }));
@@ -47,6 +49,8 @@ beforeEach(() => {
     peakInFlight: 0,
     elapsedMs: 1,
   });
+  retryDuePieces.mockReset();
+  retryDuePieces.mockResolvedValue({ tournaments: 0, loaded: 0, failed: 0 });
   scanDueMailboxes.mockReset();
   scanDueMailboxes.mockResolvedValue({
     scanned: 1,
@@ -66,6 +70,16 @@ describe('POST /api/cron/process-queue', () => {
     expect(res.status).toBe(200);
     expect(drainQueue).toHaveBeenCalledTimes(1);
     expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it('retries failed pieces after the drain, within the tick budget', async () => {
+    const before = Date.now();
+    retryDuePieces.mockResolvedValue({ tournaments: 2, loaded: 3, failed: 1 });
+    const body = await (await POST(req())).json();
+    expect(body.piecesRetried).toEqual({ tournaments: 2, loaded: 3, failed: 1 });
+    const { deadline } = retryDuePieces.mock.calls[0]![0] as { deadline: number };
+    expect(deadline).toBeGreaterThanOrEqual(before + 55_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 55_000);
   });
 
   it('?respond=early answers 202 first and drains after the response', async () => {

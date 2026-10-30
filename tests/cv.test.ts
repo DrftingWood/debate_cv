@@ -109,6 +109,7 @@ describe('buildCvData — discoveredUrl filter (audit #7)', () => {
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
     prismaMock.eliminationResult.findMany.mockResolvedValue([]);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     await buildCvData('user-1');
 
@@ -187,6 +188,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
     prismaMock.eliminationResult.findMany.mockResolvedValue([]);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     const data = await buildCvData(userId);
 
@@ -253,6 +255,7 @@ describe('buildCvData — speakerRankOpenDerived fallback (sub-project 7)', () =
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
     prismaMock.eliminationResult.findMany.mockResolvedValue([]);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     const data = await buildCvData(userId);
 
@@ -350,6 +353,7 @@ describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
     prismaMock.eliminationResult.findMany.mockResolvedValue([]);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     const data = await buildCvData(userId, { includeFieldStats: false });
     const row = data.speakerRows[0]!;
@@ -421,6 +425,7 @@ describe('buildCvData — teammate details (pro-am gap, carry index)', () => {
     prismaMock.judgeAssignment.findMany.mockResolvedValue([]);
     prismaMock.eliminationResult.findMany.mockResolvedValue([]);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     const data = await buildCvData('user-4', { includeFieldStats: false });
     expect(data.speakerRows[0]!.prelimRoundCount).toBe(9);
@@ -504,6 +509,7 @@ describe('buildCvData — Open break line', () => {
           : [],
       )) as never);
     prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
 
     const data = await buildCvData('user-5', { includeFieldStats: false });
     // X on 11 sits off the break (ineligible) and does not move the line.

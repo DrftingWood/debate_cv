@@ -774,6 +774,7 @@ async function main() {
     );
   }
 
+  await (await import('./seed-dev-scrape-health.mjs')).seedScrapeHealth(prisma, user.id);
   const counts = {
     tournaments: await prisma.tournament.count(),
     persons: await prisma.person.count(),

@@ -163,6 +163,11 @@ export type CvSpeakerRow = {
    * file a duplicate). Hidden once the report is fixed/won't_fix.
    */
   hasOpenReport: boolean;
+  /**
+   * True when a scrape piece (a tab or round page) of this tournament is still
+   * failed. The row is shown anyway, marked "Partly loaded".
+   */
+  partlyLoaded: boolean;
   /** Per-round speaker scores for the expandable row UI. */
   roundScores: CvSpeakerRoundScore[];
   /** The user's team's per-round results (position / outcome / points). */
@@ -195,6 +200,8 @@ export type CvJudgeRow = {
   broke: boolean;
   /** Same semantics as CvSpeakerRow.hasOpenReport. */
   hasOpenReport: boolean;
+  /** Same semantics as CvSpeakerRow.partlyLoaded. */
+  partlyLoaded: boolean;
 };
 
 export type CvUnmatchedTournament = {
@@ -766,112 +773,129 @@ export async function buildCvData(
     return t ? isEudcTournament(t.name) : false;
   });
 
-  const [teamOutroundRows, eudcOutroundRows, openReportRows, motionRows, fieldRows, openBreakRows] =
-    await Promise.all([
-      // Outround team win/loss results. Feed `wonTournament` per speaker row
-      // — did the user's team win the deepest outround they reached, and was
-      // that outround the Grand Final.
-      tournamentIds.length
-        ? prisma.eliminationResult.findMany({
-            where: {
-              tournamentId: { in: tournamentIds },
-              entityType: 'team',
-              result: { in: ['won', 'lost'] },
-            },
-            select: { tournamentId: true, entityName: true, stage: true, result: true },
-          })
-        : Promise.resolve(
-            [] as Array<{
-              tournamentId: bigint;
-              entityName: string;
-              stage: string;
-              result: string | null;
-            }>,
-          ),
+  const [
+    teamOutroundRows,
+    eudcOutroundRows,
+    openReportRows,
+    motionRows,
+    fieldRows,
+    openBreakRows,
+    failedPieceRows,
+  ] = await Promise.all([
+    // Outround team win/loss results. Feed `wonTournament` per speaker row
+    // — did the user's team win the deepest outround they reached, and was
+    // that outround the Grand Final.
+    tournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: {
+            tournamentId: { in: tournamentIds },
+            entityType: 'team',
+            result: { in: ['won', 'lost'] },
+          },
+          select: { tournamentId: true, entityName: true, stage: true, result: true },
+        })
+      : Promise.resolve(
+          [] as Array<{
+            tournamentId: bigint;
+            entityName: string;
+            stage: string;
+            result: string | null;
+          }>,
+        ),
 
-      // EUDC-only: every outround stage label per (tournament, team), so we
-      // can derive deepest-per-category for the dual-break case (a team that
-      // breaks in Open AND ESL has different deepest outrounds in each
-      // bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and the CV
-      // shows both instead of collapsing to one). Pulls all team rows
-      // regardless of result so a row missing its win/loss indicator still
-      // contributes its stage. Skipped entirely on non-EUDC tournaments.
-      eudcTournamentIds.length
-        ? prisma.eliminationResult.findMany({
-            where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
-            select: { tournamentId: true, entityName: true, stage: true },
-          })
-        : Promise.resolve(
-            [] as Array<{
-              tournamentId: bigint;
-              entityName: string;
-              stage: string;
-            }>,
-          ),
+    // EUDC-only: every outround stage label per (tournament, team), so we
+    // can derive deepest-per-category for the dual-break case (a team that
+    // breaks in Open AND ESL has different deepest outrounds in each
+    // bracket — "Octofinals" in Open, "ESL Grand Final" in ESL — and the CV
+    // shows both instead of collapsing to one). Pulls all team rows
+    // regardless of result so a row missing its win/loss indicator still
+    // contributes its stage. Skipped entirely on non-EUDC tournaments.
+    eudcTournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: { tournamentId: { in: eudcTournamentIds }, entityType: 'team' },
+          select: { tournamentId: true, entityName: true, stage: true },
+        })
+      : Promise.resolve(
+          [] as Array<{
+            tournamentId: bigint;
+            entityName: string;
+            stage: string;
+          }>,
+        ),
 
-      // Unresolved (open or acknowledged) CvErrorReports, for the per-row
-      // "Reported" badge.
-      tournamentIds.length
-        ? prisma.cvErrorReport.findMany({
-            where: { userId, status: { in: ['open', 'acknowledged'] } },
-            select: { tournamentIds: true },
-          })
-        : Promise.resolve([] as Array<{ tournamentIds: string[] }>),
+    // Unresolved (open or acknowledged) CvErrorReports, for the per-row
+    // "Reported" badge.
+    tournamentIds.length
+      ? prisma.cvErrorReport.findMany({
+          where: { userId, status: { in: ['open', 'acknowledged'] } },
+          select: { tournamentIds: true },
+        })
+      : Promise.resolve([] as Array<{ tournamentIds: string[] }>),
 
-      // Motions, for the analytics join, /cv/motions and the per-round
-      // detail on the CV.
-      tournamentIds.length
-        ? prisma.motion.findMany({
-            where: { tournamentId: { in: tournamentIds } },
-            select: {
-              tournamentId: true,
-              roundNumber: true,
-              roundLabel: true,
-              seq: true,
-              text: true,
-              infoSlide: true,
-              motionType: true,
-              topic: true,
-            },
-            orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
-          })
-        : Promise.resolve([] as CvTaggedMotion[]),
+    // Motions, for the analytics join, /cv/motions and the per-round
+    // detail on the CV.
+    tournamentIds.length
+      ? prisma.motion.findMany({
+          where: { tournamentId: { in: tournamentIds } },
+          select: {
+            tournamentId: true,
+            roundNumber: true,
+            roundLabel: true,
+            seq: true,
+            text: true,
+            infoSlide: true,
+            motionType: true,
+            topic: true,
+          },
+          orderBy: [{ tournamentId: 'asc' }, { seq: 'asc' }],
+        })
+      : Promise.resolve([] as CvTaggedMotion[]),
 
-      // Every speaker the tab published for each tournament, projected to two
-      // columns — the raw material for the field summary. Bounded by
-      // construction: a large tournament publishes ~800 speakers, so even a
-      // heavy CV pulls low tens of thousands of (bigint, decimal) pairs. It
-      // deliberately does NOT fetch per-round score rows for the field (800
-      // speakers × 9 rounds per tournament would be an order of magnitude
-      // more, for a round-level percentile nobody has asked for yet).
-      includeFieldStats && tournamentIds.length
-        ? prisma.tournamentParticipant.findMany({
-            where: {
-              tournamentId: { in: tournamentIds },
-              speakerScoreTotal: { not: null },
-              roles: { some: { role: 'speaker' } },
-            },
-            select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
-          })
-        : Promise.resolve(
-            [] as Array<{
-              tournamentId: bigint;
-              speakerScoreTotal: { toString(): string } | null;
-              speakerRankOpen?: number | null;
-            }>,
-          ),
+    // Every speaker the tab published for each tournament, projected to two
+    // columns — the raw material for the field summary. Bounded by
+    // construction: a large tournament publishes ~800 speakers, so even a
+    // heavy CV pulls low tens of thousands of (bigint, decimal) pairs. It
+    // deliberately does NOT fetch per-round score rows for the field (800
+    // speakers × 9 rounds per tournament would be an order of magnitude
+    // more, for a round-level percentile nobody has asked for yet).
+    includeFieldStats && tournamentIds.length
+      ? prisma.tournamentParticipant.findMany({
+          where: {
+            tournamentId: { in: tournamentIds },
+            speakerScoreTotal: { not: null },
+            roles: { some: { role: 'speaker' } },
+          },
+          select: { tournamentId: true, speakerScoreTotal: true, speakerRankOpen: true },
+        })
+      : Promise.resolve(
+          [] as Array<{
+            tournamentId: bigint;
+            speakerScoreTotal: { toString(): string } | null;
+            speakerRankOpen?: number | null;
+          }>,
+        ),
 
-      // The Open break tab's team names, for the break line. Ingest stores each
-      // break tab's rows under its category ('Open', 'ESL', …); one query for
-      // every tournament, joined in memory against the round-0 standings
-      // already fetched above.
-      tournamentIds.length
-        ? prisma.eliminationResult.findMany({
-            where: { tournamentId: { in: tournamentIds }, entityType: 'team', stage: 'Open' },
-            select: { tournamentId: true, entityName: true, stage: true },
-          })
-        : Promise.resolve([] as Array<{ tournamentId: bigint; entityName: string; stage: string }>),
-    ]);
+    // The Open break tab's team names, for the break line. Ingest stores each
+    // break tab's rows under its category ('Open', 'ESL', …); one query for
+    // every tournament, joined in memory against the round-0 standings
+    // already fetched above.
+    tournamentIds.length
+      ? prisma.eliminationResult.findMany({
+          where: { tournamentId: { in: tournamentIds }, entityType: 'team', stage: 'Open' },
+          select: { tournamentId: true, entityName: true, stage: true },
+        })
+      : Promise.resolve([] as Array<{ tournamentId: bigint; entityName: string; stage: string }>),
+
+    // Scrape pieces (a tab or a round page) still failed, for the "Partly
+    // loaded" mark. A tournament with any failed piece stays on the CV,
+    // flagged, until the retry heals it (owner decision 2026-10-30).
+    tournamentIds.length
+      ? prisma.scrapePiece.findMany({
+          where: { tournamentId: { in: tournamentIds }, status: 'failed' },
+          select: { tournamentId: true },
+        })
+      : Promise.resolve([] as Array<{ tournamentId: bigint }>),
+  ]);
 
   const openBreakNamesByTournament = new Map<bigint, string[]>();
   for (const r of openBreakRows) {
@@ -916,6 +940,9 @@ export async function buildCvData(
     list.push(r.stage);
     teamOutroundStagesByKey.set(key, list);
   }
+
+  // Tournaments with a failed scrape piece, for the "Partly loaded" mark.
+  const partlyLoadedIds = new Set(failedPieceRows.map((p) => p.tournamentId));
 
   // Tournaments the user has filed an unresolved (open or acknowledged)
   // CvErrorReport against. Lets the per-row "Reported" badge render so the
@@ -1209,6 +1236,7 @@ export async function buildCvData(
         : null,
       wonTournament,
       hasOpenReport: reportedTournamentIds.has(tid.toString()),
+      partlyLoaded: partlyLoadedIds.has(tid),
       roundScores: (p.speakerRoundScores ?? [])
         .filter((s) => s.roundNumber > 0)
         .map((s) => ({
@@ -1320,6 +1348,7 @@ export async function buildCvData(
             (judgedStagesByTournament.get(tid)?.size ?? 0) > 0,
         ),
       hasOpenReport: reportedTournamentIds.has(tid.toString()),
+      partlyLoaded: partlyLoadedIds.has(tid),
     });
   }
   judgeRows.sort((a, b) => {
