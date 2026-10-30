@@ -2013,10 +2013,14 @@ async function writeIngestTransaction(
       // speaker tab failed) has no speaker rows to carry them, so they are
       // written onto the stored participants of each team by name; without
       // this, a break page that failed once could never put its ranks back.
+      // Only rows with no rank are filled: a tournament can have several break
+      // categories (Open, ESL), and a run that read just one of them (the cron
+      // retrying only the ESL break) must not overwrite a rank stored from
+      // another by matching on team name alone.
       if (loadedKind('break') && !loadedKind('speaker')) {
         for (const [teamName, rank] of teamBreakRankByTeam) {
           await tx.tournamentParticipant.updateMany({
-            where: { tournamentId: t.id, teamName },
+            where: { tournamentId: t.id, teamName, teamBreakRank: null },
             data: { teamBreakRank: rank },
           });
         }

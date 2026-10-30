@@ -1571,9 +1571,26 @@ describe('runFullScrape with only: break ranks, counts and a cut-off fetch', () 
     prismaMock.tournamentParticipant.updateMany.mockResolvedValue({ count: 2 });
     await partial([{ kind: 'break', key: 'open' }]);
     expect(callsOf(prismaMock.tournamentParticipant.updateMany)).toEqual([
-      { where: { tournamentId: 7n, teamName: 'Oxford A' }, data: { teamBreakRank: 1 } },
-      { where: { tournamentId: 7n, teamName: 'Cambridge A' }, data: { teamBreakRank: 2 } },
+      {
+        where: { tournamentId: 7n, teamName: 'Oxford A', teamBreakRank: null },
+        data: { teamBreakRank: 1 },
+      },
+      {
+        where: { tournamentId: 7n, teamName: 'Cambridge A', teamBreakRank: null },
+        data: { teamBreakRank: 2 },
+      },
     ]);
+  });
+
+  it('a break-only run never overwrites a stored break rank', async () => {
+    install({ existing: existingTournament() });
+    prismaMock.tournamentParticipant.updateMany.mockResolvedValue({ count: 0 });
+    await partial([{ kind: 'break', key: 'open' }]);
+    // A stored rank 3 for a team must survive a run that reads rank 1: the
+    // update only matches rows whose rank is still missing.
+    const calls = callsOf(prismaMock.tournamentParticipant.updateMany);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) expect(call.where).toHaveProperty('teamBreakRank', null);
   });
 
   it('a speaker piece keeps the stored participant count and format', async () => {
