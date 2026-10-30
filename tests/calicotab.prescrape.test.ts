@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
+  judgeRowsOwnedByRounds,
   publicTournamentBase,
   releasedTabMissing,
   motionsGained,
@@ -169,6 +170,26 @@ describe('judgeHitsFromRounds', () => {
   it('dedupes on stage, role and round, NULL rounds included', () => {
     const h = { stage: 'Grand Final', role: 'chair' as const, roundNumber: null };
     expect(dedupeJudgeHits([h, { ...h }, { ...h, role: 'panellist' as const }])).toHaveLength(2);
+  });
+
+  // Partial scrapes (2026-10-30): a rewrite replaces only the rounds it read.
+  it('scopes a rewrite to the rounds read, keyed as the hits are', () => {
+    const rounds = [
+      round({}),
+      round({ roundLabel: 'Round 3', roundNumber: 3 }),
+      round({ roundLabel: 'Grand Final', isOutround: true, roundNumber: 10 }),
+    ];
+    const gfStage = judgeHitsFromRounds(
+      [round({ ...rounds[2], judgeAssignments: [{ personName: 'Ann', panelRole: 'chair' }] })],
+      () => true,
+    )[0]!.stage;
+    expect(judgeRowsOwnedByRounds(rounds)).toEqual({
+      OR: [{ roundNumber: { in: [1, 3] } }, { roundNumber: null, stage: { in: [gfStage] } }],
+    });
+  });
+
+  it('owns nothing when no round was read', () => {
+    expect(judgeRowsOwnedByRounds([])).toBeNull();
   });
 });
 

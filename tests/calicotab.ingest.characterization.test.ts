@@ -294,6 +294,7 @@ import {
   fetchAndParseTabs,
   ingestPrivateUrl,
   loadLandingAndFingerprint,
+  prescrapeTournament,
 } from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
@@ -1400,5 +1401,50 @@ describe('ingestPrivateUrl: partial scrapes keep what loaded', () => {
       where: { id: 7n },
       data: { scrapeClaimedAt: null },
     });
+  });
+});
+
+// Partial scrapes (2026-10-30): judge panels are rewritten per round read.
+// R2 failed, so its stored round_results rows must survive. Before partial
+// scrapes a failed round aborted, so these deletes never saw a partial set.
+describe('ingest: a failed round keeps its stored judge panels', () => {
+  type Scope = { OR?: Record<string, unknown>[] };
+  const failed = (url: string) => ({ ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 });
+  const roundResultsDeletes = () =>
+    callsOf(prismaMock.judgeAssignment.deleteMany).filter(
+      (c) => c.where.source === 'round_results',
+    );
+  const expectScopedWithoutR2 = (where: Scope) => {
+    expect(where.OR).toBeDefined();
+    expect(where.OR![0]).toEqual({ roundNumber: { in: [1] } });
+    expect(where.OR![1]).toMatchObject({ roundNumber: null });
+    expect(JSON.stringify(where.OR)).not.toMatch(/\b2\b/);
+  };
+  const r2Fails = () =>
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? failed(url) : okPage(url),
+    );
+
+  it('pre-scrape: every judge keeps their stored R2 panels', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    prismaMock.judgeAssignment.createMany.mockResolvedValue({ count: 0 });
+    r2Fails();
+    const result = await prescrapeTournament(BASE, { force: true });
+    expect(result.status).toBe('written');
+    const deletes = roundResultsDeletes();
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.where).toMatchObject({ tournamentId: 7n });
+    expectScopedWithoutR2(deletes[0]!.where);
+  });
+
+  it("URL owner: the owner's stored R2 panels are kept", async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.ownerName = 'Judge Judy';
+    r2Fails();
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const deletes = roundResultsDeletes();
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.where).toMatchObject({ tournamentId: 7n, personId: 104n });
+    expectScopedWithoutR2(deletes[0]!.where);
   });
 });

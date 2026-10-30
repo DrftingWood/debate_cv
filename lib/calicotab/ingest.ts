@@ -39,6 +39,7 @@ import {
 import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
+  judgeRowsOwnedByRounds,
   publicTournamentBase,
   releasedTabMissing,
   motionsGained,
@@ -362,8 +363,10 @@ export async function prescrapeTournament(
 
 /**
  * B9: every judge's panels from the round results, for a pre-scraped
- * tournament. Replaces the tournament's `round_results` rows wholesale —
- * the pre-scrape owns all of them (design, point 2) — and fills each
+ * tournament. Replaces the tournament's `round_results` rows for the rounds
+ * that loaded — the pre-scrape owns all of them (design, point 2), but a
+ * round page that failed keeps its stored panels until a retry loads it
+ * (partial scrapes, 2026-10-30) — and fills each
  * judge's aggregates the way the URL owner's fallback does (fillNullsOnly,
  * so a landing-derived value is never overwritten).
  *
@@ -396,8 +399,15 @@ async function recordEveryJudgeFromRoundResults(
       source: 'round_results',
     })),
   );
+  const owned = judgeRowsOwnedByRounds(rounds);
   await prisma.$transaction([
-    prisma.judgeAssignment.deleteMany({ where: { tournamentId, source: 'round_results' } }),
+    ...(owned
+      ? [
+          prisma.judgeAssignment.deleteMany({
+            where: { tournamentId, source: 'round_results', ...owned },
+          }),
+        ]
+      : []),
     prisma.judgeAssignment.createMany({ data, skipDuplicates: true }),
   ]);
   for (const [personId, hits] of byPerson) {
@@ -2555,10 +2565,15 @@ async function recordJudgeRoundsFromRoundResults(
   // created (TOCTOU). Deduping in memory and replacing inside one
   // transaction closes both for the common case; the audit migration
   // cleaned up duplicates the old window let through.
+  //
+  // Scoped to the rounds that loaded: a round page that failed this time
+  // keeps the owner's stored panels for it (partial scrapes, 2026-10-30).
+  // hits is non-empty here, so at least one round loaded and owned is set.
   const dedupedHits = dedupeJudgeHits(hits);
+  const owned = judgeRowsOwnedByRounds(rounds) ?? { OR: [] };
   await prisma.$transaction([
     prisma.judgeAssignment.deleteMany({
-      where: { tournamentId, personId, source: 'round_results' },
+      where: { tournamentId, personId, source: 'round_results', ...owned },
     }),
     prisma.judgeAssignment.createMany({
       data: dedupedHits.map((h) => ({
