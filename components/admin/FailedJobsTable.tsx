@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { TabLink } from '@/components/admin/TabLink';
+import { InDatabaseCell, type InDatabase } from '@/components/admin/InDatabaseCell';
 import { retryFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
@@ -24,6 +25,8 @@ export type FailedJobRow = {
   /** Plain-language summary of `lastError`; null when none was recorded. */
   error: string | null;
   when: { text: string; iso: string } | null;
+  /** Whether its tournament is stored: the "In database" cell. */
+  stored: InDatabase;
 };
 
 type RetryResponse = { requeued: number; skippedLocked: number };
@@ -202,6 +205,7 @@ const JOB_COLUMNS = [
   { className: 'md:w-64' },
   { className: 'hidden md:table-column md:w-24' },
   { className: 'md:w-80' },
+  { className: 'hidden md:table-column md:w-32' },
   { className: 'hidden md:table-column md:w-28' },
 ];
 
@@ -245,6 +249,7 @@ function JobsTable({
             Attempts
           </Th>
           <Th>Error</Th>
+          <Th className="hidden md:table-cell">In database</Th>
           <Th className="hidden pr-stack md:table-cell">When</Th>
         </tr>
       </thead>
@@ -301,6 +306,12 @@ function JobRow({
           {plural(row.attempts, 'attempt')}
           {row.when ? ` · ${row.when.text}` : ''}
         </span>
+        <span className="mt-hair block md:hidden">
+          <InDatabaseCell stored={row.stored} />
+        </span>
+      </Td>
+      <Td className="hidden md:table-cell">
+        <InDatabaseCell stored={row.stored} />
       </Td>
       <Td className="hidden pr-stack font-mono tabular-nums text-ink-soft md:table-cell">
         {row.when ? <time dateTime={row.when.iso}>{row.when.text}</time> : 'Not finished'}

@@ -1,6 +1,7 @@
 import { BarList } from '@/components/ui/BarList';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PartlyLoadedTable, type PartlyLoadedRow } from '@/components/admin/PartlyLoadedTable';
+import { inDatabase } from '@/components/admin/InDatabaseCell';
 import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { relativeTime } from '@/lib/utils/relativeTime';
@@ -49,6 +50,8 @@ export function toPartlyLoadedRows(health: ScrapeHealth, now: Date): PartlyLoade
     id: t.id.toString(),
     name: t.name,
     tabUrl: t.tabUrl,
+    // Every row here is stored (its pieces are); the cell still says when.
+    stored: inDatabase({ id: t.id, scrapedAt: t.scrapedAt }, now),
     missing: t.failed.map((p) => p.label),
     lastTried: { text: relativeTime(t.lastAttemptAt, now), iso: t.lastAttemptAt.toISOString() },
     nextRetry: nextRetry(t.failed, now),

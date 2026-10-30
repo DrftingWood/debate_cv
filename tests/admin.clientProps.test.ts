@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
     tournamentAudit: { findMany: vi.fn(), findUnique: vi.fn() },
     scrapePiece: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     ingestJob: { findMany: vi.fn() },
+    discoveredUrl: { findMany: vi.fn() },
   },
 }));
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
@@ -28,6 +29,7 @@ const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
+const { searchBoxValue } = await import('@/lib/admin/tabAddress');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
 
@@ -41,8 +43,9 @@ beforeEach(() => {
   for (const model of Object.values(h.db)) for (const fn of Object.values(model)) fn.mockReset();
   h.db.tournament.count.mockResolvedValue(1);
   h.db.tournament.findMany.mockResolvedValue([
-    { id: 1n, name: 'Oxford IV', sourceUrlRaw: PRIVATE },
+    { id: 1n, name: 'Oxford IV', sourceUrlRaw: PRIVATE, scrapedAt: NOW },
   ]);
+  h.db.discoveredUrl.findMany.mockResolvedValue([]);
   h.db.tournament.findUnique.mockResolvedValue({
     id: 1n,
     name: 'Oxford IV',
@@ -92,6 +95,8 @@ describe('props crossing into client components carry no private key', () => {
     const health = await getScrapeHealth();
     const rows = toFailedJobRows(health.failedJobs, NOW);
     expect(rows[0]!.href).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    // Task 5b: the "In database" cell found its tournament by host and slug.
+    expect(rows[0]!.stored).toMatchObject({ id: '1' });
     expectNoKey(rows);
   });
 
@@ -129,6 +134,33 @@ describe('props crossing into client components carry no private key', () => {
   });
 });
 
+describe('the In database cell carries no private key (Task 5b)', () => {
+  it('FailedJobsTable rows linked through DiscoveredUrl.tournamentId', async () => {
+    h.db.discoveredUrl.findMany.mockResolvedValue([
+      {
+        userId: 'u1',
+        url: PRIVATE,
+        tournament: { id: 9n, name: 'Linked', scrapedAt: NOW },
+      },
+    ]);
+    h.db.ingestJob.findMany.mockResolvedValue([
+      {
+        id: 'j1',
+        url: PRIVATE,
+        userId: 'u1',
+        attempts: 1,
+        lastError: null,
+        finishedAt: NOW,
+        user: { email: null },
+      },
+    ]);
+    const health = await getScrapeHealth();
+    const rows = toFailedJobRows(health.failedJobs, NOW);
+    expect(rows[0]!.stored).toMatchObject({ id: '9' });
+    expectNoKey(rows);
+  });
+});
+
 describe('the accuracy checks panel carries no private key', () => {
   it('AccuracyChecks audit and the suggested pieces', async () => {
     h.db.tournamentAudit.findUnique.mockResolvedValue({
@@ -146,6 +178,18 @@ describe('the accuracy checks panel carries no private key', () => {
     const audit = await getTournamentAccuracy(1n);
     expect(audit!.suggested[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
     expectNoKey(audit);
+  });
+});
+
+describe('the tournament search box', () => {
+  it('re-renders a name or a public URL, and only the public form of a private one', () => {
+    expect(searchBoxValue('Oxford')).toBe('Oxford');
+    expect(searchBoxValue('https://oxiv.calicotab.com/oxiv2025/tab/team/')).toBe(
+      'https://oxiv.calicotab.com/oxiv2025/tab/team/',
+    );
+    expect(searchBoxValue(PRIVATE)).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expect(searchBoxValue(`junk /PrivateUrls/${KEY}`)).toBe('');
+    expect(searchBoxValue(undefined)).toBe('');
   });
 });
 

@@ -53,6 +53,7 @@ const health: ScrapeHealth = {
       id: BigInt(5),
       name: 'Oxford IV 2025',
       tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      scrapedAt: new Date(NOW - 7_200_000),
       lastAttemptAt: new Date(NOW - 60_000),
       failed: [
         {
@@ -74,6 +75,7 @@ const health: ScrapeHealth = {
       attempts: 3,
       lastError: 'HTTP 503',
       finishedAt: new Date(NOW - 60_000),
+      stored: null,
     },
   ],
 };
@@ -99,6 +101,7 @@ const overview: AccuracyOverview = {
       id: '5',
       name: 'Oxford IV 2025',
       tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      scrapedAt: new Date(NOW - 7_200_000),
       score: 42,
       band: 'rescrape',
       failed: ['champion', 'rounds_complete', 'panels', 'motions', 'partners'].map((code) => ({
@@ -113,6 +116,7 @@ const overview: AccuracyOverview = {
       id: '8',
       name: 'Cambridge Open',
       tabUrl: null,
+      scrapedAt: null,
       score: 88,
       band: 'check',
       failed: [],
@@ -128,7 +132,14 @@ const overview: AccuracyOverview = {
       rule: 'When a tab has no Open bracket (for example schools Senior/Junior or APDA Varsity/Novice), the bracket with the most outround teams names the champion.',
       status: 'On hold — owner to decide',
       count: 1,
-      tournaments: [{ id: '9', name: 'Schools Cup', tabUrl: 'https://s.calicotab.com/sc/' }],
+      tournaments: [
+        {
+          id: '9',
+          name: 'Schools Cup',
+          tabUrl: 'https://s.calicotab.com/sc/',
+          scrapedAt: new Date(NOW - 7_200_000),
+        },
+      ],
     },
   ],
 };
@@ -223,6 +234,20 @@ describe('Data accuracy section', () => {
     expect(out).toContain('No tournaments audited yet');
     expect(out.match(/>Audit now</g)).toHaveLength(1);
     expect(out).not.toContain('Accuracy score');
+  });
+});
+
+describe('Data accuracy: in the database (Task 5b)', () => {
+  // Task 5b: the accuracy table and the open-questions list say "Stored"
+  // with the scrape time. Their names already link the tournament's page,
+  // so the cell adds no second "Open" link.
+  it('says each listed tournament is stored, and when it was scraped', async () => {
+    const out = await renderPage(overview);
+    const section = out.slice(out.indexOf('id="data-accuracy"'));
+    expect(section).toMatch(/<th[^>]*>In database<\/th>/);
+    expect(section.match(/>Stored</g)!.length).toBeGreaterThanOrEqual(3);
+    expect(section).toContain('2 h ago');
+    expect(section).not.toMatch(/aria-label="Open /);
   });
 });
 

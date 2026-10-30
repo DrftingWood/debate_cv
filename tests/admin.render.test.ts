@@ -71,6 +71,7 @@ const full: ScrapeHealth = {
       id: BigInt(5),
       name: 'Oxford IV 2025',
       tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      scrapedAt: minutes(-600),
       lastAttemptAt: minutes(-90),
       failed: [
         {
@@ -95,6 +96,7 @@ const full: ScrapeHealth = {
       id: BigInt(8),
       name: 'Cambridge Open',
       tabUrl: null,
+      scrapedAt: minutes(-600),
       lastAttemptAt: minutes(-10),
       failed: [
         {
@@ -116,6 +118,16 @@ const full: ScrapeHealth = {
       attempts: 3,
       lastError: 'HTTP 503 Service Unavailable at fetchPage (lib/calicotab/fetch.ts:88)',
       finishedAt: minutes(-120),
+      stored: { id: '5', name: 'Oxford IV 2025', scrapedAt: minutes(-600) },
+    },
+    {
+      id: 'job-2',
+      url: 'https://newt.calicotab.com/newt2026/privateurls/zzz999/',
+      userEmail: 'sam@example.com',
+      attempts: 3,
+      lastError: null,
+      finishedAt: minutes(-30),
+      stored: null,
     },
   ],
 };
@@ -191,6 +203,35 @@ describe('admin overview', () => {
     expect(out).toContain('Every tracked tournament loaded in full');
     expect(out).toContain('No failed imports');
     expect(out).not.toContain('Retry selected');
+  });
+});
+
+describe('admin overview: is it in the database? (Task 5b)', () => {
+  beforeEach(() => {
+    health.current = null;
+  });
+
+  // Task 5b: each failed import says whether its tournament is stored.
+  it('says per failed import whether its tournament is in the database', async () => {
+    const out = await renderPage(full);
+    const rows = out.split('<tr').filter((r) => r.includes('Select '));
+    const oxford = rows.find((r) => r.includes('oxiv.calicotab.com'))!;
+    const newt = rows.find((r) => r.includes('newt.calicotab.com'))!;
+    expect(oxford).toContain('Stored');
+    expect(oxford).toMatch(/href="\/admin\/tournaments\/5"[^>]*>Open</);
+    expect(oxford).toContain('10 h ago');
+    expect(newt).toContain('Not stored');
+    expect(newt).not.toContain('/admin/tournaments/');
+    expect(out).toMatch(/<th[^>]*>In database<\/th>/);
+  });
+
+  it('links every tournament and offers the lookup, which searches /admin/tournaments', async () => {
+    const out = await renderPage(full);
+    expect(out).toMatch(/href="\/admin\/tournaments"[^>]*>All tournaments →</);
+    expect(out).toMatch(/<form[^>]*action="\/admin\/tournaments"[^>]*method="get"/);
+    expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
+    expect(out).toContain('>Look up<');
+    expect(out).toMatch(/role="status"[^>]*aria-live="polite"/);
   });
 });
 

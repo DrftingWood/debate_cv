@@ -39,6 +39,8 @@ export type AccuracyRow = {
   name: string;
   /** The tournament's public tab, never a private URL; null when unparseable. */
   tabUrl: string | null;
+  /** When the tournament was last scraped, for the "In database" cell. */
+  scrapedAt: Date | null;
   score: number;
   band: Band;
   failed: Array<{ code: CheckCode; label: string }>;
@@ -55,7 +57,7 @@ export type OpenQuestion = {
   status: string;
   /** Audited tournaments whose result this rule decided. */
   count: number;
-  tournaments: Array<{ id: string; name: string; tabUrl: string | null }>;
+  tournaments: Array<{ id: string; name: string; tabUrl: string | null; scrapedAt: Date | null }>;
 };
 
 export type AccuracyOverview = {
@@ -164,13 +166,20 @@ const byScore = (a: Audit, b: Audit) =>
   a.score - b.score || b.usersAffected - a.usersAffected || (a.id < b.id ? -1 : 1);
 
 async function namesFor(ids: bigint[]) {
-  if (ids.length === 0) return new Map<bigint, { name: string; tabUrl: string | null }>();
+  type Named = { name: string; tabUrl: string | null; scrapedAt: Date | null };
+  if (ids.length === 0) return new Map<bigint, Named>();
   const rows = await prisma.tournament.findMany({
     where: { id: { in: ids } },
-    select: { id: true, name: true, sourceUrlRaw: true },
+    select: { id: true, name: true, sourceUrlRaw: true, scrapedAt: true },
   });
   return new Map(
-    rows.map((t) => [t.id, { name: t.name, tabUrl: publicPieceUrl(t.sourceUrlRaw) }] as const),
+    rows.map(
+      (t) =>
+        [
+          t.id,
+          { name: t.name, tabUrl: publicPieceUrl(t.sourceUrlRaw), scrapedAt: t.scrapedAt },
+        ] as const,
+    ),
   );
 }
 
@@ -228,7 +237,8 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
   const questions = decidedBy(audits);
   const listed = [...questions.values()].flatMap((list) => list.slice(0, QUESTION_LIST_CAP));
   const names = await namesFor([...new Set([...lowest, ...listed].map((a) => a.id))]);
-  const describe = (id: bigint) => names.get(id) ?? { name: `Tournament ${id}`, tabUrl: null };
+  const describe = (id: bigint) =>
+    names.get(id) ?? { name: `Tournament ${id}`, tabUrl: null, scrapedAt: null };
 
   return {
     ...databaseScore(audits),

@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatusPill, type Status } from '@/components/ui/StatusPill';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
 import { TabLink } from '@/components/admin/TabLink';
+import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { TournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
 import type { CheckStatus } from '@/lib/audit/types';
 import { relativeTime } from '@/lib/utils/relativeTime';
@@ -14,15 +15,6 @@ const PILL: Record<CheckStatus, { status: Status; label: string }> = {
   fail: { status: 'failed', label: 'Fail' },
   na: { status: 'unavailable', label: 'Not applicable' },
 };
-
-// The same words and colours as the overview's table (AccuracyTable's
-// BAND_BADGE), restated because that module is 'use client' and its values
-// are not callable from a server component.
-const BAND_BADGE = {
-  good: { text: 'Good', variant: 'success' },
-  check: { text: 'Check', variant: 'warning' },
-  rescrape: { text: 'Re-scrape', variant: 'danger' },
-} as const;
 
 /**
  * "Accuracy checks" above the piece grid: this tournament's score, each

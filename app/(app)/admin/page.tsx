@@ -17,6 +17,7 @@ import { FailedImportsSection } from '@/components/admin/FailedImportsSection';
 import { getScrapeHealth } from '@/lib/admin/scrapeHealth';
 import { AccuracySection } from '@/components/admin/AccuracySection';
 import { getAccuracyOverview } from '@/lib/admin/accuracy';
+import { TournamentLookup } from '@/components/admin/TournamentLookup';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -139,9 +140,32 @@ export default async function AdminPage() {
           />
           <StatTile label="Failed jobs" value={failedJobCount.toLocaleString('en-GB')} />
         </StatRow>
-        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
-            the 2026-06 IA pass — it's operator tooling, not a debater need. */}
-        <ExportErrorsButton />
+        <div className="flex flex-wrap items-center gap-inline">
+          <Link
+            href="/admin/tournaments"
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
+            All tournaments →
+          </Link>
+          {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
+              the 2026-06 IA pass — it's operator tooling, not a debater need. */}
+          <ExportErrorsButton />
+        </div>
+      </section>
+
+      {/* The same search box as /admin/tournaments (owner, 2026-10-31: "a
+          view if that tournament is present in the database or not"). */}
+      <section aria-labelledby="in-database" className="space-y-stack rounded-lg border p-panel">
+        <div>
+          <h2 id="in-database" className="font-display text-h3 font-medium text-ink">
+            Is it in the database?
+          </h2>
+          <p className="mt-hair text-body text-ink-soft">
+            Paste a tab or private URL to see whether its tournament is stored, or type part of a
+            name to list the matches.
+          </p>
+        </div>
+        <TournamentLookup />
       </section>
 
       <ScrapeHealthSection health={health} now={now} />

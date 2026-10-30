@@ -6,6 +6,7 @@ import { StatRow, StatTile } from '@/components/ui/StatTile';
 import { AccuracyTable, type AccuracyTableRow } from '@/components/admin/AccuracyTable';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
 import { TabLink } from '@/components/admin/TabLink';
+import { InDatabaseCell, inDatabase } from '@/components/admin/InDatabaseCell';
 import type { AccuracyOverview, OpenQuestion } from '@/lib/admin/accuracy';
 import { relativeTime } from '@/lib/utils/relativeTime';
 
@@ -18,6 +19,7 @@ export function toAccuracyRows(lowest: AccuracyOverview['lowest'], now: Date): A
     id: r.id,
     name: r.name,
     tabUrl: r.tabUrl,
+    stored: inDatabase({ id: r.id, scrapedAt: r.scrapedAt }, now),
     score: r.score,
     band: r.band,
     failed: r.failed.map((f) => f.label),
@@ -60,7 +62,7 @@ export function AccuracySection({ overview, now }: { overview: AccuracyOverview;
       ) : (
         <>
           <AccuracyTiles overview={o} />
-          <OpenQuestions questions={o.openQuestions} audited={o.n} />
+          <OpenQuestions questions={o.openQuestions} audited={o.n} now={now} />
           <FailingChecks overview={o} />
           <div className="space-y-inline">
             <h3 className="font-display text-h4 font-medium text-ink">Lowest scores</h3>
@@ -125,7 +127,15 @@ function FailingChecks({ overview: o }: { overview: AccuracyOverview }) {
  * with the tournaments it decided, so the cost of either answer is visible
  * before the ruling.
  */
-function OpenQuestions({ questions, audited }: { questions: OpenQuestion[]; audited: number }) {
+function OpenQuestions({
+  questions,
+  audited,
+  now,
+}: {
+  questions: OpenQuestion[];
+  audited: number;
+  now: Date;
+}) {
   return (
     // The id is the target of the "Open question" links on each tournament's
     // accuracy checks (/admin#open-questions).
@@ -142,7 +152,7 @@ function OpenQuestions({ questions, audited }: { questions: OpenQuestion[]; audi
                 <Badge variant="warning">{q.status}</Badge>
               </div>
               <p className="max-w-prose text-body text-ink-soft">{q.rule}</p>
-              <QuestionTournaments question={q} audited={audited} />
+              <QuestionTournaments question={q} audited={audited} now={now} />
             </li>
           ))}
         </ul>
@@ -154,9 +164,11 @@ function OpenQuestions({ questions, audited }: { questions: OpenQuestion[]; audi
 function QuestionTournaments({
   question: q,
   audited,
+  now,
 }: {
   question: OpenQuestion;
   audited: number;
+  now: Date;
 }) {
   if (q.count === 0) {
     return (
@@ -187,13 +199,14 @@ function QuestionTournaments({
             >
               {t.name}
             </Link>
-            <TabLink
-              url={t.tabUrl}
-              text="Tab"
-              of={t.name}
-              missing="No tab"
-              className="shrink-0 text-caption"
-            />
+            <span className="flex shrink-0 items-baseline gap-tight text-caption">
+              {/* The name links the page already: no second "Open". */}
+              <InDatabaseCell
+                stored={inDatabase({ id: t.id, scrapedAt: t.scrapedAt }, now)}
+                open={false}
+              />
+              <TabLink url={t.tabUrl} text="Tab" of={t.name} missing="No tab" />
+            </span>
           </li>
         ))}
       </ul>

@@ -6,6 +6,7 @@ import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable'
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { RetryPiecesButton } from '@/components/admin/RetryPiecesButton';
 import { TabLink } from '@/components/admin/TabLink';
+import { InDatabaseCell, type InDatabase } from '@/components/admin/InDatabaseCell';
 
 /** A row as the server prepared it: ids as strings, times already in words. */
 export type PartlyLoadedRow = {
@@ -13,6 +14,8 @@ export type PartlyLoadedRow = {
   name: string;
   /** The public tab address (made public by getScrapeHealth); null shows "None". */
   tabUrl: string | null;
+  /** The "In database" cell: stored, and when it was scraped. */
+  stored: InDatabase;
   missing: string[];
   lastTried: { text: string; iso: string };
   /** Null when at least one piece has used up its automatic retries. */
@@ -38,11 +41,12 @@ export function PartlyLoadedTable({ rows }: { rows: PartlyLoadedRow[] }) {
           {/* Fixed widths so the time columns sit at the same x whatever the
               tournament names are, and the action column never squeezes the
               button onto two lines. */}
-          <Cols widths={['16rem', '5rem', '20rem', '7rem', '8rem', '10rem']} />
+          <Cols widths={['16rem', '5rem', '8rem', '20rem', '7rem', '8rem', '10rem']} />
           <thead>
             <tr>
               <Th className="pl-stack">Tournament</Th>
               <Th>Tab</Th>
+              <Th>In database</Th>
               <Th>Missing</Th>
               <Th>Last tried</Th>
               <Th>Next retry</Th>
@@ -77,6 +81,10 @@ function PartlyLoadedRowView({ row }: { row: PartlyLoadedRow }) {
       </Td>
       <Td>
         <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
+      </Td>
+      <Td>
+        {/* The name already links the tournament's page: no second "Open". */}
+        <InDatabaseCell stored={row.stored} open={false} />
       </Td>
       <Td>
         <ul

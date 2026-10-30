@@ -6,6 +6,8 @@ import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable'
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
 import { TabLink } from '@/components/admin/TabLink';
+import { BAND_BADGE } from '@/components/admin/bandBadge';
+import { InDatabaseCell, type InDatabase } from '@/components/admin/InDatabaseCell';
 import type { SuggestedPiece } from '@/lib/admin/accuracyActions';
 
 export type AccuracyBand = 'good' | 'check' | 'rescrape';
@@ -15,25 +17,14 @@ export type AccuracyTableRow = {
   id: string;
   name: string;
   tabUrl: string | null;
+  /** The "In database" cell: stored, and when it was scraped. */
+  stored: InDatabase;
   score: number;
   band: AccuracyBand;
   failed: string[];
   suggested: SuggestedPiece[];
   usersAffected: number;
   audited: { text: string; iso: string };
-};
-
-/**
- * The band in words beside the figure, so the colour is never the only cue
- * (UX-34): green for a score to keep, amber to look at, red to re-scrape.
- */
-export const BAND_BADGE: Record<
-  AccuracyBand,
-  { text: string; variant: 'success' | 'warning' | 'danger' }
-> = {
-  good: { text: 'Good', variant: 'success' },
-  check: { text: 'Check', variant: 'warning' },
-  rescrape: { text: 'Re-scrape', variant: 'danger' },
 };
 
 // Four badges fit the column on one line; the rest are on the tournament's
@@ -55,13 +46,14 @@ export function AccuracyTable({ rows }: { rows: AccuracyTableRow[] }) {
           {/* Fixed widths so the figures and times sit at the same x on
               every row, whatever the names and badges are, and the action
               never wraps its label. */}
-          <Cols widths={['16rem', '8.5rem', '20rem', '5rem', '6rem', '7rem', '14rem']} />
+          <Cols widths={['16rem', '8.5rem', '20rem', '5rem', '8rem', '6rem', '7rem', '14rem']} />
           <thead>
             <tr>
               <Th className="pl-stack">Tournament</Th>
               <Th numeric>Score</Th>
               <Th>Failing</Th>
               <Th>Tab</Th>
+              <Th>In database</Th>
               <Th numeric>On CVs</Th>
               <Th>Audited</Th>
               <Th className="pr-stack text-right">
@@ -104,6 +96,10 @@ function AccuracyRowView({ row }: { row: AccuracyTableRow }) {
       </Td>
       <Td className="align-top">
         <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
+      </Td>
+      <Td className="align-top">
+        {/* The name already links the tournament's page: no second "Open". */}
+        <InDatabaseCell stored={row.stored} open={false} />
       </Td>
       <Td numeric className="align-top">
         {row.usersAffected}
