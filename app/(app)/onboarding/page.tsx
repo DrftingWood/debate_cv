@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { resetRetryableNameReads } from '@/lib/identity/retryNameReads';
 import { ArrowRight, CheckCircle } from '@/components/ui/icons';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
@@ -30,6 +31,9 @@ export default async function OnboardingPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
   const userId = session.user.id;
+  // Pages whose read failed for a passing reason go back to unread, so this
+  // visit reads them again instead of showing an empty name list.
+  await resetRetryableNameReads(userId);
 
   const [urlCount, preflightRemaining, claimedCount] = await Promise.all([
     prisma.discoveredUrl.count({ where: { userId } }),
