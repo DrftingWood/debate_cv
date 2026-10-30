@@ -66,3 +66,19 @@ export function nameSample(names: ReadonlyArray<string | null | undefined>): Nam
     need: complete ? 0 : target - read,
   };
 }
+
+/** A failed read waits this long before onboarding tries the page again. */
+export const NAME_READ_RETRY_AFTER_MS = 10 * 60 * 1000;
+
+/**
+ * Failure notes (DiscoveredUrl.lastPreflightError) that may pass on a retry:
+ * a timeout, a dropped connection, a rate limit or a server error. A 404, a
+ * withheld page or a page without a name will answer the same again.
+ */
+export const RETRYABLE_READ_FAILURES = [
+  'HTTP 0',
+  'HTTP 429',
+  'HTTP 5',
+  'fetch timeout',
+  'fetch failed',
+];
