@@ -77,7 +77,7 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
     return (
       <EmptyState
         title="Nothing flagged yet"
-        description="Tick failed imports above and press Add to review set. They wait here with their priority and comment."
+        description="Tick failed imports, CV reports or parser warnings and press Add to review set. They wait here with their priority and comment."
         headingLevel={3}
       />
     );

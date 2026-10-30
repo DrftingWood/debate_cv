@@ -197,12 +197,13 @@ describe('reading the review set', () => {
     expect(prismaMock.reviewFlag.findMany.mock.calls[0][0].where).toEqual({ status: 'open' });
   });
 
+  // Task 5d appended a detail column (what a CV report or parser warning is about).
   it('writes a CSV that survives commas, quotes and new lines in a comment', async () => {
     prismaMock.reviewFlag.findMany.mockResolvedValue([flag({ comment: 'say "hi", then\nmore' })]);
     const csv = reviewSetCsv(await loadReviewSet());
     const [header, ...rest] = csv.split('\n');
     expect(header).toBe(
-      'id,source,source_id,priority,status,comment,url,tournament_id,tournament_name,last_error,attempts,tab,tab_errors,created_by,created_at',
+      'id,source,source_id,priority,status,comment,url,tournament_id,tournament_name,last_error,attempts,tab,tab_errors,created_by,created_at,detail',
     );
     expect(rest.join('\n')).toContain('"say ""hi"", then\nmore"');
   });

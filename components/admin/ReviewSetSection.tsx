@@ -13,11 +13,18 @@ const SOURCE_LABEL: Record<ReviewFlagView['source'], string> = {
 
 /**
  * What a flag is called in the ledger: its tournament when one is known,
- * else its public tab address, else what kind of item it is. Never the
- * private URL: `url` was made public when the flag was read.
+ * else its public tab address, else what kind of item it is. A parser
+ * warning goes by its `[parser] headline`, and a report with no stored
+ * tournament by its reporter (Task 5d). Never the private URL: `url` was
+ * made public when the flag was read.
  */
 function nameOf(f: ReviewFlagView): string {
+  // A warning spans many tournaments: its headline says what it is.
+  if (f.detail?.kind === 'parser_warning') return `[${f.detail.parser}] ${f.detail.headline}`;
   if (f.tournament) return f.tournament.name;
+  if (f.detail?.kind === 'cv_report') {
+    return `CV report from ${f.detail.reporter.name ?? f.detail.reporter.email ?? 'a user'}`;
+  }
   if (f.url) return shortUrl(f.url);
   return `${SOURCE_LABEL[f.source]} ${f.sourceId}`;
 }

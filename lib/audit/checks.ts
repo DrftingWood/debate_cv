@@ -102,8 +102,15 @@ function checkParserStale(parserVersion: string | null, current: string): CheckR
   );
 }
 
-/** What a report category points at. Identity categories point at no page. */
-function reportPieces(category: string, inputs: AuditInputs): SuggestedPiece[] {
+/** What reportPieces reads: the recorded pieces and what says how many prelims there were. */
+export type ReportPieceInputs = Pick<AuditInputs, 'pieces' | 'prelimRoundCount' | 'roundRows'>;
+
+/**
+ * What a report category points at. Identity categories point at no page.
+ * Exported for the admin CV reports ledger (Task 5d), whose "Re-scrape
+ * suggested" must offer the very pages this check does.
+ */
+export function reportPieces(category: string, inputs: ReportPieceInputs): SuggestedPiece[] {
   const { pieces } = inputs;
   switch (category) {
     case 'wrong_teammate':

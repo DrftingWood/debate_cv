@@ -47,7 +47,9 @@ export function teamKey(name: string): string {
  * Prelim rows only. With a known round count, rows past it (an outround a
  * loader might pass by mistake) are left out.
  */
-export function prelimRows(inputs: AuditInputs): AuditInputs['roundRows'] {
+export function prelimRows(
+  inputs: Pick<AuditInputs, 'prelimRoundCount' | 'roundRows'>,
+): AuditInputs['roundRows'] {
   const n = inputs.prelimRoundCount;
   return inputs.roundRows.filter((r) => r.round >= 1 && (n == null || r.round <= n));
 }
@@ -56,7 +58,9 @@ export function prelimRows(inputs: AuditInputs): AuditInputs['roundRows'] {
  * The prelim rounds that should exist: 1..prelimRoundCount, or, when the
  * count was never recorded, 1..the highest round with rows.
  */
-export function expectedPrelims(inputs: AuditInputs): number[] {
+export function expectedPrelims(
+  inputs: Pick<AuditInputs, 'prelimRoundCount' | 'roundRows'>,
+): number[] {
   const n = inputs.prelimRoundCount ?? prelimRows(inputs).reduce((m, r) => Math.max(m, r.round), 0);
   return Array.from({ length: Math.max(0, n) }, (_, i) => i + 1);
 }

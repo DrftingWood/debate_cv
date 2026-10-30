@@ -11,7 +11,13 @@ import { prisma } from '@/lib/db';
  *   - `partial`: it is stored, but some tab or round page failed to load
  *     (a ScrapePiece with status 'failed'; 'withheld' pages are the
  *     tournament's choice and do not count);
- *   - `loaded`: stored, and nothing failed.
+ *   - `loaded`: stored, and nothing failed;
+ *   - `check`: the row's address cannot be pinned to one stored tournament
+ *     (two stored rows share its host and slug, or it names no slug at
+ *     all), so whether it is loaded is unknown. Task 5d: this used to read
+ *     "✗ Not loaded", which is false for a tournament that is stored, and
+ *     the owner does not want a well-scraped tab marked as a problem. The
+ *     reason is in `errors`, shown the way a partial tab's pages are.
  *
  * `errors` is what the "?" reveals: one line per failed page, in words. The
  * piece's `lastError` is a scraper exception that can carry the page's
@@ -21,7 +27,7 @@ import { prisma } from '@/lib/db';
  */
 
 export type TabState = {
-  state: 'loaded' | 'partial' | 'missing';
+  state: 'loaded' | 'partial' | 'missing' | 'check';
   tournamentId: string | null;
   errors: string[];
 };
@@ -85,6 +91,24 @@ export function tabState(tournamentId: string | null, failed: FailedPieceLike[])
         ];
   return { state: 'partial', tournamentId, errors };
 }
+
+/** "? Check": the address matched more than one stored tournament. */
+export function ambiguousTab(count: number): TabState {
+  return {
+    state: 'check',
+    tournamentId: null,
+    errors: [
+      `${count} stored tournaments share this address. Search the tournament list by name to tell them apart.`,
+    ],
+  };
+}
+
+/** "? Check": the address has no slug, so it cannot be matched to a stored tournament. */
+export const UNMATCHABLE_TAB: TabState = {
+  state: 'check',
+  tournamentId: null,
+  errors: ['This address names no tournament, so it cannot be matched. Search the list by name.'],
+};
 
 /**
  * The Tab state of each stored tournament, keyed by id, in one query

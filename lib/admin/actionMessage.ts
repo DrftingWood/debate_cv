@@ -78,3 +78,14 @@ const REVIEW_SET: Record<string, string> = {
 export function reviewSetFailureMessage(failure: FailureLike): string {
   return lookup(REVIEW_SET, failure.error) ?? generic(failure);
 }
+
+const CV_REPORT: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That status could not be saved. Reload the page and try again.',
+  not_found: 'This report no longer exists. Reload the page to see the current list.',
+};
+
+/** Why a CV report's new status did not save. */
+export function cvReportFailureMessage(failure: FailureLike): string {
+  return lookup(CV_REPORT, failure.error) ?? generic(failure);
+}

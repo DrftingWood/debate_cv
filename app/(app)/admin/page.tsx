@@ -1,16 +1,12 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { DownloadSimple } from '@/components/ui/icons';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
 import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
-import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import { buttonClasses } from '@/components/ui/Button';
-import { formatDate } from '@/lib/utils/date';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { StatRow, StatTile } from '@/components/ui/StatTile';
 import { ScrapeHealthSection } from '@/components/admin/ScrapeHealthSection';
 import { FailedImportsSection } from '@/components/admin/FailedImportsSection';
@@ -20,6 +16,12 @@ import { getAccuracyOverview } from '@/lib/admin/accuracy';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { ReviewSetSection } from '@/components/admin/ReviewSetSection';
 import { loadReviewSet, type Priority } from '@/lib/admin/reviewSet';
+import { CvReportsSection } from '@/components/admin/CvReportsSection';
+import { ParserWarningsSection } from '@/components/admin/ParserWarningsSection';
+import { listCvReports } from '@/lib/admin/cvReports';
+import { listParserWarnings } from '@/lib/admin/parserWarnings';
+import { readPage, readReportFilter } from '@/lib/admin/cvReportTypes';
+import type { SearchValues } from '@/lib/admin/adminHref';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -28,12 +30,26 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminPage() {
+/**
+ * The operator overview. Two of its ledgers page through the address
+ * (Task 5d): `?reportsPage=` and `?reportsStatus=` (open by default) for the
+ * CV reports, `?warningsPage=` for the parser warnings. Each keeps the
+ * others when it moves (adminHref).
+ */
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchValues>;
+} = {}) {
   try {
     await requireAdmin();
   } catch {
     redirect('/');
   }
+  const search = (await searchParams) ?? {};
+  // One clock for every relative time on the page, so two cells written a
+  // millisecond apart cannot disagree about "just now".
+  const now = new Date();
 
   const [
     tournaments,
@@ -42,7 +58,7 @@ export default async function AdminPage() {
     pendingJobs,
     failedJobCount,
     health,
-    recentParserRuns,
+    parserWarnings,
     cvReports,
     accuracy,
     reviewSet,
@@ -55,19 +71,10 @@ export default async function AdminPage() {
     // 200: the tile and "Retry all n" must state the real number.
     prisma.ingestJob.count({ where: { status: { in: ['failed', 'abandoned'] } } }),
     getScrapeHealth(),
-    // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
-    // give a sense of warning frequency without scanning the whole table.
-    // Most-recent-first so frequencies reflect current parser version.
-    prisma.parserRun.findMany({
-      where: { warnings: { isEmpty: false } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-      select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
-    }),
-    prisma.cvErrorReport.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      include: { user: { select: { name: true, email: true } } },
+    listParserWarnings({ page: readPage(search.warningsPage), now }),
+    listCvReports({
+      page: readPage(search.reportsPage),
+      status: readReportFilter(search.reportsStatus),
     }),
     getAccuracyOverview(),
     // Open and done, so "Show done" needs no second request; read once here
@@ -79,48 +86,6 @@ export default async function AdminPage() {
       .filter((f) => f.source === 'import' && f.status === 'open')
       .map((f) => [f.sourceId, f.priority]),
   );
-
-  const cvReportTournamentIds = [
-    ...new Set(cvReports.flatMap((report) => report.tournamentIds)),
-  ].filter((id) => /^\d+$/.test(id));
-  const cvReportTournaments = cvReportTournamentIds.length
-    ? await prisma.tournament.findMany({
-        where: { id: { in: cvReportTournamentIds.map((id) => BigInt(id)) } },
-        select: { id: true, name: true, year: true },
-      })
-    : [];
-  const cvReportTournamentById = new Map(
-    cvReportTournaments.map((t) => [t.id.toString(), t] as const),
-  );
-
-  // Aggregate warnings by their first sentence so semantically-equivalent
-  // messages (different URLs in the suffix) collapse. The diagnostic format
-  // uses ` — ` as a separator between the headline and details; we group
-  // on the headline.
-  const warningHeadline = (w: string): string => {
-    const sep = w.indexOf(' — ');
-    return (sep > 0 ? w.slice(0, sep) : w).slice(0, 200);
-  };
-  const warningCounts = new Map<string, { count: number; sample: string; latest: Date }>();
-  for (const run of recentParserRuns) {
-    for (const w of run.warnings) {
-      const key = `[${run.parserName}] ${warningHeadline(w)}`;
-      const existing = warningCounts.get(key);
-      if (existing) {
-        existing.count += 1;
-        if (run.createdAt > existing.latest) existing.latest = run.createdAt;
-      } else {
-        warningCounts.set(key, { count: 1, sample: w, latest: run.createdAt });
-      }
-    }
-  }
-  const sortedWarnings = [...warningCounts.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 20);
-
-  // One clock for every relative time on the page, so two cells written a
-  // millisecond apart cannot disagree about "just now".
-  const now = new Date();
 
   return (
     <div className="space-y-8">
@@ -221,106 +186,9 @@ export default async function AdminPage() {
         </Link>
       </section>
 
-      <section className="rounded-lg border p-6 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-h3 font-medium text-ink">CV error reports</h2>
-            <p className="text-body text-ink-soft mt-1">
-              Beta reports users submitted from their CV page.
-            </p>
-          </div>
-          <a
-            href="/api/admin/cv-error-reports-export"
-            className={buttonClasses({ variant: 'outline', size: 'sm' })}
-          >
-            <DownloadSimple className="h-3.5 w-3.5" aria-hidden /> Export CSV
-          </a>
-        </div>
-        {cvReports.length === 0 ? (
-          <EmptyState title="No CV reports yet" headingLevel={3} />
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {cvReports.map((report) => (
-              <li key={report.id} className="space-y-2 px-3 py-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="text-ui font-medium text-ink">
-                    {report.user.name ?? report.user.email ?? report.userId}
-                  </div>
-                  <div className="text-caption text-ink-soft">{formatDate(report.createdAt)}</div>
-                </div>
-                {report.user.email ? (
-                  <div className="text-caption text-ink-soft">{report.user.email}</div>
-                ) : null}
-                <div className="flex flex-wrap gap-1">
-                  {report.tournamentIds.map((id) => {
-                    const tournament = cvReportTournamentById.get(id);
-                    return (
-                      <span
-                        key={id}
-                        className="rounded-full bg-surface-2 px-2 py-0.5 text-byline text-ink-soft"
-                      >
-                        {tournament
-                          ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}`
-                          : `#${id}`}
-                      </span>
-                    );
-                  })}
-                </div>
-                {report.categories.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {report.categories.map((c) => (
-                      <span
-                        key={c}
-                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-byline font-medium text-warning"
-                      >
-                        {categoryLabel(c)}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {report.comment ? (
-                  <p className="whitespace-pre-wrap wrap-break-word rounded-md bg-surface-2 px-3 py-2 text-ui text-ink">
-                    {report.comment}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <CvReportsSection list={cvReports} now={now} search={search} />
 
-      <section className="rounded-lg border p-6 space-y-4">
-        <div>
-          <h2 className="font-display text-h3 font-medium text-ink">Recent parser warnings</h2>
-          <p className="text-body text-ink-soft mt-1">
-            Top warnings from the latest 200 parser runs, grouped by headline. High counts mean many
-            tournaments are hitting the same parsing issue — usually a structural change in Tabbycat
-            the parser hasn&rsquo;t caught up to yet.
-          </p>
-        </div>
-        {sortedWarnings.length === 0 ? (
-          <EmptyState
-            title="No parser warnings"
-            description="Nothing recorded in the last 200 parser runs. Parsers are clean."
-            headingLevel={3}
-          />
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {sortedWarnings.map(([key, { count, sample, latest }]) => (
-              <li key={key} className="px-3 py-2 space-y-1">
-                <div className="flex items-baseline justify-between gap-3">
-                  <code className="font-mono text-caption text-ink break-all">{key}</code>
-                  <span className="shrink-0 text-caption font-mono text-ink-soft">×{count}</span>
-                </div>
-                <div className="text-byline text-ink-soft">
-                  Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
-                  {sample.length > 200 ? '…' : ''}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ParserWarningsSection list={parserWarnings} now={now} search={search} />
 
       <section className="rounded-lg border p-6 space-y-4">
         <div>

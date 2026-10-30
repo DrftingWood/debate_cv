@@ -19,10 +19,22 @@ import type { TabState } from '@/lib/admin/tabStatus';
  * clip an absolutely placed label.
  *
  * A stored tournament's "Open" goes to its admin page, named for the
- * tournament when the row knows it (UX-11).
+ * tournament when the row knows it (UX-11). A cell whose tournament name
+ * already links there passes `open={false}`, so the row has one link, not two.
+ *
+ * "? Check" (Task 5d) is an address that matched two stored tournaments or
+ * none it could name: stored or not is unknown, so it is neither a tick nor
+ * a cross, and its reason is revealed the way a partial tab's pages are.
  */
-export function TabStatus({ tab, name }: { tab: TabState; name?: string }) {
-  const listId = useId();
+export function TabStatus({
+  tab,
+  name,
+  open: withOpen = true,
+}: {
+  tab: TabState;
+  name?: string;
+  open?: boolean;
+}) {
   if (tab.state === 'missing') {
     return (
       <span className="whitespace-nowrap text-ink-soft">
@@ -30,15 +42,16 @@ export function TabStatus({ tab, name }: { tab: TabState; name?: string }) {
       </span>
     );
   }
-  const open = tab.tournamentId ? (
-    <Link
-      href={`/admin/tournaments/${tab.tournamentId}`}
-      aria-label={`Open ${name ?? 'the tournament'}`}
-      className="inline-flex min-h-6 items-center text-caption text-ink underline underline-offset-4 hover:text-primary"
-    >
-      Open
-    </Link>
-  ) : null;
+  const open =
+    withOpen && tab.tournamentId ? (
+      <Link
+        href={`/admin/tournaments/${tab.tournamentId}`}
+        aria-label={`Open ${name ?? 'the tournament'}`}
+        className="inline-flex min-h-6 items-center text-caption text-ink underline underline-offset-4 hover:text-primary"
+      >
+        Open
+      </Link>
+    ) : null;
 
   if (tab.state === 'loaded') {
     return (
@@ -51,31 +64,55 @@ export function TabStatus({ tab, name }: { tab: TabState; name?: string }) {
     );
   }
 
-  const list = (
-    <ul className="space-y-hair">
-      {tab.errors.map((e, i) => (
-        <li key={`${i}:${e}`}>{e}</li>
-      ))}
-    </ul>
-  );
   return (
     <div>
-      <Tooltip content={list} side="bottom" align="start" wrap fixed>
+      <HoverList
+        word={tab.state === 'check' ? 'Check' : 'Partly'}
+        lines={tab.errors}
+        className={tab.state === 'check' ? 'text-ink' : 'text-warning'}
+      />
+      <div>{open}</div>
+    </div>
+  );
+}
+
+/**
+ * "? Partly" or "? Check" and the lines behind it: a Tooltip for the pointer
+ * and keyboard focus, and the same lines as an sr-only list the trigger
+ * describes itself with (UX-36).
+ */
+function HoverList({
+  word,
+  lines,
+  className,
+}: {
+  word: string;
+  lines: readonly string[];
+  className: string;
+}) {
+  const listId = useId();
+  const items = lines.map((e, i) => <li key={`${i}:${e}`}>{e}</li>);
+  return (
+    <>
+      <Tooltip
+        content={<ul className="space-y-hair">{items}</ul>}
+        side="bottom"
+        align="start"
+        wrap
+        fixed
+      >
         <span
           tabIndex={0}
           aria-describedby={listId}
-          className="inline-flex min-h-6 cursor-help items-center whitespace-nowrap rounded-sm text-warning underline decoration-dotted underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className={`inline-flex min-h-6 cursor-help items-center whitespace-nowrap rounded-sm underline decoration-dotted underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${className}`}
         >
-          <span aria-hidden>?</span>&nbsp;Partly
+          <span aria-hidden>?</span>&nbsp;{word}
         </span>
       </Tooltip>
       {/* Outside the trigger, so the description is not part of its name. */}
       <ul id={listId} className="sr-only">
-        {tab.errors.map((e, i) => (
-          <li key={`${i}:${e}`}>{e}</li>
-        ))}
+        {items}
       </ul>
-      <div>{open}</div>
-    </div>
+    </>
   );
 }

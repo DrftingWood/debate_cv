@@ -4,6 +4,14 @@ import { storedForJobs } from '@/lib/admin/scrapeHealth';
 import { loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import { csvLine } from '@/lib/utils/csv';
+import { scrubComment } from '@/lib/admin/scrub';
+import {
+  detailText,
+  itemKey,
+  loadFlagDetails,
+  resolveCvReportItems,
+  type FlagDetail,
+} from '@/lib/admin/reviewSetSources';
 import {
   sortFlags,
   type FlagItem,
@@ -13,6 +21,7 @@ import {
 } from '@/lib/admin/reviewSetTypes';
 
 export * from '@/lib/admin/reviewSetTypes';
+export type { FlagDetail } from '@/lib/admin/reviewSetSources';
 
 /**
  * The review set (owner, 2026-10-31: "prioritize some errors and bring to a
@@ -33,30 +42,20 @@ export * from '@/lib/admin/reviewSetTypes';
 /** The most flags read at once: far more than a person triages, and a bound on the export. */
 const READ_CAP = 1000;
 
-/**
- * A comment as it may be stored and shown: trimmed, every pasted URL in its
- * public form, and any leftover `privateurls/<key>` (a URL without its
- * scheme) removed. A private key signs in as the participant; it has no
- * place in a note an admin writes for later.
- */
-export function scrubComment(text: string): string {
-  return text
-    .replace(/https?:\/\/\S+/gi, (url) => publicPieceUrl(url) ?? '[link removed]')
-    .replace(/\S*privateurls\S*/gi, '[private link removed]')
-    .trim();
-}
+export { scrubComment };
 
 /** What a new flag records about its item: its public address and stored tournament. */
 type Resolved = { url: string; tournamentId: bigint | null };
 
 /**
- * Import flags take their job's public tab address and stored tournament.
- * An id that is no longer a job (deleted with its user) is dropped: there
- * would be nothing to review. Other sources are kept as they are, with no
- * address or tournament, until Task 5d resolves them.
+ * Import flags take their job's public tab address and stored tournament;
+ * CV report flags take their report's first stored tournament
+ * (reviewSetSources.ts). An id that no longer names a job or a report is
+ * dropped: there would be nothing to review. Parser warnings are kept as
+ * they are, with no address or tournament: a warning spans many.
  */
 async function resolveItems(items: FlagItem[]): Promise<Map<string, Resolved>> {
-  const key = (i: FlagItem) => `${i.source}\u0000${i.sourceId}`;
+  const key = itemKey;
   const out = new Map<string, Resolved>();
   const importIds = items.filter((i) => i.source === 'import').map((i) => i.sourceId);
   if (importIds.length > 0) {
@@ -73,8 +72,12 @@ async function resolveItems(items: FlagItem[]): Promise<Map<string, Resolved>> {
       });
     }
   }
+  const reports = await resolveCvReportItems(
+    items.filter((i) => i.source === 'cv_report').map((i) => i.sourceId),
+  );
+  for (const [id, r] of reports) out.set(key({ source: 'cv_report', sourceId: id }), r);
   for (const i of items) {
-    if (i.source !== 'import') out.set(key(i), { url: '', tournamentId: null });
+    if (i.source === 'parser_warning') out.set(key(i), { url: '', tournamentId: null });
   }
   return out;
 }
@@ -189,6 +192,8 @@ export type ReviewFlagView = {
   /** An import's attempts; null for other sources or a job that is gone. */
   attempts: number | null;
   tab: TabState;
+  /** What a CV report or parser warning flag is about (Task 5d); null for imports. */
+  detail: FlagDetail | null;
   createdBy: string;
   createdAt: Date;
 };
@@ -224,9 +229,13 @@ export async function loadReviewSet(
     if (live) return { id: live.id, name: live.name };
     return r.tournament ? { id: r.tournament.id.toString(), name: r.tournament.name } : null;
   };
-  const tabs = await loadTabStates(
-    rows.map((r) => tournamentOf(r)?.id).filter((id): id is string => !!id),
-  );
+  const [tabs, details] = await Promise.all([
+    loadTabStates(rows.map((r) => tournamentOf(r)?.id).filter((id): id is string => !!id)),
+    loadFlagDetails(
+      rows.map((r) => ({ source: r.source as FlagSource, sourceId: r.sourceId })),
+      new Date(),
+    ),
+  ]);
 
   const views = rows.map((r): ReviewFlagView => {
     const job = r.source === 'import' ? jobById.get(r.sourceId) : undefined;
@@ -243,6 +252,8 @@ export async function loadReviewSet(
       lastError: job?.lastError ? ingestErrorCategory(job.lastError) : null,
       attempts: job ? job.attempts : null,
       tab: (tournament && tabs.get(tournament.id)) || tabState(null, []),
+      detail:
+        details.get(itemKey({ source: r.source as FlagSource, sourceId: r.sourceId })) ?? null,
       createdBy: r.createdBy,
       createdAt: r.createdAt,
     };
@@ -266,6 +277,7 @@ export function toExportRecord(f: ReviewFlagView) {
     attempts: f.attempts,
     tab: f.tab.state,
     tabErrors: f.tab.errors,
+    detail: f.detail,
     createdBy: f.createdBy,
     createdAt: f.createdAt.toISOString(),
   };
@@ -287,6 +299,7 @@ const CSV_HEADER = [
   'tab_errors',
   'created_by',
   'created_at',
+  'detail',
 ];
 
 /** The same records as CSV, one row per flag under a header row (csvCell quotes as needed). */
@@ -311,6 +324,7 @@ export function reviewSetCsv(flags: readonly ReviewFlagView[]): string {
         r.tabErrors.join('; '),
         r.createdBy,
         r.createdAt,
+        detailText(f.detail),
       ]);
     }),
   ].join('\n');

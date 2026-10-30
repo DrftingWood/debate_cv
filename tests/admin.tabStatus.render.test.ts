@@ -128,6 +128,7 @@ const flag = (over: Partial<ReviewFlagView>): ReviewFlagView => ({
   lastError: null,
   attempts: 3,
   tab: { state: 'loaded', tournamentId: '5', errors: [] },
+  detail: null,
   createdBy: 'admin@example.com',
   createdAt: new Date('2026-10-30T12:00:00Z'),
   ...over,

@@ -39,7 +39,7 @@ vi.mock('@/lib/db', () => ({
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 3) },
     parserRun: { findMany: vi.fn(async () => []) },
-    cvErrorReport: { findMany: vi.fn(async () => []) },
+    cvErrorReport: { findMany: vi.fn(async () => []), count: vi.fn(async () => 0) },
     reviewFlag: { findMany: vi.fn(async () => []) },
   },
 }));

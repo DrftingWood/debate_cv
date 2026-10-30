@@ -2,8 +2,8 @@ import { IngestJobStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { publicPieceUrl } from '@/lib/audit/types';
-import { storedTournamentIdsByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
-import { loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
+import { storedMatchesByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
+import { ambiguousTab, loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -92,7 +92,18 @@ const jobKey = (j: { userId: string; url: string }) => `${j.userId}\u0000${j.url
 export async function storedForJobs(
   jobs: Array<{ id: string; userId: string; url: string }>,
 ): Promise<Map<string, StoredRef>> {
-  if (jobs.length === 0) return new Map();
+  return (await matchJobs(jobs)).stored;
+}
+
+/**
+ * storedForJobs, plus the jobs whose address matched two or more stored
+ * rows (by job id, with how many) and no DiscoveredUrl link settles it.
+ * Their Tab cell reads "? Check", not a false "✗ Not loaded" (Task 5d).
+ */
+export async function matchJobs(
+  jobs: Array<{ id: string; userId: string; url: string }>,
+): Promise<{ stored: Map<string, StoredRef>; ambiguous: Map<string, number> }> {
+  if (jobs.length === 0) return { stored: new Map(), ambiguous: new Map() };
   const urls = [...new Set(jobs.map((j) => j.url))];
   const [links, byUrl] = await Promise.all([
     prisma.discoveredUrl.findMany({
@@ -107,7 +118,7 @@ export async function storedForJobs(
         tournament: { select: { id: true, name: true, scrapedAt: true } },
       },
     }),
-    storedTournamentIdsByUrl(urls),
+    storedMatchesByUrl(urls),
   ]);
   const linked = new Map<string, StoredRef>();
   for (const l of links) {
@@ -115,12 +126,14 @@ export async function storedForJobs(
     const { id, name, scrapedAt } = l.tournament;
     linked.set(jobKey(l), { id: id.toString(), name, scrapedAt });
   }
-  const out = new Map<string, StoredRef>();
+  const stored = new Map<string, StoredRef>();
+  const ambiguous = new Map<string, number>();
   for (const j of jobs) {
-    const ref = linked.get(jobKey(j)) ?? byUrl.get(j.url);
-    if (ref) out.set(j.id, ref);
+    const ref = linked.get(jobKey(j)) ?? byUrl.stored.get(j.url);
+    if (ref) stored.set(j.id, ref);
+    else if (byUrl.ambiguous.has(j.url)) ambiguous.set(j.id, byUrl.ambiguous.get(j.url) ?? 2);
   }
-  return out;
+  return { stored, ambiguous };
 }
 
 /**
@@ -130,8 +143,14 @@ export async function storedForJobs(
  */
 async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
   const jobs = await loadFailedJobs();
-  const storedByJob = await storedForJobs(jobs);
+  const { stored: storedByJob, ambiguous } = await matchJobs(jobs);
   const tabs = await loadTabStates([...storedByJob.values()].map((r) => r.id));
+  const tabOf = (id: string): TabState => {
+    const ref = storedByJob.get(id);
+    if (ref) return tabs.get(ref.id) ?? tabState(ref.id, []);
+    const n = ambiguous.get(id);
+    return n ? ambiguousTab(n) : tabState(null, []);
+  };
   return jobs.map((j) => ({
     id: j.id,
     url: j.url,
@@ -140,7 +159,7 @@ async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
     lastError: j.lastError,
     finishedAt: j.finishedAt,
     stored: storedByJob.get(j.id) ?? null,
-    tab: tabs.get(storedByJob.get(j.id)?.id ?? '') ?? tabState(null, []),
+    tab: tabOf(j.id),
   }));
 }
 
