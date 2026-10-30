@@ -52,5 +52,12 @@ Teams per room: 4 for British Parliamentary, or when per-round positions are OG/
   - "Audit now".
 - **Per-tournament page:** an "Accuracy checks" panel above the grid. It lists each check with a status pill, its detail line and its suggested pieces, with "Select suggested" (ticks those pieces in the grid) and "Audit again".
 
+## Links to check by hand (owner, 2026-10-31)
+The admin view links straight to the source pages, so a hint can be checked by eye:
+- Every suggested piece in a check, and every piece in the grid, has an **"Open on tab ↗"** link to that page's URL (`ScrapePiece.url`). Links open in a new tab with `rel="noopener noreferrer"`.
+- URLs are always made public first: any `/privateurls/<key>/` path becomes the tournament's public base, and a link is never shown with a private key.
+- Each tournament row in the accuracy table, and the tournament page header, links the public tab ("Tab ↗").
+- `CheckResult.pieces` carries `url` (public) alongside each `PieceRef`, so the overview can link without another query.
+
 ## Out of scope
 Per-room panel checks (judge rows have no room key). Alerts or notifications. Automatic re-scrapes triggered by the score.

@@ -28,6 +28,7 @@
   - a status line for slow work (UX-22);
   - Badge and StatusPill; icons via `components/ui/icons.ts`;
   - spacing tokens; 20 px gutters at 390 px.
+- **Links (owner, 2026-10-31):** every suggested piece and every grid piece shows "Open on tab ↗" (new tab, `rel="noopener noreferrer"`) to its public page URL. `publicPieceUrl(url)` in `lib/audit/types.ts` strips any `/privateurls/<key>/` to the public base and returns null when it can't. Tournament rows and headers link the public tab ("Tab ↗"). A private key is never rendered; a test asserts this.
 - Reuse what exists: `PieceRef` / `PieceKind` (`lib/calicotab/scrapePieces.ts`), the rescrape route, `RetryPiecesButton` patterns, `singleFlight`, `relativeTime`, the error mapping in `components/admin/*`, and `outroundRank` / `compareOutroundDepth` / `matchStage` (`lib/calicotab/judgeStats.ts`, `stageLexicon.ts`).
 
 ## Review Focus
@@ -66,7 +67,7 @@ The final review of `feat/partial-scrapes` found the problem. A break-only run, 
 - Produces, in `types.ts`:
   - `CheckCode`: the 13 spec codes plus `'user_reports'`
   - `CheckStatus = 'pass'|'warn'|'fail'|'na'`
-  - `CheckResult = { code: CheckCode; status: CheckStatus; detail: string; pieces: PieceRef[] }`
+  - `CheckResult = { code: CheckCode; status: CheckStatus; detail: string; pieces: Array<PieceRef & { label: string; url: string | null }> }`, where `url` is public; `publicPieceUrl(url: string): string | null`
   - `CHECK_WEIGHTS: Record<Exclude<CheckCode,'user_reports'>, number>`, using the spec's values
 - Produces, in `score.ts`:
   - `scoreTournament(checks: CheckResult[], openReports: number): number`
@@ -192,7 +193,7 @@ The final review of `feat/partial-scrapes` found the problem. A break-only run, 
 - Layout:
   - **Tiles:** "Accuracy score" (weighted, as a figure, with hint "across n tournaments · m on users' CVs"), "Unweighted", "Good / Check / Re-scrape" counts, and "Not audited in 24 h".
   - **Chart:** a BarList "Tournaments failing each check".
-  - **Ledger table:** Tournament (link to `/admin/tournaments/[id]`), Score (`.cell-num`, with a band Badge as text), Failing (badges, at most 4 then "+n"), On CVs (`.cell-num`), Audited (relative, mono), Action "Re-scrape suggested (n)". The action posts `{pieces: suggested}` to the existing rescrape route, with Task 8's pending, status-line and error-mapping pattern. When `suggested` is empty, the button reads "Re-scrape all failed" and posts `'failed'`.
+  - **Ledger table:** Tournament (link to `/admin/tournaments/[id]`), Score (`.cell-num`, with a band Badge as text), Failing (badges, at most 4 then "+n"), Tab ("Tab ↗" link to the public base), On CVs (`.cell-num`), Audited (relative, mono), Action "Re-scrape suggested (n)". The action posts `{pieces: suggested}` to the existing rescrape route, with Task 8's pending, status-line and error-mapping pattern. When `suggested` is empty, the button reads "Re-scrape all failed" and posts `'failed'`.
   - **"Audit now":** posts `{stale:true}` and toasts "Audited n tournaments".
   - **Empty state:** "No tournaments audited yet", with Audit now as its action.
 
@@ -213,6 +214,7 @@ The final review of `feat/partial-scrapes` found the problem. A break-only run, 
 
 **Layout:**
 - Above the grid: an h2 "Accuracy checks", the score with its band, and "Audited <relative>", or "Not audited yet".
+- The header shows "Tab ↗" (public base). Every suggested piece in a check row is a link "<label> ↗" to its public page, and each grid card gets an "Open on tab ↗" link.
 - A list, one row per check: label, a StatusPill (pass → done "Pass", warn → pending "Check", fail → failed "Fail", na → unavailable "Not applicable"), the detail sentence, and the suggested piece labels.
 - "Audit again" posts `{tournamentId}` and then refreshes.
 - The PieceGrid's "Select suggested" ticks exactly `suggested`, intersected with the grid.
