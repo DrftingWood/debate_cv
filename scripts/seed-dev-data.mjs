@@ -411,68 +411,6 @@ async function wipe() {
   ]);
 }
 
-/**
- * Per-page scrape records (ScrapePiece) for two tournaments, so /admin, the
- * per-tournament grid and the "Partly loaded" badge have something to show:
- * Delhi loaded every page; Hart House lost its speaker tab (retry still
- * queued) and round 2 (retries exhausted, so nextRetryAt is null and only an
- * admin re-scrape can fix it). Every other seeded tournament gets no pieces,
- * like a tournament imported before the table existed.
- */
-const PIECE_PLANS = {
-  delhi2025: { rounds: 3, failed: {} },
-  harthouse2023: {
-    rounds: 3,
-    failed: {
-      speaker: {
-        httpStatus: 503,
-        error: 'HTTP 503 from the speaker tab',
-        attempts: 2,
-        retryInMin: 30,
-      },
-      'round:2': { httpStatus: 500, error: 'HTTP 500 from round 2', attempts: 5, retryInMin: null },
-    },
-  },
-};
-
-async function seedScrapePieces(tournament, t) {
-  const plan = PIECE_PLANS[t.host];
-  if (!plan) return;
-  const base = `${tournament.sourceUrlRaw}`;
-  const now = Date.now();
-  const pieces = [
-    { kind: 'team', key: '', label: 'Team tab', url: `${base}tab/team/` },
-    { kind: 'speaker', key: '', label: 'Speaker tab', url: `${base}tab/speaker/` },
-    { kind: 'participants', key: '', label: 'Participants', url: `${base}participants/list/` },
-    { kind: 'motions', key: '', label: 'Motions', url: `${base}motions/` },
-  ];
-  for (let r = 1; r <= plan.rounds; r += 1) {
-    pieces.push({
-      kind: 'round',
-      key: String(r),
-      label: `R${r}`,
-      url: `${base}results/round/${r}/`,
-    });
-  }
-  for (const piece of pieces) {
-    const id = piece.kind === 'round' ? `round:${piece.key}` : piece.kind;
-    const fail = plan.failed[id];
-    await prisma.scrapePiece.create({
-      data: {
-        tournamentId: tournament.id,
-        ...piece,
-        status: fail ? 'failed' : 'ok',
-        httpStatus: fail?.httpStatus ?? null,
-        lastError: fail?.error ?? null,
-        attempts: fail?.attempts ?? 0,
-        lastAttemptAt: new Date(now - 10 * 60 * 1000),
-        loadedAt: fail ? null : new Date(now - 10 * 60 * 1000),
-        nextRetryAt: fail?.retryInMin != null ? new Date(now + fail.retryInMin * 60 * 1000) : null,
-      },
-    });
-  }
-}
-
 async function main() {
   console.log('Wiping…');
   await wipe();
@@ -568,8 +506,6 @@ async function main() {
         scheduledAt: new Date(`${t.year ?? 2023}-06-01T00:00:00Z`),
       },
     });
-
-    await seedScrapePieces(tournament, t);
 
     // ── Motions. Every tournament that ran prelims released them, including
     // the one the user only judged at.
@@ -838,20 +774,7 @@ async function main() {
     );
   }
 
-  // One failed import, for the admin "Failed imports" list. Its URL has no
-  // tournament row: the scrape never got far enough to create one.
-  await prisma.ingestJob.create({
-    data: {
-      userId: user.id,
-      url: 'https://brokenopen2025.calicotab.com/t/private-brokenopen2025/',
-      status: 'failed',
-      attempts: 3,
-      lastError: 'Tournament nav could not be read (HTTP 502)',
-      scheduledAt: new Date(Date.now() - 3600 * 1000),
-      finishedAt: new Date(Date.now() - 1800 * 1000),
-    },
-  });
-
+  await (await import('./seed-dev-scrape-health.mjs')).seedScrapeHealth(prisma, user.id);
   const counts = {
     tournaments: await prisma.tournament.count(),
     persons: await prisma.person.count(),
