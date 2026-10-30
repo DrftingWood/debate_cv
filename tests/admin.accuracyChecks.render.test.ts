@@ -27,6 +27,7 @@ vi.mock('@/components/ui/Toast', () => ({
   useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
 }));
 
+const { CHECKS_VERSION } = await import('@/lib/audit/checks');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { AccuracyChecks } = await import('@/components/admin/AccuracyChecks');
 const { AuditNowView } = await import('@/components/admin/AuditNowButton');
@@ -40,6 +41,7 @@ const PRIVATE = `${BASE}privateurls/k3yS3cr3t/`;
 const stored = {
   tournamentId: 5n,
   score: 74,
+  checksVersion: CHECKS_VERSION,
   computedAt: new Date('2026-10-31T11:00:00Z'),
   checks: [
     { code: 'champion', status: 'pass', detail: 'Champion found: Team A.', pieces: [] },
@@ -94,7 +96,6 @@ describe('<AccuracyChecks>', () => {
       React.createElement(AccuracyChecks, {
         tournamentId: '5',
         tournamentName: 'Oxford IV',
-        tabUrl: PRIVATE,
         audit,
         now: NOW,
       }),
@@ -126,13 +127,44 @@ describe('<AccuracyChecks>', () => {
       React.createElement(AccuracyChecks, {
         tournamentId: '5',
         tournamentName: 'Oxford IV',
-        tabUrl: BASE,
         audit: null,
         now: NOW,
       }),
     );
     expect(html).toContain('Not audited yet');
     expect(html).toContain('Audit again');
+  });
+});
+
+describe('<AccuracyChecks> audit notes', () => {
+  const render = (audit: Awaited<ReturnType<typeof getTournamentAccuracy>>) =>
+    renderToStaticMarkup(
+      React.createElement(AccuracyChecks, {
+        tournamentId: '5',
+        tournamentName: 'Oxford IV',
+        audit,
+        now: NOW,
+      }),
+    );
+
+  it('says in words when the audit used older checks', async () => {
+    db.tournamentAudit.findUnique.mockResolvedValue({ ...stored, checksVersion: 'old' });
+    const audit = (await getTournamentAccuracy(5n))!;
+    expect(audit.outdated).toBe(true);
+    db.tournamentAudit.findUnique.mockResolvedValue(stored);
+    expect((await getTournamentAccuracy(5n))!.outdated).toBe(false);
+    expect(render(audit)).toContain('Audited with older checks');
+  });
+
+  it('says so when no check results are stored', async () => {
+    db.tournamentAudit.findUnique.mockResolvedValue({ ...stored, checks: [] });
+    const html = render((await getTournamentAccuracy(5n))!);
+    expect(html).toContain('No check results stored');
+    expect(html).not.toContain('Audited with older checks');
+  });
+
+  it('has no duplicate Tab link beside the page header button', async () => {
+    expect(render((await getTournamentAccuracy(5n))!)).not.toContain('Tab of Oxford IV');
   });
 });
 
@@ -210,6 +242,8 @@ describe('PieceGrid with suggestions', () => {
     const html = view({});
     expect(html).toContain('Select suggested');
     expect(html).toContain('Open on tab');
+    // A 24px-tall target (UX-8), not a 16px line of text.
+    expect(html).toMatch(/class="[^"]*inline-flex min-h-6[^"]*">Open on tab/);
     expect(html).toContain(`href="${BASE}"`);
     expect(html.toLowerCase()).not.toContain('privateurls');
   });

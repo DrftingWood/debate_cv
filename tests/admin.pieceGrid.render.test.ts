@@ -96,6 +96,14 @@ describe('per-tournament piece grid', () => {
     post.mockReset();
   });
 
+  it('still shows the grid when the accuracy checks cannot be read', async () => {
+    const mod = await import('@/lib/admin/tournamentAccuracy');
+    vi.mocked(mod.getTournamentAccuracy).mockRejectedValueOnce(new Error('db down'));
+    const out = await renderPage();
+    expect(out).toContain('Re-scrape selected');
+    expect(out).toContain('Not audited yet');
+  });
+
   it('groups the pieces under Tabs and Rounds, with their status in words', async () => {
     const out = await renderPage();
     expect(out).toMatch(/<h1[^>]*>.*Oxford IV 2025.*<\/h1>/s);

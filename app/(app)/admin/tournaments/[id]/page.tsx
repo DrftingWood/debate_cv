@@ -42,7 +42,9 @@ export default async function AdminTournamentPiecesPage({
   if (!/^\d+$/.test(id)) notFound();
   const [data, audit] = await Promise.all([
     getTournamentPieces(BigInt(id)),
-    getTournamentAccuracy(BigInt(id)),
+    // The checks are extra: if reading them fails, the grid and re-scrape
+    // must stay usable, so it reads as "not audited".
+    getTournamentAccuracy(BigInt(id)).catch(() => null),
   ]);
   if (!data) notFound();
 
@@ -66,7 +68,6 @@ export default async function AdminTournamentPiecesPage({
       <AccuracyChecks
         tournamentId={id}
         tournamentName={data.tournament.name}
-        tabUrl={data.tournament.sourceUrl}
         audit={audit}
         now={now}
       />

@@ -33,14 +33,11 @@ const BAND_BADGE = {
 export function AccuracyChecks({
   tournamentId,
   tournamentName,
-  tabUrl,
   audit,
   now,
 }: {
   tournamentId: string;
   tournamentName: string;
-  /** Any stored address; TabLink makes it public. */
-  tabUrl: string | null;
   audit: TournamentAccuracy | null;
   now: Date;
 }) {
@@ -70,12 +67,12 @@ export function AccuracyChecks({
             ) : (
               <span>Not audited yet</span>
             )}
-            <TabLink url={tabUrl} text="Tab" of={tournamentName} className="text-caption" />
           </p>
         </div>
         <AuditNowButton tournamentId={tournamentId} tournamentName={tournamentName} />
       </div>
 
+      <AuditNotes audit={audit} />
       {audit && audit.checks.length > 0 ? (
         <ul className="divide-y divide-border rounded-md border border-border">
           {audit.checks.map((c) => (
@@ -118,5 +115,24 @@ function CheckRow({ check: c }: { check: TournamentAccuracy['checks'][number] })
         </p>
       ))}
     </li>
+  );
+}
+
+/** Words, not colour, for an audit that is out of date or has no rows. */
+function AuditNotes({ audit }: { audit: TournamentAccuracy | null }) {
+  if (!audit) return null;
+  return (
+    <>
+      {audit.outdated ? (
+        <p className="text-caption text-ink-soft">
+          Audited with older checks &mdash; Audit again to bring them up to date.
+        </p>
+      ) : null}
+      {audit.checks.length === 0 ? (
+        <p className="text-caption text-ink-soft">
+          No check results stored &mdash; Audit again to produce them.
+        </p>
+      ) : null}
+    </>
   );
 }

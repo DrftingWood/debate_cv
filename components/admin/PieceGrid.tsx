@@ -267,7 +267,7 @@ function PieceGroup({
               url={p.url}
               text="Open on tab"
               of={p.label}
-              className="self-start px-hair text-caption"
+              className="inline-flex min-h-6 items-center self-start px-inline text-caption"
             />
           </li>
         ))}

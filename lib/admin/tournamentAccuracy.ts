@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { band } from '@/lib/audit/score';
 import { ASSUMPTIONS, CHECK_LABELS, type CheckCode, type CheckStatus } from '@/lib/audit/types';
+import { CHECKS_VERSION } from '@/lib/audit/checks';
 import { parseChecks, suggestedPieces, type Band } from '@/lib/admin/accuracy';
 import type { SuggestedPiece } from '@/lib/admin/accuracyActions';
 
@@ -29,6 +30,8 @@ export type TournamentAccuracy = {
   score: number;
   band: Band;
   computedAt: Date;
+  /** Written by an older CHECKS_VERSION: its rows may lack newer checks. */
+  outdated: boolean;
   checks: CheckView[];
   /** Pieces of failing and warning checks: what "Select suggested" ticks. */
   suggested: SuggestedPiece[];
@@ -38,7 +41,7 @@ export type TournamentAccuracy = {
 export async function getTournamentAccuracy(id: bigint): Promise<TournamentAccuracy | null> {
   const row = await prisma.tournamentAudit.findUnique({
     where: { tournamentId: id },
-    select: { score: true, computedAt: true, checks: true },
+    select: { score: true, computedAt: true, checks: true, checksVersion: true },
   });
   if (!row) return null;
   const checks = parseChecks(row.checks);
@@ -46,6 +49,7 @@ export async function getTournamentAccuracy(id: bigint): Promise<TournamentAccur
     score: row.score,
     band: band(row.score),
     computedAt: row.computedAt,
+    outdated: row.checksVersion !== CHECKS_VERSION,
     checks: checks.map((c) => ({
       code: c.code,
       label: CHECK_LABELS[c.code],
