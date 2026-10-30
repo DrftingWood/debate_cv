@@ -29,7 +29,7 @@ const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
-const { asLookupUrl, searchBoxValue } = await import('@/lib/admin/tabAddress');
+const { asLookupUrl, hasPrivateKeyPath, searchBoxValue } = await import('@/lib/admin/tabAddress');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
 
@@ -204,6 +204,16 @@ describe('the tournament search box', () => {
     expect(asLookupUrl(PRIVATE)).toBe(PRIVATE);
     expect(asLookupUrl(`junk /PrivateUrls/${KEY}`)).not.toBeNull();
     expect(asLookupUrl('Oxford IV')).toBeNull();
+  });
+
+  // Final review of PR #265: a bare `privateurls/KEY`, with no host before
+  // it, is still someone's key.
+  it('catches a bare privateurls/KEY with no host', () => {
+    expect(hasPrivateKeyPath(`privateurls/${KEY}`)).toBe(true);
+    expect(hasPrivateKeyPath(`PrivateUrls/${KEY}/`)).toBe(true);
+    expect(hasPrivateKeyPath('myprivateurls/x')).toBe(false);
+    expect(asLookupUrl(`privateurls/${KEY}`)).not.toBeNull();
+    expect(searchBoxValue(`privateurls/${KEY}`)).toBe('');
   });
 });
 
