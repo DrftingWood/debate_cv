@@ -173,10 +173,10 @@ export function OnboardingFlow({
       setSelected(
         new Set(
           rows
-            // Already mine, or the same name as the user's Google name. A close
+            // Already mine, or the name on most of the private-URL pages read. A close
             // name (and any double surname or one-word name, which the server
             // caps at close) always needs the user's own tick (owner rule, I38).
-            .filter((n) => n.isMine || n.proximity === 'match')
+            .filter((n) => n.isMine || n.verified)
             .map((n) => n.normalizedName),
         ),
       );

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { requeueUnmatchedStoredLinks } from '@/lib/calicotab/storedFirst';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { isPlaceholderPersonName } from '@/lib/calicotab/names';
 
@@ -113,5 +114,10 @@ export async function POST(req: Request) {
     unclaimed = result.count;
   }
 
-  return NextResponse.json({ claimed, unclaimed });
+  // Tournaments linked from stored data that none of the confirmed names
+  // reaches (a forwarded link, an unclaimed spelling) have their private-URL
+  // page read now: it names whoever the link is for (storedFirst.ts).
+  const requeued = await requeueUnmatchedStoredLinks(userId);
+
+  return NextResponse.json({ claimed, unclaimed, requeued });
 }

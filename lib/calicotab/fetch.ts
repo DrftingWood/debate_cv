@@ -185,6 +185,14 @@ const MAX_STORED_BODY_BYTES = 5 * 1024 * 1024;
 // other ~16+ tab fetches to also have their chance.
 const FETCH_TIMEOUT_MS = 15_000;
 
+/**
+ * The private-URL page gets longer. It is the one request an import cannot
+ * do without (it says who the user is), and calicotab served pages in
+ * 10-40 s on 2026-10-30, so 15 s failed nearly every one. Tab pages keep the
+ * shorter limit: an ingest makes many of them inside one function budget.
+ */
+export const LANDING_FETCH_TIMEOUT_MS = 30_000;
+
 // Redirect hops to follow when talking to a Tabbycat host directly.
 // Tabbycat itself redirects for trailing slashes and http→https, and
 // Cloudflare adds its own, so a handful is normal; more than this is a
@@ -193,17 +201,19 @@ const MAX_REDIRECT_HOPS = 5;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+type RequestOptions = { referer?: string; timeoutMs?: number };
+
 async function throttledFetch(
   url: string,
   session: FetchSession,
-  referer?: string,
+  { referer, timeoutMs: requestTimeoutMs = FETCH_TIMEOUT_MS }: RequestOptions = {},
 ): Promise<Response> {
   const controller = new AbortController();
   // The per-request ceiling, cut short by the ingest's deadline when that
   // comes first: a request still in flight when the function is killed
   // leaves its job stuck `running` (FetchSession.deadline).
-  const timeoutMs = Math.min(FETCH_TIMEOUT_MS, session.remainingMs());
-  const deadlineBound = timeoutMs < FETCH_TIMEOUT_MS;
+  const timeoutMs = Math.min(requestTimeoutMs, session.remainingMs());
+  const deadlineBound = timeoutMs < requestTimeoutMs;
   const timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs));
 
   // When SCRAPER_API_KEY is set every request goes through ScraperAPI, so
@@ -215,8 +225,8 @@ async function throttledFetch(
   // allowlist bypass the entry-point validation is meant to prevent.
   const proxied = Boolean(process.env.SCRAPER_API_KEY);
 
+  let current = url;
   try {
-    let current = url;
     for (let hop = 0; ; hop += 1) {
       const host = new URL(current).host;
       // Serial per-host slot — see FetchSession.acquireSlot for why this
@@ -265,7 +275,10 @@ async function throttledFetch(
     if (err instanceof Error && err.name === 'AbortError') {
       if (deadlineBound)
         throw new IngestDeadlineError(`ingest stopped: deadline reached while fetching ${url}`);
-      throw new Error(`fetch timeout after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+      // A host too slow to answer is pushing back as surely as a 503 is:
+      // slow down for it rather than keep the same pace.
+      session.noteRateLimited(new URL(current).host, MIN_INTERVAL_MS);
+      throw new Error(`fetch timeout after ${requestTimeoutMs}ms: ${url}`);
     }
     throw err;
   } finally {
@@ -280,7 +293,7 @@ async function throttledFetch(
 async function fetchWithRetry(
   url: string,
   session: FetchSession,
-  referer?: string,
+  request: RequestOptions = {},
 ): Promise<Response> {
   const delays = [0, 1_000, 3_000];
   let lastRes: Response | null = null;
@@ -295,7 +308,7 @@ async function fetchWithRetry(
     if (delay > 0) await wait(delay);
     let res: Response;
     try {
-      res = await throttledFetch(url, session, referer);
+      res = await throttledFetch(url, session, request);
     } catch (err) {
       // A timeout or a dropped connection used to skip this loop entirely —
       // only HTTP statuses were retried — so one slow response failed the
@@ -362,13 +375,16 @@ export type FetchResult =
  */
 export async function fetchHtmlWithProvenance(
   url: string,
-  options: { referer?: string; session?: FetchSession } = {},
+  options: { referer?: string; session?: FetchSession; timeoutMs?: number } = {},
 ): Promise<FetchResult> {
   const start = Date.now();
   const session = options.session ?? new FetchSession();
   let res: Response;
   try {
-    res = await fetchWithRetry(url, session, options.referer);
+    res = await fetchWithRetry(url, session, {
+      referer: options.referer,
+      timeoutMs: options.timeoutMs,
+    });
   } catch (err) {
     // Out of time is not a page failure: it ends the ingest (see
     // IngestDeadlineError) rather than becoming one "fetch:" warning.

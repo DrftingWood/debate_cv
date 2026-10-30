@@ -19,6 +19,8 @@ const { POST } = await import('@/app/api/onboarding/confirm/route');
 beforeEach(() => {
   authMock.mockReset();
   resetPrismaMock();
+  // requeueUnmatchedStoredLinks reuses each test's discoveredUrl.findMany mock.
+  prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 0 });
 });
 
 describe('POST /api/onboarding/confirm — set-style claim semantics', () => {

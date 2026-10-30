@@ -28,6 +28,23 @@
 const learnedIntervalByHost = new Map<string, number>();
 
 /**
+ * The key a host is throttled and backed off under. Every calicotab
+ * subdomain is served by one backend: on 2026-10-30 all of them, and
+ * calicotab.com itself, slowed to 10-40 s a page at once. Pacing each
+ * subdomain separately let one ingest's tab fetches and another user's
+ * preflight hit that backend in parallel. Cookies stay per host.
+ */
+export function throttleKey(host: string): string {
+  return isCalicotabHost(host) ? 'calicotab.com' : host.toLowerCase();
+}
+
+/** calicotab.com or one of its subdomains (not a lookalike such as calicotab.com.example). */
+export function isCalicotabHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return h === 'calicotab.com' || h.endsWith('.calicotab.com');
+}
+
+/**
  * The least time worth starting a request with. Below this a request cannot
  * plausibly finish and be parsed before the deadline.
  */
@@ -149,24 +166,25 @@ export class FetchSession {
    * same lambda start already slowed rather than rediscovering the limit.
    */
   noteRateLimited(host: string, baseIntervalMs: number): void {
-    const current = Math.max(baseIntervalMs, learnedIntervalByHost.get(host) ?? 0);
+    const key = throttleKey(host);
+    const current = Math.max(baseIntervalMs, learnedIntervalByHost.get(key) ?? 0);
     const next = Math.min(Math.max(current * 2, SAFE_INTERVAL_MS), MAX_LEARNED_INTERVAL_MS);
-    learnedIntervalByHost.set(host, next);
+    learnedIntervalByHost.set(key, next);
   }
 
   /** The interval currently in force for `host`, for logging and tests. */
   effectiveInterval(host: string, baseIntervalMs: number): number {
-    return Math.max(baseIntervalMs, learnedIntervalByHost.get(host) ?? 0);
+    return Math.max(baseIntervalMs, learnedIntervalByHost.get(throttleKey(host)) ?? 0);
   }
 
   /** Milliseconds-since-epoch of the last request we sent to `host`, or 0 if none. */
   getLastRequestAt(host: string): number {
-    return this.lastRequestAtByHost.get(host) ?? 0;
+    return this.lastRequestAtByHost.get(throttleKey(host)) ?? 0;
   }
 
   /** Record that a request to `host` is being made now (for throttle accounting). */
   markRequestNow(host: string): void {
-    this.lastRequestAtByHost.set(host, Date.now());
+    this.lastRequestAtByHost.set(throttleKey(host), Date.now());
   }
 
   /**
@@ -180,7 +198,8 @@ export class FetchSession {
    * also call markRequestNow themselves — acquireSlot owns that bookkeeping.
    */
   acquireSlot(host: string, minIntervalMs: number): Promise<void> {
-    const prev = this.chainByHost.get(host) ?? Promise.resolve();
+    const key = throttleKey(host);
+    const prev = this.chainByHost.get(key) ?? Promise.resolve();
     const slot = (async () => {
       await prev;
       // The caller's interval is a FLOOR, not the final say: a host that has
@@ -188,20 +207,20 @@ export class FetchSession {
       // wins. Read at wait time rather than at call time so an escalation
       // triggered by an in-flight request applies to everything queued
       // behind it, which is the whole point of backing off.
-      const interval = Math.max(minIntervalMs, learnedIntervalByHost.get(host) ?? 0);
-      const last = this.lastRequestAtByHost.get(host) ?? 0;
+      const interval = Math.max(minIntervalMs, learnedIntervalByHost.get(key) ?? 0);
+      const last = this.lastRequestAtByHost.get(key) ?? 0;
       const gap = Date.now() - last;
       if (gap < interval) {
         await new Promise<void>((resolve) => setTimeout(resolve, interval - gap));
       }
       // A request whose turn comes after the deadline must not start.
       this.assertTimeLeft(MIN_REQUEST_MS, 'start another request');
-      this.lastRequestAtByHost.set(host, Date.now());
+      this.lastRequestAtByHost.set(key, Date.now());
     })();
     // Catch the chain so a rejected slot doesn't poison subsequent waiters.
     // Individual callers still see the original rejection via their own await.
     this.chainByHost.set(
-      host,
+      key,
       slot.catch(() => {}),
     );
     return slot;

@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-30 - Stored data first; calicotab treated as one slow host
+
+- **Incident.** 5-10 new users: Gmail scans found their private URLs, but nearly every import and onboarding read timed out at 15 s. Calicotab served pages in 10-40 s (its API, 40-90 ms on 10-28, took 27-29 s), all subdomains at once. The private-URL page was fetched before the stored copy was looked up, so pre-scraped tournaments failed too.
+- **Owner decisions (2026-10-30), replacing the B9 rule that every tournament's private URL is fetched before linking:**
+  - The Gmail step reads private-URL pages only to learn who the user is: at least 10 (all if fewer), newest first; the majority name (> 50%) is pre-ticked; no majority after 10 reads on to 20, then every name is offered un-ticked. A close minority name is offered un-ticked ("Close to your main name"); a different one is flagged "Probably someone else's link". `lib/identity/nameSample.ts`, preflight, names route, NamePicker.
+  - The import step needs no private-URL page for a finished stored tournament (team tab stored, current parser, not marked for re-scrape): host + slug names it, and the user's claimed names find them in it (`lib/calicotab/storedFirst.ts`). Running or unstored tournaments go the live way, as before.
+  - A stored tournament the user's claimed names are not in (forwarded link, unclaimed spelling) has its page read. During onboarding (nothing claimed yet) the tournament is linked and confirm re-queues the unmatched ones (`requeueUnmatchedStoredLinks`).
+  - Public data is enough for a user's own judging and scores.
+- **Gentler on calicotab.** Every `*.calicotab.com` host shares one throttle chain and learned backoff (`throttleKey`), and the drain runs one calicotab job at a time (`jobHost` / `JOB_HOST_SQL`). A timeout counts as push-back. The private-URL page gets 30 s (`LANDING_FETCH_TIMEOUT_MS`). A landing timeout/5xx/429 retries after 15 min, then 1 h (3 tries, ~1.25 h); claims skip future `scheduledAt`.
+- **Not changed:** claims still need the user's tick; a close name never links on its own; suppressed people never match. Namesakes at one tournament (one Person per name, option B phase 7) fall back to reading the page.
+- **Rollback.** Revert the merge commit. No migration.
+
+---
+
 ## 2026-10-29 - Consistency pass against the agreed guidelines
 
 - **Owner:** "check for consistencies and spaces and ensure the previously listed guidelines are being followed", plus the phone layout.

@@ -4,12 +4,14 @@ import type { Prisma } from '@prisma/client';
 import {
   FETCH_MIN_INTERVAL_MS,
   fetchHtmlWithProvenance,
+  LANDING_FETCH_TIMEOUT_MS,
   fetchRoundWithProvenance,
   isCdnRateLimit,
   isWithheldByTournament,
   withApiSnapshots,
 } from './fetch';
 import { FetchSession, isIngestDeadlineError } from './fetchSession';
+import { findTournamentByHostSlug, linkFromStoredTournament } from './storedFirst';
 import {
   API_TIMEOUT_MS,
   fetchTabsFromApi,
@@ -164,6 +166,12 @@ export async function ingestPrivateUrl(
     deadline?: number;
   } = {},
 ): Promise<IngestResult> {
+  // Stored data first (owner, 2026-10-30): a URL whose tournament is already
+  // stored is linked without a request; its page is fetched later to verify.
+  if (!options.force) {
+    const stored = await storedFirstResult(url, userId);
+    if (stored) return stored;
+  }
   const loaded = await loadLandingAndFingerprint(url, userId, options.deadline);
   const cacheCheck = await checkCacheFreshness(loaded, userId, options);
   if (cacheCheck.kind === 'cache-hit') return cacheCheck.result;
@@ -195,41 +203,7 @@ export async function ingestPrivateUrl(
   }
 }
 
-/**
- * C1 (B9): the one stored tournament at `http(s)://<host>/<slug>/`, or null.
- *
- * Within a Tabbycat site a slug names one tournament, so host + slug
- * identifies it whatever its title says. Every stored row's sourceUrlRaw is
- * a URL on the tournament (a private URL for an ingest, the public base for
- * a pre-scrape), so a prefix match finds it. Exactly one match is adopted;
- * several are logged and none is adopted — never guess between rows.
- */
-export async function findTournamentByHostSlug(
-  host: string,
-  slug: string | null,
-): Promise<Awaited<ReturnType<typeof prisma.tournament.findUnique>>> {
-  if (!slug) return null;
-  // Either scheme: private URLs have been stored as http:// as well as
-  // https:// (15thiitbombaydebate, production 2026-10), and a fallback that
-  // only knew one would miss exactly the rows it exists to find.
-  const rows = await prisma.tournament.findMany({
-    where: {
-      OR: [
-        { sourceUrlRaw: { startsWith: `https://${host}/${slug}/`, mode: 'insensitive' } },
-        { sourceUrlRaw: { startsWith: `http://${host}/${slug}/`, mode: 'insensitive' } },
-      ],
-    },
-    take: 2,
-  });
-  if (rows.length === 1) return rows[0];
-  if (rows.length > 1) {
-    console.warn('[ingest] host+slug matches more than one tournament; adopting none', {
-      host,
-      slug,
-    });
-  }
-  return null;
-}
+export { findTournamentByHostSlug } from './storedFirst';
 
 export type PrescrapeResult = {
   /** written: scraped and stored; current: already stored, fresh and at this parser version; blocked: the regression guard refused the overwrite. */
@@ -598,6 +572,27 @@ async function awaitConcurrentScrape(
 // the orchestrator. The orchestrator threads typed state through these
 // phases; data flow is explicit rather than via a shared mutable context.
 
+/**
+ * A finished tournament we have stored, linked without fetching the private
+ * URL (storedFirst.ts), as an IngestResult; null to go the live way.
+ */
+async function storedFirstResult(url: string, userId: string): Promise<IngestResult | null> {
+  const stored = await linkFromStoredTournament(url, userId);
+  if (!stored) return null;
+  return {
+    tournamentId: stored.tournamentId,
+    fingerprint: stored.fingerprint,
+    cached: true,
+    // Matched from the user's claimed names, so already theirs.
+    claimedPersonId: stored.personId,
+    claimedPersonName: stored.personName,
+    parserVersion: PARSER_VERSION,
+    totalTeams: stored.totalTeams,
+    totalParticipants: stored.totalParticipants,
+    warnings: [],
+  };
+}
+
 async function loadLandingAndFingerprint(
   url: string,
   userId: string,
@@ -627,7 +622,10 @@ async function loadLandingAndFingerprint(
   const fetchSession = new FetchSession({ deadline });
 
   // Landing page fetch — with provenance so every parse has a stable source.
-  const landingResult = await fetchHtmlWithProvenance(normalized, { session: fetchSession });
+  const landingResult = await fetchHtmlWithProvenance(normalized, {
+    session: fetchSession,
+    timeoutMs: LANDING_FETCH_TIMEOUT_MS,
+  });
   if (!landingResult.ok) {
     // The status reaches the user's dashboard; the response BODY does not.
     // bodyPreview is genuinely useful when upstream serves a Cloudflare

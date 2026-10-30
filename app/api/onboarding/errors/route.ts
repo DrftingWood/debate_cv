@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { PREFLIGHT_SKIPPED } from '@/lib/identity/nameSample';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,8 @@ export async function GET() {
       userId,
       registrationName: '',
       registrationPersonId: null,
+      // A link onboarding did not need to read is not a failure.
+      NOT: { lastPreflightError: PREFLIGHT_SKIPPED },
     },
     orderBy: { messageDate: 'desc' },
     select: {
