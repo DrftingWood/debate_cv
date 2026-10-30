@@ -933,13 +933,14 @@ export async function buildCvData(
     teamOutroundStagesByKey.set(key, list);
   }
 
+  // Tournaments with a failed scrape piece, for the "Partly loaded" mark.
+  const partlyLoadedIds = new Set(failedPieceRows.map((p) => p.tournamentId));
+
   // Tournaments the user has filed an unresolved (open or acknowledged)
   // CvErrorReport against. Lets the per-row "Reported" badge render so the
   // user remembers they already flagged the row. Resolved reports
   // (fixed/wont_fix) intentionally don't gate the badge — once the report
   // is closed, the row goes back to its baseline appearance.
-  const partlyLoadedIds = new Set(failedPieceRows.map((p) => p.tournamentId));
-
   const reportedTournamentIds = new Set<string>();
   {
     const tournamentIdSet = new Set(tournamentIds.map((id) => id.toString()));
