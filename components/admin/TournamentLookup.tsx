@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { FieldError, fieldInputClass } from '@/components/FieldError';
 import { cn } from '@/lib/utils/cn';
 import { LookupResultView, type LookupView } from '@/components/admin/LookupResult';
-import { looksLikeUrl } from '@/lib/admin/tabAddress';
+import { asLookupUrl } from '@/lib/admin/tabAddress';
 import { lookupFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
@@ -23,8 +23,10 @@ const MAX_CHARS = 500;
  * looked up in place through POST /api/admin/lookup and answered in the
  * live region under the box: a pasted private URL then travels in a request
  * body, never in an address bar, a history entry or a server log, and the
- * answer carries no key back. Without JavaScript the form still submits
- * GET to the list page, which resolves a URL the same way.
+ * answer carries no key back. Without JavaScript (or on an Enter before
+ * hydration) the form POSTs to api/admin/lookup/search, which answers 303
+ * to the list page with the text's public form, so the key stays out of
+ * addresses and request logs there too.
  *
  * Checked on press, not by disabling the button (UX-16): an empty box says
  * what to type. One lookup at a time (singleFlight, UX-17).
@@ -37,8 +39,8 @@ export function TournamentLookup({ defaultValue = '' }: { defaultValue?: string 
 
   return (
     <form
-      action="/admin/tournaments"
-      method="get"
+      action="/api/admin/lookup/search"
+      method="post"
       role="search"
       noValidate
       onSubmit={submit}
@@ -99,13 +101,16 @@ function useLookup(value: string) {
         : null;
     setError(problem);
     if (problem) return;
-    if (!looksLikeUrl(q)) {
+    // Text with a /privateurls/ segment counts as a URL even without its
+    // scheme, so a key is never pushed into the address as a name search.
+    const url = asLookupUrl(q);
+    if (!url) {
       setAnswer(null);
       startTransition(() => router.push(`/admin/tournaments?q=${encodeURIComponent(q)}`));
       return;
     }
     startTransition(async () => {
-      const result = await flight.run(() => postJson<LookupView>('/api/admin/lookup', { url: q }));
+      const result = await flight.run(() => postJson<LookupView>('/api/admin/lookup', { url }));
       if (!result) return;
       if (!result.ok) {
         setAnswer(null);

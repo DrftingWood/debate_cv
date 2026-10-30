@@ -29,7 +29,7 @@ const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
-const { searchBoxValue } = await import('@/lib/admin/tabAddress');
+const { asLookupUrl, searchBoxValue } = await import('@/lib/admin/tabAddress');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
 
@@ -190,6 +190,20 @@ describe('the tournament search box', () => {
     expect(searchBoxValue(PRIVATE)).toBe('https://oxiv.calicotab.com/oxiv2025/');
     expect(searchBoxValue(`junk /PrivateUrls/${KEY}`)).toBe('');
     expect(searchBoxValue(undefined)).toBe('');
+    expect(searchBoxValue(`oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`)).toBe(
+      'https://oxiv.calicotab.com/oxiv2025/',
+    );
+  });
+
+  // Review of a00d4c0: private text without its scheme is a URL, never a
+  // name search that would put the key in an address.
+  it('treats any text with a /privateurls/ segment as a URL', () => {
+    expect(asLookupUrl(`oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`)).toBe(
+      `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`,
+    );
+    expect(asLookupUrl(PRIVATE)).toBe(PRIVATE);
+    expect(asLookupUrl(`junk /PrivateUrls/${KEY}`)).not.toBeNull();
+    expect(asLookupUrl('Oxford IV')).toBeNull();
   });
 });
 

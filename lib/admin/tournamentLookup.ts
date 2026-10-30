@@ -81,9 +81,8 @@ export async function storedTournamentIdsByUrl(urls: string[]): Promise<Map<stri
   const rowsByKey = new Map<string, StoredRef[]>();
   for (let i = 0; i < keys.length; i += KEYS_PER_QUERY) {
     for (const row of await storedRowsFor(keys.slice(i, i + KEYS_PER_QUERY))) {
-      const a = parseTabAddress(row.sourceUrlRaw);
-      if (!a?.slug) continue;
-      const key = keyOf(a.host, a.slug);
+      const key = rowKey(row.sourceUrlRaw);
+      if (!key) continue;
       const ref = { id: row.id.toString(), name: row.name, scrapedAt: row.scrapedAt };
       rowsByKey.set(key, [...(rowsByKey.get(key) ?? []), ref]);
     }
@@ -94,6 +93,18 @@ export async function storedTournamentIdsByUrl(urls: string[]): Promise<Map<stri
     for (const url of urlsByKey.get(key) ?? []) out.set(url, list[0]);
   }
   return out;
+}
+
+/**
+ * A stored row's site address, split the way the query matched it: the
+ * text between `scheme://` and the next two slashes, compared without case.
+ * Deliberately not parseTabAddress: a row the prefix matched must land on
+ * the key it was matched for, or the table would say "Not stored" where
+ * lookupTournament (findTournamentByHostSlug) says "Stored".
+ */
+function rowKey(sourceUrlRaw: string): string | null {
+  const m = /^https?:\/\/([^/]+)\/([^/]+)\//i.exec(sourceUrlRaw);
+  return m ? keyOf(m[1], m[2]) : null;
 }
 
 function storedRowsFor(keys: string[]) {

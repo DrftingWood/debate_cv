@@ -139,6 +139,19 @@ describe('storedTournamentIdsByUrl', () => {
     expect([...map.keys()]).toEqual(['https://a.calicotab.com/one/privateurls/k/']);
   });
 
+  // Review of a00d4c0: a row is keyed the way the prefix query matched it,
+  // not by parseTabAddress, so the table and a manual lookup agree.
+  it('agrees with lookupTournament on a row the prefix matched', async () => {
+    // Stored as http with mixed case, as some private URLs were.
+    const row = { ...oxford, sourceUrlRaw: 'HTTP://OXIV.calicotab.com/OxIV2025/privateurls/k/' };
+    h.db.tournament.findMany.mockResolvedValue([row]);
+    const url = 'https://oxiv.calicotab.com/oxiv2025/';
+    const map = await storedTournamentIdsByUrl([url]);
+    const one = await lookupTournament(url);
+    expect(map.get(url)).toMatchObject({ id: '7' });
+    expect(one).toMatchObject({ kind: 'stored', id: '7' });
+  });
+
   it('asks nothing when no URL can be read', async () => {
     expect((await storedTournamentIdsByUrl(['garbage'])).size).toBe(0);
     expect(h.db.tournament.findMany).not.toHaveBeenCalled();

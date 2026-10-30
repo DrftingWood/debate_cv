@@ -225,10 +225,10 @@ describe('admin overview: is it in the database? (Task 5b)', () => {
     expect(out).toMatch(/<th[^>]*>In database<\/th>/);
   });
 
-  it('links every tournament and offers the lookup, which searches /admin/tournaments', async () => {
+  it('links every tournament and offers the lookup, which posts its text', async () => {
     const out = await renderPage(full);
     expect(out).toMatch(/href="\/admin\/tournaments"[^>]*>All tournaments →</);
-    expect(out).toMatch(/<form[^>]*action="\/admin\/tournaments"[^>]*method="get"/);
+    expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
     expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
     expect(out).toContain('>Look up<');
     expect(out).toMatch(/role="status"[^>]*aria-live="polite"/);

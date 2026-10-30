@@ -8,7 +8,13 @@ import { LookupResultView, toLookupView } from '@/components/admin/LookupResult'
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { TournamentsTable } from '@/components/admin/TournamentsTable';
 import { requireAdmin } from '@/lib/admin';
-import { looksLikeUrl, searchBoxValue } from '@/lib/admin/tabAddress';
+import {
+  asLookupUrl,
+  hasPrivateKeyPath,
+  looksLikeUrl,
+  publicFormOf,
+  searchBoxValue,
+} from '@/lib/admin/tabAddress';
 import {
   listTournaments,
   TOURNAMENTS_PER_PAGE,
@@ -49,16 +55,14 @@ export default async function AdminTournamentsPage({
     redirect('/');
   }
 
-  const params = (await searchParams) ?? {};
-  const q = one(params.q)?.trim() ?? '';
-  const asked = Number.parseInt(one(params.page) ?? '1', 10);
+  const { q, page } = readSearch((await searchParams) ?? {});
   // One clock for every relative time on the page.
   const now = new Date();
   // Read here, not in async children: the page renders in one pass.
   const isUrl = q !== '' && looksLikeUrl(q);
   const [answer, list] = await Promise.all([
-    isUrl ? lookupTournament(q) : null,
-    isUrl ? null : listTournaments({ page: Number.isFinite(asked) ? asked : 1, q: q || undefined }),
+    isUrl ? lookupTournament(asLookupUrl(q) ?? q) : null,
+    isUrl ? null : listTournaments({ page, q: q || undefined }),
   ]);
 
   return (
@@ -87,6 +91,26 @@ export default async function AdminTournamentsPage({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The search params, read. A private URL in `q` is sent on at once to its
+ * public form (same host and slug, so the same answer), before anything
+ * renders: the page's flight data carries the search params, so rendering
+ * with the key would put it in the response whatever the HTML shows. The box
+ * itself posts (api/admin/lookup/search) to keep the key out of addresses;
+ * this catches a pasted or old ?q= link.
+ */
+function readSearch(params: Search): { q: string; page: number } {
+  const q = one(params.q)?.trim() ?? '';
+  if (hasPrivateKeyPath(q)) {
+    const publicForm = publicFormOf(q);
+    redirect(
+      publicForm ? `/admin/tournaments?q=${encodeURIComponent(publicForm)}` : '/admin/tournaments',
+    );
+  }
+  const asked = Number.parseInt(one(params.page) ?? '1', 10);
+  return { q, page: Number.isFinite(asked) ? asked : 1 };
 }
 
 /** One page of the list, or the empty state that fits (UX-24 keeps the two apart). */

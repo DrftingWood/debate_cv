@@ -13,6 +13,9 @@ import type { TournamentList } from '@/lib/admin/tournamentList';
 const h = vi.hoisted(() => ({
   list: vi.fn(),
   lookup: vi.fn(),
+  redirect: vi.fn((to: string) => {
+    throw Object.assign(new Error('NEXT_REDIRECT'), { to });
+  }),
 }));
 vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => 'admin@example.com') }));
 vi.mock('@/lib/admin/tournamentList', () => ({
@@ -21,7 +24,8 @@ vi.mock('@/lib/admin/tournamentList', () => ({
 }));
 vi.mock('@/lib/admin/tournamentLookup', () => ({ lookupTournament: h.lookup }));
 vi.mock('next/navigation', () => ({
-  redirect: vi.fn(),
+  // Throws as Next's does, so the page stops where it redirects.
+  redirect: h.redirect,
   notFound: vi.fn(),
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
   usePathname: () => '/admin/tournaments',
@@ -53,6 +57,7 @@ async function render(searchParams: Record<string, string>): Promise<string> {
 beforeEach(() => {
   h.list.mockReset();
   h.lookup.mockReset();
+  h.redirect.mockClear();
 });
 
 describe('/admin/tournaments', () => {
@@ -87,33 +92,44 @@ describe('/admin/tournaments', () => {
     expect(miss).toContain('Nothing matches &#x27;zzz&#x27;');
     expect(miss).not.toContain('No tournaments stored yet');
     expect(none).not.toContain('Tournament pages');
-    // A key pasted without its scheme is a name search, and still not echoed.
-    const keyed = await render({ q: `oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/` });
-    expect(keyed).toContain('Nothing matches that search');
-    expect(keyed).not.toContain(KEY);
   });
 });
 
 describe('/admin/tournaments with a pasted URL', () => {
-  it('resolves a pasted URL, and never echoes a private key', async () => {
+  // Review of a00d4c0: the flight data carries the search params, so a
+  // private ?q= is redirected to its public form before anything renders.
+  it('redirects a private URL in ?q= to its public form, scheme or not', async () => {
+    const PUBLIC_Q = `/admin/tournaments?q=${encodeURIComponent('https://oxiv.calicotab.com/oxiv2025/')}`;
+    for (const q of [
+      `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`,
+      `oxiv.calicotab.com/oxiv2025/PrivateURLs/${KEY}/`,
+    ]) {
+      h.redirect.mockClear();
+      await expect(render({ q })).rejects.toMatchObject({ to: PUBLIC_Q });
+      expect(h.redirect).toHaveBeenCalledWith(PUBLIC_Q);
+    }
+    expect(h.lookup).not.toHaveBeenCalled();
+    expect(h.list).not.toHaveBeenCalled();
+  });
+
+  it('resolves a public URL in ?q= and answers in words', async () => {
     h.lookup.mockResolvedValue({
       kind: 'not_stored',
       host: 'oxiv.calicotab.com',
       slug: 'oxiv2025',
       publicUrl: 'https://oxiv.calicotab.com/oxiv2025/',
     });
-    const out = await render({ q: `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/` });
+    const out = await render({ q: 'https://oxiv.calicotab.com/oxiv2025/' });
 
     expect(h.lookup).toHaveBeenCalledTimes(1);
     expect(h.list).not.toHaveBeenCalled();
     expect(out).toContain('Not in the database');
     expect(out).toContain('href="https://oxiv.calicotab.com/oxiv2025/"');
-    expect(out).not.toContain(KEY);
-    expect(out.toLowerCase()).not.toContain('privateurls');
-    // The box shows the public form of what was pasted.
     expect(out).toMatch(
       /<input[^>]*name="q"[^>]*value="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/"/,
     );
+    // Without JavaScript the box posts, so its text stays out of the address.
+    expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
   });
 
   it('shows a stored URL with its page link, score and band', async () => {

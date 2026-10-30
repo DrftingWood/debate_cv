@@ -30,14 +30,47 @@ export function parseTabAddress(input: string): TabAddress | null {
   return { host: u.host, slug, publicUrl: slug ? `${u.origin}/${slug}/` : null };
 }
 
+/** Does the text carry a `/privateurls/` segment, i.e. someone's private key? */
+export function hasPrivateKeyPath(q: string): boolean {
+  return /\/privateurls(\/|$)/i.test(q);
+}
+
+/**
+ * The search box's text as a URL to look up, or null for a name to search.
+ * Text that parses as http(s) is a URL; so is any text with a
+ * `/privateurls/` segment, scheme or not (`host/slug/privateurls/KEY/` pasted
+ * without its https://), which is given one, so a key is never sent off as a
+ * name search and put in an address.
+ */
+export function asLookupUrl(q: string): string | null {
+  const text = q.trim();
+  const candidates = [text];
+  if (hasPrivateKeyPath(text) && !/^[a-z][\w+.-]*:/i.test(text)) {
+    candidates.unshift(`https://${text.replace(/^\/+/, '')}`);
+  }
+  for (const c of candidates) {
+    try {
+      const u = new URL(c);
+      if (u.protocol === 'https:' || u.protocol === 'http:') return c;
+    } catch {
+      // not this one
+    }
+  }
+  return hasPrivateKeyPath(text) ? text : null;
+}
+
 /** Is the search box's text a URL (looked up) rather than a name (searched)? */
 export function looksLikeUrl(q: string): boolean {
-  try {
-    const u = new URL(q.trim());
-    return u.protocol === 'https:' || u.protocol === 'http:';
-  } catch {
-    return false;
-  }
+  return asLookupUrl(q) != null;
+}
+
+/**
+ * The public form of private text (its tab's base), or null when it has none.
+ * Same host and slug, so it finds the same tournament.
+ */
+export function publicFormOf(q: string): string | null {
+  const url = asLookupUrl(q);
+  return url ? publicPieceUrl(url) : null;
 }
 
 /**
@@ -48,6 +81,6 @@ export function looksLikeUrl(q: string): boolean {
  */
 export function searchBoxValue(q: string | undefined): string {
   if (!q) return '';
-  if (!/\/privateurls(\/|$)/i.test(q)) return q;
-  return (looksLikeUrl(q) ? publicPieceUrl(q.trim()) : null) ?? '';
+  if (!hasPrivateKeyPath(q)) return q;
+  return publicFormOf(q) ?? '';
 }
