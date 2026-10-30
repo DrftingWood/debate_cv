@@ -57,6 +57,10 @@ vi.mock('@/lib/calicotab/storedFirst', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/calicotab/storedFirst')>()),
   linkFromStoredTournament: async () => null,
 }));
+// The year fill has its own tests (calicotab.yearFromEmail.test.ts).
+vi.mock('@/lib/calicotab/yearFromEmail', () => ({
+  fillTournamentYearFromEmails: async () => null,
+}));
 
 vi.mock('@/lib/calicotab/fetch', () => ({
   FETCH_MIN_INTERVAL_MS: 0,

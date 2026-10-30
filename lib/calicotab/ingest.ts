@@ -12,6 +12,7 @@ import {
 } from './fetch';
 import { FetchSession, isIngestDeadlineError } from './fetchSession';
 import { findTournamentByHostSlug, linkFromStoredTournament } from './storedFirst';
+import { fillTournamentYearFromEmails } from './yearFromEmail';
 import {
   API_TIMEOUT_MS,
   fetchTabsFromApi,
@@ -836,6 +837,7 @@ async function checkCacheFreshness(
     where: { userId, url: { in: urlVariants } },
     data: { tournamentId: existing.id, ingestedAt: new Date() },
   });
+  await fillTournamentYearFromEmails(existing.id);
   return {
     kind: 'cache-hit',
     result: {
@@ -1278,6 +1280,7 @@ async function checkRegressionGuard(
       where: { userId, url: { in: urlVariants } },
       data: { tournamentId: existing.id, ingestedAt: new Date() },
     });
+    await fillTournamentYearFromEmails(existing.id);
   }
   return {
     kind: 'regression-blocked',
@@ -1414,7 +1417,10 @@ async function writeIngestTransaction(
           // earlier scrape found. Prisma leaves a field untouched when it is
           // undefined, so a null inference keeps the stored value.
           format: format ?? undefined,
-          year,
+          // Likewise a year: a pre-scrape re-run reads no email date, and must
+          // not erase the year a user's link gave the tournament
+          // (fillTournamentYearFromEmails).
+          year: year ?? undefined,
           totalParticipants,
           totalTeams,
           prelimRoundCount,
@@ -1918,6 +1924,9 @@ async function finalizePostTransaction(
       where: { userId, url: { in: urlVariants } },
       data: { tournamentId, ingestedAt: new Date() },
     });
+    // A user whose link has no email date writes year null above; another
+    // user's dated link to the same tournament still gives it a year.
+    await fillTournamentYearFromEmails(tournamentId);
   }
 
   return {

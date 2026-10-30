@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 import { proximityToYou } from '@/lib/identity/nameProximity';
 import { storedTournamentFresh } from './prescrape';
+import { fillTournamentYearFromEmails } from './yearFromEmail';
 import { PARSER_VERSION } from './version';
 
 /**
@@ -178,6 +179,9 @@ export async function linkFromStoredTournament(
       ...(person ? { registrationPersonId: person.id } : {}),
     },
   });
+  // The pre-scrape stores no date; this user's email gives a yearless
+  // tournament its year.
+  await fillTournamentYearFromEmails(stored.id);
 
   return {
     tournamentId: stored.id,
