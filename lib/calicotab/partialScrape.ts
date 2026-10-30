@@ -28,6 +28,18 @@ import { pieceRefForUrl, type PieceKind, type PieceRef } from './scrapePieces';
 
 export { ScrapeBusyError };
 
+/**
+ * The tournament is unknown, or has no public address to read. The admin API
+ * maps it to 404 by class rather than by message, so rewording the message
+ * cannot turn a 404 into a 500.
+ */
+export class TournamentNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TournamentNotFoundError';
+  }
+}
+
 export type PartialResult = {
   tournamentId: bigint;
   /** Requested pieces whose page loaded and whose rows were rewritten. */
@@ -70,12 +82,12 @@ export async function rescrapePieces(
   opts: { deadline?: number } = {},
 ): Promise<PartialResult> {
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
-  if (!tournament) throw new Error(`tournament ${tournamentId} not found`);
+  if (!tournament) throw new TournamentNotFoundError(`tournament ${tournamentId} not found`);
   let publicUrl: string;
   try {
     publicUrl = publicTournamentBase(tournament.sourceUrlRaw).base;
   } catch (err) {
-    throw new Error(
+    throw new TournamentNotFoundError(
       `tournament ${tournamentId} has no public address to re-scrape: ${(err as Error).message}`,
     );
   }
