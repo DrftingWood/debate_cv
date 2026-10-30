@@ -1,6 +1,6 @@
 # Design note: debater ratings, Glicko-2 vs TrueSkill Through Time
 
-Status: proposal only, not implemented (2026-10-20). If ratings ship, they would sit next to the JSON Resume export (`/cv.json`) as a new versioned field in the `meta["x-debate-cv"]` extension. Bump `DEBATE_EXTENSION_VERSION` and the schema in `docs/json-resume-debate-extension.schema.json` when that happens, and keep the previous version's schema file (`json-resume-debate-extension.v<N>.schema.json`) so older exports still validate.
+Status: dropped by the owner on 2026-10-30; ratings will not be built. Kept as research only. (Earlier: proposal only, 2026-10-20.) If ratings had shipped, they would sit next to the JSON Resume export (`/cv.json`) as a new versioned field in the `meta["x-debate-cv"]` extension. Bump `DEBATE_EXTENSION_VERSION` and the schema in `docs/json-resume-debate-extension.schema.json` when that happens, and keep the previous version's schema file (`json-resume-debate-extension.v<N>.schema.json`) so older exports still validate.
 
 Extension version history. v1 (2026-10-20): first shape; `summary.breaks` counted a tournament once if the user broke in any role. v2 (2026-10-27): `summary.breaks` is speaking breaks only, and `judgingBreaks`, `tournamentsSpoken` and `tournamentsJudged` are required, so a reader can compute a speaking and a judging break rate separately (owner decision C25/C26). The v1 schema is `docs/json-resume-debate-extension.v1.schema.json`.
 
