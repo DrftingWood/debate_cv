@@ -6,6 +6,7 @@ import { ArrowClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { postJson } from '@/lib/utils/api';
+import { singleFlight } from '@/lib/utils/singleFlight';
 import { rescrapeFailureMessage } from '@/lib/admin/actionMessage';
 
 type RescrapeResponse = {
@@ -44,23 +45,60 @@ export function RetryPiecesButton({
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const errorId = useId();
+  const [flight] = useState(singleFlight);
 
-  const run = () =>
+  const run = () => {
+    if (pending || flight.busy) return;
+    setError(null);
     startTransition(async () => {
-      setError(null);
-      const result = await postJson<RescrapeResponse>(
-        `/api/admin/tournaments/${tournamentId}/rescrape`,
-        { pieces: 'failed' },
+      const result = await flight.run(() =>
+        postJson<RescrapeResponse>(`/api/admin/tournaments/${tournamentId}/rescrape`, {
+          pieces: 'failed',
+        }),
       );
+      if (!result) return;
       if (!result.ok) {
         setError(rescrapeFailureMessage(result));
         return;
       }
       toast.show({ kind: 'success', title: tournamentName, description: summary(result.data) });
-      router.refresh();
+      // Inside its own transition so `pending` holds until the refreshed
+      // rows arrive; otherwise the old row flashes up as retryable again.
+      startTransition(() => router.refresh());
     });
+  };
 
+  return (
+    <RetryPiecesView
+      tournamentName={tournamentName}
+      pending={pending}
+      error={error}
+      onRetry={run}
+    />
+  );
+}
+
+/**
+ * The button, its progress line and its error, apart from the request so a
+ * server render can show the pending state. A rescrape fetches live pages
+ * and can take most of a minute, so a spinner alone would look hung
+ * (UX-22): the status line says what is happening and how long it may
+ * take. The status element is there from the first render, empty, so its
+ * text is announced when it appears (UX-19).
+ */
+export function RetryPiecesView({
+  tournamentName,
+  pending,
+  error,
+  onRetry,
+}: {
+  tournamentName: string;
+  pending: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const errorId = useId();
+  const statusId = useId();
   return (
     <div className="flex flex-col items-end gap-hair">
       <Button
@@ -72,12 +110,25 @@ export function RetryPiecesButton({
         // Starts with the visible words, then says which row (UX-11): twenty
         // buttons all named "Retry failed" cannot be told apart in a
         // screen reader's list of controls.
-        aria-label={`Retry failed pieces of ${tournamentName}`}
-        aria-describedby={error ? errorId : undefined}
-        onClick={run}
+        aria-label={
+          pending
+            ? `Retrying failed pieces of ${tournamentName}`
+            : `Retry failed pieces of ${tournamentName}`
+        }
+        aria-describedby={error ? errorId : pending ? statusId : undefined}
+        onClick={onRetry}
       >
-        Retry failed
+        {pending ? 'Retrying…' : 'Retry failed'}
       </Button>
+      <p
+        id={statusId}
+        role="status"
+        className="max-w-64 text-right text-caption whitespace-normal text-ink-soft empty:hidden"
+      >
+        {pending
+          ? `Re-scraping the failed pages of ${tournamentName}. This can take up to a minute.`
+          : null}
+      </p>
       {error ? (
         <p
           id={errorId}

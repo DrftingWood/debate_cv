@@ -165,3 +165,25 @@ describe('admin overview', () => {
     expect(out).not.toContain('Retry selected');
   });
 });
+
+describe('Retry failed while the request runs (UX-22)', () => {
+  it('says what is happening and how long it can take', async () => {
+    const { RetryPiecesView } = await import('@/components/admin/RetryPiecesButton');
+    const props = { tournamentName: 'Oxford IV 2025', error: null, onRetry: () => {} };
+    const busy = renderToStaticMarkup(
+      React.createElement(RetryPiecesView, { ...props, pending: true }),
+    );
+    expect(busy).toContain('Retrying…');
+    expect(busy).toMatch(
+      /role="status"[^>]*>Re-scraping the failed pages of Oxford IV 2025\. This can take up to a minute\.</,
+    );
+    expect(busy).toContain('aria-busy="true"');
+    // The status region exists before it has anything to say, so the
+    // message is announced when it appears (UX-19).
+    const idle = renderToStaticMarkup(
+      React.createElement(RetryPiecesView, { ...props, pending: false }),
+    );
+    expect(idle).toMatch(/role="status"[^>]*><\/p>/);
+    expect(idle).toContain('Retry failed');
+  });
+});

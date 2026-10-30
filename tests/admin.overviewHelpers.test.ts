@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { relativeTime } from '@/lib/utils/relativeTime';
 import { rescrapeFailureMessage, retryFailureMessage } from '@/lib/admin/actionMessage';
 import { shortUrl } from '@/lib/utils/shortUrl';
@@ -60,5 +60,33 @@ describe('shortUrl', () => {
       'oxiv.calicotab.com/oxiv2025/…',
     );
     expect(shortUrl('not a url')).toBe('not a url');
+  });
+});
+
+describe('singleFlight (UX-17: no double submit)', () => {
+  it('sends no second POST while the first is in flight, and allows one after', async () => {
+    const { singleFlight } = await import('@/lib/utils/singleFlight');
+    const flight = singleFlight();
+    let release!: (v: string) => void;
+    const post = vi.fn(() => new Promise<string>((r) => (release = r)));
+
+    const first = flight.run(post);
+    const second = flight.run(post);
+    expect(flight.busy).toBe(true);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(await second).toBeUndefined();
+
+    release('ok');
+    expect(await first).toBe('ok');
+    expect(flight.busy).toBe(false);
+    await flight.run(async () => 'again');
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('frees itself when the call throws', async () => {
+    const { singleFlight } = await import('@/lib/utils/singleFlight');
+    const flight = singleFlight();
+    await expect(flight.run(async () => Promise.reject(new Error('x')))).rejects.toThrow('x');
+    expect(flight.busy).toBe(false);
   });
 });

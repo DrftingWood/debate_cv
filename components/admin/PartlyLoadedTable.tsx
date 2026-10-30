@@ -72,7 +72,10 @@ function PartlyLoadedRowView({ row }: { row: PartlyLoadedRow }) {
         </Link>
       </Td>
       <Td>
-        <ul className="flex flex-wrap gap-hair" aria-label={`${row.missing.length} missing`}>
+        <ul
+          className="flex flex-wrap gap-hair"
+          aria-label={`${row.missing.length} ${row.missing.length === 1 ? 'piece' : 'pieces'} missing`}
+        >
           {row.missing.slice(0, MAX_BADGES).map((label, i) => (
             <li key={`${label}-${i}`}>
               <Badge variant="neutral">{label}</Badge>

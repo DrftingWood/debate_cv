@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { retryFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
+import { singleFlight } from '@/lib/utils/singleFlight';
 
 /** A failed import as the server prepared it: no raw error, no private key. */
 export type FailedJobRow = {
@@ -37,7 +38,10 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * that really is.
  */
 export function FailedJobsTable({ rows, total }: { rows: FailedJobRow[]; total: number }) {
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [ticked, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // Only ids still on the page count: after a refresh a requeued job leaves
+  // the list, and "3 selected" must not keep counting (or sending) it.
+  const selected = new Set(rows.filter((r) => ticked.has(r.id)).map((r) => r.id));
   const { shown, more } = useFirstRows(rows);
   const retry = useRetryJobs(selected, () => setSelected(new Set()));
 
@@ -84,8 +88,11 @@ function useRetryJobs(selected: ReadonlySet<string>, clear: () => void) {
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState<Which | null>(null);
   const [pending, startTransition] = useTransition();
+  const [flight] = useState(singleFlight);
 
   const run = (which: Which) => {
+    // One retry at a time, whichever button started it (UX-17).
+    if (pending || flight.busy) return;
     // Validated on press, not by disabling the button (UX-16): a disabled
     // button cannot say why it will not work.
     if (which === 'selected' && selected.size === 0) {
@@ -96,8 +103,8 @@ function useRetryJobs(selected: ReadonlySet<string>, clear: () => void) {
     setRunning(which);
     startTransition(async () => {
       const body = which === 'all' ? { all: true } : { ids: [...selected] };
-      const result = await postJson<RetryResponse>('/api/admin/jobs/retry', body);
-      setRunning(null);
+      const result = await flight.run(() => postJson<RetryResponse>('/api/admin/jobs/retry', body));
+      if (!result) return;
       if (!result.ok) {
         setError(retryFailureMessage(result));
         return;
@@ -111,11 +118,19 @@ function useRetryJobs(selected: ReadonlySet<string>, clear: () => void) {
           : 'They run with the next queue drain.',
       });
       clear();
-      router.refresh();
+      // Its own transition, so the buttons stay busy until the refreshed
+      // list lands instead of offering the requeued rows again for a beat.
+      startTransition(() => router.refresh());
     });
   };
 
-  return { run, error, busy: (which: Which) => pending && running === which };
+  return {
+    run,
+    error,
+    busy: (which: Which) => pending && running === which,
+    /** The other button while one runs: focusable, announced as unavailable. */
+    blocked: (which: Which) => pending && running !== which,
+  };
 }
 
 function RetryBar({
@@ -137,6 +152,8 @@ function RetryBar({
           variant="outline"
           size="sm"
           loading={retry.busy('selected')}
+          aria-disabled={retry.blocked('selected') || undefined}
+          className={retry.blocked('selected') ? 'cursor-not-allowed opacity-50' : undefined}
           leftIcon={icon}
           aria-describedby={retry.error ? errorId : undefined}
           onClick={() => retry.run('selected')}
@@ -148,6 +165,8 @@ function RetryBar({
           variant="outline"
           size="sm"
           loading={retry.busy('all')}
+          aria-disabled={retry.blocked('all') || undefined}
+          className={retry.blocked('all') ? 'cursor-not-allowed opacity-50' : undefined}
           leftIcon={icon}
           onClick={() => retry.run('all')}
         >
