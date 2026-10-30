@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
+import { estimateQueueSeconds } from '@/lib/ingest/eta';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,43 +36,71 @@ export type IngestProgressScope = {
   etaSeconds: number | null;
 };
 
+/**
+ * What paces the ETA: when this hour's finished jobs (done or failed)
+ * started, and the furthest-out delayed retry, before which the queue
+ * cannot be empty.
+ */
+async function queuePace(
+  userWhere: { userId?: string },
+  windowStart: Date,
+): Promise<{ firstStartedAt: Date | null; latestScheduledAt: Date | null }> {
+  const [span, retries] = await Promise.all([
+    prisma.ingestJob.aggregate({
+      where: {
+        ...userWhere,
+        status: { in: ['done', 'failed', 'abandoned'] },
+        finishedAt: { gte: windowStart },
+      },
+      _min: { startedAt: true },
+    }),
+    prisma.ingestJob.aggregate({
+      where: { ...userWhere, status: 'pending' },
+      _max: { scheduledAt: true },
+    }),
+  ]);
+  return { firstStartedAt: span._min.startedAt, latestScheduledAt: retries._max.scheduledAt };
+}
+
 async function buildScope(userId: string | null): Promise<IngestProgressScope> {
   const userWhere = userId ? { userId } : {};
   const windowStart = new Date(Date.now() - BATCH_WINDOW_MS);
 
-  const [pending, running, doneRecent, failedRecent, currentJob, recentDone] = await Promise.all([
-    prisma.ingestJob.count({ where: { ...userWhere, status: 'pending' } }),
-    prisma.ingestJob.count({ where: { ...userWhere, status: 'running' } }),
-    prisma.ingestJob.count({
-      where: { ...userWhere, status: 'done', finishedAt: { gte: windowStart } },
-    }),
-    prisma.ingestJob.count({
-      where: {
-        ...userWhere,
-        status: { in: ['failed', 'abandoned'] },
-        finishedAt: { gte: windowStart },
-      },
-    }),
-    prisma.ingestJob.findFirst({
-      where: { ...userWhere, status: 'running' },
-      orderBy: { startedAt: 'asc' },
-      select: { url: true, startedAt: true },
-    }),
-    // Duration sample for the ETA. Includes cache-hit jobs (~2s) and
-    // full scrapes (~40s) alike, so the average self-calibrates to
-    // whatever mix the queue is actually processing right now.
-    prisma.ingestJob.findMany({
-      where: {
-        ...userWhere,
-        status: 'done',
-        startedAt: { not: null },
-        finishedAt: { not: null },
-      },
-      orderBy: { finishedAt: 'desc' },
-      take: 20,
-      select: { startedAt: true, finishedAt: true },
-    }),
-  ]);
+  const [pending, running, doneRecent, failedRecent, currentJob, recentDone, pace] =
+    await Promise.all([
+      prisma.ingestJob.count({ where: { ...userWhere, status: 'pending' } }),
+      prisma.ingestJob.count({ where: { ...userWhere, status: 'running' } }),
+      prisma.ingestJob.count({
+        where: { ...userWhere, status: 'done', finishedAt: { gte: windowStart } },
+      }),
+      prisma.ingestJob.count({
+        where: {
+          ...userWhere,
+          status: { in: ['failed', 'abandoned'] },
+          finishedAt: { gte: windowStart },
+        },
+      }),
+      prisma.ingestJob.findFirst({
+        where: { ...userWhere, status: 'running' },
+        orderBy: { startedAt: 'asc' },
+        select: { url: true, startedAt: true },
+      }),
+      // Duration sample for the ETA. Includes cache-hit jobs (~2s) and
+      // full scrapes (~40s) alike, so the average self-calibrates to
+      // whatever mix the queue is actually processing right now.
+      prisma.ingestJob.findMany({
+        where: {
+          ...userWhere,
+          status: 'done',
+          startedAt: { not: null },
+          finishedAt: { not: null },
+        },
+        orderBy: { finishedAt: 'desc' },
+        take: 20,
+        select: { startedAt: true, finishedAt: true },
+      }),
+      queuePace(userWhere, windowStart),
+    ]);
 
   const durations = recentDone
     .map((j) => (j.finishedAt!.getTime() - j.startedAt!.getTime()) / 1000)
@@ -80,20 +109,18 @@ async function buildScope(userId: string | null): Promise<IngestProgressScope> {
     ? durations.reduce((a, b) => a + b, 0) / durations.length
     : null;
 
-  const active = pending + running;
-  let etaSeconds: number | null = null;
-  if (active > 0) {
-    const perJob = avgJobSeconds ?? DEFAULT_JOB_SECONDS;
-    etaSeconds = Math.round(pending * perJob);
-    // Credit the in-flight job for the time it has already spent.
-    if (running > 0) {
-      const elapsed = currentJob?.startedAt
-        ? (Date.now() - currentJob.startedAt.getTime()) / 1000
-        : 0;
-      etaSeconds += Math.round(Math.max(perJob - elapsed, 5) * running);
-    }
-    etaSeconds = Math.max(etaSeconds, 5);
-  }
+  const etaSeconds = estimateQueueSeconds({
+    now: Date.now(),
+    pending,
+    running,
+    finishedRecent: doneRecent + failedRecent,
+    firstStartedAt: pace.firstStartedAt,
+    perJobSeconds: avgJobSeconds ?? DEFAULT_JOB_SECONDS,
+    currentElapsedSeconds: currentJob?.startedAt
+      ? (Date.now() - currentJob.startedAt.getTime()) / 1000
+      : 0,
+    latestScheduledAt: pace.latestScheduledAt,
+  });
 
   return {
     pending,
