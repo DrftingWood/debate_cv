@@ -11,6 +11,29 @@
   - Database only, so it doesn't use the calicotab slot.
   - A stored tournament the user's names aren't in goes back to pending, attempt untouched, for the queue to read its page.
 - Stored links count toward the drain's `processed`, so a call that only linked stored tournaments isn't mistaken for no progress by `drainUntilEmpty`. The cron reports `storedLinked`.
+
+---
+
+## 2026-10-30 - A champion with no private-URL page read
+
+- **Owner report.** NPD 2023: champion, not shown. Production export: `broke: true`, `outroundReached: null`, `won: null`.
+- **Cause.** `TournamentParticipant.eliminationReached` is written only from the user's private-URL page (`recordSpeakerRoundsFromLanding`). The champion check in `buildCvData` starts from it, so with no page read it never ran, although the won Grand Final was stored from the public results page all along. A tournament linked from stored data (stored-first, 2026-10-30) or an appearance claimed from the public tab never reads that page.
+- **Fix.** `buildCvData` falls back to the deepest outround the team has a decided public result in (`EliminationResult`, team, won/lost; rows the champion check already loads). The private page still wins when present.
+- **Audit of the owner's record (live export plus the app parser over every outround page):** NPD 2023 is the only missing title. The ten Grand Finals shown as lost (ILNU RR 2026, IWGM Pro-Am 2025, NLSD 2025, SRDF 2024, CUPD 2023, GLC PD 2023, Makiling, Monash Open, RVDT 2022, DSDC 2021) were all lost on the public results. **Open:** ILNU BP 2023 shows broke with no outround, and its team name was not found in any outround table. Check the team-name spelling against the results pages.
+- **Rollback.** Revert the merge commit. Read-side only; no migration.
+
+---
+
+## 2026-10-30 - "The scan did not run": Gmail left unticked at sign-in
+
+- **Incident.** Users saw a 500 and "The scan did not run" on onboarding. Vercel: `[api/ingest/gmail] Insufficient Permission`, 5 times for 2 users, 15:37-16:58 UTC.
+- **Cause.** Google's consent screen lists Gmail access as its own checkbox. These users signed in without ticking it, so their token had name and email but no `gmail.readonly`, and Gmail answered 403. The routes knew a revoked token (`invalid_grant`) but not a missing scope, so it fell through to a 500 with the raw message, and "Try again" could never succeed.
+- **Fix.**
+  - `isGmailScopeMissing` (`lib/gmail/errors.ts`) matches it by message or reason, not by status (Gmail rate limits are 403s too).
+  - `grantGoneResponse` (`lib/gmail/grantGone.ts`) is now the one place both scan routes handle a dead grant: forget the token, then 403 `gmail_scope_missing` or 401 `token_invalid`. Neither goes to Sentry.
+  - The cron's background scan treats it as a gone grant too.
+  - Onboarding shows Reconnect Gmail in place of Try again for `gmail_scope_missing`, `token_invalid` and `no_gmail_token`.
+- **Affected users** can fix it now without the deploy: sign in again and tick the Gmail box.
 - **Rollback.** Revert the merge commit. No migration.
 
 ---

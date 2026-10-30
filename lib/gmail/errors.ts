@@ -19,3 +19,30 @@ export function isRefreshTokenInvalid(err: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Did Gmail refuse because our token was granted without gmail.readonly?
+ *
+ * Google's consent screen lists Gmail access as its own checkbox, so a user
+ * can sign in with name and email only. The token then works, but every
+ * Gmail call fails with 403 "Insufficient Permission". It is not a server
+ * error either: the user has to sign in again and tick the box. Checked by
+ * reason, not by status alone, because Gmail's rate limits are 403s as well.
+ */
+export function isGmailScopeMissing(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const message = 'message' in err && typeof err.message === 'string' ? err.message : '';
+  if (/insufficient permission|insufficient authentication scopes/i.test(message)) return true;
+  const error = (
+    err as {
+      response?: {
+        data?: { error?: { errors?: { reason?: string }[]; details?: { reason?: string }[] } };
+      };
+    }
+  ).response?.data?.error;
+  if (!error || typeof error !== 'object') return false;
+  const reasons = [...(error.errors ?? []), ...(error.details ?? [])].map((e) => e.reason);
+  return reasons.some(
+    (r) => r === 'insufficientPermissions' || r === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT',
+  );
+}
