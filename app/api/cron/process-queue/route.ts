@@ -12,6 +12,7 @@ import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
 import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
+import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -149,20 +150,40 @@ async function runBackgroundScan() {
   );
 }
 
+/** The background Gmail scan. A scan failure must never stop the drain. */
+async function scanSafely(): Promise<Awaited<ReturnType<typeof runBackgroundScan>>> {
+  try {
+    return await runBackgroundScan();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
+    });
+    return null;
+  }
+}
+
+/**
+ * Stored tournaments first, for every user: linked with no request, so they
+ * are not held behind live scrapes for the one calicotab slot. A failure here
+ * must never stop the drain.
+ */
+async function linkStoredFirstForAll(): Promise<number> {
+  try {
+    return await linkStoredJobsFirst();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'stored-first' },
+    });
+    return 0;
+  }
+}
+
 async function runOnce() {
   try {
     await resetStuckRunning({});
 
-    // A scan failure must never stop the drain.
-    let scan: Awaited<ReturnType<typeof runBackgroundScan>> = null;
-    try {
-      scan = await runBackgroundScan();
-    } catch (err) {
-      Sentry.captureException(err, {
-        tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
-      });
-    }
-
+    const scan = await scanSafely();
+    const storedLinked = await linkStoredFirstForAll();
     const report = await drainQueue(
       {
         ingest: (url, userId, { deadline }) => ingestPrivateUrl(url, userId, { deadline }),
@@ -218,6 +239,7 @@ async function runOnce() {
     // truncated one, which is exactly the state worth alerting on.
     return NextResponse.json({
       processed: report.processed,
+      storedLinked,
       results,
       scan,
       pruned,
