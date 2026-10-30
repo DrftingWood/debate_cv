@@ -25,8 +25,12 @@ export type NameRow = {
   normalizedName: string;
   urlCount: number;
   isMine: boolean;
-  /** How close the name is to the user's Google name or a name they already claimed. */
+  /** The name on more than half of the private-URL pages read: pre-ticked. */
+  verified: boolean;
+  /** How close the name is to `comparedTo` or a name the user already claimed. */
   proximity: 'match' | 'close' | 'different' | 'unknown';
+  /** The majority name when there is one, else the Google profile name. */
+  comparedTo: 'majority' | 'google';
 };
 
 /** "12 of 40 tournament links read", the one live line for the read step. */
@@ -262,7 +266,7 @@ export function NamePicker({
   firstCheckboxRef?: RefObject<HTMLInputElement | null>;
   onToggle: (normalizedName: string) => void;
 }) {
-  const tickedUnlike = names.some(
+  const tickedUnlike = names.find(
     (n) => selected.has(n.normalizedName) && !n.isMine && n.proximity === 'different',
   );
   return (
@@ -288,10 +292,20 @@ export function NamePicker({
                   <span className="font-medium text-ink">{n.displayName}</span>
                   {n.isMine ? (
                     <Badge variant="success">Already mine</Badge>
+                  ) : n.verified ? (
+                    <Badge variant="success">On most of your links</Badge>
                   ) : n.proximity === 'close' ? (
-                    <Badge variant="neutral">Close to your Google name</Badge>
+                    <Badge variant="neutral">
+                      {n.comparedTo === 'majority'
+                        ? 'Close to your main name'
+                        : 'Close to your Google name'}
+                    </Badge>
                   ) : n.proximity === 'different' ? (
-                    <Badge variant="warning">Not like your Google name</Badge>
+                    <Badge variant="warning">
+                      {n.comparedTo === 'majority'
+                        ? "Probably someone else's link"
+                        : 'Not like your Google name'}
+                    </Badge>
                   ) : null}
                 </span>
                 <span className="whitespace-nowrap text-caption text-ink-soft">
@@ -304,8 +318,9 @@ export function NamePicker({
       </fieldset>
       {tickedUnlike ? (
         <p role="status" className="text-caption text-warning">
-          You ticked a name that does not look like your Google name. A private link is personal, so
-          tick it only if it really is you.
+          {tickedUnlike.comparedTo === 'majority'
+            ? 'You ticked a name that is not the one on most of your links. It may be a link someone forwarded you, so tick it only if it really is you.'
+            : 'You ticked a name that does not look like your Google name. A private link is personal, so tick it only if it really is you.'}
         </p>
       ) : null}
     </>

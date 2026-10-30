@@ -118,8 +118,23 @@ describe('FetchSession adaptive backoff', () => {
 
   it('slows only the host that complained', () => {
     const s = new FetchSession();
+    s.noteRateLimited('strict.herokuapp.com', 600);
+    expect(s.effectiveInterval('other.herokuapp.com', 600)).toBe(600);
+  });
+
+  it('treats every calicotab subdomain as one host: one backend serves them all', () => {
+    const s = new FetchSession();
     s.noteRateLimited('strict.calicotab.com', 600);
-    expect(s.effectiveInterval('other.calicotab.com', 600)).toBe(600);
+    expect(s.effectiveInterval('other.calicotab.com', 600)).toBe(1500);
+    expect(s.effectiveInterval('calicotab.com', 600)).toBe(1500);
+  });
+
+  it('paces two calicotab subdomains on one serial chain', async () => {
+    const s = new FetchSession();
+    await s.acquireSlot('a.calicotab.com', 100);
+    const t0 = Date.now();
+    await s.acquireSlot('b.calicotab.com', 100);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(90);
   });
 
   it('actually waits the learned interval, not the floor', async () => {

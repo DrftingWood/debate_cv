@@ -19,7 +19,7 @@ function fakeQueue(rows: Row[]) {
     .spyOn(queue, 'claimOnePending')
     .mockImplementation(async (params: { excludeHosts?: string[] } = {}) => {
       const busy = new Set(params.excludeHosts ?? []);
-      const idx = pending.findIndex((r) => !busy.has(new URL(r.url).host));
+      const idx = pending.findIndex((r) => !busy.has(queue.jobHost(r.url)));
       if (idx === -1) return null;
       const [row] = pending.splice(idx, 1);
       return { ...row, attempts: row.attempts + 1 };
@@ -31,7 +31,9 @@ const jobsOnDistinctHosts = (n: number): Row[] =>
   Array.from({ length: n }, (_, i) => ({
     id: `job${i}`,
     userId: 'u1',
-    url: `https://t${i}.calicotab.com/t/privateurls/abc`,
+    // Separate Heroku-hosted Tabbycat installs: genuinely different servers.
+    // (calicotab subdomains share one backend and count as one host.)
+    url: `https://t${i}.herokuapp.com/t/privateurls/abc`,
     attempts: 0,
   }));
 
@@ -99,6 +101,30 @@ describe('drainQueue — throughput', () => {
 
     expect(report.processed).toBe(4);
     expect(peakSameHost).toBe(1);
+  });
+
+  it('runs calicotab subdomains one at a time: they share one backend', async () => {
+    fakeQueue(
+      ['a', 'b', 'c'].map((sub, i) => ({
+        id: `job${i}`,
+        userId: 'u1',
+        url: `https://${sub}.calicotab.com/t/privateurls/u${i}`,
+        attempts: 0,
+      })),
+    );
+    let live = 0;
+    let peak = 0;
+    const report = await drainQueue(
+      deps(async () => {
+        live += 1;
+        peak = Math.max(peak, live);
+        await new Promise((r) => setTimeout(r, 20));
+        live -= 1;
+      }),
+      opts({ concurrency: 6, budgetMs: 5_000, headroomMs: 0 }),
+    );
+    expect(report.processed).toBe(3);
+    expect(peak).toBe(1);
   });
 
   it('respects the concurrency cap', async () => {
@@ -266,5 +292,64 @@ describe('drainQueue — per-job deadline', () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+});
+
+describe('drainQueue — slow hosts (2026-10-30)', () => {
+  const one = (url = 'https://t.calicotab.com/t/privateurls/abc'): Row[] => [
+    { id: 'job0', userId: 'u1', url, attempts: 0 },
+  ];
+  const updateData = () =>
+    prismaMock.ingestJob.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+
+  it('holds back a job whose private-URL page timed out, instead of retrying at once', async () => {
+    fakeQueue(one());
+    const before = Date.now();
+    await drainQueue(
+      deps(async () => {
+        throw new Error('fetch landing https://t.calicotab.com/t/privateurls/abc/ → HTTP 0');
+      }),
+      opts({ budgetMs: 5_000, headroomMs: 0 }),
+    );
+    const retry = updateData().find((d) => d.status === 'pending');
+    expect((retry?.scheduledAt as Date).getTime() - before).toBeGreaterThanOrEqual(14 * 60_000);
+  });
+
+  it('retries any other failure at once, as before', async () => {
+    fakeQueue(one());
+    const before = Date.now();
+    await drainQueue(
+      deps(async () => {
+        throw new Error('parse exploded');
+      }),
+      opts({ budgetMs: 5_000, headroomMs: 0 }),
+    );
+    const retry = updateData().find((d) => d.status === 'pending');
+    expect((retry?.scheduledAt as Date).getTime() - before).toBeLessThan(5_000);
+  });
+});
+
+describe('queue helpers for slow hosts', () => {
+  it('treats only a page that did not answer as transient', () => {
+    expect(queue.isTransientLandingError('fetch landing https://x/ → HTTP 0')).toBe(true);
+    expect(queue.isTransientLandingError('fetch landing https://x/ → HTTP 503')).toBe(true);
+    expect(queue.isTransientLandingError('fetch landing https://x/ → HTTP 429')).toBe(true);
+    expect(queue.isTransientLandingError('fetch landing https://x/ → HTTP 404')).toBe(false);
+    expect(queue.isTransientLandingError('fetch landing https://x/ → HTTP 403')).toBe(false);
+    expect(queue.isTransientLandingError('parse exploded')).toBe(false);
+  });
+
+  it('waits 15 minutes after the first miss, an hour after later ones', () => {
+    expect(queue.landingRetryDelayMs(1)).toBe(15 * 60_000);
+    expect(queue.landingRetryDelayMs(2)).toBe(60 * 60_000);
+  });
+
+  it('gives every calicotab subdomain one job host', () => {
+    expect(queue.jobHost('https://a.calicotab.com/x/privateurls/y/')).toBe('calicotab.com');
+    expect(queue.jobHost('https://B.calicotab.com/x/')).toBe('calicotab.com');
+    expect(queue.jobHost('https://t.herokuapp.com/x/')).toBe('t.herokuapp.com');
+    expect(queue.jobHost('not a url')).toBe('');
   });
 });

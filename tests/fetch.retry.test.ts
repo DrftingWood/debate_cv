@@ -158,6 +158,36 @@ describe('fetchHtmlWithProvenance: network errors and who refused', () => {
     expect(mockFetch.mock.calls.length).toBe(2);
   });
 
+  test('a page that never answers times out at the given limit and slows the host', async () => {
+    // 2026-10-30: calicotab served pages in 10-40 s. The private-URL page gets
+    // 30 s, and a timeout counts as push-back for every calicotab subdomain.
+    const hang = vi.fn(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+    );
+    globalThis.fetch = hang as unknown as typeof fetch;
+    const { fetchHtmlWithProvenance, LANDING_FETCH_TIMEOUT_MS } =
+      await import('@/lib/calicotab/fetch');
+    const { FetchSession, resetLearnedIntervals } = await import('@/lib/calicotab/fetchSession');
+    resetLearnedIntervals();
+    const promise = fetchHtmlWithProvenance('https://slow.calicotab.com/t/privateurls/abc/', {
+      timeoutMs: LANDING_FETCH_TIMEOUT_MS,
+    });
+    await advance(29_000);
+    expect(hang.mock.calls.length).toBe(1);
+    await advance(40_000);
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.bodyPreview).toMatch(/fetch timeout after 30000ms/);
+    expect(new FetchSession().effectiveInterval('other.calicotab.com', 400)).toBeGreaterThan(400);
+  });
+
   test('a redirect off the allowlist is a refusal, never retried', async () => {
     const mockFetch = vi.fn().mockResolvedValue(
       new Response(null, {

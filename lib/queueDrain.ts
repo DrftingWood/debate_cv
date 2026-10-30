@@ -1,7 +1,9 @@
 import {
   claimOnePending,
   isPermanentError,
+  isTransientLandingError,
   jobHost,
+  landingRetryDelayMs,
   markJobAbandoned,
   markJobDone,
   markJobFailed,
@@ -169,7 +171,10 @@ export async function drainQueue(deps: DrainDeps, opts: DrainOptions): Promise<D
         await markJobFailed(job.id, msg);
         results.push({ id: job.id, status: 'failed', error: msg });
       } else {
-        await rescheduleJob(job.id, msg);
+        // A private-URL page that did not answer waits before its next try,
+        // so a slow spell at the host does not spend every attempt at once.
+        const delay = isTransientLandingError(msg) ? landingRetryDelayMs(job.attempts) : 0;
+        await rescheduleJob(job.id, msg, delay);
         results.push({ id: job.id, status: 'retry', error: msg });
       }
     }

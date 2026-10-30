@@ -51,8 +51,16 @@ vi.mock('@/lib/calicotab/provenance', () => ({
   recordParserRun: h.recordParserRun,
   collectRegistrationWarnings: () => [],
 }));
+// The live path is what these tests pin; the stored-first path (link from
+// stored data without a fetch) has its own tests in calicotab.storedFirst.test.ts.
+vi.mock('@/lib/calicotab/storedFirst', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/calicotab/storedFirst')>()),
+  linkFromStoredTournament: async () => null,
+}));
+
 vi.mock('@/lib/calicotab/fetch', () => ({
   FETCH_MIN_INTERVAL_MS: 0,
+  LANDING_FETCH_TIMEOUT_MS: 30_000,
   fetchHtmlWithProvenance: h.fetchHtml,
   fetchRoundWithProvenance: h.fetchRound,
   isCdnRateLimit: () => false,

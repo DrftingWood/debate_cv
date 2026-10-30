@@ -47,13 +47,37 @@ describe('GET /api/onboarding/names', () => {
     expect(by['Abhi A']).toMatchObject({ isMine: true, proximity: 'match' });
   });
 
-  it('says unknown, not different, when there is no Google name and nothing claimed', async () => {
+  it('says unknown, not different, with no majority, no Google name and nothing claimed', async () => {
     authMock.mockResolvedValue(fakeSession('user-1', { name: null }));
     prismaMock.discoveredUrl.findMany.mockResolvedValue([
       { registrationName: 'Priya Nair', registrationPersonId: 3n },
+      { registrationName: 'Sam Lee', registrationPersonId: 4n },
     ]);
     prismaMock.person.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const data = await readJson<{ names: Row[] }>(await GET());
-    expect(data.names[0].proximity).toBe('unknown');
+    expect(data.names.map((n) => n.proximity)).toEqual(['unknown', 'unknown']);
+  });
+
+  it('marks the name on most pages read as verified and judges the rest against it', async () => {
+    authMock.mockResolvedValue(fakeSession('user-1', { name: 'Someone Else' }));
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([
+      ...Array.from({ length: 8 }, () => ({ registrationName: 'Abhishek Acharya' })),
+      { registrationName: 'Abhi Acharya' },
+      { registrationName: 'Priya Raman' },
+      {
+        registrationName: '',
+        lastPreflightError: 'not read: your name was settled from your other links',
+      },
+    ]);
+    prismaMock.person.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const data = await readJson<{
+      names: Array<Row & { verified: boolean; comparedTo: string }>;
+      totals: { failed: number; skipped: number };
+    }>(await GET());
+    const by = Object.fromEntries(data.names.map((n) => [n.displayName, n]));
+    expect(by['Abhishek Acharya']).toMatchObject({ verified: true, comparedTo: 'majority' });
+    expect(by['Abhi Acharya']).toMatchObject({ verified: false, proximity: 'close' });
+    expect(by['Priya Raman']).toMatchObject({ verified: false, proximity: 'different' });
+    expect(data.totals).toMatchObject({ failed: 0, skipped: 1 });
   });
 });

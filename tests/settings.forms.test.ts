@@ -227,6 +227,8 @@ describe('onboarding flow render (FORM-1, FORM-4, FORM-10, COPY-4)', () => {
             urlCount: 2,
             isMine: false,
             proximity: 'match' as const,
+            verified: false,
+            comparedTo: 'google' as const,
           },
           {
             displayName: 'M. Rao',
@@ -234,6 +236,8 @@ describe('onboarding flow render (FORM-1, FORM-4, FORM-10, COPY-4)', () => {
             urlCount: 1,
             isMine: false,
             proximity: 'close' as const,
+            verified: false,
+            comparedTo: 'google' as const,
           },
           {
             displayName: 'Sam Lee',
@@ -241,6 +245,8 @@ describe('onboarding flow render (FORM-1, FORM-4, FORM-10, COPY-4)', () => {
             urlCount: 1,
             isMine: false,
             proximity: 'different' as const,
+            verified: false,
+            comparedTo: 'google' as const,
           },
         ],
         selected: new Set<string>(),
@@ -254,5 +260,35 @@ describe('onboarding flow render (FORM-1, FORM-4, FORM-10, COPY-4)', () => {
     expect(out).toContain('Close to your Google name');
     expect(out).toContain('Not like your Google name');
     expect(out).toContain('accent-primary');
+  });
+
+  it('labels names against the majority name when the pages agreed on one', () => {
+    const row = (displayName: string, extra: Record<string, unknown>) => ({
+      displayName,
+      normalizedName: displayName.toLowerCase(),
+      urlCount: 1,
+      isMine: false,
+      comparedTo: 'majority' as const,
+      verified: false,
+      proximity: 'match' as const,
+      ...extra,
+    });
+    const out = renderToStaticMarkup(
+      h(NamePicker, {
+        names: [
+          row('Abhishek Acharya', { verified: true, urlCount: 9 }),
+          row('Abhi Acharya', { proximity: 'close' }),
+          row('Priya Raman', { proximity: 'different' }),
+        ],
+        selected: new Set(['abhishek acharya', 'priya raman']),
+        error: null,
+        onToggle: noop,
+      }),
+    );
+    expect(out).toContain('On most of your links');
+    expect(out).toContain('Close to your main name');
+    expect(out).toContain('Probably someone else&#x27;s link');
+    expect(out).toContain('may be a link someone forwarded you');
+    expect(out).not.toContain('Google name');
   });
 });

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { IngestJobStatus, Prisma } from '@prisma/client';
+import { throttleKey } from '@/lib/calicotab/fetchSession';
 
 export async function enqueueUrl(userId: string, url: string): Promise<void> {
   // `reingestLocked` is the user-controlled "don't touch this URL" flag —
@@ -88,7 +89,13 @@ export async function resetStuckRunning(
  * lib/calicotab/fetchSession.ts is per-host, and two jobs on different
  * hosts share no rate budget at all.
  */
-const JOB_HOST_SQL = Prisma.sql`split_part(split_part("url", '//', 2), '/', 1)`;
+const RAW_HOST_SQL = Prisma.sql`lower(split_part(split_part("url", '//', 2), '/', 1))`;
+/*
+ * Every calicotab subdomain is served by one backend (2026-10-30: all of them
+ * slowed to 10-40 s at once, calicotab.com included), so for politeness they
+ * are one host. Matches jobHost below.
+ */
+const JOB_HOST_SQL = Prisma.sql`CASE WHEN ${RAW_HOST_SQL} = 'calicotab.com' OR ${RAW_HOST_SQL} LIKE '%.calicotab.com' THEN 'calicotab.com' ELSE ${RAW_HOST_SQL} END`;
 
 /**
  * Atomically claim a single pending job. Returns null when queue is empty.
@@ -116,7 +123,7 @@ export async function claimOnePending(
       SET "status" = 'running', "attempts" = "attempts" + 1, "startedAt" = NOW(), "updatedAt" = NOW()
       WHERE "id" = (
         SELECT "id" FROM "IngestJob"
-        WHERE "status" = 'pending' ${whereUser} ${whereHost}
+        WHERE "status" = 'pending' AND "scheduledAt" <= NOW() ${whereUser} ${whereHost}
         ORDER BY "scheduledAt" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
@@ -130,7 +137,8 @@ export async function claimOnePending(
 /** The host a job's fetches will target, or '' if the URL is unparseable. */
 export function jobHost(url: string): string {
   try {
-    return new URL(url).host;
+    // One key for every calicotab subdomain, as the fetch throttle uses.
+    return throttleKey(new URL(url).host);
   } catch {
     return '';
   }
@@ -270,7 +278,7 @@ export async function releaseJob(id: string, note: string): Promise<void> {
   });
 }
 
-export async function rescheduleJob(id: string, error: string): Promise<void> {
+export async function rescheduleJob(id: string, error: string, delayMs = 0): Promise<void> {
   // Bump scheduledAt to NOW so the retry competes fairly against fresh user
   // submissions in claimOnePending's `ORDER BY scheduledAt ASC` queue.
   // Previously the field stayed at the original submit time, which meant a
@@ -282,8 +290,24 @@ export async function rescheduleJob(id: string, error: string): Promise<void> {
     data: {
       status: IngestJobStatus.pending,
       startedAt: null,
-      scheduledAt: new Date(),
+      // A delay holds the job back: claimOnePending skips future scheduledAt.
+      scheduledAt: new Date(Date.now() + delayMs),
       lastError: error.slice(0, 2000),
     },
   });
+}
+
+/**
+ * Wait before retrying a job whose private-URL page did not answer (timeout,
+ * 5xx, rate limit): 15 minutes, then an hour. A slow spell at calicotab used
+ * to spend all three attempts within half an hour (2026-10-30); spread out,
+ * they span hours, long enough for a slow spell to pass.
+ */
+export function landingRetryDelayMs(attempts: number): number {
+  return attempts <= 1 ? 15 * 60_000 : 60 * 60_000;
+}
+
+/** Did the private-URL page fail for a reason that may pass (not a refusal or a 404)? */
+export function isTransientLandingError(error: string): boolean {
+  return /fetch landing\b[^]*HTTP (0|408|425|429|5\d\d)\b/.test(error);
 }

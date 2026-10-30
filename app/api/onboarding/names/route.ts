@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizePersonName } from '@/lib/calicotab/fingerprint';
 import { proximityToYou } from '@/lib/identity/nameProximity';
+import { nameSample, PREFLIGHT_SKIPPED } from '@/lib/identity/nameSample';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,11 +16,13 @@ export const dynamic = 'force-dynamic';
  * Drives the multi-select on /onboarding: one row per distinct name, ordered
  * by URL count desc so the user's most common spelling is at the top.
  *
- * Each name also carries `proximity`: how close it is to the user's Google
- * profile name or a name they have already claimed (match / close / different,
- * or unknown with no reference). A private URL is a credential for one person,
- * so a name that looks nothing like the user is flagged on the picker rather
- * than quietly offered. It informs the user's tick; it blocks nothing.
+ * Each name also carries `verified` and `proximity` (owner, 2026-10-30). The
+ * name on more than half of the pages read is the user's verified name and is
+ * pre-ticked. Every other name is judged against it and against names the
+ * user has already claimed: close (a spelling variant, offered un-ticked) or
+ * different (probably someone else's forwarded link, offered un-ticked). With
+ * no majority, names are judged against the Google profile name and nothing
+ * is pre-ticked. It informs the user's tick; it blocks nothing.
  */
 export async function GET() {
   const session = await auth();
@@ -30,13 +33,14 @@ export async function GET() {
 
   const urls = await prisma.discoveredUrl.findMany({
     where: { userId },
-    select: { registrationName: true, registrationPersonId: true },
+    select: { registrationName: true, registrationPersonId: true, lastPreflightError: true },
   });
 
   const totalUrls = urls.length;
   const totalNamed = urls.filter((u) => (u.registrationName ?? '').trim().length > 0).length;
   const totalUnknown = urls.filter((u) => u.registrationName === null).length;
-  const totalFailed = urls.filter((u) => u.registrationName === '').length;
+  const totalSkipped = urls.filter((u) => u.lastPreflightError === PREFLIGHT_SKIPPED).length;
+  const totalFailed = urls.filter((u) => u.registrationName === '').length - totalSkipped;
 
   // Group by exact display name (preserve first-seen casing). Normalize for
   // claim lookup so "Abhishek Acharya" and "abhishek acharya" share a Person.
@@ -72,7 +76,13 @@ export async function GET() {
     where: { claimedByUserId: userId },
     select: { displayName: true },
   });
-  const references = [session.user.name, ...mine.map((p) => p.displayName)];
+  const sample = nameSample(urls.map((u) => u.registrationName));
+  const verifiedNorm =
+    sample.hasMajority && sample.topName ? normalizePersonName(sample.topName) : null;
+  const references = [
+    verifiedNorm ? sample.topName : session.user.name,
+    ...mine.map((p) => p.displayName),
+  ];
 
   const names = [...byNormalized.values()]
     .map((e) => ({
@@ -80,7 +90,10 @@ export async function GET() {
       normalizedName: e.normalizedName,
       urlCount: e.urlCount,
       isMine: claimedSet.has(e.normalizedName),
+      verified: e.normalizedName === verifiedNorm,
       proximity: proximityToYou(e.displayName, references),
+      /** What `proximity` was judged against: the majority name, or the Google name. */
+      comparedTo: verifiedNorm ? ('majority' as const) : ('google' as const),
     }))
     .sort((a, b) => b.urlCount - a.urlCount || a.displayName.localeCompare(b.displayName));
 
@@ -91,6 +104,7 @@ export async function GET() {
       named: totalNamed,
       unknown: totalUnknown, // preflight not yet run on these
       failed: totalFailed, // preflight tried but landing was unreachable
+      skipped: totalSkipped, // not read: the name was settled from other links
     },
   });
 }
