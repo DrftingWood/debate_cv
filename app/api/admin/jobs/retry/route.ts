@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const Body = z.union([
-  z.object({ ids: z.array(z.string().min(1)).min(1).max(200) }),
+  z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) }),
   z.object({ all: z.literal(true) }),
 ]);
 
@@ -29,8 +29,38 @@ export async function POST(req: Request) {
   const where =
     'ids' in parsed.data ? { id: { in: parsed.data.ids }, status: dead } : { status: dead };
 
-  const { count } = await prisma.ingestJob.updateMany({
+  const deadJobs = await prisma.ingestJob.findMany({
     where,
+    select: { id: true, userId: true, url: true },
+  });
+  // A locked URL is the user's "don't touch this" flag; reingest-all and
+  // enqueueUrl honour it, so a bulk retry must too.
+  const locked = deadJobs.length
+    ? await prisma.discoveredUrl.findMany({
+        where: {
+          reingestLocked: true,
+          userId: { in: [...new Set(deadJobs.map((j) => j.userId))] },
+        },
+        select: { userId: true, url: true },
+      })
+    : [];
+  const lockedKeys = new Set(
+    locked.map(
+      (l) => `${l.userId}
+${l.url}`,
+    ),
+  );
+  const eligible = deadJobs.filter(
+    (j) =>
+      !lockedKeys.has(`${j.userId}
+${j.url}`),
+  );
+  if (eligible.length === 0) {
+    return NextResponse.json({ requeued: 0, skippedLocked: deadJobs.length });
+  }
+
+  const { count } = await prisma.ingestJob.updateMany({
+    where: { id: { in: eligible.map((j) => j.id) }, status: dead },
     data: {
       status: IngestJobStatus.pending,
       attempts: 0,
@@ -40,5 +70,5 @@ export async function POST(req: Request) {
       scheduledAt: new Date(),
     },
   });
-  return NextResponse.json({ requeued: count });
+  return NextResponse.json({ requeued: count, skippedLocked: deadJobs.length - eligible.length });
 }

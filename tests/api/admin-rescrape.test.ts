@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const requireAdminMock = vi.fn();
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 vi.mock('@/lib/admin', () => ({ requireAdmin: requireAdminMock }));
 const rescrapeMock = vi.fn();
 class FakeBusy extends Error {}
@@ -75,7 +76,15 @@ describe('POST /api/admin/tournaments/[id]/rescrape', () => {
     const many = Array.from({ length: 41 }, (_, i) => ({ kind: 'round', key: String(i) }));
     expect((await call('5', { pieces: many })).status).toBe(400);
     expect((await call('5', { pieces: [{ kind: 'nope', key: '' }] })).status).toBe(400);
+    expect((await call('0x10', { pieces: 'failed' })).status).toBe(400);
     expect((await call('abc', { pieces: 'failed' })).status).toBe(400);
     expect(rescrapeMock).not.toHaveBeenCalled();
+  });
+
+  it('answers an unexpected error with 500 server_error', async () => {
+    rescrapeMock.mockRejectedValue(new Error('secret detail'));
+    const res = await call('5', { pieces: 'failed' });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'server_error' });
   });
 });

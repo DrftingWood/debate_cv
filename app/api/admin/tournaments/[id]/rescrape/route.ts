@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin';
 import {
@@ -39,12 +40,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { id } = await params;
-  let tournamentId: bigint;
-  try {
-    tournamentId = BigInt(id);
-  } catch {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
-  }
+  // Digits only: BigInt() alone would accept '0x10', ' 5 ' and the like.
+  if (!/^\d{1,18}$/.test(id)) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  const tournamentId = BigInt(id);
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
@@ -60,7 +58,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (err instanceof TournamentNotFoundError) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
-    // Anything else is unexpected: let it reach Sentry rather than leak a message.
-    throw err;
+    // Unexpected: report it, but give the UI a code rather than a raw message.
+    Sentry.captureException(err, { tags: { route: 'api/admin/tournaments/rescrape' } });
+    return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }
