@@ -288,6 +288,73 @@ Owner request, 2026-10-31: "I also need a view if that tournament is present in 
 - [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
 - [ ] **Step 5: Commit:** `feat(admin): see whether a tournament is in the database, per row and by URL`
 
+### Task 5c: Failed imports triage: tab status, priorities, review set
+
+Owner request, 2026-10-31:
+> for all the failed imports, i need a column in the tab with 3 symbols tick if fully loaded in tab, ? if partially load (hover to see the errors) and X if not loaded … i should be able prioritize some errors and bring to a separate set that you can later pick for review - prioritize and add a comment
+
+**Files:**
+- Modify: `prisma/schema.prisma` (model `ReviewFlag`), and create `prisma/migrations/20261031120000_review_flags/migration.sql` (additive)
+- Create: `lib/admin/reviewSet.ts`, `app/api/admin/review-set/route.ts` (GET export, POST add, PATCH update), `components/admin/TabStatus.tsx`, `components/admin/ReviewSetSection.tsx` (server), `components/admin/ReviewSetTable.tsx` (client)
+- Modify: `components/admin/FailedJobsTable.tsx`, `components/admin/FailedImportsSection.tsx`, `lib/admin/scrapeHealth.ts`, `app/(app)/admin/page.tsx`
+- Test: `tests/admin.reviewSet.test.ts`, `tests/api/admin-review-set.test.ts`, `tests/admin.tabStatus.render.test.ts`, and an extension of `tests/admin.clientProps.test.ts`
+
+**Interfaces:**
+- `ReviewFlag` fields:
+  - `id BigInt @id @default(autoincrement())`
+  - `ingestJobId String?` (FK to IngestJob, `onDelete: SetNull`)
+  - `url String`, always the public address (`publicPieceUrl`), never private
+  - `tournamentId BigInt?` (FK, SetNull)
+  - `priority String` ('high' | 'medium' | 'low')
+  - `comment String` (≤ 1000)
+  - `status String` ('open' | 'done'), default 'open'
+  - `createdBy String` (admin email)
+  - `createdAt`, `updatedAt`
+  - indexes on `(status, priority)` and `ingestJobId`; one open flag per `ingestJobId` (enforced in code)
+- Tab status per failed-import row: `{ state: 'loaded' | 'partial' | 'missing'; tournamentId: string | null; errors: string[] }`.
+  - `missing` when the job's tournament isn't stored (`DiscoveredUrl.tournamentId` null and no host+slug match);
+  - `partial` when the stored tournament has any `ScrapePiece` with status 'failed'. `errors` holds one entry per failed piece, `"<label>: HTTP <status>"` or `"<label>: <short lastError>"`, at most 10, with words for codes (UX-23);
+  - `loaded` otherwise.
+- `TabStatus` cell:
+  - the symbol plus a word: "✓ Loaded", "? Partly", "✗ Not loaded" (UX-34);
+  - `partial` is a focusable button-like span with `aria-describedby` pointing at an sr-only list of the errors, and a visible Tooltip listing them on hover or focus (UX-36). Reuse the PartlyLoadedBadge and Tooltip `wrap` pattern;
+  - `loaded` and `partial` link "Open" to `/admin/tournaments/[id]`.
+- FailedJobsTable:
+  - new first data column "Tab", after the checkbox;
+  - new action "Add to review set": an inline form appears with a Priority select (High / Medium / Low, default Medium) and a Comment textarea (required, validated on press, UX-16), then "Add n to review set";
+  - the action posts `{ ingestJobIds, priority, comment }`;
+  - existing Retry actions are unchanged;
+  - rows already flagged open show a small "Flagged · <priority>" badge.
+- `POST /api/admin/review-set`:
+  - body `{ ingestJobIds: string[1..200], priority, comment: string 1..1000 }`;
+  - upserts one open flag per job, refreshing priority and comment if one is already open;
+  - → `{ flagged }`.
+- `PATCH /api/admin/review-set`: `{ id, priority?, comment?, status? }` → `{ ok: true }`.
+- `GET /api/admin/review-set?format=json|csv&status=open`:
+  - exports the set newest first within priority (high, then medium, then low);
+  - fields: id, priority, comment, status, url (public), tournament name and id, the job's last error (as words), attempts, createdBy, createdAt;
+  - this is what Claude reads in a later session.
+- Section "Flagged for review" on `/admin`, after Failed imports:
+  - a ledger table sorted high → low, then oldest first: Priority (badge with word), Tournament or URL (TabLink), Tab status, Comment, Flagged (relative), Actions;
+  - actions are edit priority (select), edit comment (inline), and "Mark done";
+  - "Show done" toggles done items;
+  - "Export JSON" and "Export CSV" links;
+  - empty state: "Nothing flagged yet".
+- All admin-only (`requireAdmin`, zod, codes-only errors, single-flight, status lines, toasts only for passive success). No private URL or key in any client prop or export; the clientProps test is extended.
+
+- [ ] **Step 1: Write the failing tests:**
+  - tab status: `loaded`, `partial` with errors text, `missing`;
+  - render: the three symbol and word pairs; the partial cell is focusable with `aria-describedby` resolving to the error list;
+  - POST flags 2 jobs, a repeat updates instead of duplicating, and an empty comment gives 400;
+  - PATCH marks done;
+  - the GET csv has a header row, rows in priority order, and no "privateurls";
+  - 403 for non-admins;
+  - the review-set render lists by priority and shows its empty state.
+- [ ] **Step 2:** Run. Expected: FAIL.
+- [ ] **Step 3:** Implement. Migration SQL in Prisma's naming style; `npx prisma validate && npx prisma generate`.
+- [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
+- [ ] **Step 5: Commit:** `feat(admin): tab status on failed imports, and a prioritised review set`
+
 ### Task 6: Seed, browser check, docs
 
 **Files:**
