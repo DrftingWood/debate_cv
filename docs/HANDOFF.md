@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-30 - Partial scrapes: keep what loaded, retry the rest, show it
+
+- **Problem.** One failed tab or round page used to fail the whole import, or leave a tournament silently thin. Calicotab is slow and flaky (see the entry below), so a single 503 on the speaker tab cost a user the whole tournament.
+- **What changed.**
+  - **Keep what loaded.** `lib/calicotab/ingest.ts` stores every page that came back and records each page as a piece (`lib/calicotab/scrapePieces.ts`): team tab, speaker tab, participants, motions, each break category, each round. A failed round keeps its stored judge panels (it is not cleared).
+  - **Retry on its own.** The cron (`/api/cron/process-queue`) calls `retryDuePieces` (`lib/calicotab/partialScrape.ts`). Back-off is `retryDelayMs`; once the retries run out `nextRetryAt` is null and only an admin re-scrape moves the piece again.
+  - **Say so on the CV.** A tournament with a failed piece still counts on the record (owner decision 2026-10-30) and shows a "Partly loaded" badge on `/cv` and `/u/<slug>` (`components/PartlyLoadedBadge.tsx`; the explanation is reachable by keyboard and screen reader).
+  - **Admin.** `/admin` has the Partly loaded tile, Scrape health and Failed imports (retry selected or all). `/admin/tournaments/[id]` is the per-page grid with a re-scrape picker and "Select failed". APIs: `POST /api/admin/tournaments/[id]/rescrape` (deletes only the chosen pieces' rows, then re-reads them) and `POST /api/admin/jobs/retry`.
+- **Migration.** `20261030160000_scrape_pieces` adds the `ScrapePiece` table (unique per tournament, kind and key; cascades with the tournament). It runs on the next production build. Tournaments imported before it have no rows and show no badge until they are next scraped.
+- **Dev data.** `npm run seed:dev` now seeds pieces for two tournaments (Delhi Open 2025 all ok; Hart House IV 2023 with a failed speaker tab, retry queued, and a failed R2 with retries exhausted) plus one failed import job, so the admin pages and the badge have data. On 2026-10-31 the embedded Postgres on 55432 was not running and the system PostgreSQL 17 (5432) needs credentials this session did not have, so the check used a throwaway cluster started on 55432 with trust auth.
+- **Checked.** Browser check at 1280 and 390, light and dark, signed in with the seed cookie: no console errors, no sideways scroll, 20 px gutter at 390, "Select failed" ticks 2, "Partly loaded" shows on Hart House in the 2023 group of `/cv`. `A11Y_ONLY=/admin npm run a11y`: no axe violations. Known defect from that check: at 390 the Failed imports table collapses the User / URL / Attempts / When columns to 0 width (`FailedJobsTable.tsx`, `table-fixed` with `w-0 md:w-*` columns), so the row is about 1400 px tall; fine at 1280.
+- **Rollback.** Revert the merge commit, then drop the table: `DROP TABLE "ScrapePiece";` (and delete its row from `_prisma_migrations`). Nothing else reads it after the revert.
+
+---
+
 ## 2026-10-30 - Stored data first; calicotab treated as one slow host
 
 - **Incident.** 5-10 new users: Gmail scans found their private URLs, but nearly every import and onboarding read timed out at 15 s. Calicotab served pages in 10-40 s (its API, 40-90 ms on 10-28, took 27-29 s), all subdomains at once. The private-URL page was fetched before the stored copy was looked up, so pre-scraped tournaments failed too.
