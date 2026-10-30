@@ -5,7 +5,7 @@ import { ShareCard } from '@/components/landing/ShareCard';
 // exports statically. The card itself lives in components/landing/ShareCard
 // so the Open Graph and X/Twitter images cannot drift apart.
 export const runtime = 'nodejs';
-export const alt = 'debate cv: your debate history, kept like an account';
+export const alt = 'debate cv: your debate record, built from your tabs';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

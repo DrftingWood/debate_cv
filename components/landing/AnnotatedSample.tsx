@@ -98,7 +98,7 @@ export function AnnotatedSample() {
                   <Marker n={3} />
                 </span>
               </th>
-              <th scope="col">Result</th>
+              <th scope="col">Broke to</th>
               <th scope="col" className="pr-stack max-sm:hidden">
                 Source
               </th>

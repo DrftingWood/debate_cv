@@ -138,9 +138,9 @@ describe('/cv/stats wiring', () => {
     for (const tab of [
       'Speaking',
       'Judging',
-      'Results (team)',
-      'Speaks (you)',
-      'Conditions',
+      'Team results',
+      'Speaks',
+      'Position &amp; motion',
       'Team placement',
       'Breaks',
       'Straights &amp; firsts',

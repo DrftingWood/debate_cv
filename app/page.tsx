@@ -59,7 +59,7 @@ function Hero() {
             (design §3.1). Tailwind 4 lets an explicit leading/tracking beat a
             size token's own, so the md: pair restates the display values. */}
         <h1 className="mt-tight max-w-3xl font-display text-h1 font-medium leading-[1.03] tracking-tight text-ink md:text-display md:leading-(--text-display--line-height) md:tracking-(--text-display--letter-spacing)">
-          Your debate history, kept like an account
+          Your debate record, built from your tabs
         </h1>
         <p className="mt-stack max-w-xl text-body leading-relaxed text-ink-soft">
           Every tournament, round and motion, read from the tab links in your inbox, as one record
@@ -117,7 +117,7 @@ function PrivacyLedger() {
   return (
     <section id="privacy" aria-labelledby="privacy-title" className="scroll-mt-24">
       <div className="max-w-2xl">
-        <div className="eyebrow">Privacy, as a statement</div>
+        <div className="eyebrow">Privacy</div>
         <h2
           id="privacy-title"
           className="mt-tight font-display text-h2 font-medium tracking-tight text-ink"

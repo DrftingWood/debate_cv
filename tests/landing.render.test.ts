@@ -36,7 +36,7 @@ async function render() {
 describe('landing page', () => {
   it('has the four sections: hero, privacy ledger, how it works, closing CTA', async () => {
     const html = await render();
-    expect(html).toContain('Your debate history, kept like an account');
+    expect(html).toContain('Your debate record, built from your tabs');
     expect(html).toContain('id="privacy"');
     expect(html).toContain('id="how"');
     expect(html).toContain('Start the record');

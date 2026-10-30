@@ -38,7 +38,7 @@ export function fmtPublicLastOutround(r: CvSpeakerRow): string | null {
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  return r.wonTournament === true ? `${display} (${championTitle(r.eliminationReached)})` : display;
+  return r.wonTournament === true ? championTitle(r.eliminationReached) : display;
 }
 
 /**
@@ -73,12 +73,12 @@ function speakerFields(r: CvSpeakerRow, proAm: boolean): TournamentCardField[] {
   }
   if (r.speakerRankOpen != null) {
     out.push({
-      label: 'Speaker-tab rank',
+      label: 'Speaker rank',
       value: hashRank(r.speakerRankOpen, r.speakerRankTied),
       mono: true,
     });
   }
-  if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
+  if (r.speakerAvgScore) out.push({ label: 'Avg speaks', value: r.speakerAvgScore, mono: true });
   if (r.teamName)
     out.push({ label: 'Team', value: r.teamName, hint: proAm ? 'Pro-am' : undefined });
   if (r.format) out.push({ label: 'Format', value: r.format });
@@ -118,8 +118,8 @@ export function PublicJudgeCard({ r }: { r: CvJudgeRow }) {
       mono: true,
     },
   ];
-  if (chaired) fields.push({ label: 'Last outround chaired', value: chaired });
-  if (judged) fields.push({ label: 'Last outround judged', value: judged });
+  if (chaired) fields.push({ label: 'Furthest outround chaired', value: chaired });
+  if (judged) fields.push({ label: 'Furthest outround judged', value: judged });
   if (r.format) fields.push({ label: 'Format', value: r.format });
   return (
     <TournamentCard name={r.tournamentName} href={r.sourceUrl} year={r.year} fields={fields} />

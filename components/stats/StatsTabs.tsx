@@ -46,8 +46,8 @@ import {
  * tab model (components/ui/Tabs.tsx).
  *
  *   Speaking
- *     Results (team): Team placement · Breaks · Straights & firsts
- *     Speaks (you):   Speaker tab · Score bands · Top-10 finishes
+ *     Team results:   Team placement · Breaks · Straights & firsts
+ *     Speaks:         Speaker tab · Score bands · Top-10 finishes
  *     Conditions:     By position · By format · By round · By motion topic ·
  *                     By motion type · By partner
  *   Judging
@@ -296,17 +296,17 @@ export function SpeakingTabs({
       items={[
         {
           value: 'results',
-          label: 'Results (team)',
+          label: 'Team results',
           panel: <Sections label="Team results" items={results} initial={initial.section} />,
         },
         {
           value: 'speaks',
-          label: 'Speaks (you)',
+          label: 'Speaks',
           panel: <Sections label="Your speaks" items={speaks} initial={initial.section} />,
         },
         {
           value: 'conditions',
-          label: 'Conditions',
+          label: 'Position & motion',
           panel: (
             <Sections label="Speaking conditions" items={conditions} initial={initial.section} />
           ),
@@ -363,7 +363,7 @@ export function JudgingTabs({
         },
         {
           value: 'conditions',
-          label: 'Conditions',
+          label: 'Position & motion',
           panel: (
             <Sections label="Judging conditions" items={conditions} initial={initial.section} />
           ),

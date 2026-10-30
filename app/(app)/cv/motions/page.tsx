@@ -181,7 +181,7 @@ export default async function CvMotionsPage({
             />
             {knockouts.length > 0 ? (
               <StatTile
-                label="Knockout record"
+                label="Outround record"
                 value={`${knockoutsThrough}–${knockouts.length - knockoutsThrough}`}
               />
             ) : null}

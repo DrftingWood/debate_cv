@@ -242,7 +242,7 @@ export function StatsFilterBar({
         </div>
 
         <div className="space-y-2">
-          <div className="data-label">Seat</div>
+          <div className="data-label">Position</div>
           <div className="flex flex-wrap gap-3">
             {options.seatGroups.map(([group, seats]) => (
               <div

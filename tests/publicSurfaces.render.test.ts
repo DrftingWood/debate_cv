@@ -35,7 +35,7 @@ describe('link-preview card (COPY-2)', () => {
   it('uses the Ledger brand and the landing copy, not the retired editorial one', async () => {
     const { ShareCard } = await import('@/components/landing/ShareCard');
     const out = renderToStaticMarkup(React.createElement(ShareCard));
-    expect(out).toContain('Your debate history, kept like an account');
+    expect(out).toContain('Your debate record, built from your tabs');
     expect(out).toContain('#0D634F');
     for (const retired of [
       'Georgia',

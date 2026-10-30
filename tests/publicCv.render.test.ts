@@ -82,7 +82,7 @@ describe('public CV phone cards', () => {
     expect(out).toContain('#3 of 40');
     expect(out).toContain('top 8% of the team tab');
     // The speaker tab is labelled as the speaker tab (PR #167), never as placement.
-    expect(out).toContain('Speaker-tab rank');
+    expect(out).toContain('Speaker rank');
     expect(out).toContain('#12');
     expect(out).toContain('74.2');
     expect(out).toContain('Oxford Union Society Debating Team A');
@@ -182,7 +182,7 @@ describe('PublicCvPage', () => {
     expect(out).not.toContain('min-w-max');
     expect(out).toContain('#3<span class="text-ink-soft">/40</span>');
     // The PR #167 wording survives on the headers and the cell.
-    expect(out).toContain('Spk-tab rank');
+    expect(out).toContain('Speaker rank');
     expect(out).toContain('3 of 40 teams · top 8%');
   });
 

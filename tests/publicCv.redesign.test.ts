@@ -98,7 +98,7 @@ describe('public CV, redesign', () => {
     expect(html).toContain('<figure');
     expect(html).not.toContain('Show career charts');
     expect(html).toMatch(/<details id="y2025"/);
-    expect(html).toMatch(/role="tab"[^>]*>Adjudication</);
+    expect(html).toMatch(/role="tab"[^>]*>Judging</);
     expect(html).not.toMatch(/role="tab"[^>]*>Partners</);
   });
 

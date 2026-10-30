@@ -105,10 +105,10 @@ describe('/cv speaking ledger (desktop)', () => {
       'Team',
       'Team rank',
       'Pts',
-      'Spk avg',
-      'Spk tab',
-      'Spk rank',
-      'Result',
+      'Avg speaks',
+      'Speaker tab',
+      'Category rank',
+      'Broke to',
       'Source',
       'Report a problem',
     ]);
@@ -222,10 +222,10 @@ describe('/cv redesign: header, tabs and year groups (owner decisions 13-16)', (
     expect(out).not.toContain('Judging, by year</figcaption>');
   });
 
-  it('puts speaking under Ledger and judging under Adjudication, both printed', async () => {
+  it('puts speaking and judging under their own tabs, both printed', async () => {
     const out = await render(record());
-    expect(out).toMatch(/role="tab"[^>]*>Ledger</);
-    expect(out).toMatch(/role="tab"[^>]*>Adjudication</);
+    expect(out).toMatch(/role="tab"[^>]*>Speaking</);
+    expect(out).toMatch(/role="tab"[^>]*>Judging</);
     expect(out).toContain('data-print-all="true"');
     expect(await render(record(), 'adjudication')).toContain('Judging record, 2025');
   });

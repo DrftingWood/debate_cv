@@ -88,7 +88,9 @@ function fmtLastOutroundSpoken(r: SpeakingTableRow): string | null {
   }
   if (!r.eliminationReached) return null;
   const display = formatStageForDisplay(r.eliminationReached);
-  if (r.wonTournament === true) return `${display} (${championTitle(r.eliminationReached)})`;
+  // A won final reads as the title alone ("Champion", "ESL Champion"), not
+  // "Grand Final (Champion)" (owner terminology pass, 2026-10-30).
+  if (r.wonTournament === true) return championTitle(r.eliminationReached);
   return display;
 }
 
@@ -153,19 +155,19 @@ function SpeakingTable({
                 </Th>
                 <Th numeric>Pts</Th>
                 <Th numeric title="Average speaker score per prelim round spoken">
-                  Spk avg
+                  Avg speaks
                 </Th>
                 <Th
                   numeric
                   className={SPK_TAB_HIDDEN}
                   title="Where that average placed among every speaker on the speaker tab — an individual figure, not the team's placement"
                 >
-                  Spk tab
+                  Speaker tab
                 </Th>
                 <Th title="Speaker rank within each break category. Open = main draw; ESL = English as Second Language; EFL = English as Foreign Language.">
-                  Spk rank
+                  Category rank
                 </Th>
-                <Th>Result</Th>
+                <Th>Broke to</Th>
                 <Th>Source</Th>
                 <Th className="pr-4">
                   <span className="sr-only">Report a problem</span>
@@ -251,7 +253,7 @@ function SpeakingTable({
                           <Nil title="Speaker tab did not publish comparable totals" />
                         )}
                       </Td>
-                      <Td className="whitespace-nowrap">{ranks ?? <Nil />}</Td>
+                      <Td>{ranks ?? <Nil />}</Td>
                       {/*
                       A "Broke" badge next to "Quarterfinals" says the same
                       thing twice — reaching an outround IS the break — and
@@ -348,11 +350,19 @@ function JudgingTable({
                 <Th>Format</Th>
                 <Th numeric>Teams</Th>
                 <Th>Judge type</Th>
-                <Th numeric>Judged</Th>
-                <Th numeric>Chaired</Th>
-                {/* Short: "Last outround chaired" overran its column into the next. */}
-                <Th title="Last outround chaired">Last chaired</Th>
-                <Th title="Last outround judged">Last judged</Th>
+                <Th numeric>
+                  Prelims
+                  <br />
+                  judged
+                </Th>
+                <Th numeric>
+                  Prelims
+                  <br />
+                  chaired
+                </Th>
+                {/* Short: "Furthest outround chaired" would overrun its column. */}
+                <Th title="Furthest outround chaired">Furthest chaired</Th>
+                <Th title="Furthest outround judged">Furthest judged</Th>
                 <Th>Source</Th>
                 <Th className="pr-4">
                   <span className="sr-only">Report a problem</span>
@@ -371,7 +381,9 @@ function JudgingTable({
                   <Td numeric className="text-ink-soft">
                     {r.totalTeams ?? <Nil />}
                   </Td>
-                  <Td className="whitespace-nowrap text-ink-soft">{r.judgeTypeTag ?? <Nil />}</Td>
+                  <Td className="whitespace-nowrap text-ink-soft">
+                    {r.judgeTypeTag ? judgeTypeLabel(r.judgeTypeTag) : <Nil />}
+                  </Td>
                   <Td numeric>{r.inroundsJudged ?? <Nil />}</Td>
                   <Td numeric>{r.inroundsChaired ?? <Nil />}</Td>
                   <Td className="whitespace-nowrap">
@@ -424,6 +436,22 @@ function JudgingTable({
 const SPEAKING_COLUMNS = 12;
 
 /*
+ * The participants page's adjudicator tag, in the words a debater uses
+ * (owner terminology pass, 2026-10-30). Tabbycat stores lower-case tags;
+ * anything unrecognised is shown capitalised rather than hidden.
+ */
+const JUDGE_TYPE_LABELS: Record<string, string> = {
+  core: 'Adj core',
+  invited: 'Invited',
+  subsidized: 'Subsidised',
+  normal: 'Adjudicator',
+  adjudicator: 'Adjudicator',
+};
+function judgeTypeLabel(tag: string): string {
+  return JUDGE_TYPE_LABELS[tag.toLowerCase()] ?? tag.charAt(0).toUpperCase() + tag.slice(1);
+}
+
+/*
  * One set of widths for every year's table, so the columns line up down the
  * page. Tournament takes what is left; everything else is fixed, sized to its
  * widest content (measured 2026-10-30). Team was 17% of the table: 254 px at
@@ -444,8 +472,8 @@ const SPEAKING_WIDTHS = [
   '11rem', // team (wraps the partner line)
   '6.5rem', // team rank
   '4rem', // pts
-  '5.5rem', // spk avg
-  { className: 'w-[5.5rem] max-[90rem]:w-0' }, // spk tab
+  '6rem', // avg speaks
+  { className: 'w-[6.5rem] max-[90rem]:w-0' }, // speaker tab
   '7.5rem', // spk rank
   '9.5rem', // result
   '10rem', // source (hosts truncate, full host on hover)
@@ -527,7 +555,7 @@ function speakerCardFields(
 ): TournamentCardField[] {
   const ranks = fmtSpeakerRanks(r);
   const out: TournamentCardField[] = [];
-  if (r.speakerAvgScore) out.push({ label: 'Speaker avg', value: r.speakerAvgScore, mono: true });
+  if (r.speakerAvgScore) out.push({ label: 'Avg speaks', value: r.speakerAvgScore, mono: true });
   if (field?.betterThanUser != null && field.speakerCount > 0) {
     out.push({
       label: 'Speaker tab',
@@ -546,7 +574,7 @@ function speakerCardFields(
     });
   }
   if (r.teamPoints) out.push({ label: 'Team points', value: r.teamPoints, mono: true });
-  if (ranks) out.push({ label: 'Speaker-tab rank', value: ranks });
+  if (ranks) out.push({ label: 'Category rank', value: ranks });
   if (r.format) out.push({ label: 'Format', value: r.format });
   if (r.teamName) out.push({ label: 'Team', value: r.teamName });
   if (r.teammates.length) out.push({ label: 'Partner', value: r.teammates.join(', ') });
@@ -555,26 +583,29 @@ function speakerCardFields(
 
 function judgeCardFields(r: JudgingTableRow): TournamentCardField[] {
   const out: TournamentCardField[] = [];
-  if (r.judgeTypeTag) out.push({ label: 'Judge type', value: r.judgeTypeTag });
+  if (r.judgeTypeTag) out.push({ label: 'Judge type', value: judgeTypeLabel(r.judgeTypeTag) });
   out.push({
-    label: 'Inrounds judged',
+    label: 'Prelims judged',
     value: r.inroundsJudged != null ? String(r.inroundsJudged) : '—',
     mono: true,
   });
   out.push({
-    label: 'Inrounds chaired',
+    label: 'Prelims chaired',
     value: r.inroundsChaired != null ? String(r.inroundsChaired) : '—',
     mono: true,
   });
   if (r.format) out.push({ label: 'Format', value: r.format });
   if (r.lastOutroundChaired) {
     out.push({
-      label: 'Last outround chaired',
+      label: 'Furthest outround chaired',
       value: formatStageForDisplay(r.lastOutroundChaired),
     });
   }
   if (r.lastOutroundJudged) {
-    out.push({ label: 'Last outround judged', value: formatStageForDisplay(r.lastOutroundJudged) });
+    out.push({
+      label: 'Furthest outround judged',
+      value: formatStageForDisplay(r.lastOutroundJudged),
+    });
   }
   return out;
 }

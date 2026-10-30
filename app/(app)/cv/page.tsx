@@ -221,7 +221,7 @@ export default async function CvPage({
                       {
                         value: 'ledger',
                         anchor: 'y',
-                        label: 'Ledger',
+                        label: 'Speaking',
                         panel: (
                           <div className="space-y-stack">
                             <h2 className="sr-only">Speaking, by year</h2>
@@ -239,11 +239,11 @@ export default async function CvPage({
                               the labels out already.
                             */}
                             <p className="hidden text-caption text-ink-soft md:block">
-                              <span className="font-medium text-ink">Spk avg</span> speaker score
-                              per prelim · <span className="font-medium text-ink">Spk tab</span>{' '}
+                              <span className="font-medium text-ink">Avg speaks</span> speaker score
+                              per prelim · <span className="font-medium text-ink">Speaker tab</span>{' '}
                               place on the speaker tab ·{' '}
-                              <span className="font-medium text-ink">Spk rank</span> rank in your
-                              break category
+                              <span className="font-medium text-ink">Category rank</span> rank in
+                              your break category
                             </p>
                           </div>
                         ),
@@ -255,7 +255,7 @@ export default async function CvPage({
                       {
                         value: 'adjudication',
                         anchor: 'j',
-                        label: 'Adjudication',
+                        label: 'Judging',
                         panel: (
                           <div>
                             <h2 className="sr-only">Judging, by year</h2>
