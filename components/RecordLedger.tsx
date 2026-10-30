@@ -10,6 +10,7 @@ import {
   formatBaseStageForDisplay,
   championTitle,
 } from '@/lib/cv/formatStage';
+import { cn } from '@/lib/utils/cn';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { Badge } from '@/components/ui/Badge';
 import { TableScroll, Table, Th, Td, Tr, Nil, Cols } from '@/components/ui/DataTable';
@@ -131,7 +132,10 @@ function SpeakingTable({
       {/* Desktop ledger */}
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full min-w-[68rem] table-fixed" label={label}>
+          <Table
+            className="w-full min-w-[76rem] table-fixed min-[90rem]:min-w-[82rem]"
+            label={label}
+          >
             <Cols widths={SPEAKING_WIDTHS} />
             <thead>
               <tr>
@@ -153,6 +157,7 @@ function SpeakingTable({
                 </Th>
                 <Th
                   numeric
+                  className={SPK_TAB_HIDDEN}
                   title="Where that average placed among every speaker on the speaker tab — an individual figure, not the team's placement"
                 >
                   Spk tab
@@ -235,7 +240,7 @@ function SpeakingTable({
                       >
                         {r.speakerAvgScore ?? <Nil />}
                       </Td>
-                      <Td numeric className="text-ink-soft">
+                      <Td numeric className={cn('text-ink-soft', SPK_TAB_HIDDEN)}>
                         {field?.betterThanUser != null && field.speakerCount > 0 ? (
                           <span
                             title={`${field.betterThanUser + 1} of ${field.speakerCount} speakers on the speaker tab`}
@@ -335,7 +340,7 @@ function JudgingTable({
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full min-w-[68rem] table-fixed" label={label}>
+          <Table className="w-full min-w-[74rem] table-fixed" label={label}>
             <Cols widths={JUDGING_WIDTHS} />
             <thead>
               <tr>
@@ -420,22 +425,30 @@ const SPEAKING_COLUMNS = 12;
 
 /*
  * One set of widths for every year's table, so the columns line up down the
- * page. Tournament takes what is left; Team gets a share; the figures are
- * fixed. The min-width keeps the fixed columns readable below xl, where the
- * table scrolls inside its panel instead of crushing them.
+ * page. Tournament takes what is left; everything else is fixed, sized to its
+ * widest content (measured 2026-10-30). Team was 17% of the table: 254 px at
+ * 1600 for content that needs 148, and with the fixed columns it left the
+ * tournament 0 px at 1280 and 54 px at 1366 (names one letter per line).
+ * Below 90rem the Spk tab column drops out (Spk rank carries the speaker's
+ * placement), and the min-width keeps at least 11.5rem for the tournament;
+ * under that the table scrolls inside its panel instead of crushing it.
  */
+// Zero width rather than display:none: the expanded rounds row spans all 12
+// columns, and with one column removed that span grew a phantom 12th column
+// that pushed every row 74 px short of the panel edge (2026-10-30).
+const SPK_TAB_HIDDEN = 'max-[90rem]:invisible max-[90rem]:overflow-hidden max-[90rem]:p-0';
 const SPEAKING_WIDTHS = [
   '2.75rem', // round caret
   undefined, // tournament
   '4.5rem', // format
-  '17%', // team
+  '11rem', // team (wraps the partner line)
   '6.5rem', // team rank
-  '5rem', // pts
+  '4rem', // pts
   '5.5rem', // spk avg
-  '5.5rem', // spk tab
+  { className: 'w-[5.5rem] max-[90rem]:w-0' }, // spk tab
   '7.5rem', // spk rank
   '9.5rem', // result
-  '13rem', // source
+  '10rem', // source (hosts truncate, full host on hover)
   '3.25rem', // report
 ];
 const JUDGING_WIDTHS = [
@@ -447,7 +460,7 @@ const JUDGING_WIDTHS = [
   '5rem', // chaired
   '10rem', // last outround chaired
   '11rem', // last outround judged
-  '15rem', // source
+  '11rem', // source (hosts truncate, full host on hover)
   '3.25rem', // report
 ];
 

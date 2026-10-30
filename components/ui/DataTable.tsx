@@ -84,14 +84,20 @@ export function Table({
  * columns out from these widths instead of from its own content, so a
  * column sits at the same x in every year (owner review 2026-10-29: Format
  * moved 47 px between 2026 and 2025). `undefined` leaves a column to take
- * the remaining width.
+ * the remaining width. A `{ className }` entry sizes a column with classes,
+ * so it can change width at a breakpoint (the Record's Spk tab goes to zero
+ * below 90rem; its cells hide themselves to match).
  */
-export function Cols({ widths }: { widths: (string | undefined)[] }) {
+export function Cols({ widths }: { widths: (string | undefined | { className: string })[] }) {
   return (
     <colgroup>
-      {widths.map((w, i) => (
-        <col key={i} style={w ? { width: w } : undefined} />
-      ))}
+      {widths.map((w, i) =>
+        typeof w === 'object' ? (
+          <col key={i} className={w.className} />
+        ) : (
+          <col key={i} style={w ? { width: w } : undefined} />
+        ),
+      )}
     </colgroup>
   );
 }

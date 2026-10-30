@@ -31,24 +31,28 @@ import {
  */
 
 // One set of widths per ledger, so every year's columns line up (as on /cv).
+// The public panel is 982 px at every desktop width. Team at 20% (196 px for
+// content that needs 81) plus the fixed columns left the tournament 42 px,
+// one word per line (measured 2026-10-30); the widths below leave it ~175 px
+// on speaking and ~175 px on judging. Tournament is the only flexible column.
 const PUBLIC_SPEAKING_WIDTHS = [
   undefined, // tournament
   '4.5rem', // format
-  '20%', // team
+  '8rem', // team (long names and a pro-am mark wrap)
   '6.5rem', // team rank
   '7rem', // spk-tab rank
   '5.5rem', // avg score
   '11.5rem', // result: "Final (Champion)" wrapped at 10rem
-  '11.5rem', // source (hosts truncate)
+  '7.5rem', // source (hosts truncate, full host on hover)
 ];
 const PUBLIC_JUDGING_WIDTHS = [
   undefined, // tournament
   '4.5rem', // format
-  '7rem', // prelims chaired
-  '7rem', // prelims judged
-  '11rem', // last outround chaired
-  '11rem', // last outround judged
-  '13rem', // source
+  '9rem', // prelims chaired (header overran at 7rem)
+  '9rem', // prelims judged
+  '9.5rem', // last outround chaired
+  '9.5rem', // last outround judged
+  '9rem', // source (hosts truncate, full host on hover)
 ];
 
 export function PublicSpeakingTable({
@@ -65,7 +69,7 @@ export function PublicSpeakingTable({
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full min-w-[56rem] table-fixed" label={label}>
+          <Table className="w-full min-w-[61rem] table-fixed" label={label}>
             <Cols widths={PUBLIC_SPEAKING_WIDTHS} />
             <thead>
               <tr>
@@ -162,7 +166,7 @@ export function PublicJudgingTable({ rows, label }: { rows: CvJudgeRow[]; label:
     <>
       <div className="panel hidden overflow-hidden md:block">
         <TableScroll>
-          <Table className="w-full min-w-[56rem] table-fixed" label={label}>
+          <Table className="w-full min-w-[61rem] table-fixed" label={label}>
             <Cols widths={PUBLIC_JUDGING_WIDTHS} />
             <thead>
               <tr>
