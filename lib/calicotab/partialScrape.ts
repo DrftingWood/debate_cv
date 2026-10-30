@@ -9,6 +9,7 @@ import {
   runFullScrape,
   ScrapeBusyError,
 } from './ingest';
+import { isIngestDeadlineError } from './fetchSession';
 import type { NavigationStructure } from './parseNav';
 import { publicTournamentBase } from './prescrape';
 import { pieceRefForUrl, type PieceKind, type PieceRef } from './scrapePieces';
@@ -148,6 +149,7 @@ export async function rescrapePieces(
  * half-done scrape for the platform to kill, so the loop ends the tick instead.
  */
 const RETRY_HEADROOM_MS = 20_000;
+const RETRY_TOURNAMENTS_PER_TICK = 20;
 
 /**
  * Retries every piece whose back-off has run out (status 'failed', nextRetryAt
@@ -163,11 +165,25 @@ export async function retryDuePieces(opts: {
   rescrape?: typeof rescrapePieces;
 }): Promise<{ tournaments: number; loaded: number; failed: number }> {
   const rescrape = opts.rescrape ?? rescrapePieces;
-  const due = await prisma.scrapePiece.findMany({
-    where: { status: 'failed', nextRetryAt: { lte: opts.now ?? new Date() } },
-    orderBy: { nextRetryAt: 'asc' },
-    select: { tournamentId: true, kind: true, key: true },
+  // Bounded in two steps: a backlog of thousands of due pieces must not be
+  // loaded every tick when a tick works through a few tournaments. First the
+  // next tournaments by their oldest due piece, then only their pieces.
+  const dueWhere = { status: 'failed', nextRetryAt: { lte: opts.now ?? new Date() } };
+  const next = await prisma.scrapePiece.groupBy({
+    by: ['tournamentId'],
+    where: dueWhere,
+    _min: { nextRetryAt: true },
+    orderBy: { _min: { nextRetryAt: 'asc' } },
+    take: RETRY_TOURNAMENTS_PER_TICK,
   });
+  const due =
+    next.length === 0
+      ? []
+      : await prisma.scrapePiece.findMany({
+          where: { ...dueWhere, tournamentId: { in: next.map((n) => n.tournamentId) } },
+          orderBy: { nextRetryAt: 'asc' },
+          select: { tournamentId: true, kind: true, key: true },
+        });
   const byTournament = new Map<bigint, PieceRef[]>();
   for (const p of due) {
     const refs = byTournament.get(p.tournamentId) ?? [];
@@ -184,6 +200,8 @@ export async function retryDuePieces(opts: {
       total.failed += r.failed.length;
     } catch (err) {
       if (err instanceof ScrapeBusyError) continue;
+      // Out of time is the tick ending, not a fault: stop quietly.
+      if (isIngestDeadlineError(err)) break;
       Sentry.captureException(err, {
         tags: { stage: 'piece-retry' },
         extra: { tournamentId: String(tournamentId) },
