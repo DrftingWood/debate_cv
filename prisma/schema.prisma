@@ -271,9 +271,44 @@ model Tournament {
   motions              Motion[]
   tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
+  scrapePieces         ScrapePiece[]
 
   @@index([year])
   @@index([format])
+}
+
+/// One independently fetched part of a tournament scrape: a single tab
+/// (team, speaker, participants, motions), one break category, or one
+/// results round. A tab with 12 rounds used to be all-or-nothing; recording
+/// each part lets a flaky round be retried and re-scraped alone while the
+/// rest stays stored. `key` is '' for single tabs, the lower-cased category
+/// for a break, the round number for a round.
+model ScrapePiece {
+  id            BigInt     @id @default(autoincrement())
+  tournamentId  BigInt
+  kind          String
+  key           String
+  label         String
+  url           String
+  /// 'ok' | 'failed'
+  status        String
+  httpStatus    Int?
+  lastError     String?
+  /// Consecutive failures; reset to 0 by a success. Drives the back-off in
+  /// retryDelayMs (lib/calicotab/scrapePieces.ts).
+  attempts      Int        @default(0)
+  lastAttemptAt DateTime
+  /// Last time the piece loaded cleanly; kept through later failures so the
+  /// stored data's age stays known.
+  loadedAt      DateTime?
+  /// Null once retries are exhausted (or the piece is ok).
+  nextRetryAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, kind, key])
+  @@index([status, nextRetryAt])
 }
 
 model Person {
