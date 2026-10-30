@@ -11,6 +11,10 @@ import { categoryLabel } from '@/lib/cvErrorReports/categories';
 import { buttonClasses } from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils/date';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { StatRow, StatTile } from '@/components/ui/StatTile';
+import { ScrapeHealthSection } from '@/components/admin/ScrapeHealthSection';
+import { FailedImportsSection } from '@/components/admin/FailedImportsSection';
+import { getScrapeHealth } from '@/lib/admin/scrapeHealth';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -26,27 +30,39 @@ export default async function AdminPage() {
     redirect('/');
   }
 
-  const [tournaments, discoveredUrls, lockedUrls, pendingJobs, recentParserRuns, cvReports] =
-    await Promise.all([
-      prisma.tournament.count(),
-      prisma.discoveredUrl.count(),
-      prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
-      prisma.ingestJob.count({ where: { status: 'pending' } }),
-      // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
-      // give a sense of warning frequency without scanning the whole table.
-      // Most-recent-first so frequencies reflect current parser version.
-      prisma.parserRun.findMany({
-        where: { warnings: { isEmpty: false } },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-        select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
-      }),
-      prisma.cvErrorReport.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-        include: { user: { select: { name: true, email: true } } },
-      }),
-    ]);
+  const [
+    tournaments,
+    discoveredUrls,
+    lockedUrls,
+    pendingJobs,
+    failedJobCount,
+    health,
+    recentParserRuns,
+    cvReports,
+  ] = await Promise.all([
+    prisma.tournament.count(),
+    prisma.discoveredUrl.count(),
+    prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
+    prisma.ingestJob.count({ where: { status: 'pending' } }),
+    // Counted apart from the health read model, whose list is capped at
+    // 200: the tile and "Retry all n" must state the real number.
+    prisma.ingestJob.count({ where: { status: { in: ['failed', 'abandoned'] } } }),
+    getScrapeHealth(),
+    // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
+    // give a sense of warning frequency without scanning the whole table.
+    // Most-recent-first so frequencies reflect current parser version.
+    prisma.parserRun.findMany({
+      where: { warnings: { isEmpty: false } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
+    }),
+    prisma.cvErrorReport.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { user: { select: { name: true, email: true } } },
+    }),
+  ]);
 
   const cvReportTournamentIds = [
     ...new Set(cvReports.flatMap((report) => report.tournamentIds)),
@@ -86,6 +102,10 @@ export default async function AdminPage() {
     .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 20);
 
+  // One clock for every relative time on the page, so two cells written a
+  // millisecond apart cannot disagree about "just now".
+  const now = new Date();
+
   return (
     <div className="space-y-8">
       <header className="space-y-3">
@@ -100,30 +120,29 @@ export default async function AdminPage() {
 
       <section className="rounded-lg border p-6 space-y-4">
         <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
-        <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
-          <div>
-            <dt className="text-ink-soft">Tournaments</dt>
-            <dd className="text-stat font-semibold mt-1">{tournaments.toLocaleString('en-GB')}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Discovered URLs</dt>
-            <dd className="text-stat font-semibold mt-1">
-              {discoveredUrls.toLocaleString('en-GB')}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Locked URLs</dt>
-            <dd className="text-stat font-semibold mt-1">{lockedUrls.toLocaleString('en-GB')}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Pending jobs</dt>
-            <dd className="text-stat font-semibold mt-1">{pendingJobs.toLocaleString('en-GB')}</dd>
-          </div>
-        </dl>
+        {/* Six tiles in two rows of three: a single row of six crowds the
+            figures at desktop width, and StatRow's own five-column cap
+            would leave one tile alone on a second line. */}
+        <StatRow columns={3}>
+          <StatTile label="Tournaments" value={tournaments.toLocaleString('en-GB')} />
+          <StatTile label="Discovered URLs" value={discoveredUrls.toLocaleString('en-GB')} />
+          <StatTile label="Locked URLs" value={lockedUrls.toLocaleString('en-GB')} />
+          <StatTile label="Pending jobs" value={pendingJobs.toLocaleString('en-GB')} />
+          <StatTile
+            label="Partly loaded"
+            value={health.partlyLoaded.toLocaleString('en-GB')}
+            hint={`of ${health.tracked.toLocaleString('en-GB')} tracked`}
+          />
+          <StatTile label="Failed jobs" value={failedJobCount.toLocaleString('en-GB')} />
+        </StatRow>
         {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
             the 2026-06 IA pass — it's operator tooling, not a debater need. */}
         <ExportErrorsButton />
       </section>
+
+      <ScrapeHealthSection health={health} now={now} />
+
+      <FailedImportsSection jobs={health.failedJobs} total={failedJobCount} now={now} />
 
       {/* Tags and Verify used to sit in the CV sub-bar (admins only). That
           bar went with the 2026-10-29 navigation change, so the operator
