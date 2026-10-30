@@ -8,6 +8,7 @@
 - **Checks** (`lib/audit/checks.ts` and helpers, pure): champion, rounds complete, rooms per round, teams in rounds, partners, panels (only where every judge's panels are stored), points add up, outround shape, break size, speaker tab, motions, scrape incomplete, old parser, plus open user reports.
   - Each check is weighted; pass earns its weight, warn half, fail nothing, and na drops out.
   - Each open report costs 10 points, capped at 30. Bands: 90+ Good, 70–89 Check, below 70 Re-scrape.
+  - A check whose page the tournament withholds (an unreleased team or speaker tab, hidden round or outround results, all recorded as `withheld` pieces) is "not applicable", never a failure, and a withheld page is never suggested for re-scrape (`CHECKS_VERSION` 2026-10-31.3).
   - **Open question (owner):** when a tab has no Open bracket (schools Senior/Junior, APDA Varsity/Novice), the bracket with the most outround teams names the champion. The APDA case is on hold, so these tournaments show on the admin page under "Open questions".
 - **Stored** in `TournamentAudit` (migration `20261031100000_tournament_audit`, additive). Audits are written:
   - after every scrape write, best-effort, skipped with under 5 s left;

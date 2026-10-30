@@ -194,7 +194,8 @@ describe('Data accuracy section', () => {
     expect(out).toMatch(/aria-label="Re-scrape all failed for Cambridge Open"/);
     expect(out).toContain('None failing');
     // Cambridge Open has no public address: a word, not an unlinked "Tab".
-    expect(out).toMatch(/<td[^>]*><span class="text-ink-soft">None<\/span><\/td>/);
+    // "No tab", the same words as the tournament ledger and Open questions.
+    expect(out).toMatch(/<td[^>]*><span class="text-ink-soft">No tab<\/span><\/td>/);
   });
 
   it('links the tab and each suggested page in a new tab', async () => {

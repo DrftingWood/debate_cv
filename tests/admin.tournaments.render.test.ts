@@ -93,6 +93,15 @@ describe('/admin/tournaments', () => {
     expect(miss).not.toContain('No tournaments stored yet');
     expect(none).not.toContain('Tournament pages');
   });
+
+  // Final review of PR #265: one wording for a tournament with no public
+  // address, here as in the accuracy ledger and Open questions.
+  it('says "No tab" for a tournament with no public address', async () => {
+    h.list.mockResolvedValue({ rows: [{ ...row(1), tabUrl: null }], total: 1, page: 1, pages: 1 });
+    const out = await render({});
+    expect(out).toMatch(/<span class="text-ink-soft">No tab<\/span>/);
+    expect(out).not.toMatch(/>None</);
+  });
 });
 
 describe('/admin/tournaments with a pasted URL', () => {
