@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 import type { NavigationStructure } from './parseNav';
+import { breakPageKind, type RoundDebate } from './parseTabs';
 import type { ApiTabsResult } from './tabbycatApi';
 
 // A scrape is recorded as pieces (one per tab, per break category, per
@@ -216,5 +218,97 @@ export async function recordPieceOutcomes(
       where: { id: row.id },
       data: { nextRetryAt: delay == null ? null : new Date(now.getTime() + delay) },
     });
+  }
+}
+
+/** A piece to clear, with what its rows are keyed by in the database. */
+export type ClearablePiece = PieceRef & {
+  roundNumber: number | null;
+  roundLabel: string | null;
+  breakStage: string | null;
+};
+
+/**
+ * The pieces of a partial re-scrape whose stored rows are to be replaced,
+ * keyed the way the write phase keys their rows. Only pieces that loaded are
+ * passed in: a piece whose fetch failed keeps its stored rows. A round is
+ * matched to its parse by number (its key); its label is the parse's, which
+ * is what the outround write uses as the EliminationResult stage. A break's
+ * stage comes from its URL through breakPageKind, as the write's does.
+ *
+ * A page that loaded but parsed to nothing (a round with no results, a team
+ * tab with no rows) is not cleared: an empty parse is more likely a layout
+ * the parser missed than a tournament that deleted its results, and clearing
+ * would replace stored rows with nothing.
+ */
+export function piecesToClear(
+  outcomes: PieceOutcome[],
+  parsed: { rounds: (RoundDebate | null | undefined)[]; teamRowCount: number },
+): ClearablePiece[] {
+  const out: ClearablePiece[] = [];
+  const none = { roundNumber: null, roundLabel: null, breakStage: null };
+  for (const o of outcomes) {
+    if (!o.ok) continue;
+    const ref = { kind: o.kind, key: o.key };
+    if (o.kind === 'round') {
+      const n = /^\d+$/.test(o.key) ? Number(o.key) : null;
+      const round = n == null ? null : parsed.rounds.find((r) => r?.roundNumber === n);
+      if (!round || round.teamResults.length === 0) continue;
+      out.push({ ...ref, ...none, roundNumber: n, roundLabel: round.roundLabel });
+    } else if (o.kind === 'break') {
+      out.push({ ...ref, ...none, breakStage: breakPageKind(o.url).stage ?? 'break' });
+    } else if (o.kind === 'team') {
+      if (parsed.teamRowCount > 0) out.push({ ...ref, ...none });
+    } else {
+      out.push({ ...ref, ...none });
+    }
+  }
+  return out;
+}
+
+/**
+ * Deletes the stored rows of the pieces a partial re-scrape is about to
+ * rewrite, inside the write transaction and before the upserts. Upserts alone
+ * would leave a row the new page no longer has (a team dropped from a round's
+ * results, a team that no longer breaks); a tournament-wide delete would take
+ * every other piece's rows with it. So each piece deletes exactly what its
+ * page writes:
+ *   - round: its TeamResult rows, and for an outround the won/lost
+ *     EliminationResult rows of its stage. Its judge panels are not deleted
+ *     here: the round_results writers (judgeRowsOwnedByRounds) already
+ *     replace exactly the rounds that loaded, after this transaction.
+ *   - team: the tab-total TeamResult rows (roundNumber 0).
+ *   - break: the stage's break rows (result null). The won/lost rows an
+ *     outround wrote under the same stage belong to that round.
+ *   - speaker, participants, motions: nothing. Their writes already replace
+ *     per participant or per motion.
+ */
+export async function clearPieces(
+  tx: Prisma.TransactionClient,
+  tournamentId: bigint,
+  pieces: ClearablePiece[],
+): Promise<void> {
+  for (const p of pieces) {
+    if (p.kind === 'round') {
+      if (p.roundNumber != null) {
+        await tx.teamResult.deleteMany({ where: { tournamentId, roundNumber: p.roundNumber } });
+      }
+      if (p.roundLabel != null) {
+        await tx.eliminationResult.deleteMany({
+          where: {
+            tournamentId,
+            entityType: 'team',
+            stage: p.roundLabel,
+            result: { in: ['won', 'lost'] },
+          },
+        });
+      }
+    } else if (p.kind === 'team') {
+      await tx.teamResult.deleteMany({ where: { tournamentId, roundNumber: 0 } });
+    } else if (p.kind === 'break' && p.breakStage != null) {
+      await tx.eliminationResult.deleteMany({
+        where: { tournamentId, stage: p.breakStage, result: null },
+      });
+    }
   }
 }

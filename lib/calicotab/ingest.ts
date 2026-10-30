@@ -26,10 +26,12 @@ import {
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
 import {
   apiTabsForPieces,
+  clearPieces,
   navForPieces,
   partialWarning,
   pieceLoaded,
   pieceOutcome,
+  piecesToClear,
   recordPieceOutcomes,
   wantsPiece,
   type PieceKind,
@@ -238,34 +240,24 @@ export type PrescrapeResult = {
 };
 
 /**
- * B9: store a tournament from its PUBLIC pages, with no owner, so that a
- * user's later private-URL ingest is served from storage by the cache path.
- * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
- *
- * The same tab and write phases as a cache-miss ingest (runFullScrape) with
- * no user: nothing is claimed or linked, no DiscoveredUrl is written, and the
- * registration snapshot is forced empty. Afterwards it records every judge's
- * panels from the round results (recordEveryJudgeFromRoundResults) — the
- * cache path has no rounds to read them from when a judge later ingests.
- *
- * Refuses private URLs and root-hosted URLs (publicTournamentBase). A stored
- * tournament that is fresh and at the current PARSER_VERSION is left alone
- * unless `force`; the runner relies on that to resume and to re-scrape only
- * what a parser bump invalidated.
+ * A tournament's public landing page, read with a fresh FetchSession, and the
+ * stored row it matches (by fingerprint, then by host and slug), ready for
+ * runFullScrape with no owner. Shared by the pre-scrape and the partial
+ * re-scrape (partialScrape.ts) so both identify a tournament the same way.
+ * A public page has no registration card; it is forced empty so nothing
+ * owner-shaped can reach the write phase.
  */
-export async function prescrapeTournament(
+export async function loadPublicLanding(
   url: string,
-  options: { force?: boolean; deadline?: number } = {},
-): Promise<PrescrapeResult> {
+  deadline?: number,
+): Promise<{ base: string; fingerprint: string; loaded: LoadedState }> {
   const { base, host, slug } = publicTournamentBase(url);
-  const fetchSession = new FetchSession({ deadline: options.deadline });
+  const fetchSession = new FetchSession({ deadline });
   const landingResult = await fetchHtmlWithProvenance(base, { session: fetchSession });
   if (!landingResult.ok)
     throw new Error(`fetch public home ${base} → HTTP ${landingResult.status}`);
   const parseStart = Date.now();
   const parsed = parsePrivateUrlPage(landingResult.html, base);
-  // A public page has no registration card. Force it empty so nothing
-  // owner-shaped can reach the write phase.
   const snapshot = {
     ...parsed,
     registration: { personName: null, teamName: null, speakers: [], institution: null },
@@ -289,6 +281,52 @@ export async function prescrapeTournament(
   const fingerprint =
     existing?.fingerprint ??
     computeFingerprint({ host, tournamentSlug: slug, tournamentName: name, year: explicitYear });
+  return {
+    base,
+    fingerprint,
+    loaded: {
+      normalized: base,
+      urlVariants: [],
+      parsedUrl: new URL(base),
+      tournamentSlug: slug,
+      fetchSession,
+      landingDoc: landingResult,
+      landingHtml: landingResult.html,
+      snapshot,
+      fetchWarnings: [],
+      landingWarnings: [],
+      privateUrlSentAt: null,
+      tournamentFingerprint: fingerprint,
+      existing,
+      parseStart,
+      year: explicitYear,
+    },
+  };
+}
+
+/**
+ * B9: store a tournament from its PUBLIC pages, with no owner, so that a
+ * user's later private-URL ingest is served from storage by the cache path.
+ * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
+ *
+ * The same tab and write phases as a cache-miss ingest (runFullScrape) with
+ * no user: nothing is claimed or linked, no DiscoveredUrl is written, and the
+ * registration snapshot is forced empty. Afterwards it records every judge's
+ * panels from the round results (recordEveryJudgeFromRoundResults) — the
+ * cache path has no rounds to read them from when a judge later ingests.
+ *
+ * Refuses private URLs and root-hosted URLs (publicTournamentBase). A stored
+ * tournament that is fresh and at the current PARSER_VERSION is left alone
+ * unless `force`; the runner relies on that to resume and to re-scrape only
+ * what a parser bump invalidated.
+ */
+export async function prescrapeTournament(
+  url: string,
+  options: { force?: boolean; deadline?: number } = {},
+): Promise<PrescrapeResult> {
+  const { base, fingerprint, loaded } = await loadPublicLanding(url, options.deadline);
+  const { existing } = loaded;
+  const name = loaded.snapshot.tournamentName;
 
   const summary = (
     status: PrescrapeResult['status'],
@@ -314,26 +352,8 @@ export async function prescrapeTournament(
     return summary('current');
   }
 
-  const loaded: LoadedState = {
-    normalized: base,
-    urlVariants: [],
-    parsedUrl: new URL(base),
-    tournamentSlug: slug,
-    fetchSession,
-    landingDoc: landingResult,
-    landingHtml: landingResult.html,
-    snapshot,
-    fetchWarnings: [],
-    landingWarnings: [],
-    privateUrlSentAt: null,
-    tournamentFingerprint: fingerprint,
-    existing,
-    parseStart,
-    year: explicitYear,
-  };
-
   const claim = await acquireScrapeClaim(existing?.id ?? null);
-  if (claim === 'busy') throw new Error(`another scrape of ${base} is in progress`);
+  if (claim === 'busy') throw new ScrapeBusyError(base);
   let judgesWritten = 0;
   try {
     const result = await runFullScrape(
@@ -374,7 +394,7 @@ export async function prescrapeTournament(
  * may fuzzy-match because it knows whose rounds it wants; here a fuzzy match
  * would credit one judge with a similarly named judge's panels.
  */
-async function recordEveryJudgeFromRoundResults(
+export async function recordEveryJudgeFromRoundResults(
   rounds: FetchedTabs['rounds'],
   tournamentId: bigint,
   lookupPersonId: PersonContext['lookupPersonId'],
@@ -429,7 +449,7 @@ async function recordEveryJudgeFromRoundResults(
  * pre-scrape (prescrapeTournament), which writes the tournament with no
  * owner — nothing is linked or claimed and no DiscoveredUrl is touched.
  */
-async function runFullScrape(
+export async function runFullScrape(
   loaded: LoadedState,
   userId: string | null,
   options: { force?: boolean; only?: PieceRef[] },
@@ -544,7 +564,18 @@ const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
 const SCRAPE_AWAIT_MAX_MS = 15_000;
 
-async function acquireScrapeClaim(
+/**
+ * Another scrape holds this tournament's claim. A caller that must not wait
+ * (the pre-scrape, a partial re-scrape) throws this; the API maps it to 409.
+ */
+export class ScrapeBusyError extends Error {
+  constructor(base: string) {
+    super(`another scrape of ${base} is in progress`);
+    this.name = 'ScrapeBusyError';
+  }
+}
+
+export async function acquireScrapeClaim(
   tournamentId: bigint | null,
 ): Promise<'acquired' | 'busy' | 'none'> {
   if (tournamentId == null) return 'none';
@@ -559,7 +590,7 @@ async function acquireScrapeClaim(
   return res.count > 0 ? 'acquired' : 'busy';
 }
 
-async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
+export async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
   try {
     await prisma.tournament.updateMany({
       where: { id: tournamentId },
@@ -1575,6 +1606,16 @@ async function writeIngestTransaction(
 
       if (refreshWholeTournament) {
         await prepareTournamentWideRefresh(tx, t.id);
+      }
+      // A partial re-scrape replaces only the pieces that loaded: their rows
+      // go here, in the same transaction as the rewrite, so a reader never
+      // sees a piece emptied but not yet rewritten (scrapePieces.clearPieces).
+      if (options.only) {
+        await clearPieces(
+          tx,
+          t.id,
+          piecesToClear(fetched.pieceOutcomes, { rounds, teamRowCount: teamRows.length }),
+        );
       }
 
       // Team results
