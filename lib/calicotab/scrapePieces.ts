@@ -147,6 +147,28 @@ export function apiTabsForPieces(
   };
 }
 
+/** Whether any piece of this kind loaded (a break or round: any one of them). */
+export function pieceLoaded(fetched: PieceRef[], kind: PieceKind): boolean {
+  return fetched.some((p) => p.kind === kind);
+}
+
+/**
+ * The one warning a partial ingest carries, naming each page that did not
+ * load: `partial: 2 page(s) did not load — Speaker tab (HTTP 504); R2 (HTTP 504)`.
+ * Null when every page loaded. The per-page detail lives in ScrapePiece; this
+ * is only the line the ingest result shows.
+ */
+export function partialWarning(outcomes: PieceOutcome[]): string | null {
+  const failed = outcomes.filter((o) => !o.ok);
+  if (failed.length === 0) return null;
+  const why = (o: PieceOutcome) =>
+    o.httpStatus != null ? `HTTP ${o.httpStatus}` : (o.error ?? 'no answer');
+  return (
+    `partial: ${failed.length} page(s) did not load — ` +
+    failed.map((o) => `${o.label} (${why(o)})`).join('; ')
+  );
+}
+
 const RETRY_DELAYS_MS = [15 * 60_000, 60 * 60_000, 6 * 60 * 60_000, 24 * 60 * 60_000];
 
 /** Wait before the next try after the nth consecutive failure; null = stop retrying. */

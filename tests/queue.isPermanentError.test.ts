@@ -14,15 +14,16 @@ describe('isPermanentError', () => {
     expect(isPermanentError(err)).toBe(true);
   });
 
+  // Since the owner decision of 2026-10-30 (partial scrapes) a tab failure
+  // only aborts when no page loaded at all, and the message says so.
   it('does NOT match a tab-fetch HTTP 404 (could be transient)', () => {
-    const err =
-      'Aborting ingest: 1 tab fetch(es) failed — fetch: speakerTab HTTP 404 — <!DOCTYPE html>';
+    const err = 'Aborting ingest: no page loaded — fetch: speakerTab HTTP 404 — <!DOCTYPE html>';
     expect(isPermanentError(err)).toBe(false);
   });
 
   it('does NOT match a HTTP 403 (Cloudflare — recoverable)', () => {
     const err =
-      'Aborting ingest: 1 tab fetch(es) failed — fetch: participants HTTP 403 (set SCRAPER_API_KEY to bypass Cloudflare blocking)';
+      'Aborting ingest: no page loaded — fetch: participants HTTP 403 (set SCRAPER_API_KEY to bypass Cloudflare blocking)';
     expect(isPermanentError(err)).toBe(false);
   });
 

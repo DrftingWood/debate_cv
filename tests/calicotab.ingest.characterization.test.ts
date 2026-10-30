@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
   fetchHtml: vi.fn(),
   fetchRound: vi.fn(),
   recordParserRun: vi.fn(),
+  recordPieceOutcomes: vi.fn(),
   captureMessage: vi.fn(),
   // Per-test replacement for the speaker tab parse (null: the default rows).
   speakerTab: null as unknown[] | null,
@@ -56,6 +57,12 @@ vi.mock('@/lib/calicotab/provenance', () => ({
 vi.mock('@/lib/calicotab/storedFirst', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/calicotab/storedFirst')>()),
   linkFromStoredTournament: async () => null,
+}));
+// The ScrapePiece upserts have their own tests (calicotab.scrapePieces.test.ts);
+// here only what an ingest hands them is pinned.
+vi.mock('@/lib/calicotab/scrapePieces', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/calicotab/scrapePieces')>()),
+  recordPieceOutcomes: h.recordPieceOutcomes,
 }));
 // The year fill has its own tests (calicotab.yearFromEmail.test.ts).
 vi.mock('@/lib/calicotab/yearFromEmail', () => ({
@@ -364,6 +371,7 @@ function install(
   h.fetchHtml.mockImplementation(async (url: string) => okPage(url));
   h.fetchRound.mockImplementation(async (url: string) => okPage(url));
   h.recordParserRun.mockResolvedValue(undefined);
+  h.recordPieceOutcomes.mockResolvedValue(undefined);
 
   prismaMock.discoveredUrl.findFirst.mockResolvedValue({
     messageDate: new Date('2025-02-01T00:00:00Z'),
@@ -429,6 +437,7 @@ beforeEach(() => {
   h.fetchHtml.mockReset();
   h.fetchRound.mockReset();
   h.recordParserRun.mockReset();
+  h.recordPieceOutcomes.mockReset();
   h.captureMessage.mockReset();
   h.speakerTab = null;
   h.ownerName = null;
@@ -1042,21 +1051,21 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it('a failed tab fetch aborts before writing and releases the scrape claim', async () => {
+  // Owner decision 2026-10-30 (partial scrapes): a failed tab no longer
+  // aborts the ingest. What loaded is written, the failure is recorded as a
+  // ScrapePiece to retry, and the landing ParserRun still names the failure.
+  // This test used to pin the abort; the abort-and-release-claim half now
+  // lives in 'every page failing still aborts' below.
+  it('a failed tab fetch writes what loaded and still records the failure', async () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     h.fetchHtml.mockImplementation(async (url: string) =>
       url === SPEAKER_TAB
         ? { ok: false, url, status: 503, bodyPreview: '', elapsedMs: 1 }
         : okPage(url),
     );
-    await expect(ingestPrivateUrl(PRIVATE_URL, USER)).rejects.toThrow(
-      'Aborting ingest: 1 tab fetch(es) failed — fetch: speakerTab HTTP 503',
-    );
-    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
-    expect(callsOf(prismaMock.tournament.updateMany).at(-1)).toEqual({
-      where: { id: 7n },
-      data: { scrapeClaimedAt: null },
-    });
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
     // The failure is still recorded on the landing ParserRun.
     expect(h.recordParserRun.mock.calls[0]![0]).toMatchObject({
       success: false,
@@ -1322,5 +1331,74 @@ describe('fetchAndParseTabs: per-page outcomes and pieces', () => {
     expect(fetched.motions).toEqual([]);
     // From the nav's prelim links (Round 1, Round 2), not the one round parsed.
     expect(fetched.prelimRoundCount).toBe(2);
+  });
+});
+
+// Owner decision 2026-10-30 (partial scrapes): keep what loaded.
+describe('ingestPrivateUrl: partial scrapes keep what loaded', () => {
+  const failed = (url: string) => ({ ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 });
+
+  it('a failed round keeps the pages that loaded', async () => {
+    install();
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(callsOf(prismaMock.teamResult.upsert).map((c) => c.create.roundNumber)).toContain(0);
+    expect(h.recordPieceOutcomes).toHaveBeenCalledTimes(1);
+    const [tournamentId, outcomes] = h.recordPieceOutcomes.mock.calls[0]! as [
+      bigint,
+      { kind: string; key: string; ok: boolean }[],
+    ];
+    expect(tournamentId).toBe(1n);
+    expect(outcomes.find((o) => o.kind === 'round' && o.key === '2')).toMatchObject({ ok: false });
+    expect(outcomes.filter((o) => !o.ok)).toHaveLength(1);
+    expect(result.warnings.filter((w) => w.startsWith('partial:'))).toEqual([
+      'partial: 1 page(s) did not load — R2 (HTTP 504)',
+    ]);
+  });
+
+  it('a failed speaker tab on a stored tournament keeps stored speaker data', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === SPEAKER_TAB ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    // No tournament-wide refresh: its deletes would drop the stored rows the
+    // failed page cannot replace.
+    expect(prismaMock.teamResult.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.eliminationResult.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.speakerRoundScore.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('a failed team tab keeps the stored team count and passes the guard', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalTeams: 40 }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === TEAM_TAB ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(result.warnings).not.toContain('regression-guard: overwrite blocked');
+    const update = callsOf(prismaMock.tournament.upsert)[0]!.update;
+    expect(update.totalTeams).toBeUndefined();
+    // The participants list loaded, so the participant count is refreshed.
+    expect(update.totalParticipants).toBe(2);
+  });
+
+  it('every page failing still aborts, writes nothing and releases the claim', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PRIVATE_URL ? okPage(url) : failed(url),
+    );
+    h.fetchRound.mockImplementation(async (url: string) => failed(url));
+    await expect(ingestPrivateUrl(PRIVATE_URL, USER)).rejects.toThrow(/no page loaded/);
+    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
+    expect(h.recordPieceOutcomes).not.toHaveBeenCalled();
+    expect(callsOf(prismaMock.tournament.updateMany).at(-1)).toEqual({
+      where: { id: 7n },
+      data: { scrapeClaimedAt: null },
+    });
   });
 });
