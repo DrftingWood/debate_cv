@@ -9,7 +9,7 @@ import { resetStuckRunning } from '@/lib/queue';
 import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
 import { prisma } from '@/lib/db';
 import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
-import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { isGmailScopeMissing, isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
 
@@ -133,7 +133,8 @@ async function runBackgroundScan() {
         return rows.map((r) => r.userId);
       },
       scan: scanMailbox,
-      isGrantGone: isRefreshTokenInvalid,
+      // A grant without Gmail access is as useless as a revoked one.
+      isGrantGone: (err) => isRefreshTokenInvalid(err) || isGmailScopeMissing(err),
       forgetGrant: revokeAndForgetGmailToken,
       markAttempted: async (userId) => {
         await prisma.gmailToken.update({ where: { userId }, data: { lastScannedAt: new Date() } });
