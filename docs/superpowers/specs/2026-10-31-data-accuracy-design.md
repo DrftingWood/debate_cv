@@ -59,5 +59,13 @@ The admin view links straight to the source pages, so a hint can be checked by e
 - Each tournament row in the accuracy table, and the tournament page header, links the public tab ("Tab ↗").
 - `CheckResult.pieces` carries `url` (public) alongside each `PieceRef`, so the overview can link without another query.
 
+## Open questions shown on the admin panel (owner, 2026-10-31)
+Some rules are assumptions the owner hasn't settled. Their checks tag the result with `assumptions` (codes), and the overview shows an **"Open questions"** panel with, for each assumption:
+- the rule in plain words;
+- "On hold: owner to decide";
+- how many tournaments it decided, and the list with links.
+
+The first one is `no_open_bracket_champion`. When a tab has no Open bracket (for example schools Senior/Junior, or APDA Varsity/Novice), the bracket with the most outround teams names the champion. The owner put the APDA case on hold.
+
 ## Out of scope
 Per-room panel checks (judge rows have no room key). Alerts or notifications. Automatic re-scrapes triggered by the score.
