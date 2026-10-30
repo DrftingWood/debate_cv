@@ -2,7 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  MARKUP_NAME_PATTERN,
   PLACEHOLDER_NAME_PATTERN,
+  isMarkupPersonName,
   isPlaceholderPersonName,
   isRedactedName,
   stripAttendanceTag,
@@ -87,6 +89,35 @@ describe('placeholder names', () => {
     expect(sql).toContain(`'${PLACEHOLDER_NAME_PATTERN}'`);
     expect(sql).toContain('"suppressedAt" IS NULL');
     expect(sql).toContain(`"displayName" !~ '[^ -~]'`);
+  });
+});
+
+describe('markup names', () => {
+  // Real rows from production: the adjudicator cell split on commas through
+  // its tags. Each one became a Person of its own.
+  test.each([
+    `<span class="d-inline">Mahor Nagda<i class='adj-symbol'>Ⓒ</i></span><div class='clearfix pt-1 pb-1 d-block d-md-none'> </div><span class='d-none d-md-inline'>`,
+    `</span><span class="d-inline">Mahor Nagda</span>`,
+    `</span><span class="d-inline">Raymond Kimura<i class='adj-symbol'>Ⓣ</i></span>`,
+  ])('%s is markup, not a name', (name) => {
+    expect(isMarkupPersonName(name)).toBe(true);
+  });
+
+  test.each(['Mahor Nagda', 'Mahor "degree BT" Nagda', 'Nagda Mahor', 'A < B', 'Miloš Marjanović'])(
+    '%s is a name',
+    (name) => {
+      expect(isMarkupPersonName(name)).toBe(false);
+    },
+  );
+
+  test('the cleanup migration uses exactly this pattern', () => {
+    const sql = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20261030140000_remove_markup_persons/migration.sql'),
+      'utf-8',
+    );
+    expect(sql).toContain(`"displayName" ~ '${MARKUP_NAME_PATTERN}'`);
+    expect(sql).toContain('"claimedByUserId" IS NULL');
+    expect(sql).toContain('"suppressedAt" IS NULL');
   });
 });
 

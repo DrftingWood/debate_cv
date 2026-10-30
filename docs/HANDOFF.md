@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-10-30 - Markup is never a person's name
+
+- **Defect.** Before the 2026-09-14 parser fix, the adjudicator cell was split on commas straight through its tags, and each piece became a Person: about 8000 rows named like `</span><span class="d-inline">Mahor Nagda<i class='adj-symbol'>Ⓣ</i></span>`.
+- **Guard.** `isMarkupPersonName` / `MARKUP_NAME_PATTERN` (`lib/calicotab/names.ts`). `preCommitPersons` and `linkRegistrationPerson` (`lib/calicotab/ingest.ts`) skip such names, so the parser can't reintroduce them even if it regresses. A characterization test feeds a markup judge through ingest.
+- **Cleanup.** Migration `20261030140000_remove_markup_persons` deletes unclaimed, unsuppressed Persons whose display name matches the pattern. It cascades to their participants, judge assignments and rejections. Runs on the production deploy.
+- **Check before merging (read-only, owner).** Tournaments last parsed before 2026-09-15 may still hold their judging *only* under markup Persons; the delete drops it until that tournament is re-ingested. Count them first:
+  ```sql
+  SELECT count(DISTINCT ja."tournamentId")
+  FROM "JudgeAssignment" ja JOIN "Person" p ON p.id = ja."personId"
+  WHERE p."displayName" ~ '</?[A-Za-z][A-Za-z0-9]*[ />]'
+    AND NOT EXISTS (
+      SELECT 1 FROM "JudgeAssignment" j2 JOIN "Person" p2 ON p2.id = j2."personId"
+      WHERE j2."tournamentId" = ja."tournamentId"
+        AND p2."displayName" !~ '</?[A-Za-z][A-Za-z0-9]*[ />]');
+  ```
+  If it is not 0, re-ingest those tournaments first (no global `PARSER_VERSION` bump).
+- **Rollback.** Revert the merge commit. The deleted rows are junk, but restore from a Neon restore point if the count above was skipped.
+
+---
+
 ## 2026-10-30 - Stored data first; calicotab treated as one slow host
 
 - **Incident.** 5-10 new users: Gmail scans found their private URLs, but nearly every import and onboarding read timed out at 15 s. Calicotab served pages in 10-40 s (its API, 40-90 ms on 10-28, took 27-29 s), all subdomains at once. The private-URL page was fetched before the stored copy was looked up, so pre-scraped tournaments failed too.

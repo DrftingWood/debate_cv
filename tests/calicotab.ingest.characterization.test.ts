@@ -43,6 +43,8 @@ const h = vi.hoisted(() => ({
   judyTag: null as string | null,
   // Per-test replacement for the motions page parse (null: the default two).
   motions: null as unknown[] | null,
+  // Per-test extra judge on every prelim panel (null: none).
+  extraJudge: null as string | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -227,7 +229,13 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
             roundScores: [],
           },
         ],
-  parseRoundResults: (_html: string, url: string) => structuredClone(ROUNDS[url]),
+  parseRoundResults: (_html: string, url: string) => {
+    const round = structuredClone(ROUNDS[url]) as { judgeAssignments?: unknown[] } | undefined;
+    if (h.extraJudge && round?.judgeAssignments?.length) {
+      round.judgeAssignments.push({ personName: h.extraJudge, panelRole: 'panel' });
+    }
+    return round;
+  },
   parseBreakPage: () => [
     {
       rank: 1,
@@ -430,6 +438,7 @@ beforeEach(() => {
   h.ownerName = null;
   h.judyTag = null;
   h.motions = null;
+  h.extraJudge = null;
   resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -653,6 +662,22 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
     expect(precommitted).toEqual(
       ['ada lovelace', 'alan turing', 'grace hopper', 'judge judy'].map(normalizePersonName),
     );
+  });
+
+  it('never makes a person of a name that is still markup', async () => {
+    // The adjudicator cell once split on commas straight through its tags
+    // (parseTabs.parseAdjudicatorCell); 8000 Person rows were named like this.
+    h.extraJudge = `</span><span class="d-inline">Mahor Nagda<i class='adj-symbol'>Ⓣ</i></span>`;
+    install();
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const precommitted = prismaMock.$queryRaw.mock.calls
+      .filter((c) => (c[0] as string[]).join('?').includes('INSERT INTO "Person"'))
+      .map((c) => c[1] as string);
+    expect(precommitted.some((name) => name.includes('<'))).toBe(false);
+    const judged = callsOf(prismaMock.judgeAssignment.createMany).flatMap((a) =>
+      (a.data as Array<{ personId: bigint }>).map((d) => d.personId),
+    );
+    expect(judged.every((id) => id != null)).toBe(true);
   });
 
   it('writes a participant per matched speaker and per adjudicator, with their roles', async () => {
