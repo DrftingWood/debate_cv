@@ -1,6 +1,7 @@
 import { IngestJobStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
+import { publicPieceUrl } from '@/lib/audit/types';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -34,8 +35,12 @@ export type ScrapeHealth = {
   partlyLoadedTournaments: Array<{
     id: bigint;
     name: string;
-    /** The stored source URL; links go through publicPieceUrl first. */
-    sourceUrl: string | null;
+    /**
+     * The public tab address, made public HERE: these rows feed a client
+     * table, and anything a client component is handed is serialised into
+     * the page, so a stored private URL must never get that far.
+     */
+    tabUrl: string | null;
     failed: FailedPiece[];
     lastAttemptAt: Date;
   }>;
@@ -129,7 +134,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
     partlyLoadedTournaments: newest.map((t) => ({
       id: t.id,
       name: byId.get(t.id)?.name ?? `Tournament ${t.id}`,
-      sourceUrl: byId.get(t.id)?.sourceUrlRaw ?? null,
+      tabUrl: publicPieceUrl(byId.get(t.id)?.sourceUrlRaw ?? ''),
       lastAttemptAt: t.lastAttemptAt,
       failed: pieces
         .filter((p) => p.tournamentId === t.id)

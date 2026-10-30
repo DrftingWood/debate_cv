@@ -52,7 +52,7 @@ const health: ScrapeHealth = {
     {
       id: BigInt(5),
       name: 'Oxford IV 2025',
-      sourceUrl: PRIVATE,
+      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
       lastAttemptAt: new Date(NOW - 60_000),
       failed: [
         {

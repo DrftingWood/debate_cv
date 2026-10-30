@@ -8,6 +8,7 @@ export function shortUrl(url: string): string {
     const u = new URL(url);
     return `${u.host}${u.pathname.replace(/\/privateurls\/.*/, '/…')}`;
   } catch {
-    return url;
+    // Never the input: an unparseable string can still hold a private key.
+    return 'Unreadable link';
   }
 }

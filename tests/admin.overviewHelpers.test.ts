@@ -59,7 +59,8 @@ describe('shortUrl', () => {
     expect(shortUrl('https://oxiv.calicotab.com/oxiv2025/privateurls/abc123/')).toBe(
       'oxiv.calicotab.com/oxiv2025/…',
     );
-    expect(shortUrl('not a url')).toBe('not a url');
+    // An unreadable string is never echoed: it could still hold a key.
+    expect(shortUrl('not a url')).toBe('Unreadable link');
   });
 });
 

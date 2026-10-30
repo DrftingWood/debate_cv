@@ -11,7 +11,7 @@ import { TabLink } from '@/components/admin/TabLink';
 export type PartlyLoadedRow = {
   id: string;
   name: string;
-  /** The stored source URL; TabLink makes it public before linking. */
+  /** The public tab address (made public by getScrapeHealth); null shows "None". */
   tabUrl: string | null;
   missing: string[];
   lastTried: { text: string; iso: string };

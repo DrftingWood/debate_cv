@@ -70,7 +70,7 @@ const full: ScrapeHealth = {
     {
       id: BigInt(5),
       name: 'Oxford IV 2025',
-      sourceUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
       lastAttemptAt: minutes(-90),
       failed: [
         {
@@ -94,7 +94,7 @@ const full: ScrapeHealth = {
     {
       id: BigInt(8),
       name: 'Cambridge Open',
-      sourceUrl: null,
+      tabUrl: null,
       lastAttemptAt: minutes(-10),
       failed: [
         {
