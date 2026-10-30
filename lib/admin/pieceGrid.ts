@@ -21,8 +21,11 @@ export type PieceCard = {
   kind: PieceKind;
   key: string;
   label: string;
-  status: 'ok' | 'failed';
-  /** "Loaded" or "Failed · HTTP 504" (just "Failed" when no status came back). */
+  status: 'ok' | 'failed' | 'withheld';
+  /**
+   * "Loaded", "Failed · HTTP 504" (just "Failed" when no status came back)
+   * or "Withheld by the tournament".
+   */
   pill: string;
   /** What the time is: when it loaded, or when it was last tried and failed. */
   timeLabel: 'Loaded' | 'Last tried';
@@ -32,8 +35,15 @@ export type PieceCard = {
 
 export const pieceId = (p: { kind: string; key: string }) => `${p.kind}:${p.key}`;
 
+function pillText(p: PieceRow): string {
+  if (p.status === 'ok') return 'Loaded';
+  if (p.status === 'withheld') return 'Withheld by the tournament';
+  return p.httpStatus != null ? `Failed · HTTP ${p.httpStatus}` : 'Failed';
+}
+
 /**
- * A loaded piece shows when it loaded; a failed one, when it was last tried.
+ * A loaded piece shows when it loaded; a failed or withheld one, when it was
+ * last tried.
  * A piece that is "ok" without a `loadedAt` (should not happen, but the
  * column is nullable) falls back to its last attempt rather than showing no
  * time at all.
@@ -47,7 +57,7 @@ export function toPieceCard(p: PieceRow, now: Date): PieceCard {
     key: p.key,
     label: p.label,
     status: p.status,
-    pill: ok ? 'Loaded' : p.httpStatus != null ? `Failed · HTTP ${p.httpStatus}` : 'Failed',
+    pill: pillText(p),
     timeLabel: ok ? 'Loaded' : 'Last tried',
     time: { text: relativeTime(at, now), iso: at.toISOString() },
     attempts: p.attempts,

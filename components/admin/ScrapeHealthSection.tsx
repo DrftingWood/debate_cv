@@ -101,6 +101,22 @@ export function ScrapeHealthSection({ health, now }: { health: ScrapeHealth; now
           </div>
         </>
       )}
+      <WithheldLine count={health.withheld} />
     </section>
+  );
+}
+
+/**
+ * Withheld pages are not failures (the tournament keeps them private and
+ * nothing retries them), so they sit outside the counts above: a line of
+ * their own, only when there are any.
+ */
+function WithheldLine({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <p className="text-caption text-ink-soft">
+      Withheld by the tournament: <span className="num text-ink">{count}</span>{' '}
+      {count === 1 ? 'page' : 'pages'}, not retried
+    </p>
   );
 }

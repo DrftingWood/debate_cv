@@ -42,6 +42,7 @@ const minutes = (n: number) => new Date(NOW + n * 60_000);
 
 const full: ScrapeHealth = {
   tracked: 9,
+  withheld: 0,
   partlyLoaded: 2,
   failingPieces: 4,
   retriesDue: 1,
@@ -104,6 +105,7 @@ const full: ScrapeHealth = {
 
 const empty: ScrapeHealth = {
   tracked: 0,
+  withheld: 0,
   partlyLoaded: 0,
   failingPieces: 0,
   retriesDue: 0,
@@ -156,6 +158,15 @@ describe('admin overview', () => {
     expect(out).toContain('Retry selected');
     expect(out).toMatch(/Retry all 3/);
     expect(out).toMatch(/aria-label="Select [^"]*oxiv\.calicotab\.com[^"]*"/);
+  });
+
+  // Final review (2026-10-31): withheld pages are not failing; they get a
+  // line of their own and no place in the failing counts.
+  it('counts withheld pages apart, and only when there are some', async () => {
+    expect(await renderPage(full)).not.toContain('Withheld by the tournament');
+    const out = await renderPage({ ...empty, withheld: 3 });
+    expect(out).toContain('Every tracked tournament loaded in full');
+    expect(out).toMatch(/Withheld by the tournament: <[^>]+>3<[^>]+> pages, not retried/);
   });
 
   it('states both empty states when nothing is failing', async () => {

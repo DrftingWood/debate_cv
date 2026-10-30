@@ -518,6 +518,21 @@ describe('buildCvData characterization: partly loaded', () => {
     });
   });
 
+  // Final review (2026-10-31): a page the tournament withholds will never
+  // load, so it must not leave a permanent public mark.
+  it('a withheld piece does not mark the tournament', async () => {
+    const pieces = [{ tournamentId: 1n, status: 'withheld' }];
+    prismaMock.scrapePiece.findMany.mockImplementation(
+      async ({ where }: { where: { status: string } }) =>
+        pieces
+          .filter((p) => p.status === where.status)
+          .map((p) => ({ tournamentId: p.tournamentId })),
+    );
+    const cv = await buildCvData(USER);
+    expect(cv.speakerRows.every((r) => r.partlyLoaded === false)).toBe(true);
+    expect(cv.judgeRows.every((r) => r.partlyLoaded === false)).toBe(true);
+  });
+
   it('is false everywhere when no piece failed', async () => {
     prismaMock.scrapePiece.findMany.mockResolvedValue([]);
     const cv = await buildCvData(USER);

@@ -146,9 +146,11 @@ export function PieceGridView({ tabs, rounds, selected, onToggle, ...actions }: 
 /**
  * The three actions, the status line and the error.
  *
- * The status line is the page's one polite live region (UX-19): rendered,
- * empty, from the first paint (not `display: none`, which some screen
- * readers treat as absent), so what is written into it is announced. It
+ * The status line is the page's one polite live region (UX-19): in the DOM,
+ * empty, from the first paint, so what is written into it is announced.
+ * While empty it is hidden (`empty:hidden`), as the overview's Retry failed
+ * line is, so it leaves no gap under the buttons; the element, and so the
+ * live region, stays. It
  * carries the progress sentence while a request runs (UX-22: a spinner
  * alone for most of a minute looks hung) and the outcome after. A refusal
  * is an alert instead, because it asks the admin to act.
@@ -185,7 +187,11 @@ function ActionBar({
           Clear
         </Button>
       </div>
-      <p id={statusId} role="status" className="font-mono text-caption tabular-nums text-ink-soft">
+      <p
+        id={statusId}
+        role="status"
+        className="font-mono text-caption tabular-nums text-ink-soft empty:hidden"
+      >
         {busy ? `Re-scraping ${plural(running, 'piece')}… This can take up to a minute.` : result}
       </p>
       {error ? (
@@ -237,6 +243,10 @@ function PieceGroup({
   );
 }
 
+// A withheld page is neither done nor failed: the tournament keeps it
+// private and nothing will retry it, the "unavailable" state of the pill.
+const PILL_STATUS = { ok: 'done', failed: 'failed', withheld: 'unavailable' } as const;
+
 /**
  * One piece: a label wrapping the whole card, so the card is the target
  * (well past 44px tall) and not just the 24px box (UX-8). The checkbox is
@@ -267,11 +277,7 @@ function PieceCardView({
       <span className="min-w-0 flex-1 space-y-hair">
         <span className="block leading-6 font-medium wrap-break-word text-ink">{piece.label}</span>
         <span id={detailId} className="block space-y-hair">
-          <StatusPill
-            status={piece.status === 'ok' ? 'done' : 'failed'}
-            label={piece.pill}
-            className="flex"
-          />
+          <StatusPill status={PILL_STATUS[piece.status]} label={piece.pill} className="flex" />
           <span className="block font-mono text-caption tabular-nums text-ink-soft">
             {piece.timeLabel} <time dateTime={piece.time.iso}>{piece.time.text}</time>
             {piece.attempts > 0 ? ` · ${plural(piece.attempts, 'attempt')}` : ''}

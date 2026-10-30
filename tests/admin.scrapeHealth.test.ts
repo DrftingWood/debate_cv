@@ -102,6 +102,27 @@ describe('getScrapeHealth', () => {
   });
 });
 
+// Final review (2026-10-31): a withheld page is not a failure. It is counted
+// apart, and stays out of every failing count and the partly-loaded list.
+describe('getScrapeHealth: withheld pages', () => {
+  it('counts withheld pieces apart and asks for failed ones everywhere else', async () => {
+    prismaMock.tournament.count.mockResolvedValue(1);
+    prismaMock.scrapePiece.count.mockImplementation(
+      async ({ where }: { where: { status: string } }) => (where.status === 'withheld' ? 3 : 0),
+    );
+    prismaMock.scrapePiece.groupBy.mockResolvedValue([]);
+    prismaMock.ingestJob.findMany.mockResolvedValue([]);
+
+    const h = await getScrapeHealth();
+    expect(h).toMatchObject({ withheld: 3, failingPieces: 0, partlyLoaded: 0, stuck: 0 });
+    const statuses = [
+      ...prismaMock.scrapePiece.count.mock.calls,
+      ...prismaMock.scrapePiece.groupBy.mock.calls,
+    ].map((c) => (c[0] as { where: { status: string } }).where.status);
+    expect(statuses.filter((s) => s !== 'failed')).toEqual(['withheld']);
+  });
+});
+
 describe('getTournamentPieces', () => {
   it('returns null for an unknown tournament', async () => {
     prismaMock.tournament.findUnique.mockResolvedValue(null);

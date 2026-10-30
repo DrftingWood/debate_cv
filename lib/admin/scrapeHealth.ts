@@ -21,6 +21,11 @@ export type FailedPiece = {
 
 export type ScrapeHealth = {
   tracked: number;
+  /**
+   * Pieces the tournament itself withholds (status 'withheld'): never
+   * retried and not failing, so counted apart from everything below.
+   */
+  withheld: number;
   partlyLoaded: number;
   failingPieces: number;
   retriesDue: number;
@@ -85,9 +90,10 @@ async function loadFailedDetail(ids: bigint[]) {
 export async function getScrapeHealth(): Promise<ScrapeHealth> {
   const now = new Date();
   const failed = { status: 'failed' };
-  const [tracked, failingPieces, retriesDue, stuck, byKind, byTournament, failedJobRows] =
+  const [tracked, withheld, failingPieces, retriesDue, stuck, byKind, byTournament, failedJobRows] =
     await Promise.all([
       prisma.tournament.count({ where: { scrapePieces: { some: {} } } }),
+      prisma.scrapePiece.count({ where: { status: 'withheld' } }),
       prisma.scrapePiece.count({ where: failed }),
       prisma.scrapePiece.count({ where: { ...failed, nextRetryAt: { lte: now } } }),
       // Null nextRetryAt means retries are exhausted: only a person can move it.
@@ -112,6 +118,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
 
   return {
     tracked,
+    withheld,
     partlyLoaded: byTournament.length,
     failingPieces,
     retriesDue,
@@ -147,7 +154,7 @@ export type PieceRow = {
   kind: PieceKind;
   key: string;
   label: string;
-  status: 'ok' | 'failed';
+  status: 'ok' | 'failed' | 'withheld';
   httpStatus: number | null;
   attempts: number;
   loadedAt: Date | null;

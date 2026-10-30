@@ -186,14 +186,20 @@ function RetryBar({
 }
 
 // Below md the user, attempts and time fold into the URL and error cells, so
-// a phone shows three columns, not six (UX-30); their columns go to zero.
+// a phone shows three columns, not six (UX-30). Their <col>s are hidden with
+// their cells: a fixed-layout table assigns cells to columns by position, so
+// a zero-width col left in the model while its cells are display:none puts
+// the URL in the user's zero-width column and the error in the URL's. On a
+// phone the URL and the error share the width left by the checkbox, so the
+// table fits the panel and reads without scrolling sideways; from md they
+// take their fixed widths and the table may scroll.
 const JOB_COLUMNS = [
   '3rem',
-  { className: 'w-0 md:w-56' },
-  '16rem',
-  { className: 'w-0 md:w-24' },
-  '20rem',
-  { className: 'w-0 md:w-28' },
+  { className: 'hidden md:table-column md:w-56' },
+  { className: 'md:w-64' },
+  { className: 'hidden md:table-column md:w-24' },
+  { className: 'md:w-80' },
+  { className: 'hidden md:table-column md:w-28' },
 ];
 
 function JobsTable({
@@ -209,7 +215,7 @@ function JobsTable({
   // under "Show all": ticking it should never select what cannot be seen.
   const allShown = rows.length > 0 && rows.every((r) => selected.has(r.id));
   return (
-    <Table className="min-w-max table-fixed" label="Failed imports">
+    <Table className="table-fixed md:min-w-max" label="Failed imports">
       <Cols widths={JOB_COLUMNS} />
       <thead>
         <tr>
@@ -228,7 +234,10 @@ function JobsTable({
             />
           </Th>
           <Th className="hidden md:table-cell">User</Th>
-          <Th>Tournament URL</Th>
+          {/* On a phone the column is a third of the panel, narrower than
+              its name: the name wraps there rather than run into "Error"
+              (the ledger's nowrap is overridden, hence the `!`). */}
+          <Th className="max-md:whitespace-normal!">Tournament URL</Th>
           <Th numeric className="hidden md:table-cell">
             Attempts
           </Th>

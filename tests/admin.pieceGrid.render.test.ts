@@ -102,8 +102,11 @@ describe('per-tournament piece grid', () => {
     expect(out).toContain('Loaded');
     expect(out).toMatch(/<input[^>]*type="checkbox"[^>]*aria-label="R2"/);
     expect(out).toContain('href="/admin"');
-    // One polite live region for the outcome, there from the first paint.
+    // One polite live region for the outcome, there from the first paint,
+    // and hidden while empty so it leaves no gap under the buttons (as the
+    // overview's Retry failed does).
     expect(out).toMatch(/role="status"[^>]*><\/p>/);
+    expect(out).toMatch(/<p[^>]*role="status"[^>]*class="[^"]*empty:hidden/);
     expect(out).toContain('Re-scrape selected (0)');
   });
 
@@ -120,6 +123,33 @@ describe('per-tournament piece grid', () => {
     await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND');
     data.current = fixture;
     await expect(renderPage('5abc')).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+});
+
+// Final review (2026-10-31): a page the tournament withholds is its own
+// state, in words, and is not one of the failed pieces to select.
+describe('a withheld piece', () => {
+  const withheldMotions = piece({
+    kind: 'motions',
+    key: '',
+    label: 'Motions',
+    status: 'withheld',
+    httpStatus: 403,
+    loadedAt: null,
+    lastAttemptAt: minutes(-5),
+  });
+
+  it('reads "Withheld by the tournament" and is not selected as failed', async () => {
+    const { selectFailed, toPieceCard } = await import('@/lib/admin/pieceGrid');
+    const card = toPieceCard(withheldMotions, new Date(NOW));
+    expect(card).toMatchObject({ status: 'withheld', pill: 'Withheld by the tournament' });
+    expect(selectFailed([card]).size).toBe(0);
+
+    data.current = { ...fixture, tabs: [...fixture.tabs, withheldMotions] };
+    const out = await renderPage();
+    expect(out).toContain('Withheld by the tournament');
+    // Still two failed tabs' worth of count: the withheld one is not failed.
+    expect(out).toMatch(/3 pieces · 1 failed/);
   });
 });
 
