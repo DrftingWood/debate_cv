@@ -5,11 +5,13 @@ import {
   bracketOfBreak,
   bracketOfLabel,
   breakPieces,
+  isWithheld,
   outroundPiece,
   outroundRoundPieces,
   plural,
   result,
   teamKey,
+  withheldOutroundPieces,
   type SuggestedPiece,
 } from './checkHelpers';
 import type { CheckResult } from './types';
@@ -132,12 +134,27 @@ function championFinal(inputs: AuditInputs): { final: Stage | null; assumed: boo
   return { final: fallback, assumed: fallback != null };
 }
 
+/**
+ * No final to judge, and that is the tournament's doing: it withholds its
+ * outround pages (none stored at all) or the main final's page itself. A
+ * results page held back until the closing ceremony is not a gap in our data.
+ */
+function championWithheld(inputs: AuditInputs): boolean {
+  const held = withheldOutroundPieces(inputs.pieces);
+  if (held.length === 0) return false;
+  if (inputs.outrounds.length === 0) return true;
+  return held.some((p) => isMainFinal(p.label, outroundRankStrict(p.label) ?? -1));
+}
+
 export function checkChampion(inputs: AuditInputs): CheckResult {
   const { outrounds, breakRows, pieces } = inputs;
   if (outrounds.length === 0 && breakRows.length === 0) {
     return result('champion', 'na', 'The tournament has no break and no outround results.');
   }
   const { final, assumed } = championFinal(inputs);
+  if (!final && championWithheld(inputs)) {
+    return result('champion', 'na', 'The tournament withholds its outround results.');
+  }
   if (!final) {
     // The Open break's size; a tab with no Open bracket counts its whole break.
     const openBroke = breakRows.filter((r) => bracketOfBreak(r.stage) === 'open');
@@ -200,10 +217,23 @@ function bracketProblems(stages: Stage[]): Problem[] {
   return problems.filter((p): p is Problem => p != null);
 }
 
-/** Checked per bracket, so an ESL final is never measured against the Open semifinals. */
+/**
+ * Checked per bracket, so an ESL final is never measured against the Open
+ * semifinals. A bracket with a stage the tournament withholds is left out:
+ * its stored stages are a part, and halving across the gap would fail a
+ * bracket for a page no re-scrape can bring.
+ */
 export function checkOutroundShape(inputs: AuditInputs): CheckResult {
-  const stages = outroundStages(inputs.outrounds);
-  if (stages.length === 0) return result('outround_shape', 'na', 'No outround results are stored.');
+  const held = new Set(withheldOutroundPieces(inputs.pieces).map((p) => bracketOfLabel(p.label)));
+  const all = outroundStages(inputs.outrounds);
+  const stages = all.filter((s) => !held.has(s.bracket));
+  if (stages.length === 0) {
+    const detail =
+      held.size > 0
+        ? 'The tournament withholds some of its outround results.'
+        : 'No outround results are stored.';
+    return result('outround_shape', 'na', detail);
+  }
   const brackets = new Map<string, Stage[]>();
   for (const s of stages) brackets.set(s.bracket, [...(brackets.get(s.bracket) ?? []), s]);
   const problems = [...brackets.values()].flatMap(bracketProblems);
@@ -237,6 +267,18 @@ export function checkBreakMatches(inputs: AuditInputs): CheckResult {
       .filter((s) => s.bracket === 'open')
       .flatMap((s) => s.teams),
   );
+  // A withheld Open break, or a withheld Open outround (its teams would be
+  // missing from the count), leaves nothing fair to compare.
+  const heldOpenRound = withheldOutroundPieces(inputs.pieces).some(
+    (p) => bracketOfLabel(p.label) === 'open',
+  );
+  if ((broke.size === 0 && isWithheld(inputs.pieces, 'break', 'open')) || heldOpenRound) {
+    return result(
+      'break_matches',
+      'na',
+      'The tournament withholds part of its Open break or outrounds.',
+    );
+  }
   if (broke.size === 0 || debated.size === 0) {
     return result('break_matches', 'na', 'There is no Open break and Open outround to compare.');
   }

@@ -2,6 +2,7 @@ import type { AuditInputs } from './auditInputs';
 import {
   breakPieces,
   expectedPrelims,
+  isWithheld,
   listText,
   outroundRoundPieces,
   plural,
@@ -9,6 +10,7 @@ import {
   result,
   suggest,
   tabPiece,
+  withoutWithheld,
   type SuggestedPiece,
 } from './checkHelpers';
 import { checkBreakMatches, checkChampion, checkOutroundShape } from './outroundChecks';
@@ -36,13 +38,20 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.2';
+export const CHECKS_VERSION = '2026-10-31.3';
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;
   if (all === 0) return result('speaker_tab', 'na', 'No speakers are on record.');
   const share = scored / all;
   const status: CheckStatus = share < 0.5 ? 'fail' : share < 0.8 ? 'warn' : 'pass';
+  // An unreleased speaker tab answers 404 and is recorded as withheld: the
+  // missing scores are the tournament's choice, and no re-scrape brings them,
+  // so the check does not apply rather than failing. A full set of scores
+  // stored before the tab was pulled still passes.
+  if (status !== 'pass' && isWithheld(inputs.pieces, 'speaker')) {
+    return result('speaker_tab', 'na', 'The tournament withholds its speaker tab.');
+  }
   return result(
     'speaker_tab',
     status,
@@ -139,7 +148,7 @@ function checkUserReports(inputs: AuditInputs): CheckResult {
 }
 
 export function runChecks(inputs: AuditInputs, currentParserVersion: string): CheckResult[] {
-  return [
+  const results = [
     checkChampion(inputs),
     checkRoundsComplete(inputs),
     checkRoomsConsistent(inputs),
@@ -155,4 +164,5 @@ export function runChecks(inputs: AuditInputs, currentParserVersion: string): Ch
     checkParserStale(inputs.parserVersion, currentParserVersion),
     checkUserReports(inputs),
   ];
+  return withoutWithheld(results, inputs.pieces);
 }

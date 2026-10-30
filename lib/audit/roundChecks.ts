@@ -1,6 +1,7 @@
 import type { AuditInputs } from './auditInputs';
 import {
   expectedPrelims,
+  isWithheld,
   listText,
   median,
   minSpeakers,
@@ -12,6 +13,7 @@ import {
   tabPiece,
   teamKey,
   teamsPerRoom,
+  withheldPrelims,
   worst,
 } from './checkHelpers';
 import type { CheckResult, CheckStatus } from './types';
@@ -23,21 +25,38 @@ import type { CheckResult, CheckStatus } from './types';
  * the spec's (docs/superpowers/specs/2026-10-31-data-accuracy-design.md).
  */
 
+/**
+ * A round whose results page the tournament withholds (hidden results answer
+ * 404) is not expected: its absence is the tournament's choice and no
+ * re-scrape fills it. Rows stored before the page was hidden still count.
+ */
 export function checkRoundsComplete(inputs: AuditInputs): CheckResult {
-  const expected = expectedPrelims(inputs);
-  if (expected.length === 0) {
+  const all = expectedPrelims(inputs);
+  if (all.length === 0) {
     return result('rounds_complete', 'na', 'The number of prelim rounds is not known.');
   }
   const have = new Set(prelimRows(inputs).map((r) => r.round));
+  const hidden = withheldPrelims(inputs.pieces);
+  const held = all.filter((n) => hidden.has(n) && !have.has(n));
+  const expected = all.filter((n) => !held.includes(n));
+  const heldText = listText(held.map((n) => `R${n}`));
+  if (expected.length === 0) {
+    return result('rounds_complete', 'na', `The tournament withholds the results of ${heldText}.`);
+  }
+  const note = held.length > 0 ? `; the tournament withholds ${heldText}` : '';
   const missing = expected.filter((n) => !have.has(n));
   if (missing.length === 0) {
-    return result('rounds_complete', 'pass', `All ${expected.length} prelim rounds have results.`);
+    return result(
+      'rounds_complete',
+      'pass',
+      `All ${expected.length} prelim rounds have results${note}.`,
+    );
   }
   const names = listText(missing.map((n) => `R${n}`));
   return result(
     'rounds_complete',
     'fail',
-    `${names} ${plural(missing.length, 'has', 'have')} no results, out of ${expected.length} prelim rounds.`,
+    `${names} ${plural(missing.length, 'has', 'have')} no results, out of ${expected.length} prelim rounds${note}.`,
     missing.map((n) => prelimPiece(inputs.pieces, n)),
   );
 }
@@ -90,7 +109,15 @@ function teamTabKeys(inputs: AuditInputs): Set<string> {
 export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
   const pieces = [tabPiece(inputs.pieces, 'team'), prelimPiece(inputs.pieces, 1)];
   const tab = teamTabKeys(inputs);
-  if (tab.size === 0) return result('team_coverage', 'fail', 'There is no team tab.', pieces);
+  if (tab.size === 0) {
+    // An unreleased team tab is withheld, not missing: the check does not
+    // apply until the tournament publishes it. With no withheld record, a
+    // missing tab is our gap and still fails.
+    if (isWithheld(inputs.pieces, 'team')) {
+      return result('team_coverage', 'na', 'The tournament withholds its team tab.');
+    }
+    return result('team_coverage', 'fail', 'There is no team tab.', pieces);
+  }
   // Only R1 teams that are on the tab count: a swing team in R1 is not on
   // the tab, and counting it would hide a real team missing from the round.
   const r1 = new Set(
@@ -99,6 +126,9 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
       .map((r) => teamKey(r.team))
       .filter((k) => tab.has(k)),
   );
+  if (r1.size === 0 && withheldPrelims(inputs.pieces).has(1)) {
+    return result('team_coverage', 'na', 'The tournament withholds its R1 results.');
+  }
   const share = r1.size / tab.size;
   const status: CheckStatus = share < 0.8 ? 'fail' : share < 0.95 ? 'warn' : 'pass';
   return result(
@@ -111,8 +141,12 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
 
 export function checkPartners(inputs: AuditInputs): CheckResult {
   const tab = [...teamTabKeys(inputs)];
-  if (tab.length === 0)
-    return result('partners', 'na', 'There is no team tab to check partners on.');
+  if (tab.length === 0) {
+    const detail = isWithheld(inputs.pieces, 'team')
+      ? 'The tournament withholds its team tab.'
+      : 'There is no team tab to check partners on.';
+    return result('partners', 'na', detail);
+  }
   const min = minSpeakers(inputs.format);
   const counts = new Map<string, number>();
   for (const [team, n] of Object.entries(inputs.speakersByTeam)) {
@@ -181,9 +215,12 @@ export function checkPanels(inputs: AuditInputs): CheckResult {
 type Mismatch = { team: string; tab: number; sum: number; missing: number[]; played: number[] };
 
 /**
- * Teams whose tab total differs from their prelim rows. A team with a null
- * value on the tab or on any of its rows is skipped rather than counted:
- * nulls mean the column was not published, which is not a mismatch.
+ * Teams whose tab total differs from their prelim rows. Skipped rather than
+ * counted: a team with a null value on the tab or on any of its rows (the
+ * column was not published, which is not a mismatch); a team with no rows at
+ * all (its name differs between tab and rounds, which team_coverage already
+ * marks down); and a team with no row in a round the tournament withholds
+ * (the tab counts that round, the stored rows cannot).
  */
 function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
   const byTeam = new Map<string, AuditInputs['roundRows']>();
@@ -191,16 +228,18 @@ function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
     byTeam.set(teamKey(r.team), [...(byTeam.get(teamKey(r.team)) ?? []), r]);
   }
   const expected = expectedPrelims(inputs);
+  const hidden = withheldPrelims(inputs.pieces);
   let checked = 0;
   const off: Mismatch[] = [];
   for (const t of inputs.teamTab) {
     const rows = byTeam.get(teamKey(t.team)) ?? [];
     const tab = t[field];
-    if (tab == null || rows.some((r) => r[field] == null)) continue;
+    if (tab == null || rows.length === 0 || rows.some((r) => r[field] == null)) continue;
+    const played = new Set(rows.map((r) => r.round));
+    if (expected.some((n) => hidden.has(n) && !played.has(n))) continue;
     checked++;
     const sum = rows.reduce((s, r) => s + (r[field] ?? 0), 0);
     if (Math.abs(sum - tab) < 0.001) continue;
-    const played = new Set(rows.map((r) => r.round));
     off.push({
       team: t.team,
       tab,
@@ -212,17 +251,26 @@ function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
   return { checked, off };
 }
 
+/** Why no team could be checked, naming a withheld page when one is the reason. */
+function noPointsDetail(inputs: AuditInputs, field: 'points' | 'wins'): string {
+  if (inputs.teamTab.length === 0 && isWithheld(inputs.pieces, 'team')) {
+    return 'The tournament withholds its team tab.';
+  }
+  const hidden = [...withheldPrelims(inputs.pieces)].sort((a, b) => a - b);
+  if (hidden.length > 0) {
+    const names = listText(hidden.map((n) => `R${n}`));
+    return `The tournament withholds the results of ${names}, so no team's total can be checked.`;
+  }
+  return `No team has ${field} on both the team tab and the rounds.`;
+}
+
 export function checkPointsAddUp(inputs: AuditInputs): CheckResult {
   // Two-team tabs rank on wins, and their points column is often speaker
   // points rather than a team total, so wins are what must add up there.
   const field = teamsPerRoom(inputs.format, inputs.roundRows) === 2 ? 'wins' : 'points';
   const { checked, off } = pointMismatches(inputs, field);
   if (checked === 0) {
-    return result(
-      'points_add_up',
-      'na',
-      `No team has ${field} on both the team tab and the rounds.`,
-    );
+    return result('points_add_up', 'na', noPointsDetail(inputs, field));
   }
   if (off.length === 0) {
     return result(
