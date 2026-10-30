@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { ReconnectGmailButton } from '@/components/ReconnectGmailButton';
 import { useToast } from '@/components/ui/Toast';
 import { useFocusAfterRender } from '@/components/useFocusAfterRender';
 import {
@@ -50,6 +51,9 @@ type NamesResponse = {
 // hears progress without a stream of numbers (FORM-4).
 const ANNOUNCE_EVERY_MS = 4000;
 
+/** Scan failures only a fresh Google sign-in can fix. */
+const RECONNECT_ERRORS = new Set(['token_invalid', 'no_gmail_token', 'gmail_scope_missing']);
+
 /**
  * First-time onboarding wizard. Strictly forward: scan → preflight → pick →
  * done. Re-entry users (those with ≥1 claimed Person) never see this — they
@@ -85,6 +89,9 @@ export function OnboardingFlow({
   const [announced, setAnnounced] = useState('');
   const lastAnnounceAt = useRef(0);
   const [scanError, setScanError] = useState<string | null>(null);
+  // The grant itself is the problem (revoked, or Gmail left unticked on
+  // Google's consent screen): retrying cannot help, signing in again can.
+  const [scanNeedsReconnect, setScanNeedsReconnect] = useState(false);
   const [emptyScan, setEmptyScan] = useState<{ scanned: number } | null>(null);
   const [names, setNames] = useState<NameRow[]>([]);
   const [namesState, setNamesState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -194,6 +201,7 @@ export function OnboardingFlow({
   // ── Phase 1: Gmail scan ─────────────────────────────────────────────────
   const onScan = () => {
     setScanError(null);
+    setScanNeedsReconnect(false);
     setEmptyScan(null);
     startScan(async () => {
       const res = await postJson<ScanResponse>('/api/ingest/gmail');
@@ -202,7 +210,10 @@ export function OnboardingFlow({
         // neutral notice and a counting button, no red "did not run" (DASH-1).
         const notice = scanErrorMessage(res);
         if (notice.kind === 'cooldown') cooldown.start(notice);
-        else setScanError(notice.description);
+        else {
+          setScanError(notice.description);
+          setScanNeedsReconnect(RECONNECT_ERRORS.has(res.error));
+        }
         return;
       }
       const found = res.data.found ?? 0;
@@ -290,14 +301,18 @@ export function OnboardingFlow({
             </StepIntro>
             {scanError ? (
               <StepError title="The scan did not run" detail={scanError}>
-                <RetryButton
-                  onClick={() => {
-                    focusAfterRender(headingRef);
-                    onScan();
-                  }}
-                >
-                  Try again
-                </RetryButton>
+                {scanNeedsReconnect ? (
+                  <ReconnectGmailButton redirectTo="/onboarding" />
+                ) : (
+                  <RetryButton
+                    onClick={() => {
+                      focusAfterRender(headingRef);
+                      onScan();
+                    }}
+                  >
+                    Try again
+                  </RetryButton>
+                )}
               </StepError>
             ) : null}
             {emptyScan ? (

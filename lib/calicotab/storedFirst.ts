@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { markJobDone } from '@/lib/queue';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
 import { proximityToYou } from '@/lib/identity/nameProximity';
 import { storedTournamentFresh } from './prescrape';
@@ -191,6 +192,61 @@ export async function linkFromStoredTournament(
     personId: person?.id ?? null,
     personName: person?.name ?? null,
   };
+}
+
+/**
+ * The stored pass: link every pending job whose tournament is stored and
+ * finished, before the queue proper runs (owner, 2026-10-30).
+ *
+ * The queue is first come, first served, and runs one calicotab job at a
+ * time. A stored tournament needs no request, but it used to wait for that
+ * slot behind live scrapes taking minutes, so a user whose links were nearly
+ * all pre-scraped still waited on the one or two that were not. This pass
+ * reads only the database, so it runs ahead of the queue and outside the
+ * host slot; what it cannot link is left pending, attempt untouched, for the
+ * queue to fetch the live way.
+ *
+ * Each job is claimed (pending to running) before it is linked, so a drain
+ * running at the same moment never handles it twice. Returns how many were
+ * linked.
+ */
+export async function linkStoredJobsFirst(params: { userId?: string } = {}): Promise<number> {
+  const jobs = await prisma.ingestJob.findMany({
+    where: {
+      status: 'pending',
+      scheduledAt: { lte: new Date() },
+      ...(params.userId ? { userId: params.userId } : {}),
+    },
+    orderBy: { scheduledAt: 'asc' },
+    select: { id: true, userId: true, url: true },
+  });
+  let linked = 0;
+  for (const job of jobs) {
+    if (!(await findServableStoredTournament(job.url))) continue;
+    const claim = await prisma.ingestJob.updateMany({
+      where: { id: job.id, status: 'pending' },
+      data: { status: 'running', startedAt: new Date() },
+    });
+    if (claim.count === 0) continue;
+    let result: StoredLinkResult | null = null;
+    try {
+      result = await linkFromStoredTournament(job.url, job.userId);
+    } finally {
+      if (!result) {
+        // Not linkable from storage after all (the user's names are not in
+        // it): back to the queue as it was, for the page to be read.
+        await prisma.ingestJob.updateMany({
+          where: { id: job.id, status: 'running' },
+          data: { status: 'pending', startedAt: null },
+        });
+      }
+    }
+    if (result) {
+      await markJobDone(job.id);
+      linked += 1;
+    }
+  }
+  return linked;
 }
 
 /**
