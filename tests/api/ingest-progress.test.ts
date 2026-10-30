@@ -41,6 +41,10 @@ function primeScope({
     .mockResolvedValueOnce(doneRecent)
     .mockResolvedValueOnce(failedRecent);
   prismaMock.ingestJob.findFirst.mockResolvedValue(currentJob);
+  prismaMock.ingestJob.aggregate.mockResolvedValue({
+    _min: { startedAt: null },
+    _max: { scheduledAt: null },
+  } as never);
   const now = Date.now();
   prismaMock.ingestJob.findMany.mockResolvedValue(
     durationsMs.map((ms, i) => ({
@@ -123,5 +127,18 @@ describe('GET /api/ingest/progress', () => {
     );
     expect(wheres[0]).toHaveProperty('userId', 'user-1');
     expect(wheres[4]).not.toHaveProperty('userId');
+  });
+});
+
+describe('GET /api/ingest/progress: ETA from the queue’s pace', () => {
+  it('paces the ETA by the queue’s recent rate, not by one fast job', async () => {
+    // 145 queued, 66 finished in the last hour, fast cache hits in the average:
+    // the old ETA said 403 s; the queue actually needed about 2 hours.
+    primeScope({ pending: 145, doneRecent: 56, failedRecent: 10, durationsMs: [2_800] });
+    prismaMock.ingestJob.aggregate
+      .mockResolvedValueOnce({ _min: { startedAt: new Date(Date.now() - 3_600_000) } } as never)
+      .mockResolvedValueOnce({ _max: { scheduledAt: new Date() } } as never);
+    const body = (await (await GET()).json()) as { user: { etaSeconds: number } };
+    expect(body.user.etaSeconds).toBeGreaterThan(7_500);
   });
 });

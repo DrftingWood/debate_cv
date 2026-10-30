@@ -2,6 +2,14 @@
 
 ---
 
+## 2026-10-30 - Import ETA from the queue's pace
+
+- **Owner:** "the time estimate is way way off". Production, all users: 145 queued, ETA 403 s (~7 min). 66 jobs had finished in the last hour, so about 2 hours.
+- **Cause.** ETA = queued × average successful job (2.8 s). That average is mostly cache hits. It ignores slow and failed live scrapes, the one-calicotab-job-at-a-time slot, the gaps between drains (cron every 15 min with no tab open), and retries scheduled 15 min to 1 h out.
+- **Fix.** `estimateQueueSeconds` (`lib/ingest/eta.ts`): active jobs × (time since the first of this hour's finished jobs started ÷ how many finished). It falls back to the per-job average below 5 finishes, and is never earlier than the latest scheduled retry. `queuePace` in the progress route adds two aggregates.
+
+---
+
 ## 2026-10-30 - Stored tournaments before the queue
 
 - **Owner's question.** "First check all the URLs, see if they exist in the pre-scrape, load them, then tackle the new ones. Is this being followed?" **It wasn't.**
