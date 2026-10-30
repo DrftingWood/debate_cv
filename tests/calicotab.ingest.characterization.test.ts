@@ -818,6 +818,20 @@ describe('ingest: the data-accuracy audit after a write', () => {
     expect(h.loadAuditInputs).toHaveBeenCalledWith([1n]);
   });
 
+  it('skips the audit with under 5 s left, and the ingest still resolves', async () => {
+    install();
+    // No write reserve, so a 4.5 s deadline still admits the write.
+    vi.stubEnv('INGEST_WRITE_RESERVE_MS', '0');
+    try {
+      const result = await ingestPrivateUrl(PRIVATE_URL, USER, { deadline: Date.now() + 4_500 });
+      expect(result.cached).toBe(false);
+      expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
+      expect(h.loadAuditInputs).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('an audit failure never fails the scrape', async () => {
     install();
     vi.spyOn(console, 'error').mockImplementation(() => {});

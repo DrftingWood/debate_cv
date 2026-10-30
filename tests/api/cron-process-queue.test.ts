@@ -144,8 +144,9 @@ describe('stale audits in the tick', () => {
     expect(body.audited).toBe(7);
     const { limit, deadline } = auditStale.mock.calls[0]![0] as { limit: number; deadline: number };
     expect(limit).toBe(50);
-    expect(deadline).toBeGreaterThanOrEqual(before + 55_000);
-    expect(deadline).toBeLessThanOrEqual(Date.now() + 55_000);
+    // 5 s inside the tick budget, so a chunk started at the deadline still finishes.
+    expect(deadline).toBeGreaterThanOrEqual(before + 50_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 50_000);
   });
 
   it('an audit failure is reported and never fails the tick', async () => {

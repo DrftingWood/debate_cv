@@ -523,10 +523,6 @@ export async function runFullScrape(
   // Only after the write: a piece is "ok" because its rows are stored.
   await recordPieceOutcomes(txResult.tournamentId, outcomes);
   if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
-  // Re-score the tournament's data accuracy against what was just written.
-  // After afterWrite, so a partial re-scrape's judge panels are counted.
-  // Best-effort: it catches its own errors and never fails the ingest.
-  await auditAfterScrape(txResult.tournamentId);
   console.info('[ingest] write phase', {
     url: loaded.normalized,
     // Both halves of the budget: the tab phase, then the write. Together
@@ -538,7 +534,22 @@ export async function runFullScrape(
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
+  // After the write-phase log, so its writeMs times the write only, and after
+  // afterWrite, so a partial re-scrape's judge panels are counted.
+  await auditIfTimeLeft(loaded.fetchSession, txResult.tournamentId);
   return result;
+}
+
+/**
+ * Re-scores the tournament's data accuracy against what was just written.
+ * Best-effort: auditAfterScrape catches its own errors, so it never fails the
+ * ingest. Skipped when the deadline is close: the job still has to be marked
+ * done before the platform's kill, and the cron's sweep audits the tournament
+ * later as missing or stale.
+ */
+async function auditIfTimeLeft(session: FetchSession, tournamentId: bigint): Promise<void> {
+  if (session.remainingMs() < AUDIT_MIN_REMAINING_MS) return;
+  await auditAfterScrape(tournamentId);
 }
 
 // ─── Concurrent-scrape claim ──────────────────────────────────────────────
@@ -578,6 +589,8 @@ export function writeReserveMs(
   return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
 }
 const WRITE_RESERVE_BASE_MS = 4_000;
+/** Time an ingest must have left to run its after-scrape audit. */
+const AUDIT_MIN_REMAINING_MS = 5_000;
 const WRITE_RESERVE_PER_ROW_MS = 14;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;

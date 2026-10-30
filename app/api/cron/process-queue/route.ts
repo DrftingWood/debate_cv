@@ -189,10 +189,14 @@ async function retryPiecesSafely(startedAt: number) {
  * reported and never fails the tick.
  */
 const AUDIT_MAX = 50;
+// auditStale only checks its deadline before each chunk, so the last chunk
+// must be able to start this long before the tick's budget ends and finish.
+const AUDIT_CHUNK_HEADROOM_MS = 5_000;
 
 async function auditSafely(startedAt: number) {
   try {
-    return await auditStale({ limit: AUDIT_MAX, deadline: startedAt + TIME_BUDGET_MS });
+    const deadline = startedAt + TIME_BUDGET_MS - AUDIT_CHUNK_HEADROOM_MS;
+    return await auditStale({ limit: AUDIT_MAX, deadline });
   } catch (err) {
     Sentry.captureException(err, {
       tags: { route: 'api/cron/process-queue', stage: 'audit' },

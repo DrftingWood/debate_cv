@@ -80,16 +80,46 @@ async function dueTournaments(limit: number): Promise<bigint[]> {
  * Audits up to `limit` due tournaments in chunks of CHUNK, starting no chunk
  * once `deadline` (epoch ms) has passed. A chunk is a few grouped queries and
  * one write transaction, well inside the seconds a caller keeps between its
- * deadline and the platform's kill. Returns how many were audited.
+ * deadline and the platform's kill. Returns how many were audited; a
+ * tournament whose audit throws is skipped, not counted.
  */
 export async function auditStale(opts: { limit: number; deadline: number }): Promise<number> {
   const ids = await dueTournaments(opts.limit);
   let audited = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
     if (Date.now() >= opts.deadline) break;
-    audited += await runAudit(ids.slice(i, i + CHUNK));
+    audited += await auditChunk(ids.slice(i, i + CHUNK), opts.deadline);
   }
   return audited;
+}
+
+/**
+ * One chunk, falling back to one tournament at a time if the chunk throws.
+ * Without the fallback one tournament whose data breaks the load, a check or
+ * its write would fail the whole sweep, and since the next tick picks the
+ * same tournaments in the same order, every sweep after it would die at the
+ * same chunk. Now only that tournament is skipped (and logged); it stays due,
+ * so it is tried again next tick without holding the others back. The
+ * one-by-one retries honour the sweep's deadline too.
+ */
+async function auditChunk(ids: bigint[], deadline: number): Promise<number> {
+  try {
+    return await runAudit(ids);
+  } catch {
+    let audited = 0;
+    for (const id of ids) {
+      if (Date.now() >= deadline) break;
+      try {
+        audited += await runAudit([id]);
+      } catch (err) {
+        console.error('[audit] tournament audit failed', {
+          tournamentId: String(id),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return audited;
+  }
 }
 
 /**

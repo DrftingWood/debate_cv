@@ -97,10 +97,10 @@ describe('runAudit', () => {
   });
 });
 
-describe('auditStale', () => {
-  const ids = (from: number, n: number) =>
-    Array.from({ length: n }, (_, i) => ({ id: BigInt(from + i) }));
+const ids = (from: number, n: number) =>
+  Array.from({ length: n }, (_, i) => ({ id: BigInt(from + i) }));
 
+describe('auditStale', () => {
   it('audits missing tournaments first, then the oldest stale audits, up to the limit', async () => {
     loadEvery();
     h.db.tournament.findMany.mockResolvedValue(ids(1, 2));
@@ -152,6 +152,40 @@ describe('auditStale', () => {
     h.db.tournament.findMany.mockResolvedValue(ids(1, 5));
     expect(await auditStale({ limit: 5, deadline: Date.now() - 1 })).toBe(0);
     expect(h.load).not.toHaveBeenCalled();
+  });
+});
+
+describe('auditStale: a tournament whose audit throws', () => {
+  it('a chunk that throws is retried one by one: only the bad tournament is skipped', async () => {
+    h.db.tournament.findMany.mockResolvedValue(ids(1, 30));
+    h.load.mockImplementation(async (batch: bigint[]) => {
+      if (batch.includes(3n)) throw new Error('bad data in 3');
+      return new Map(batch.map((id) => [id, inputs()]));
+    });
+    expect(await auditStale({ limit: 30, deadline: Date.now() + 60_000 })).toBe(29);
+    const batches = h.load.mock.calls.map((c) => c[0] as bigint[]);
+    // The failed chunk of 25, then each of its ids alone, then chunk 2.
+    expect(batches[0]).toHaveLength(25);
+    expect(batches.slice(1, 26)).toEqual(ids(1, 25).map((t) => [t.id]));
+    expect(batches[26]).toEqual(ids(26, 5).map((t) => t.id));
+    const written = h.db.tournamentAudit.upsert.mock.calls.map((c) => c[0].where.tournamentId);
+    expect(written).not.toContain(3n);
+    expect(written).toHaveLength(29);
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('the one-by-one retries stop at the deadline', async () => {
+    h.db.tournament.findMany.mockResolvedValue(ids(1, 5));
+    let now = 1_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    h.load.mockImplementation(async (batch: bigint[]) => {
+      now += 400;
+      if (batch.length > 1) throw new Error('chunk failed');
+      return new Map(batch.map((id) => [id, inputs()]));
+    });
+    // Chunk at 1000 fails (now 1400); ids 1 and 2 run (now 2200); then stop.
+    expect(await auditStale({ limit: 5, deadline: 2_000 })).toBe(2);
+    vi.mocked(Date.now).mockRestore();
   });
 });
 
