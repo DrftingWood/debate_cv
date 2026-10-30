@@ -302,7 +302,7 @@ Owner request, 2026-10-31:
 **Interfaces:**
 - `ReviewFlag` fields:
   - `id BigInt @id @default(autoincrement())`
-  - `ingestJobId String?` (FK to IngestJob, `onDelete: SetNull`)
+  - `source String` ('import' | 'cv_report' | 'parser_warning'); `sourceId String` (IngestJob id, CvErrorReport id, or the parser-warning group key `<parserName>|<headline>`); one open flag per (source, sourceId), enforced in code (Ruling 16: one review set for all three kinds)
   - `url String`, always the public address (`publicPieceUrl`), never private
   - `tournamentId BigInt?` (FK, SetNull)
   - `priority String` ('high' | 'medium' | 'low')
@@ -310,7 +310,7 @@ Owner request, 2026-10-31:
   - `status String` ('open' | 'done'), default 'open'
   - `createdBy String` (admin email)
   - `createdAt`, `updatedAt`
-  - indexes on `(status, priority)` and `ingestJobId`; one open flag per `ingestJobId` (enforced in code)
+  - indexes on `(status, priority)` and `(source, sourceId)`
 - Tab status per failed-import row: `{ state: 'loaded' | 'partial' | 'missing'; tournamentId: string | null; errors: string[] }`.
   - `missing` when the job's tournament isn't stored (`DiscoveredUrl.tournamentId` null and no host+slug match);
   - `partial` when the stored tournament has any `ScrapePiece` with status 'failed'. `errors` holds one entry per failed piece, `"<label>: HTTP <status>"` or `"<label>: <short lastError>"`, at most 10, with words for codes (UX-23);
@@ -322,11 +322,11 @@ Owner request, 2026-10-31:
 - FailedJobsTable:
   - new first data column "Tab", after the checkbox;
   - new action "Add to review set": an inline form appears with a Priority select (High / Medium / Low, default Medium) and a Comment textarea (required, validated on press, UX-16), then "Add n to review set";
-  - the action posts `{ ingestJobIds, priority, comment }`;
+  - the action posts `{ items: [{ source: 'import', sourceId }], priority, comment }`;
   - existing Retry actions are unchanged;
   - rows already flagged open show a small "Flagged · <priority>" badge.
 - `POST /api/admin/review-set`:
-  - body `{ ingestJobIds: string[1..200], priority, comment: string 1..1000 }`;
+  - body `{ items: Array<{ source, sourceId }>[1..200], priority, comment: string 1..1000 }`;
   - upserts one open flag per job, refreshing priority and comment if one is already open;
   - → `{ flagged }`.
 - `PATCH /api/admin/review-set`: `{ id, priority?, comment?, status? }` → `{ ok: true }`.
@@ -354,6 +354,42 @@ Owner request, 2026-10-31:
 - [ ] **Step 3:** Implement. Migration SQL in Prisma's naming style; `npx prisma validate && npx prisma generate`.
 - [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
 - [ ] **Step 5: Commit:** `feat(admin): tab status on failed imports, and a prioritised review set`
+
+### Task 5d: CV error reports and parser warnings as actionable tables
+
+Owner request, 2026-10-31: "please remake the cv error table and parse nav table according to these guidelines".
+
+The guidelines set today are: ledger tables, 20 per page with Previous and Next, clickable public tab links, the ✓ / ? / ✗ tab status with errors on hover or focus, and "Add to review set" with priority and comment.
+
+**Files:**
+- Create: `lib/admin/cvReports.ts`, `lib/admin/parserWarnings.ts`, `components/admin/CvReportsTable.tsx` (client), `components/admin/ParserWarningsTable.tsx` (client), `app/api/admin/cv-reports/[id]/route.ts` (PATCH status)
+- Modify: `app/(app)/admin/page.tsx`, which replaces the old "CV error reports" `<ul>` and the "Recent parser warnings" `<ul>` with the new sections, keeping their positions, the CSV export and their empty states
+- Test: `tests/admin.cvReports.test.ts`, `tests/admin.parserWarnings.test.ts`, render tests, and an extension of `tests/admin.clientProps.test.ts`
+
+**Interfaces:**
+- Reuse the Record ledger pager, `TabLink`, `TabStatus` (Task 5c), the batched stored lookup (Task 5b), the review-set POST (Task 5c, with `source` set to 'cv_report' or 'parser_warning'), and `RescrapeSuggestedButton` (Task 4).
+- **CV reports**: `listCvReports({ page, status? }) → { rows, total, page, pages }`, 20 per page, newest first, through `?reportsPage=` and `?reportsStatus=` (open by default; the choices are open, acknowledged, fixed, won't fix, all).
+  - Row: `{ id, createdAt, reporter: { name, email }, tournaments: Array<{ id, name, tabUrl (public), tab: TabStatusValue }>, categories: Array<{ code, label }> (from lib/cvErrorReports/categories.ts), comment, status, suggested: PieceRef[] }`.
+  - `suggested` follows the user_reports category → piece mapping in `lib/audit/checks.ts`; reuse it, don't copy it.
+  - Columns: Reported (relative, mono), Reporter, Tournament (name links to `/admin/tournaments/[id]`, with TabStatus and "Tab ↗"; more than one tournament stacks), Categories (Badges with words), Comment (wrapped, clamped to 3 lines with "Show more"), Status (select: open, acknowledged, fixed, won't fix; saves through PATCH, single-flight, status line), Actions ("Re-scrape suggested (n)" per tournament, and a checkbox for "Add to review set").
+  - `PATCH /api/admin/cv-reports/[id]`: body `{ status }`. When fixed or won't fix it also sets `resolvedAt`. → `{ ok }`; 400, 401/403, 404 `not_found`.
+- **Parser warnings**: `listParserWarnings({ page }) → { rows, total, page, pages }`, 20 per page, through `?warningsPage=`.
+  - Grouped as today, by `[parserName] headline` (the text before " — "), but over the last 30 days of ParserRun rows with warnings. The query is bounded: take the newest 2,000 runs, then group in memory, and say so in a caption ("from the latest 2,000 parser runs").
+  - Row: `{ key, parserName, headline, count, latestAt, sample, tournaments: Array<{ id, name, tabUrl, tab }> }`, up to 5 distinct tournaments, matching the run's SourceDocument URL to a tournament by host plus slug through the batched lookup.
+  - Columns: Parser (mono), Warning, Count (`.cell-num`), Latest (relative), Tournaments (links, TabStatus, "Tab ↗", "+n more"), Actions (checkbox for "Add to review set", with source 'parser_warning' and sourceId `<parserName>|<headline>`).
+- Both tables say how many rows exist ("21–40 of 87"). On narrow screens they pin the first column or fold to cards (UX-30). Empty states stay distinct: "No CV reports yet" and "No open reports"; "No parser warnings in the last 30 days".
+- No raw error text and no private URL or key in any client prop or cell. The clientProps test is extended.
+
+- [ ] **Step 1: Write the failing tests:**
+  - paging: skip and take of 20, page clamping, and the "21–40 of 87" text;
+  - the category → suggested mapping matches the audit engine's;
+  - PATCH sets `resolvedAt` on fixed; 403 for non-admins;
+  - parser warnings group by `[parser] headline`, the query is bounded to 2,000, and tournaments are matched;
+  - render: both tables, TabStatus cells, "Tab ↗" hrefs public, and the empty states.
+- [ ] **Step 2:** Run. Expected: FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run, typecheck, lint. Expected: PASS.
+- [ ] **Step 5: Commit:** `feat(admin): CV reports and parser warnings as paged, actionable tables`
 
 ### Task 6: Seed, browser check, docs
 
