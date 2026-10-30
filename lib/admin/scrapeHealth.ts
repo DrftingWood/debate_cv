@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { publicPieceUrl } from '@/lib/audit/types';
 import { storedTournamentIdsByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
+import { loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -56,6 +57,8 @@ export type ScrapeHealth = {
     finishedAt: Date | null;
     /** The stored tournament this URL belongs to, or null (the "In database" cell). */
     stored: StoredRef | null;
+    /** How much of that tournament's tab loaded (the "Tab" cell), its errors in words. */
+    tab: TabState;
   }>;
 };
 
@@ -86,7 +89,7 @@ async function loadFailedJobs() {
 /** A user's URL as one map key; NUL cannot occur in either part. */
 const jobKey = (j: { userId: string; url: string }) => `${j.userId}\u0000${j.url}`;
 
-async function storedForJobs(
+export async function storedForJobs(
   jobs: Array<{ id: string; userId: string; url: string }>,
 ): Promise<Map<string, StoredRef>> {
   if (jobs.length === 0) return new Map();
@@ -120,10 +123,15 @@ async function storedForJobs(
   return out;
 }
 
-/** The failed-imports list, each job with its stored tournament (or null). */
+/**
+ * The failed-imports list, each job with its stored tournament (or null) and
+ * how much of that tournament's tab loaded. The Tab states take one more
+ * query, for the stored tournaments only.
+ */
 async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
   const jobs = await loadFailedJobs();
   const storedByJob = await storedForJobs(jobs);
+  const tabs = await loadTabStates([...storedByJob.values()].map((r) => r.id));
   return jobs.map((j) => ({
     id: j.id,
     url: j.url,
@@ -132,6 +140,7 @@ async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
     lastError: j.lastError,
     finishedAt: j.finishedAt,
     stored: storedByJob.get(j.id) ?? null,
+    tab: tabs.get(storedByJob.get(j.id)?.id ?? '') ?? tabState(null, []),
   }));
 }
 

@@ -25,6 +25,7 @@ vi.mock('@/lib/db', () => ({
     ingestJob: { count: vi.fn(async () => 1) },
     parserRun: { findMany: vi.fn(async () => []) },
     cvErrorReport: { findMany: vi.fn(async () => []) },
+    reviewFlag: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -76,6 +77,7 @@ const health: ScrapeHealth = {
       lastError: 'HTTP 503',
       finishedAt: new Date(NOW - 60_000),
       stored: null,
+      tab: { state: 'missing', tournamentId: null, errors: [] },
     },
   ],
 };

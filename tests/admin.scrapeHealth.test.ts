@@ -96,6 +96,8 @@ describe('getScrapeHealth', () => {
         finishedAt: d('2026-10-02'),
         // Not a tab URL, so no tournament can be stored for it.
         stored: null,
+        // Task 5c: so nothing of its tab is loaded either.
+        tab: { state: 'missing', tournamentId: null, errors: [] },
       },
     ]);
     expect(prismaMock.ingestJob.findMany.mock.calls[0][0]).toMatchObject({

@@ -40,6 +40,7 @@ vi.mock('@/lib/db', () => ({
     ingestJob: { count: vi.fn(async () => 3) },
     parserRun: { findMany: vi.fn(async () => []) },
     cvErrorReport: { findMany: vi.fn(async () => []) },
+    reviewFlag: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -119,6 +120,7 @@ const full: ScrapeHealth = {
       lastError: 'HTTP 503 Service Unavailable at fetchPage (lib/calicotab/fetch.ts:88)',
       finishedAt: minutes(-120),
       stored: { id: '5', name: 'Oxford IV 2025', scrapedAt: minutes(-600) },
+      tab: { state: 'partial', tournamentId: '5', errors: ['R3: HTTP 503 Service Unavailable'] },
     },
     {
       id: 'job-2',
@@ -128,6 +130,7 @@ const full: ScrapeHealth = {
       lastError: null,
       finishedAt: minutes(-30),
       stored: null,
+      tab: { state: 'missing', tournamentId: null, errors: [] },
     },
   ],
 };
@@ -232,6 +235,23 @@ describe('admin overview: is it in the database? (Task 5b)', () => {
     expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
     expect(out).toContain('>Look up<');
     expect(out).toMatch(/role="status"[^>]*aria-live="polite"/);
+  });
+});
+
+describe('admin overview: tab status and the review set (Task 5c)', () => {
+  it('puts the Tab column on each failed import and the review set right after them', async () => {
+    const out = await renderPage(full);
+    expect(out).toMatch(/<th[^>]*>Tab<\/th>/);
+    expect(out).toContain('Partly');
+    expect(out).toContain('R3: HTTP 503 Service Unavailable');
+    expect(out).toContain('Not loaded');
+    const failed = out.indexOf('>Failed imports</h2>');
+    const review = out.indexOf('>Flagged for review</h2>');
+    expect(failed).toBeGreaterThan(0);
+    expect(review).toBeGreaterThan(failed);
+    // No other section between them.
+    expect(out.slice(failed + '>Failed imports</h2>'.length, review)).not.toContain('</h2>');
+    expect(out).toContain('Nothing flagged yet');
   });
 });
 

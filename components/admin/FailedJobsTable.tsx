@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, useTransition } from 'react';
+import { useId, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowsClockwise } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,11 @@ import { useToast } from '@/components/ui/Toast';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { TabLink } from '@/components/admin/TabLink';
 import { InDatabaseCell, type InDatabase } from '@/components/admin/InDatabaseCell';
+import { TabStatus } from '@/components/admin/TabStatus';
+import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
+import { Badge } from '@/components/ui/Badge';
+import type { TabState } from '@/lib/admin/tabStatus';
+import { PRIORITY_LABEL, type Priority } from '@/lib/admin/reviewSetTypes';
 import { retryFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
@@ -27,6 +32,10 @@ export type FailedJobRow = {
   when: { text: string; iso: string } | null;
   /** Whether its tournament is stored: the "In database" cell. */
   stored: InDatabase;
+  /** How much of that tournament's tab loaded: the "Tab" cell, errors already in words. */
+  tab: TabState;
+  /** Its open review-set flag, for the "Flagged · High" badge; null when not flagged. */
+  flag: { priority: Priority } | null;
 };
 
 type RetryResponse = { requeued: number; skippedLocked: number };
@@ -42,6 +51,10 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * `total` is the database's count, not `rows.length`: the list is capped,
  * and "Retry all" retries every failed job, so its label must say how many
  * that really is.
+ *
+ * "Add to review set" (Task 5c) sets the ticked imports aside with a
+ * priority and a comment, for a closer look later; it leaves the Retry
+ * actions as they were.
  */
 export function FailedJobsTable({ rows, total }: { rows: FailedJobRow[]; total: number }) {
   const [ticked, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -50,6 +63,10 @@ export function FailedJobsTable({ rows, total }: { rows: FailedJobRow[]; total: 
   const selected = new Set(rows.filter((r) => ticked.has(r.id)).map((r) => r.id));
   const { shown, more } = useFirstRows(rows);
   const retry = useRetryJobs(selected, () => setSelected(new Set()));
+  const review = useAddToReviewSet(
+    [...selected].map((sourceId) => ({ source: 'import' as const, sourceId })),
+    { noun: 'import', onAdded: () => setSelected(new Set()) },
+  );
 
   if (rows.length === 0) {
     return (
@@ -73,7 +90,13 @@ export function FailedJobsTable({ rows, total }: { rows: FailedJobRow[]; total: 
 
   return (
     <div className="space-y-tight">
-      <RetryBar retry={retry} total={total} selectedCount={selected.size} />
+      <RetryBar
+        retry={retry}
+        total={total}
+        selectedCount={selected.size}
+        reviewButton={review.button}
+      />
+      {review.panel}
       <div className="panel overflow-hidden">
         <TableScroll>
           <JobsTable rows={shown} selected={selected} onToggle={toggle} />
@@ -143,10 +166,12 @@ function RetryBar({
   retry,
   total,
   selectedCount,
+  reviewButton,
 }: {
   retry: ReturnType<typeof useRetryJobs>;
   total: number;
   selectedCount: number;
+  reviewButton: ReactNode;
 }) {
   const errorId = useId();
   const icon = <ArrowsClockwise className="h-4 w-4" aria-hidden />;
@@ -178,6 +203,7 @@ function RetryBar({
         >
           Retry all {total.toLocaleString('en-GB')}
         </Button>
+        {reviewButton}
         <span className="font-mono text-caption tabular-nums text-ink-soft">
           {selectedCount} selected
         </span>
@@ -191,20 +217,24 @@ function RetryBar({
   );
 }
 
-// Below md the user, attempts and time fold into the URL and error cells, so
-// a phone shows three columns, not six (UX-30). Their <col>s are hidden with
-// their cells: a fixed-layout table assigns cells to columns by position, so
-// a zero-width col left in the model while its cells are display:none puts
-// the URL in the user's zero-width column and the error in the URL's. On a
-// phone the URL and the error share the width left by the checkbox, so the
-// table fits the panel and reads without scrolling sideways; from md they
-// take their fixed widths and the table may scroll.
+// Below md the user, attempts, error and time fold into the URL cell, so a
+// phone shows three columns, not eight (UX-30): the checkbox, Tab (the
+// row's key signal, so it never folds) and the URL with everything else
+// under it. "In database" goes too: Tab already says whether the tournament
+// is stored. The hidden <col>s are hidden with their cells: a fixed-layout
+// table assigns cells to columns by position, so a zero-width col left in
+// the model while its cells are display:none puts each cell one column to
+// the left. On a phone Tab takes 7rem ("✗ Not loaded" and its padding) and
+// the URL the rest, so the table fits a 390px screen without scrolling
+// sideways; from md every column takes its fixed width and the table may
+// scroll.
 const JOB_COLUMNS = [
   '3rem',
+  { className: 'w-28 md:w-32' },
   { className: 'hidden md:table-column md:w-56' },
   { className: 'md:w-64' },
   { className: 'hidden md:table-column md:w-24' },
-  { className: 'md:w-80' },
+  { className: 'hidden md:table-column md:w-80' },
   { className: 'hidden md:table-column md:w-32' },
   { className: 'hidden md:table-column md:w-28' },
 ];
@@ -240,15 +270,16 @@ function JobsTable({
               aria-label={`Select the ${plural(rows.length, 'import')} shown`}
             />
           </Th>
+          <Th>Tab</Th>
           <Th className="hidden md:table-cell">User</Th>
-          {/* On a phone the column is a third of the panel, narrower than
-              its name: the name wraps there rather than run into "Error"
+          {/* On a phone the column shares the panel with Tab and the
+              checkbox: the name wraps there rather than run off the edge
               (the ledger's nowrap is overridden, hence the `!`). */}
           <Th className="max-md:whitespace-normal!">Tournament URL</Th>
           <Th numeric className="hidden md:table-cell">
             Attempts
           </Th>
-          <Th>Error</Th>
+          <Th className="hidden md:table-cell">Error</Th>
           <Th className="hidden md:table-cell">In database</Th>
           <Th className="hidden pr-stack md:table-cell">When</Th>
         </tr>
@@ -277,6 +308,7 @@ function JobRow({
   onToggle: () => void;
 }) {
   const user = row.user ?? 'No email';
+  const error = row.error ?? <span className="text-ink-soft">No error recorded</span>;
   return (
     <Tr>
       <Td className="pl-stack align-top">
@@ -290,28 +322,33 @@ function JobRow({
           aria-label={`Select ${row.url}${row.user ? ` for ${row.user}` : ''}`}
         />
       </Td>
+      <Td className="align-top">
+        <TabStatus tab={row.tab} name={row.stored?.name} />
+      </Td>
       <Td className="hidden wrap-break-word md:table-cell">
         <span className={row.user ? undefined : 'text-ink-soft'}>{user}</span>
       </Td>
-      <Td rowHeader className="wrap-break-word">
+      <Td rowHeader className="wrap-break-word whitespace-normal">
         <TabLink url={row.href} text={row.url} className="font-mono text-caption" />
         <span className="block text-caption text-ink-soft md:hidden">{user}</span>
-      </Td>
-      <Td numeric className="hidden md:table-cell">
-        {row.attempts}
-      </Td>
-      <Td className="whitespace-normal">
-        {row.error ?? <span className="text-ink-soft">No error recorded</span>}
+        <span className="mt-hair block md:hidden">{error}</span>
         <span className="block font-mono text-caption tabular-nums text-ink-soft md:hidden">
           {plural(row.attempts, 'attempt')}
           {row.when ? ` · ${row.when.text}` : ''}
         </span>
-        <span className="mt-hair block md:hidden">
-          <InDatabaseCell stored={row.stored} />
-        </span>
+        {row.flag ? (
+          <Badge variant="info" className="mt-hair whitespace-normal">
+            Flagged · {PRIORITY_LABEL[row.flag.priority]}
+          </Badge>
+        ) : null}
       </Td>
+      <Td numeric className="hidden md:table-cell">
+        {row.attempts}
+      </Td>
+      <Td className="hidden whitespace-normal md:table-cell">{error}</Td>
       <Td className="hidden md:table-cell">
-        <InDatabaseCell stored={row.stored} />
+        {/* The Tab cell already links the tournament's page. */}
+        <InDatabaseCell stored={row.stored} open={false} />
       </Td>
       <Td className="hidden pr-stack font-mono tabular-nums text-ink-soft md:table-cell">
         {row.when ? <time dateTime={row.when.iso}>{row.when.text}</time> : 'Not finished'}

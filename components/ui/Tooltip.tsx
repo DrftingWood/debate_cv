@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /*
@@ -31,6 +31,13 @@ import { cn } from '@/lib/utils/cn';
  * every page scroll sideways by 3px (UX-39). A control near the right edge
  * also passes `align="end"`, so the open label grows leftwards; one at the
  * left edge passes `align="start"`, so it grows rightwards.
+ *
+ * `fixed` is that portal's cheaper stand-in, for a control inside a table
+ * (the Tab cell's "? Partly", Task 5c): the open label is placed against
+ * the viewport from the wrapper's box, so the table's scrolling panel does
+ * not clip it. It stays a DOM child of the wrapper, so moving the pointer
+ * onto it still counts as hovering, and it closes on any scroll rather than
+ * float away from its control.
  */
 
 type Side = 'top' | 'bottom' | 'left';
@@ -55,10 +62,12 @@ export function Tooltip({
   align = 'center',
   disabled = false,
   wrap = false,
+  fixed = false,
   className,
   children,
 }: {
-  content: string;
+  /** A string for a control's name; a short list (a cell's errors) as nodes. */
+  content: ReactNode;
   side?: Side;
   /** Top and bottom only: `end` / `start` line the label up with the control's right / left edge. */
   align?: keyof typeof ALIGN;
@@ -70,11 +79,14 @@ export function Tooltip({
    * short names on icon buttons stay single-line.
    */
   wrap?: boolean;
+  /** Top and bottom only: position the open label against the viewport (see above). */
+  fixed?: boolean;
   /** Classes for the wrapper; a fixed-position control puts its positioning here. */
   className?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<CSSProperties | null>(null);
   const wrapper = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | null>(null);
 
@@ -84,7 +96,9 @@ export function Tooltip({
   };
   const menuOpen = () => !!wrapper.current?.querySelector('[aria-expanded="true"]');
   const show = () => {
-    if (!disabled && !menuOpen()) setOpen(true);
+    if (disabled || menuOpen()) return;
+    if (fixed && wrapper.current) setAt(fixedPosition(wrapper.current, side, align));
+    setOpen(true);
   };
   const hide = () => {
     cancel();
@@ -96,9 +110,14 @@ export function Tooltip({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
+    const onScroll = () => setOpen(false);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open]);
+    if (fixed) window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, fixed]);
 
   useEffect(() => cancel, []);
 
@@ -122,10 +141,11 @@ export function Tooltip({
       {children}
       <span
         aria-hidden
+        style={fixed && at ? at : undefined}
         className={cn(
-          'absolute z-50',
-          OUTER[side],
-          side !== 'left' && ALIGN[align],
+          fixed && side !== 'left'
+            ? cn('fixed z-50', side === 'top' ? 'pb-hair' : 'pt-hair')
+            : cn('absolute z-50', OUTER[side], side !== 'left' && ALIGN[align]),
           open && !disabled ? 'block' : 'hidden',
         )}
       >
@@ -140,4 +160,14 @@ export function Tooltip({
       </span>
     </span>
   );
+}
+
+/** Where a `fixed` label goes, from its control's box on screen. */
+function fixedPosition(el: HTMLElement, side: Side, align: keyof typeof ALIGN): CSSProperties {
+  const r = el.getBoundingClientRect();
+  const vertical: CSSProperties =
+    side === 'top' ? { bottom: window.innerHeight - r.top } : { top: r.bottom };
+  if (align === 'start') return { ...vertical, left: r.left };
+  if (align === 'end') return { ...vertical, right: window.innerWidth - r.right };
+  return { ...vertical, left: r.left + r.width / 2, transform: 'translateX(-50%)' };
 }

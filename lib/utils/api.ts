@@ -30,10 +30,23 @@ export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
  * (Vercel timeout HTML, Next.js default 500 page, 204 No Content).
  */
 export async function postJson<T = unknown>(url: string, body?: unknown): Promise<ApiResult<T>> {
+  return sendJson<T>('POST', url, body);
+}
+
+/** PATCH, with the same defensive parsing as `postJson`. */
+export async function patchJson<T = unknown>(url: string, body?: unknown): Promise<ApiResult<T>> {
+  return sendJson<T>('PATCH', url, body);
+}
+
+async function sendJson<T>(
+  method: 'POST' | 'PATCH',
+  url: string,
+  body?: unknown,
+): Promise<ApiResult<T>> {
   let res: Response;
   try {
     res = await fetch(url, {
-      method: 'POST',
+      method,
       headers: body === undefined ? undefined : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
     scrapePiece: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     ingestJob: { findMany: vi.fn() },
     discoveredUrl: { findMany: vi.fn() },
+    reviewFlag: { findMany: vi.fn() },
   },
 }));
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
@@ -30,6 +31,8 @@ const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy')
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
 const { asLookupUrl, searchBoxValue } = await import('@/lib/admin/tabAddress');
+const { loadReviewSet, reviewSetCsv, toExportRecord } = await import('@/lib/admin/reviewSet');
+const { toReviewRows } = await import('@/components/admin/ReviewSetSection');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
 
@@ -211,5 +214,47 @@ describe('shortUrl', () => {
   it('never echoes a link it cannot read', () => {
     expect(shortUrl(`not a url /privateurls/${KEY}/`)).toBe('Unreadable link');
     expect(shortUrl(PRIVATE)).toBe('oxiv.calicotab.com/oxiv2025/…');
+  });
+});
+
+describe('the Tab column and the review set carry no private key (Task 5c)', () => {
+  it('FailedJobsTable rows: the Tab cell lists failed pages in words', async () => {
+    const health = await getScrapeHealth();
+    const rows = toFailedJobRows(health.failedJobs, NOW, new Map([['j1', 'high']]));
+    expect(rows[0]!.tab).toEqual({
+      state: 'partial',
+      tournamentId: '1',
+      errors: ['R3: HTTP 500 Internal Server Error'],
+    });
+    expect(rows[0]!.flag).toEqual({ priority: 'high' });
+    expectNoKey(rows);
+  });
+
+  it('ReviewSetTable rows and both exports, even with a key pasted into a comment', async () => {
+    h.db.reviewFlag.findMany.mockResolvedValue([
+      {
+        id: 1n,
+        source: 'import',
+        sourceId: 'j1',
+        // A row written before the address was made public must still not leak.
+        url: PRIVATE,
+        tournamentId: 1n,
+        tournament: { id: 1n, name: 'Oxford IV' },
+        priority: 'high',
+        comment: `see ${PRIVATE}results/round/3/`,
+        status: 'open',
+        createdBy: 'admin@example.com',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    ]);
+    h.db.ingestJob.findMany.mockResolvedValue([
+      { id: 'j1', url: PRIVATE, userId: 'u1', attempts: 3, lastError: `fetch failed ${PRIVATE}` },
+    ]);
+    const flags = await loadReviewSet();
+    expect(flags[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expectNoKey(toReviewRows(flags, NOW));
+    expectNoKey(flags.map(toExportRecord));
+    expectNoKey(reviewSetCsv(flags));
   });
 });

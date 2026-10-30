@@ -18,6 +18,8 @@ import { getScrapeHealth } from '@/lib/admin/scrapeHealth';
 import { AccuracySection } from '@/components/admin/AccuracySection';
 import { getAccuracyOverview } from '@/lib/admin/accuracy';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
+import { ReviewSetSection } from '@/components/admin/ReviewSetSection';
+import { loadReviewSet, type Priority } from '@/lib/admin/reviewSet';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -43,6 +45,7 @@ export default async function AdminPage() {
     recentParserRuns,
     cvReports,
     accuracy,
+    reviewSet,
   ] = await Promise.all([
     prisma.tournament.count(),
     prisma.discoveredUrl.count(),
@@ -67,7 +70,15 @@ export default async function AdminPage() {
       include: { user: { select: { name: true, email: true } } },
     }),
     getAccuracyOverview(),
+    // Open and done, so "Show done" needs no second request; read once here
+    // for both the review set and the Failed imports rows' "Flagged" badge.
+    loadReviewSet({ status: 'all' }),
   ]);
+  const flaggedImports = new Map<string, Priority>(
+    reviewSet
+      .filter((f) => f.source === 'import' && f.status === 'open')
+      .map((f) => [f.sourceId, f.priority]),
+  );
 
   const cvReportTournamentIds = [
     ...new Set(cvReports.flatMap((report) => report.tournamentIds)),
@@ -170,7 +181,14 @@ export default async function AdminPage() {
 
       <ScrapeHealthSection health={health} now={now} />
 
-      <FailedImportsSection jobs={health.failedJobs} total={failedJobCount} now={now} />
+      <FailedImportsSection
+        jobs={health.failedJobs}
+        total={failedJobCount}
+        now={now}
+        flagged={flaggedImports}
+      />
+
+      <ReviewSetSection flags={reviewSet} now={now} />
 
       <AccuracySection overview={accuracy} now={now} />
 
