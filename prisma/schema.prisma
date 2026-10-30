@@ -272,6 +272,7 @@ model Tournament {
   tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
   scrapePieces         ScrapePiece[]
+  audit                TournamentAudit?
 
   @@index([year])
   @@index([format])
@@ -310,6 +311,26 @@ model ScrapePiece {
 
   @@unique([tournamentId, kind, key])
   @@index([status, nextRetryAt])
+}
+
+/// The data-accuracy audit of one tournament (lib/audit): a 0-100 score and
+/// the per-check results behind it. A derived cache, safe to recompute at any
+/// time, so one row per tournament and no history. `checks` is the
+/// CheckResult[] JSON; `checksVersion` lets a changed rule set re-audit
+/// everything; `usersAffected` (users with a linked private URL) weights the
+/// tournament in the database score.
+model TournamentAudit {
+  id            BigInt     @id @default(autoincrement())
+  tournamentId  BigInt     @unique
+  score         Int
+  checks        Json
+  usersAffected Int        @default(0)
+  checksVersion String
+  computedAt    DateTime
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([score])
+  @@index([computedAt])
 }
 
 model Person {
