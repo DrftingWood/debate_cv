@@ -39,6 +39,10 @@ function storedTournament(opts: { claimed: string[]; names: string[]; ingestedAt
   );
   prismaMock.tournamentParticipant.findMany.mockResolvedValue(participants(...opts.names));
   prismaMock.discoveredUrl.updateMany.mockResolvedValue({ count: 1 });
+  prismaMock.discoveredUrl.aggregate.mockResolvedValue({
+    _min: { messageDate: new Date('2025-11-14T09:00:00Z') },
+  } as never);
+  prismaMock.tournament.updateMany.mockResolvedValue({ count: 1 });
 }
 
 const linkData = () => prismaMock.discoveredUrl.updateMany.mock.calls[0]?.[0].data;
@@ -64,6 +68,15 @@ describe('linkFromStoredTournament', () => {
     expect(linked).toMatchObject({ tournamentId: 9n, personId: null });
     expect(linkData()).not.toHaveProperty('registrationPersonId');
     expect(prismaMock.tournamentParticipant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('gives a yearless stored tournament the year its link was emailed', async () => {
+    storedTournament({ claimed: [], names: ['Maya Rao'] });
+    await linkFromStoredTournament(URL_, 'u1');
+    expect(prismaMock.tournament.updateMany).toHaveBeenCalledWith({
+      where: { id: 9n, year: null },
+      data: { year: 2025 },
+    });
   });
 
   it('reads the page when the claimed names are not in the tournament (a forwarded link)', async () => {
