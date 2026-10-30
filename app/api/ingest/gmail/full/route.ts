@@ -3,8 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { auth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/rateLimit';
 import { prisma } from '@/lib/db';
-import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
-import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { grantGoneResponse } from '@/lib/gmail/grantGone';
 import { NoGmailTokenError } from '@/lib/gmail/scanUser';
 import { scanMailboxFull } from '@/lib/gmail/scanFull';
 import { claimFullScan, fullScanBlockedReason, releaseFullScan } from '@/lib/gmail/fullScan';
@@ -83,22 +82,8 @@ export async function POST() {
     }
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[api/ingest/gmail/full]', msg);
-    if (isRefreshTokenInvalid(err)) {
-      if (userId) {
-        try {
-          await revokeAndForgetGmailToken(userId);
-        } catch {
-          /* intentional: token already invalid upstream */
-        }
-      }
-      return NextResponse.json(
-        {
-          error: 'token_invalid',
-          hint: 'Your Google access was revoked or expired. Sign out and sign back in to grant Gmail access again.',
-        },
-        { status: 401 },
-      );
-    }
+    const gone = await grantGoneResponse(err, userId);
+    if (gone) return gone;
     Sentry.captureException(err, {
       tags: { route: 'api/ingest/gmail/full' },
       user: userId ? { id: userId } : undefined,

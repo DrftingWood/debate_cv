@@ -12,6 +12,20 @@
 
 ---
 
+## 2026-10-30 - "The scan did not run": Gmail left unticked at sign-in
+
+- **Incident.** Users saw a 500 and "The scan did not run" on onboarding. Vercel: `[api/ingest/gmail] Insufficient Permission`, 5 times for 2 users, 15:37-16:58 UTC.
+- **Cause.** Google's consent screen lists Gmail access as its own checkbox. These users signed in without ticking it, so their token had name and email but no `gmail.readonly`, and Gmail answered 403. The routes knew a revoked token (`invalid_grant`) but not a missing scope, so it fell through to a 500 with the raw message, and "Try again" could never succeed.
+- **Fix.**
+  - `isGmailScopeMissing` (`lib/gmail/errors.ts`) matches it by message or reason, not by status (Gmail rate limits are 403s too).
+  - `grantGoneResponse` (`lib/gmail/grantGone.ts`) is now the one place both scan routes handle a dead grant: forget the token, then 403 `gmail_scope_missing` or 401 `token_invalid`. Neither goes to Sentry.
+  - The cron's background scan treats it as a gone grant too.
+  - Onboarding shows Reconnect Gmail in place of Try again for `gmail_scope_missing`, `token_invalid` and `no_gmail_token`.
+- **Affected users** can fix it now without the deploy: sign in again and tick the Gmail box.
+- **Rollback.** Revert the merge commit. No migration.
+
+---
+
 ## 2026-10-30 - Stored data first; calicotab treated as one slow host
 
 - **Incident.** 5-10 new users: Gmail scans found their private URLs, but nearly every import and onboarding read timed out at 15 s. Calicotab served pages in 10-40 s (its API, 40-90 ms on 10-28, took 27-29 s), all subdomains at once. The private-URL page was fetched before the stored copy was looked up, so pre-scraped tournaments failed too.
