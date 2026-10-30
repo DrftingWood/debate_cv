@@ -125,8 +125,7 @@ Done when: the warnings baseline is recorded and falling, the named modules have
 Not in scope until A and B are clear.
 
 - Stats phases 3 to 7: spec at `docs/superpowers/specs/2026-09-17-filterable-stats-design.md`. Statistical choices; a wrong number looks fine.
-- Skill rating (Glicko-2 or TrueSkill): start from `docs/RATINGS_DESIGN_NOTE.md`. Needs a public method page and an opt-in.
-- Paste-a-URL ingest: avoids Gmail's restricted-scope verification. Threat-model the endpoint first (auth, abuse, privacy).
+- Paste-a-URL ingest (owner, 2026-10-30: wanted). Avoids Gmail's restricted-scope verification. Threat-model the endpoint first (auth, abuse, privacy).
 - `TOKEN_ENCRYPTION_KEY` rotation: needs a re-encrypt migration of stored Gmail tokens. Write the migration and rollback plan before touching the key.
 
 ## Owner's decisions (no model decides these)
@@ -137,3 +136,4 @@ Not in scope until A and B are clear.
 - B9: scope, after the size estimate.
 - JSON Resume award rules (the report recommended top 10).
 - Which licence to use on the public repos.
+- Skill rating (Glicko-2 or TrueSkill). Decided 2026-10-30: dropped, not to be built. `docs/RATINGS_DESIGN_NOTE.md` stays as research only.
