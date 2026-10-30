@@ -66,7 +66,13 @@ export default async function AdminPage() {
       take: 50,
       include: { user: { select: { name: true, email: true } } },
     }),
-    getAccuracyOverview(),
+    // The accuracy overview is one section among many: if its read fails,
+    // the rest of /admin (the operator tools above all) must still load, and
+    // the section says plainly that it could not be read.
+    getAccuracyOverview().catch((err: unknown) => {
+      console.error('admin: accuracy overview failed to load', err);
+      return null;
+    }),
   ]);
 
   const cvReportTournamentIds = [

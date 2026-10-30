@@ -30,6 +30,7 @@ vi.mock('@/components/ui/Toast', () => ({
 const { CHECKS_VERSION } = await import('@/lib/audit/checks');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { AccuracyChecks } = await import('@/components/admin/AccuracyChecks');
+const { StatusPill } = await import('@/components/ui/StatusPill');
 const { AuditNowView } = await import('@/components/admin/AuditNowButton');
 const { PieceGridView } = await import('@/components/admin/PieceGrid');
 const { selectSuggested, toPieceCard } = await import('@/lib/admin/pieceGrid');
@@ -133,6 +134,26 @@ describe('<AccuracyChecks>', () => {
     );
     expect(html).toContain('Not audited yet');
     expect(html).toContain('Audit again');
+  });
+});
+
+describe('<AccuracyChecks> warning pill', () => {
+  // Final review of PR #265: 'pending' means work in progress; a warning is a
+  // finished check with something to look at.
+  it('a warn check shows the warning pill, worded Check, not the pending one', async () => {
+    const audit = (await getTournamentAccuracy(5n))!;
+    const html = renderToStaticMarkup(
+      React.createElement(AccuracyChecks, {
+        tournamentId: '5',
+        tournamentName: 'Oxford IV',
+        audit,
+        now: NOW,
+      }),
+    );
+    const pill = (status: 'warning' | 'pending') =>
+      renderToStaticMarkup(React.createElement(StatusPill, { status, label: 'Check' }));
+    expect(html).toContain(pill('warning'));
+    expect(html).not.toContain(pill('pending'));
   });
 });
 

@@ -7,11 +7,13 @@ import type { TournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
 import type { CheckStatus } from '@/lib/audit/types';
 import { relativeTime } from '@/lib/utils/relativeTime';
 
-// Pass is done, a warning is pending, a failure is failed and a check that
-// could not run is unavailable, the same pill states the grid below uses.
+// Pass is done, a failure is failed and a check that could not run is
+// unavailable, the same pill states the grid below uses. A warning has its
+// own state: 'pending' would read as a check still in progress, when the
+// check has finished and found something to look at.
 const PILL: Record<CheckStatus, { status: Status; label: string }> = {
   pass: { status: 'done', label: 'Pass' },
-  warn: { status: 'pending', label: 'Check' },
+  warn: { status: 'warning', label: 'Check' },
   fail: { status: 'failed', label: 'Fail' },
   na: { status: 'unavailable', label: 'Not applicable' },
 };
@@ -26,11 +28,14 @@ export function AccuracyChecks({
   tournamentId,
   tournamentName,
   audit,
+  loadFailed = false,
   now,
 }: {
   tournamentId: string;
   tournamentName: string;
   audit: TournamentAccuracy | null;
+  /** The stored audit could not be read: said as such, never as "Not audited yet". */
+  loadFailed?: boolean;
   now: Date;
 }) {
   return (
@@ -56,6 +61,8 @@ export function AccuracyChecks({
                   </time>
                 </span>
               </>
+            ) : loadFailed ? (
+              <span>Couldn&rsquo;t load the accuracy checks</span>
             ) : (
               <span>Not audited yet</span>
             )}

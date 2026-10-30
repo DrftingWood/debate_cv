@@ -43,8 +43,13 @@ export default async function AdminTournamentPiecesPage({
   const [data, audit] = await Promise.all([
     getTournamentPieces(BigInt(id)),
     // The checks are extra: if reading them fails, the grid and re-scrape
-    // must stay usable, so it reads as "not audited".
-    getTournamentAccuracy(BigInt(id)).catch(() => null),
+    // must stay usable. The panel then says the read failed rather than
+    // "Not audited yet", which would send the admin to audit a tournament
+    // that may well have been audited.
+    getTournamentAccuracy(BigInt(id)).catch((err: unknown) => {
+      console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
+      return 'failed' as const;
+    }),
   ]);
   if (!data) notFound();
 
@@ -68,7 +73,8 @@ export default async function AdminTournamentPiecesPage({
       <AccuracyChecks
         tournamentId={id}
         tournamentName={data.tournament.name}
-        audit={audit}
+        audit={audit === 'failed' ? null : audit}
+        loadFailed={audit === 'failed'}
         now={now}
       />
 
@@ -83,7 +89,10 @@ export default async function AdminTournamentPiecesPage({
           tournamentId={id}
           tabs={tabs}
           rounds={rounds}
-          suggested={(audit?.suggested ?? []).map(({ kind, key }) => ({ kind, key }))}
+          suggested={(audit && audit !== 'failed' ? audit.suggested : []).map(({ kind, key }) => ({
+            kind,
+            key,
+          }))}
         />
       )}
     </div>

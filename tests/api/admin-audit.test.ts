@@ -43,7 +43,9 @@ describe('POST /api/admin/audit', () => {
     const { limit, deadline } = auditStale.mock.calls[0]![0] as { limit: number; deadline: number };
     expect(limit).toBe(100);
     expect(deadline).toBeGreaterThanOrEqual(before + 50_000);
-    expect(deadline).toBeLessThanOrEqual(Date.now() + 55_000);
+    // 50s of a 60s function: 10s for the last chunk to finish and the reply to
+    // leave before the platform kills it.
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 50_000);
   });
 
   it('{ tournamentId } audits that one tournament', async () => {
