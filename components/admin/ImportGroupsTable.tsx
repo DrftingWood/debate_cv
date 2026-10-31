@@ -293,7 +293,11 @@ function Name({ row }: { row: ImportRow }) {
           {row.name}
         </Link>
       ) : (
-        <TabLink url={row.tabUrl} text={row.name} className="font-mono text-caption" />
+        <TabLink
+          url={row.tabUrl}
+          text={row.name}
+          className="font-mono text-caption [overflow-wrap:anywhere]"
+        />
       )}
       {row.section === 'covered' ? (
         <div className="mt-hair">
