@@ -51,15 +51,15 @@ export function breakColumns(heads: Head[]): BreakCols {
 
 /**
  * A team row's break rank, or 'out' when the row is not a breaker: a remark
- * ("(withdrawn)", "(different break)"), or a blank/dash Break cell. `text`
- * and `rank` read one of the row's cells.
+ * ("(withdrawn)", "(different break)"), or a blank/dash Break cell. `read`
+ * turns one of the row's cells into text or a rank.
  */
 export function teamBreakRank<C>(
   cols: BreakCols,
   row: C[],
-  text: (cell: C | undefined) => string,
-  rank: (cell: C | undefined) => number | null,
+  read: { text: (cell: C | undefined) => string; rank: (cell: C | undefined) => number | null },
 ): number | null | 'out' {
+  const { text, rank } = read;
   const rk = cols.rkCol >= 0 ? rank(row[cols.rkCol]) : null;
   if (cols.remarkCol >= 0 && NOT_BREAKING.test(text(row[cols.remarkCol]))) return 'out';
   if (cols.breakCol < 0) return rk;

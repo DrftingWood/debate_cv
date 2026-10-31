@@ -1071,7 +1071,7 @@ function breakPageFromVue(
   for (const row of table.data) {
     const entityName = nameCol >= 0 ? nameText(row[nameCol]) : nameText(row[0]);
     if (!entityName) continue;
-    const rank = cols && teamBreakRank(cols, row, cellText, parseRank);
+    const rank = cols && teamBreakRank(cols, row, { text: cellText, rank: parseRank });
     if (rank === 'out') continue;
     rows.push({
       rank,
