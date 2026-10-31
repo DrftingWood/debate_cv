@@ -173,7 +173,7 @@ describe('check items: the read and marks', () => {
     const args = h.db.tournamentAudit.findMany.mock.calls[0]![0];
     expect(CANDIDATE_CAP).toBe(1000);
     expect(args.take).toBe(1000);
-    expect(args.where).toEqual({ score: { lt: 100 } });
+    expect(args.where).toEqual({ score: { lt: 100 }, tournament: { ignored: false } });
   });
 
   it('leaves out a marked check, and keeps one whose finding changed since', async () => {

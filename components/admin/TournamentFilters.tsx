@@ -66,25 +66,49 @@ export function TournamentFilterChips({
           ))}
         </ChipGroup>
       ) : null}
-      <ChipGroup label="Marks and rules">
-        <Chip
-          label="Checked by an admin"
-          n={overview.checked}
-          to={href({ checked: '1' })}
-          on={Boolean(filters.checked)}
-        />
-        {question ? (
-          <Chip
-            label={`Open question: ${QUESTION_CHIP[question.code]}`}
-            n={question.count}
-            wrap
-            to={href({ question: question.code })}
-            on={filters.question === question.code}
-          />
-        ) : null}
-      </ChipGroup>
+      <MarksAndRules overview={overview} filters={filters} href={href} />
       {question ? <QuestionRule rule={question.rule} status={question.status} /> : null}
     </div>
+  );
+}
+
+/** The marks, ignored and open-question chips, one group. */
+function MarksAndRules({
+  overview,
+  filters,
+  href,
+}: {
+  overview: AccuracyOverview;
+  filters: TournamentFilters;
+  href: ReturnType<typeof chipHref>;
+}) {
+  const question = overview.openQuestions[0];
+  return (
+    <ChipGroup label="Marks and rules">
+      <Chip
+        label="Checked by an admin"
+        n={overview.checked}
+        to={href({ checked: '1' })}
+        on={Boolean(filters.checked)}
+      />
+      {/* Test and demo tournaments an admin set to ignored: out of the list
+            and every score until this chip is chosen. */}
+      <Chip
+        label="Ignored in admin stats"
+        n={overview.ignored}
+        to={href({ ignored: '1' })}
+        on={Boolean(filters.ignored)}
+      />
+      {question ? (
+        <Chip
+          label={`Open question: ${QUESTION_CHIP[question.code]}`}
+          n={question.count}
+          wrap
+          to={href({ question: question.code })}
+          on={filters.question === question.code}
+        />
+      ) : null}
+    </ChipGroup>
   );
 }
 

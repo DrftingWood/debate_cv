@@ -15,6 +15,7 @@ export type CheckCode =
   | 'points_add_up'
   | 'outround_shape'
   | 'break_matches'
+  | 'break_unstored'
   | 'speaker_tab'
   | 'motions'
   | 'scrape_incomplete'
@@ -79,6 +80,7 @@ export const CHECK_WEIGHTS: Record<Exclude<CheckCode, 'user_reports'>, number> =
   points_add_up: 10,
   outround_shape: 5,
   break_matches: 5,
+  break_unstored: 3,
   speaker_tab: 7,
   motions: 3,
   scrape_incomplete: 10,
@@ -97,6 +99,7 @@ export const CHECK_LABELS: Record<CheckCode, string> = {
   points_add_up: 'Points add up',
   outround_shape: 'Outround shape',
   break_matches: 'Break size',
+  break_unstored: 'Break stored',
   speaker_tab: 'Speaker tab',
   motions: 'Motions',
   scrape_incomplete: 'Scrape incomplete',

@@ -76,7 +76,11 @@ const BAND_RANGE: Record<Band, { gte?: number; lt?: number }> = {
 async function auditsFor(filters: TournamentFilters): Promise<Map<bigint, Scored>> {
   const withChecks = needsChecks(filters);
   const rows = await prisma.tournamentAudit.findMany({
-    where: filters.band ? { score: BAND_RANGE[filters.band] } : {},
+    // Ignored tournaments (test and demo ones) are in the ignored view only.
+    where: {
+      ...(filters.band ? { score: BAND_RANGE[filters.band] } : {}),
+      tournament: { ignored: Boolean(filters.ignored) },
+    },
     select: {
       tournamentId: true,
       score: true,
@@ -126,6 +130,7 @@ export async function listTournaments({
   // With a filter the list is the audits that passed it; without one it is
   // every tournament, audited or not.
   const where = {
+    ignored: Boolean(filters.ignored),
     ...(name ? { name: { contains: name, mode: 'insensitive' as const } } : {}),
     ...(hasFilters(filters) ? { id: { in: [...audits.keys()] } } : {}),
   };

@@ -33,6 +33,8 @@ export const readOverview = cache(() => getAccuracyOverview());
 const readAccuracyCounts = cache(async () => {
   const groups = await prisma.tournamentAudit.groupBy({
     by: ['score', 'usersAffected'],
+    // Test and demo tournaments an admin set to ignored are not in the score.
+    where: { tournament: { ignored: false } },
     _count: { _all: true },
   });
   const bands: Record<Band, number> = { good: 0, check: 0, rescrape: 0 };

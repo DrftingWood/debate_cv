@@ -14,7 +14,7 @@ describe('core_missing', () => {
   it('is registered with weight 2 and a label, and the version moved on', () => {
     expect(CHECK_WEIGHTS.core_missing).toBe(2);
     expect(CHECK_LABELS.core_missing).toBe('Adjudication core');
-    expect(CHECKS_VERSION).toBe('2026-10-31.8');
+    expect(CHECKS_VERSION).toBe('2026-10-31.9');
   });
 
   it('passes when either source names someone', () => {

@@ -262,6 +262,10 @@ model Tournament {
   scrapeClaimedAt      DateTime?
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  /// Set by an admin on a test or demo tournament so it leaves the admin
+  /// scores, Inbox, lists and Captured stats. It hides nothing from a user's
+  /// own CV: ignoring is an admin-side view filter, never a deletion.
+  ignored              Boolean  @default(false)
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]

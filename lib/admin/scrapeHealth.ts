@@ -90,13 +90,13 @@ function compareRounds(a: PieceRow, b: PieceRow): number {
 }
 
 export async function getTournamentPieces(id: bigint): Promise<{
-  tournament: { id: bigint; name: string; sourceUrl: string };
+  tournament: { id: bigint; name: string; sourceUrl: string; ignored: boolean };
   tabs: PieceRow[];
   rounds: PieceRow[];
 } | null> {
   const t = await prisma.tournament.findUnique({
     where: { id },
-    select: { id: true, name: true, sourceUrlRaw: true },
+    select: { id: true, name: true, sourceUrlRaw: true, ignored: true },
   });
   if (!t) return null;
   const rows = await prisma.scrapePiece.findMany({
@@ -122,7 +122,7 @@ export async function getTournamentPieces(id: bigint): Promise<{
     status: r.status as PieceRow['status'],
   }));
   return {
-    tournament: { id: t.id, name: t.name, sourceUrl: t.sourceUrlRaw },
+    tournament: { id: t.id, name: t.name, sourceUrl: t.sourceUrlRaw, ignored: t.ignored },
     tabs: all.filter((p) => p.kind !== 'round'),
     rounds: all.filter((p) => p.kind === 'round').sort(compareRounds),
   };

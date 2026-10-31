@@ -56,6 +56,8 @@ export type AccuracyOverview = {
   stale: number;
   /** Every tournament, audited or not: the denominator of `stale`. */
   tournaments: number;
+  /** Tournaments an admin set to ignored; not counted anywhere above. */
+  ignored: number;
   openQuestions: OpenQuestion[];
 };
 
@@ -239,8 +241,13 @@ const countChecked = (audits: Audit[]) =>
   audits.filter((a) => a.checks.some((c) => c.checkedBy)).length;
 
 export async function getAccuracyOverview(): Promise<AccuracyOverview> {
-  const [rows, tournaments] = await Promise.all([
+  // Test and demo tournaments an admin set to ignored are left out of the
+  // score, the bands, the counts and the open questions; `ignored` says how
+  // many there are, for the Tournaments tab's chip.
+  const live = { tournament: { ignored: false } };
+  const [rows, tournaments, ignored] = await Promise.all([
     prisma.tournamentAudit.findMany({
+      where: live,
       select: {
         tournamentId: true,
         score: true,
@@ -249,7 +256,8 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
         checks: true,
       },
     }),
-    prisma.tournament.count(),
+    prisma.tournament.count({ where: { ignored: false } }),
+    prisma.tournament.count({ where: { ignored: true } }),
   ]);
   const audits: Audit[] = rows.map((r) => ({
     id: r.tournamentId,
@@ -278,6 +286,7 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
     checked: countChecked(audits),
     stale: Math.max(0, tournaments - fresh),
     tournaments,
+    ignored,
     openQuestions: openQuestionsOf(questions, describe),
   };
 }

@@ -10,6 +10,7 @@ import {
   outroundRoundPieces,
   plural,
   result,
+  suggest,
   teamKey,
   withheldOutroundPieces,
   type SuggestedPiece,
@@ -294,5 +295,46 @@ export function checkBreakMatches(inputs: AuditInputs): CheckResult {
     'warn',
     `The Open break lists ${broke.size} teams; the Open outrounds have ${debated.size}.`,
     breakPieces(inputs.pieces, 'open'),
+  );
+}
+
+/**
+ * A break page the menu links whose teams were never stored. The linked pages
+ * are the break pieces that are not withheld (a tab with no break link is
+ * recorded not-published, and the adjudicator break names no teams); each one
+ * should have break rows in its bracket. It applies only once outrounds were
+ * debated, because a break page that is up before the break is announced is
+ * empty by design and no re-scrape fills it. The fix reads those break pages
+ * again.
+ */
+export function checkBreakUnstored(inputs: AuditInputs): CheckResult {
+  const linked = inputs.pieces.filter(
+    (p) => p.kind === 'break' && p.key !== 'adjudicators' && p.status !== 'withheld',
+  );
+  if (linked.length === 0) {
+    return result('break_unstored', 'na', 'No team break page is linked.');
+  }
+  const debated =
+    inputs.outrounds.length > 0 ||
+    inputs.pieces.some((p) => outroundRoundPieces([p]).length > 0 && p.status === 'ok');
+  if (!debated) {
+    return result(
+      'break_unstored',
+      'na',
+      'No outrounds are stored, so the break may not be out yet.',
+    );
+  }
+  const stored = new Set(inputs.breakRows.map((r) => bracketOfBreak(r.stage)));
+  const missing = linked.filter((p) => !stored.has(p.key));
+  if (missing.length === 0) {
+    return result('break_unstored', 'pass', 'Every linked break page has its teams stored.');
+  }
+  const names = missing.map((p) => p.label.replace(/^Break:\s*/i, ''));
+  const verb = plural(missing.length, 'page is', 'pages are');
+  return result(
+    'break_unstored',
+    'warn',
+    `The ${names.join(' and ')} break ${verb} linked but no break rows are stored.`,
+    missing.map(suggest),
   );
 }

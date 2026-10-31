@@ -14,7 +14,12 @@ import {
   withoutWithheld,
   type SuggestedPiece,
 } from './checkHelpers';
-import { checkBreakMatches, checkChampion, checkOutroundShape } from './outroundChecks';
+import {
+  checkBreakMatches,
+  checkBreakUnstored,
+  checkChampion,
+  checkOutroundShape,
+} from './outroundChecks';
 import {
   checkPanels,
   checkPartners,
@@ -39,11 +44,26 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.8';
+export const CHECKS_VERSION = '2026-10-31.9';
+
+/**
+ * No speakers on record. That is na unless the speaker tab is linked (a piece
+ * that is not withheld) and the tournament's teams or rounds are stored, which
+ * is a tab we should have read: only a warning, since a tab can list everyone
+ * as redacted, and the fix is the speaker tab again.
+ */
+function speakersUnstored(inputs: AuditInputs): CheckResult {
+  const linked = inputs.pieces.find((p) => p.kind === 'speaker' && p.status !== 'withheld');
+  const stored = inputs.teamTab.length > 0 || inputs.roundRows.length > 0;
+  if (!linked || !stored) return result('speaker_tab', 'na', 'No speakers are on record.');
+  return result('speaker_tab', 'warn', 'The speaker tab is linked but no speakers are on record.', [
+    suggest(linked),
+  ]);
+}
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;
-  if (all === 0) return result('speaker_tab', 'na', 'No speakers are on record.');
+  if (all === 0) return speakersUnstored(inputs);
   const share = scored / all;
   const status: CheckStatus = share < 0.5 ? 'fail' : share < 0.8 ? 'warn' : 'pass';
   // An unreleased speaker tab answers 404 and is recorded as withheld: the
@@ -68,6 +88,14 @@ function checkMotions(inputs: AuditInputs): CheckResult {
   }
   const expected = expectedPrelims(inputs);
   if (expected.length === 0) {
+    // Without a round count there is no list of rounds to compare, but a
+    // linked motions page that left nothing stored is still a gap.
+    const linked = inputs.pieces.find((p) => p.kind === 'motions' && p.status !== 'withheld');
+    if (linked && inputs.motionRounds.length === 0) {
+      return result('motions', 'warn', 'A motions page is linked but no motion is on record.', [
+        suggest(linked),
+      ]);
+    }
     return result('motions', 'na', 'The number of prelim rounds is not known.');
   }
   const have = new Set(inputs.motionRounds);
@@ -97,18 +125,31 @@ function checkScrapeIncomplete(inputs: AuditInputs): CheckResult {
   );
 }
 
-/** No pieces: an old parser's gaps are unknown, so the fix is a full re-scrape. */
-function checkParserStale(parserVersion: string | null, current: string): CheckResult {
+/**
+ * An old parser's gaps are unknown, so the fix is to read every page on
+ * record again: each recorded piece that is not withheld is suggested (a
+ * withheld one can bring nothing). A tournament with no piece recorded has
+ * nothing to suggest and needs a full re-scrape.
+ */
+function checkParserStale(inputs: AuditInputs, current: string): CheckResult {
+  const { parserVersion } = inputs;
+  const readable = inputs.pieces.filter((p) => p.status !== 'withheld').map(suggest);
   if (parserVersion === current) {
     return result('parser_stale', 'pass', 'Scraped with the current parser.');
   }
   if (parserVersion == null) {
-    return result('parser_stale', 'warn', 'No parser version is recorded for this scrape.');
+    return result(
+      'parser_stale',
+      'warn',
+      'No parser version is recorded for this scrape.',
+      readable,
+    );
   }
   return result(
     'parser_stale',
     'warn',
     `Scraped with parser ${parserVersion}; the current one is ${current}.`,
+    readable,
   );
 }
 
@@ -217,10 +258,11 @@ export function runChecks(inputs: AuditInputs, currentParserVersion: string): Ch
     checkPointsAddUp(inputs),
     checkOutroundShape(inputs),
     checkBreakMatches(inputs),
+    checkBreakUnstored(inputs),
     checkSpeakerTab(inputs),
     checkMotions(inputs),
     checkScrapeIncomplete(inputs),
-    checkParserStale(inputs.parserVersion, currentParserVersion),
+    checkParserStale(inputs, currentParserVersion),
     checkFormatMissing(inputs),
     checkCoreMissing(inputs),
     checkUserReports(inputs),

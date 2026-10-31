@@ -134,6 +134,15 @@ function FilterChips({
 
 /** Why the list is empty: the filters, the search, or nothing stored (UX-24 keeps them apart). */
 function NoRows({ q, filters }: { q: string; filters: TournamentFilters }) {
+  if (filters.ignored && !hasFilters(filters)) {
+    return (
+      <EmptyState
+        title="No ignored tournaments"
+        description="Ignore a test or demo tournament from its page and it will be listed here."
+        headingLevel={3}
+      />
+    );
+  }
   if (hasFilters(filters)) {
     return (
       <EmptyState

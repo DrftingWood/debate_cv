@@ -6,7 +6,10 @@ import { ASSUMPTIONS, CHECK_LABELS, type AssumptionCode, type CheckCode } from '
  *   - `?check=<code>`: tournaments failing that check;
  *   - `?band=good|check|rescrape`: tournaments in that score band;
  *   - `?question=<code>`: tournaments an unsettled rule decided;
- *   - `?checked=1`: tournaments with at least one mark applied.
+ *   - `?checked=1`: tournaments with at least one mark applied;
+ *   - `?ignored=1`: only the tournaments an admin set to ignored (test and
+ *     demo ones). Without it the list leaves them out, as every admin score
+ *     does.
  * They narrow together (a tournament must satisfy every one named). Apart
  * from lib/admin/tournamentList.ts so the chips can read them without the
  * list's database code.
@@ -16,6 +19,7 @@ export type TournamentFilters = {
   band?: Band;
   question?: AssumptionCode;
   checked?: true;
+  ignored?: true;
 };
 
 const BANDS: readonly Band[] = ['good', 'check', 'rescrape'];
@@ -42,6 +46,7 @@ export function parseFilters(
     ...(knownBand ? { band: knownBand } : {}),
     ...(hasKey(ASSUMPTIONS, question) ? { question } : {}),
     ...(first(params.checked) === '1' ? { checked: true as const } : {}),
+    ...(first(params.ignored) === '1' ? { ignored: true as const } : {}),
   };
 }
 
@@ -75,5 +80,6 @@ export function filterParams(f: TournamentFilters): Record<string, string> {
     ...(f.band ? { band: f.band } : {}),
     ...(f.question ? { question: f.question } : {}),
     ...(f.checked ? { checked: '1' } : {}),
+    ...(f.ignored ? { ignored: '1' } : {}),
   };
 }

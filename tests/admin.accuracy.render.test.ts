@@ -100,6 +100,7 @@ const overview: AccuracyOverview = {
   failingByCheck: [{ code: 'rounds_complete', label: 'Rounds complete', count: 4 }],
   stale: 3,
   tournaments: 43,
+  ignored: 2,
   openQuestions: [
     {
       code: 'no_open_bracket_champion',

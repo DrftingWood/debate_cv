@@ -12,6 +12,8 @@ import { getTournamentPieces } from '@/lib/admin/scrapeHealth';
 import { TabLink } from '@/components/admin/TabLink';
 import { StaffNames } from '@/components/admin/StaffNames';
 import { getTournamentStaff } from '@/lib/admin/tournamentStaff';
+import { IgnoreTournament } from '@/components/admin/IgnoreTournament';
+import { looksLikeTestTournament } from '@/lib/admin/ignoreSuggestion';
 
 export const metadata: Metadata = {
   title: 'Tournament pieces · Admin',
@@ -81,6 +83,8 @@ export default async function AdminTournamentPiecesPage({
 
       <StaffNames rows={staff} />
 
+      <IgnoreSection id={id} name={data.tournament.name} ignored={data.tournament.ignored} />
+
       {cards.length === 0 ? (
         <EmptyState
           title="No pieces recorded yet"
@@ -99,6 +103,18 @@ export default async function AdminTournamentPiecesPage({
         />
       )}
     </div>
+  );
+}
+
+// Ignore control; the suggestion is the name's alone, never an automatic ignore.
+function IgnoreSection({ id, name, ignored }: { id: string; name: string; ignored: boolean }) {
+  return (
+    <IgnoreTournament
+      tournamentId={id}
+      tournamentName={name}
+      ignored={ignored}
+      looksLikeTest={looksLikeTestTournament(name)}
+    />
   );
 }
 

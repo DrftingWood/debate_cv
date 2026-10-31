@@ -5,8 +5,12 @@ import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { buttonClasses } from '@/components/ui/Button';
 import { FillCoresButton } from '@/components/admin/FillCoresButton';
 import { FillFormatsButton } from '@/components/admin/FillFormatsButton';
+import { FillYearsButton } from '@/components/admin/FillYearsButton';
+import { RefreshOldParserButton } from '@/components/admin/RefreshOldParserButton';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { countMissingCores } from '@/lib/admin/coreFill';
+import { countOldParser } from '@/lib/admin/oldParserFill';
+import { countMissingYears } from '@/lib/admin/yearFill';
 import { orNull } from '@/lib/admin/orNull';
 
 /**
@@ -16,13 +20,15 @@ import { orNull } from '@/lib/admin/orNull';
  * sit beside Re-ingest all, which they explain (it skips the locked ones).
  */
 export async function ToolsTab() {
-  const [discovered, locked, noFormat, noCore] = await Promise.all([
+  const [discovered, locked, noFormat, noCore, noYear, oldParser] = await Promise.all([
     prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
     prisma.discoveredUrl
       .count({ where: { reingestLocked: true } })
       .catch(orNull('locked URL count')),
     prisma.tournament.count({ where: { format: null } }).catch(orNull('missing format count')),
     countMissingCores().catch(orNull('missing adjudication core count')),
+    countMissingYears().catch(orNull('missing year count')),
+    countOldParser().catch(orNull('old-parser count')),
   ]);
   const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-GB'));
   const reingestable =
@@ -36,6 +42,8 @@ export async function ToolsTab() {
       <CheckAndTag />
       <FillFormats missing={noFormat} />
       <FillCores missing={noCore} />
+      <FillYears missing={noYear} />
+      <RefreshOldParser stale={oldParser} />
       <ReingestAll
         discovered={count(discovered)}
         locked={count(locked)}
@@ -143,6 +151,59 @@ function FillCores({ missing }: { missing: number | null }) {
         </p>
       ) : (
         <FillCoresButton missing={missing} />
+      )}
+    </section>
+  );
+}
+
+// Tournaments stored with no year (R12). The name is read, nothing is fetched,
+// so a press goes over 50 and is safe at any time.
+function FillYears({ missing }: { missing: number | null }) {
+  return (
+    <section aria-labelledby="fill-years" className="space-y-stack rounded-lg border p-panel">
+      <div>
+        <h2 id="fill-years" className="font-display text-h3 font-medium text-ink">
+          Fill years from names
+        </h2>
+        <p className="mt-hair max-w-prose text-body text-ink-soft">
+          Reads the year out of the name of tournaments stored without one, such as
+          &ldquo;Preworlds24&rdquo; or &ldquo;WUDC 2023&rdquo;. A name with no year, or with two
+          (&ldquo;IV 2019-20&rdquo;), is left as it is. Nothing is fetched.
+        </p>
+      </div>
+      {missing === null ? (
+        <p className="text-body text-ink-soft">
+          Couldn&rsquo;t count the tournaments with no year.
+        </p>
+      ) : (
+        <FillYearsButton missing={missing} />
+      )}
+    </section>
+  );
+}
+
+// Tournaments stored by an older parser (R12). Every page on record is read
+// again through the partial re-scrape, never a full re-ingest, so a press goes
+// over only 20.
+function RefreshOldParser({ stale }: { stale: number | null }) {
+  return (
+    <section aria-labelledby="refresh-old" className="space-y-stack rounded-lg border p-panel">
+      <div>
+        <h2 id="refresh-old" className="font-display text-h3 font-medium text-ink">
+          Refresh old-parser tournaments
+        </h2>
+        <p className="mt-hair max-w-prose text-body text-ink-soft">
+          Reads again every page on record of tournaments stored by an older version of the parser,
+          then stamps them with the current one. Pages the tournament keeps back are not fetched,
+          and a tournament with a page that fails keeps its old stamp.
+        </p>
+      </div>
+      {stale === null ? (
+        <p className="text-body text-ink-soft">
+          Couldn&rsquo;t count the tournaments from an older parser.
+        </p>
+      ) : (
+        <RefreshOldParserButton stale={stale} />
       )}
     </section>
   );

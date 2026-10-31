@@ -21,17 +21,17 @@ function all(status: CheckStatus, over: Partial<Record<CheckCode, CheckStatus>> 
 }
 
 describe('scoreTournament', () => {
-  it('spec weights sum to 118', () => {
-    expect(codes.reduce((a, c) => a + CHECK_WEIGHTS[c], 0)).toBe(118);
+  it('spec weights sum to 121', () => {
+    expect(codes.reduce((a, c) => a + CHECK_WEIGHTS[c], 0)).toBe(121);
   });
   it('all pass is 100', () => expect(scoreTournament(all('pass'), 0)).toBe(100));
   it('a champion fail costs its weight', () =>
     expect(scoreTournament(all('pass', { champion: 'fail' }), 0)).toBe(
-      Math.round((100 * (118 - 15)) / 118),
+      Math.round((100 * (121 - 15)) / 121),
     ));
   it('a warn earns half', () =>
     expect(scoreTournament(all('pass', { champion: 'warn' }), 0)).toBe(
-      Math.round((100 * (118 - 7.5)) / 118),
+      Math.round((100 * (121 - 7.5)) / 121),
     ));
   it('all na is 100', () => expect(scoreTournament(all('na'), 0)).toBe(100));
   it('open reports subtract 10 each, capped at 30', () => {
@@ -77,5 +77,5 @@ describe('publicPieceUrl', () => {
     expect(publicPieceUrl('not a url')).toBeNull();
     expect(publicPieceUrl('javascript:alert(1)')).toBeNull();
   });
-  it('labels every code', () => expect(Object.keys(CHECK_LABELS)).toHaveLength(16));
+  it('labels every code', () => expect(Object.keys(CHECK_LABELS)).toHaveLength(17));
 });

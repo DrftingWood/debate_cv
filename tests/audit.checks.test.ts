@@ -27,6 +27,7 @@ describe('runChecks', () => {
       'points_add_up',
       'outround_shape',
       'break_matches',
+      'break_unstored',
       'speaker_tab',
       'motions',
       'scrape_incomplete',

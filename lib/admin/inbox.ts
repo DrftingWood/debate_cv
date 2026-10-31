@@ -106,7 +106,8 @@ async function checkCandidates(): Promise<CheckCandidate[]> {
   // audit has already turned into passes. Lowest score first, so the cap
   // keeps the worst.
   const audits = await prisma.tournamentAudit.findMany({
-    where: { score: { lt: 100 } },
+    // Ignored (test and demo) tournaments raise nothing for the admin.
+    where: { score: { lt: 100 }, tournament: { ignored: false } },
     orderBy: [{ score: 'asc' }, { tournamentId: 'asc' }],
     take: CANDIDATE_CAP,
     select: { tournamentId: true, usersAffected: true, computedAt: true, checks: true },
