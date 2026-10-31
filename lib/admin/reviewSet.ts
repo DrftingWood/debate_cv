@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { publicPieceUrl } from '@/lib/audit/types';
 import { storedForJobs } from '@/lib/admin/scrapeHealth';
-import { loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
+import { loadTabStates, NOT_APPLICABLE_TAB, tabState, type TabState } from '@/lib/admin/tabStatus';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import { csvLine } from '@/lib/utils/csv';
 import { scrubComment } from '@/lib/admin/scrub';
@@ -288,7 +288,11 @@ export async function loadReviewSet(
       tournament,
       lastError: job?.lastError ? ingestErrorCategory(job.lastError) : null,
       attempts: job ? job.attempts : null,
-      tab: (tournament && tabs.get(tournament.id)) || tabState(null, []),
+      // Only an import is one tournament's import; a CV report borrows its
+      // first stored tournament's state, and a warning has none.
+      tab:
+        (tournament && tabs.get(tournament.id)) ||
+        (r.source === 'import' ? tabState(null, []) : NOT_APPLICABLE_TAB),
       detail:
         details.get(itemKey({ source: r.source as FlagSource, sourceId: r.sourceId })) ?? null,
       createdBy: r.createdBy,

@@ -39,6 +39,14 @@ export function TabStatus({
   name?: string;
   open?: boolean;
 }) {
+  if (tab.state === 'not_applicable') {
+    return (
+      <span className="text-ink-soft">
+        <span aria-hidden>{'—'}</span>
+        <span className="sr-only">Not applicable</span>
+      </span>
+    );
+  }
   if (tab.state === 'missing') {
     return (
       <span className="whitespace-nowrap text-ink-soft">

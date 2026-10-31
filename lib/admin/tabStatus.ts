@@ -19,6 +19,11 @@ import { prisma } from '@/lib/db';
  *     the owner does not want a well-scraped tab marked as a problem. The
  *     reason is in `errors`, shown the way a partial tab's pages are.
  *
+ *   - `not_applicable`: the row is not one tournament's import (a parser
+ *     warning spans many), so there is nothing to be loaded or missing.
+ *     Shown as an em dash, never a cross (owner: "I don't want urls that
+ *     got scraped properly to be highlighted").
+ *
  * `errors` is what the "?" reveals: one line per failed page, in words. The
  * piece's `lastError` is a scraper exception that can carry the page's
  * stored URL, which may be a private one, so it never appears as written:
@@ -27,7 +32,7 @@ import { prisma } from '@/lib/db';
  */
 
 export type TabState = {
-  state: 'loaded' | 'partial' | 'missing' | 'check';
+  state: 'loaded' | 'partial' | 'missing' | 'check' | 'not_applicable';
   tournamentId: string | null;
   errors: string[];
 };
@@ -91,6 +96,13 @@ export function tabState(tournamentId: string | null, failed: FailedPieceLike[])
         ];
   return { state: 'partial', tournamentId, errors };
 }
+
+/** A row that is not one tournament's import: no tab to report on. */
+export const NOT_APPLICABLE_TAB: TabState = {
+  state: 'not_applicable',
+  tournamentId: null,
+  errors: [],
+};
 
 /** "? Check": the address matched more than one stored tournament. */
 export function ambiguousTab(count: number): TabState {

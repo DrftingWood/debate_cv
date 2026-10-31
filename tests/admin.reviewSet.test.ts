@@ -270,3 +270,18 @@ describe('one open flag per item, under a lock', () => {
     });
   });
 });
+
+describe('tab status of a flag that is not an import', () => {
+  it('gives a parser warning, and a CV report with no stored tournament, no tab status', async () => {
+    prismaMock.reviewFlag.findMany.mockResolvedValue([
+      flag({ id: 7n, source: 'parser_warning', sourceId: 'parseTabs|x', url: '' }),
+      flag({ id: 8n, source: 'cv_report', sourceId: 'r1', url: '' }),
+    ]);
+    prismaMock.cvErrorReport.findMany.mockResolvedValue([]);
+    prismaMock.parserRun.findMany.mockResolvedValue([]);
+    prismaMock.ingestJob.findMany.mockResolvedValue([]);
+    prismaMock.scrapePiece.findMany.mockResolvedValue([]);
+    const views = await loadReviewSet();
+    expect(views.map((v) => v.tab.state)).toEqual(['not_applicable', 'not_applicable']);
+  });
+});

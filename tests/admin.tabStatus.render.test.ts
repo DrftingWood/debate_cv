@@ -154,6 +154,46 @@ const flag = (over: Partial<ReviewFlagView>): ReviewFlagView => ({
   ...over,
 });
 
+describe('Flagged for review: a flag that is not one tournament import', () => {
+  const na: ReviewFlagView['tab'] = { state: 'not_applicable', tournamentId: null, errors: [] };
+
+  it('shows a parser warning no tab status, only an em dash and sr-only text', () => {
+    const out = html(
+      h(ReviewSetSection, {
+        now: NOW,
+        flags: [
+          flag({
+            source: 'parser_warning',
+            sourceId: 'parseTabs|x',
+            comment: 'warn',
+            url: null,
+            tournament: null,
+            attempts: null,
+            tab: na,
+          }),
+        ],
+      }),
+    );
+    expect(out).not.toContain('Not loaded');
+    expect(out).not.toContain('✗');
+    expect(out).toMatch(/<span class="sr-only">Not applicable<\/span>/);
+    expect(out).toContain('—');
+  });
+
+  it('still shows an import its real state', () => {
+    const out = html(
+      h(ReviewSetSection, {
+        now: NOW,
+        flags: [
+          flag({ tournament: null, tab: { state: 'missing', tournamentId: null, errors: [] } }),
+        ],
+      }),
+    );
+    expect(out).toContain('Not loaded');
+    expect(out).not.toContain('Not applicable');
+  });
+});
+
 describe('Flagged for review', () => {
   it('lists the set high to low, then oldest first, with export links', () => {
     const out = html(
