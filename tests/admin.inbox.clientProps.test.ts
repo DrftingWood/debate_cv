@@ -64,6 +64,40 @@ describe('Inbox rows', () => {
   });
 });
 
+describe('Inbox rows: Infer format', () => {
+  it('make the fallback pieces public too', () => {
+    const [row] = toInboxRows(
+      [
+        {
+          key: 'check:2',
+          kind: 'check',
+          tournament: { id: '2', name: 'Oxford IV', tabUrl: PRIVATE, status: 'loaded' },
+          summary: 'No format is recorded, though 6 rounds are stored.',
+          more: 0,
+          usersAffected: 1,
+          severity: 'fail',
+          age: NOW,
+          fix: {
+            type: 'infer_format',
+            tournamentId: '2',
+            pieces: [{ kind: 'round', key: '1', label: 'R1', url: `${PRIVATE}round/1/` }],
+          },
+          markItems: [],
+          flagItems: [],
+          reviewFlag: null,
+          changedSinceChecked: false,
+        },
+      ],
+      NOW,
+    );
+    expectNoKey(row);
+    expect(row!.fix).toMatchObject({
+      type: 'infer_format',
+      pieces: [{ url: 'https://oxiv.calicotab.com/oxiv2025/' }],
+    });
+  });
+});
+
 describe('Inbox row text', () => {
   it('scrubs a private link out of the summary and the name of every kind', () => {
     const base = {

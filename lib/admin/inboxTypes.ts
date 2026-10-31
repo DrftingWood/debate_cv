@@ -27,6 +27,7 @@ export const CANDIDATE_CAP = 1000;
 
 export type FixAction =
   | { type: 'rescrape'; tournamentId: string; pieces: SuggestedPiece[] }
+  | { type: 'infer_format'; tournamentId: string; pieces: SuggestedPiece[] }
   | { type: 'retry'; jobIds: string[] }
   | { type: 'open'; href: string };
 

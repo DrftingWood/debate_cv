@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { buttonClasses } from '@/components/ui/Button';
+import { FillFormatsButton } from '@/components/admin/FillFormatsButton';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { orNull } from '@/lib/admin/orNull';
 
@@ -13,11 +14,12 @@ import { orNull } from '@/lib/admin/orNull';
  * sit beside Re-ingest all, which they explain (it skips the locked ones).
  */
 export async function ToolsTab() {
-  const [discovered, locked] = await Promise.all([
+  const [discovered, locked, noFormat] = await Promise.all([
     prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
     prisma.discoveredUrl
       .count({ where: { reingestLocked: true } })
       .catch(orNull('locked URL count')),
+    prisma.tournament.count({ where: { format: null } }).catch(orNull('missing format count')),
   ]);
   const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-GB'));
   const reingestable =
@@ -29,6 +31,7 @@ export async function ToolsTab() {
 
       <LookupSection />
       <CheckAndTag />
+      <FillFormats missing={noFormat} />
       <ReingestAll
         discovered={count(discovered)}
         locked={count(locked)}
@@ -83,6 +86,32 @@ function CheckAndTag() {
           Review tag proposals →
         </Link>
       </div>
+    </section>
+  );
+}
+
+// Tournaments stored with no format (R9). The button reads the stored rounds
+// and team sizes, so it fetches nothing and is safe to press at any time.
+function FillFormats({ missing }: { missing: number | null }) {
+  return (
+    <section aria-labelledby="fill-formats" className="space-y-stack rounded-lg border p-panel">
+      <div>
+        <h2 id="fill-formats" className="font-display text-h3 font-medium text-ink">
+          Fill missing formats
+        </h2>
+        <p className="mt-hair max-w-prose text-body text-ink-soft">
+          Works out the format of tournaments stored without one, from their rounds and team sizes.
+          Nothing is fetched. A tournament it cannot decide is left as it is: re-scrape its first
+          round and team tab from its page.
+        </p>
+      </div>
+      {missing === null ? (
+        <p className="text-body text-ink-soft">
+          Couldn&rsquo;t count the tournaments with no format.
+        </p>
+      ) : (
+        <FillFormatsButton missing={missing} />
+      )}
     </section>
   );
 }

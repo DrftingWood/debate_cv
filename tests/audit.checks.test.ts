@@ -31,6 +31,7 @@ describe('runChecks', () => {
       'motions',
       'scrape_incomplete',
       'parser_stale',
+      'format_missing',
       'user_reports',
     ]);
   });

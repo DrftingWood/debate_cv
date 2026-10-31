@@ -39,7 +39,7 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.6';
+export const CHECKS_VERSION = '2026-10-31.7';
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;
@@ -112,6 +112,27 @@ function checkParserStale(parserVersion: string | null, current: string): CheckR
   );
 }
 
+/**
+ * A tournament with stored rounds but no recorded format. The format decides
+ * how many teams share a room and how many speakers a team needs, so several
+ * other checks lean on it; and it shows on the CV. With no rounds stored
+ * there is nothing a format could be read from, so the check does not apply.
+ * The suggested pages (R1 and the team tab) are what a re-scrape needs when
+ * the stored data cannot settle the format ("Infer format" says so first).
+ */
+function checkFormatMissing(inputs: AuditInputs): CheckResult {
+  const format = inputs.format?.trim();
+  if (format) return result('format_missing', 'pass', `The format is ${format}.`);
+  const rounds = new Set(inputs.roundRows.map((r) => r.round)).size;
+  if (rounds === 0) return result('format_missing', 'na', 'No rounds are stored to read it from.');
+  return result(
+    'format_missing',
+    'fail',
+    `No format is recorded, though ${rounds} ${plural(rounds, 'round is', 'rounds are')} stored.`,
+    [prelimPiece(inputs.pieces, 1), tabPiece(inputs.pieces, 'team')],
+  );
+}
+
 /** What reportPieces reads: the recorded pieces and what says how many prelims there were. */
 export type ReportPieceInputs = Pick<AuditInputs, 'pieces' | 'prelimRoundCount' | 'roundRows'>;
 
@@ -170,6 +191,7 @@ export function runChecks(inputs: AuditInputs, currentParserVersion: string): Ch
     checkMotions(inputs),
     checkScrapeIncomplete(inputs),
     checkParserStale(inputs.parserVersion, currentParserVersion),
+    checkFormatMissing(inputs),
     checkUserReports(inputs),
   ];
   return withoutWithheld(results, inputs.pieces);

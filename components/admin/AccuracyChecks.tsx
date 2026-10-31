@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatusPill, type Status } from '@/components/ui/StatusPill';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
 import { CheckActions, CheckActionsProvider } from '@/components/admin/CheckActions';
+import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { TournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
@@ -82,7 +83,12 @@ export function AccuracyChecks({
         <CheckActionsProvider>
           <ul className="divide-y divide-border rounded-md border border-border">
             {audit.checks.map((c) => (
-              <CheckRow key={c.code} check={c} tournamentName={tournamentName} />
+              <CheckRow
+                key={c.code}
+                check={c}
+                tournamentId={tournamentId}
+                tournamentName={tournamentName}
+              />
             ))}
           </ul>
         </CheckActionsProvider>
@@ -93,9 +99,11 @@ export function AccuracyChecks({
 
 function CheckRow({
   check: c,
+  tournamentId,
   tournamentName,
 }: {
   check: TournamentAccuracy['checks'][number];
+  tournamentId: string;
   tournamentName: string;
 }) {
   const pill = c.checked ? CHECKED_PILL : PILL[c.status];
@@ -130,6 +138,15 @@ function CheckRow({
           </a>
         </p>
       ))}
+      {/* The missing format has a fix of its own, read from the stored rounds;
+          the pages above are what it falls back to when they cannot decide. */}
+      {c.code === 'format_missing' && c.status === 'fail' ? (
+        <InferFormatButton
+          tournamentId={tournamentId}
+          tournamentName={tournamentName}
+          pieces={c.pieces}
+        />
+      ) : null}
       <CheckActions
         tournamentName={tournamentName}
         label={c.label}

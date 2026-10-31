@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Button, buttonClasses } from '@/components/ui/Button';
+import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { InboxRetryButton } from '@/components/admin/InboxRetryButton';
 import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
 import { TabLink } from '@/components/admin/TabLink';
@@ -59,7 +60,7 @@ export function RowActions({
   );
 }
 
-/** "Fix", by what the item's fix is: a re-scrape, a retry, or a place to go. */
+/** "Fix", by what the item's fix is: a re-scrape, an inferred format, a retry, or a place to go. */
 function FixButton({ row }: { row: InboxRow }) {
   const fix = row.fix;
   if (fix.type === 'rescrape') {
@@ -69,6 +70,15 @@ function FixButton({ row }: { row: InboxRow }) {
         tournamentName={row.name}
         suggested={fix.pieces}
         asFix
+      />
+    );
+  }
+  if (fix.type === 'infer_format') {
+    return (
+      <InferFormatButton
+        tournamentId={fix.tournamentId}
+        tournamentName={row.name}
+        pieces={fix.pieces}
       />
     );
   }

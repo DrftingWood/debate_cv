@@ -55,6 +55,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 3) },
+    tournament: { count: vi.fn(async () => 12) },
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -233,6 +234,9 @@ describe('/admin Tools and Tournaments tabs', () => {
     expect(text(out)).toContain('Discovered URLs 40');
     expect(text(out)).toContain('Locked URLs 40');
     expect(out).toContain('Re-ingest all');
+    // R9: the bulk format fill, with how many tournaments have no format.
+    expect(text(out)).toContain('Fill missing formats');
+    expect(text(out)).toContain('Tournaments with no format: 12');
     const details = out.match(
       /<details(?![^>]*\bopen\b)[^>]*>\s*<summary[^>]*>[\s\S]*?<\/summary>/,
     );

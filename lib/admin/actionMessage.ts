@@ -101,3 +101,14 @@ const MARK: Record<string, string> = {
 export function markFailureMessage(failure: FailureLike): string {
   return lookup(MARK, failure.error) ?? generic(failure);
 }
+
+const FORMAT: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That could not be run. Reload the page and try again.',
+  not_found: 'This tournament no longer exists. Reload the page to see the current list.',
+};
+
+/** Why "Infer format" or "Fill missing formats" did not run. */
+export function formatFailureMessage(failure: FailureLike): string {
+  return lookup(FORMAT, failure.error) ?? generic(failure);
+}

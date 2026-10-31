@@ -2,7 +2,8 @@ import { IngestJobStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { CHECK_LABELS, publicPieceUrl } from '@/lib/audit/types';
 import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
-import { parseChecks, suggestedPieces, type ParsedCheck } from '@/lib/admin/accuracy';
+import { parseChecks, type ParsedCheck } from '@/lib/admin/accuracy';
+import { checkFix } from '@/lib/admin/inboxFix';
 import { clampPage } from '@/lib/admin/cvReportTypes';
 import { classifyWarning, isPlainProblem } from '@/lib/admin/parserClass';
 import { loadWarningGroups, tournamentsOf, type WarningGroup } from '@/lib/admin/parserWarnings';
@@ -167,7 +168,10 @@ async function checkDrafts(): Promise<Draft[]> {
         severity: isFailing(lead.c) ? 'fail' : 'warn',
         // When it was last audited: the audit is where the finding comes from.
         age: computedAt,
-        fix: { type: 'rescrape', tournamentId: id, pieces: suggestedPieces(left.map((o) => o.c)) },
+        fix: checkFix(
+          id,
+          left.map((o) => o.c),
+        ),
         markItems: left.map((o) => ({
           kind: 'check',
           subject: o.subject,

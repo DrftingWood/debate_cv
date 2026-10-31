@@ -36,6 +36,7 @@ vi.mock('@/lib/db', () => ({
     tournamentAudit: { groupBy: vi.fn(async () => []) },
     ingestJob: { count: vi.fn(async () => 0) },
     discoveredUrl: { count: vi.fn(async () => 0) },
+    tournament: { count: vi.fn(async () => 0) },
   },
 }));
 vi.mock('next/navigation', () => ({

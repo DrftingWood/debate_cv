@@ -79,7 +79,7 @@ export function toInboxRows(items: readonly InboxItem[], now: Date): InboxRow[] 
       severity: item.severity,
       age: { text: relativeTime(item.age, now), iso: item.age.toISOString() },
       fix:
-        fix.type === 'rescrape'
+        fix.type === 'rescrape' || fix.type === 'infer_format'
           ? {
               ...fix,
               pieces: fix.pieces.map((p) => ({ ...p, url: p.url ? publicPieceUrl(p.url) : null })),
