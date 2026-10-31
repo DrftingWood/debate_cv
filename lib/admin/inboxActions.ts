@@ -63,6 +63,28 @@ export function flagItemsOf(
 }
 
 /**
+ * The toast after Undo, from how many of its DELETEs failed. Every mark is
+ * tried whatever happens to the one before it, so a partial failure is told
+ * exactly: how many came back, and that the others are still checked.
+ */
+export function undoOutcome(
+  total: number,
+  failed: number,
+  reason: string | null,
+): { kind: 'success' | 'error'; title: string; description: string } {
+  if (failed === 0) {
+    return { kind: 'success', title: 'Mark undone', description: 'It is back in the Inbox.' };
+  }
+  const why = reason ?? 'Try again in a minute.';
+  if (failed >= total) return { kind: 'error', title: 'Undo failed', description: why };
+  return {
+    kind: 'error',
+    title: `Undid ${total - failed} of ${total}; the rest are still checked`,
+    description: why,
+  };
+}
+
+/**
  * The toast after "Mark checked". `applied` is how many accuracy checks the
  * re-audit counted as a pass; fewer than were sent means the data changed
  * since the page was read, so they are saved but the score did not move.

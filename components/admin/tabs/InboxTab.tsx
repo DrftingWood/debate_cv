@@ -18,6 +18,7 @@ import { readPage } from '@/lib/admin/cvReportTypes';
 import { orNull } from '@/lib/admin/orNull';
 import { readInbox } from '@/lib/admin/summary';
 import { publicPieceUrl } from '@/lib/audit/types';
+import { scrubComment } from '@/lib/admin/scrub';
 import { relativeTime } from '@/lib/utils/relativeTime';
 import type { TabState } from '@/lib/admin/tabStatus';
 
@@ -71,11 +72,11 @@ export function toInboxRows(items: readonly InboxItem[], now: Date): InboxRow[] 
     return {
       key: item.key,
       kind: item.kind,
-      name: nameOf(item),
+      name: scrubComment(nameOf(item)),
       tournamentId: item.tournament?.id ?? null,
       tabUrl: item.tournament?.tabUrl ? publicPieceUrl(item.tournament.tabUrl) : null,
       tab: tabOf(item),
-      summary: item.summary,
+      summary: scrubComment(item.summary),
       more: item.more,
       users: item.usersAffected,
       severity: item.severity,

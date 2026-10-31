@@ -63,3 +63,40 @@ describe('Inbox rows', () => {
     expect(rows[0]!.tabUrl).toBe('https://oxiv.calicotab.com/oxiv2025/');
   });
 });
+
+describe('Inbox row text', () => {
+  it('scrubs a private link out of the summary and the name of every kind', () => {
+    const base = {
+      more: 0,
+      usersAffected: 1,
+      severity: 'fail' as const,
+      age: NOW,
+      fix: { type: 'open' as const, href: '/admin' },
+      markItems: [],
+      flagItems: [],
+      reviewFlag: null,
+      changedSinceChecked: false,
+    };
+    const rows = toInboxRows(
+      [
+        {
+          ...base,
+          key: 'check:1',
+          kind: 'check',
+          tournament: null,
+          summary: `Round 3 missing, see ${PRIVATE}round/3/ and privateurls/${KEY}`,
+        },
+        {
+          ...base,
+          key: 'parser:x',
+          kind: 'parser',
+          tournament: { id: null, name: `at ${PRIVATE}`, tabUrl: null, status: 'missing' },
+          summary: `Ballot not found at ${PRIVATE}`,
+        },
+      ],
+      NOW,
+    );
+    expectNoKey(rows);
+    expect(rows[0]!.summary).toContain('Round 3 missing');
+  });
+});

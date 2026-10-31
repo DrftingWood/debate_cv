@@ -173,8 +173,8 @@ async function checkDrafts(): Promise<Draft[]> {
           fingerprint: o.fingerprint,
         })),
         changedSinceChecked: changed,
-        // Review-set flags have no check source; a check carries none.
-        flagIds: [],
+        // Each check is flaggable on its own: its mark subject is its flag id.
+        flagIds: left.map((o) => ({ source: 'audit_check' as const, id: o.subject })),
       },
     ];
   });

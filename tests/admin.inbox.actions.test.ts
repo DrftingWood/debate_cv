@@ -4,6 +4,7 @@ import {
   flagItemsOf,
   markedWords,
   MARK_BATCH_MAX,
+  undoOutcome,
   undoTargets,
 } from '@/lib/admin/inboxActions';
 import { KIND_LABEL, kindsParam, parseKinds } from '@/lib/admin/inboxTypes';
@@ -82,5 +83,29 @@ describe('?kinds=', () => {
   it('writes the kinds back the way it reads them', () => {
     expect(kindsParam(parseKinds('import,check'))).toBe('check,import');
     expect(KIND_LABEL.check).toBe('Accuracy');
+  });
+});
+
+describe('undoOutcome', () => {
+  it('says the mark is undone when every DELETE worked', () => {
+    expect(undoOutcome(3, 0, null)).toEqual({
+      kind: 'success',
+      title: 'Mark undone',
+      description: 'It is back in the Inbox.',
+    });
+  });
+
+  it('says how many were undone and that the rest are still checked on a partial failure', () => {
+    const out = undoOutcome(3, 1, 'Something went wrong on our side.');
+    expect(out.kind).toBe('error');
+    expect(out.title).toBe('Undid 2 of 3; the rest are still checked');
+    expect(out.description).toContain('Something went wrong on our side.');
+  });
+
+  it('says undo failed when none worked', () => {
+    const out = undoOutcome(2, 2, 'Network down.');
+    expect(out.kind).toBe('error');
+    expect(out.title).toBe('Undo failed');
+    expect(out.description).toContain('Network down.');
   });
 });

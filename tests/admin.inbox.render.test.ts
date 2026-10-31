@@ -56,6 +56,7 @@ const checkItem: InboxItem = {
     tournamentId: '5',
     pieces: [{ kind: 'round', key: '3', label: 'Round 3', url: null }],
   },
+  flagItems: [{ source: 'audit_check', sourceId: '5:rounds_complete' }],
   changedSinceChecked: true,
   reviewFlag: { priority: 'high' },
 };
@@ -140,9 +141,15 @@ describe('Inbox rows', () => {
     expect(text(out)).toContain('Review later');
   });
 
-  it('offers no Review later for an item with nothing to flag', async () => {
+  it('offers Review later on an accuracy check, and on every kind that can be flagged', async () => {
     const out = await render();
-    expect(out).not.toContain('Review later: Oxford IV 2025');
+    expect(out).toContain('aria-label="Review later: Oxford IV 2025"');
+    expect(out).toContain('aria-label="Review later: Ballot table not found"');
+  });
+
+  it('offers no Review later for an item with nothing to flag', async () => {
+    h.inbox.mockResolvedValue(list([{ ...parserItem, flagItems: [] }]));
+    expect(await render()).not.toContain('Review later: Ballot table not found');
   });
 
   it('marks a changed item and a flagged one', async () => {
@@ -158,6 +165,21 @@ describe('Inbox rows', () => {
     expect(out).toContain('href="https://oxiv.calicotab.com/oxiv2025/"');
     expect(out.toLowerCase()).not.toContain('privateurls');
     expect(out).not.toContain(KEY);
+  });
+});
+
+describe('Inbox bulk bar and row menu', () => {
+  it('has a bulk bar that is a named group, announces the count and shows select-all on a phone', async () => {
+    const out = await render();
+    expect(out).toContain('role="group" aria-label="Bulk actions"');
+    expect(out).toMatch(/aria-live="polite"[^>]*>0 selected</);
+    // The header box is for md and up; below it the bar carries a labelled one.
+    expect(out).toMatch(/<label[^>]*md:hidden[^>]*>[\s\S]*?Select all 3 shown/);
+  });
+
+  it('has a row menu whose summary hides the browser marker', async () => {
+    const out = await render();
+    expect(out).toContain('[&amp;::-webkit-details-marker]:hidden');
   });
 
   it('has a row menu with the tab link and the details page', async () => {

@@ -1,15 +1,11 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { Check } from '@/components/ui/icons';
 import { Badge } from '@/components/ui/Badge';
-import { Button, buttonClasses } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
-import { InboxRetryButton } from '@/components/admin/InboxRetryButton';
-import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
-import { TabLink } from '@/components/admin/TabLink';
-import { TabStatus } from '@/components/admin/TabStatus';
+import { NameAndStatus, RowActions, WhatIsWrong } from '@/components/admin/InboxRowParts';
 import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
 import { bulkMarkPayload, flagItemsOf } from '@/lib/admin/inboxActions';
 import { useMarkChecked } from '@/components/admin/useMarkChecked';
@@ -20,7 +16,7 @@ import {
   type InboxKind,
   type InboxMarkItem,
 } from '@/lib/admin/inboxTypes';
-import { PRIORITY_LABEL, type FlagItem, type Priority } from '@/lib/admin/reviewSetTypes';
+import type { FlagItem, Priority } from '@/lib/admin/reviewSetTypes';
 import type { TabState } from '@/lib/admin/tabStatus';
 
 /**
@@ -92,10 +88,22 @@ export function InboxTable({ rows }: { rows: InboxRow[] }) {
     label: selected.size > 0 ? `Review ${selected.size} later` : 'Review later',
   });
   const allShown = rows.length > 0 && rows.every((r) => selected.has(r.key));
+  const toggleAll = () =>
+    sel.toggle(
+      rows.map((r) => r.key),
+      !allShown,
+    );
 
   return (
     <div className="space-y-tight">
-      <BulkBar rows={rows} selected={selected} marking={marking} reviewButton={review.button} />
+      <BulkBar
+        rows={rows}
+        selected={selected}
+        marking={marking}
+        reviewButton={review.button}
+        allShown={allShown}
+        onToggleAll={toggleAll}
+      />
       {review.panel}
       <div className="panel overflow-hidden">
         <TableScroll>
@@ -105,16 +113,7 @@ export function InboxTable({ rows }: { rows: InboxRow[] }) {
                 <col key={i} style={{ width: w }} />
               ))}
             </colgroup>
-            <InboxHead
-              count={rows.length}
-              allShown={allShown}
-              onToggleAll={() =>
-                sel.toggle(
-                  rows.map((r) => r.key),
-                  !allShown,
-                )
-              }
-            />
+            <InboxHead count={rows.length} allShown={allShown} onToggleAll={toggleAll} />
             <tbody className="max-md:block">
               {rows.map((row) => (
                 <InboxRowView
@@ -147,11 +146,15 @@ function BulkBar({
   selected,
   marking,
   reviewButton,
+  allShown,
+  onToggleAll,
 }: {
   rows: readonly InboxRow[];
   selected: ReadonlySet<string>;
   marking: ReturnType<typeof useMarkChecked>;
   reviewButton: ReactNode;
+  allShown: boolean;
+  onToggleAll: () => void;
 }) {
   const errorId = useId();
   const bulk = bulkMarkPayload(rows, selected);
@@ -166,7 +169,12 @@ function BulkBar({
   };
   return (
     <>
-      <div className="flex flex-wrap items-center gap-inline">
+      <div
+        role="group"
+        aria-label="Bulk actions"
+        className="flex flex-wrap items-center gap-inline"
+      >
+        <SelectAllOnPhone count={rows.length} checked={allShown} onChange={onToggleAll} />
         <Button
           type="button"
           variant="outline"
@@ -180,18 +188,68 @@ function BulkBar({
           {selected.size > 0 ? `Mark ${selected.size} checked` : 'Mark checked'}
         </Button>
         {reviewButton}
-        <span className="font-mono text-caption tabular-nums text-ink-soft">
-          {selected.size} selected
+        <span aria-live="polite" className="font-mono text-caption tabular-nums text-ink-soft">
+          {`${selected.size} selected`}
         </span>
       </div>
-      {bulk.left > 0 ? (
+      <BulkNotes
+        left={bulk.left}
+        undoing={marking.undoing}
+        error={marking.error}
+        errorId={errorId}
+      />
+    </>
+  );
+}
+
+/** The table's header box is hidden below md; a phone selects all here. */
+function SelectAllOnPhone({
+  count,
+  checked,
+  onChange,
+}: {
+  count: number;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="inline-flex min-h-6 items-center gap-inline text-caption text-ink md:hidden">
+      <input
+        type="checkbox"
+        className="h-6 w-6 accent-primary"
+        checked={checked}
+        onChange={onChange}
+      />
+      {`Select all ${count} shown`}
+    </label>
+  );
+}
+
+/** Status lines under the bar: an Undo in progress, ticked items left over, a refusal. */
+function BulkNotes({
+  left,
+  undoing,
+  error,
+  errorId,
+}: {
+  left: number;
+  undoing: string;
+  error: string | null;
+  errorId: string;
+}) {
+  return (
+    <>
+      <p role="status" className="text-caption text-ink-soft empty:hidden">
+        {undoing}
+      </p>
+      {left > 0 ? (
         <p className="text-caption text-ink-soft">
-          {plural(bulk.left, 'ticked item')} will not fit in this press; press again after it saves.
+          {plural(left, 'ticked item')} will not fit in this press; press again after it saves.
         </p>
       ) : null}
-      {marking.error ? (
+      {error ? (
         <p id={errorId} role="alert" className="text-caption text-destructive">
-          {marking.error}
+          {error}
         </p>
       ) : null}
     </>
@@ -213,7 +271,7 @@ function InboxHead({
         <Th className="pl-stack">
           <input
             type="checkbox"
-            className="h-6 w-6 accent-primary align-middle"
+            className="h-6 w-6 accent-primary align-middle max-md:hidden"
             checked={allShown}
             onChange={onToggleAll}
             aria-label={`Select the ${plural(count, 'item')} shown`}
@@ -285,160 +343,5 @@ function InboxRowView({
         <RowActions row={row} marking={marking} onReview={onReview} />
       </Td>
     </Tr>
-  );
-}
-
-function RowActions({
-  row,
-  marking,
-  onReview,
-}: {
-  row: InboxRow;
-  marking: ReturnType<typeof useMarkChecked>;
-  onReview: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-start gap-inline">
-      <FixButton row={row} />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        loading={marking.busy(row.key)}
-        aria-disabled={marking.blocked(row.key) || undefined}
-        aria-label={`Mark checked: ${row.name}`}
-        onClick={() =>
-          marking.mark({ id: row.key, items: row.markItems, keys: [row.key], what: row.name })
-        }
-      >
-        Mark checked
-      </Button>
-      {row.flagItems.length > 0 ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-label={`Review later: ${row.name}`}
-          onClick={onReview}
-        >
-          Review later
-        </Button>
-      ) : null}
-      <RowMenu row={row} />
-    </div>
-  );
-}
-
-/** "Fix", by what the item's fix is: a re-scrape, a retry, or a place to go. */
-function FixButton({ row }: { row: InboxRow }) {
-  const fix = row.fix;
-  if (fix.type === 'rescrape') {
-    return (
-      <RescrapeSuggestedButton
-        tournamentId={fix.tournamentId}
-        tournamentName={row.name}
-        suggested={fix.pieces}
-        asFix
-      />
-    );
-  }
-  if (fix.type === 'retry') return <InboxRetryButton jobIds={fix.jobIds} subject={row.name} />;
-  return (
-    <Link
-      href={fix.href}
-      aria-label={`Fix: open ${row.name}`}
-      className={buttonClasses({ variant: 'outline', size: 'sm' })}
-    >
-      Fix
-    </Link>
-  );
-}
-
-/**
- * The row menu: "Open tab ↗" (the public page, a new tab) and "Open
- * details" (the admin page of the stored tournament). A native <details>, so
- * it opens from the keyboard and needs no script; its list flows inside the
- * cell rather than floating, because the table's scroll box would clip a
- * floating one. Absent when the row has neither place to go.
- */
-function RowMenu({ row }: { row: InboxRow }) {
-  if (!row.tabUrl && !row.tournamentId) return null;
-  return (
-    <details className="text-table">
-      <summary
-        aria-label={`More actions for ${row.name}`}
-        className={`${buttonClasses({ variant: 'ghost', size: 'sm' })} cursor-pointer list-none`}
-      >
-        More
-      </summary>
-      <div className="mt-hair flex flex-col items-start gap-hair">
-        <TabLink url={row.tabUrl} text="Open tab" of={row.name} className="py-hair" />
-        {row.tournamentId ? (
-          <Link
-            href={`/admin/tournaments/${row.tournamentId}`}
-            aria-label={`Open details of ${row.name}`}
-            className="py-hair text-ink underline-offset-4 hover:underline"
-          >
-            Open details
-          </Link>
-        ) : null}
-      </div>
-    </details>
-  );
-}
-
-/**
- * The tournament's name (a link to its admin page when stored, else its
- * public tab address) and the one status cell under it. An item with no
- * tournament behind it (a parser headline) has no status to show.
- */
-function NameAndStatus({ row }: { row: InboxRow }) {
-  return (
-    <>
-      {row.tournamentId ? (
-        <Link
-          href={`/admin/tournaments/${row.tournamentId}`}
-          className="font-medium text-ink underline-offset-4 hover:underline"
-        >
-          {row.name}
-        </Link>
-      ) : row.kind === 'import' ? (
-        <TabLink
-          url={row.tabUrl}
-          text={row.name}
-          of={row.name}
-          className="font-mono text-caption"
-        />
-      ) : (
-        <span className="font-medium text-ink">{row.name}</span>
-      )}
-      {row.tab.state === 'not_applicable' ? null : (
-        <div className="mt-hair">
-          <TabStatus tab={row.tab} name={row.name} open={false} />
-        </div>
-      )}
-    </>
-  );
-}
-
-/** The one-sentence summary, "+n more", and the changed and flagged marks. */
-function WhatIsWrong({ row }: { row: InboxRow }) {
-  return (
-    <>
-      <span className="text-ink">{row.summary}</span>
-      {row.more > 0 ? <span className="text-ink-soft"> +{row.more} more</span> : null}
-      <div className="flex flex-wrap gap-hair empty:hidden">
-        {row.changed ? (
-          <Badge variant="warning" className="mt-hair whitespace-normal">
-            Changed since you checked it
-          </Badge>
-        ) : null}
-        {row.reviewPriority ? (
-          <Badge variant="info" className="mt-hair whitespace-normal">
-            Flagged · {PRIORITY_LABEL[row.reviewPriority]}
-          </Badge>
-        ) : null}
-      </div>
-    </>
   );
 }

@@ -18,6 +18,7 @@ import {
   detailText,
   itemKey,
   loadFlagDetails,
+  resolveAuditCheckItems,
   resolveCvReportItems,
   type FlagDetail,
 } from '@/lib/admin/reviewSetSources';
@@ -103,6 +104,10 @@ async function resolveItems(items: FlagItem[]): Promise<Map<string, Resolved>> {
     items.filter((i) => i.source === 'cv_report').map((i) => i.sourceId),
   );
   for (const [id, r] of reports) out.set(key({ source: 'cv_report', sourceId: id }), r);
+  const checks = await resolveAuditCheckItems(
+    items.filter((i) => i.source === 'audit_check').map((i) => i.sourceId),
+  );
+  for (const [id, r] of checks) out.set(key({ source: 'audit_check', sourceId: id }), r);
   for (const i of items) {
     if (i.source === 'parser_warning') out.set(key(i), { url: '', tournamentId: null });
   }

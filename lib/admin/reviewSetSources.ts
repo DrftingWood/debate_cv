@@ -2,7 +2,8 @@ import { prisma } from '@/lib/db';
 import { publicPieceUrl } from '@/lib/audit/types';
 import { cvReportDetails } from '@/lib/admin/cvReports';
 import { warningDetails } from '@/lib/admin/parserWarnings';
-import type { FlagItem } from '@/lib/admin/reviewSetTypes';
+import { parseAuditCheckId, type FlagItem } from '@/lib/admin/reviewSetTypes';
+import { CHECK_LABELS } from '@/lib/audit/types';
 
 /**
  * The review set's knowledge of its two newer sources (Task 5d): CV reports
@@ -33,6 +34,12 @@ export type FlagDetail =
       /** Warnings with this headline in the current window; null when it has aged out. */
       count: number | null;
       sampleTournaments: Array<{ id: string | null; name: string; tabUrl: string | null }>;
+    }
+  | {
+      kind: 'audit_check';
+      tournament: { id: string; name: string };
+      /** The check in words ("Rounds complete"). */
+      check: string;
     };
 
 export const itemKey = (i: FlagItem) => `${i.source}\u0000${i.sourceId}`;
@@ -71,7 +78,61 @@ export async function resolveCvReportItems(
   );
 }
 
-/** Each cv_report and parser_warning flag's description, by itemKey. */
+/**
+ * What new audit_check flags record: the tournament's public tab and id. A
+ * check whose tournament is no longer stored is left out: nothing to review.
+ */
+export async function resolveAuditCheckItems(
+  ids: string[],
+): Promise<Map<string, { url: string; tournamentId: bigint | null }>> {
+  const parsed = ids.flatMap((id) => {
+    const p = parseAuditCheckId(id);
+    return p ? [{ id, tournamentId: p.tournamentId }] : [];
+  });
+  if (parsed.length === 0) return new Map();
+  const tournaments = await prisma.tournament.findMany({
+    where: { id: { in: [...new Set(parsed.map((p) => BigInt(p.tournamentId)))] } },
+    select: { id: true, sourceUrlRaw: true },
+  });
+  const byId = new Map(tournaments.map((t) => [t.id.toString(), t] as const));
+  return new Map(
+    parsed.flatMap((p) => {
+      const t = byId.get(p.tournamentId);
+      return t
+        ? [[p.id, { url: publicPieceUrl(t.sourceUrlRaw) ?? '', tournamentId: t.id }] as const]
+        : [];
+    }),
+  );
+}
+
+/** Each audit_check flag's tournament name and check label, by itemKey. */
+async function auditCheckDetails(ids: string[]): Promise<Map<string, FlagDetail>> {
+  const parsed = ids.flatMap((id) => {
+    const p = parseAuditCheckId(id);
+    return p ? [{ id, ...p }] : [];
+  });
+  if (parsed.length === 0) return new Map();
+  const tournaments = await prisma.tournament.findMany({
+    where: { id: { in: [...new Set(parsed.map((p) => BigInt(p.tournamentId)))] } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(tournaments.map((t) => [t.id.toString(), t.name] as const));
+  return new Map(
+    parsed.map((p) => [
+      itemKey({ source: 'audit_check', sourceId: p.id }),
+      {
+        kind: 'audit_check',
+        tournament: {
+          id: p.tournamentId,
+          name: nameById.get(p.tournamentId) ?? `Tournament #${p.tournamentId}`,
+        },
+        check: CHECK_LABELS[p.code as keyof typeof CHECK_LABELS],
+      },
+    ]),
+  );
+}
+
+/** Each cv_report, parser_warning and audit_check flag's description, by itemKey. */
 export async function loadFlagDetails(
   items: readonly FlagItem[],
   now: Date,
@@ -79,11 +140,12 @@ export async function loadFlagDetails(
   const ids = (source: FlagItem['source']) => [
     ...new Set(items.filter((i) => i.source === source).map((i) => i.sourceId)),
   ];
-  const [reports, warnings] = await Promise.all([
+  const [reports, warnings, checks] = await Promise.all([
     cvReportDetails(ids('cv_report')),
     warningDetails(ids('parser_warning'), now),
+    auditCheckDetails(ids('audit_check')),
   ]);
-  const out = new Map<string, FlagDetail>();
+  const out = new Map<string, FlagDetail>(checks);
   for (const [id, d] of reports) {
     out.set(itemKey({ source: 'cv_report', sourceId: id }), { kind: 'cv_report', ...d });
   }
@@ -109,6 +171,7 @@ export function detailText(d: FlagDetail | null): string {
       .filter(Boolean)
       .join(' · ');
   }
+  if (d.kind === 'audit_check') return `${d.tournament.name} · ${d.check}`;
   return [
     `[${d.parser}] ${d.headline}`,
     d.count == null ? 'no longer in the last 30 days' : `${d.count} in the last 30 days`,

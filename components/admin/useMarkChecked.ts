@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
 import { markFailureMessage } from '@/lib/admin/actionMessage';
-import { markedWords, undoTargets } from '@/lib/admin/inboxActions';
+import { markedWords, undoOutcome, undoTargets } from '@/lib/admin/inboxActions';
 import type { InboxMarkItem } from '@/lib/admin/inboxTypes';
 import { deleteJson, postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
@@ -28,29 +28,7 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
   const [pending, startTransition] = useTransition();
   const [flight] = useState(singleFlight);
 
-  // Undo takes the marks back one by one (the route takes one target per
-  // DELETE), then refreshes so the rows return.
-  const undo = (items: readonly InboxMarkItem[]) => {
-    startTransition(async () => {
-      for (const target of undoTargets(items)) {
-        const result = await deleteJson('/api/admin/checks', target);
-        if (!result.ok) {
-          toast.show({
-            kind: 'error',
-            title: 'Undo failed',
-            description: markFailureMessage(result),
-          });
-          return;
-        }
-      }
-      toast.show({
-        kind: 'success',
-        title: 'Mark undone',
-        description: 'It is back in the Inbox.',
-      });
-      startTransition(() => router.refresh());
-    });
-  };
+  const { undo, undoing } = useUndo(flight, pending, startTransition);
 
   const mark = ({ id, items, keys, what }: MarkRequest) => {
     if (pending || flight.busy) return;
@@ -79,7 +57,56 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
     mark,
     error,
     setError,
+    undoing,
     busy: (id: string) => pending && running === id,
     blocked: (id: string) => pending && running !== id,
   };
+}
+
+/**
+ * Undo for a mark: takes the marks back one by one (the route takes one
+ * target per DELETE). Every mark is tried, so one failure does not strand
+ * the rest half-undone without saying so, and the page refreshes whatever
+ * happened so the rows show what is really checked. It shares the mark's
+ * single flight: the Undo button is in a toast that is gone once pressed, so
+ * a refusal while something else runs is said in a new toast.
+ */
+function useUndo(
+  flight: ReturnType<typeof singleFlight>,
+  pending: boolean,
+  startTransition: (fn: () => Promise<void> | void) => void,
+) {
+  const router = useRouter();
+  const toast = useToast();
+  const [undoing, setUndoing] = useState('');
+  const undo = (items: readonly InboxMarkItem[]) => {
+    const targets = undoTargets(items);
+    if (pending || flight.busy) {
+      toast.show({
+        kind: 'error',
+        title: 'Undo did not run',
+        description: 'Another action is still running. Reload the page to see what is checked.',
+      });
+      return;
+    }
+    startTransition(async () => {
+      const outcome = await flight.run(async () => {
+        let failed = 0;
+        let reason: string | null = null;
+        for (const [i, target] of targets.entries()) {
+          setUndoing(`Undoing ${i + 1} of ${targets.length}…`);
+          const result = await deleteJson('/api/admin/checks', target);
+          if (!result.ok) {
+            failed += 1;
+            reason ??= markFailureMessage(result);
+          }
+        }
+        return { failed, reason };
+      });
+      setUndoing('');
+      if (outcome) toast.show(undoOutcome(targets.length, outcome.failed, outcome.reason));
+      startTransition(() => router.refresh());
+    });
+  };
+  return { undo, undoing };
 }

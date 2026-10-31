@@ -157,6 +157,12 @@ describe('check items', () => {
       '7:motions',
       '7:rooms_consistent',
     ]);
+    // Each check can be set aside for review on its own (the mark subject is the flag id).
+    expect(item!.flagItems).toEqual([
+      { source: 'audit_check', sourceId: '7:champion' },
+      { source: 'audit_check', sourceId: '7:motions' },
+      { source: 'audit_check', sourceId: '7:rooms_consistent' },
+    ]);
     expect(JSON.stringify(rows)).not.toContain('s3cret');
   });
 });

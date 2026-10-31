@@ -10,6 +10,7 @@ const SOURCE_LABEL: Record<ReviewFlagView['source'], string> = {
   import: 'Failed import',
   cv_report: 'CV report',
   parser_warning: 'Parser warning',
+  audit_check: 'Accuracy check',
 };
 
 /**

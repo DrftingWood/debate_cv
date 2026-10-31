@@ -12,13 +12,27 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   low: 'Low',
 };
 
-export const SOURCES = ['import', 'cv_report', 'parser_warning'] as const;
+export const SOURCES = ['import', 'cv_report', 'parser_warning', 'audit_check'] as const;
 export type FlagSource = (typeof SOURCES)[number];
 
 export const FLAG_STATUSES = ['open', 'done'] as const;
 export type FlagStatus = (typeof FLAG_STATUSES)[number];
 
+import { CHECK_LABELS } from '@/lib/audit/types';
+
 export const COMMENT_MAX = 1000;
+
+/**
+ * An accuracy check's flag id: `<tournamentId>:<check code>`, the same shape
+ * as the check's mark subject. Digits only for the id (BigInt() alone would
+ * accept '0x10') and a known code, so a typo cannot store a flag nothing
+ * will ever describe. Null for anything else.
+ */
+export function parseAuditCheckId(id: string): { tournamentId: string; code: string } | null {
+  const m = /^(\d{1,18}):([a-z_]+)$/.exec(id);
+  if (!m || !m[1] || !m[2] || !Object.hasOwn(CHECK_LABELS, m[2])) return null;
+  return { tournamentId: m[1], code: m[2] };
+}
 
 export type FlagItem = { source: FlagSource; sourceId: string };
 
