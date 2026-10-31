@@ -37,6 +37,8 @@ describe('parseBreakPage — Break column is the break rank', () => {
       ['7', '(ineligible)', 'Eta', 'G', '2'],
       ['8', '(different break)', 'Theta', 'H', '2'],
       ['9', '(capped)', 'Iota', 'I', '2'],
+      ['10', '(disqualified)', 'Kappa', 'K', '2'],
+      ['11', '(lost coin toss)', 'Lambda', 'L', '2'],
     ]);
     const rows = parseBreakPage(html, URL_OPEN);
     expect(rows.map((r) => [r.entityName, r.rank])).toEqual([
@@ -67,11 +69,16 @@ describe('parseBreakPage — Break column is the break rank', () => {
     const html = vuePage(heads, [
       ['', 'Alpha', '1'],
       ['Withdrawn', 'Beta', '2'],
+      ['Disqualified', 'Gamma', '3'],
+      ['Lost coin toss', 'Delta', '4'],
+      ['Reserve', 'Epsilon', '5'],
     ]);
     const rows = parseBreakPage(html, URL_OPEN);
     expect(rows.map((r) => [r.entityName, r.rank])).toEqual([['Alpha', 1]]);
   });
+});
 
+describe('parseBreakPage — rank-only tabs', () => {
   test('a tab with only a rank column keeps reading it (no Break column)', () => {
     const html = vuePage(
       [{ key: 'Rk', title: 'Rk' }, { key: 'team' }],

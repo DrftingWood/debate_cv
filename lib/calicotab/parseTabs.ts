@@ -1050,8 +1050,14 @@ export function parseRoundResults(
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
 
-/** Remarks Tabbycat prints where a ranked team is not in this break. */
-const NOT_BREAKING = /withdr[ae]w|ineligible|not eligible|different break|capped|did not break/i;
+/**
+ * Remarks Tabbycat prints where a ranked team is not in this break. They are
+ * BreakingTeam.Remark in tabbycat/breakqual/models.py (TabbycatDebate/tabbycat):
+ * Capped (C), Ineligible (I), Different break (D), Disqualified (d), Lost coin
+ * toss (t), Withdrawn (w), plus Reserve (R) and Absent (A).
+ */
+const NOT_BREAKING =
+  /withdr[ae]w|ineligible|not eligible|different break|capped|disqualified|lost coin toss|reserve|absent|did not break/i;
 
 /** Column whose key or title is exactly one of the names (header-name match). */
 function vueColExact(heads: VueHead[], ...names: string[]): number {
