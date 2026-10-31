@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { normalizePersonNameV2 } from '@/lib/calicotab/fingerprint';
 
 /**
  * The "Tournament Staff" block on a tab's home page (the second source of an
@@ -7,19 +7,21 @@ import { normalizePersonName } from '@/lib/calicotab/fingerprint';
  *
  * It is free text typed by the tab director, so there is no markup to lean
  * on: the text is cut at its labels ("Tabulation:", "Core Adjudication
- * Panel:", "Chief Adjudicator:" ...) and the names under the adjudication
- * labels are read. Some tabs put each label on its own line, others run them
- * together on one ("Tabulation: TJ Organisation: WoLCE Adjudication: ..."),
- * so a label counts wherever it appears, not only at a line start.
+ * Panel:", "Chief Adjudicator:" ...) and the names under the core labels are
+ * read.
  *
  * What counts as core is the owner's list (R10): CA, CAP, DCA, any "Core ..."
  * label, "Chief Adjudicator(s)", "Deputy Chief Adjudicator(s)" and plain
- * "Adjudication". Every other label (tabulation, organisation, equity ...)
- * ends the previous one and is ignored.
+ * "Adjudication". Two rules keep a wrong role off a CV:
+ *   - a core label must start a line or follow a separator, so a qualified
+ *     label ("Non-Core Adjudication", "Equity Adjudication", "Appeals
+ *     Adjudication Panel") is not read as the core; and
+ *   - any other "Label:" ends a core list, on the same line or a later one,
+ *     so "Core Adjudicators: [A, B] Equity Panel: [C, D]" gives A and B only.
  */
 
-// Labels that name the adjudication core, longest first so "Core Adjudication
-// Panel" is read whole and not as its tail "Adjudication".
+// Labels that name the adjudication core. Longest first, so "Core
+// Adjudication Panel" is read whole and not as its tail "Adjudication".
 const CORE_LABELS = [
   'deputy chief adjudicators?',
   'chief adjudicators?',
@@ -42,7 +44,9 @@ const OTHER_LABELS = [
   'tab masters?',
   'organi[sz]ation',
   'organi[sz]ing committee',
+  'org comm',
   'organi[sz]ers?',
+  'equity panel',
   'equity team',
   'equity',
   'convenors?',
@@ -51,14 +55,18 @@ const OTHER_LABELS = [
   'volunteers?',
 ];
 
-const LABEL = new RegExp(
-  `(?<![\\p{L}])(${[...CORE_LABELS, ...OTHER_LABELS].join('|')})\\s*:`,
-  'giu',
+// Where a core label may start: the start of the text or of a line, or right
+// after a separator (; | or an opening bracket). A label that follows other
+// words is a qualified one and is not the core.
+const CORE_START = new RegExp(
+  String.raw`(?:^|[\n;|\[(])[ \t ]*(${CORE_LABELS.join('|')})[ \t ]*:`,
+  'giud',
 );
-const CORE_LABEL = new RegExp(`^(?:${CORE_LABELS.join('|')})$`, 'iu');
-
-// A line that starts "Something:" is a label even when it is not one we know.
-const LINE_LABEL = /^\s*[\p{L}][\p{L} /&'-]{0,40}:/u;
+// A known non-core label ends a list wherever it stands.
+const OTHER_ANYWHERE = new RegExp(String.raw`(?<![\p{L}])(${OTHER_LABELS.join('|')})\s*:`, 'giud');
+// Any other "Label:" at a line start or after a separator or closing bracket
+// also ends a list, known or not ("Organising Commitee:", "Catering:").
+const ANY_LABEL = /(?:^|[\n;|\])])[ \t ]*([\p{L}][\p{L} /&'.-]{0,40}?)[ \t ]*:/dgiu;
 
 /** Words that fill a staff line without naming anyone. */
 const NOT_A_NAME = /^(?:tba|tbc|tbd|n\/?a|none|nil|-+|—+)$/iu;
@@ -128,7 +136,7 @@ export function splitStaffNames(raw: string): string[] {
   for (const part of text.split(/[,;&\n]|\band\b/iu)) {
     const name = part.replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim().replace(/[.]+$/, '');
     if (name.length < 2 || NOT_A_NAME.test(name) || !/\p{L}/u.test(name)) continue;
-    const key = normalizePersonName(name);
+    const key = normalizePersonNameV2(name);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(name);
@@ -136,26 +144,36 @@ export function splitStaffNames(raw: string): string[] {
   return out;
 }
 
+type Mark = { start: number; end: number; core: boolean };
+
+/** Every label in the text: where it starts, where its colon ends, and whether it names the core. */
+function labelMarks(text: string): Mark[] {
+  const byStart = new Map<number, Mark>();
+  const add = (m: RegExpExecArray, core: boolean) => {
+    const start = m.indices?.[1]?.[0] ?? m.index;
+    const have = byStart.get(start);
+    // A label seen by two patterns keeps the core reading.
+    if (!have || (core && !have.core)) {
+      byStart.set(start, { start, end: m.index + m[0].length, core });
+    }
+  };
+  for (const m of text.matchAll(CORE_START)) add(m, true);
+  for (const m of text.matchAll(OTHER_ANYWHERE)) add(m, false);
+  for (const m of text.matchAll(ANY_LABEL)) add(m, false);
+  return [...byStart.values()].sort((x, y) => x.start - y.start);
+}
+
 /** The adjudication-core names in a staff block's text. */
 export function parseStaffText(text: string): string[] {
-  const marks = [...text.matchAll(LABEL)].map((m) => ({
-    label: m[1],
-    start: m.index,
-    end: m.index + m[0].length,
-  }));
+  const marks = labelMarks(text);
   const core: string[] = [];
   marks.forEach((mark, i) => {
-    if (!CORE_LABEL.test(mark.label.trim())) return;
-    let body = text.slice(mark.end, marks[i + 1]?.start ?? text.length);
-    // An unknown label on a later line also ends this one.
-    const lines = body.split('\n');
-    const stop = lines.findIndex((l, k) => k > 0 && LINE_LABEL.test(l));
-    if (stop > 0) body = lines.slice(0, stop).join('\n');
-    core.push(...splitStaffNames(body));
+    if (!mark.core) return;
+    core.push(...splitStaffNames(text.slice(mark.end, marks[i + 1]?.start ?? text.length)));
   });
   const seen = new Set<string>();
   return core.filter((n) => {
-    const key = normalizePersonName(n);
+    const key = normalizePersonNameV2(n);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

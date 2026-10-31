@@ -10,6 +10,8 @@ import { AccuracyChecks } from '@/components/admin/AccuracyChecks';
 import { getTournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
 import { getTournamentPieces } from '@/lib/admin/scrapeHealth';
 import { TabLink } from '@/components/admin/TabLink';
+import { StaffNames } from '@/components/admin/StaffNames';
+import { getTournamentStaff } from '@/lib/admin/tournamentStaff';
 
 export const metadata: Metadata = {
   title: 'Tournament pieces · Admin',
@@ -40,7 +42,7 @@ export default async function AdminTournamentPiecesPage({
   // BigInt(' 5') quietly reads 5.
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
-  const [data, audit] = await Promise.all([
+  const [data, audit, staff] = await Promise.all([
     getTournamentPieces(BigInt(id)),
     // The checks are extra: if reading them fails, the grid and re-scrape
     // must stay usable. The panel then says the read failed rather than
@@ -49,6 +51,11 @@ export default async function AdminTournamentPiecesPage({
     getTournamentAccuracy(BigInt(id)).catch((err: unknown) => {
       console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
       return 'failed' as const;
+    }),
+    // Extra, like the checks: a failed read leaves the list empty, not the page broken.
+    getTournamentStaff(BigInt(id)).catch((err: unknown) => {
+      console.error(`admin: staff names for tournament ${id} failed to load`, err);
+      return [];
     }),
   ]);
   if (!data) notFound();
@@ -71,6 +78,8 @@ export default async function AdminTournamentPiecesPage({
         loadFailed={audit === 'failed'}
         now={now}
       />
+
+      <StaffNames rows={staff} />
 
       {cards.length === 0 ? (
         <EmptyState

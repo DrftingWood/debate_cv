@@ -142,6 +142,8 @@ export function resetPrismaMock() {
   // under test.
   prismaMock.$queryRaw.mockResolvedValue([]);
   prismaMock.$executeRaw.mockResolvedValue(0);
+  // The CV reads staff-block core rows for every build; none unless a test says so.
+  prismaMock.tournamentStaff.findMany.mockResolvedValue([]);
 }
 
 // ── request helpers ─────────────────────────────────────────────────

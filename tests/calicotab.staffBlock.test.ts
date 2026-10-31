@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import { parseParticipantsList } from '@/lib/calicotab/parseTabs';
 import { parseStaffBlock, parseStaffText, splitStaffNames } from '@/lib/calicotab/staffBlock';
-import { personNameMatches } from '@/lib/calicotab/personMatch';
+import { matchStaffName } from '@/lib/calicotab/staffMatch';
 
 /**
  * The evidence file "Missing tabs - CA and adjudication core roles
@@ -15,6 +15,7 @@ const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/staff/${name}.html`, import.meta.url), 'utf8');
 
 const OWNER = 'Abhishek Acharya';
+const OWNER_PERSON = { personId: 1n, displayName: OWNER };
 const CHECK = { icon: 'check', sort: 1 };
 const BLANK = { icon: '', sort: 2 };
 
@@ -38,14 +39,16 @@ function isCore(page: string, adjCore: boolean, independent: boolean): boolean {
     (r) => r.name === OWNER,
   );
   const fromList = row?.judgeTag === 'core';
-  const fromStaff = parseStaffBlock(page).core.some((n) => personNameMatches(n, OWNER));
+  const fromStaff = parseStaffBlock(page).core.some(
+    (n) => matchStaffName(n, [OWNER_PERSON]).exact != null,
+  );
   return fromList || fromStaff;
 }
 
 describe('Tournament Staff block against the evidence file', () => {
   // [fixture, Adj Core ticked, Independent ticked, expected core]
   const cases: Array<[string, boolean, boolean, boolean]> = [
-    ['asdc2022', true, false, true],
+    ['synthetic-asdc2022', true, false, true],
     ['vivaad2022', true, false, true],
     ['shriram-preabp2022', true, false, true],
     ['cnlu13-2022', true, false, true],
@@ -75,54 +78,73 @@ describe('Tournament Staff block against the evidence file', () => {
   });
 });
 
-describe('Tournament Staff block shapes', () => {
-  test('Vivaad reads the whole panel, Shri Ram unwraps its brackets', () => {
-    expect(parseStaffBlock(fixture('vivaad2022')).core).toEqual([
-      'Matthew Conley-Evans',
-      'Abheepsita Purkayastha',
-      'Apratim',
-      'Abhishek Acharya',
-      'Mehul Joshi',
-      'Leauren Shiyuan Ji',
-    ]);
-    expect(parseStaffBlock(fixture('shriram-preabp2022')).core).toEqual([
-      'Abhishek Acharya',
-      'Anum Naseer',
-      'Ira Gosavi',
-      'Davida Paul',
-    ]);
+describe('Tournament Staff block: the real public home pages', () => {
+  // Saved from the live tabs (no private URLs); the exact lists the pages carry.
+  const REAL: Array<[string, string[]]> = [
+    ['cnlu13-2022', ['Shruti Deb', 'Vignesh Hariharan', 'Abhishek Acharya', 'Kevin Santosh']],
+    [
+      'vivaad2022',
+      [
+        'Matthew Conley-Evans',
+        'Abheepsita Purkayastha',
+        'Apratim',
+        'Abhishek Acharya',
+        'Mehul Joshi',
+        'Leauren Shiyuan Ji',
+      ],
+    ],
+    [
+      'east-malaysia-open-2022',
+      ['Abhishek Acharya', 'Bea Legaspi', 'Gareth Lim', 'Kuhan Karttikeyn'],
+    ],
+    [
+      'sls-pd-2024',
+      ['Angad Singh Chawla', 'Charlie Ryan', 'David Africa', 'Maeca Pansensoy', 'Nayantara'],
+    ],
+    // The Tab Team, Equity Panel and Org Comm lines above it are not core.
+    ['shriram-preabp2022', ['Abhishek Acharya', 'Anum Naseer', 'Ira Gosavi', 'Davida Paul']],
+    [
+      'pop-posting-2021',
+      [
+        'Jess Musulin',
+        'Naomi Panovka',
+        'Ron Leizrowice',
+        'Parth Pandya',
+        'Daan Spackler',
+        'Abhishek Acharya',
+        'Noluthando Honono',
+        'Jeremiah Edagbami',
+        'Sher May Nar',
+      ],
+    ],
+    ['alfaaz-open', ['Shruti Deb', 'Jaymal Lodha', 'Rob Barrie', 'Tejas Subramaniam']],
+  ];
+  test.each(REAL.map(([name, names]) => ({ name, names })))('$name', ({ name, names }) => {
+    const block = parseStaffBlock(fixture(name));
+    expect(block.found).toBe(true);
+    expect(block.core).toEqual(names);
   });
 
-  test('a run-together staff line is cut at its labels', () => {
-    // Pop Posting is one line: the Equity and Tabulation names are not core.
-    const core = parseStaffBlock(fixture('pop-posting-2021')).core;
-    expect(core).toHaveLength(9);
-    expect(core).toContain('Sher May Nar');
-    expect(core).not.toContain('Alex McCreadie');
-    // Alfaaz runs Tabulation, Organisation and Chief Adjudicator together.
-    expect(parseStaffBlock(fixture('alfaaz-open')).core).toEqual([
-      'Shruti Deb',
-      'Jaymal Lodha',
-      'Rob Barrie',
-      'Tejas Subramaniam',
-    ]);
+  test('no real page carries a private URL', () => {
+    for (const [name] of REAL) expect(fixture(name)).not.toMatch(/privateurls/i);
   });
+});
 
-  test('Tabulation and Organisation lines are never read as core', () => {
-    const core = parseStaffBlock(fixture('east-malaysia-open-2022')).core;
-    expect(core).toEqual(['Abhishek Acharya', 'Bea Legaspi', 'Gareth Lim', 'Kuhan Karttikeyn']);
-  });
-
+describe('Tournament Staff block: other shapes', () => {
   test('Deputy Chief Adjudicators and Chief Adjudicators both count (Uhuru)', () => {
-    const core = parseStaffBlock(fixture('uhuru-worlds-2022')).core;
+    const core = parseStaffBlock(fixture('synthetic-uhuru-worlds-2022')).core;
     expect(core).toContain('Sebastien Ezeta');
     expect(core).toContain('Bea Legaspi');
     // "Abishek" is the tab's own spelling; it does not match the profile name.
-    expect(core.some((n) => personNameMatches(n, OWNER))).toBe(false);
+    expect(core.some((n) => matchStaffName(n, [OWNER_PERSON]).exact != null)).toBe(false);
   });
 
-  test('the trailing full stop of a list is dropped', () => {
-    expect(parseStaffBlock(fixture('sls-pd-2024')).core.at(-1)).toBe('Nayantara');
+  test('a core list and a following label on one line: only the core is read', () => {
+    const html =
+      '<div class="card"><div class="card-header">Tournament Staff</div><div class="card-body">' +
+      'Core Adjudicators: [Ada Lovelace, Grace Hopper] Equity Panel: [Alan Turing, Kurt Godel]' +
+      '</div></div>';
+    expect(parseStaffBlock(html).core).toEqual(['Ada Lovelace', 'Grace Hopper']);
   });
 
   test('a page with no Tournament Staff block is found:false', () => {

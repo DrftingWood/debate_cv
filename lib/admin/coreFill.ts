@@ -38,6 +38,7 @@ export function missingCoreWhere(after: bigint | null) {
         OR: [
           { kind: 'home', status: 'ok' },
           { kind: 'participants', status: 'withheld' },
+          { kind: 'home', status: 'withheld' },
         ],
       },
     },
@@ -106,7 +107,11 @@ export async function fillMissingCores(
     try {
       const pieces = read.has(id) ? [HOME] : [HOME, PARTICIPANTS];
       const r = await rescrape(id, pieces, { deadline: opts.deadline });
-      if (!r.loaded.some((p) => p.kind === 'home')) {
+      // A home page the tournament has taken down (withheld) is an answer, not
+      // a failure: nothing there names a core.
+      if (r.notOnTab.some((p) => p.kind === 'home')) {
+        out.none += 1;
+      } else if (!r.loaded.some((p) => p.kind === 'home')) {
         out.failed += 1;
       } else if (await namesCore(id)) {
         out.found += 1;

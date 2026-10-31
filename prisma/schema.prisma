@@ -428,7 +428,8 @@ model Person {
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
   rejections        PersonRejection[]
   appearanceCandidates AppearanceCandidate[]
-  staffNames           TournamentStaff[]
+  staffNames           TournamentStaff[]       @relation("StaffLink")
+  staffCandidates      TournamentStaff[]       @relation("StaffCandidate")
 
   @@index([claimedByUserId])
   // Created by migration 20260725162000_person_suppression but never
@@ -696,9 +697,13 @@ model EliminationResult {
 
 /// A name the tab's home page lists under its Tournament Staff block as part
 /// of the adjudication core (CA / CAP / DCA / "Core" / "Adjudication"), read
-/// by the home scrape piece. personId is set only on an unambiguous match to
-/// someone in the tournament's participant list; an ambiguous or unknown name
-/// stays unlinked. Rewritten whole each time the piece loads.
+/// by the home scrape piece. personId is set ONLY on an exact full-name match
+/// (case, diacritics and spacing folded, two tokens or more) to exactly one
+/// person in the tournament's participant list: that link alone gives the
+/// person a core role on their CV, read at display time. A looser match
+/// (a middle name dropped, tokens reordered) is kept as candidatePersonId for
+/// the admin to see and has no CV effect; an ambiguous, single-word or
+/// unknown name stays unlinked. Rewritten whole each time the piece loads.
 model TournamentStaff {
   id           BigInt   @id @default(autoincrement())
   tournamentId BigInt
@@ -711,13 +716,17 @@ model TournamentStaff {
   /// on TournamentParticipant.judgeTypeTag, not here.
   source       String   @default("staff_block")
   personId     BigInt?
+  /// A possible, unconfirmed match. Never read for the CV.
+  candidatePersonId BigInt?
   createdAt    DateTime @default(now())
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  person     Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+  person     Person?    @relation("StaffLink", fields: [personId], references: [id], onDelete: SetNull)
+  candidate  Person?    @relation("StaffCandidate", fields: [candidatePersonId], references: [id], onDelete: SetNull)
 
   @@unique([tournamentId, role, nameKey])
   @@index([personId])
+  @@index([candidatePersonId])
 }
 
 model JudgeAssignment {

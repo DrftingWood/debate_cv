@@ -55,6 +55,7 @@ describe('missingCoreWhere', () => {
           OR: [
             { kind: 'home', status: 'ok' },
             { kind: 'participants', status: 'withheld' },
+            { kind: 'home', status: 'withheld' },
           ],
         },
       },
@@ -140,6 +141,16 @@ describe('fillMissingCores: results', () => {
     expect(runAudit).toHaveBeenCalledWith([1n, 2n, 4n]);
     // A busy tournament is expected and not reported.
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('a home page the tournament has taken down is "none named", not a failure', async () => {
+    prismaMock.tournament.findMany.mockResolvedValue([{ id: 1n }]);
+    const rescrape = vi.fn<typeof rescrapePieces>(async () => ({
+      ...loaded(),
+      notOnTab: [{ kind: 'home' as const, key: '' }],
+    }));
+    const out = await fillMissingCores(null, { rescrape });
+    expect(out).toMatchObject({ found: 0, none: 1, failed: 0 });
   });
 
   it('reports an unexpected error by code and goes on', async () => {

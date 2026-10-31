@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
   recordStaff: vi.fn(),
   recordOutcomes: vi.fn(),
   captureException: vi.fn(),
+  notReached: vi.fn(),
+  landing: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -24,7 +26,7 @@ vi.mock('@/lib/calicotab/staffStore', () => ({ recordStaffFromHome: h.recordStaf
 vi.mock('@/lib/calicotab/scrapePieces', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/calicotab/scrapePieces')>()),
   recordPieceOutcomes: h.recordOutcomes,
-  recordPiecesNotReached: vi.fn(),
+  recordPiecesNotReached: h.notReached,
 }));
 vi.mock('@/lib/calicotab/ingest', () => ({
   acquireScrapeClaim: h.acquire,
@@ -34,31 +36,35 @@ vi.mock('@/lib/calicotab/ingest', () => ({
   ScrapeBusyError: class extends Error {},
   recordEveryJudgeFromRoundResults: vi.fn(),
   runFullScrape: h.runFullScrape,
-  loadPublicLanding: async () => ({
-    base: BASE,
-    fingerprint: 'fp',
-    loaded: {
-      existing: { id: 7n },
-      landingHtml: '<html>staff</html>',
-      snapshot: {
-        navigation: {
-          participants: `${BASE}participants/list/`,
-          teamTab: null,
-          speakerTab: null,
-          motionsTab: null,
-          resultsRounds: [],
-          breakTabs: [],
-        },
-      },
-    },
-  }),
+  loadPublicLanding: h.landing,
 }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 import { rescrapePieces, TournamentNotFoundError } from '@/lib/calicotab/partialScrape';
 
+const okLanding = () => ({
+  base: BASE,
+  fingerprint: 'fp',
+  loaded: {
+    existing: { id: 7n },
+    landingHtml: '<html>staff</html>',
+    snapshot: {
+      navigation: {
+        participants: `${BASE}participants/list/`,
+        teamTab: null,
+        speakerTab: null,
+        motionsTab: null,
+        resultsRounds: [],
+        breakTabs: [],
+      },
+    },
+  },
+});
+
 beforeEach(() => {
   resetPrismaMock();
+  h.landing.mockReset().mockImplementation(async () => okLanding());
+  h.notReached.mockReset().mockResolvedValue(undefined);
   h.order.length = 0;
   h.runFullScrape.mockReset().mockImplementation(async () => {
     h.order.push('tabs');
@@ -131,5 +137,49 @@ describe('rescrapePieces: the home piece', () => {
       TournamentNotFoundError,
     );
     expect(h.recordStaff).not.toHaveBeenCalled();
+  });
+});
+
+describe('rescrapePieces: a landing page that is gone (R10, via R8)', () => {
+  const gone = (status: number) =>
+    Object.assign(new Error(`fetch public home → HTTP ${status}`), { httpStatus: status });
+  const HOME = { kind: 'home' as const, key: '' };
+
+  it('a 404 home page is recorded withheld, not failed, and the press does not throw', async () => {
+    h.landing.mockRejectedValue(gone(404));
+    const r = await rescrapePieces(7n, [HOME]);
+    expect(r).toMatchObject({ loaded: [], failed: [], notOnTab: [HOME] });
+    const [, outcomes] = h.recordOutcomes.mock.calls[0]!;
+    expect(outcomes[0]).toMatchObject({
+      kind: 'home',
+      ok: false,
+      withheld: true,
+      httpStatus: 404,
+    });
+    // Never counted as an attempt against the piece.
+    for (const [, refs] of h.notReached.mock.calls) {
+      expect(refs).not.toContainEqual(HOME);
+    }
+    expect(h.recordStaff).not.toHaveBeenCalled();
+  });
+
+  it('a 410 is the same', async () => {
+    h.landing.mockRejectedValue(gone(410));
+    expect((await rescrapePieces(7n, [HOME])).notOnTab).toEqual([HOME]);
+  });
+
+  it('a 503 is a real failure: it throws and the attempt is counted against the piece', async () => {
+    h.landing.mockRejectedValue(gone(503));
+    await expect(rescrapePieces(7n, [HOME])).rejects.toThrow('HTTP 503');
+    expect(h.notReached.mock.calls[0]![1]).toContainEqual(HOME);
+    expect(h.recordOutcomes).not.toHaveBeenCalled();
+  });
+
+  it('with other pieces asked for, home is withheld and the rest still fail as before', async () => {
+    h.landing.mockRejectedValue(gone(404));
+    const part = { kind: 'participants' as const, key: '' };
+    await expect(rescrapePieces(7n, [HOME, part])).rejects.toThrow('HTTP 404');
+    expect(h.recordOutcomes.mock.calls[0]![1][0]).toMatchObject({ kind: 'home', withheld: true });
+    expect(h.notReached.mock.calls[0]![1]).toEqual([part]);
   });
 });

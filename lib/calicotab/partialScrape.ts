@@ -15,6 +15,7 @@ import type { NavigationStructure } from './parseNav';
 import { publicTournamentBase } from './prescrape';
 import { recordStaffFromHome } from './staffStore';
 import {
+  pieceLabel,
   pieceOutcome,
   pieceRefForUrl,
   recordPieceOutcomes,
@@ -105,6 +106,7 @@ export async function rescrapePieces(
   if (requested.length === 0) return result;
 
   const landing = await landingFor(tournament, requested, opts.deadline);
+  if (landing === 'gone') return { ...result, notOnTab: requested };
   if (!landing) return { ...result, failed: requested };
   const { base, loaded } = landing;
 
@@ -124,7 +126,7 @@ export async function rescrapePieces(
 async function scrapeTabs(
   tournamentId: bigint,
   tabs: PieceRef[],
-  landing: NonNullable<Awaited<ReturnType<typeof landingFor>>>,
+  landing: Awaited<ReturnType<typeof loadPublicLanding>>,
   result: PartialResult,
 ): Promise<void> {
   const { base, loaded } = landing;
@@ -224,12 +226,17 @@ async function requestedPieces(
  * The tournament's public landing page, checked to lead back to it. Any
  * failure counts as an attempt for the requested pieces before it is thrown;
  * a deadline is not thrown but answered with null (every piece failed).
+ *
+ * A landing page the tournament refuses or has removed (404 or 410) is not a
+ * failure of the home piece: the page is not there to read. The piece is
+ * recorded withheld (R8: never retried, no "partly loaded" mark), and when
+ * home is all that was asked for the answer is 'gone', not an error.
  */
 async function landingFor(
   tournament: { id: bigint; sourceUrlRaw: string },
   refs: PieceRef[],
   deadline: number | undefined,
-): Promise<Awaited<ReturnType<typeof loadPublicLanding>> | null> {
+): Promise<Awaited<ReturnType<typeof loadPublicLanding>> | 'gone' | null> {
   const target = { tournamentId: tournament.id, refs };
   let publicUrl: string;
   try {
@@ -254,8 +261,26 @@ async function landingFor(
     }
     return landing;
   } catch (err) {
-    await notReached(target, err, true);
+    const status = (err as { httpStatus?: unknown }).httpStatus;
+    const gone = status === 404 || status === 410;
+    const home = refs.find((p) => p.kind === 'home');
+    if (gone && home) {
+      await recordPieceOutcomes(tournament.id, [
+        {
+          ...home,
+          label: pieceLabel('home', publicUrl),
+          url: publicUrl,
+          ok: false,
+          httpStatus: status,
+          error: `the home page answered HTTP ${status}`,
+          withheld: true,
+        },
+      ]);
+    }
+    const rest = gone ? refs.filter((p) => p.kind !== 'home') : refs;
+    await notReached({ tournamentId: tournament.id, refs: rest }, err, true);
     if (isIngestDeadlineError(err)) return null;
+    if (gone && rest.length === 0) return 'gone';
     throw err;
   }
 }
