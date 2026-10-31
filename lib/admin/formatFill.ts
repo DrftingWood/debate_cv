@@ -26,19 +26,24 @@ const AUDIT_CHUNK = 25;
 type Seats = Array<{ position: string | null }>;
 
 /**
- * What the stored data may decide (ruling 14: a wrong format is worse than a
- * null one). Rules 1 to 4 of decideTournamentFormat (four-seat rooms, the
- * name, two-team room shape with the squad size, the well-known BP
- * championship names) read something the tournament itself states. Rule 5,
- * the team size alone, is a guess that ingest accepts with the pages in hand
- * but that must not stand here: TeamResult.position is null on tournaments
- * ingested before sides were stored, and without a readable seat two or
- * three speakers a side name BP and Asian Parliamentary for events that may
- * be neither. Those stay undecided and the admin is told to re-scrape R1.
+ * The rules of decideTournamentFormat that stored data may decide on (ruling
+ * 15; and ruling 14: a wrong format is worse than a null one):
+ *   1  four-team (BP) room shape, read from the stored seats alone;
+ *   2  a format the tournament's own name states;
+ *   4  a well-known BP championship name.
+ * Rule 3 (a two-team room shape confirmed by the squad size) and rule 5 (the
+ * team size alone) both depend on squad counts, and the only squads stored
+ * are the speakers a partial import happened to keep: a 3-a-side Gov/Opp
+ * event stored with two speakers a team reads as Two-team Parliamentary, and
+ * a null-seat event reads BP or Asian from its size alone. Both stay
+ * undecided here, at the cost of leaving clean two-team events for a
+ * re-scrape too; the admin is told to re-scrape R1 and the team tab.
  */
+const STORED_RULES: ReadonlySet<number> = new Set([1, 2, 4]);
+
 function decideFromStored(input: FormatInput): string | null {
   const { format, rule } = decideTournamentFormat(input);
-  return rule != null && rule <= 4 ? format : null;
+  return rule != null && STORED_RULES.has(rule) ? format : null;
 }
 
 /**

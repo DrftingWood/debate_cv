@@ -21,7 +21,8 @@ export function inferredWords(format: string | null): string {
 }
 
 /** When the stored rows cannot settle it: say so, and name the pages to re-read. */
-export const UNDECIDED_WORDS = "Stored rooms don't record sides; re-scrape R1 to decide";
+export const UNDECIDED_WORDS =
+  "The stored data can't settle the format. Re-scrape R1 and the team tab to read it from the source.";
 
 /** Tournaments one press goes over; formatFill.ts shares it (a client file cannot import that one). */
 export const FILL_BATCH_SIZE = 50;

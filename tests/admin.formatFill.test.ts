@@ -58,14 +58,39 @@ describe('inferStoredFormats', () => {
     expect((await inferStoredFormats([1n])).get('1')).toBe('British Parliamentary');
   });
 
-  it('reads Government/Opposition rooms of three-speaker teams as Asian Parliamentary', async () => {
+  // Ruling 15: two-team shapes (rule 3) lean on the squad size, and stored
+  // squads can be undercounted by a partial import, so they are never decided
+  // from stored data. The cost: a clean Gov/Opp or Prop/Opp event is left for
+  // a re-scrape too.
+  it('COST: a clean 3-a-side Government/Opposition event is undecided from stored data', async () => {
     seed([{ id: 2n, name: 'Cup' }], rooms(2n, ['Government', 'Opposition']), squads(2n, 6, 3));
-    expect((await inferStoredFormats([2n])).get('2')).toBe('Asian Parliamentary');
+    expect((await inferStoredFormats([2n])).get('2')).toBeNull();
   });
 
-  it('reads Proposition/Opposition rooms of three-speaker teams as World Schools', async () => {
+  it('COST: a clean Proposition/Opposition event is undecided from stored data', async () => {
     seed([{ id: 3n, name: 'Cup' }], rooms(3n, ['Proposition', 'Opposition']), squads(3n, 6, 3));
-    expect((await inferStoredFormats([3n])).get('3')).toBe('World Schools');
+    expect((await inferStoredFormats([3n])).get('3')).toBeNull();
+  });
+
+  it('a partial import that undercounts a 3-a-side event is not read as Two-team Parliamentary', async () => {
+    // Readable Government/Opposition seats, but only 2 of 3 speakers stored
+    // per team: rule 3 would say Two-team Parliamentary, which is wrong.
+    seed([{ id: 7n, name: 'Cup' }], rooms(7n, ['Government', 'Opposition']), squads(7n, 6, 2));
+    expect((await inferStoredFormats([7n])).get('7')).toBeNull();
+  });
+
+  it('a named championship still decides from the name', async () => {
+    seed([{ id: 8n, name: 'WUDC 2026' }], rooms(8n, ['Pro', 'Con']), squads(8n, 6, 4));
+    expect((await inferStoredFormats([8n])).get('8')).toBe('British Parliamentary');
+  });
+
+  it('a format named in the tournament name still decides, with Gov/Opp seats', async () => {
+    seed(
+      [{ id: 9n, name: 'Spring World Schools' }],
+      rooms(9n, ['Proposition', 'Opposition']),
+      squads(9n, 6, 2),
+    );
+    expect((await inferStoredFormats([9n])).get('9')).toBe('World Schools');
   });
 
   it('is undecided when nothing stored settles it', async () => {
@@ -134,7 +159,7 @@ describe('no readable sides (ruling 14: a wrong format is worse than a null one)
       ...squads(2n, 6, 3),
       { tournamentId: 2n, teamName: null, _count: { _all: 40 } },
     ]);
-    expect((await inferStoredFormats([2n])).get('2')).toBe('Asian Parliamentary');
+    expect((await inferStoredFormats([2n])).get('2')).toBeNull();
   });
 });
 
