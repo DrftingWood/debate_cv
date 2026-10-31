@@ -211,7 +211,7 @@ describe('Captured tab, motion sections', () => {
     expect(t).toContain('All prelim rounds');
     expect(t.match(/Rounds with one motion only/g)).toHaveLength(2);
     expect(t).toContain('This House would ban zoos');
-    expect(t).toContain('Round 3 · CG 1.00 · OG 2.10');
+    expect(t).toContain('Round 3 · OG 2.10 · CG 1.00');
     expect(out).toContain('href="/admin/tournaments/5"');
     expect(out).toContain('href="https://ox.calicotab.com/ox/"');
     expect(out).toContain('rel="noopener noreferrer"');

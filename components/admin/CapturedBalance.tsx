@@ -3,7 +3,11 @@ import type { BarListItem } from '@/components/ui/BarList';
 import { Cols, Nil, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Bars, SubHead, TournamentCell, num } from '@/components/admin/CapturedParts';
-import { BALANCE_MIN_ROOMS_MOTION, BALANCE_MIN_ROOMS_TYPE } from '@/lib/admin/capturedMath';
+import {
+  BALANCE_MIN_ROOMS_MOTION,
+  BALANCE_MIN_ROOMS_TYPE,
+  orderSeats,
+} from '@/lib/admin/capturedMath';
 import type { Balance } from '@/lib/admin/capturedMath';
 import { adminTabHref } from '@/lib/admin/adminTabs';
 import type { CheckCode } from '@/lib/audit/types';
@@ -167,7 +171,20 @@ function ByType({ byType }: { byType: BalanceStats['byType'] }) {
   );
 }
 
-/** The motions, widest first: text and seats, tournament with its Tab, spread, rooms. */
+/** "OG 2.30 · OO 1.70 · CG 0.80 · CO 1.20": the seats in their fixed order. */
+const seatsText = (m: UnbalancedMotion, fmt: (v: number) => string) =>
+  orderSeats(m.seats)
+    .map((s) => `${s.pos} ${fmt(s.value)}`)
+    .join(' · ');
+
+/**
+ * The motions, widest first. From md up a table (motion with its seats,
+ * tournament with its Tab, spread, rooms); below md a card per motion, because
+ * four columns do not fit 285 px without clipping the Spread or wrapping the
+ * motion over six lines (R7 browser check): the motion clamped to two lines
+ * (the whole text on its title), the tournament and its Tab, then one line of
+ * "Spread · round · rooms · seats".
+ */
 function UnbalancedTable({
   title,
   motions,
@@ -180,40 +197,64 @@ function UnbalancedTable({
   spreadFmt: (v: number) => string;
 }) {
   return (
-    <TableScroll>
-      <Table label={title}>
-        <Cols widths={[undefined, undefined, '5rem', '4.5rem']} />
-        <thead>
-          <tr>
-            <Th>Motion</Th>
-            <Th>Tournament</Th>
-            <Th numeric>Spread</Th>
-            <Th numeric>Rooms</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {motions.map((m) => (
-            <Tr key={m.motionId}>
-              <Td>
-                <span className="wrap-break-word">{m.text}</span>
-                <span className="mt-hair block text-caption text-ink-soft">
-                  {m.roundLabel} · {m.seats.map((s) => `${s.pos} ${fmt(s.value)}`).join(' · ')}
-                </span>
-              </Td>
-              <Td>
-                <TournamentCell
-                  id={m.tournament.id}
-                  name={m.tournament.name}
-                  tabUrl={m.tournament.tabUrl}
-                />
-              </Td>
-              <Td numeric>{spreadFmt(m.spread)}</Td>
-              <Td numeric>{num(m.rooms)}</Td>
-            </Tr>
-          ))}
-        </tbody>
-      </Table>
-    </TableScroll>
+    <>
+      <ul aria-label={title} className="space-y-tight md:hidden">
+        {motions.map((m) => (
+          <li key={m.motionId} className="space-y-hair border-b pb-tight last:border-b-0">
+            <p className="line-clamp-2 wrap-break-word text-ink" title={m.text}>
+              {m.text}
+            </p>
+            <p>
+              <TournamentCell
+                id={m.tournament.id}
+                name={m.tournament.name}
+                tabUrl={m.tournament.tabUrl}
+              />
+            </p>
+            <p className="text-caption text-ink-soft">
+              Spread {spreadFmt(m.spread)} · {m.roundLabel} · {num(m.rooms)} rooms ·{' '}
+              {seatsText(m, fmt)}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block">
+        <TableScroll>
+          <Table label={title}>
+            <Cols widths={[undefined, undefined, '5rem', '4.5rem']} />
+            <thead>
+              <tr>
+                <Th>Motion</Th>
+                <Th>Tournament</Th>
+                <Th numeric>Spread</Th>
+                <Th numeric>Rooms</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {motions.map((m) => (
+                <Tr key={m.motionId}>
+                  <Td>
+                    <span className="wrap-break-word">{m.text}</span>
+                    <span className="mt-hair block text-caption text-ink-soft">
+                      {m.roundLabel} · {seatsText(m, fmt)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <TournamentCell
+                      id={m.tournament.id}
+                      name={m.tournament.name}
+                      tabUrl={m.tournament.tabUrl}
+                    />
+                  </Td>
+                  <Td numeric>{spreadFmt(m.spread)}</Td>
+                  <Td numeric>{num(m.rooms)}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </TableScroll>
+      </div>
+    </>
   );
 }
 
