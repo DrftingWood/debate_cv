@@ -115,16 +115,11 @@ describe('recordStaffFromHome', () => {
 });
 
 describe('rematchStaffNames: a participants write re-checks stored links (round 2)', () => {
-  const staff = (
-    id: bigint,
-    name: string,
-    personId: bigint | null,
-    candidatePersonId: bigint | null = null,
-  ) => ({
+  const staff = (id: bigint, name: string, link: { person?: bigint; candidate?: bigint } = {}) => ({
     id,
     name,
-    personId,
-    candidatePersonId,
+    personId: link.person ?? null,
+    candidatePersonId: link.candidate ?? null,
   });
   const listed = (personId: bigint, displayName: string) => ({
     personId,
@@ -136,7 +131,9 @@ describe('rematchStaffNames: a participants write re-checks stored links (round 
   });
 
   it('a re-read that adds a namesake clears the link, with no candidate either', async () => {
-    prismaMock.tournamentStaff.findMany.mockResolvedValue([staff(1n, 'Ada Lovelace', 5n)]);
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([
+      staff(1n, 'Ada Lovelace', { person: 5n }),
+    ]);
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([
       listed(5n, 'Ada Lovelace'),
       listed(6n, 'Ada Lovelace'),
@@ -150,8 +147,8 @@ describe('rematchStaffNames: a participants write re-checks stored links (round 
 
   it('a candidate becomes a link when the exact name turns up, and a link with no one left goes', async () => {
     prismaMock.tournamentStaff.findMany.mockResolvedValue([
-      staff(1n, 'Rahul Sharma', null, 3n),
-      staff(2n, 'Grace Hopper', 8n),
+      staff(1n, 'Rahul Sharma', { candidate: 3n }),
+      staff(2n, 'Grace Hopper', { person: 8n }),
     ]);
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([listed(4n, 'Rahul Sharma')]);
     await rematchStaffNames(prismaMock as never, 9n);
@@ -166,7 +163,9 @@ describe('rematchStaffNames: a participants write re-checks stored links (round 
   });
 
   it('rows whose match is unchanged are not written, and it reads nothing without staff rows', async () => {
-    prismaMock.tournamentStaff.findMany.mockResolvedValue([staff(1n, 'Ada Lovelace', 5n)]);
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([
+      staff(1n, 'Ada Lovelace', { person: 5n }),
+    ]);
     prismaMock.tournamentParticipant.findMany.mockResolvedValue([listed(5n, 'Ada Lovelace')]);
     expect(await rematchStaffNames(prismaMock as never, 9n)).toBe(0);
     expect(prismaMock.tournamentStaff.update).not.toHaveBeenCalled();
