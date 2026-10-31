@@ -2,7 +2,15 @@ import { IngestJobStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { publicPieceUrl } from '@/lib/audit/types';
-import { storedTournamentIdsByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
+import { storedMatchesByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
+import {
+  ambiguousTab,
+  loadTabStates,
+  tabState,
+  UNMATCHABLE_TAB,
+  type TabState,
+} from '@/lib/admin/tabStatus';
+import { parseTabAddress } from '@/lib/admin/tabAddress';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -56,6 +64,8 @@ export type ScrapeHealth = {
     finishedAt: Date | null;
     /** The stored tournament this URL belongs to, or null (the "In database" cell). */
     stored: StoredRef | null;
+    /** How much of that tournament's tab loaded (the "Tab" cell), its errors in words. */
+    tab: TabState;
   }>;
 };
 
@@ -86,10 +96,21 @@ async function loadFailedJobs() {
 /** A user's URL as one map key; NUL cannot occur in either part. */
 const jobKey = (j: { userId: string; url: string }) => `${j.userId}\u0000${j.url}`;
 
-async function storedForJobs(
+export async function storedForJobs(
   jobs: Array<{ id: string; userId: string; url: string }>,
 ): Promise<Map<string, StoredRef>> {
-  if (jobs.length === 0) return new Map();
+  return (await matchJobs(jobs)).stored;
+}
+
+/**
+ * storedForJobs, plus the jobs whose address matched two or more stored
+ * rows (by job id, with how many) and no DiscoveredUrl link settles it.
+ * Their Tab cell reads "? Check", not a false "✗ Not loaded" (Task 5d).
+ */
+export async function matchJobs(
+  jobs: Array<{ id: string; userId: string; url: string }>,
+): Promise<{ stored: Map<string, StoredRef>; ambiguous: Map<string, number> }> {
+  if (jobs.length === 0) return { stored: new Map(), ambiguous: new Map() };
   const urls = [...new Set(jobs.map((j) => j.url))];
   const [links, byUrl] = await Promise.all([
     prisma.discoveredUrl.findMany({
@@ -104,7 +125,7 @@ async function storedForJobs(
         tournament: { select: { id: true, name: true, scrapedAt: true } },
       },
     }),
-    storedTournamentIdsByUrl(urls),
+    storedMatchesByUrl(urls),
   ]);
   const linked = new Map<string, StoredRef>();
   for (const l of links) {
@@ -112,18 +133,36 @@ async function storedForJobs(
     const { id, name, scrapedAt } = l.tournament;
     linked.set(jobKey(l), { id: id.toString(), name, scrapedAt });
   }
-  const out = new Map<string, StoredRef>();
+  const stored = new Map<string, StoredRef>();
+  const ambiguous = new Map<string, number>();
   for (const j of jobs) {
-    const ref = linked.get(jobKey(j)) ?? byUrl.get(j.url);
-    if (ref) out.set(j.id, ref);
+    const ref = linked.get(jobKey(j)) ?? byUrl.stored.get(j.url);
+    if (ref) stored.set(j.id, ref);
+    else if (byUrl.ambiguous.has(j.url)) ambiguous.set(j.id, byUrl.ambiguous.get(j.url) ?? 2);
   }
-  return out;
+  return { stored, ambiguous };
 }
 
-/** The failed-imports list, each job with its stored tournament (or null). */
+/**
+ * The failed-imports list, each job with its stored tournament (or null) and
+ * how much of that tournament's tab loaded. The Tab states take one more
+ * query, for the stored tournaments only.
+ */
 async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
   const jobs = await loadFailedJobs();
-  const storedByJob = await storedForJobs(jobs);
+  const { stored: storedByJob, ambiguous } = await matchJobs(jobs);
+  const tabs = await loadTabStates([...storedByJob.values()].map((r) => r.id));
+  // Not stored, as far as can be told: two stored rows on its address, or
+  // a tab-site address with no slug to match on, is "? Check" (in both the
+  // Tab and the In database cells), not a false "✗ Not loaded".
+  const tabOf = (j: { id: string; url: string }): TabState => {
+    const ref = storedByJob.get(j.id);
+    if (ref) return tabs.get(ref.id) ?? tabState(ref.id, []);
+    const n = ambiguous.get(j.id);
+    if (n) return ambiguousTab(n);
+    const address = parseTabAddress(j.url);
+    return address && !address.slug ? UNMATCHABLE_TAB : tabState(null, []);
+  };
   return jobs.map((j) => ({
     id: j.id,
     url: j.url,
@@ -132,6 +171,7 @@ async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
     lastError: j.lastError,
     finishedAt: j.finishedAt,
     stored: storedByJob.get(j.id) ?? null,
+    tab: tabOf(j),
   }));
 }
 

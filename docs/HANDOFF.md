@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-31 - Data accuracy, part 2: failed-import Tab status, review set, report tables
+
+- **Owner requests.** "tick if fully loaded in tab, ? if partially load (hover to see the errors) and X if not loaded"; "prioritize some errors and bring to a separate set that you can later pick for review - prioritize and add a comment"; CV reports and parser warnings as tables an admin can act on. Standing rule: a URL that scraped properly is never highlighted. Plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (Tasks 5c, 5d, 6).
+- **Failed imports** gain a Tab column: ✓ Loaded, ? Partly (the failed pages listed on hover, keyboard focus or a tap; a screen reader gets the same list), ✗ Not loaded, and ? Check when the address matches two stored tournaments or names no slug. "In database" says ? Check for those rows too, never a false "Not stored".
+- **Review set** ("Flagged for review" on /admin): tick failed imports, CV reports or parser warnings, "Add to review set" with High / Medium / Low and a comment. One open flag per item (a second add updates it; writes take a Postgres advisory lock); edit priority or comment in place, Mark done, Show done, Reopen. Comments are scrubbed of private URLs.
+  - Table `ReviewFlag`, migration `20261031140000_review_flags` (additive).
+  - Export: `/api/admin/review-set?format=json|csv` (`&status=open|all`, open by default; admin only). CSV cells that a spreadsheet would run as a formula are prefixed with `'` (shared `lib/utils/csv.ts`, so every CSV export gets it). No export carries a private URL.
+  - **Hand-off:** say "work through the debate_cv review set"; Claude reads `/api/admin/review-set?format=json` (high priority first, newest first within a priority) and works each item.
+- **CV error reports** as a paged ledger (20 a page, status filter, `?reportsPage` / `?reportsStatus`): tournaments with Tab status and a public Tab link, categories in words, the Status select saves on change (Fixed / Won't fix stamp `resolvedAt`, kept when moving between the two), "Re-scrape suggested (n)" from the report's categories.
+- **Parser warnings** as a paged ledger (`?warningsPage`): the newest 2,000 runs with warnings in 30 days, grouped by `[parser] headline`, busiest first, with the tournaments their pages came from. Each pager keeps the other's page.
+- **Seed:** `npm run seed:dev` now also writes failed imports in every Tab state, review flags of each source and priority (one done), 27 CV reports, 23 warning groups (`scripts/seed-dev-review.mjs`). Audits come from the app: `POST /api/admin/audit {"stale":true}` or "Audit now".
+- **Rollback.** Revert the merge commit, then `DROP TABLE "ReviewFlag"` and delete its `_prisma_migrations` row (`20261031140000_review_flags`).
+
+---
+
 ## 2026-10-31 - Data accuracy score, part 1 (through the tournaments page)
 
 - **Owner request.** A broad logic check of every tournament, combined with user reports, giving the database an accuracy score in the admin view. Failed checks are hints for partial re-scrapes. Spec: `docs/superpowers/specs/2026-10-31-data-accuracy-design.md`; plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (tasks 0–5b in this PR).

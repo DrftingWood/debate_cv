@@ -70,6 +70,22 @@ const keyOf = (host: string, slug: string) => `${host.toLowerCase()}/${slug.toLo
  * findTournamentByHostSlug adopts none when it cannot tell rows apart.
  */
 export async function storedTournamentIdsByUrl(urls: string[]): Promise<Map<string, StoredRef>> {
+  return (await storedMatchesByUrl(urls)).stored;
+}
+
+export type StoredMatches = {
+  /** URLs whose address matched exactly one stored tournament. */
+  stored: Map<string, StoredRef>;
+  /**
+   * URLs whose address matched two or more stored rows, with how many. Such
+   * a tournament is stored, just not told apart, so a table says "? Check"
+   * for it rather than "✗ Not loaded" (Task 5d).
+   */
+  ambiguous: Map<string, number>;
+};
+
+/** storedTournamentIdsByUrl, with the ambiguous addresses kept apart instead of dropped. */
+export async function storedMatchesByUrl(urls: string[]): Promise<StoredMatches> {
   const urlsByKey = new Map<string, string[]>();
   for (const url of urls) {
     const a = parseTabAddress(url);
@@ -87,12 +103,15 @@ export async function storedTournamentIdsByUrl(urls: string[]): Promise<Map<stri
       rowsByKey.set(key, [...(rowsByKey.get(key) ?? []), ref]);
     }
   }
-  const out = new Map<string, StoredRef>();
+  const stored = new Map<string, StoredRef>();
+  const ambiguous = new Map<string, number>();
   for (const [key, list] of rowsByKey) {
-    if (list.length !== 1) continue;
-    for (const url of urlsByKey.get(key) ?? []) out.set(url, list[0]);
+    for (const url of urlsByKey.get(key) ?? []) {
+      if (list.length === 1) stored.set(url, list[0]);
+      else ambiguous.set(url, list.length);
+    }
   }
-  return out;
+  return { stored, ambiguous };
 }
 
 /**

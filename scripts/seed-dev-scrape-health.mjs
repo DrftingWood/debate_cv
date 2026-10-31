@@ -86,4 +86,7 @@ export async function seedScrapeHealth(prisma, userId) {
       finishedAt: new Date(Date.now() - 1800 * 1000),
     },
   });
+  // The part-2 admin ledgers (Tab states, review set, CV reports, parser
+  // warnings) need the pieces above, so they are seeded after them.
+  await (await import('./seed-dev-review.mjs')).seedReview(prisma, userId);
 }
