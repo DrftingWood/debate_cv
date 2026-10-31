@@ -47,8 +47,8 @@ const noop = () => {};
 // (about 165 px at 1280) and wraps. The table's 72 rem minimum keeps Error
 // at least 9 rem wide and still fits 1280 beside a Windows scrollbar; on a
 // narrower panel it scrolls sideways rather than crushing Error to nothing
-// and painting it over Attempts. The <colgroup> is hidden below md with its cells, since a fixed-layout table assigns cells
-// to columns by position.
+// and painting it over Attempts. The <colgroup> is hidden below md with its
+// cells, since a fixed-layout table assigns cells to columns by position.
 const COLUMNS = [
   '3rem',
   { className: 'md:w-28' },
