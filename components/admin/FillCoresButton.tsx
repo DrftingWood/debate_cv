@@ -78,9 +78,7 @@ export function FillCoresView({
       <p className="text-body text-ink-soft">
         Tournaments waiting for a read:{' '}
         <span className="num font-medium text-ink">{missing.toLocaleString('en-GB')}</span>
-        {done && !result ? (
-          <> &mdash; Every tournament already names a core or has been read.</>
-        ) : null}
+        {done && !result ? <> &mdash; Every tournament&rsquo;s home page has been read.</> : null}
       </p>
       {done ? null : (
         <div className="flex flex-col items-start gap-hair">

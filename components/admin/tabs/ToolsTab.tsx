@@ -141,10 +141,11 @@ function FillCores({ missing }: { missing: number | null }) {
           Fill missing adjudication cores
         </h2>
         <p className="mt-hair max-w-prose text-body text-ink-soft">
-          Reads the Tournament Staff block on each tab&rsquo;s home page for tournaments that name
-          no CA, CAP or core panel, and the participants list where it was never read. A tournament
-          whose page names nobody is left as it is. Only the home page and the participants list are
-          fetched, never the whole tab.
+          Reads the Tournament Staff block on the home page of each tab whose home page was never
+          read, and the participants list where it was never read. Until a tab&rsquo;s home page is
+          read its adjudication-core check says &ldquo;not checked yet&rdquo;; a tournament whose
+          page names nobody then shows the warning and is left as it is. Only the home page and the
+          participants list are fetched, never the whole tab.
         </p>
       </div>
       {missing === null ? (

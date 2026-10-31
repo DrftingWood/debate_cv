@@ -188,11 +188,15 @@ function checkFormatMissing(inputs: AuditInputs): CheckResult {
  * Nobody named as adjudication core. Two sources count: the participants
  * list's Adj Core tick and the names under the home page's Tournament Staff
  * block (CA / CAP / DCA / Core / Adjudication), both counted into coreNamed.
- * Only a warning, since a tab may truly have no core. It applies only when
- * the participants list was read: a list that failed, or that the tournament
- * keeps private, says nothing about who the core was. A list read before
- * pieces were recorded is recognised by the judges on record. The fix reads
- * the participants list and the home page again.
+ * Only a warning, since a tab may truly have no core. It warns only when both
+ * sources were read: the participants list (one that failed, or that the
+ * tournament keeps private, says nothing about who the core was; a list read
+ * before pieces were recorded is recognised by the judges on record) and the
+ * home page (read means loaded, or answered as withheld or not published).
+ * Until the home page has been read the staff block is simply unseen, so the
+ * check says so rather than warn on every tab that was scraped before the
+ * block was parsed; Tools, Fill missing adjudication cores, reads it. Someone
+ * named by either source is a pass whatever was read.
  */
 function checkCoreMissing(inputs: AuditInputs): CheckResult {
   const list = inputs.pieces.find((p) => p.kind === 'participants');
@@ -204,6 +208,14 @@ function checkCoreMissing(inputs: AuditInputs): CheckResult {
       'core_missing',
       'pass',
       `${n} ${plural(n, 'person is', 'people are')} named as adjudication core.`,
+    );
+  }
+  const home = inputs.pieces.find((p) => p.kind === 'home');
+  if (!home || (home.status !== 'ok' && home.status !== 'withheld')) {
+    return result(
+      'core_missing',
+      'na',
+      "Not checked yet: the tab's home page hasn't been read. Tools → Fill missing adjudication cores reads it.",
     );
   }
   return result(

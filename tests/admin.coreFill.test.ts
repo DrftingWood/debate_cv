@@ -46,20 +46,10 @@ beforeEach(() => {
 });
 
 describe('missingCoreWhere', () => {
-  it('leaves out tournaments that name a core, whose home page was read, or that withhold the list', () => {
+  it('is every tournament, not ignored, whose home page was never read', () => {
     expect(missingCoreWhere(null)).toEqual({
       ignored: false,
-      staff: { none: { role: 'core' } },
-      participants: { none: { judgeTypeTag: { equals: 'core', mode: 'insensitive' } } },
-      scrapePieces: {
-        none: {
-          OR: [
-            { kind: 'home', status: 'ok' },
-            { kind: 'participants', status: 'withheld' },
-            { kind: 'home', status: 'withheld' },
-          ],
-        },
-      },
+      scrapePieces: { none: { kind: 'home', status: { in: ['ok', 'withheld'] } } },
     });
   });
 

@@ -13,11 +13,11 @@ import { CORE_BATCH_SIZE, type CoreFillResponse } from '@/lib/admin/coreFillText
  * press is bounded: CORE_BATCH_SIZE tournaments, or fewer if the time runs
  * out, continuing from a cursor on the next press.
  *
- * The pool is every tournament with no staff-block name, no Adj Core judge,
- * and no home piece already read: one whose home page was read and named
- * nobody has had its answer and leaves the pool (its check still warns, and
- * a Fix can read it again). A tournament that withholds its participants list
- * is left out too, since the check does not apply to it.
+ * The pool is every tournament (not ignored) whose home page was never read,
+ * the same test the core_missing check uses before it will warn: a home piece
+ * that loaded, or one the tournament withholds or never published, is an
+ * answer and takes it out of the pool whether or not it named a core (a
+ * tournament that names nobody then warns, and a Fix can read it again).
  */
 
 /** Time kept back at the end of a press to re-audit what it filled. */
@@ -33,17 +33,7 @@ export function missingCoreWhere(after: bigint | null) {
   return {
     // Test and demo tournaments an admin set to ignored are not offered.
     ignored: false,
-    staff: { none: { role: 'core' } },
-    participants: { none: { judgeTypeTag: { equals: 'core', mode: 'insensitive' as const } } },
-    scrapePieces: {
-      none: {
-        OR: [
-          { kind: 'home', status: 'ok' },
-          { kind: 'participants', status: 'withheld' },
-          { kind: 'home', status: 'withheld' },
-        ],
-      },
-    },
+    scrapePieces: { none: { kind: 'home', status: { in: ['ok', 'withheld'] } } },
     ...(after != null ? { id: { gt: after } } : {}),
   };
 }

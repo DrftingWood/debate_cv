@@ -53,7 +53,7 @@ describe('<FillCoresView>', () => {
 
   it('with none waiting, says why there is nothing to press', () => {
     const html = view({ missing: 0 });
-    expect(html).toContain('Every tournament already names a core or has been read.');
+    expect(html).toContain('Every tournament’s home page has been read.');
     expect(html).not.toContain('<button');
   });
 
