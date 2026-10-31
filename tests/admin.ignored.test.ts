@@ -69,7 +69,7 @@ describe('the Inbox', () => {
     await listInbox({ page: 1, kinds: new Set(['check']) as never }).catch(() => {});
     expect(h.db.tournamentAudit.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { score: { lt: 100 }, tournament: { ignored: false } },
+        where: expect.objectContaining({ tournament: { ignored: false } }),
       }),
     );
   });

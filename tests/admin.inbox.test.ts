@@ -113,7 +113,7 @@ beforeEach(() => {
 });
 
 describe('check items', () => {
-  it('lists one item per tournament, its first failing detail plus how many more', async () => {
+  it('lists one item per tournament, its first failing detail plus how many more; warnings stay out', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([
       audit(
         [7, 4],
@@ -132,6 +132,7 @@ describe('check items', () => {
           },
           check('panels', 'pass', ''),
           check('rooms_consistent', 'warn', 'R4 has one room fewer.'),
+          check('motions', 'fail', 'R2 has no motion.'),
         ],
       ),
     ]);
@@ -143,7 +144,7 @@ describe('check items', () => {
       key: 'check:7',
       kind: 'check',
       summary: 'No champion found.',
-      more: 2,
+      more: 1,
       usersAffected: 4,
       severity: 'fail',
       changedSinceChecked: false,
@@ -157,41 +158,42 @@ describe('check items', () => {
         { kind: 'break', key: 'open', label: 'Open break', url: 'https://t7.calicotab.com/t7/' },
       ],
     });
-    expect(item!.markItems.map((m) => m.subject)).toEqual([
-      '7:champion',
-      '7:motions',
-      '7:rooms_consistent',
-    ]);
+    expect(item!.markItems.map((m) => m.subject)).toEqual(['7:champion', '7:motions']);
     // Each check can be set aside for review on its own (the mark subject is the flag id).
     expect(item!.flagItems).toEqual([
       { source: 'audit_check', sourceId: '7:champion' },
       { source: 'audit_check', sourceId: '7:motions' },
-      { source: 'audit_check', sourceId: '7:rooms_consistent' },
     ]);
     expect(JSON.stringify(rows)).not.toContain('s3cret');
   });
 });
 
 describe('check items: the read and marks', () => {
-  it('reads only audits below a full score, at most 1,000', async () => {
+  it('reads only audits with a failing check, at most 1,000', async () => {
     await listInbox({ page: 1, now: NOW });
     const args = h.db.tournamentAudit.findMany.mock.calls[0]![0];
     expect(CANDIDATE_CAP).toBe(1000);
     expect(args.take).toBe(1000);
-    expect(args.where).toEqual({ score: { lt: 100 }, tournament: { ignored: false } });
+    expect(args.where).toEqual({
+      tournament: { ignored: false },
+      OR: [
+        { checks: { array_contains: [{ status: 'fail' }] } },
+        { checks: { array_contains: [{ code: 'user_reports', status: 'warn' }] } },
+      ],
+    });
   });
 
   it('leaves out a marked check, and keeps one whose finding changed since', async () => {
-    const same = check('rooms_consistent', 'warn', 'R11 has one room.');
+    const same = check('rooms_consistent', 'fail', 'R11 has one room.');
     h.db.tournamentAudit.findMany.mockResolvedValue([
       audit([1, 2], [same]),
-      audit([2, 2], [check('rooms_consistent', 'warn', 'R3 has two rooms more.')]),
+      audit([2, 2], [check('rooms_consistent', 'fail', 'R3 has two rooms more.')]),
     ]);
     mark('check', '1:rooms_consistent', fingerprintOf('check', same));
     mark(
       'check',
       '2:rooms_consistent',
-      fingerprintOf('check', { status: 'warn', detail: 'R3 has one room more.' }),
+      fingerprintOf('check', { status: 'fail', detail: 'R3 has one room more.' }),
     );
     const { rows } = await listInbox({ page: 1, now: NOW });
     expect(rows.map((r) => r.key)).toEqual(['check:2']);
@@ -365,22 +367,22 @@ describe('report and parser items', () => {
 });
 
 describe('order, paging and counts', () => {
-  it('orders by users affected, then fail before warn, then oldest first', async () => {
+  it('orders check items by users affected, then oldest first', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([
-      audit([1, 1], [check('motions', 'warn', 'a')], 9),
-      audit([2, 5], [check('motions', 'warn', 'b')], 1),
+      audit([1, 1], [check('motions', 'fail', 'a')], 9),
+      audit([2, 5], [check('motions', 'fail', 'b')], 1),
       audit([3, 1], [check('champion', 'fail', 'c')], 1),
       audit([4, 1], [check('champion', 'fail', 'd')], 5),
       audit([5, 5], [check('champion', 'fail', 'e')], 1),
     ]);
     const { rows } = await listInbox({ page: 1, now: NOW });
-    expect(rows.map((r) => r.key)).toEqual(['check:5', 'check:2', 'check:4', 'check:3', 'check:1']);
+    expect(rows.map((r) => r.key)).toEqual(['check:2', 'check:5', 'check:1', 'check:4', 'check:3']);
   });
 
   it('pages twenty at a time, clamping the page, counting every kind whatever the filter', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue(
       Array.from({ length: 45 }, (_, i) =>
-        audit([i + 1, 0], [check('motions', 'warn', 'x')], 45 - i),
+        audit([i + 1, 0], [check('motions', 'fail', 'x')], 45 - i),
       ),
     );
     h.groups.mockResolvedValue([group('parse: speakerTab → 0 rows')]);

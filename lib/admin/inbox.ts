@@ -1,4 +1,4 @@
-import { IngestJobStatus } from '@prisma/client';
+import { IngestJobStatus, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { CHECK_LABELS, publicPieceUrl } from '@/lib/audit/types';
 import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
@@ -33,8 +33,10 @@ import { ingestErrorCategory } from '@/lib/ingest/userMessage';
  * docs/superpowers/specs/2026-10-31-admin-redesign-design.md, "Inbox items".
  *
  * Four kinds, each read from the model that already owns it:
- *   - check: a stored audit with a fail or warn check no mark covers, one
- *     item per tournament however many checks it fails;
+ *   - check: a stored audit with a failing check no mark covers, one item
+ *     per tournament however many checks it fails. Warnings stay on the
+ *     Tournaments tab's Warning chips (owner, 2026-10-31: "only failing
+ *     checks in the inbox");
  *   - report: a CV report still open or acknowledged and not marked;
  *   - import: failed or abandoned jobs whose tournament is NOT stored (or
  *     cannot be told apart), one item per site address across users. Most
@@ -85,6 +87,14 @@ export function markState(mark: Mark | undefined, fingerprint: string): MarkStat
 const isFailing = (c: ParsedCheck) =>
   c.status === 'fail' || (c.code === 'user_reports' && c.status === 'warn');
 
+const FAILING_AUDITS = {
+  tournament: { ignored: false },
+  OR: [
+    { checks: { array_contains: [{ status: 'fail' }] } },
+    { checks: { array_contains: [{ code: 'user_reports', status: 'warn' }] } },
+  ],
+} satisfies Prisma.TournamentAuditWhereInput;
+
 type OpenCheck = { c: ParsedCheck; subject: string; fingerprint: string };
 type CheckCandidate = {
   id: string;
@@ -101,14 +111,13 @@ type CheckCandidate = {
  * turns it into a pass; the rest stay, a changed mark among them.
  */
 async function checkCandidates(): Promise<CheckCandidate[]> {
-  // A score below 100 is exactly an audit with a warn or fail in it (a warn
-  // earns half its weight; user reports take points off), so the read skips
-  // every tournament that checked out clean, including ones whose marks the
-  // audit has already turned into passes. Lowest score first, so the cap
-  // keeps the worst.
+  // Only audits with a failing check are read (jsonb containment on the
+  // checks array; an open user report is a warn that counts as failing), so
+  // the cap is spent on failures, not on the many warning-only audits. Lowest
+  // score first, so the cap keeps the worst.
   const audits = await prisma.tournamentAudit.findMany({
     // Ignored (test and demo) tournaments raise nothing for the admin.
-    where: { score: { lt: 100 }, tournament: { ignored: false } },
+    where: FAILING_AUDITS,
     orderBy: [{ score: 'asc' }, { tournamentId: 'asc' }],
     take: CANDIDATE_CAP,
     select: { tournamentId: true, usersAffected: true, computedAt: true, checks: true },
@@ -116,9 +125,7 @@ async function checkCandidates(): Promise<CheckCandidate[]> {
   const parsed = audits.map((a) => {
     const id = a.tournamentId.toString();
     const open = parseChecks(a.checks)
-      .filter((c) => c.status === 'fail' || c.status === 'warn')
-      // The first failing finding leads; with none failing, the first warning.
-      .sort((x, y) => Number(isFailing(y)) - Number(isFailing(x)))
+      .filter(isFailing)
       .map((c) => ({
         c,
         subject: `${id}:${c.code}`,
@@ -167,7 +174,7 @@ async function checkDrafts(): Promise<Draft[]> {
         summary: lead.c.detail || CHECK_LABELS[lead.c.code],
         more: left.length - 1,
         usersAffected,
-        severity: isFailing(lead.c) ? 'fail' : 'warn',
+        severity: 'fail',
         // When it was last audited: the audit is where the finding comes from.
         age: computedAt,
         fix: checkFix(
