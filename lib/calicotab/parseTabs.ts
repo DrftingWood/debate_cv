@@ -1050,6 +1050,35 @@ export function parseRoundResults(
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
 
+/** Remarks Tabbycat prints where a ranked team is not in this break. */
+const NOT_BREAKING = /withdr[ae]w|ineligible|not eligible|different break|capped|did not break/i;
+
+/** Column whose key or title is exactly one of the names (header-name match). */
+function vueColExact(heads: VueHead[], ...names: string[]): number {
+  return heads.findIndex((h) =>
+    [h.key, h.title].some((v) => v != null && names.includes(v.trim().toLowerCase())),
+  );
+}
+
+type BreakCols = { breakCol: number; remarkCol: number; rkCol: number };
+
+/**
+ * A team row's break rank, or 'out' when the row is not a breaker: a remark
+ * ("(withdrawn)", "(different break)"), or a blank/dash Break cell. Break
+ * wins over Rk; with no Break column Rk is the rank, as before.
+ */
+function teamBreakRank(row: VueCell[], cols: BreakCols): number | null | 'out' {
+  const { breakCol, remarkCol, rkCol } = cols;
+  if (remarkCol >= 0 && NOT_BREAKING.test(cellText(row[remarkCol]))) return 'out';
+  if (breakCol < 0) return rkCol >= 0 ? parseRank(row[rkCol]) : null;
+  const text = cellText(row[breakCol]);
+  // Blank, a dash or a parenthesised remark means "did not break".
+  if (text === '' || /^[-–—]+$/.test(text) || /^\(.*\)$/.test(text)) return 'out';
+  if (NOT_BREAKING.test(text)) return 'out';
+  // Anything else that is not a number keeps the standing rank.
+  return parseRank(row[breakCol]) ?? (rkCol >= 0 ? parseRank(row[rkCol]) : null);
+}
+
 function breakPageFromVue(
   tables: VueTable[],
   isAdj: boolean,
@@ -1065,7 +1094,21 @@ function breakPageFromVue(
   // a "rank" column to a generic header matcher, but it isn't a meaningful
   // rank. Don't extract a rank for adjudicator rows so we don't end up
   // displaying a phantom "rank:N" badge on /cv/verify.
-  const rankCol = isAdj ? -1 : vueCol(heads, 'rk', 'rank', '#');
+  //
+  // A team break tab has two rank-like columns: "Rk", the team's standing in
+  // the tab (withdrawn teams and teams that broke in another category still
+  // have one), and "Break", the break rank — or a remark such as
+  // "(withdrawn)" where the team did not break. Break is authoritative when
+  // the tab has it; Rk is read only on tabs that show no Break column.
+  const breakCol = isAdj ? -1 : vueColExact(heads, 'break');
+  const remarkCol = isAdj ? -1 : vueColExact(heads, 'remark', 'remarks');
+  const exactRk = isAdj ? -1 : vueColExact(heads, 'rk', 'rank', '#');
+  const rkCol = isAdj
+    ? -1
+    : exactRk >= 0
+      ? exactRk
+      : vueColExcluding(heads, new Set([breakCol, remarkCol]), 'rank', '#');
+  const cols: BreakCols = { breakCol, remarkCol, rkCol };
   const nameCol = vueCol(heads, 'team', 'adjudicator', 'name');
   const instCol = vueCol(heads, 'inst', 'school');
   const scoreCol = vueCol(heads, 'score', 'pts', 'point', 'total');
@@ -1074,8 +1117,10 @@ function breakPageFromVue(
   for (const row of table.data) {
     const entityName = nameCol >= 0 ? nameText(row[nameCol]) : nameText(row[0]);
     if (!entityName) continue;
+    const rank = isAdj ? null : teamBreakRank(row, cols);
+    if (rank === 'out') continue;
     rows.push({
-      rank: rankCol >= 0 ? parseRank(row[rankCol]) : null,
+      rank,
       entityType: isAdj ? 'adjudicator' : 'team',
       entityName,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,
