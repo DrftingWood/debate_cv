@@ -238,14 +238,18 @@ function openQuestionsOf(
   questions: Map<AssumptionCode, Audit[]>,
   describe: (id: bigint) => { name: string; tabUrl: string | null; scrapedAt: Date | null },
 ): OpenQuestion[] {
-  return [...questions].map(([code, list]) => ({
-    code,
-    ...ASSUMPTIONS[code],
-    count: list.length,
-    tournaments: list
-      .slice(0, QUESTION_LIST_CAP)
-      .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
-  }));
+  // A settled rule is history: audits stored before it was ruled on may still
+  // carry its tag until their next audit, but it is no longer a question.
+  return [...questions]
+    .filter(([code]) => !ASSUMPTIONS[code].settled)
+    .map(([code, list]) => ({
+      code,
+      ...ASSUMPTIONS[code],
+      count: list.length,
+      tournaments: list
+        .slice(0, QUESTION_LIST_CAP)
+        .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
+    }));
 }
 
 /** Audits with at least one check an admin has vouched for. */

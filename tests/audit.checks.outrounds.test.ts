@@ -52,16 +52,12 @@ describe('champion', () => {
     expect(c.status).toBe('fail');
     expect(c.detail).toBe('The outround results have no Open final.');
   });
-  it('the Open final is chosen over a category final', () => {
-    const o = [...cleanOpen, ...stage('Novice Final', names('N', 4), 2)];
-    expect(check(inputs({ outrounds: o }), 'champion').status).toBe('pass');
-  });
 });
 
-// Owner ruling 7: with no Open bracket at all, the top category's final names
-// the champion; with one, a category final never does.
+// Owner ruling 2026-10-31: whoever wins a final is a champion, so every
+// bracket's final names its own ("ESL Champion", "Novice Champion").
 describe('champion across brackets', () => {
-  it("a Senior/Junior-only tab: the top bracket's final names the champion", () => {
+  it('a Senior/Junior-only tab: every bracket final names a champion', () => {
     const o = [
       ...stage('Senior Semifinals', names('S', 8), 4),
       ...stage('Senior Grand Final', names('S', 4), 1),
@@ -69,31 +65,33 @@ describe('champion across brackets', () => {
     ];
     const c = check(inputs({ outrounds: o }), 'champion');
     expect(c.status).toBe('pass');
-    expect(c.detail).toBe('S1 won the Senior Grand Final.');
+    expect(c.detail).toContain('S1 won the Senior Grand Final');
+    expect(c.detail).toContain('J1 won the Junior Grand Final');
   });
-  it('a category-only tab whose top final has two winners fails', () => {
+  it('a category-only tab fails when a bracket final has two winners', () => {
     const o = [
       ...stage('Varsity Semifinals', names('V', 8), 4),
       ...stage('Varsity Final', names('V', 4), 2),
       ...stage('Novice Final', names('N', 4), 1),
     ];
-    expect(check(inputs({ outrounds: o }), 'champion').status).toBe('fail');
+    const c = check(inputs({ outrounds: o }), 'champion');
+    expect(c.status).toBe('fail');
+    expect(c.detail).toBe('The Varsity Final has 2 winners; it should have one.');
   });
-  // Ruling 9: the no-Open fallback is an unsettled rule, so a result it
-  // decided says so, and the admin's Open questions panel can count it.
-  it('a champion found by the no-Open fallback is tagged with its assumption', () => {
-    const pass = check(
-      inputs({ outrounds: stage('Senior Grand Final', names('S', 4), 1) }),
-      'champion',
-    );
-    expect(pass.assumptions).toEqual(['no_open_bracket_champion']);
-    const fail = check(inputs({ outrounds: stage('Varsity Final', names('V', 4), 2) }), 'champion');
-    expect(fail.assumptions).toEqual(['no_open_bracket_champion']);
+  it('the Open final and a Novice final each name a champion', () => {
+    const o = [...cleanOpen, ...stage('Novice Final', names('N', 4), 1)];
+    const c = check(inputs({ outrounds: o }), 'champion');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('O1 won the Grand Final; N1 won the Novice Final.');
   });
-  it('an Open or tier final names the champion with no assumption', () => {
-    expect(check(inputs({ outrounds: cleanOpen }), 'champion').assumptions).toBeUndefined();
-    const gold = check(inputs({ outrounds: stage('Gold Final', names('G', 4), 1) }), 'champion');
-    expect(gold.assumptions).toBeUndefined();
+  it('no result carries an assumption any more: the rule is settled', () => {
+    for (const o of [
+      cleanOpen,
+      stage('Senior Grand Final', names('S', 4), 1),
+      stage('Varsity Final', names('V', 4), 2),
+      stage('Gold Final', names('G', 4), 1),
+    ])
+      expect(check(inputs({ outrounds: o }), 'champion').assumptions).toBeUndefined();
   });
   it('an Open break with only a category final still fails: Open exists', () => {
     const o = stage('ESL Grand Final', names('E', 4), 1);
