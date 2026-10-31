@@ -88,7 +88,7 @@ import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
 import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
-import { isPlaceholderPersonName } from './names';
+import { isMarkupPersonName, isPlaceholderPersonName } from './names';
 import { rematchStaffNames } from './staffStore';
 import {
   assignMotionRounds,
@@ -2415,6 +2415,8 @@ async function preCommitPersons(names: Iterable<string>): Promise<Map<string, bi
   // Dedupe by normalizedName; remember the first displayName seen.
   const unique = new Map<string, string>();
   for (const name of names) {
+    // A tag fragment is never a person; its rows are left unlinked.
+    if (isMarkupPersonName(name)) continue;
     const norm = normalizePersonName(name);
     if (!norm) continue;
     if (!unique.has(norm)) unique.set(norm, name);
@@ -2544,7 +2546,7 @@ async function linkRegistrationPerson(
   // A registration named "Speaker 1" is a stand-in's private URL. Linking it
   // would point the URL at the shared stand-in Person and write the landing
   // page's judging history onto it.
-  if (isPlaceholderPersonName(personName)) return null;
+  if (isPlaceholderPersonName(personName) || isMarkupPersonName(personName)) return null;
   const normalizedName = normalizePersonName(personName);
   if (!normalizedName) return null;
 

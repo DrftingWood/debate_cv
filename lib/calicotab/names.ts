@@ -87,6 +87,24 @@ export function isPlaceholderPersonName(name: string): boolean {
   return normalized != null && PLACEHOLDER.test(normalized);
 }
 
+/**
+ * An HTML fragment where a name should be: the adjudicator cell used to be
+ * split on commas straight through its tags (parseTabs.parseAdjudicatorCell
+ * now reads the spans), and every piece became a Person of its own, about
+ * 8000 rows. A tag is "<" or "</" and a letter-led tag name ending in a
+ * space, "/" or ">", so "A < B" stays a name.
+ *
+ * Exported as a string because migration 20261030140000 runs this exact
+ * pattern in Postgres, and a test holds them together.
+ */
+export const MARKUP_NAME_PATTERN = '</?[A-Za-z][A-Za-z0-9]*[ />]';
+
+const MARKUP = new RegExp(MARKUP_NAME_PATTERN);
+
+export function isMarkupPersonName(name: string): boolean {
+  return MARKUP.test(name);
+}
+
 /** An opted-out speaker's rendering ("<em>Redacted</em>", "Anonymous"). */
 export function isRedactedName(name: string): boolean {
   const normalized = normalisedIfAscii(name);
