@@ -262,6 +262,16 @@ model Tournament {
   scrapeClaimedAt      DateTime?
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  /// Set by an admin on a test or demo tournament so it leaves the admin
+  /// scores, Inbox, lists and Captured stats. It hides nothing from a user's
+  /// own CV: ignoring is an admin-side view filter, never a deletion.
+  ignored              Boolean  @default(false)
+  /// PARSER_VERSION under which an admin's old-parser refresh last re-read
+  /// every recorded page. Distinct from parserVersion on purpose: only a full
+  /// ingest writes that one, since a page-level refresh does not redo the
+  /// format, the unpublished-page decisions or the tournament-wide fields. The
+  /// Old parser check passes on either, with different wording.
+  pagesRefreshedUnder  String?
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]
@@ -271,9 +281,175 @@ model Tournament {
   motions              Motion[]
   tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
+  scrapePieces         ScrapePiece[]
+  staff                TournamentStaff[]
+  audit                TournamentAudit?
+  reviewFlags          ReviewFlag[]
 
   @@index([year])
   @@index([format])
+}
+
+/// One independently fetched part of a tournament scrape: a single tab
+/// (team, speaker, participants, motions), one break category, or one
+/// results round. A tab with 12 rounds used to be all-or-nothing; recording
+/// each part lets a flaky round be retried and re-scraped alone while the
+/// rest stays stored. `key` is '' for single tabs, the lower-cased category
+/// for a break, the round number for a round.
+model ScrapePiece {
+  id            BigInt     @id @default(autoincrement())
+  tournamentId  BigInt
+  kind          String
+  key           String
+  label         String
+  url           String
+  /// 'ok' | 'failed' | 'withheld' (the tournament refuses the page: never
+  /// retried, not "partly loaded")
+  status        String
+  httpStatus    Int?
+  lastError     String?
+  /// Why a 'withheld' piece is withheld: 'withheld' (the tournament refuses
+  /// the page) or 'not_published' (no menu link, or a round page with columns
+  /// and no rows). Null for ok and failed pieces. Read by the audit, which
+  /// treats both alike, and by the piece grid's pill.
+  reason        String?
+  /// Consecutive failures; reset to 0 by a success. Drives the back-off in
+  /// retryDelayMs (lib/calicotab/scrapePieces.ts).
+  attempts      Int        @default(0)
+  lastAttemptAt DateTime
+  /// Last time the piece loaded cleanly; kept through later failures so the
+  /// stored data's age stays known.
+  loadedAt      DateTime?
+  /// Null once retries are exhausted (or the piece is ok).
+  nextRetryAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, kind, key])
+  @@index([status, nextRetryAt])
+}
+
+/// The data-accuracy audit of one tournament (lib/audit): a 0-100 score and
+/// the per-check results behind it. A derived cache, safe to recompute at any
+/// time, so one row per tournament and no history. `checks` is the
+/// CheckResult[] JSON; `checksVersion` lets a changed rule set re-audit
+/// everything; `usersAffected` (users with a linked private URL) weights the
+/// tournament in the database score.
+model TournamentAudit {
+  id            BigInt     @id @default(autoincrement())
+  tournamentId  BigInt     @unique
+  score         Int
+  checks        Json
+  usersAffected Int        @default(0)
+  checksVersion String
+  computedAt    DateTime
+  tournament    Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([score])
+  @@index([computedAt])
+}
+
+/// An item an admin set aside for a later, closer look (owner, 2026-10-31:
+/// "prioritize some errors and bring to a separate set that you can later
+/// pick for review - prioritize and add a comment"). One set for every kind
+/// of problem (Ruling 16): `source` says what was flagged and `sourceId`
+/// which one: an IngestJob id ('import'), a CvErrorReport id ('cv_report'),
+/// or a parser-warning group key `<parserName>|<headline>`
+/// ('parser_warning'). Not a foreign key, because the three point at
+/// different tables and a flag should outlive a retried job.
+///
+/// At most one 'open' flag per (source, sourceId), enforced in
+/// lib/admin/reviewSet.ts: flagging again refreshes it. `url` is always the
+/// public tab address ('' when there is none), never a private URL: the set
+/// is exported for a later session to read.
+model ReviewFlag {
+  id           BigInt      @id @default(autoincrement())
+  /// 'import' | 'cv_report' | 'parser_warning'
+  source       String
+  sourceId     String
+  url          String
+  tournamentId BigInt?
+  /// 'high' | 'medium' | 'low'
+  priority     String
+  /// At most 1000 characters, checked at the API.
+  comment      String
+  /// 'open' | 'done'
+  status       String      @default("open")
+  /// The admin's email.
+  createdBy    String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority])
+  @@index([source, sourceId])
+}
+
+/// "Mark checked" (owner, 2026-10-31: "if i am supposed check something, i
+/// should be able to mark it"): an admin's word that an item they were asked
+/// to look at is right. `kind` says what was checked ('check' | 'report' |
+/// 'import' | 'parser') and `subject` which one: `<tournamentId>:<code>` for
+/// a tournament check, a CvErrorReport id, `<host>/<slug>` or a job id for an
+/// import, `<parserName>|<headline>` for a parser warning. Not a foreign key,
+/// for the same reason as ReviewFlag. `fingerprint` hashes what the admin saw
+/// (lib/admin/adminChecks.ts): when the data changes it stops matching and
+/// the mark is ignored, so the item comes back. A checked tournament check
+/// counts as a pass in the audit score (lib/audit/run.ts). Read and written
+/// through raw SQL, so code does not depend on a client generated after this
+/// model was added.
+model AdminCheck {
+  id          BigInt   @id @default(autoincrement())
+  kind        String
+  subject     String
+  fingerprint String
+  /// At most 500 characters, checked at the API.
+  note        String?
+  /// The admin's email.
+  checkedBy   String
+  checkedAt   DateTime @default(now())
+
+  @@unique([kind, subject])
+}
+
+/// A tab address an admin deleted from the database (owner, 2026-10-31).
+/// Ingest and the pre-scrape refuse it before any fetch, so it is never
+/// stored again until an admin allows it. Keyed by the site address, not the
+/// fingerprint: the fingerprint carries the name and year, which a later
+/// read can spell differently. `slug` is '' for a root-hosted tab; `tabUrl`
+/// is the public address only, never a private URL. Read and written through
+/// raw SQL, like AdminCheck.
+model DeletedTournament {
+  id        BigInt   @id @default(autoincrement())
+  /// Lowercased.
+  host      String
+  /// The first path segment, lowercased; '' when the tab is at the root.
+  slug      String   @default("")
+  name      String
+  tabUrl    String
+  /// The admin's email.
+  deletedBy String
+  deletedAt DateTime @default(now())
+
+  @@unique([host, slug])
+}
+
+/// A tab that moved to another address (owner, 2026-10-31). Every URL to
+/// fromHost/fromSlug is read from toHost/toSlug, keeping the rest of its
+/// path (lib/calicotab/tabMoves.ts). Slugs are '' for a root-hosted tab.
+/// Read and written through raw SQL, like AdminCheck.
+model TabMove {
+  id       BigInt   @id @default(autoincrement())
+  /// Lowercased.
+  fromHost String
+  fromSlug String   @default("")
+  toHost   String
+  toSlug   String   @default("")
+  /// The admin's email.
+  addedBy  String
+  addedAt  DateTime @default(now())
+
+  @@unique([fromHost, fromSlug])
 }
 
 model Person {
@@ -302,6 +478,8 @@ model Person {
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
   rejections        PersonRejection[]
   appearanceCandidates AppearanceCandidate[]
+  staffNames           TournamentStaff[]       @relation("StaffLink")
+  staffCandidates      TournamentStaff[]       @relation("StaffCandidate")
 
   @@index([claimedByUserId])
   // Created by migration 20260725162000_person_suppression but never
@@ -437,21 +615,21 @@ model SpeakerRoundScore {
 }
 
 model TeamResult {
-  id            BigInt   @id @default(autoincrement())
-  tournamentId  BigInt
-  teamName      String
-  roundNumber   Int?
-  rank          Int?
-  wins          Int?
-  points        Decimal?
+  id               BigInt   @id @default(autoincrement())
+  tournamentId     BigInt
+  teamName         String
+  roundNumber      Int?
+  rank             Int?
+  wins             Int?
+  points           Decimal?
   /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
   /// BP scores 3/2/1/0; these are among the tiebreaks a tournament can rank
   /// on, but the order is the tournament's own setting — most tabs in the
   /// corpus separate teams level on points by speaker score first, so a
   /// team can sit above another with more firsts. Null for the two-team
   /// formats, which publish a wins column instead.
-  firsts        Int?
-  seconds       Int?
+  firsts           Int?
+  seconds          Int?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
   /// column said on two-team formats. Null on roundNumber=0 standings
@@ -459,7 +637,15 @@ model TeamResult {
   /// ingested before the parser started persisting it (the value was
   /// parsed and discarded for those — re-ingest backfills it). Feeds the
   /// by-position slice on /cv/stats.
-  position      String?
+  position         String?
+  /// Speakers of this team who are redacted (opted out of the public tabs),
+  /// on the roundNumber=0 row, counted from the participants list (the
+  /// speaker tab's redacted rows carry no team). Ingest stores no person for
+  /// a redacted row, so the data-accuracy audit adds this to the stored
+  /// speakers before calling a team short of partners. Null means never
+  /// counted: rows written before the column, or a scrape that did not read
+  /// the participants list. Written by lib/calicotab/redactedCounts.ts.
+  redactedSpeakers Int?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
@@ -557,6 +743,40 @@ model EliminationResult {
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, stage, entityType, entityName])
+}
+
+/// A name the tab's home page lists under its Tournament Staff block as part
+/// of the adjudication core (CA / CAP / DCA / "Core" / "Adjudication"), read
+/// by the home scrape piece. personId is set ONLY on an exact full-name match
+/// (case, diacritics and spacing folded, two tokens or more) to exactly one
+/// person in the tournament's participant list: that link alone gives the
+/// person a core role on their CV, read at display time. A looser match
+/// (a middle name dropped, tokens reordered) is kept as candidatePersonId for
+/// the admin to see and has no CV effect; an ambiguous, single-word or
+/// unknown name stays unlinked. Rewritten whole each time the piece loads.
+model TournamentStaff {
+  id           BigInt   @id @default(autoincrement())
+  tournamentId BigInt
+  name         String
+  /// normalizePersonName(name): the key a name is deduplicated by.
+  nameKey      String
+  /// 'core' (the only role read so far).
+  role         String
+  /// 'staff_block': the home page text. Participants-list Adj Core ticks live
+  /// on TournamentParticipant.judgeTypeTag, not here.
+  source       String   @default("staff_block")
+  personId     BigInt?
+  /// A possible, unconfirmed match. Never read for the CV.
+  candidatePersonId BigInt?
+  createdAt    DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person     Person?    @relation("StaffLink", fields: [personId], references: [id], onDelete: SetNull)
+  candidate  Person?    @relation("StaffCandidate", fields: [candidatePersonId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, role, nameKey])
+  @@index([personId])
+  @@index([candidatePersonId])
 }
 
 model JudgeAssignment {

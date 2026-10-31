@@ -42,6 +42,7 @@ export function makeSpeakerRow(overrides: Partial<CvSpeakerRow> = {}): CvSpeaker
     broke: false,
     wonTournament: null,
     hasOpenReport: false,
+    partlyLoaded: false,
     roundScores: [],
     teamRoundResults: [],
     ...overrides,
@@ -67,6 +68,7 @@ export function makeJudgeRow(overrides: Partial<CvJudgeRow> = {}): CvJudgeRow {
     lastOutroundJudged: null,
     broke: false,
     hasOpenReport: false,
+    partlyLoaded: false,
     ...overrides,
   };
 }

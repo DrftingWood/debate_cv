@@ -45,6 +45,7 @@ function speakerRow(over: Partial<CvSpeakerRow> = {}): CvSpeakerRow {
     openBreak: null,
     wonTournament: false,
     hasOpenReport: false,
+    partlyLoaded: false,
     roundScores: [],
     teamRoundResults: [],
     ...over,
@@ -70,9 +71,106 @@ function judgeRow(over: Partial<CvJudgeRow> = {}): CvJudgeRow {
     lastOutroundJudged: 'Semifinals',
     broke: true,
     hasOpenReport: false,
+    partlyLoaded: false,
     ...over,
   };
 }
+
+describe('partly loaded mark', () => {
+  const TEXT = 'Partly loaded';
+
+  it('shows on speaker and judge phone cards only when the row is partly loaded', async () => {
+    const { PublicSpeakerCard, PublicJudgeCard } = await import('@/app/u/[slug]/PublicRecordCards');
+    const on = { partlyLoaded: true };
+    expect(
+      renderToStaticMarkup(React.createElement(PublicSpeakerCard, { r: speakerRow(on) })),
+    ).toContain(TEXT);
+    expect(
+      renderToStaticMarkup(React.createElement(PublicJudgeCard, { r: judgeRow(on) })),
+    ).toContain(TEXT);
+    expect(
+      renderToStaticMarkup(React.createElement(PublicSpeakerCard, { r: speakerRow() })),
+    ).not.toContain(TEXT);
+  });
+
+  it('shows in the public desktop tables too, with the tooltip copy as a title', async () => {
+    const { PublicSpeakingTable, PublicJudgingTable } = await import('@/app/u/[slug]/PublicLedger');
+    const speaking = renderToStaticMarkup(
+      React.createElement(PublicSpeakingTable, {
+        rows: [speakerRow({ partlyLoaded: true })],
+        label: 'x',
+        proAm: new Set<string>(),
+      }),
+    );
+    expect(speaking).toContain(TEXT);
+    const judging = renderToStaticMarkup(
+      React.createElement(PublicJudgingTable, {
+        rows: [judgeRow({ partlyLoaded: true })],
+        label: 'x',
+      }),
+    );
+    expect(judging).toContain(TEXT);
+    expect(judging).toContain('Some pages of this tournament&#x27;s tab didn&#x27;t load.');
+  });
+});
+
+describe('partly loaded description', () => {
+  const SENTENCE =
+    'Some pages of this tournament&#x27;s tab didn&#x27;t load. We retry them automatically.';
+
+  // The badge must be focusable and its aria-describedby must resolve to an
+  // sr-only element holding the verbatim sentence (cards and tables).
+  function expectDescribed(html: string) {
+    const badge = html.match(/<span[^>]*tabindex="0"[^>]*>Partly loaded<\/span>/)?.[0];
+    expect(badge).toBeDefined();
+    const id = badge!.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(id).toBeDefined();
+    expect(html).toContain(`<span id="${id}" class="sr-only">${SENTENCE}</span>`);
+  }
+
+  it('is focusable and described on cards and in tables', async () => {
+    const { PublicSpeakerCard, PublicJudgeCard } = await import('@/app/u/[slug]/PublicRecordCards');
+    const { PublicSpeakingTable, PublicJudgingTable } = await import('@/app/u/[slug]/PublicLedger');
+    const on = { partlyLoaded: true };
+    expectDescribed(
+      renderToStaticMarkup(React.createElement(PublicSpeakerCard, { r: speakerRow(on) })),
+    );
+    expectDescribed(
+      renderToStaticMarkup(React.createElement(PublicJudgeCard, { r: judgeRow(on) })),
+    );
+    expectDescribed(
+      renderToStaticMarkup(
+        React.createElement(PublicSpeakingTable, {
+          rows: [speakerRow(on)],
+          label: 'x',
+          proAm: new Set<string>(),
+        }),
+      ),
+    );
+    expectDescribed(
+      renderToStaticMarkup(
+        React.createElement(PublicJudgingTable, { rows: [judgeRow(on)], label: 'x' }),
+      ),
+    );
+  });
+
+  it('wraps the card tooltip but leaves the default tooltip single-line', async () => {
+    const { Tooltip } = await import('@/components/ui/Tooltip');
+    const wrapped = renderToStaticMarkup(
+      React.createElement(
+        Tooltip,
+        { content: 'x', wrap: true } as React.ComponentProps<typeof Tooltip>,
+        'c',
+      ),
+    );
+    expect(wrapped).toContain('max-w-[16rem]');
+    const plain = renderToStaticMarkup(
+      React.createElement(Tooltip, { content: 'x' } as React.ComponentProps<typeof Tooltip>, 'c'),
+    );
+    expect(plain).toContain('whitespace-nowrap');
+    expect(plain).not.toContain('max-w-[16rem]');
+  });
+});
 
 describe('public CV phone cards', () => {
   it('shows every result a recipient needs, with the team placement and its field', async () => {

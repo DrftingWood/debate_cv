@@ -16,6 +16,10 @@ vi.mock('@/lib/calicotab/ingest', () => ({
   isDeadlockError: () => false,
 }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
+const retryDuePieces = vi.fn();
+vi.mock('@/lib/calicotab/partialScrape', () => ({ retryDuePieces }));
+const auditStale = vi.fn();
+vi.mock('@/lib/audit/run', () => ({ auditStale }));
 // The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
 const scanDueMailboxes = vi.fn();
 vi.mock('@/lib/gmail/backgroundScan', () => ({ scanDueMailboxes }));
@@ -47,6 +51,10 @@ beforeEach(() => {
     peakInFlight: 0,
     elapsedMs: 1,
   });
+  retryDuePieces.mockReset();
+  retryDuePieces.mockResolvedValue({ tournaments: 0, loaded: 0, failed: 0 });
+  auditStale.mockReset();
+  auditStale.mockResolvedValue(0);
   scanDueMailboxes.mockReset();
   scanDueMailboxes.mockResolvedValue({
     scanned: 1,
@@ -66,6 +74,16 @@ describe('POST /api/cron/process-queue', () => {
     expect(res.status).toBe(200);
     expect(drainQueue).toHaveBeenCalledTimes(1);
     expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it('retries failed pieces after the drain, within the tick budget', async () => {
+    const before = Date.now();
+    retryDuePieces.mockResolvedValue({ tournaments: 2, loaded: 3, failed: 1 });
+    const body = await (await POST(req())).json();
+    expect(body.piecesRetried).toEqual({ tournaments: 2, loaded: 3, failed: 1 });
+    const { deadline } = retryDuePieces.mock.calls[0]![0] as { deadline: number };
+    expect(deadline).toBeGreaterThanOrEqual(before + 55_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 55_000);
   });
 
   it('?respond=early answers 202 first and drains after the response', async () => {
@@ -106,6 +124,36 @@ describe('POST /api/cron/process-queue', () => {
     const { IngestDeadlineError } = await import('@/lib/calicotab/fetchSession');
     expect(deps.isDeadlineError(new IngestDeadlineError())).toBe(true);
     expect(deps.isDeadlineError(new Error('x'))).toBe(false);
+  });
+});
+
+describe('stale audits in the tick', () => {
+  it('audits stale tournaments after the piece retry, 50 at most, within the tick budget', async () => {
+    const order: string[] = [];
+    retryDuePieces.mockImplementation(async () => {
+      order.push('retry');
+      return { tournaments: 0, loaded: 0, failed: 0 };
+    });
+    auditStale.mockImplementation(async () => {
+      order.push('audit');
+      return 7;
+    });
+    const before = Date.now();
+    const body = await (await POST(req())).json();
+    expect(order).toEqual(['retry', 'audit']);
+    expect(body.audited).toBe(7);
+    const { limit, deadline } = auditStale.mock.calls[0]![0] as { limit: number; deadline: number };
+    expect(limit).toBe(50);
+    // 5 s inside the tick budget, so a chunk started at the deadline still finishes.
+    expect(deadline).toBeGreaterThanOrEqual(before + 50_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 50_000);
+  });
+
+  it('an audit failure is reported and never fails the tick', async () => {
+    auditStale.mockRejectedValue(new Error('db down'));
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    expect((await res.json()).audited).toBeNull();
   });
 });
 

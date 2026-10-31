@@ -1,16 +1,21 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { DownloadSimple } from '@/components/ui/icons';
 import { requireAdmin } from '@/lib/admin';
-import { prisma } from '@/lib/db';
-import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
-import { ExportErrorsButton } from '@/components/DashboardActions';
-import { IngestProgressTracker } from '@/components/IngestProgressTracker';
-import { categoryLabel } from '@/lib/cvErrorReports/categories';
-import { buttonClasses } from '@/components/ui/Button';
-import { formatDate } from '@/lib/utils/date';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { AdminTabs } from '@/components/admin/AdminTabs';
+import { SummaryLine } from '@/components/admin/SummaryLine';
+import { CapturedTab } from '@/components/admin/tabs/CapturedTab';
+import { ImportsTab } from '@/components/admin/tabs/ImportsTab';
+import { InboxTab } from '@/components/admin/tabs/InboxTab';
+import { ParserTab } from '@/components/admin/tabs/ParserTab';
+import { ReportsTab } from '@/components/admin/tabs/ReportsTab';
+import { ReviewSetTab } from '@/components/admin/tabs/ReviewSetTab';
+import { ToolsTab } from '@/components/admin/tabs/ToolsTab';
+import { TournamentsTab } from '@/components/admin/tabs/TournamentsTab';
+import { readAdminTab, type AdminTab } from '@/lib/admin/adminTabs';
+import { getSummary, readInbox } from '@/lib/admin/summary';
+import { kindsParam, parseKinds } from '@/lib/admin/inboxTypes';
+import { readPage } from '@/lib/admin/cvReportTypes';
+import type { SearchValues } from '@/lib/admin/adminHref';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -19,281 +24,73 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminPage() {
+/**
+ * The operator page: a summary line, then one panel at a time (`?tab=`).
+ * Only the active tab's data is read; each panel is its own async server
+ * component under components/admin/tabs, each guarding its own reads so a
+ * failure says so inside that panel and leaves the strip and the other tabs
+ * working. Panels page through the address with their own parameters
+ * (`?reportsPage=`, `?warningsPage=`, `?importsPage=`, `?reviewPage=`, `?q=`, `?page=`), kept apart by
+ * adminHref.
+ */
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchValues>;
+} = {}) {
   try {
     await requireAdmin();
   } catch {
     redirect('/');
   }
+  const search = (await searchParams) ?? {};
+  const active = readAdminTab(search.tab);
+  // One clock for every relative time on the page, so two cells written a
+  // millisecond apart cannot disagree about "just now".
+  const now = new Date();
 
-  const [tournaments, discoveredUrls, lockedUrls, pendingJobs, recentParserRuns, cvReports] =
-    await Promise.all([
-      prisma.tournament.count(),
-      prisma.discoveredUrl.count(),
-      prisma.discoveredUrl.count({ where: { reingestLocked: true } }),
-      prisma.ingestJob.count({ where: { status: 'pending' } }),
-      // Recent ParserRuns with non-empty warnings, capped at 200 — enough to
-      // give a sense of warning frequency without scanning the whole table.
-      // Most-recent-first so frequencies reflect current parser version.
-      prisma.parserRun.findMany({
-        where: { warnings: { isEmpty: false } },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-        select: { warnings: true, parserName: true, parserVersion: true, createdAt: true },
-      }),
-      prisma.cvErrorReport.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-        include: { user: { select: { name: true, email: true } } },
-      }),
-    ]);
-
-  const cvReportTournamentIds = [
-    ...new Set(cvReports.flatMap((report) => report.tournamentIds)),
-  ].filter((id) => /^\d+$/.test(id));
-  const cvReportTournaments = cvReportTournamentIds.length
-    ? await prisma.tournament.findMany({
-        where: { id: { in: cvReportTournamentIds.map((id) => BigInt(id)) } },
-        select: { id: true, name: true, year: true },
-      })
-    : [];
-  const cvReportTournamentById = new Map(
-    cvReportTournaments.map((t) => [t.id.toString(), t] as const),
-  );
-
-  // Aggregate warnings by their first sentence so semantically-equivalent
-  // messages (different URLs in the suffix) collapse. The diagnostic format
-  // uses ` — ` as a separator between the headline and details; we group
-  // on the headline.
-  const warningHeadline = (w: string): string => {
-    const sep = w.indexOf(' — ');
-    return (sep > 0 ? w.slice(0, sep) : w).slice(0, 200);
-  };
-  const warningCounts = new Map<string, { count: number; sample: string; latest: Date }>();
-  for (const run of recentParserRuns) {
-    for (const w of run.warnings) {
-      const key = `[${run.parserName}] ${warningHeadline(w)}`;
-      const existing = warningCounts.get(key);
-      if (existing) {
-        existing.count += 1;
-        if (run.createdAt > existing.latest) existing.latest = run.createdAt;
-      } else {
-        warningCounts.set(key, { count: 1, sample: w, latest: run.createdAt });
-      }
-    }
-  }
-  const sortedWarnings = [...warningCounts.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 20);
+  // On the Inbox tab the panel and the summary line share one page read (its
+  // counts are the line's), so the candidate scan runs once per render.
+  const inbox =
+    active === 'inbox'
+      ? readInbox(readPage(search.inboxPage), kindsParam(parseKinds(search.kinds)))
+      : undefined;
+  const [summary, panel] = await Promise.all([getSummary(inbox), renderPanel(active, search, now)]);
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-3">
+    <div className="space-y-group">
+      <header className="space-y-tight">
         <div className="kicker">ADMIN · INTERNAL</div>
         <h1 className="font-display text-h2 font-medium tracking-tight text-ink">
           Admin: operator tools
         </h1>
+        <SummaryLine summary={summary} />
         <hr className="hairline" />
       </header>
 
-      <IngestProgressTracker scope="global" />
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-display text-h3 font-medium text-ink">Current state</h2>
-        <dl className="grid grid-cols-2 gap-4 text-table sm:grid-cols-4">
-          <div>
-            <dt className="text-ink-soft">Tournaments</dt>
-            <dd className="text-stat font-semibold mt-1">{tournaments.toLocaleString('en-GB')}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Discovered URLs</dt>
-            <dd className="text-stat font-semibold mt-1">
-              {discoveredUrls.toLocaleString('en-GB')}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Locked URLs</dt>
-            <dd className="text-stat font-semibold mt-1">{lockedUrls.toLocaleString('en-GB')}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-soft">Pending jobs</dt>
-            <dd className="text-stat font-semibold mt-1">{pendingJobs.toLocaleString('en-GB')}</dd>
-          </div>
-        </dl>
-        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
-            the 2026-06 IA pass — it's operator tooling, not a debater need. */}
-        <ExportErrorsButton />
-      </section>
-
-      {/* Tags and Verify used to sit in the CV sub-bar (admins only). That
-          bar went with the 2026-10-29 navigation change, so the operator
-          tools are reached from here. */}
-      <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-display text-h3 font-medium text-ink">Operator tools</h2>
-        <p className="text-body text-ink-soft">
-          Check what the parser read, and tag tournaments and motions.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/cv/verify" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-            Verify parsed tournaments →
-          </Link>
-          <Link href="/cv/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-            Tag tournaments and motions →
-          </Link>
-        </div>
-      </section>
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <h2 className="font-display text-h3 font-medium text-ink">Tag proposals</h2>
-        <p className="text-body text-ink-soft">
-          Review user-proposed region and motion tags. Approvals write directly to the canonical
-          Tournament / Motion columns.
-        </p>
-        <Link href="/admin/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-          Review tag proposals →
-        </Link>
-      </section>
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-h3 font-medium text-ink">CV error reports</h2>
-            <p className="text-body text-ink-soft mt-1">
-              Beta reports users submitted from their CV page.
-            </p>
-          </div>
-          <a
-            href="/api/admin/cv-error-reports-export"
-            className={buttonClasses({ variant: 'outline', size: 'sm' })}
-          >
-            <DownloadSimple className="h-3.5 w-3.5" aria-hidden /> Export CSV
-          </a>
-        </div>
-        {cvReports.length === 0 ? (
-          <EmptyState title="No CV reports yet" headingLevel={3} />
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {cvReports.map((report) => (
-              <li key={report.id} className="space-y-2 px-3 py-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="text-ui font-medium text-ink">
-                    {report.user.name ?? report.user.email ?? report.userId}
-                  </div>
-                  <div className="text-caption text-ink-soft">{formatDate(report.createdAt)}</div>
-                </div>
-                {report.user.email ? (
-                  <div className="text-caption text-ink-soft">{report.user.email}</div>
-                ) : null}
-                <div className="flex flex-wrap gap-1">
-                  {report.tournamentIds.map((id) => {
-                    const tournament = cvReportTournamentById.get(id);
-                    return (
-                      <span
-                        key={id}
-                        className="rounded-full bg-surface-2 px-2 py-0.5 text-byline text-ink-soft"
-                      >
-                        {tournament
-                          ? `${tournament.name}${tournament.year ? ` ${tournament.year}` : ''}`
-                          : `#${id}`}
-                      </span>
-                    );
-                  })}
-                </div>
-                {report.categories.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {report.categories.map((c) => (
-                      <span
-                        key={c}
-                        className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-byline font-medium text-warning"
-                      >
-                        {categoryLabel(c)}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {report.comment ? (
-                  <p className="whitespace-pre-wrap wrap-break-word rounded-md bg-surface-2 px-3 py-2 text-ui text-ink">
-                    {report.comment}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <div>
-          <h2 className="font-display text-h3 font-medium text-ink">Recent parser warnings</h2>
-          <p className="text-body text-ink-soft mt-1">
-            Top warnings from the latest 200 parser runs, grouped by headline. High counts mean many
-            tournaments are hitting the same parsing issue — usually a structural change in Tabbycat
-            the parser hasn&rsquo;t caught up to yet.
-          </p>
-        </div>
-        {sortedWarnings.length === 0 ? (
-          <EmptyState
-            title="No parser warnings"
-            description="Nothing recorded in the last 200 parser runs. Parsers are clean."
-            headingLevel={3}
-          />
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {sortedWarnings.map(([key, { count, sample, latest }]) => (
-              <li key={key} className="px-3 py-2 space-y-1">
-                <div className="flex items-baseline justify-between gap-3">
-                  <code className="font-mono text-caption text-ink break-all">{key}</code>
-                  <span className="shrink-0 text-caption font-mono text-ink-soft">×{count}</span>
-                </div>
-                <div className="text-byline text-ink-soft">
-                  Latest: {formatDate(latest)} · Sample: {sample.slice(0, 200)}
-                  {sample.length > 200 ? '…' : ''}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <div>
-          <h2 className="font-display text-h3 font-medium text-ink">Clear ingested data</h2>
-          <p className="text-body text-ink-soft mt-1">
-            Deletes scraped tournament records and resets ingest state on every DiscoveredUrl. User
-            identity claims (Person records) and discovered URLs are preserved, so the next scan
-            re-uses everyone&rsquo;s existing claims.
-          </p>
-        </div>
-        <ClearDataButton />
-      </section>
-
-      <section className="rounded-lg border border-destructive/30 bg-destructive/3 p-6 space-y-4">
-        <div>
-          <h2 className="font-display text-h3 font-medium text-ink">Full wipe (destructive)</h2>
-          <p className="text-body text-ink-soft mt-1">
-            All of the above, <em>plus</em> deletes every DiscoveredUrl, every Person row, and every
-            PersonRejection across all users. User accounts and Gmail tokens are preserved so users
-            can re-run the Gmail scan from zero. Use only to test the discovery + claim flow
-            end-to-end.
-          </p>
-          <p className="text-table text-destructive mt-2">
-            Irreversible. Every user loses their claimed identities.
-          </p>
-        </div>
-        <FullWipeButton />
-      </section>
-
-      <section className="rounded-lg border p-6 space-y-4">
-        <div>
-          <h2 className="font-display text-h3 font-medium text-ink">Re-ingest all URLs</h2>
-          <p className="text-body text-ink-soft mt-1">
-            Queues every discovered URL for fresh ingestion. Use after parser fixes to re-scrape all
-            tournaments cleanly, excluding URLs locked on user dashboards. Then use{' '}
-            <span className="font-medium">Ingest all</span> on the dashboard to process the queue.
-          </p>
-        </div>
-        <ReingestAllButton count={Math.max(0, discoveredUrls - lockedUrls)} />
-      </section>
+      <AdminTabs active={active} panels={{ [active]: panel }} />
     </div>
   );
+}
+
+/** The one panel the request asked for, read and rendered. */
+async function renderPanel(tab: AdminTab, search: SearchValues, now: Date) {
+  switch (tab) {
+    case 'inbox':
+      return InboxTab({ search, now });
+    case 'tournaments':
+      return TournamentsTab({ search, now });
+    case 'captured':
+      return CapturedTab();
+    case 'imports':
+      return ImportsTab({ search, now });
+    case 'reports':
+      return ReportsTab({ search, now });
+    case 'parser':
+      return ParserTab({ search, now });
+    case 'review':
+      return ReviewSetTab({ search, now });
+    case 'tools':
+      return ToolsTab();
+  }
 }

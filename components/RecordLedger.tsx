@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { formatAbbrev } from '@/lib/calicotab/format';
 import { Badge } from '@/components/ui/Badge';
+import { PartlyLoadedBadge } from '@/components/PartlyLoadedBadge';
 import { TableScroll, Table, Th, Td, Tr, Nil, Cols } from '@/components/ui/DataTable';
 import { CvRowReportButton } from '@/components/CvRowReportButton';
 import { RoundsToggle } from '@/components/RoundsToggle';
@@ -194,7 +195,12 @@ function SpeakingTable({
                         ) : null}
                       </Td>
                       <Td className="pl-1">
-                        <TournamentCell name={r.tournamentName} myName={r.myName} usual={usual} />
+                        <TournamentCell
+                          name={r.tournamentName}
+                          myName={r.myName}
+                          usual={usual}
+                          partlyLoaded={r.partlyLoaded}
+                        />
                       </Td>
                       <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                         {formatAbbrev(r.format) ?? <Nil />}
@@ -317,7 +323,10 @@ function SpeakingTable({
             name={r.tournamentName}
             href={r.sourceUrl}
             year={r.year}
-            result={breakResult(r.broke, fmtLastOutroundSpoken(r))}
+            result={withPartlyLoaded(
+              breakResult(r.broke, fmtLastOutroundSpoken(r)),
+              r.partlyLoaded,
+            )}
             fields={speakerCardFields(r, fieldByTournament.get(r.tournamentId.toString()))}
           >
             <RoundLedger r={r} motionsByTournament={motionsByTournament} />
@@ -373,7 +382,12 @@ function JudgingTable({
               {rows.map((r) => (
                 <Tr key={r.tournamentId.toString()}>
                   <Td className="pl-4">
-                    <TournamentCell name={r.tournamentName} myName={r.myName} usual={usual} />
+                    <TournamentCell
+                      name={r.tournamentName}
+                      myName={r.myName}
+                      usual={usual}
+                      partlyLoaded={r.partlyLoaded}
+                    />
                   </Td>
                   <Td className="whitespace-nowrap text-ink-soft" title={r.format ?? undefined}>
                     {formatAbbrev(r.format) ?? <Nil />}
@@ -422,7 +436,10 @@ function JudgingTable({
             name={r.tournamentName}
             href={r.sourceUrl}
             year={r.year}
-            result={r.broke ? <Badge variant="gold">Broke</Badge> : null}
+            result={withPartlyLoaded(
+              r.broke ? <Badge variant="gold">Broke</Badge> : null,
+              r.partlyLoaded,
+            )}
             fields={judgeCardFields(r)}
           >
             <ReportCell r={r} />
@@ -501,10 +518,12 @@ function TournamentCell({
   name,
   myName,
   usual,
+  partlyLoaded,
 }: {
   name: string;
   myName: string;
   usual: string | null;
+  partlyLoaded: boolean;
 }) {
   // Plain text on the desktop ledger: the Source column is the row's one
   // link to its tab. Both used to link the same page (owner review
@@ -515,8 +534,26 @@ function TournamentCell({
   return (
     <div className="max-w-[16rem]">
       <div className="wrap-break-word font-medium text-ink">{name}</div>
+      {/* Its own line under the name, like the printed name: an inline badge
+          would wrap mid-name in the 16rem cell and ragged the column. */}
+      {partlyLoaded ? (
+        <div className="mt-hair">
+          <PartlyLoadedBadge inTable />
+        </div>
+      ) : null}
       {differs ? <div className="text-caption text-ink-soft">{myName}</div> : null}
     </div>
+  );
+}
+
+/** The card's result line: the break badge, then the partly-loaded mark. */
+function withPartlyLoaded(result: React.ReactNode, partlyLoaded: boolean): React.ReactNode {
+  if (!partlyLoaded) return result;
+  return (
+    <>
+      {result}
+      <PartlyLoadedBadge />
+    </>
   );
 }
 

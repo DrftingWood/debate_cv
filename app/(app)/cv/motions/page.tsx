@@ -16,6 +16,7 @@ import { buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatTile, StatRow } from '@/components/ui/StatTile';
 import { Nil } from '@/components/ui/DataTable';
+import { Pager } from '@/components/ui/Pager';
 import { isAdminEmail } from '@/lib/admin';
 
 export const metadata: Metadata = {
@@ -210,7 +211,7 @@ export default async function CvMotionsPage({
             existed; it just was not foldable, so the grouping bought
             nothing. The headers now act as the archive's table of contents.
           */}
-          <MotionPager page={page} pages={pages} total={entries.length} from={from} />
+          <MotionPager page={page} pages={pages} total={entries.length} />
           <div className="space-y-3">
             {[...byTournament.entries()].map(([key, list]) => {
               const first = list[0];
@@ -259,7 +260,7 @@ export default async function CvMotionsPage({
               );
             })}
           </div>
-          <MotionPager page={page} pages={pages} total={entries.length} from={from} />
+          <MotionPager page={page} pages={pages} total={entries.length} />
         </>
       )}
     </div>
@@ -365,44 +366,16 @@ function Stat({
   );
 }
 
-/**
- * Page links for the archive: previous, "31–60 of 234", next. Plain links,
- * so each page is its own URL and the browser's Back steps through them.
- */
-function MotionPager({
-  page,
-  pages,
-  total,
-  from,
-}: {
-  page: number;
-  pages: number;
-  total: number;
-  from: number;
-}) {
-  if (pages <= 1) return null;
-  const to = Math.min(from + PER_PAGE, total);
-  const href = (n: number) => (n === 1 ? '/cv/motions' : `/cv/motions?page=${n}`);
+/** The archive's page links, on the shared pager; page 1 is the bare URL. */
+function MotionPager({ page, pages, total }: { page: number; pages: number; total: number }) {
   return (
-    <nav
-      aria-label="Motion pages"
-      className="flex flex-wrap items-center justify-between gap-tight border-y border-border py-tight"
-    >
-      <span className="font-mono text-caption text-ink-soft">
-        {from + 1}–{to} of {total} · page {page} of {pages}
-      </span>
-      <span className="flex items-center gap-inline">
-        {page > 1 ? (
-          <Link href={href(page - 1)} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-            ← Previous
-          </Link>
-        ) : null}
-        {page < pages ? (
-          <Link href={href(page + 1)} className={buttonClasses({ variant: 'outline', size: 'sm' })}>
-            Next →
-          </Link>
-        ) : null}
-      </span>
-    </nav>
+    <Pager
+      page={page}
+      pages={pages}
+      total={total}
+      perPage={PER_PAGE}
+      label="Motion pages"
+      href={(n) => (n === 1 ? '/cv/motions' : `/cv/motions?page=${n}`)}
+    />
   );
 }

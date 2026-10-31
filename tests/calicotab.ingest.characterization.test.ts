@@ -34,7 +34,9 @@ const h = vi.hoisted(() => ({
   fetchHtml: vi.fn(),
   fetchRound: vi.fn(),
   recordParserRun: vi.fn(),
+  recordPieceOutcomes: vi.fn(),
   captureMessage: vi.fn(),
+  loadAuditInputs: vi.fn(),
   // Per-test replacement for the speaker tab parse (null: the default rows).
   speakerTab: null as unknown[] | null,
   // Per-test override of who the private URL's owner is (null: Ada Lovelace).
@@ -45,8 +47,11 @@ const h = vi.hoisted(() => ({
   motions: null as unknown[] | null,
   // Per-test extra judge on every prelim panel (null: none).
   extraJudge: null as string | null,
+  // Per-test: a round URL whose page has columns but `data: []`.
+  emptyRound: null as string | null,
 }));
-
+vi.mock('@/lib/admin/deletedTournaments', () => ({ refuseDeletedSite: async () => {} }));
+vi.mock('@/lib/calicotab/tabMoves', () => ({ currentTabUrl: async (u: string) => u }));
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: h.captureMessage, captureException: vi.fn() }));
 vi.mock('@/lib/calicotab/provenance', () => ({
@@ -59,11 +64,20 @@ vi.mock('@/lib/calicotab/storedFirst', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/calicotab/storedFirst')>()),
   linkFromStoredTournament: async () => null,
 }));
+// The ScrapePiece upserts have their own tests (calicotab.scrapePieces.test.ts);
+// here only what an ingest hands them is pinned.
+vi.mock('@/lib/calicotab/scrapePieces', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/calicotab/scrapePieces')>()),
+  recordPieceOutcomes: h.recordPieceOutcomes,
+}));
+// The audit after a scrape has its own tests (audit.run.test.ts); here only
+// that it runs, and that its failure cannot fail the ingest. Its loader is the
+// seam: an empty answer audits nothing.
+vi.mock('@/lib/audit/load', () => ({ loadAuditInputs: h.loadAuditInputs }));
 // The year fill has its own tests (calicotab.yearFromEmail.test.ts).
 vi.mock('@/lib/calicotab/yearFromEmail', () => ({
   fillTournamentYearFromEmails: async () => null,
 }));
-
 vi.mock('@/lib/calicotab/fetch', () => ({
   FETCH_MIN_INTERVAL_MS: 0,
   LANDING_FETCH_TIMEOUT_MS: 30_000,
@@ -146,7 +160,11 @@ const ROUNDS: Record<string, unknown> = {
   },
 };
 
-vi.mock('@/lib/calicotab/parseTabs', () => ({
+vi.mock('@/lib/calicotab/parseTabs', async (importActual) => ({
+  // The real URL-to-stage mapping: a partial run clears a break piece by the
+  // stage its rows are written under.
+  breakPageKind: (await importActual<typeof import('@/lib/calicotab/parseTabs')>()).breakPageKind,
+  extractVueData: (await importActual<typeof import('@/lib/calicotab/parseTabs')>()).extractVueData,
   parseTeamTab: () => [
     {
       rank: 1,
@@ -234,7 +252,10 @@ vi.mock('@/lib/calicotab/parseTabs', () => ({
     if (h.extraJudge && round?.judgeAssignments?.length) {
       round.judgeAssignments.push({ personName: h.extraJudge, panelRole: 'panel' });
     }
-    return round;
+    return {
+      ...(round as object),
+      ...(h.emptyRound === url ? { teamResults: [], judgeAssignments: [] } : {}),
+    };
   },
   parseBreakPage: () => [
     {
@@ -291,8 +312,16 @@ vi.mock('@/lib/calicotab/parseMotions', () => ({
 }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
-import { ingestPrivateUrl } from '@/lib/calicotab/ingest';
+import {
+  FetchCutOffError,
+  fetchAndParseTabs,
+  ingestPrivateUrl,
+  loadLandingAndFingerprint,
+  prescrapeTournament,
+  runFullScrape,
+} from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { piecesToClear } from '@/lib/calicotab/scrapePieces';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
 import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
 import { IngestDeadlineError } from '@/lib/calicotab/fetchSession';
@@ -368,6 +397,7 @@ function install(
   h.fetchHtml.mockImplementation(async (url: string) => okPage(url));
   h.fetchRound.mockImplementation(async (url: string) => okPage(url));
   h.recordParserRun.mockResolvedValue(undefined);
+  h.recordPieceOutcomes.mockResolvedValue(undefined);
 
   prismaMock.discoveredUrl.findFirst.mockResolvedValue({
     messageDate: new Date('2025-02-01T00:00:00Z'),
@@ -433,12 +463,15 @@ beforeEach(() => {
   h.fetchHtml.mockReset();
   h.fetchRound.mockReset();
   h.recordParserRun.mockReset();
+  h.recordPieceOutcomes.mockReset();
   h.captureMessage.mockReset();
+  h.loadAuditInputs.mockReset().mockResolvedValue(new Map());
   h.speakerTab = null;
   h.ownerName = null;
   h.judyTag = null;
   h.motions = null;
   h.extraJudge = null;
+  h.emptyRound = null;
   resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -811,6 +844,37 @@ describe('ingestPrivateUrl: first ingest of a tournament (no stored row)', () =>
 
 // ─── Freshness and skip decisions on a stored tournament ───────────────────
 
+describe('ingest: the data-accuracy audit after a write', () => {
+  it('audits the tournament after the write', async () => {
+    install();
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(h.loadAuditInputs).toHaveBeenCalledWith([1n]);
+  });
+
+  it('skips the audit with under 5 s left, and the ingest still resolves', async () => {
+    install();
+    // No write reserve, so a 4.5 s deadline still admits the write.
+    vi.stubEnv('INGEST_WRITE_RESERVE_MS', '0');
+    try {
+      const result = await ingestPrivateUrl(PRIVATE_URL, USER, { deadline: Date.now() + 4_500 });
+      expect(result.cached).toBe(false);
+      expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
+      expect(h.loadAuditInputs).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('an audit failure never fails the scrape', async () => {
+    install();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    h.loadAuditInputs.mockRejectedValue(new Error('audit down'));
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(result.tournamentId).toBe(1n);
+  });
+});
+
 describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
   it('serves a fresh, complete, current-version tournament from the cache without fetching tabs', async () => {
     const existing = existingTournament();
@@ -1063,21 +1127,21 @@ describe('ingestPrivateUrl: cache decisions for a stored tournament', () => {
     expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it('a failed tab fetch aborts before writing and releases the scrape claim', async () => {
+  // Owner decision 2026-10-30 (partial scrapes): a failed tab no longer
+  // aborts the ingest. What loaded is written, the failure is recorded as a
+  // ScrapePiece to retry, and the landing ParserRun still names the failure.
+  // This test used to pin the abort; the abort-and-release-claim half now
+  // lives in 'every page failing still aborts' below.
+  it('a failed tab fetch writes what loaded and still records the failure', async () => {
     install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
     h.fetchHtml.mockImplementation(async (url: string) =>
       url === SPEAKER_TAB
         ? { ok: false, url, status: 503, bodyPreview: '', elapsedMs: 1 }
         : okPage(url),
     );
-    await expect(ingestPrivateUrl(PRIVATE_URL, USER)).rejects.toThrow(
-      'Aborting ingest: 1 tab fetch(es) failed — fetch: speakerTab HTTP 503',
-    );
-    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
-    expect(callsOf(prismaMock.tournament.updateMany).at(-1)).toEqual({
-      where: { id: 7n },
-      data: { scrapeClaimedAt: null },
-    });
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(prismaMock.tournament.upsert).toHaveBeenCalledTimes(1);
     // The failure is still recorded on the landing ParserRun.
     expect(h.recordParserRun.mock.calls[0]![0]).toMatchObject({
       success: false,
@@ -1282,5 +1346,374 @@ describe('ingestPrivateUrl: a core judge who then judges keeps the core tag', ()
     const judy = [...rows.values()].find((r) => r.personId === 104n)!;
     expect(judy.judgeTypeTag).toBe('Adjudicator');
     expect(judy.chairedPrelimRounds).toBe(2);
+  });
+});
+
+describe('fetchAndParseTabs: per-page outcomes and pieces', () => {
+  const load = () => loadLandingAndFingerprint(PRIVATE_URL, USER);
+
+  it('records an outcome per page, ok and failed', async () => {
+    install();
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? { ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 } : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    const byKey = new Map(fetched.pieceOutcomes.map((o) => [`${o.kind}:${o.key}`, o]));
+    expect(byKey.get('round:2')).toMatchObject({
+      label: 'R2',
+      url: R2,
+      ok: false,
+      httpStatus: 504,
+    });
+    expect(byKey.get('team:')).toMatchObject({ label: 'Team tab', url: TEAM_TAB, ok: true });
+    expect(byKey.get('break:open')).toMatchObject({ label: 'Break: Open', ok: true });
+    expect(byKey.get('round:3')).toMatchObject({ label: 'Grand Final', ok: true });
+    // One outcome per page tried: 4 tabs, 1 break, 3 rounds.
+    expect(fetched.pieceOutcomes).toHaveLength(8);
+    expect(fetched.fetchedPieces).toHaveLength(7);
+    expect(fetched.fetchedPieces).not.toContainEqual({ kind: 'round', key: '2' });
+    // The warning text is unchanged.
+    expect(fetched.fetchLevelFailures).toEqual([`fetch: round ${R2} HTTP 504`]);
+  });
+
+  it('a withheld optional page records no outcome', async () => {
+    install();
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PARTICIPANTS
+        ? { ok: false, url, status: 403, cdnBlocked: false, bodyPreview: '', elapsedMs: 1 }
+        : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.pieceOutcomes.map((o) => o.kind)).not.toContain('participants');
+    expect(fetched.pieceOutcomes.every((o) => o.ok)).toBe(true);
+  });
+
+  it('a round with columns and no rows is not_published: not fetched-ok, not a failure, nothing cleared', async () => {
+    install();
+    h.emptyRound = R2;
+    const empty =
+      '<html><script>window.vueData = {"tablesData":[{"head":[{"key":"team","title":"Team"}],"data":[]}]}</script></html>';
+    h.fetchRound.mockImplementation(async (url: string) => ({
+      ...okPage(url),
+      html: url === R2 ? empty : `<html>${url}</html>`,
+    }));
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.fetchedPieces).not.toContainEqual({ kind: 'round', key: '2' });
+    expect(fetched.fetchedPieces).toContainEqual({ kind: 'round', key: '1' });
+    expect(fetched.pieceOutcomes.some((o) => !o.ok)).toBe(false);
+    expect(fetched.unpublishedPieces).toEqual([
+      expect.objectContaining({ kind: 'round', key: '2', withheld: true, reason: 'not_published' }),
+    ]);
+    // A partial run clears only what loaded, so the stored round 2 rows stay.
+    const cleared = piecesToClear(fetched.pieceOutcomes, {
+      rounds: fetched.rounds,
+      teamRowCount: 2,
+      breakStages: new Set(),
+    });
+    expect(cleared.some((c) => c.kind === 'round' && c.key === '2')).toBe(false);
+  });
+
+  it('fetches only the requested pieces', async () => {
+    install();
+    const loaded = await load();
+    h.fetchHtml.mockClear();
+    const fetched = await fetchAndParseTabs(loaded, [{ kind: 'round', key: '2' }]);
+    expect(h.fetchRound.mock.calls.map((c) => c[0])).toEqual([R2]);
+    expect(h.fetchHtml).not.toHaveBeenCalled();
+    expect(fetched.pieceOutcomes).toEqual([
+      { kind: 'round', key: '2', label: 'R2', url: R2, ok: true, httpStatus: 200, error: null },
+    ]);
+    expect(fetched.fetchedPieces).toEqual([{ kind: 'round', key: '2' }]);
+    expect(fetched.rounds).toHaveLength(1);
+    expect(fetched.teamRows).toEqual([]);
+    expect(fetched.speakerRows).toEqual([]);
+    expect(fetched.mergedParticipantRows).toEqual([]);
+    expect(fetched.breakRows).toEqual([]);
+    expect(fetched.motions).toEqual([]);
+    // From the nav's prelim links (Round 1, Round 2), not the one round parsed.
+    expect(fetched.prelimRoundCount).toBe(2);
+  });
+});
+
+// Owner decision 2026-10-30 (partial scrapes): keep what loaded.
+describe('ingestPrivateUrl: partial scrapes keep what loaded', () => {
+  const failed = (url: string) => ({ ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 });
+
+  it('a failed round keeps the pages that loaded', async () => {
+    install();
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(callsOf(prismaMock.teamResult.upsert).map((c) => c.create.roundNumber)).toContain(0);
+    expect(h.recordPieceOutcomes).toHaveBeenCalledTimes(1);
+    const [tournamentId, outcomes] = h.recordPieceOutcomes.mock.calls[0]! as [
+      bigint,
+      { kind: string; key: string; ok: boolean }[],
+    ];
+    expect(tournamentId).toBe(1n);
+    expect(outcomes.find((o) => o.kind === 'round' && o.key === '2')).toMatchObject({ ok: false });
+    expect(outcomes.filter((o) => !o.ok)).toHaveLength(1);
+    expect(result.warnings.filter((w) => w.startsWith('partial:'))).toEqual([
+      'partial: 1 page(s) did not load — R2 (HTTP 504)',
+    ]);
+  });
+
+  it('a failed speaker tab on a stored tournament keeps stored speaker data', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === SPEAKER_TAB ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    // No tournament-wide refresh: its deletes would drop the stored rows the
+    // failed page cannot replace.
+    expect(prismaMock.teamResult.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.eliminationResult.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.speakerRoundScore.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('a failed team tab keeps the stored team count and passes the guard', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalTeams: 40 }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === TEAM_TAB ? failed(url) : okPage(url),
+    );
+    const result = await ingestPrivateUrl(PRIVATE_URL, USER);
+    expect(result.cached).toBe(false);
+    expect(result.warnings).not.toContain('regression-guard: overwrite blocked');
+    const update = callsOf(prismaMock.tournament.upsert)[0]!.update;
+    expect(update.totalTeams).toBeUndefined();
+    // The participants list loaded, so the participant count is refreshed.
+    expect(update.totalParticipants).toBe(2);
+  });
+
+  it('every page failing still aborts, writes nothing and releases the claim', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PRIVATE_URL ? okPage(url) : failed(url),
+    );
+    h.fetchRound.mockImplementation(async (url: string) => failed(url));
+    await expect(ingestPrivateUrl(PRIVATE_URL, USER)).rejects.toThrow(/no page loaded/);
+    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
+    expect(h.recordPieceOutcomes).not.toHaveBeenCalled();
+    expect(callsOf(prismaMock.tournament.updateMany).at(-1)).toEqual({
+      where: { id: 7n },
+      data: { scrapeClaimedAt: null },
+    });
+  });
+});
+
+// Partial scrapes (2026-10-30): judge panels are rewritten per round read.
+// R2 failed, so its stored round_results rows must survive. Before partial
+// scrapes a failed round aborted, so these deletes never saw a partial set.
+describe('ingest: a failed round keeps its stored judge panels', () => {
+  type Scope = { OR?: Record<string, unknown>[] };
+  const failed = (url: string) => ({ ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 });
+  const roundResultsDeletes = () =>
+    callsOf(prismaMock.judgeAssignment.deleteMany).filter(
+      (c) => c.where.source === 'round_results',
+    );
+  const expectScopedWithoutR2 = (where: Scope) => {
+    expect(where.OR).toBeDefined();
+    expect(where.OR![0]).toEqual({ roundNumber: { in: [1] } });
+    expect(where.OR![1]).toMatchObject({ roundNumber: null });
+    expect(JSON.stringify(where.OR)).not.toMatch(/\b2\b/);
+  };
+  const r2Fails = () =>
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? failed(url) : okPage(url),
+    );
+
+  it('pre-scrape: every judge keeps their stored R2 panels', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    prismaMock.judgeAssignment.createMany.mockResolvedValue({ count: 0 });
+    r2Fails();
+    const result = await prescrapeTournament(BASE, { force: true });
+    expect(result.status).toBe('written');
+    const deletes = roundResultsDeletes();
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.where).toMatchObject({ tournamentId: 7n });
+    expectScopedWithoutR2(deletes[0]!.where);
+  });
+
+  it("URL owner: the owner's stored R2 panels are kept", async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.ownerName = 'Judge Judy';
+    r2Fails();
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const deletes = roundResultsDeletes();
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.where).toMatchObject({ tournamentId: 7n, personId: 104n });
+    expectScopedWithoutR2(deletes[0]!.where);
+  });
+});
+
+// Final review of partial scrapes (2026-10-31): a page that failed must not
+// shrink or blank what is stored about the tournament.
+describe('ingest: a failed piece leaves the stored tournament whole', () => {
+  const failed = (url: string, status = 504) => ({
+    ok: false,
+    url,
+    status,
+    bodyPreview: '',
+    elapsedMs: 1,
+  });
+  const failPage = (target: string, status = 504) =>
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === target ? failed(url, status) : okPage(url),
+    );
+
+  it('a failed break page keeps every stored teamBreakRank', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    failPage(BREAK_TAB);
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const upserts = callsOf(prismaMock.tournamentParticipant.upsert);
+    expect(upserts.length).toBeGreaterThan(0);
+    // Undefined, not null: Prisma leaves the stored rank alone.
+    for (const u of upserts) expect(u.update.teamBreakRank).toBeUndefined();
+  });
+
+  it('a loaded break page still writes the ranks it read', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    const ranks = callsOf(prismaMock.tournamentParticipant.upsert).map(
+      (u) => u.update.teamBreakRank,
+    );
+    expect(ranks).toContain(1);
+    expect(ranks).toContain(2);
+  });
+
+  it('a failed prelim round keeps the prelim round count', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0) }) });
+    h.fetchRound.mockImplementation(async (url: string) =>
+      url === R2 ? failed(url) : okPage(url),
+    );
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    // Round 1 and Round 2 from the nav, not the one prelim that parsed.
+    expect(callsOf(prismaMock.tournament.upsert)[0]!.update.prelimRoundCount).toBe(2);
+  });
+
+  it('a failed participants list keeps a stored participant count', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalParticipants: 9 }) });
+    failPage(PARTICIPANTS, 503);
+    await ingestPrivateUrl(PRIVATE_URL, USER);
+    // The speaker tab loaded, but its count leaves out the adjudicators the
+    // stored list count included.
+    expect(callsOf(prismaMock.tournament.upsert)[0]!.update.totalParticipants).toBeUndefined();
+  });
+});
+
+// Final review (2026-10-31), controller ruling: a page the tournament itself
+// withholds is recorded as 'withheld', not as a failure to retry.
+describe('fetchAndParseTabs: pages the tournament withholds', () => {
+  const load = () => loadLandingAndFingerprint(PRIVATE_URL, USER);
+  const withheld = (url: string, status: number) => ({
+    ok: false,
+    url,
+    status,
+    cdnBlocked: false,
+    bodyPreview: '',
+    elapsedMs: 1,
+  });
+
+  it('a participants list withheld while participants are stored is withheld', async () => {
+    install({ existing: existingTournament({ scrapedAt: new Date(0), totalParticipants: 9 }) });
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === PARTICIPANTS ? withheld(url, 403) : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.pieceOutcomes.find((o) => o.kind === 'participants')).toMatchObject({
+      ok: false,
+      withheld: true,
+      httpStatus: 403,
+    });
+  });
+
+  it('a linked motions page that answers 404 is withheld', async () => {
+    install();
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === MOTIONS_TAB ? withheld(url, 404) : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.pieceOutcomes.find((o) => o.kind === 'motions')).toMatchObject({
+      ok: false,
+      withheld: true,
+      httpStatus: 404,
+    });
+  });
+
+  it('a motions page that answers 503 is a plain failure', async () => {
+    install();
+    h.fetchHtml.mockImplementation(async (url: string) =>
+      url === MOTIONS_TAB ? withheld(url, 503) : okPage(url),
+    );
+    const fetched = await fetchAndParseTabs(await load());
+    const motions = fetched.pieceOutcomes.find((o) => o.kind === 'motions');
+    expect(motions).toMatchObject({ ok: false, httpStatus: 503 });
+    expect(motions?.withheld).toBeUndefined();
+  });
+});
+
+// Final review (2026-10-31): what a partial run (`only`) writes, and what a
+// deadline mid-fetch hands back to the partial re-scrape.
+describe('runFullScrape with only: break ranks, counts and a cut-off fetch', () => {
+  const partial = async (only: { kind: 'break' | 'speaker' | 'round'; key: string }[]) =>
+    runFullScrape(await loadLandingAndFingerprint(PRIVATE_URL, USER), null, { only });
+
+  it('a break piece read without the speaker tab writes the ranks by team', async () => {
+    install({ existing: existingTournament() });
+    prismaMock.tournamentParticipant.updateMany.mockResolvedValue({ count: 2 });
+    await partial([{ kind: 'break', key: 'open' }]);
+    expect(callsOf(prismaMock.tournamentParticipant.updateMany)).toEqual([
+      {
+        where: { tournamentId: 7n, teamName: 'Oxford A', teamBreakRank: null },
+        data: { teamBreakRank: 1 },
+      },
+      {
+        where: { tournamentId: 7n, teamName: 'Cambridge A', teamBreakRank: null },
+        data: { teamBreakRank: 2 },
+      },
+    ]);
+  });
+
+  it('a break-only run never overwrites a stored break rank', async () => {
+    install({ existing: existingTournament() });
+    prismaMock.tournamentParticipant.updateMany.mockResolvedValue({ count: 0 });
+    await partial([{ kind: 'break', key: 'open' }]);
+    // A stored rank 3 for a team must survive a run that reads rank 1: the
+    // update only matches rows whose rank is still missing.
+    const calls = callsOf(prismaMock.tournamentParticipant.updateMany);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) expect(call.where).toHaveProperty('teamBreakRank', null);
+  });
+
+  it('a speaker piece keeps the stored participant count and format', async () => {
+    install({ existing: existingTournament() });
+    await partial([{ kind: 'speaker', key: '' }]);
+    const update = callsOf(prismaMock.tournament.upsert)[0]!.update;
+    // The speaker tab counts speakers only; the stored count may be the
+    // participants list's, adjudicators included.
+    expect(update.totalParticipants).toBeUndefined();
+    // A slice of the tournament is too little to infer its format from.
+    expect(update.format).toBeUndefined();
+  });
+
+  it('a deadline mid-fetch hands back the pages that answered', async () => {
+    install({ existing: existingTournament() });
+    h.fetchRound.mockImplementation(async (url: string) => {
+      if (url === R1) return { ok: false, url, status: 504, bodyPreview: '', elapsedMs: 1 };
+      throw new IngestDeadlineError('ingest stopped: deadline reached');
+    });
+    const err = await partial([
+      { kind: 'round', key: '1' },
+      { kind: 'round', key: '2' },
+    ]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FetchCutOffError);
+    expect((err as FetchCutOffError).name).toBe('IngestDeadlineError');
+    expect((err as FetchCutOffError).outcomes).toEqual([
+      expect.objectContaining({ kind: 'round', key: '1', ok: false, httpStatus: 504 }),
+    ]);
+    expect(prismaMock.tournament.upsert).not.toHaveBeenCalled();
   });
 });

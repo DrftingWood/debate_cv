@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { auditAfterScrape } from '@/lib/audit/run';
 import {
   FETCH_MIN_INTERVAL_MS,
   fetchHtmlWithProvenance,
@@ -10,11 +11,12 @@ import {
   isWithheldByTournament,
   withApiSnapshots,
 } from './fetch';
-import { FetchSession, isIngestDeadlineError } from './fetchSession';
+import { FetchSession, IngestDeadlineError, isIngestDeadlineError } from './fetchSession';
 import { findTournamentByHostSlug, linkFromStoredTournament } from './storedFirst';
 import { fillTournamentYearFromEmails } from './yearFromEmail';
 import {
   API_TIMEOUT_MS,
+  apiBaseFromTournamentUrl,
   fetchTabsFromApi,
   htmlOnly,
   htmlTabsToFetch,
@@ -24,8 +26,25 @@ import {
 } from './tabbycatApi';
 import { fetchRestFromApi, tabbycatApiRoundsEnabled } from './tabbycatApiRounds';
 import {
+  apiTabsForPieces,
+  clearPieces,
+  navForPieces,
+  partialWarning,
+  pieceLoaded,
+  pieceOutcome,
+  pieceRefForUrl,
+  piecesToClear,
+  recordPieceOutcomes,
+  wantsPiece,
+  type PieceKind,
+  type PieceOutcome,
+  type PieceRef,
+} from './scrapePieces';
+import { emptyRoundOutcome, roundPublishedEmpty, unpublishedTabOutcomes } from './unpublished';
+import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
+  judgeRowsOwnedByRounds,
   publicTournamentBase,
   releasedTabMissing,
   motionsGained,
@@ -51,6 +70,8 @@ import {
   inferTournamentYear,
   normalizePersonName,
 } from './fingerprint';
+import { refuseDeletedSite } from '@/lib/admin/deletedTournaments';
+import { currentTabUrl } from './tabMoves';
 import { PARSER_VERSION } from './version';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
@@ -65,7 +86,9 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
+import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
 import { isMarkupPersonName, isPlaceholderPersonName } from './names';
+import { rematchStaffNames } from './staffStore';
 import {
   assignMotionRounds,
   isPrelimRoundLabel,
@@ -136,7 +159,19 @@ type FetchedTabs = {
   prelimRoundCount: number | null;
   format: ReturnType<typeof inferTournamentFormat>;
   teamBreakRankByTeam: Map<string, number>;
+  /** Redacted speakers per team from the participants list; null when it was not read. */
+  redactedByTeam: Map<string, number> | null;
   fetchLevelFailures: string[];
+  /** One per page the scrape tried; an API answer counts for the tab it stands in for. */
+  pieceOutcomes: PieceOutcome[];
+  /** The pieces that loaded (outcomes with ok), for a partial re-scrape's scoped deletes. */
+  fetchedPieces: PieceRef[];
+  /**
+   * Pieces the tournament never published (unlinked tabs, empty round pages),
+   * recorded as withheld beside the outcomes. Kept apart from them so no
+   * `!ok` test (nothing-loaded abort, whole-tournament refresh) reads one as a failure.
+   */
+  unpublishedPieces: PieceOutcome[];
 };
 
 type RegressionGuardResult =
@@ -167,6 +202,8 @@ export async function ingestPrivateUrl(
     deadline?: number;
   } = {},
 ): Promise<IngestResult> {
+  // A tab an admin deleted is never stored again (deletedTournaments.ts).
+  await refuseDeletedSite(url);
   // Stored data first (owner, 2026-10-30): a URL whose tournament is already
   // stored is linked without a request; its page is fetched later to verify.
   if (!options.force) {
@@ -220,34 +257,31 @@ export type PrescrapeResult = {
 };
 
 /**
- * B9: store a tournament from its PUBLIC pages, with no owner, so that a
- * user's later private-URL ingest is served from storage by the cache path.
- * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
- *
- * The same tab and write phases as a cache-miss ingest (runFullScrape) with
- * no user: nothing is claimed or linked, no DiscoveredUrl is written, and the
- * registration snapshot is forced empty. Afterwards it records every judge's
- * panels from the round results (recordEveryJudgeFromRoundResults) — the
- * cache path has no rounds to read them from when a judge later ingests.
- *
- * Refuses private URLs and root-hosted URLs (publicTournamentBase). A stored
- * tournament that is fresh and at the current PARSER_VERSION is left alone
- * unless `force`; the runner relies on that to resume and to re-scrape only
- * what a parser bump invalidated.
+ * A tournament's public landing page, read with a fresh FetchSession, and the
+ * stored row it matches (by fingerprint, then by host and slug), ready for
+ * runFullScrape with no owner. Shared by the pre-scrape and the partial
+ * re-scrape (partialScrape.ts) so both identify a tournament the same way.
+ * A public page has no registration card; it is forced empty so nothing
+ * owner-shaped can reach the write phase.
  */
-export async function prescrapeTournament(
+export async function loadPublicLanding(
   url: string,
-  options: { force?: boolean; deadline?: number } = {},
-): Promise<PrescrapeResult> {
-  const { base, host, slug } = publicTournamentBase(url);
-  const fetchSession = new FetchSession({ deadline: options.deadline });
+  deadline?: number,
+): Promise<{ base: string; fingerprint: string; loaded: LoadedState }> {
+  const { base, host, slug } = publicTournamentBase(await currentTabUrl(url));
+  // Before any fetch: a tab an admin deleted is never stored again. This
+  // covers the pre-scrape and the partial re-scrape, which both start here.
+  await refuseDeletedSite(base);
+  const fetchSession = new FetchSession({ deadline });
   const landingResult = await fetchHtmlWithProvenance(base, { session: fetchSession });
+  // The status rides on the error so a partial re-scrape can record it
+  // against the pieces it never reached (partialScrape.ts).
   if (!landingResult.ok)
-    throw new Error(`fetch public home ${base} → HTTP ${landingResult.status}`);
+    throw Object.assign(new Error(`fetch public home ${base} → HTTP ${landingResult.status}`), {
+      httpStatus: landingResult.status,
+    });
   const parseStart = Date.now();
   const parsed = parsePrivateUrlPage(landingResult.html, base);
-  // A public page has no registration card. Force it empty so nothing
-  // owner-shaped can reach the write phase.
   const snapshot = {
     ...parsed,
     registration: { personName: null, teamName: null, speakers: [], institution: null },
@@ -271,6 +305,52 @@ export async function prescrapeTournament(
   const fingerprint =
     existing?.fingerprint ??
     computeFingerprint({ host, tournamentSlug: slug, tournamentName: name, year: explicitYear });
+  return {
+    base,
+    fingerprint,
+    loaded: {
+      normalized: base,
+      urlVariants: [],
+      parsedUrl: new URL(base),
+      tournamentSlug: slug,
+      fetchSession,
+      landingDoc: landingResult,
+      landingHtml: landingResult.html,
+      snapshot,
+      fetchWarnings: [],
+      landingWarnings: [],
+      privateUrlSentAt: null,
+      tournamentFingerprint: fingerprint,
+      existing,
+      parseStart,
+      year: explicitYear,
+    },
+  };
+}
+
+/**
+ * B9: store a tournament from its PUBLIC pages, with no owner, so that a
+ * user's later private-URL ingest is served from storage by the cache path.
+ * Design: docs/superpowers/specs/2026-10-25-b9-prescrape-design.md.
+ *
+ * The same tab and write phases as a cache-miss ingest (runFullScrape) with
+ * no user: nothing is claimed or linked, no DiscoveredUrl is written, and the
+ * registration snapshot is forced empty. Afterwards it records every judge's
+ * panels from the round results (recordEveryJudgeFromRoundResults) — the
+ * cache path has no rounds to read them from when a judge later ingests.
+ *
+ * Refuses private URLs and root-hosted URLs (publicTournamentBase). A stored
+ * tournament that is fresh and at the current PARSER_VERSION is left alone
+ * unless `force`; the runner relies on that to resume and to re-scrape only
+ * what a parser bump invalidated.
+ */
+export async function prescrapeTournament(
+  url: string,
+  options: { force?: boolean; deadline?: number } = {},
+): Promise<PrescrapeResult> {
+  const { base, fingerprint, loaded } = await loadPublicLanding(url, options.deadline);
+  const { existing } = loaded;
+  const name = loaded.snapshot.tournamentName;
 
   const summary = (
     status: PrescrapeResult['status'],
@@ -296,26 +376,8 @@ export async function prescrapeTournament(
     return summary('current');
   }
 
-  const loaded: LoadedState = {
-    normalized: base,
-    urlVariants: [],
-    parsedUrl: new URL(base),
-    tournamentSlug: slug,
-    fetchSession,
-    landingDoc: landingResult,
-    landingHtml: landingResult.html,
-    snapshot,
-    fetchWarnings: [],
-    landingWarnings: [],
-    privateUrlSentAt: null,
-    tournamentFingerprint: fingerprint,
-    existing,
-    parseStart,
-    year: explicitYear,
-  };
-
   const claim = await acquireScrapeClaim(existing?.id ?? null);
-  if (claim === 'busy') throw new Error(`another scrape of ${base} is in progress`);
+  if (claim === 'busy') throw new ScrapeBusyError(base);
   let judgesWritten = 0;
   try {
     const result = await runFullScrape(
@@ -345,8 +407,10 @@ export async function prescrapeTournament(
 
 /**
  * B9: every judge's panels from the round results, for a pre-scraped
- * tournament. Replaces the tournament's `round_results` rows wholesale —
- * the pre-scrape owns all of them (design, point 2) — and fills each
+ * tournament. Replaces the tournament's `round_results` rows for the rounds
+ * that loaded — the pre-scrape owns all of them (design, point 2), but a
+ * round page that failed keeps its stored panels until a retry loads it
+ * (partial scrapes, 2026-10-30) — and fills each
  * judge's aggregates the way the URL owner's fallback does (fillNullsOnly,
  * so a landing-derived value is never overwritten).
  *
@@ -354,7 +418,7 @@ export async function prescrapeTournament(
  * may fuzzy-match because it knows whose rounds it wants; here a fuzzy match
  * would credit one judge with a similarly named judge's panels.
  */
-async function recordEveryJudgeFromRoundResults(
+export async function recordEveryJudgeFromRoundResults(
   rounds: FetchedTabs['rounds'],
   tournamentId: bigint,
   lookupPersonId: PersonContext['lookupPersonId'],
@@ -379,8 +443,15 @@ async function recordEveryJudgeFromRoundResults(
       source: 'round_results',
     })),
   );
+  const owned = judgeRowsOwnedByRounds(rounds);
   await prisma.$transaction([
-    prisma.judgeAssignment.deleteMany({ where: { tournamentId, source: 'round_results' } }),
+    ...(owned
+      ? [
+          prisma.judgeAssignment.deleteMany({
+            where: { tournamentId, source: 'round_results', ...owned },
+          }),
+        ]
+      : []),
     prisma.judgeAssignment.createMany({ data, skipDuplicates: true }),
   ]);
   for (const [personId, hits] of byPerson) {
@@ -402,10 +473,10 @@ async function recordEveryJudgeFromRoundResults(
  * pre-scrape (prescrapeTournament), which writes the tournament with no
  * owner — nothing is linked or claimed and no DiscoveredUrl is touched.
  */
-async function runFullScrape(
+export async function runFullScrape(
   loaded: LoadedState,
   userId: string | null,
-  options: { force?: boolean },
+  options: { force?: boolean; only?: PieceRef[] },
   afterWrite?: (ctx: {
     fetched: FetchedTabs;
     persons: PersonContext;
@@ -413,25 +484,37 @@ async function runFullScrape(
   }) => Promise<void>,
 ): Promise<IngestResult> {
   const fetchStarted = Date.now();
-  const fetched = await fetchAndParseTabs(loaded);
+  const fetched = await fetchTabsKeepingOutcomes(loaded, options.only);
   const fetchMs = Date.now() - fetchStarted;
   await recordPipelineParserRun(loaded, fetched);
 
-  // Partial ingest is worse than no ingest: if any tab fetch failed (HTTP
-  // 403, timeout) we'd be about to commit a tournament with missing speaker
-  // / team / round data, then mark its DiscoveredUrl as ingested — which
-  // hides the failure forever. Abort instead so the queue retries the job
-  // (drain/cron handlers reschedule on throw, up to MAX_ATTEMPTS=3). The
-  // ParserRun above already recorded the failure for /cv/verify.
-  if (fetched.fetchLevelFailures.length > 0) {
-    throw new Error(
-      `Aborting ingest: ${fetched.fetchLevelFailures.length} tab fetch(es) failed — ` +
+  // Keep what loaded (owner decision 2026-10-30, partial scrapes). This used
+  // to abort on any failed tab, on the theory that a partial ingest hid the
+  // failure; but one flaky round then cost the whole tournament, retried
+  // whole. Now each failed page is a ScrapePiece with its own retry, so the
+  // failure stays visible without throwing away the pages that did load. Only
+  // a scrape where nothing loaded aborts: there is nothing to keep, and the
+  // queue's whole-job retry is the right answer. A tournament whose nav links
+  // no pages at all tried none, failed none, and goes on as before.
+  const outcomes = fetched.pieceOutcomes;
+  if (outcomes.length > 0 && !outcomes.some((o) => o.ok)) {
+    // A partial re-scrape whose every page failed still counts as an attempt
+    // for each piece: without the record, attempts never grow and the retry
+    // back-off never advances, so the retry cron would ask again every tick.
+    if (options.only && loaded.existing) {
+      await recordPieceOutcomes(loaded.existing.id, [...outcomes, ...fetched.unpublishedPieces]);
+    }
+    throw new NothingLoadedError(
+      `Aborting ingest: no page loaded — ` +
         fetched.fetchLevelFailures.map((w) => w.slice(0, 120)).join('; '),
+      outcomes,
     );
   }
 
   const guarded = await checkRegressionGuard(loaded, fetched, userId, options);
   if (guarded.kind === 'regression-blocked') return guarded.result;
+  const partial = partialWarning(outcomes);
+  if (partial) loaded.fetchWarnings.push(partial);
 
   // Last point at which stopping is free: nothing for this tournament has
   // been written yet. A write phase cut off by the platform would leave a
@@ -439,7 +522,11 @@ async function runFullScrape(
   // without enough time to finish.
   const reserveMs = writeReserveMs(fetched.totalParticipants, fetched.totalTeams);
   const remainingAtWrite = loaded.fetchSession.remainingMs();
-  loaded.fetchSession.assertTimeLeft(reserveMs, 'write its results');
+  try {
+    loaded.fetchSession.assertTimeLeft(reserveMs, 'write its results');
+  } catch (err) {
+    throw cutOff(err, outcomes);
+  }
 
   // Logged so the reserve's per-row rate can be re-checked against real runs.
   const writeStarted = Date.now();
@@ -452,6 +539,8 @@ async function runFullScrape(
     userId === null ? PRESCRAPE_TX_TIMEOUT_MS : LIVE_TX_TIMEOUT_MS,
   );
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
+  // Only after the write: a piece is "ok" because its rows are stored.
+  await recordPieceOutcomes(txResult.tournamentId, [...outcomes, ...fetched.unpublishedPieces]);
   if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
   console.info('[ingest] write phase', {
     url: loaded.normalized,
@@ -464,7 +553,22 @@ async function runFullScrape(
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
+  // After the write-phase log, so its writeMs times the write only, and after
+  // afterWrite, so a partial re-scrape's judge panels are counted.
+  await auditIfTimeLeft(loaded.fetchSession, txResult.tournamentId);
   return result;
+}
+
+/**
+ * Re-scores the tournament's data accuracy against what was just written.
+ * Best-effort: auditAfterScrape catches its own errors, so it never fails the
+ * ingest. Skipped when the deadline is close: the job still has to be marked
+ * done before the platform's kill, and the cron's sweep audits the tournament
+ * later as missing or stale.
+ */
+async function auditIfTimeLeft(session: FetchSession, tournamentId: bigint): Promise<void> {
+  if (session.remainingMs() < AUDIT_MIN_REMAINING_MS) return;
+  await auditAfterScrape(tournamentId);
 }
 
 // ─── Concurrent-scrape claim ──────────────────────────────────────────────
@@ -504,13 +608,74 @@ export function writeReserveMs(
   return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
 }
 const WRITE_RESERVE_BASE_MS = 4_000;
+/** Time an ingest must have left to run its after-scrape audit. */
+const AUDIT_MIN_REMAINING_MS = 5_000;
 const WRITE_RESERVE_PER_ROW_MS = 14;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
 const SCRAPE_AWAIT_POLL_MS = 3_000;
 const SCRAPE_AWAIT_MAX_MS = 15_000;
 
-async function acquireScrapeClaim(
+/**
+ * Another scrape holds this tournament's claim. A caller that must not wait
+ * (the pre-scrape, a partial re-scrape) throws this; the API maps it to 409.
+ */
+export class ScrapeBusyError extends Error {
+  constructor(base: string) {
+    super(`another scrape of ${base} is in progress`);
+    this.name = 'ScrapeBusyError';
+  }
+}
+
+/**
+ * The deadline cut the tab fetch short. Still an IngestDeadlineError (the
+ * queue's "run me again" signal); `outcomes` are the pages that answered
+ * before it, none of them written.
+ */
+export class FetchCutOffError extends IngestDeadlineError {
+  constructor(
+    message: string,
+    readonly outcomes: PieceOutcome[],
+  ) {
+    super(message);
+  }
+}
+
+/** A deadline error as a FetchCutOffError carrying `outcomes`; any other error as is. */
+function cutOff(err: unknown, outcomes: PieceOutcome[]): unknown {
+  return isIngestDeadlineError(err) ? new FetchCutOffError(err.message, outcomes) : err;
+}
+
+/**
+ * fetchAndParseTabs, keeping the pages that answered before a deadline cut
+ * it short (FetchCutOffError) for a partial re-scrape to record
+ * (partialScrape.ts); without them a slow tournament's retry would end each
+ * tick having counted nothing.
+ */
+async function fetchTabsKeepingOutcomes(
+  loaded: LoadedState,
+  only: PieceRef[] | undefined,
+): Promise<FetchedTabs> {
+  const collected: PieceOutcome[] = [];
+  try {
+    return await fetchAndParseTabs(loaded, only, collected);
+  } catch (err) {
+    throw cutOff(err, collected);
+  }
+}
+
+/** No page of the scrape loaded; `outcomes` says what each one answered. */
+export class NothingLoadedError extends Error {
+  constructor(
+    message: string,
+    readonly outcomes: PieceOutcome[],
+  ) {
+    super(message);
+    this.name = 'NothingLoadedError';
+  }
+}
+
+export async function acquireScrapeClaim(
   tournamentId: bigint | null,
 ): Promise<'acquired' | 'busy' | 'none'> {
   if (tournamentId == null) return 'none';
@@ -525,7 +690,7 @@ async function acquireScrapeClaim(
   return res.count > 0 ? 'acquired' : 'busy';
 }
 
-async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
+export async function releaseScrapeClaim(tournamentId: bigint): Promise<void> {
   try {
     await prisma.tournament.updateMany({
       where: { id: tournamentId },
@@ -594,12 +759,13 @@ async function storedFirstResult(url: string, userId: string): Promise<IngestRes
   };
 }
 
-async function loadLandingAndFingerprint(
+export async function loadLandingAndFingerprint(
   url: string,
   userId: string,
   deadline?: number,
 ): Promise<LoadedState> {
-  const normalized = normalizePrivateUrl(url);
+  // A tab recorded as moved is fetched at its new address (tabMoves.ts).
+  const normalized = await currentTabUrl(normalizePrivateUrl(url));
   // Re-validate here, not just at the API boundary. Jobs reach this
   // function from three places — /api/ingest/url, the queue drain, and the
   // admin re-ingest — and a URL persisted before the gate was tightened
@@ -607,7 +773,8 @@ async function loadLandingAndFingerprint(
   if (!isPrivateUrl(normalized)) {
     throw new Error(`refusing to fetch non-private URL: ${normalized.slice(0, 120)}`);
   }
-  const urlVariants = privateUrlVariants(url);
+  // The user's URL as stored, in both spellings, and its new address if moved.
+  const urlVariants = [...new Set([...privateUrlVariants(url), normalized])];
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
   const discovered = await prisma.discoveredUrl.findFirst({
@@ -863,16 +1030,37 @@ const API_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
+export async function fetchAndParseTabs(
+  loaded: LoadedState,
+  only?: PieceRef[],
+  pieceOutcomes: PieceOutcome[] = [],
+): Promise<FetchedTabs> {
   const { normalized, fetchSession, snapshot, landingHtml, fetchWarnings } = loaded;
   // Fetch and parse tabs in parallel (bounded: these are same host, so fetch throttles).
-  const nav = snapshot.navigation;
+  //
+  // `only` (a partial re-scrape) narrows the nav to the requested pieces, and
+  // everything below reads `nav`, so a page nobody asked for is never fetched
+  // and its fields come back empty. The full nav is kept for the prelim-count
+  // fallback, which describes the tournament rather than this fetch.
+  const fullNav = snapshot.navigation;
+  const nav = navForPieces(fullNav, only);
+  // Every page tried leaves an outcome beside its warning, so a failed piece
+  // can be retried alone. A guessed page the tournament withholds leaves
+  // none (it may not exist); a linked one leaves a withheld outcome, which
+  // is never retried. `pieceOutcomes` is the caller's, so the outcomes
+  // collected before a deadline cuts the fetch short are not lost with it.
+  const noteOutcome = (
+    kind: PieceKind,
+    url: string,
+    result: { status: number | null; error?: string; withheld?: boolean } = { status: null },
+  ) =>
+    pieceOutcomes.push(pieceOutcome(kind, url, { ...result, roundLabels: nav.resultsRoundLabels }));
 
   // Build a shared fetch helper for this ingest that records failures into
   // the fetchWarnings buffer so the landing ParserRun tells the operator
   // exactly which tabs upstream refused to serve.
   //
-  // `enrichment` marks a page the CV can do without (participants: it adds
+  // Participants is enrichment, a page the CV can do without (it adds
   // institutions and everyone's role, while the owner's own registration card
   // comes from the landing page). When the tournament itself withholds such a
   // page — Tabbycat's own "Permission Denied (403)" or a 404 — that is a fact
@@ -882,13 +1070,17 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const fetchTab = async (
     targetUrl: string,
     label: string,
-    enrichment = false,
+    kind: PieceKind,
   ): Promise<string | null> => {
+    const enrichment = kind === 'participants';
     const r = await fetchHtmlWithProvenance(targetUrl, {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return r.html;
+    if (r.ok) {
+      noteOutcome(kind, targetUrl, { status: r.status });
+      return r.html;
+    }
     // Never when we already hold participants for this tournament: a forced
     // re-ingest skips the regression guard and would rewrite them from the
     // landing page alone, losing the institutions and roles stored earlier.
@@ -914,6 +1106,14 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       });
     }
     fetchWarnings.push(`fetch: ${label} HTTP ${r.status}${hint}`);
+    // With participants stored, a withheld list still fails the scrape's
+    // refresh (above), but no retry will make it public: it is recorded as
+    // withheld, so it is not retried and does not mark the CV.
+    noteOutcome(kind, targetUrl, {
+      status: r.status,
+      error: `HTTP ${r.status}${hint}`,
+      withheld: enrichment && isWithheldByTournament(r),
+    });
     return null;
   };
   const fetchRound = async (targetUrl: string): Promise<{ url: string; html: string } | null> => {
@@ -921,8 +1121,14 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return { url: r.url, html: r.html };
+    // Keyed on the nav URL, not r.url (often its by-debate view), so the
+    // piece is the same one the nav and a later re-scrape name.
+    if (r.ok) {
+      noteOutcome('round', targetUrl, { status: r.status });
+      return { url: r.url, html: r.html };
+    }
     fetchWarnings.push(`fetch: round ${targetUrl} HTTP ${r.status}`);
+    noteOutcome('round', targetUrl, { status: r.status, error: `HTTP ${r.status}` });
     return null;
   };
 
@@ -945,9 +1151,19 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       referer: normalized,
       session: fetchSession,
     });
-    if (r.ok) return r.html;
+    if (r.ok) {
+      noteOutcome('motions', targetUrl, { status: r.status });
+      return r.html;
+    }
     if (guessed && isWithheldByTournament(r)) return null;
     fetchWarnings.push(`optional: ${label} HTTP ${r.status}`);
+    // A linked page the tournament refuses is withheld, not failed: retrying
+    // it would only fill the logs and keep the CV's "Partly loaded" mark.
+    noteOutcome('motions', targetUrl, {
+      status: r.status,
+      error: `HTTP ${r.status}`,
+      withheld: isWithheldByTournament(r),
+    });
     return null;
   };
 
@@ -982,9 +1198,22 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       fetchSession.noteRateLimited(host, FETCH_MIN_INTERVAL_MS);
     return res;
   });
-  const apiTabs: ApiTabsResult = tabbycatApiTabsEnabled()
-    ? await fetchTabsFromApi(normalized, apiFetcher)
-    : htmlOnly('TABBYCAT_API_TABS=0');
+  // A partial re-scrape asks the API only when it wants the team or speaker
+  // tab, and keeps only the tab it asked for (apiTabsForPieces).
+  const wantsApiTab = !only || only.some((p) => p.kind === 'team' || p.kind === 'speaker');
+  const apiTabs: ApiTabsResult = apiTabsForPieces(
+    !tabbycatApiTabsEnabled()
+      ? htmlOnly('TABBYCAT_API_TABS=0')
+      : wantsApiTab
+        ? await fetchTabsFromApi(normalized, apiFetcher)
+        : htmlOnly('not requested'),
+    only,
+  );
+  // An API answer stands in for its tab's page; its outcome names the API
+  // endpoint the rows came from.
+  const apiBase = apiBaseFromTournamentUrl(normalized) ?? normalized;
+  if (apiTabs.teams.source === 'api') noteOutcome('team', `${apiBase}/teams/standings`);
+  if (apiTabs.speakers.source === 'api') noteOutcome('speaker', `${apiBase}/speakers/standings`);
   console.info('[ingest] tabbycat api', {
     url: normalized,
     teams:
@@ -1001,9 +1230,12 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // opt-in with TABBYCAT_API_ROUNDS=1 until the owner turns it on. Same
   // contract as the tabs: a page the API answered skips its HTML fetch; any
   // other page is scraped exactly as before. See lib/calicotab/tabbycatApiRounds.ts.
-  const apiRest = tabbycatApiRoundsEnabled()
-    ? await fetchRestFromApi(normalized, nav, apiFetcher)
-    : null;
+  const wantsApiRest =
+    !only || nav.resultsRounds.length > 0 || nav.breakTabs.length > 0 || !!nav.participants;
+  const apiRest =
+    tabbycatApiRoundsEnabled() && wantsApiRest
+      ? await fetchRestFromApi(normalized, nav, apiFetcher)
+      : null;
   if (apiRest) {
     const count = (xs: Iterable<{ source: string }>) =>
       [...xs].filter((x) => x.source === 'api').length;
@@ -1016,12 +1248,15 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   }
   const apiParticipants =
     apiRest?.participants?.source === 'api' ? apiRest.participants.value : null;
+  if (apiParticipants && nav.participants) noteOutcome('participants', nav.participants);
 
   const [teamHtml, speakerHtml, participantsHtml, motionsHtml] = await Promise.all([
-    htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab') : Promise.resolve(null),
-    htmlTabs.speakerTab ? fetchTab(htmlTabs.speakerTab, 'speakerTab') : Promise.resolve(null),
+    htmlTabs.teamTab ? fetchTab(htmlTabs.teamTab, 'teamTab', 'team') : Promise.resolve(null),
+    htmlTabs.speakerTab
+      ? fetchTab(htmlTabs.speakerTab, 'speakerTab', 'speaker')
+      : Promise.resolve(null),
     nav.participants && !apiParticipants
-      ? fetchTab(nav.participants, 'participants', true)
+      ? fetchTab(nav.participants, 'participants', 'participants')
       : Promise.resolve(null),
     nav.motionsTab
       ? fetchOptionalTab(nav.motionsTab, 'motionsTab', nav.meta?.constructed.includes('motionsTab'))
@@ -1033,7 +1268,10 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const roundPages = await Promise.all(
     nav.resultsRounds.map(async (u): Promise<RoundPage | null> => {
       const fromApi = apiRest?.rounds.get(u);
-      if (fromApi?.source === 'api') return { kind: 'api', debate: fromApi.value };
+      if (fromApi?.source === 'api') {
+        noteOutcome('round', u);
+        return { kind: 'api', debate: fromApi.value };
+      }
       const page = await fetchRound(u);
       return page ? { kind: 'html', ...page } : null;
     }),
@@ -1041,8 +1279,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const breakPages = await Promise.all(
     nav.breakTabs.map(async (u): Promise<BreakPage | null> => {
       const fromApi = apiRest?.breaks.get(u);
-      if (fromApi?.source === 'api') return { kind: 'api', rows: fromApi.value };
-      const html = await fetchTab(u, 'break');
+      if (fromApi?.source === 'api') {
+        noteOutcome('break', u);
+        return { kind: 'api', rows: fromApi.value };
+      }
+      const html = await fetchTab(u, 'break', 'break');
       return html ? { kind: 'html', url: u, html } : null;
     }),
   );
@@ -1077,7 +1318,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // (e.g. "Independent adjudicator") is the only reliable signal for some
   // tournaments. Merge those rows in so role classification doesn't depend
   // solely on /participants table availability/shape.
-  const landingParticipantRows = parseParticipantsList(landingHtml);
+  // Not on a partial re-scrape that left participants out: those fields come
+  // back empty, and the stored list is not this fetch's to touch.
+  const landingParticipantRows = wantsPiece(only, { kind: 'participants', key: '' })
+    ? parseParticipantsList(landingHtml)
+    : [];
   const participantByName = new Map<string, (typeof participantRows)[number]>();
   for (const r of participantRows) participantByName.set(normalizePersonName(r.name), r);
   for (const r of landingParticipantRows) {
@@ -1097,6 +1342,7 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   }
   const mergedParticipantRows = [...participantByName.values()];
 
+  const unpublishedPieces: PieceOutcome[] = [];
   const rounds = roundPages
     .filter((x): x is RoundPage => !!x)
     .map((page) => {
@@ -1108,7 +1354,16 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
       // page heading.
       const navLabel = nav.resultsRoundLabels?.[u];
       const r = parseRoundResults(html, u, navLabel);
-      if (r.teamResults.length === 0) {
+      // Columns but no rows: the round was never published. Its page did
+      // load, so its outcome moves from the loaded list to the unpublished one.
+      if (r.teamResults.length === 0 && roundPublishedEmpty(html)) {
+        const key = pieceRefForUrl('round', u).key;
+        const at = pieceOutcomes.findIndex((o) => o.kind === 'round' && o.key === key && o.ok);
+        if (at >= 0) {
+          const [done] = pieceOutcomes.splice(at, 1);
+          unpublishedPieces.push(emptyRoundOutcome(done));
+        }
+      } else if (r.teamResults.length === 0) {
         fetchWarnings.push(`parse: round ${u} → 0 results — ${diagnoseVueData(html, ['team'])}`);
       }
       return r;
@@ -1148,8 +1403,18 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   const parsedPrelimCount = rounds.filter(
     (r) => !r.isOutround && r.roundNumber != null && isPrelimRoundLabel(r.roundLabel),
   ).length;
+  // A partial re-scrape parses only some rounds, and so does a scrape where a
+  // round page failed: counting them would shrink the tournament (and the
+  // speaker-average divisor with it). Both count the nav's prelim links.
+  const roundFailed = pieceOutcomes.some((o) => o.kind === 'round' && !o.ok);
   const prelimRoundCount =
-    parsedPrelimCount > 0 ? parsedPrelimCount : nav.resultsRounds.length || null;
+    only || roundFailed
+      ? prelimRoundsFromNav(fullNav.resultsRoundLabels).length ||
+        fullNav.resultsRounds.length ||
+        null
+      : parsedPrelimCount > 0
+        ? parsedPrelimCount
+        : nav.resultsRounds.length || null;
   const format = inferTournamentFormat({
     tournamentName,
     teamRows,
@@ -1164,6 +1429,8 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
   // lib/calicotab/breakCategoryResolve.ts for the priority table + tests.
   const { rankByTeam: teamBreakRankByTeam } = resolveTeamBreaks(breakRows);
 
+  // Tabs the menu never linked (judged on the full nav, before `only` cut it).
+  unpublishedPieces.push(...unpublishedTabOutcomes(fullNav, pieceOutcomes, only));
   const fetchLevelFailures = fetchWarnings.filter((w) => w.startsWith('fetch:'));
 
   return {
@@ -1180,7 +1447,11 @@ async function fetchAndParseTabs(loaded: LoadedState): Promise<FetchedTabs> {
     prelimRoundCount,
     format,
     teamBreakRankByTeam,
+    redactedByTeam: participantRows.length > 0 ? redactedSpeakersByTeam(participantRows) : null,
     fetchLevelFailures,
+    pieceOutcomes,
+    fetchedPieces: pieceOutcomes.filter((o) => o.ok).map(({ kind, key }) => ({ kind, key })),
+    unpublishedPieces,
   };
 }
 
@@ -1204,7 +1475,7 @@ async function checkRegressionGuard(
   loaded: LoadedState,
   fetched: FetchedTabs,
   userId: string | null,
-  options: { force?: boolean },
+  options: { force?: boolean; only?: PieceRef[] },
 ): Promise<RegressionGuardResult> {
   // Regression guard: if a re-ingest would drop the totals by >50% (and the
   // old tournament had non-trivial counts), assume the source page is
@@ -1220,13 +1491,20 @@ async function checkRegressionGuard(
   // serves cached data instead, matching the behaviour for catastrophic
   // team/participant drops.
   const { existing, snapshot, tournamentFingerprint, urlVariants, fetchWarnings } = loaded;
-  if (!existing || options.force) return { kind: 'proceed' };
+  // A partial re-scrape (`only`) writes just the pieces it asked for, so its
+  // totals describe a slice, not the tournament: nothing to compare.
+  if (!existing || options.force || options.only) return { kind: 'proceed' };
 
+  // A tab that failed to load yields no rows, which is not the same as a tab
+  // that shrank. Its stored rows are kept (no tournament-wide refresh runs
+  // when a piece failed), so only compare what this scrape actually read.
+  const teamLoaded = pieceLoaded(fetched.fetchedPieces, 'team');
+  const speakerLoaded = pieceLoaded(fetched.fetchedPieces, 'speaker');
   const oldTeams = existing.totalTeams ?? 0;
   const oldParticipants = existing.totalParticipants ?? 0;
   const newTeams = fetched.totalTeams ?? 0;
   const newParticipants = fetched.totalParticipants ?? 0;
-  const teamsDropped = oldTeams > 5 && newTeams < oldTeams * 0.5;
+  const teamsDropped = teamLoaded && oldTeams > 5 && newTeams < oldTeams * 0.5;
   // totalParticipants has two sources: the participants list (speakers AND
   // adjudicators) when it loads, else the speaker rows (or a lone landing
   // card). The stored figure does not say which source it came from, so a
@@ -1245,9 +1523,11 @@ async function checkRegressionGuard(
   // participant), and never an unclaimed stand-in such as "Speaker 1",
   // whose rows are not written (preCommitPeopleAndBuildIndex) and so would
   // otherwise prop up the new count against a real drop.
-  const oldRankCount = await prisma.tournamentParticipant.count({
-    where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
-  });
+  const oldRankCount = speakerLoaded
+    ? await prisma.tournamentParticipant.count({
+        where: { tournamentId: existing.id, speakerRankOpen: { not: null } },
+      })
+    : 0;
   const claimedStandIns = await claimedPlaceholderNorms(
     fetched.speakerRows.map((r) => r.speakerName),
   );
@@ -1369,7 +1649,7 @@ async function writeIngestTransaction(
   loaded: LoadedState,
   fetched: FetchedTabs,
   persons: PersonContext,
-  options: { force?: boolean },
+  options: { force?: boolean; only?: PieceRef[] },
   txTimeoutMs: number,
 ): Promise<TxResult> {
   const { normalized, tournamentFingerprint, snapshot, existing, fetchWarnings, year } = loaded;
@@ -1388,6 +1668,33 @@ async function writeIngestTransaction(
     teamBreakRankByTeam,
   } = fetched;
   const { lookupPersonId } = persons;
+  // A count is only as good as the page it came from. When the page failed,
+  // the stored count stays (Prisma leaves an undefined field untouched).
+  const loadedKind = (kind: PieceKind) => pieceLoaded(fetched.fetchedPieces, kind);
+  const storedTeams = loadedKind('team') ? totalTeams : undefined;
+  // The participant count has two sources, the participants list (speakers
+  // and adjudicators) and, without one, the speaker tab. A speaker-only count
+  // must not overwrite a stored list count, so it is written only when the
+  // tournament has no list to read: the list was neither tried here (it
+  // failed, or the tournament withholds it) nor left out of a partial run.
+  const listCountMayBeStored =
+    fetched.pieceOutcomes.some((o) => o.kind === 'participants') ||
+    !wantsPiece(options.only, { kind: 'participants', key: '' });
+  const storedParticipants = fetched.participantsFromList
+    ? totalParticipants
+    : !listCountMayBeStored && loadedKind('speaker')
+      ? totalParticipants
+      : undefined;
+  // The refresh deletes every leaf row before the rewrite, so it must see
+  // the whole tournament: never on a partial re-scrape (`only`) and never
+  // when a page failed, not even when forced, or the failed page's stored
+  // rows would go with nothing to replace them.
+  const anyPieceFailed = fetched.pieceOutcomes.some((o) => !o.ok);
+  const anyBreakFailed = fetched.pieceOutcomes.some((o) => o.kind === 'break' && !o.ok);
+  const refreshWholeTournament =
+    !options.only &&
+    !anyPieceFailed &&
+    (options.force || (existing != null && fetchWarnings.length === 0));
 
   return prisma.$transaction(
     async (tx) => {
@@ -1415,21 +1722,26 @@ async function writeIngestTransaction(
           // A re-scrape that can't infer a format (rounds page hidden this
           // time, tabs released and withdrawn) must not erase the one an
           // earlier scrape found. Prisma leaves a field untouched when it is
-          // undefined, so a null inference keeps the stored value.
-          format: format ?? undefined,
+          // undefined, so a null inference keeps the stored value. A partial
+          // re-scrape sees a slice of the tournament, too little to infer
+          // its format from, so it never writes one.
+          format: options.only ? undefined : (format ?? undefined),
           // Likewise a year: a pre-scrape re-run reads no email date, and must
           // not erase the year a user's link gave the tournament
           // (fillTournamentYearFromEmails).
           year: year ?? undefined,
-          totalParticipants,
-          totalTeams,
+          totalParticipants: storedParticipants,
+          totalTeams: storedTeams,
           prelimRoundCount,
           sourceUrlRaw: storedSourceUrl,
-          scrapedAt: new Date(),
           // Stamp the version that produced this data (tournament-scoped
           // cache invalidation) and release the scrape claim — committing
           // the write IS the success signal concurrent waiters poll for.
-          parserVersion: PARSER_VERSION,
+          // A partial re-scrape rewrote one piece, not the tournament: it
+          // must not mark old-parser data current or the rest fresh, or the
+          // pre-scrape and parser-bump re-scrapes would skip it.
+          scrapedAt: options.only ? undefined : new Date(),
+          parserVersion: options.only ? undefined : PARSER_VERSION,
           scrapeClaimedAt: null,
         },
         create: {
@@ -1445,8 +1757,22 @@ async function writeIngestTransaction(
         },
       });
 
-      if (options.force || (existing && fetchWarnings.length === 0)) {
+      if (refreshWholeTournament) {
         await prepareTournamentWideRefresh(tx, t.id);
+      }
+      // A partial re-scrape replaces only the pieces that loaded: their rows
+      // go here, in the same transaction as the rewrite, so a reader never
+      // sees a piece emptied but not yet rewritten (scrapePieces.clearPieces).
+      if (options.only) {
+        await clearPieces(
+          tx,
+          t.id,
+          piecesToClear(fetched.pieceOutcomes, {
+            rounds,
+            teamRowCount: teamRows.length,
+            breakStages: new Set(breakRows.map((r) => r.stage ?? 'break')),
+          }),
+        );
       }
 
       // Team results
@@ -1509,6 +1835,8 @@ async function writeIngestTransaction(
           });
         }
       }
+      // Redacted speakers per team, so the audit does not read them as missing.
+      await recordRedactedSpeakers(tx, t.id, fetched.redactedByTeam);
 
       // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
       // rather than delete-then-recreate, and only when this parse actually
@@ -1664,6 +1992,18 @@ async function writeIngestTransaction(
         const breakRankForTeam = teamNameToWrite
           ? (teamBreakRankByTeam.get(teamNameToWrite) ?? null)
           : null;
+        // The break rank belongs to the break pieces. A partial re-scrape
+        // that read none has no ranks, and must keep the stored ones rather
+        // than null them (Prisma leaves an undefined field untouched). Nor
+        // may a failed break page null them: a team missing from the ranks
+        // read may have broke on the page that failed, and the break retry
+        // reads no speaker tab to put the rank back through this loop.
+        const breakRankUpdate =
+          options.only && !loadedKind('break')
+            ? undefined
+            : anyBreakFailed
+              ? (breakRankForTeam ?? undefined)
+              : breakRankForTeam;
         const participant = await tx.tournamentParticipant.upsert({
           where: { tournamentId_personId: { tournamentId: t.id, personId } },
           update: {
@@ -1673,7 +2013,7 @@ async function writeIngestTransaction(
             speakerRankEsl: sp.rankEsl,
             speakerRankEfl: sp.rankEfl,
             speakerCategories: sp.categories,
-            teamBreakRank: breakRankForTeam,
+            teamBreakRank: breakRankUpdate,
           },
           create: {
             tournamentId: t.id,
@@ -1689,7 +2029,7 @@ async function writeIngestTransaction(
             // must name the same team. An iron-man's first row used to create
             // with that row's own team; a later row's update then overwrote it
             // in the same transaction, so stored rows already agree.
-            teamBreakRank: breakRankForTeam,
+            teamBreakRank: breakRankUpdate,
           },
         });
         await tx.participantRole.upsert({
@@ -1720,6 +2060,23 @@ async function writeIngestTransaction(
             // as "—".
             positionLabel: rs.positionLabel ?? '',
             score: rs.score as unknown as undefined,
+          });
+        }
+      }
+      // Break ranks normally ride on the speaker rows above. A run that read
+      // a break page but no speaker tab (a break retry, or a full scrape whose
+      // speaker tab failed) has no speaker rows to carry them, so they are
+      // written onto the stored participants of each team by name; without
+      // this, a break page that failed once could never put its ranks back.
+      // Only rows with no rank are filled: a tournament can have several break
+      // categories (Open, ESL), and a run that read just one of them (the cron
+      // retrying only the ESL break) must not overwrite a rank stored from
+      // another by matching on team name alone.
+      if (loadedKind('break') && !loadedKind('speaker')) {
+        for (const [teamName, rank] of teamBreakRankByTeam) {
+          await tx.tournamentParticipant.updateMany({
+            where: { tournamentId: t.id, teamName, teamBreakRank: null },
+            data: { teamBreakRank: rank },
           });
         }
       }
@@ -1789,6 +2146,12 @@ async function writeIngestTransaction(
           create: { tournamentParticipantId: participant.id, role: 'judge' },
         });
       }
+
+      // The participants are stored: a staff-block name linked to someone before
+      // this write may no longer be unique (a namesake joined), or may now have
+      // its exact match. Re-check the links here, in the same transaction, so the
+      // CV never reads a role off a link that no longer holds. No fetch.
+      await rematchStaffNames(tx, t.id);
 
       // Break rows -> elimination_results. The row's existence (stage +
       // entityName) is the signal readers use — adjudicator-break detection
@@ -2439,10 +2802,15 @@ async function recordJudgeRoundsFromRoundResults(
   // created (TOCTOU). Deduping in memory and replacing inside one
   // transaction closes both for the common case; the audit migration
   // cleaned up duplicates the old window let through.
+  //
+  // Scoped to the rounds that loaded: a round page that failed this time
+  // keeps the owner's stored panels for it (partial scrapes, 2026-10-30).
+  // hits is non-empty here, so at least one round loaded and owned is set.
   const dedupedHits = dedupeJudgeHits(hits);
+  const owned = judgeRowsOwnedByRounds(rounds) ?? { OR: [] };
   await prisma.$transaction([
     prisma.judgeAssignment.deleteMany({
-      where: { tournamentId, personId, source: 'round_results' },
+      where: { tournamentId, personId, source: 'round_results', ...owned },
     }),
     prisma.judgeAssignment.createMany({
       data: dedupedHits.map((h) => ({

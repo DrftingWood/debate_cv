@@ -4,6 +4,7 @@ import { stripAttendanceTag } from '@/lib/calicotab/names';
 import { isAdjudicationCoreRole } from '@/lib/calicotab/judgeStats';
 import { parseJsValue } from './parseJsValue';
 import { extractFromCheerio } from './cheerioToVue';
+import { breakColumns, teamBreakRank } from './breakColumns';
 
 // ── Vue.js data types ────────────────────────────────────────────────────────
 // Tabbycat renders all tab/results/break pages via a Vue component that reads
@@ -1059,13 +1060,9 @@ function breakPageFromVue(
   if (!table?.head?.length || !table?.data?.length) return null;
   const heads = table.head;
 
-  // Adjudicator breaks are binary in real Tabbycat data — a judge either
-  // breaks (qualifies to adjudicate outrounds) or doesn't. Some installs
-  // happen to render a row index in their break-tab table that looks like
-  // a "rank" column to a generic header matcher, but it isn't a meaningful
-  // rank. Don't extract a rank for adjudicator rows so we don't end up
-  // displaying a phantom "rank:N" badge on /cv/verify.
-  const rankCol = isAdj ? -1 : vueCol(heads, 'rk', 'rank', '#');
+  // Adjudicator breaks are binary (a judge breaks or doesn't), so judges get
+  // no rank. Teams: Break column rank, non-breakers left out (breakColumns.ts).
+  const cols = isAdj ? null : breakColumns(heads);
   const nameCol = vueCol(heads, 'team', 'adjudicator', 'name');
   const instCol = vueCol(heads, 'inst', 'school');
   const scoreCol = vueCol(heads, 'score', 'pts', 'point', 'total');
@@ -1074,8 +1071,10 @@ function breakPageFromVue(
   for (const row of table.data) {
     const entityName = nameCol >= 0 ? nameText(row[nameCol]) : nameText(row[0]);
     if (!entityName) continue;
+    const rank = cols && teamBreakRank(cols, row, { text: cellText, rank: parseRank });
+    if (rank === 'out') continue;
     rows.push({
-      rank: rankCol >= 0 ? parseRank(row[rankCol]) : null,
+      rank,
       entityType: isAdj ? 'adjudicator' : 'team',
       entityName,
       institution: instCol >= 0 ? cellText(row[instCol]) || null : null,

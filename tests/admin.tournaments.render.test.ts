@@ -1,0 +1,245 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { TournamentList } from '@/lib/admin/tournamentList';
+
+// The component files use the automatic JSX runtime under Next; this runner
+// compiles them with the classic one.
+(globalThis as { React?: typeof React }).React = React;
+
+// Server-render checks for the Tournaments tab of /admin (Task 5b, moved by
+// R3): the pager, the two empty states, a URL search, and that a pasted private
+// URL is never echoed.
+
+const h = vi.hoisted(() => ({
+  list: vi.fn(),
+  lookup: vi.fn(),
+  redirect: vi.fn((to: string) => {
+    throw Object.assign(new Error('NEXT_REDIRECT'), { to });
+  }),
+}));
+vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => 'admin@example.com') }));
+vi.mock('@/lib/admin/tournamentList', () => ({
+  listTournaments: h.list,
+  TOURNAMENTS_PER_PAGE: 20,
+}));
+vi.mock('@/lib/admin/tournamentLookup', () => ({ lookupTournament: h.lookup }));
+// The shell's other reads are not under test here.
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+  // The Tournaments tab's cached overview is the mocked accuracy read.
+  readOverview: async () => (await import('@/lib/admin/accuracy')).getAccuracyOverview(),
+}));
+vi.mock('@/lib/admin/accuracy', () => ({
+  getAccuracyOverview: vi.fn(async () => null),
+}));
+vi.mock('@/components/ui/Toast', () => ({
+  useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
+}));
+vi.mock('next/navigation', () => ({
+  // Throws as Next's does, so the page stops where it redirects.
+  redirect: h.redirect,
+  notFound: vi.fn(),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/admin/tournaments',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+const KEY = 'k3yS3cr3t';
+const NOW = Date.now();
+
+const row = (i: number): TournamentList['rows'][number] => ({
+  id: String(i),
+  name: `Tournament ${i}`,
+  tabUrl: `https://t${i}.calicotab.com/t${i}/`,
+  year: 2025,
+  format: 'BP',
+  scrapedAt: new Date(NOW - 3_600_000),
+  parserCurrent: i !== 21,
+  score: i === 21 ? null : 92,
+  band: i === 21 ? null : 'good',
+  tab:
+    i === 22
+      ? { state: 'partial', tournamentId: String(i), errors: ['R2: HTTP 503 Service Unavailable'] }
+      : { state: 'loaded', tournamentId: String(i), errors: [] },
+  withheld: i === 23 ? 2 : 0,
+  onCvs: 3,
+});
+
+async function render(searchParams: Record<string, string> = {}): Promise<string> {
+  const { default: Page } = await import('@/app/(app)/admin/page');
+  return renderToStaticMarkup(
+    await Page({ searchParams: Promise.resolve({ tab: 'tournaments', ...searchParams }) }),
+  );
+}
+
+beforeEach(() => {
+  h.list.mockReset();
+  h.lookup.mockReset();
+  h.redirect.mockClear();
+});
+
+describe('/admin/tournaments', () => {
+  it('pages the ledger, 20 a page, and Previous/Next keep the search', async () => {
+    h.list.mockResolvedValue({
+      rows: Array.from({ length: 20 }, (_, i) => row(21 + i)),
+      total: 45,
+      page: 2,
+      pages: 3,
+    });
+    const out = await render({ q: 'tournament', page: '2' });
+
+    expect(h.list).toHaveBeenCalledWith({ page: 2, q: 'tournament', filters: {} });
+    expect(out.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(out).toMatch(/<h2[^>]*>Tournaments in the database<\/h2>/);
+    expect(out).toContain('21–40 of 45 · page 2 of 3');
+    expect(out).toMatch(/<nav aria-label="Tournament pages"/);
+    expect(out).toContain('href="/admin?tab=tournaments&amp;q=tournament"');
+    expect(out).toContain('href="/admin?tab=tournaments&amp;q=tournament&amp;page=3"');
+    expect(out).toContain('href="/admin/tournaments/21"');
+    expect(out).toContain('Old parser');
+    // The partial row (id 22) says so in the one status cell, with its retry.
+    expect(out).toContain('Partly');
+    // The search box keeps the name that was searched.
+    expect(out).toMatch(/<input[^>]*name="q"[^>]*value="tournament"/);
+  });
+});
+
+describe('/admin/tournaments rows and filters (R5)', () => {
+  it('has one status cell and one Tab link per row, no In database column', async () => {
+    h.list.mockResolvedValue({
+      rows: [row(21), row(22), row(23)],
+      total: 3,
+      page: 1,
+      pages: 1,
+    });
+    const out = await render({});
+    expect(out).not.toMatch(/<th[^>]*>In database<\/th>/);
+    expect(out).not.toContain('Partly loaded');
+    expect(out.match(/aria-label="Tab of Tournament \d+, opens in a new tab"/g)).toHaveLength(3);
+    // Loaded rows say Loaded in words and symbol; none is highlighted.
+    expect(out.match(/Loaded<\/span>/g)).toHaveLength(2);
+    // Open is the name's own link, not a second one in the status cell.
+    expect(out).not.toMatch(/aria-label="Open Tournament/);
+  });
+
+  it('brings back Retry failed for a partial row and the withheld count, as words', async () => {
+    h.list.mockResolvedValue({ rows: [row(21), row(22), row(23)], total: 3, page: 1, pages: 1 });
+    const out = await render({});
+    expect(out.match(/Retry failed pieces of Tournament 22/g)).toHaveLength(1);
+    expect(out).not.toContain('Retry failed pieces of Tournament 21');
+    expect(out).toContain('2 pages withheld');
+    // A withheld count is not a failure: no warning badge wraps it.
+    expect(out).not.toMatch(/<span[^>]*warning[^>]*>[^<]*withheld/);
+  });
+
+  it('reads the filters from the address, keeps them in the pager and says when none match', async () => {
+    h.list.mockResolvedValue({
+      rows: Array.from({ length: 20 }, (_, i) => row(21 + i)),
+      total: 45,
+      page: 1,
+      pages: 3,
+    });
+    const out = await render({ check: 'champion', band: 'rescrape', bogus: 'x' });
+    expect(h.list).toHaveBeenCalledWith({
+      page: 1,
+      q: undefined,
+      filters: { check: 'champion', band: 'rescrape' },
+    });
+    expect(out).toContain(
+      'href="/admin?tab=tournaments&amp;check=champion&amp;band=rescrape&amp;page=2"',
+    );
+
+    h.list.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1 });
+    const none = await render({ check: 'champion' });
+    expect(none).toContain('No tournament matches these filters');
+    expect(none).not.toContain('No tournaments stored yet');
+  });
+});
+
+describe('/admin/tournaments empty states', () => {
+  it('keeps "nothing stored" and "nothing matches" apart (UX-24)', async () => {
+    h.list.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1 });
+    const none = await render({});
+    const miss = await render({ q: 'zzz' });
+    expect(none).toContain('No tournaments stored yet');
+    expect(none).not.toContain('Nothing matches');
+    expect(miss).toContain('Nothing matches &#x27;zzz&#x27;');
+    expect(miss).not.toContain('No tournaments stored yet');
+    expect(none).not.toContain('Tournament pages');
+  });
+
+  // Final review of PR #265: one wording for a tournament with no public
+  // address, here as in the accuracy ledger and Open questions.
+  it('says "No tab" for a tournament with no public address', async () => {
+    h.list.mockResolvedValue({ rows: [{ ...row(1), tabUrl: null }], total: 1, page: 1, pages: 1 });
+    const out = await render({});
+    expect(out).toMatch(/<span class="text-ink-soft">No tab<\/span>/);
+    expect(out).not.toMatch(/>None</);
+  });
+});
+
+describe('/admin/tournaments with a pasted URL', () => {
+  // Review of a00d4c0: the flight data carries the search params, so a
+  // private ?q= is redirected to its public form before anything renders.
+  it('redirects a private URL in ?q= to its public form, scheme or not', async () => {
+    const PUBLIC_Q = `/admin?tab=tournaments&q=${encodeURIComponent('https://oxiv.calicotab.com/oxiv2025/')}`;
+    for (const q of [
+      `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`,
+      `oxiv.calicotab.com/oxiv2025/PrivateURLs/${KEY}/`,
+    ]) {
+      h.redirect.mockClear();
+      await expect(render({ q })).rejects.toMatchObject({ to: PUBLIC_Q });
+      expect(h.redirect).toHaveBeenCalledWith(PUBLIC_Q);
+    }
+    expect(h.lookup).not.toHaveBeenCalled();
+    expect(h.list).not.toHaveBeenCalled();
+  });
+
+  it('resolves a public URL in ?q= and answers in words', async () => {
+    h.lookup.mockResolvedValue({
+      kind: 'not_stored',
+      host: 'oxiv.calicotab.com',
+      slug: 'oxiv2025',
+      publicUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+    });
+    const out = await render({ q: 'https://oxiv.calicotab.com/oxiv2025/' });
+
+    expect(h.lookup).toHaveBeenCalledTimes(1);
+    expect(h.list).not.toHaveBeenCalled();
+    expect(out).toContain('Not in the database');
+    expect(out).toContain('href="https://oxiv.calicotab.com/oxiv2025/"');
+    expect(out).toMatch(
+      /<input[^>]*name="q"[^>]*value="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/"/,
+    );
+    // Without JavaScript the box posts, so its text stays out of the address.
+    expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
+  });
+
+  it('shows a stored URL with its page link, score and band', async () => {
+    h.lookup.mockResolvedValue({
+      kind: 'stored',
+      id: '7',
+      name: 'Oxford IV 2025',
+      publicUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      scrapedAt: new Date(NOW - 2 * 3_600_000),
+      parserCurrent: true,
+      score: 74,
+      band: 'check',
+      partlyLoaded: true,
+    });
+    const out = await render({ q: 'https://oxiv.calicotab.com/oxiv2025/' });
+    expect(out).toContain('Oxford IV 2025');
+    expect(out).toContain('href="/admin/tournaments/7"');
+    expect(out).toContain('Stored 2 h ago');
+    expect(out).toMatch(/Check.*74/);
+    expect(out).toContain('Partly loaded');
+  });
+
+  it('says so when a URL is not a tab URL', async () => {
+    h.lookup.mockResolvedValue({ kind: 'invalid' });
+    const out = await render({ q: 'https://example.com/x/' });
+    expect(out).toContain('That isn&#x27;t a tab URL');
+  });
+});

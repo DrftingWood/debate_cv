@@ -9,9 +9,12 @@ import { resetStuckRunning } from '@/lib/queue';
 import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
 import { prisma } from '@/lib/db';
 import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
-import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { isGmailScopeMissing, isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
+import { retryDuePieces } from '@/lib/calicotab/partialScrape';
+import { auditStale } from '@/lib/audit/run';
+import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,7 +136,8 @@ async function runBackgroundScan() {
         return rows.map((r) => r.userId);
       },
       scan: scanMailbox,
-      isGrantGone: isRefreshTokenInvalid,
+      // A grant without Gmail access is as useless as a revoked one.
+      isGrantGone: (err) => isRefreshTokenInvalid(err) || isGmailScopeMissing(err),
       forgetGrant: revokeAndForgetGmailToken,
       markAttempted: async (userId) => {
         await prisma.gmailToken.update({ where: { userId }, data: { lastScannedAt: new Date() } });
@@ -149,20 +153,83 @@ async function runBackgroundScan() {
   );
 }
 
+/** The background Gmail scan. A scan failure must never stop the drain. */
+async function scanSafely(): Promise<Awaited<ReturnType<typeof runBackgroundScan>>> {
+  try {
+    return await runBackgroundScan();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
+    });
+    return null;
+  }
+}
+
+/*
+ * Failed pieces of stored tournaments retry here, after the drain so new
+ * imports keep priority. They share the drain's TIME_BUDGET_MS from the tick's
+ * start; retryDuePieces starts no tournament without 20s left. A failure here
+ * is reported and never fails the tick.
+ */
+async function retryPiecesSafely(startedAt: number) {
+  try {
+    return await retryDuePieces({ deadline: startedAt + TIME_BUDGET_MS });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'piece-retry' },
+    });
+    return null;
+  }
+}
+
+/*
+ * Data-accuracy audits of tournaments with none, or one older than a day or
+ * from an older CHECKS_VERSION: up to AUDIT_MAX a tick, last, so imports and
+ * piece retries keep priority, within the same TIME_BUDGET_MS. Every scrape
+ * write already audits its tournament; this sweep covers what that misses
+ * (the backlog, a failed after-scrape audit, a rule change). A failure here is
+ * reported and never fails the tick.
+ */
+const AUDIT_MAX = 50;
+// auditStale only checks its deadline before each chunk, so the last chunk
+// must be able to start this long before the tick's budget ends and finish.
+const AUDIT_CHUNK_HEADROOM_MS = 5_000;
+
+async function auditSafely(startedAt: number) {
+  try {
+    const deadline = startedAt + TIME_BUDGET_MS - AUDIT_CHUNK_HEADROOM_MS;
+    return await auditStale({ limit: AUDIT_MAX, deadline });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'audit' },
+    });
+    return null;
+  }
+}
+
+/**
+ * Stored tournaments first, for every user: linked with no request, so they
+ * are not held behind live scrapes for the one calicotab slot. A failure here
+ * must never stop the drain.
+ */
+async function linkStoredFirstForAll(): Promise<number> {
+  try {
+    return await linkStoredJobsFirst();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'stored-first' },
+    });
+    return 0;
+  }
+}
+
 async function runOnce() {
+  const startedAt = Date.now();
   try {
     await resetStuckRunning({});
 
-    // A scan failure must never stop the drain.
-    let scan: Awaited<ReturnType<typeof runBackgroundScan>> = null;
-    try {
-      scan = await runBackgroundScan();
-    } catch (err) {
-      Sentry.captureException(err, {
-        tags: { route: 'api/cron/process-queue', stage: 'gmail-scan' },
-      });
-    }
-
+    const scan = await scanSafely();
+    const storedLinked = await linkStoredFirstForAll();
     const report = await drainQueue(
       {
         ingest: (url, userId, { deadline }) => ingestPrivateUrl(url, userId, { deadline }),
@@ -184,6 +251,8 @@ async function runOnce() {
       },
     );
     const { results, stoppedForBudget } = report;
+    const piecesRetried = await retryPiecesSafely(startedAt);
+    const audited = await auditSafely(startedAt);
 
     // Retention pass for pipeline history (superseded SourceDocument
     // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
@@ -218,9 +287,12 @@ async function runOnce() {
     // truncated one, which is exactly the state worth alerting on.
     return NextResponse.json({
       processed: report.processed,
+      storedLinked,
       results,
       scan,
       pruned,
+      piecesRetried,
+      audited,
       stoppedForBudget,
       peakInFlight: report.peakInFlight,
       elapsedMs: report.elapsedMs,

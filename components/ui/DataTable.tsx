@@ -88,9 +88,16 @@ export function Table({
  * so it can change width at a breakpoint (the Record's Spk tab goes to zero
  * below 90rem; its cells hide themselves to match).
  */
-export function Cols({ widths }: { widths: (string | undefined | { className: string })[] }) {
+export function Cols({
+  widths,
+  className,
+}: {
+  widths: (string | undefined | { className: string })[];
+  /** On the <colgroup>: `max-md:hidden` drops the widths of a table that is cards below md. */
+  className?: string;
+}) {
   return (
-    <colgroup>
+    <colgroup className={className}>
       {widths.map((w, i) =>
         typeof w === 'object' ? (
           <col key={i} className={w.className} />

@@ -2,6 +2,123 @@
 
 ---
 
+## 2026-10-31 - Admin redesign (R1 to R12), seed and browser check (R7)
+
+- **Owner request.** Make /admin a place to act, not read: one Inbox of what needs the owner, with Fix, Mark checked and Review later; the old sections become tabs. Spec: `docs/superpowers/specs/2026-10-31-admin-redesign-design.md`; plan: `docs/superpowers/plans/2026-10-31-admin-redesign.md`.
+- **Shell.** Tabs Inbox, Tournaments, Captured, Imports, Reports, Parser, Review set, Tools on `?tab=`; moving tabs drops `q`, `page` and the other tab-scoped params and keeps the rest (`band`, `check` stay). Summary line: "Needs you N · Accuracy S (Good g · Check c · Re-scrape r) · Imports to review N · Queue N" ("Imports to review" is the unstored failures, matching the Imports tab: ruling 9; the brief's wording was "Imports failing").
+- **Per task.**
+  - R1 "Mark checked": `AdminCheck` marks with a fingerprint of what the admin saw; a changed fingerprint brings the item back as "Changed since you checked it". A checked tournament check counts as a pass in the score. `POST/DELETE /api/admin/checks`.
+  - R2 Inbox: check, report, import and parser items in one list, 20 a page. A failed import whose tournament is stored never appears (it sits under "Covered by stored copy"). Info-class parser notes never appear.
+  - R3 shell and tabs; R4 Inbox UI with toast Undo and bulk mark; R5 Tournaments tab with check filters and the detail page; R6 Imports, Reports and Parser tabs.
+  - R8 "not published" counts as withheld (never a fault). R9 missing-format check, "Infer format", "Fill missing formats". R10 adjudication-core check and fill, from the Adj Core tick and the home page's Tournament Staff block. R12 old-parser refresh, motion/break/speaker gaps, "Fill years from names", Ignore for test tournaments. R11 Captured tab.
+  - R7 (this entry): `scripts/seed-admin-redesign.ts` and a measured browser check; defects it found are fixed in their own commits (see the branch log): Tournaments tab crashed in a Server Component (TabStatus), inline tab-link and Warning-badge axe failures, and the Prisma 7 missing-table error not recognised by its code.
+- **Migrations** (all additive; `20261031150000` sorts after every migration already on main): `20261031150000_admin_checks` (AdminCheck), `20261031160000_scrape_piece_reason`, `20261031170000_tournament_staff`, `20261031180000_tournament_ignored` (ignored, pagesRefreshedUnder). `CHECKS_VERSION` is `2026-10-31.9`; the cron re-audits everything under it. No `PARSER_VERSION` bump.
+- **Seed.** Against a LOCAL database only (the script prints the host and exits unless it is localhost, 127.0.0.1 or ::1): `set -a; . ./.env.local; set +a; npx vite-node -c vitest.config.ts scripts/seed-admin-redesign.ts`. It prints a session cookie for maya@example.com (set `ADMIN_EMAIL=maya@example.com`; `next dev`, and under a worktree whose node_modules is a junction use `next dev --webpack`). Audits come from the app's own engine.
+- **Rollback.** Revert the merge commit. The migrations are additive, so leaving the tables and columns is safe; to remove them, `DROP TABLE "AdminCheck"`, `DROP TABLE "TournamentStaff"`, drop the `ScrapePiece.reason`, `Tournament.ignored` and `Tournament.pagesRefreshedUnder` columns, and delete the four `_prisma_migrations` rows.
+
+---
+
+## 2026-10-31 - Data accuracy, part 2: failed-import Tab status, review set, report tables
+
+- **Owner requests.** "tick if fully loaded in tab, ? if partially load (hover to see the errors) and X if not loaded"; "prioritize some errors and bring to a separate set that you can later pick for review - prioritize and add a comment"; CV reports and parser warnings as tables an admin can act on. Standing rule: a URL that scraped properly is never highlighted. Plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (Tasks 5c, 5d, 6).
+- **Failed imports** gain a Tab column: ✓ Loaded, ? Partly (the failed pages listed on hover, keyboard focus or a tap; a screen reader gets the same list), ✗ Not loaded, and ? Check when the address matches two stored tournaments or names no slug. "In database" says ? Check for those rows too, never a false "Not stored".
+- **Review set** ("Flagged for review" on /admin): tick failed imports, CV reports or parser warnings, "Add to review set" with High / Medium / Low and a comment. One open flag per item (a second add updates it; writes take a Postgres advisory lock); edit priority or comment in place, Mark done, Show done, Reopen. Comments are scrubbed of private URLs.
+  - Table `ReviewFlag`, migration `20261031140000_review_flags` (additive).
+  - Export: `/api/admin/review-set?format=json|csv` (`&status=open|all`, open by default; admin only). CSV cells that a spreadsheet would run as a formula are prefixed with `'` (shared `lib/utils/csv.ts`, so every CSV export gets it). No export carries a private URL.
+  - **Hand-off:** say "work through the debate_cv review set"; Claude reads `/api/admin/review-set?format=json` (high priority first, newest first within a priority) and works each item.
+- **CV error reports** as a paged ledger (20 a page, status filter, `?reportsPage` / `?reportsStatus`): tournaments with Tab status and a public Tab link, categories in words, the Status select saves on change (Fixed / Won't fix stamp `resolvedAt`, kept when moving between the two), "Re-scrape suggested (n)" from the report's categories.
+- **Parser warnings** as a paged ledger (`?warningsPage`): the newest 2,000 runs with warnings in 30 days, grouped by `[parser] headline`, busiest first, with the tournaments their pages came from. Each pager keeps the other's page.
+- **Seed:** `npm run seed:dev` now also writes failed imports in every Tab state, review flags of each source and priority (one done), 27 CV reports, 23 warning groups (`scripts/seed-dev-review.mjs`). Audits come from the app: `POST /api/admin/audit {"stale":true}` or "Audit now".
+- **Rollback.** Revert the merge commit, then `DROP TABLE "ReviewFlag"` and delete its `_prisma_migrations` row (`20261031140000_review_flags`).
+
+---
+
+## 2026-10-31 - Data accuracy score, part 1 (through the tournaments page)
+
+- **Owner request.** A broad logic check of every tournament, combined with user reports, giving the database an accuracy score in the admin view. Failed checks are hints for partial re-scrapes. Spec: `docs/superpowers/specs/2026-10-31-data-accuracy-design.md`; plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (tasks 0–5b in this PR).
+- **Checks** (`lib/audit/checks.ts` and helpers, pure): champion, rounds complete, rooms per round, teams in rounds, partners, panels (only where every judge's panels are stored), points add up, outround shape, break size, speaker tab, motions, scrape incomplete, old parser, plus open user reports.
+  - Each check is weighted; pass earns its weight, warn half, fail nothing, and na drops out.
+  - Each open report costs 10 points, capped at 30. Bands: 90+ Good, 70–89 Check, below 70 Re-scrape.
+  - A check whose page the tournament withholds (an unreleased team or speaker tab, hidden round or outround results, all recorded as `withheld` pieces) is "not applicable", never a failure, and a withheld page is never suggested for re-scrape (`CHECKS_VERSION` 2026-10-31.3).
+  - **Open question (owner):** when a tab has no Open bracket (schools Senior/Junior, APDA Varsity/Novice), the bracket with the most outround teams names the champion. The APDA case is on hold, so these tournaments show on the admin page under "Open questions".
+- **Stored** in `TournamentAudit` (migration `20261031100000_tournament_audit`, additive). Audits are written:
+  - after every scrape write, best-effort, skipped with under 5 s left;
+  - by the cron sweep, 50 a tick (missing, older than 24 h, or older checks), with a failing tournament isolated;
+  - by "Audit now" on the admin page.
+- **Admin:**
+  - a "Data accuracy" section: score weighted by users' CVs, bands, a failing-checks chart, the lowest 200 with "Re-scrape suggested", and Open questions;
+  - an "Accuracy checks" panel on each tournament page, with "Select suggested" in the piece grid;
+  - every tournament and page URL is a clickable link to the PUBLIC tab (private keys never reach the page, its data payload, the address bar or logs);
+  - "In database" cells;
+  - `/admin/tournaments`: every stored tournament, 20 per page with Next, searchable by name or URL.
+- **Real-data fixes** (six properly scraped tournaments, `CHECKS_VERSION` 2026-10-31.4): rooms per round excuses a round one room short because teams withdrew; swing teams are left out of team coverage and partners; a speaker with only per-round scores (average-only tabs) counts as scored; partners adds redacted speakers, recorded by ingest from the participants list into `TeamResult.redactedSpeakers` (migration `20261031130000_team_redacted_speakers`, additive, nullable; null until a tournament is re-scraped, and then only teams with no speakers are flagged). Rollback: `ALTER TABLE "TeamResult" DROP COLUMN "redactedSpeakers"`.
+- Also: a break-only scrape run fills missing break ranks and never overwrites one stored from another category.
+- **Next PR (part 2):** failed-imports tab status (✓ / ? / ✗) and the prioritised review set; CV reports and parser warnings as paged, actionable tables; seed data and a browser check.
+- **Rollback.** Revert the merge commit, then `DROP TABLE "TournamentAudit"` and delete its `_prisma_migrations` row.
+
+---
+
+## 2026-10-30 - Partial scrapes: keep what loaded, retry the rest, show it
+
+- **Problem.** One failed tab or round page used to fail the whole import, or leave a tournament silently thin. Calicotab is slow and flaky (see the entry below), so a single 503 on the speaker tab cost a user the whole tournament.
+- **What changed.**
+  - **Keep what loaded.** `lib/calicotab/ingest.ts` stores every page that came back and records each page as a piece (`lib/calicotab/scrapePieces.ts`): team tab, speaker tab, participants, motions, each break category, each round. A failed round keeps its stored judge panels (it is not cleared).
+  - **Retry on its own.** The cron (`/api/cron/process-queue`) calls `retryDuePieces` (`lib/calicotab/partialScrape.ts`). Back-off is `retryDelayMs`; once the retries run out `nextRetryAt` is null and only an admin re-scrape moves the piece again.
+  - **Say so on the CV.** A tournament with a failed piece still counts on the record (owner decision 2026-10-30) and shows a "Partly loaded" badge on `/cv` and `/u/<slug>` (`components/PartlyLoadedBadge.tsx`; the explanation is reachable by keyboard and screen reader).
+  - **Admin.** `/admin` has the Partly loaded tile, Scrape health and Failed imports (retry selected or all). `/admin/tournaments/[id]` is the per-page grid with a re-scrape picker and "Select failed". APIs: `POST /api/admin/tournaments/[id]/rescrape` (deletes only the chosen pieces' rows, then re-reads them) and `POST /api/admin/jobs/retry`.
+- **Migration.** `20261030160000_scrape_pieces` adds the `ScrapePiece` table (unique per tournament, kind and key; cascades with the tournament). It runs on the next production build. Tournaments imported before it have no rows and show no badge until they are next scraped.
+- **Dev data.** `npm run seed:dev` now seeds pieces for two tournaments (Delhi Open 2025 all ok; Hart House IV 2023 with a failed speaker tab, retry queued, and a failed R2 with retries exhausted) plus one failed import job, so the admin pages and the badge have data. On 2026-10-31 the embedded Postgres on 55432 was not running and the system PostgreSQL 17 (5432) needs credentials this session did not have, so the check used a throwaway cluster started on 55432 with trust auth.
+- **Checked.** Browser check at 1280 and 390, light and dark, signed in with the seed cookie: no console errors, no sideways scroll, 20 px gutter at 390, "Select failed" ticks 2, "Partly loaded" shows on Hart House in the 2023 group of `/cv`. `A11Y_ONLY=/admin npm run a11y`: no axe violations. Re-checked on 2026-10-31 after the review fixes below: the Failed imports row is 180 px at 390 (was about 1400 px) and 63 px at 1280, and the table fits its panel at 390 without scrolling.
+- **Withheld pages.** A page the tournament itself refuses (its own 403, or a 404 for a page the nav links: a motions page, or the participants list when participants are already stored) is recorded with status `withheld`. It is never retried, does not mark the CV "Partly loaded", is left out of the failing counts, and shows as "Withheld by the tournament" in the admin grid, with a count line under Scrape health. `status` is a string column, so no migration. To pick up such a page if it is later made public, re-scrape it from the grid.
+- **Review fixes (2026-10-31).** A failed break page no longer nulls stored `teamBreakRank`, and a break-only run (a retry, or a scrape whose speaker tab failed) writes the ranks onto stored participants by team name. A failed prelim round no longer shrinks `prelimRoundCount`, and a speaker-only count no longer overwrites a stored participants-list count. A retry that fails before any page answers (landing page down, tournament no longer matching, deadline) still advances the failed pieces' back-off; a tournament with no public address stops retrying at once. A deadline during an admin re-scrape returns the pieces as failed instead of a 500. A partial run never writes the tournament's format. A break-only run now fills only missing break ranks (`teamBreakRank: null`) and never overwrites a stored one, so a retry of just the ESL break cannot replace an Open rank; a rank that needs correcting waits for a full scrape (which carries the rank on the speaker rows).
+- **Rollback.** Revert the merge commit, then drop the table: `DROP TABLE "ScrapePiece";` (and delete its row from `_prisma_migrations`). Nothing else reads it after the revert.
+
+---
+
+## 2026-10-30 - Import ETA from the queue's pace
+
+- **Owner:** "the time estimate is way way off". Production, all users: 145 queued, ETA 403 s (~7 min). 66 jobs had finished in the last hour, so about 2 hours.
+- **Cause.** ETA = queued × average successful job (2.8 s). That average is mostly cache hits. It ignores slow and failed live scrapes, the one-calicotab-job-at-a-time slot, the gaps between drains (cron every 15 min with no tab open), and retries scheduled 15 min to 1 h out.
+- **Fix.** `estimateQueueSeconds` (`lib/ingest/eta.ts`): active jobs × (time since the first of this hour's finished jobs started ÷ how many finished). It falls back to the per-job average below 5 finishes, and is never earlier than the latest scheduled retry. `queuePace` in the progress route adds two aggregates.
+
+---
+
+## 2026-10-30 - Stored tournaments before the queue
+
+- **Owner's question.** "First check all the URLs, see if they exist in the pre-scrape, load them, then tackle the new ones. Is this being followed?" **It wasn't.**
+- **Before.** The queue ran oldest first (`claimOnePending`, `ORDER BY scheduledAt`), one calicotab job at a time. A stored tournament was spotted only when its own job came up, so it waited behind live scrapes (each minutes long while calicotab answers in 10-40 s a page), although linking it needs no request.
+- **Now.** `linkStoredJobsFirst` (`lib/calicotab/storedFirst.ts`) runs ahead of the queue in the signed-in drain (`/api/ingest/drain`, that user's jobs) and the cron (everyone's).
+  - For every pending job whose tournament is stored and finished (`findServableStoredTournament`), it claims the job (pending to running, so a concurrent drain never takes it too), links it with `linkFromStoredTournament`, and finishes it with `markJobDone`, so the CV-ready notice still fires.
+  - Database only, so it doesn't use the calicotab slot.
+  - A stored tournament the user's names aren't in goes back to pending, attempt untouched, for the queue to read its page.
+- Stored links count toward the drain's `processed`, so a call that only linked stored tournaments isn't mistaken for no progress by `drainUntilEmpty`. The cron reports `storedLinked`.
+
+---
+
+## 2026-10-30 - A champion with no private-URL page read
+
+- **Owner report.** NPD 2023: champion, not shown. Production export: `broke: true`, `outroundReached: null`, `won: null`.
+- **Cause.** `TournamentParticipant.eliminationReached` is written only from the user's private-URL page (`recordSpeakerRoundsFromLanding`). The champion check in `buildCvData` starts from it, so with no page read it never ran, although the won Grand Final was stored from the public results page all along. A tournament linked from stored data (stored-first, 2026-10-30) or an appearance claimed from the public tab never reads that page.
+- **Fix.** `buildCvData` falls back to the deepest outround the team has a decided public result in (`EliminationResult`, team, won/lost; rows the champion check already loads). The private page still wins when present.
+- **Audit of the owner's record (live export plus the app parser over every outround page):** NPD 2023 is the only missing title. The ten Grand Finals shown as lost (ILNU RR 2026, IWGM Pro-Am 2025, NLSD 2025, SRDF 2024, CUPD 2023, GLC PD 2023, Makiling, Monash Open, RVDT 2022, DSDC 2021) were all lost on the public results. **Open:** ILNU BP 2023 shows broke with no outround, and its team name was not found in any outround table. Check the team-name spelling against the results pages.
+- **Rollback.** Revert the merge commit. Read-side only; no migration.
+
+---
+
+## 2026-10-30 - "The scan did not run": Gmail left unticked at sign-in
+
+- **Incident.** Users saw a 500 and "The scan did not run" on onboarding. Vercel: `[api/ingest/gmail] Insufficient Permission`, 5 times for 2 users, 15:37-16:58 UTC.
+- **Cause.** Google's consent screen lists Gmail access as its own checkbox. These users signed in without ticking it, so their token had name and email but no `gmail.readonly`, and Gmail answered 403. The routes knew a revoked token (`invalid_grant`) but not a missing scope, so it fell through to a 500 with the raw message, and "Try again" could never succeed.
+- **Fix.**
+  - `isGmailScopeMissing` (`lib/gmail/errors.ts`) matches it by message or reason, not by status (Gmail rate limits are 403s too).
+  - `grantGoneResponse` (`lib/gmail/grantGone.ts`) is now the one place both scan routes handle a dead grant: forget the token, then 403 `gmail_scope_missing` or 401 `token_invalid`. Neither goes to Sentry.
+  - The cron's background scan treats it as a gone grant too.
+  - Onboarding shows Reconnect Gmail in place of Try again for `gmail_scope_missing`, `token_invalid` and `no_gmail_token`.
+- **Affected users** can fix it now without the deploy: sign in again and tick the Gmail box.
+- **Rollback.** Revert the merge commit. No migration.
+
+---
+
 ## 2026-10-30 - Markup is never a person's name
 
 - **Defect.** Before the 2026-09-14 parser fix, the adjudicator cell was split on commas straight through its tags, and each piece became a Person: about 8000 rows named like `</span><span class="d-inline">Mahor Nagda<i class='adj-symbol'>Ⓣ</i></span>`.

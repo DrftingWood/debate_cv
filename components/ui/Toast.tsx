@@ -12,8 +12,11 @@ type ToastItem = {
   kind: ToastKind;
   title: string;
   description?: string;
-  /** Optional link rendered below the description. */
-  action?: { label: string; href: string };
+  /**
+   * Optional link rendered below the description, or a button (`onClick`)
+   * for an action that is not a place to go, such as Undo.
+   */
+  action?: { label: string; href: string } | { label: string; onClick: () => void };
 };
 
 type ToastContextValue = {
@@ -204,17 +207,7 @@ function ToastCard({
             {item.description}
           </div>
         ) : null}
-        {item.action ? (
-          // next/link, not a raw <a>: the action is always an in-app route
-          // and a full page reload threw away the client state it came from.
-          <Link
-            href={item.action.href}
-            onClick={onDismiss}
-            className="mt-hair inline-flex min-h-6 items-center text-caption font-medium text-primary underline-offset-2 hover:underline"
-          >
-            {item.action.label} →
-          </Link>
-        ) : null}
+        {item.action ? <ToastAction action={item.action} onDismiss={onDismiss} /> : null}
       </div>
       {/*
         32 px box (44 px under a coarse pointer) around a 16 px icon. The ×
@@ -230,5 +223,41 @@ function ToastCard({
         <X className="h-4 w-4" aria-hidden />
       </button>
     </div>
+  );
+}
+
+/**
+ * A toast's one action: a link to an in-app place, or a button that runs
+ * something (Undo) and puts the toast away.
+ */
+function ToastAction({
+  action,
+  onDismiss,
+}: {
+  action: NonNullable<ToastItem['action']>;
+  onDismiss: () => void;
+}) {
+  const className =
+    'mt-hair inline-flex min-h-6 items-center text-caption font-medium text-primary underline-offset-2 hover:underline';
+  if ('href' in action) {
+    // next/link, not a raw <a>: the action is always an in-app route and a
+    // full page reload threw away the client state it came from.
+    return (
+      <Link href={action.href} onClick={onDismiss} className={className}>
+        {action.label} →
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onDismiss();
+        action.onClick();
+      }}
+      className={className}
+    >
+      {action.label}
+    </button>
   );
 }

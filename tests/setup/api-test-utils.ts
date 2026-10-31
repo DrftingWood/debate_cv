@@ -92,6 +92,9 @@ export const prismaMock = {
   parserRun: makeModelMock(),
   rateLimit: makeModelMock(),
   appearanceCandidate: makeModelMock(),
+  scrapePiece: makeModelMock(),
+  reviewFlag: makeModelMock(),
+  tournamentStaff: makeModelMock(),
   // Two shapes:
   //   prisma.$transaction([...promises]) → resolves all in array
   //   prisma.$transaction(async (tx) => ..., opts?) → invokes callback with
@@ -139,6 +142,8 @@ export function resetPrismaMock() {
   // under test.
   prismaMock.$queryRaw.mockResolvedValue([]);
   prismaMock.$executeRaw.mockResolvedValue(0);
+  // The CV reads staff-block core rows for every build; none unless a test says so.
+  prismaMock.tournamentStaff.findMany.mockResolvedValue([]);
 }
 
 // ── request helpers ─────────────────────────────────────────────────

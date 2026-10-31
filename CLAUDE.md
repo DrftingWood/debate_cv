@@ -43,7 +43,7 @@ app/                          Next.js App Router (routes + API handlers)
   u/                          Public CV at /u/<slug>
   settings/                   Disconnect, delete account, export JSON, sharing
   onboarding/                 First-run flow
-  admin/                      Admin tools (gated via lib/admin.ts)
+  admin/                      Admin tools (gated via lib/admin.ts): one /admin page with ?tab= Inbox, Tournaments, Captured, Imports, Reports, Parser, Review set, Tools; admin/tournaments/[id] is the per-page scrape grid with re-scrape picker, check marks, staff names, Ignore
   privacy/, terms/            Static legal pages
   api/
     auth/[...nextauth]/       NextAuth v5 handler
@@ -61,6 +61,8 @@ lib/
   admin.ts                    Admin allowlist
   gmail/                      client (OAuth + encrypt/decrypt), extract (URL regex + MIME walk), run (bounded concurrency)
   calicotab/                  fetch, parseNav, parseTabs, fingerprint, provenance, personMatch, primaryTeam, judgeStats, breakCategoryResolve, redactedSpeaker, ingest (orchestrator), version (PARSER_VERSION — bump to invalidate cached parses)
+    scrapePieces.ts           Per-page scrape records (ScrapePiece): piece kinds/keys/labels, outcomes, retry back-off, which rows a re-scrape may clear
+    partialScrape.ts          rescrapePieces (admin re-read of chosen tabs/rounds) and retryDuePieces (the cron's retry of failed pieces)
   cv/                         buildCvData (rows + motions + per-tournament field summary),
                               speakerStats (the deep statistics engine — pure, sample-size-
                               carrying; also owns the per-season trends), computeSpeakerAvg,
@@ -68,6 +70,8 @@ lib/
   notifications/write.ts      In-app feed writer (bell icon; no email/push by design)
   sharing/slug.ts             Public CV slug helpers
   cvErrorReports/categories.ts
+  audit/                      Tournament accuracy checks (checks*.ts, pure), score + bands (score.ts), load/run (TournamentAudit writes; after scrapes, cron sweep, "Audit now")
+  admin/                      Admin read models: inbox + adminChecks (Mark checked, fingerprinted), captured (size, geography, formats, motion balance), formatFill/yearFill/coreFill/oldParserFill (bulk fills from stored data), scrapeHealth (failed imports + Tab state), accuracy, tournamentLookup (host+slug matching), reviewSet (ReviewFlag set + export), cvReports, parserWarnings (React-cached, bounded read)
   utils/                      api, cn (clsx+tw-merge), csv, site
 
 components/
