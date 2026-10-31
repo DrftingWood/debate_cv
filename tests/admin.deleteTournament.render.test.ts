@@ -50,11 +50,13 @@ describe('DeleteTournamentView', () => {
     expect(t).toContain('Delete permanently');
     expect(t).toContain('Cancel');
   });
-  it('offers no delete for a tournament on a CV, and says why', () => {
+  it('deletes a tournament on CVs too, saying how many it comes off first', () => {
+    expect(view({ onCvs: 2 })).toContain('aria-label="Delete tournament: DEMO"');
     const t = text(view({ onCvs: 2, asking: true }));
-    expect(t).toContain('It is on 2 users’ CVs, so it cannot be deleted');
-    expect(t).not.toContain('Delete permanently');
-    expect(view({ onCvs: 2 })).not.toContain('aria-label="Delete tournament');
+    expect(t).toContain('Delete DEMO? It comes off 2 users’ CVs. This cannot be undone');
+    expect(t).toContain('Delete permanently');
+    expect(text(view({ onCvs: 1, asking: true }))).toContain('It comes off one user’s CV.');
+    expect(text(view({ onCvs: null, asking: true }))).toContain('Delete DEMO? This cannot');
   });
   it('keeps a refusal on screen as an alert tied to the button', () => {
     const out = view({ asking: true, error: 'Something went wrong on our side.' });

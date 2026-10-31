@@ -14,8 +14,9 @@ import { isMissingTable } from '@/lib/admin/adminChecks';
  * reads the marker as terminal (queue.ts isPermanentError) and the Inbox
  * leaves those jobs out, since the refusal is the admin's own choice.
  *
- * A tournament on anyone's CV is never deleted: that would take it off
- * their CV. The admin ignores it instead (Tournament.ignored).
+ * A tournament on users' CVs is deleted too, and leaves those CVs (owner,
+ * 2026-10-31: "let it remove from cv we will process this later"). The page
+ * says how many CVs before the admin confirms, and the result counts them.
  *
  * The table is read and written through raw SQL, like AdminCheck, and a
  * database the migration has not reached yet reads as "nothing deleted".
@@ -77,7 +78,8 @@ export async function refuseDeletedSite(url: string): Promise<void> {
 }
 
 export type DeleteOutcome =
-  { kind: 'deleted'; name: string } | { kind: 'not_found' } | { kind: 'on_cvs'; users: number };
+  | { kind: 'deleted'; name: string; /** Users it was on the CV of. */ users: number }
+  | { kind: 'not_found' };
 
 /**
  * The users with this tournament on their CV: the same count as the audit's
@@ -95,7 +97,6 @@ export async function deleteTournament(id: bigint, by: string): Promise<DeleteOu
   });
   if (!t) return { kind: 'not_found' };
   const users = await cvUsers(id);
-  if (users > 0) return { kind: 'on_cvs', users };
   const k = siteKey(t.sourceUrlRaw);
   await prisma.$transaction([
     ...(k
@@ -111,7 +112,7 @@ export async function deleteTournament(id: bigint, by: string): Promise<DeleteOu
       : []),
     prisma.tournament.delete({ where: { id } }),
   ]);
-  return { kind: 'deleted', name: t.name };
+  return { kind: 'deleted', name: t.name, users };
 }
 
 export type DeletedRow = {

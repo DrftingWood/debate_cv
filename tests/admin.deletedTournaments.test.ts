@@ -84,14 +84,14 @@ describe('the ingest refusal', () => {
 });
 
 describe('deleteTournament', () => {
-  it('refuses a tournament on anyone’s CV and deletes nothing', async () => {
+  it('deletes a tournament on CVs too, and counts them', async () => {
     h.db.tournament.findUnique.mockResolvedValue({
       name: 'Real',
       sourceUrlRaw: 'https://r.calicotab.com/r/',
     });
     h.db.discoveredUrl.groupBy.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
-    expect(await deleteTournament(5n, 'a@x')).toEqual({ kind: 'on_cvs', users: 2 });
-    expect(h.db.$transaction).not.toHaveBeenCalled();
+    expect(await deleteTournament(5n, 'a@x')).toEqual({ kind: 'deleted', name: 'Real', users: 2 });
+    expect(h.db.tournament.delete).toHaveBeenCalledWith({ where: { id: 5n } });
   });
   it('answers not_found for a missing tournament', async () => {
     h.db.tournament.findUnique.mockResolvedValue(null);
@@ -102,7 +102,7 @@ describe('deleteTournament', () => {
       name: 'DEMO',
       sourceUrlRaw: 'https://demo.calicotab.com/demo/privateurls/s3cret/',
     });
-    expect(await deleteTournament(7n, 'a@x')).toEqual({ kind: 'deleted', name: 'DEMO' });
+    expect(await deleteTournament(7n, 'a@x')).toEqual({ kind: 'deleted', name: 'DEMO', users: 0 });
     const insert = sql(h.db.$executeRaw.mock.calls[0]!);
     expect(insert.text).toContain('INSERT INTO "DeletedTournament"');
     expect(insert.values).toEqual([

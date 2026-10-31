@@ -15,8 +15,9 @@ import { adminTabHref } from '@/lib/admin/adminTabs';
  * /api/admin/tournaments/[id]/delete). The first press only asks; the
  * second deletes, and its tab address goes on the Tools tab's list so it is
  * never ingested again. Asked on the page, not in a browser dialog. A
- * tournament on anyone's CV is refused by the route, and the refusal stays
- * on screen. Success is a toast and the Tournaments tab.
+ * tournament on users' CVs is deleted too and leaves those CVs (owner,
+ * 2026-10-31); the question says how many. Success is a toast and the
+ * Tournaments tab; a refusal stays on screen.
  */
 export function DeleteTournament({
   tournamentId,
@@ -41,7 +42,7 @@ export function DeleteTournament({
     setError(null);
     startTransition(async () => {
       const res = await flight.run(() =>
-        postJson<{ deleted: boolean; name: string }>(
+        postJson<{ deleted: boolean; name: string; users: number }>(
           `/api/admin/tournaments/${tournamentId}/delete`,
           { confirm: true },
         ),
@@ -54,7 +55,7 @@ export function DeleteTournament({
       toast.show({
         kind: 'success',
         title: tournamentName,
-        description: 'Deleted. It will not be ingested again.',
+        description: `Deleted${cvsText(res.data.users, ', and removed from ')}. It will not be ingested again.`,
       });
       router.push(adminTabHref('tournaments'));
     });
@@ -149,17 +150,11 @@ function DeleteBody({
   onCancel: () => void;
   onRun: () => void;
 }) {
-  const blocked = onCvs != null && onCvs > 0;
-  return blocked ? (
-    <p className="max-w-prose text-body text-ink">
-      It is on {onCvs === 1 ? 'one user’s CV' : `${onCvs} users’ CVs`}, so it cannot be deleted.
-      Ignore it in admin stats instead.
-    </p>
-  ) : asking ? (
+  return asking ? (
     <div className="space-y-inline">
       <p className="max-w-prose text-body text-ink">
-        Delete {tournamentName}? This cannot be undone: allowing it again later only lets a new
-        import store it afresh.
+        Delete {tournamentName}?{onCvs ? `${cvsText(onCvs, ' It comes off ')}.` : ''} This cannot be
+        undone: allowing it again later only lets a new import store it afresh.
       </p>
       <div className="flex flex-wrap gap-inline">
         <Button
@@ -188,4 +183,10 @@ function DeleteBody({
       Delete tournament
     </Button>
   );
+}
+
+/** "<lead>one user’s CV" / "<lead>3 users’ CVs"; '' when on no CV or not known. */
+function cvsText(users: number | null | undefined, lead: string): string {
+  if (!users) return '';
+  return `${lead}${users === 1 ? 'one user’s CV' : `${users} users’ CVs`}`;
 }
