@@ -44,6 +44,17 @@ export function teamKey(name: string): string {
 }
 
 /**
+ * A swing team ("Swing 1", "Swing Team", "swing"): the tab room's stand-in,
+ * which Tabbycat lists on the team tab, often with no rounds at all, and
+ * whose "Speaker N" members ingest deliberately stores no person for. It is
+ * no real team, so it neither owes R1 a row nor needs partners. A team whose
+ * name only starts with the letters ("Swingers United") is real.
+ */
+export function isSwingTeam(name: string): boolean {
+  return /^swing\b/i.test(name.trim());
+}
+
+/**
  * Prelim rows only. With a known round count, rows past it (an outround a
  * loader might pass by mistake) are left out.
  */

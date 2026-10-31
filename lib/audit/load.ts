@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import type { AuditInputs, AuditPiece } from './auditInputs';
@@ -14,10 +15,11 @@ import type { AuditInputs, AuditPiece } from './auditInputs';
  * need to leave Postgres. TeamResult is the one table read as rows (a
  * WUDC-scale tab is ~470 of them), with only the columns the checks use.
  *
- * Two tables take a second grouped query, still per batch: participants (a
- * role lives on the joined ParticipantRole table, so speakers by team and
- * judges by tournament cannot share one grouping) and judge assignments
- * (panel counts per round, then distinct judges).
+ * Two tables take more than one grouped query, still per batch: participants
+ * (a role lives on the joined ParticipantRole table, so speakers by team,
+ * judges by tournament and scored speakers cannot share one grouping) and
+ * judge assignments (panel counts per round, then distinct judges). The
+ * team-tab redacted counts are one raw query per batch (redactedRows).
  */
 
 export type LoadedAudit = AuditInputs & { usersAffected: number };
@@ -44,6 +46,7 @@ function empty(t: {
     outrounds: [],
     breakRows: [],
     speakersByTeam: {},
+    redactedByTeam: {},
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,
@@ -94,11 +97,10 @@ function queryRows(ids: bigint[]) {
 function queryCounts(ids: bigint[]) {
   const tournamentId = { in: ids };
   return Promise.all([
-    // _count of a column counts its non-null values: speakers with a score.
     prisma.tournamentParticipant.groupBy({
       by: ['tournamentId', 'teamName'],
       where: { tournamentId, roles: { some: { role: 'speaker' } } },
-      _count: { _all: true, speakerScoreTotal: true },
+      _count: { _all: true },
     }),
     prisma.tournamentParticipant.groupBy({
       by: ['tournamentId'],
@@ -138,12 +140,49 @@ function queryCounts(ids: bigint[]) {
   ]);
 }
 
-async function queryBatch(ids: bigint[]) {
-  const [rows, counts] = await Promise.all([queryRows(ids), queryCounts(ids)]);
-  return [...rows, ...counts] as const;
+/**
+ * Speakers with a score: a tab total, or any per-round score. Many Asian and
+ * Australs tabs publish R1..Rn and an average with no total column, so
+ * speakerScoreTotal stays null for every speaker while every score is stored
+ * as SpeakerRoundScore rows; counting totals alone failed such a tab.
+ */
+function queryScored(ids: bigint[]) {
+  return prisma.tournamentParticipant.groupBy({
+    by: ['tournamentId'],
+    where: {
+      tournamentId: { in: ids },
+      roles: { some: { role: 'speaker' } },
+      OR: [{ speakerScoreTotal: { not: null } }, { speakerRoundScores: { some: {} } }],
+    },
+    _count: { _all: true },
+  });
 }
 
-type BatchRows = Awaited<ReturnType<typeof queryBatch>>;
+type RedactedRow = { tournamentId: bigint; teamName: string; redactedSpeakers: number | null };
+
+/**
+ * The team tab's redacted-speaker counts (TeamResult.redactedSpeakers, round
+ * 0). Raw SQL rather than the generated client, so the audit does not depend
+ * on a client generated after the column was added.
+ */
+function redactedRows(ids: bigint[]) {
+  return prisma.$queryRaw<RedactedRow[]>`
+    SELECT "tournamentId", "teamName", "redactedSpeakers" FROM "TeamResult"
+    WHERE "tournamentId" IN (${Prisma.join(ids)}) AND "roundNumber" = 0`;
+}
+
+async function queryBatch(ids: bigint[]) {
+  const [rows, counts, scored, redacted] = await Promise.all([
+    queryRows(ids),
+    queryCounts(ids),
+    queryScored(ids),
+    redactedRows(ids),
+  ]);
+  return { all: [...rows, ...counts] as const, scored, redacted };
+}
+
+type BatchRows = Awaited<ReturnType<typeof queryBatch>>['all'];
+type Extra = Omit<Awaited<ReturnType<typeof queryBatch>>, 'all'>;
 
 function addTeamRows(out: Map<bigint, LoadedAudit>, rows: BatchRows[1]) {
   for (const r of rows) {
@@ -184,7 +223,6 @@ function addParticipants(
     const a = out.get(g.tournamentId);
     if (!a) continue;
     a.speakerParticipants += g._count._all;
-    a.speakersWithScores += g._count.speakerScoreTotal;
     // Raw names: the checks normalise keys themselves (teamKey).
     if (g.teamName != null) a.speakersByTeam[g.teamName] = g._count._all;
   }
@@ -237,6 +275,17 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
   }
 }
 
+function addExtra(out: Map<bigint, LoadedAudit>, { scored, redacted }: Extra) {
+  for (const g of scored) {
+    const a = out.get(g.tournamentId);
+    if (a) a.speakersWithScores = g._count._all;
+  }
+  for (const r of redacted) {
+    const a = out.get(r.tournamentId);
+    if (a) a.redactedByTeam[r.teamName] = r.redactedSpeakers;
+  }
+}
+
 /**
  * AuditInputs (plus usersAffected) for each id that has a Tournament row; ids
  * without one are left out of the map.
@@ -244,12 +293,14 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
 export async function loadAuditInputs(tournamentIds: bigint[]): Promise<Map<bigint, LoadedAudit>> {
   const out = new Map<bigint, LoadedAudit>();
   if (tournamentIds.length === 0) return out;
-  const rows = await queryBatch(tournamentIds);
+  const batch = await queryBatch(tournamentIds);
+  const rows = batch.all;
   for (const t of rows[0]) out.set(t.id, empty(t));
   addTeamRows(out, rows[1]);
   addOutroundRows(out, rows[2]);
   addParticipants(out, rows[3], rows[4]);
   addJudges(out, rows[5], rows[6]);
   addRest(out, rows);
+  addExtra(out, batch);
   return out;
 }

@@ -20,6 +20,7 @@
   - every tournament and page URL is a clickable link to the PUBLIC tab (private keys never reach the page, its data payload, the address bar or logs);
   - "In database" cells;
   - `/admin/tournaments`: every stored tournament, 20 per page with Next, searchable by name or URL.
+- **Real-data fixes** (six properly scraped tournaments, `CHECKS_VERSION` 2026-10-31.4): rooms per round excuses a round one room short because teams withdrew; swing teams are left out of team coverage and partners; a speaker with only per-round scores (average-only tabs) counts as scored; partners adds redacted speakers, recorded by ingest from the participants list into `TeamResult.redactedSpeakers` (migration `20261031130000_team_redacted_speakers`, additive, nullable; null until a tournament is re-scraped, and then only teams with no speakers are flagged). Rollback: `ALTER TABLE "TeamResult" DROP COLUMN "redactedSpeakers"`.
 - Also: a break-only scrape run fills missing break ranks and never overwrites one stored from another category.
 - **Next PR (part 2):** failed-imports tab status (✓ / ? / ✗) and the prioritised review set; CV reports and parser warnings as paged, actionable tables; seed data and a browser check.
 - **Rollback.** Revert the merge commit, then `DROP TABLE "TournamentAudit"` and delete its `_prisma_migrations` row.

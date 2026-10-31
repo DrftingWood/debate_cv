@@ -1,6 +1,7 @@
 import type { AuditInputs } from './auditInputs';
 import {
   expectedPrelims,
+  isSwingTeam,
   isWithheld,
   listText,
   median,
@@ -70,16 +71,64 @@ function roomStatus(rooms: number, typical: number): CheckStatus {
 }
 
 /**
+ * The rooms a round should have once the teams that withdrew before it are
+ * taken out, for each round that some team withdrew before.
+ *
+ * Teams drop out late in a tournament (illness, travel), so the last round or
+ * two is often a room short with nothing lost. A team has withdrawn before
+ * round r when it played some earlier round and no round from r on: its last
+ * round is before r. The field is the teams of R1 (or, with no R1 rows, of
+ * the biggest round), and the expectation is that field less its withdrawals,
+ * in rooms. A team that sits out a round and comes back later has not
+ * withdrawn, so a room lost from the middle of the tab is still caught.
+ */
+function roomsAfterWithdrawals(inputs: AuditInputs): Map<number, number> {
+  const teams = new Map<number, Set<string>>();
+  const last = new Map<string, number>();
+  for (const r of prelimRows(inputs)) {
+    const key = teamKey(r.team);
+    teams.set(r.round, (teams.get(r.round) ?? new Set<string>()).add(key));
+    last.set(key, Math.max(last.get(key) ?? 0, r.round));
+  }
+  const biggest = [...teams.values()].reduce<Set<string>>(
+    (a, b) => (b.size > a.size ? b : a),
+    new Set<string>(),
+  );
+  const field = teams.get(1) ?? biggest;
+  const perRoom = teamsPerRoom(inputs.format, inputs.roundRows);
+  const out = new Map<number, number>();
+  for (const round of teams.keys()) {
+    const gone = [...field].filter((k) => (last.get(k) ?? 0) < round).length;
+    if (gone > 0) out.set(round, Math.ceil((field.size - gone) / perRoom));
+  }
+  return out;
+}
+
+/**
  * Rounds are compared with the median round, not with R1, because a short R1
- * (a late draw release, a missing page) is exactly what this should catch.
+ * (a late draw release, a missing page) is exactly what this should catch. A
+ * round below the median that teams withdrew before is judged instead against
+ * the rooms its remaining field fills (roomsAfterWithdrawals); a short round
+ * with no withdrawal to explain it is judged as before. Only a round that
+ * would merely warn is re-judged: a round missing more than a room, or more
+ * than a tenth of the rooms, at the end of the tab looks like withdrawals by
+ * construction, but is far likelier a results page cut short, so it fails
+ * as before.
  */
 export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
   const rooms = roomsByRound(inputs);
   if (rooms.size === 0)
     return result('rooms_consistent', 'na', 'No prelim round results are stored.');
   const typical = median([...rooms.values()]);
+  const afterWithdrawals = roomsAfterWithdrawals(inputs);
+  const statusOf = (round: number, n: number): CheckStatus => {
+    const status = roomStatus(n, typical);
+    const expected = afterWithdrawals.get(round);
+    if (status !== 'warn' || n >= typical || expected == null) return status;
+    return roomStatus(n, expected);
+  };
   const odd = [...rooms]
-    .map(([round, n]) => ({ round, n, status: roomStatus(n, typical) }))
+    .map(([round, n]) => ({ round, n, status: statusOf(round, n) }))
     .filter((o) => o.status !== 'pass');
   if (odd.length === 0) {
     return result(
@@ -102,8 +151,9 @@ export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
   );
 }
 
+/** The real teams on the team tab: swing teams are left out (isSwingTeam). */
 function teamTabKeys(inputs: AuditInputs): Set<string> {
-  return new Set(inputs.teamTab.map((t) => teamKey(t.team)));
+  return new Set(inputs.teamTab.filter((t) => !isSwingTeam(t.team)).map((t) => teamKey(t.team)));
 }
 
 export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
@@ -118,8 +168,9 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
     }
     return result('team_coverage', 'fail', 'There is no team tab.', pieces);
   }
-  // Only R1 teams that are on the tab count: a swing team in R1 is not on
-  // the tab, and counting it would hide a real team missing from the round.
+  // Only R1 teams that are on the tab count. Swing teams are left out of the
+  // tab keys (teamTabKeys), so a swing in R1 never covers for a real team
+  // missing from the round, and an unused swing on the tab is not owed a row.
   const r1 = new Set(
     prelimRows(inputs)
       .filter((r) => r.round === 1)
@@ -152,7 +203,20 @@ export function checkPartners(inputs: AuditInputs): CheckResult {
   for (const [team, n] of Object.entries(inputs.speakersByTeam)) {
     counts.set(teamKey(team), (counts.get(teamKey(team)) ?? 0) + n);
   }
-  const short = tab.filter((t) => (counts.get(t) ?? 0) < min).length;
+  const redacted = new Map<string, number | null>();
+  for (const [team, n] of Object.entries(inputs.redactedByTeam)) {
+    const prev = redacted.get(teamKey(team));
+    redacted.set(teamKey(team), n == null ? (prev ?? null) : (prev ?? 0) + n);
+  }
+  // A redacted speaker is a real member stored as no person, so a known
+  // count is added to the stored speakers. With no count (scraped before it
+  // was recorded) a team one short may be one redaction short, so only a
+  // team with no speakers at all is flagged.
+  const short = tab.filter((t) => {
+    const stored = counts.get(t) ?? 0;
+    const hidden = redacted.get(t);
+    return hidden == null ? stored === 0 : stored + hidden < min;
+  }).length;
   if (short === 0) {
     return result(
       'partners',

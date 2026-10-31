@@ -37,6 +37,12 @@ export type AuditInputs = {
   breakRows: Array<{ stage: string; team: string }>;
   /** Speakers on record per team-tab team name. */
   speakersByTeam: Record<string, number>;
+  /**
+   * Speakers per team-tab team name that the speaker tab shows as redacted
+   * (stored as no person). Null, or no entry, when never counted: every
+   * tournament scraped before the count was recorded.
+   */
+  redactedByTeam: Record<string, number | null>;
   speakerParticipants: number;
   speakersWithScores: number;
   judgeParticipants: number;
