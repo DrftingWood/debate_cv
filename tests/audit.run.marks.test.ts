@@ -35,6 +35,7 @@ type Loaded = AuditInputs & { usersAffected: number };
 const one: Loaded = {
   format: 'BP',
   prelimRoundCount: 1,
+  pagesRefreshedUnder: null,
   parserVersion: '1',
   teamTab: [],
   roundRows: [],

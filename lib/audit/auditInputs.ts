@@ -27,6 +27,8 @@ export type AuditInputs = {
   format: string | null;
   prelimRoundCount: number | null;
   parserVersion: string | null;
+  /** The parser version under which every recorded page was last refreshed (Tournament.pagesRefreshedUnder). */
+  pagesRefreshedUnder: string | null;
   /** TeamResult standings rows (roundNumber 0). */
   teamTab: Array<{ team: string; points: number | null; wins: number | null }>;
   /** TeamResult prelim rows (roundNumber ≥ 1). */

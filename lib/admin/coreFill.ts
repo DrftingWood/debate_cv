@@ -31,6 +31,8 @@ const PARTICIPANTS: PieceRef = { kind: 'participants', key: '' };
 /** Tournaments the fill still has to look at, after `after` by id. */
 export function missingCoreWhere(after: bigint | null) {
   return {
+    // Test and demo tournaments an admin set to ignored are not offered.
+    ignored: false,
     staff: { none: { role: 'core' } },
     participants: { none: { judgeTypeTag: { equals: 'core', mode: 'insensitive' as const } } },
     scrapePieces: {

@@ -48,6 +48,7 @@ beforeEach(() => {
 describe('missingCoreWhere', () => {
   it('leaves out tournaments that name a core, whose home page was read, or that withhold the list', () => {
     expect(missingCoreWhere(null)).toEqual({
+      ignored: false,
       staff: { none: { role: 'core' } },
       participants: { none: { judgeTypeTag: { equals: 'core', mode: 'insensitive' } } },
       scrapePieces: {

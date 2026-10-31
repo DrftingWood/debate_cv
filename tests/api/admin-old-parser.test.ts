@@ -5,7 +5,8 @@ const captureException = vi.fn();
 vi.mock('@sentry/nextjs', () => ({ captureException }));
 vi.mock('@/lib/admin', () => ({ requireAdmin: requireAdminMock }));
 const refreshOldParser = vi.fn();
-vi.mock('@/lib/admin/oldParserFill', () => ({ refreshOldParser }));
+const refreshTournament = vi.fn();
+vi.mock('@/lib/admin/oldParserFill', () => ({ refreshOldParser, refreshTournament }));
 
 const { POST } = await import('@/app/api/admin/old-parser/route');
 
@@ -15,6 +16,7 @@ const call = (body: unknown) =>
   );
 
 beforeEach(() => {
+  refreshTournament.mockReset();
   requireAdminMock.mockReset().mockResolvedValue('admin@example.com');
   captureException.mockReset();
   refreshOldParser.mockReset().mockResolvedValue({ refreshed: 5, failed: 1, left: 30, next: '88' });
@@ -55,9 +57,18 @@ describe('POST /api/admin/old-parser', () => {
     { refresh: true, after: '0x10' },
     { refresh: true, after: '1'.repeat(19) },
     { refresh: true, tournamentId: '5' },
-    { tournamentId: '5' },
+    { tournamentId: '0x10' },
+    { tournamentId: '5', after: '1' },
   ])('refuses a malformed body %j', async (body) => {
     expect((await call(body)).status).toBe(400);
+    expect(refreshOldParser).not.toHaveBeenCalled();
+  });
+
+  it('runs the same refresh for one tournament (the Fix) and answers its result', async () => {
+    refreshTournament.mockResolvedValue('refreshed');
+    const res = await call({ tournamentId: '5' });
+    expect(await res.json()).toEqual({ result: 'refreshed' });
+    expect(refreshTournament.mock.calls[0]![0]).toBe(5n);
     expect(refreshOldParser).not.toHaveBeenCalled();
   });
 

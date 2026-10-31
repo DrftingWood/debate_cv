@@ -25,7 +25,9 @@ export async function ToolsTab() {
     prisma.discoveredUrl
       .count({ where: { reingestLocked: true } })
       .catch(orNull('locked URL count')),
-    prisma.tournament.count({ where: { format: null } }).catch(orNull('missing format count')),
+    prisma.tournament
+      .count({ where: { format: null, ignored: false } })
+      .catch(orNull('missing format count')),
     countMissingCores().catch(orNull('missing adjudication core count')),
     countMissingYears().catch(orNull('missing year count')),
     countOldParser().catch(orNull('old-parser count')),
@@ -191,11 +193,13 @@ function RefreshOldParser({ stale }: { stale: number | null }) {
       <div>
         <h2 id="refresh-old" className="font-display text-h3 font-medium text-ink">
           Refresh old-parser tournaments
+          {stale === null ? '' : ` (${stale.toLocaleString('en-GB')})`}
         </h2>
         <p className="mt-hair max-w-prose text-body text-ink-soft">
           Reads again every page on record of tournaments stored by an older version of the parser,
-          then stamps them with the current one. Pages the tournament keeps back are not fetched,
-          and a tournament with a page that fails keeps its old stamp.
+          then records that they were refreshed. The format and the unpublished-page decisions
+          update only on the next full scrape. Pages the tournament keeps back are not fetched, and
+          a tournament with a page that fails is left for the next press.
         </p>
       </div>
       {stale === null ? (

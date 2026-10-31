@@ -22,7 +22,7 @@ export const OLD_PARSER_WORDS: BulkFillWords = {
  * Tools: "Refresh old-parser tournaments". Each press re-reads every recorded
  * page of the next 20 tournaments stored by an older parser through the
  * partial re-scrape (POST /api/admin/old-parser {refresh}); the route
- * re-stamps and re-audits what read fully. A tournament with a page that
+ * records the refresh and re-audits what read fully. A tournament with a page that
  * failed stays in the pool and the cursor moves past it.
  */
 export function RefreshOldParserButton({ stale }: { stale: number }) {

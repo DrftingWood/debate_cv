@@ -160,6 +160,7 @@ describe('suggested pages', () => {
       {
         format: null,
         prelimRoundCount: 3,
+        pagesRefreshedUnder: null,
         parserVersion: null,
         teamTab: [],
         roundRows: [],

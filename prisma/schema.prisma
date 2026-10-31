@@ -266,6 +266,12 @@ model Tournament {
   /// scores, Inbox, lists and Captured stats. It hides nothing from a user's
   /// own CV: ignoring is an admin-side view filter, never a deletion.
   ignored              Boolean  @default(false)
+  /// PARSER_VERSION under which an admin's old-parser refresh last re-read
+  /// every recorded page. Distinct from parserVersion on purpose: only a full
+  /// ingest writes that one, since a page-level refresh does not redo the
+  /// format, the unpublished-page decisions or the tournament-wide fields. The
+  /// Old parser check passes on either, with different wording.
+  pagesRefreshedUnder  String?
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]

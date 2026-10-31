@@ -39,3 +39,16 @@ describe('checkFix', () => {
     expect(fix).toEqual({ type: 'rescrape', tournamentId: '7', pieces: [R1, TEAM] });
   });
 });
+
+describe('checkFix: the old-parser finding', () => {
+  it('alone, it is fixed by the same refresh the Tools tab runs', () => {
+    expect(checkFix('7', [found('parser_stale')])).toEqual({
+      type: 'refresh_old',
+      tournamentId: '7',
+    });
+  });
+
+  it('beside another finding, the re-scrape of all their pages', () => {
+    expect(checkFix('7', [found('parser_stale'), found('champion', [R1])]).type).toBe('rescrape');
+  });
+});

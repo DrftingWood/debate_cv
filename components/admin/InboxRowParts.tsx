@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { InboxRetryButton } from '@/components/admin/InboxRetryButton';
+import { RefreshOldFixButton } from '@/components/admin/RefreshOldFixButton';
 import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
 import { TabLink } from '@/components/admin/TabLink';
 import { TabStatus } from '@/components/admin/TabStatus';
@@ -81,6 +82,9 @@ function FixButton({ row }: { row: InboxRow }) {
         pieces={fix.pieces}
       />
     );
+  }
+  if (fix.type === 'refresh_old') {
+    return <RefreshOldFixButton tournamentId={fix.tournamentId} tournamentName={row.name} />;
   }
   if (fix.type === 'retry') return <InboxRetryButton jobIds={fix.jobIds} subject={row.name} />;
   return (

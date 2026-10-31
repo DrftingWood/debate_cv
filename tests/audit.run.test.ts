@@ -33,6 +33,7 @@ function inputs(over: Partial<Loaded> = {}): Loaded {
     format: 'BP',
     prelimRoundCount: 1,
     parserVersion: PARSER_VERSION,
+    pagesRefreshedUnder: null,
     teamTab: [],
     roundRows: [],
     outrounds: [],

@@ -9,7 +9,7 @@ vi.mock('@/lib/audit/run', () => ({ runAudit }));
 vi.mock('@sentry/nextjs', () => ({ captureException }));
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
-import { oldParserWhere, refreshOldParser } from '@/lib/admin/oldParserFill';
+import { oldParserWhere, refreshOldParser, refreshOne } from '@/lib/admin/oldParserFill';
 import { OLD_PARSER_BATCH_SIZE, oldParserSummary } from '@/lib/admin/oldParserText';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
 import type { PartialResult, rescrapePieces } from '@/lib/calicotab/partialScrape';
@@ -29,7 +29,7 @@ beforeEach(() => {
   runAudit.mockReset().mockResolvedValue(undefined);
   captureException.mockReset();
   prismaMock.tournament.count.mockResolvedValue(0);
-  prismaMock.tournament.updateMany.mockResolvedValue({ count: 1 });
+  prismaMock.tournament.update.mockResolvedValue({});
   prismaMock.scrapePiece.findMany.mockResolvedValue([
     { kind: 'team', key: '' },
     { kind: 'round', key: '1' },
@@ -41,6 +41,7 @@ describe('oldParserWhere', () => {
     expect(oldParserWhere(null)).toEqual({
       ignored: false,
       parserVersion: { lt: PARSER_VERSION },
+      OR: [{ pagesRefreshedUnder: null }, { pagesRefreshedUnder: { not: PARSER_VERSION } }],
       scrapePieces: { some: { status: { not: 'withheld' } } },
     });
     expect(oldParserWhere(5n)).toMatchObject({ id: { gt: 5n } });
@@ -48,7 +49,7 @@ describe('oldParserWhere', () => {
 });
 
 describe('refreshOldParser', () => {
-  it('re-reads every recorded page and re-stamps what loaded fully', async () => {
+  it('re-reads every recorded page and records the refresh for what loaded fully', async () => {
     prismaMock.tournament.findMany.mockResolvedValue([{ id: 1n }, { id: 2n }]);
     const rescrape = vi
       .fn()
@@ -65,13 +66,35 @@ describe('refreshOldParser', () => {
       expect.anything(),
     );
     expect(out).toEqual({ refreshed: 1, failed: 1, left: 3, next: '2' });
-    // Only the fully read tournament is re-stamped, guarded against a newer stamp.
-    expect(prismaMock.tournament.updateMany).toHaveBeenCalledTimes(1);
-    expect(prismaMock.tournament.updateMany).toHaveBeenCalledWith({
-      where: { id: 1n, parserVersion: { lt: PARSER_VERSION } },
-      data: { parserVersion: PARSER_VERSION },
+    // Only the fully read tournament records the refresh, and never the
+    // full-ingest stamp (parserVersion).
+    expect(prismaMock.tournament.update).toHaveBeenCalledTimes(1);
+    expect(prismaMock.tournament.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { pagesRefreshedUnder: PARSER_VERSION },
     });
+    expect(prismaMock.tournament.updateMany).not.toHaveBeenCalled();
     expect(runAudit).toHaveBeenCalledWith([1n, 2n]);
+  });
+});
+
+describe('refreshOne: when the refresh is recorded (ruling 18)', () => {
+  const partial = (over: Partial<PartialResult>): PartialResult => ({ ...done(), ...over });
+  const run = (r: PartialResult) =>
+    refreshOne(1n, { rescrape: vi.fn().mockResolvedValue(r) as typeof rescrapePieces });
+
+  it('records it when something loaded and nothing failed or left the nav', async () => {
+    expect(await run(partial({}))).toBe('refreshed');
+    expect(prismaMock.tournament.update).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['nothing loaded (a gone landing page reports no failure)', { loaded: [] }],
+    ['a page failed', { failed: [{ kind: 'round' as const, key: '1' }] }],
+    ['a piece left the nav', { notOnTab: [{ kind: 'break' as const, key: 'open' }] }],
+  ])('writes nothing when %s', async (_why, over) => {
+    expect(await run(partial(over))).toBe('failed');
+    expect(prismaMock.tournament.update).not.toHaveBeenCalled();
   });
 });
 
@@ -99,7 +122,7 @@ describe('refreshOldParser: bounds and failures', () => {
     const out = await refreshOldParser(null, { rescrape: rescrape as typeof rescrapePieces });
     expect(out.failed).toBe(2);
     expect(captureException).toHaveBeenCalledTimes(1);
-    expect(prismaMock.tournament.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.tournament.update).not.toHaveBeenCalled();
   });
 
   it('stops starting tournaments when the deadline is near, and resumes after the last one tried', async () => {

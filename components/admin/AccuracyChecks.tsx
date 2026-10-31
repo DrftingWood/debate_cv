@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatusPill, type Status } from '@/components/ui/StatusPill';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
 import { CheckActions, CheckActionsProvider } from '@/components/admin/CheckActions';
+import { RefreshOldFixButton } from '@/components/admin/RefreshOldFixButton';
 import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
@@ -138,15 +139,7 @@ function CheckRow({
           </a>
         </p>
       ))}
-      {/* The missing format has a fix of its own, read from the stored rounds;
-          the pages above are what it falls back to when they cannot decide. */}
-      {c.code === 'format_missing' && c.status === 'fail' ? (
-        <InferFormatButton
-          tournamentId={tournamentId}
-          tournamentName={tournamentName}
-          pieces={c.pieces}
-        />
-      ) : null}
+      <CheckFix c={c} tournamentId={tournamentId} tournamentName={tournamentName} />
       <CheckActions
         tournamentName={tournamentName}
         label={c.label}
@@ -156,6 +149,35 @@ function CheckRow({
       />
     </li>
   );
+}
+
+/**
+ * A check's own fix, where it has one. The missing format is read from the
+ * stored rounds (the pages above are what it falls back to when they cannot
+ * decide); the old-parser finding has the Tools tab's refresh.
+ */
+function CheckFix({
+  c,
+  tournamentId,
+  tournamentName,
+}: {
+  c: TournamentAccuracy['checks'][number];
+  tournamentId: string;
+  tournamentName: string;
+}) {
+  if (c.code === 'format_missing' && c.status === 'fail') {
+    return (
+      <InferFormatButton
+        tournamentId={tournamentId}
+        tournamentName={tournamentName}
+        pieces={c.pieces}
+      />
+    );
+  }
+  if (c.code === 'parser_stale' && c.status === 'warn') {
+    return <RefreshOldFixButton tournamentId={tournamentId} tournamentName={tournamentName} />;
+  }
+  return null;
 }
 
 /** Words, not colour, for an audit that is out of date or has no rows. */

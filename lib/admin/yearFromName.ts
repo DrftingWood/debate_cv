@@ -12,9 +12,12 @@
  * often named for the season it opens.
  *
  * Refused, so the answer is null:
- *   - a count rather than a year: "Round 16", "Top 24", "U19", "Under 18",
- *     "16 teams", "24th" (the number sits after round/top/rd/r/under/u, or
- *     before teams/rounds/speakers/judges/st/nd/rd/th);
+ *   - a count rather than a year: "Round 16", "Top-16", "R-16", "U19",
+ *     "Division 20", "Level 18", "Week 24", "16 teams", "24 Hour Debate",
+ *     "20 Years of X", "24h", "24th" (the number sits after a count word, or
+ *     before one; see COUNT_BEFORE and COUNT_AFTER);
+ *   - a two-digit number that is not placed like a year: it must be the last
+ *     token of the name or follow a name word (see shortYearPlaced);
  *   - a number inside a longer figure, a decimal or a time ("2024001",
  *     "1.24", "10:24");
  *   - a season that spans years ("IV 2019-20", "2019/2020", "2019-2020"):
@@ -28,12 +31,20 @@
 const FIRST_SHORT_YEAR = 15;
 const FIRST_FULL_YEAR = 2000;
 
-/** Words that make the number after them a count ("Round 16", "Top 32", "U19"). */
+/**
+ * Words that make the number after them a count ("Round 16", "Top-16", "R-16",
+ * "Under-18", "U19", "Division 20", "Level 18", "Week 24"). Any run of space,
+ * '#', '_' or '-' may sit between the word and the number. A one-letter word
+ * counts only when it stands alone, so "ERR 26" is not "R 26".
+ */
 const COUNT_BEFORE =
-  /(?:^|[^a-z])(?:round|rounds|rd|r|top|under|u|ro|group|pool|room|day|pt|part)\s*#?$/i;
-/** Words that make the number before them a count ("16 teams", "24th"). */
+  /(?:^|[^a-z])(?:rounds?|rd|ro|r|top|under|u|division|div|level|week|session|grade|day|hours?|h|years?|teams?|speakers?|rooms?|group|pool|part|pt)[\s#_-]*$/i;
+/**
+ * Words that make the number before them a count ("16 teams", "24 Hour
+ * Debate", "20 Years of X", "24h"), and ordinal endings glued to it ("21st").
+ */
 const COUNT_AFTER =
-  /^\s*(?:teams?|rounds?|speakers?|judges?|adjs?|rooms?|st\b|nd\b|rd\b|th\b|%|min)/i;
+  /^(?:[\s_-]*(?:teams?|rounds?|speakers?|judges?|adjs?|rooms?|hours?|h\b|days?|years?|yrs?|%|min)|(?:st|nd|rd|th)\b)/i;
 
 type Hit = { value: number; start: number; end: number };
 
@@ -60,6 +71,17 @@ function insideOtherFigure(name: string, hit: Hit): boolean {
   return before === ':' || after === ':';
 }
 
+/**
+ * Where a two-digit year may stand. Four digits say "year" by themselves; two
+ * do not, so the number must be the name's last token, or follow a name word
+ * ("Preworlds24", "ERR 26", "Vienna IV 24", "Open 25", "Nationals '25"). A
+ * number that starts the name, or follows another number, is not placed.
+ */
+function shortYearPlaced(name: string, hit: Hit): boolean {
+  if (/^[\s)\]'’.!?]*$/.test(name.slice(hit.end))) return true;
+  return /[a-z][\s'’_-]*$/i.test(name.slice(0, hit.start));
+}
+
 /** The year a run stands for, or null when it is out of range or reads as a count. */
 function yearOf(name: string, hit: Hit, maxYear: number): number | null {
   const four = hit.end - hit.start === 4;
@@ -67,6 +89,7 @@ function yearOf(name: string, hit: Hit, maxYear: number): number | null {
   const low = four ? FIRST_FULL_YEAR : 2000 + FIRST_SHORT_YEAR;
   if (year < low || year > maxYear) return null;
   if (insideOtherFigure(name, hit)) return null;
+  if (!four && !shortYearPlaced(name, hit)) return null;
   if (COUNT_BEFORE.test(name.slice(0, hit.start))) return null;
   if (COUNT_AFTER.test(name.slice(hit.end))) return null;
   return year;

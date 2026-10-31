@@ -4,6 +4,7 @@ import { CHECK_LABELS, publicPieceUrl } from '@/lib/audit/types';
 import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
 import { parseChecks, type ParsedCheck } from '@/lib/admin/accuracy';
 import { checkFix } from '@/lib/admin/inboxFix';
+import { withoutIgnoredParserGroups, withoutIgnoredReports } from '@/lib/admin/inboxIgnored';
 import { clampPage } from '@/lib/admin/cvReportTypes';
 import { classifyWarning, isPlainProblem } from '@/lib/admin/parserClass';
 import { loadWarningGroups, tournamentsOf, type WarningGroup } from '@/lib/admin/parserWarnings';
@@ -232,7 +233,8 @@ async function openReports() {
       return { r, fingerprint, state: markState(marks.get(r.id), fingerprint) };
     })
     .filter((x) => x.state !== 'covered');
-  return open;
+  // Reports about ignored (test or demo) tournaments only raise nothing.
+  return withoutIgnoredReports(open);
 }
 
 async function reportDrafts(): Promise<Draft[]> {
@@ -482,7 +484,8 @@ export async function allParserGroups(now: Date): Promise<ParserGroupState[]> {
 
 /** Problem warning groups no matching mark covers; shared by the list and the count. */
 export async function openParserGroups(now: Date) {
-  return (await allParserGroups(now)).filter((x) => x.state !== 'covered');
+  const open = (await allParserGroups(now)).filter((x) => x.state !== 'covered');
+  return withoutIgnoredParserGroups(open);
 }
 
 async function parserDrafts(now: Date): Promise<Draft[]> {

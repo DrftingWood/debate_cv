@@ -218,13 +218,13 @@ describe('fillMissingBatch', () => {
     db.tournament.count.mockResolvedValue(4);
     const out = await fillMissingBatch(5n);
     expect(db.tournament.findMany.mock.calls[0]![0]).toMatchObject({
-      where: { format: null, id: { gt: 5n } },
+      where: { format: null, ignored: false, id: { gt: 5n } },
       orderBy: { id: 'asc' },
       take: FILL_BATCH,
     });
     expect(out).toEqual({ filled: 1, undecided: 1, left: 4, next: '9' });
     expect(db.tournament.count).toHaveBeenCalledWith({
-      where: { format: null, id: { gt: 9n } },
+      where: { format: null, ignored: false, id: { gt: 9n } },
     });
   });
 

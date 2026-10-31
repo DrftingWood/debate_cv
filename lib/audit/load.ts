@@ -36,11 +36,13 @@ function empty(t: {
   format: string | null;
   prelimRoundCount: number | null;
   parserVersion: string | null;
+  pagesRefreshedUnder: string | null;
 }): LoadedAudit {
   return {
     format: t.format,
     prelimRoundCount: t.prelimRoundCount,
     parserVersion: t.parserVersion,
+    pagesRefreshedUnder: t.pagesRefreshedUnder,
     teamTab: [],
     roundRows: [],
     outrounds: [],
@@ -66,7 +68,13 @@ function queryRows(ids: bigint[]) {
   return Promise.all([
     prisma.tournament.findMany({
       where: { id: tournamentId },
-      select: { id: true, format: true, prelimRoundCount: true, parserVersion: true },
+      select: {
+        id: true,
+        format: true,
+        prelimRoundCount: true,
+        parserVersion: true,
+        pagesRefreshedUnder: true,
+      },
     }),
     // Round 0 is the team tab; rounds ≥ 1 are prelims. Null rounds (none are
     // written today) would be neither, so they are left in the database.

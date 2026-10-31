@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHECKS_VERSION } from '@/lib/audit/checks';
 import { CHECK_LABELS, CHECK_WEIGHTS } from '@/lib/audit/types';
-import { bpRows, check, inputs, keys, marked, piece, stage } from './fixtures/auditInputs';
+import { PARSER, bpRows, check, inputs, keys, marked, piece, stage } from './fixtures/auditInputs';
 
 // R12: data gaps the partial scrape can close. Motions and the speaker tab
 // extend the existing checks (their suggested piece was already there); the
@@ -51,7 +51,7 @@ describe('break_unstored', () => {
     const c = check(
       inputs({
         pieces: [open, esl],
-        outrounds: final,
+        outrounds: [...final, ...stage('ESL Grand Final', ['C', 'D'], 1)],
         breakRows: [{ stage: 'Open', team: 'A' }],
       }),
       'break_unstored',
@@ -70,15 +70,37 @@ describe('break_unstored', () => {
   });
 });
 
-describe('motions (extended)', () => {
-  it('warns when a linked motions page left no motion and the prelim count is unknown', () => {
+describe('break_unstored per bracket', () => {
+  it('is na for an empty Novice page beside stored Open outrounds', () => {
+    const novice = piece('break', 'novice', 'Break: Novice');
     const c = check(
-      inputs({ prelimRoundCount: null, pieces: [piece('motions', '', 'Motions')] }),
-      'motions',
+      inputs({
+        pieces: [piece('break', 'open', 'Break: Open'), novice],
+        outrounds: final,
+        breakRows: [{ stage: 'Open', team: 'A' }],
+      }),
+      'break_unstored',
     );
+    expect(c.status).toBe('pass');
+    const only = check(inputs({ pieces: [novice], outrounds: final }), 'break_unstored');
+    expect(only.status).toBe('na');
+    expect(only.pieces).toEqual([]);
+  });
+});
+
+describe('motions (extended)', () => {
+  const failedMotions = [marked(piece('motions', '', 'Motions'), 'failed')];
+
+  it('warns when a linked motions page never loaded and the prelim count is unknown', () => {
+    const c = check(inputs({ prelimRoundCount: null, pieces: failedMotions }), 'motions');
     expect(c.status).toBe('warn');
     expect(c.detail).toBe('A motions page is linked but no motion is on record.');
     expect(keys(c)).toEqual(['motions:']);
+  });
+
+  it('stays na for a motions page that loaded ok and is legitimately empty', () => {
+    const ok = [piece('motions', '', 'Motions')];
+    expect(check(inputs({ prelimRoundCount: null, pieces: ok }), 'motions').status).toBe('na');
   });
 
   it('stays na when no motions page is linked and the count is unknown', () => {
@@ -98,14 +120,17 @@ describe('motions (extended)', () => {
 describe('speaker_tab (extended)', () => {
   const team = { roundRows: bpRows([4]) };
 
-  it('warns when a linked speaker tab left no speaker though teams are stored', () => {
-    const c = check(
-      inputs({ ...team, pieces: [piece('speaker', '', 'Speaker tab')] }),
-      'speaker_tab',
-    );
+  it('warns when a linked speaker tab never loaded though teams are stored', () => {
+    const failed = [marked(piece('speaker', '', 'Speaker tab'), 'failed')];
+    const c = check(inputs({ ...team, pieces: failed }), 'speaker_tab');
     expect(c.status).toBe('warn');
     expect(c.detail).toBe('The speaker tab is linked but no speakers are on record.');
     expect(keys(c)).toEqual(['speaker:']);
+  });
+
+  it('stays na for a speaker tab that loaded ok and holds nobody', () => {
+    const ok = [piece('speaker', '', 'Speaker tab')];
+    expect(check(inputs({ ...team, pieces: ok }), 'speaker_tab').status).toBe('na');
   });
 
   it('stays na with no speaker page, or with nothing else stored', () => {
@@ -132,6 +157,24 @@ describe('parser_stale (extended)', () => {
     const c = check(inputs({ parserVersion: '20260101.0', pieces: recorded }), 'parser_stale');
     expect(c.status).toBe('warn');
     expect(keys(c)).toEqual(['team:', 'round:1']);
+  });
+
+  it('passes, with its own words, when the pages were refreshed under the current parser', () => {
+    const c = check(
+      inputs({ parserVersion: '20260101.0', pagesRefreshedUnder: PARSER, pieces: recorded }),
+      'parser_stale',
+    );
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe(
+      'Pages refreshed under the current parser; format and unpublished pages update on the next full scrape.',
+    );
+    expect(c.pieces).toEqual([]);
+  });
+
+  it('warns when the refresh was under an older parser or never happened', () => {
+    const old = inputs({ parserVersion: '20260101.0', pagesRefreshedUnder: '20260102.0' });
+    expect(check(old, 'parser_stale').status).toBe('warn');
+    expect(check(inputs({ parserVersion: null }), 'parser_stale').status).toBe('warn');
   });
 
   it('suggests nothing when the parser is current', () => {

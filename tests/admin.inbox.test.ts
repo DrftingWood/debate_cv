@@ -25,6 +25,11 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
+// The ignored-tournament filter has its own tests (admin.inbox.ignored.test.ts).
+vi.mock('@/lib/admin/inboxIgnored', () => ({
+  withoutIgnoredReports: async <T>(x: T[]) => x,
+  withoutIgnoredParserGroups: async <T>(x: T[]) => x,
+}));
 vi.mock('@/lib/admin/adminChecks', async (orig) => ({
   ...(await orig<typeof import('@/lib/admin/adminChecks')>()),
   marksFor: async (kind: string, subjects: string[]) =>

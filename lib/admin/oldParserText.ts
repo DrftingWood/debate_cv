@@ -9,9 +9,9 @@ export const OLD_PARSER_BATCH_SIZE = 20;
 
 /** POST /api/admin/old-parser { refresh: true }: one batch. */
 export type OldParserResponse = {
-  /** Every recorded page re-read; the tournament is now stamped with the current parser. */
+  /** Every recorded page re-read; the refresh is recorded (pagesRefreshedUnder). */
   refreshed: number;
-  /** A page could not be read or stored; the tournament keeps its old stamp and stays in the pool. */
+  /** A page could not be read or stored; the refresh is not recorded and the tournament stays in the pool. */
   failed: number;
   /** Tournaments still to go past this batch's last id. */
   left: number;

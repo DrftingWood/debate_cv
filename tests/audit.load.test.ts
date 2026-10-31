@@ -27,8 +27,14 @@ const dec = (n: number) => ({ toNumber: () => n, toString: () => String(n) });
 
 function seedRows() {
   db.tournament.findMany.mockResolvedValue([
-    { id: 1n, format: 'BP', prelimRoundCount: 2, parserVersion: 'v9' },
-    { id: 2n, format: null, prelimRoundCount: null, parserVersion: null },
+    { id: 1n, format: 'BP', prelimRoundCount: 2, parserVersion: 'v9', pagesRefreshedUnder: null },
+    {
+      id: 2n,
+      format: null,
+      prelimRoundCount: null,
+      parserVersion: null,
+      pagesRefreshedUnder: null,
+    },
   ]);
   db.teamResult.findMany.mockResolvedValue([
     {
@@ -146,6 +152,7 @@ const TOURNAMENT_1 = {
   format: 'BP',
   prelimRoundCount: 2,
   parserVersion: 'v9',
+  pagesRefreshedUnder: null,
   teamTab: [{ team: 'Oxford A', points: 5, wins: null }],
   roundRows: [
     { team: 'Oxford A', round: 1, points: 3, wins: null, position: 'OG' },

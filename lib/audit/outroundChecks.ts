@@ -314,18 +314,25 @@ export function checkBreakUnstored(inputs: AuditInputs): CheckResult {
   if (linked.length === 0) {
     return result('break_unstored', 'na', 'No team break page is linked.');
   }
-  const debated =
-    inputs.outrounds.length > 0 ||
-    inputs.pieces.some((p) => outroundRoundPieces([p]).length > 0 && p.status === 'ok');
-  if (!debated) {
+  // Per bracket: a break page counts only against outrounds debated in its
+  // own bracket, so an empty Novice page beside stored Open outrounds is not
+  // a gap (it may simply not be out).
+  const debated = new Set([
+    ...inputs.outrounds.map((o) => bracketOfLabel(o.stage)),
+    ...outroundRoundPieces(inputs.pieces)
+      .filter((p) => p.status === 'ok')
+      .map((p) => bracketOfLabel(p.label)),
+  ]);
+  const candidates = linked.filter((p) => debated.has(p.key));
+  if (candidates.length === 0) {
     return result(
       'break_unstored',
       'na',
-      'No outrounds are stored, so the break may not be out yet.',
+      'No outrounds are stored for a linked break, so the break may not be out yet.',
     );
   }
   const stored = new Set(inputs.breakRows.map((r) => bracketOfBreak(r.stage)));
-  const missing = linked.filter((p) => !stored.has(p.key));
+  const missing = candidates.filter((p) => !stored.has(p.key));
   if (missing.length === 0) {
     return result('break_unstored', 'pass', 'Every linked break page has its teams stored.');
   }

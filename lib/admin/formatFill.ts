@@ -188,7 +188,7 @@ export type BatchOutcome = {
  * would meet it again forever; the cursor moves past it instead.
  */
 export async function fillMissingBatch(after: bigint | null): Promise<BatchOutcome> {
-  const missing = { format: null, ...(after != null ? { id: { gt: after } } : {}) };
+  const missing = { format: null, ignored: false, ...(after != null ? { id: { gt: after } } : {}) };
   const batch = await prisma.tournament.findMany({
     where: missing,
     orderBy: { id: 'asc' },
@@ -198,7 +198,9 @@ export async function fillMissingBatch(after: bigint | null): Promise<BatchOutco
   const last = batch.at(-1);
   if (!last) return { filled: 0, undecided: 0, left: 0, next: null };
   const outcome = await fillFormats(batch.map((b) => b.id));
-  const left = await prisma.tournament.count({ where: { format: null, id: { gt: last.id } } });
+  const left = await prisma.tournament.count({
+    where: { format: null, ignored: false, id: { gt: last.id } },
+  });
   return {
     filled: outcome.filled.length,
     undecided: outcome.undecided.length,

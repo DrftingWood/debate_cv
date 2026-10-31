@@ -11,6 +11,7 @@ export function inputs(over: Partial<AuditInputs> = {}): AuditInputs {
     format: 'British Parliamentary',
     prelimRoundCount: 3,
     parserVersion: PARSER,
+    pagesRefreshedUnder: null,
     teamTab: [],
     roundRows: [],
     outrounds: [],

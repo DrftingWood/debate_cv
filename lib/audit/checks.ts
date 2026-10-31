@@ -47,13 +47,14 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
 export const CHECKS_VERSION = '2026-10-31.9';
 
 /**
- * No speakers on record. That is na unless the speaker tab is linked (a piece
- * that is not withheld) and the tournament's teams or rounds are stored, which
- * is a tab we should have read: only a warning, since a tab can list everyone
- * as redacted, and the fix is the speaker tab again.
+ * No speakers on record. That is na unless the speaker tab is linked but never
+ * loaded (a failed piece) and the tournament's teams or rounds are stored. A
+ * speaker tab that loaded ok and holds nobody is a properly scraped one (every
+ * speaker redacted, say) and is never highlighted; only a warning even so, and
+ * the fix is the speaker tab again.
  */
 function speakersUnstored(inputs: AuditInputs): CheckResult {
-  const linked = inputs.pieces.find((p) => p.kind === 'speaker' && p.status !== 'withheld');
+  const linked = inputs.pieces.find((p) => p.kind === 'speaker' && p.status === 'failed');
   const stored = inputs.teamTab.length > 0 || inputs.roundRows.length > 0;
   if (!linked || !stored) return result('speaker_tab', 'na', 'No speakers are on record.');
   return result('speaker_tab', 'warn', 'The speaker tab is linked but no speakers are on record.', [
@@ -90,7 +91,7 @@ function checkMotions(inputs: AuditInputs): CheckResult {
   if (expected.length === 0) {
     // Without a round count there is no list of rounds to compare, but a
     // linked motions page that left nothing stored is still a gap.
-    const linked = inputs.pieces.find((p) => p.kind === 'motions' && p.status !== 'withheld');
+    const linked = inputs.pieces.find((p) => p.kind === 'motions' && p.status === 'failed');
     if (linked && inputs.motionRounds.length === 0) {
       return result('motions', 'warn', 'A motions page is linked but no motion is on record.', [
         suggest(linked),
@@ -134,6 +135,15 @@ function checkScrapeIncomplete(inputs: AuditInputs): CheckResult {
 function checkParserStale(inputs: AuditInputs, current: string): CheckResult {
   const { parserVersion } = inputs;
   const readable = inputs.pieces.filter((p) => p.status !== 'withheld').map(suggest);
+  if (parserVersion !== current && inputs.pagesRefreshedUnder === current) {
+    // Ruling 18: a refresh re-read the pages, but only a full scrape redoes
+    // the rest, so the wording says what is and is not current.
+    return result(
+      'parser_stale',
+      'pass',
+      'Pages refreshed under the current parser; format and unpublished pages update on the next full scrape.',
+    );
+  }
   if (parserVersion === current) {
     return result('parser_stale', 'pass', 'Scraped with the current parser.');
   }
