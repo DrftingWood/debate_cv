@@ -107,7 +107,10 @@ function finalsOf(stages: Stage[]): Stage[] {
     const key = `${s.bracket}:${tierRank(s.label)}`;
     byBracket.set(key, [...(byBracket.get(key) ?? []), s]);
   }
-  return [...byBracket.values()].map((list) => deepest(list)!);
+  return [...byBracket.values()].flatMap((list) => {
+    const best = deepest(list);
+    return best ? [best] : [];
+  });
 }
 
 /**
