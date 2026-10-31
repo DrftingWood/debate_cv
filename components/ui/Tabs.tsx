@@ -54,6 +54,7 @@ export function Tabs({
   phoneSelect = false,
   selectLabel = 'Section',
   prominent = false,
+  onSelect,
   className,
 }: {
   /** Accessible name of the tab list ("Statistics by role"). */
@@ -70,17 +71,35 @@ export function Tabs({
   selectLabel?: string;
   /** The top level of a nested set: larger, so the levels read as a hierarchy. */
   prominent?: boolean;
+  /**
+   * For a page whose panels are read per tab on the server (/admin): the
+   * caller moves the address itself (a navigation that fetches the new
+   * panel), so Tabs does not replaceState. Without it every panel is
+   * already rendered and the switch is local.
+   */
+  onSelect?: (value: string) => void;
   className?: string;
 }) {
   const fallback = items[0]?.value ?? '';
-  const [value, setValue] = useState(
-    items.some((i) => i.value === initialValue) ? (initialValue as string) : fallback,
-  );
+  const startValue = items.some((i) => i.value === initialValue)
+    ? (initialValue as string)
+    : fallback;
+  const [value, setValue] = useState(startValue);
   // Panels are built the first time they are shown and kept after (owner
   // review 2026-10-29: hidden panels were most of the Record's 12,375 DOM
   // nodes). Printing builds them all, because Print to PDF prints every tab.
   const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set([value]));
   const printing = usePrinting();
+  // A server that reads the panels per tab hands a new starting tab when a
+  // link elsewhere on the page (the summary line) changes the address. State
+  // adjusted during render, not in an effect, so the new tab never paints
+  // after the old one; the tab buttons keep their focus.
+  const [seenStart, setSeenStart] = useState(startValue);
+  if (startValue !== seenStart) {
+    setSeenStart(startValue);
+    setValue(startValue);
+    setVisited((v) => (v.has(startValue) ? v : new Set([...v, startValue])));
+  }
   const id = useId();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const tabId = (v: string) => `${id}-tab-${v}`;
@@ -90,6 +109,10 @@ export function Tabs({
   const select = (next: string) => {
     setValue(next);
     setVisited((v) => (v.has(next) ? v : new Set([...v, next])));
+    if (onSelect) {
+      onSelect(next);
+      return;
+    }
     window.history.replaceState(
       window.history.state,
       '',

@@ -18,6 +18,11 @@ const h = vi.hoisted(() => ({ accuracy: null as unknown, health: null as unknown
 vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' })) }));
 vi.mock('@/lib/admin/accuracy', () => ({ getAccuracyOverview: vi.fn(async () => h.accuracy) }));
 vi.mock('@/lib/admin/scrapeHealth', () => ({ getScrapeHealth: vi.fn(async () => h.health) }));
+// The shell's summary line has its own suite (admin.shell.render.test.ts).
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
@@ -161,8 +166,20 @@ const empty: AccuracyOverview = {
 async function renderPage(accuracy: AccuracyOverview): Promise<string> {
   h.accuracy = accuracy;
   h.health = health;
+  return renderTabs(['tournaments', 'imports']);
+}
+
+/**
+ * The tabs this suite reads, rendered one after another: each tab is its own
+ * request now, and these checks are about the sections, not the strip.
+ */
+async function renderTabs(tabs: string[]): Promise<string> {
   const { default: AdminPage } = await import('@/app/(app)/admin/page');
-  return renderToStaticMarkup(await AdminPage());
+  const out: string[] = [];
+  for (const tab of tabs) {
+    out.push(renderToStaticMarkup(await AdminPage({ searchParams: Promise.resolve({ tab }) })));
+  }
+  return out.join('\n');
 }
 
 const hrefs = (html: string) => [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]!);
@@ -262,14 +279,15 @@ describe('tournament URLs are public links (owner, 2026-10-31)', () => {
     expect(all.filter((u) => u.toLowerCase().includes('privateurls'))).toEqual([]);
   });
 
-  it('failed imports and partly loaded rows link the public tab', async () => {
+  it('failed imports and accuracy rows link the public tab', async () => {
     const out = await renderPage(overview);
     // Failed imports: the short URL is the link text.
     expect(out).toMatch(
       /<a href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/" target="_blank" rel="noopener noreferrer" aria-label="oxiv\.calicotab\.com\/oxiv2025\/…, opens in a new tab"/,
     );
-    // Partly loaded: a Tab link beside the name.
-    expect(out.match(/aria-label="Tab of Oxford IV 2025, opens in a new tab"/g)).toHaveLength(2);
+    // The accuracy ledger's row: a Tab link beside the name. (The partly
+    // loaded table is no longer on the page; its tournaments reach the Inbox.)
+    expect(out.match(/aria-label="Tab of Oxford IV 2025, opens in a new tab"/g)).toHaveLength(1);
     expect(out).not.toContain('abc123');
   });
 });

@@ -33,6 +33,11 @@ vi.mock('@/lib/admin/accuracy', () => ({
     openQuestions: [],
   })),
 }));
+// The shell's summary line has its own suite (admin.shell.render.test.ts).
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
@@ -149,8 +154,20 @@ const empty: ScrapeHealth = {
 
 async function renderPage(data: ScrapeHealth): Promise<string> {
   health.current = data;
+  return renderTabs(['tournaments', 'imports', 'review', 'tools']);
+}
+
+/**
+ * The tabs this suite reads, rendered one after another: each tab is its own
+ * request now, and these checks are about the sections, not the strip.
+ */
+async function renderTabs(tabs: string[]): Promise<string> {
   const { default: AdminPage } = await import('@/app/(app)/admin/page');
-  return renderToStaticMarkup(await AdminPage());
+  const out: string[] = [];
+  for (const tab of tabs) {
+    out.push(renderToStaticMarkup(await AdminPage({ searchParams: Promise.resolve({ tab }) })));
+  }
+  return out.join('\n');
 }
 
 describe('admin overview', () => {
@@ -158,19 +175,15 @@ describe('admin overview', () => {
     health.current = null;
   });
 
-  it('shows scrape health with a row per partly loaded tournament', async () => {
+  // Owner, 2026-10-31: the section said "Every tracked tournament loaded in
+  // full", which is not news; partly loaded tournaments reach the Inbox as
+  // checks instead.
+  it('no longer renders the Scrape health section or the state tiles', async () => {
     const out = await renderPage(full);
-    expect(out).toMatch(/<h2[^>]*>Scrape health<\/h2>/);
-    expect(out).toContain('Partly loaded tournaments');
-    expect(out).toContain('href="/admin/tournaments/5"');
-    expect(out).toMatch(/<button[^>]*aria-label="Retry failed[^"]*Oxford IV 2025[^"]*"/);
-    expect(out).toContain('Needs you');
-    // The bars name the kinds in words and the total states its sample.
-    expect(out).toContain('Speaker tab');
-    expect(out).toContain('4 failing pieces across 2 tournaments');
-    expect(out).toMatch(
-      /Retries due now: <[^>]+>1<.*Waiting for an admin \(5 failures\): <[^>]+>2</,
-    );
+    expect(out).not.toContain('Scrape health');
+    expect(out).not.toContain('Partly loaded tournaments');
+    expect(out).not.toContain('Current state');
+    expect(out).not.toContain('of 9 tracked');
   });
 
   // Final review of PR #265: an unguarded accuracy read took all of /admin down.
@@ -179,17 +192,10 @@ describe('admin overview', () => {
     vi.mocked(mod.getAccuracyOverview).mockRejectedValueOnce(new Error('db down'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const out = await renderPage(full);
-    expect(out).toContain('Scrape health');
+    expect(out).toContain('Failed imports');
     expect(out).toContain('Couldn&#x27;t load the accuracy overview');
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
-  });
-
-  it('turns the current state into tiles, with partly loaded and failed jobs', async () => {
-    const out = await renderPage(full);
-    expect(out).toContain('Partly loaded');
-    expect(out).toContain('of 9 tracked');
-    expect(out).toContain('Failed jobs');
   });
 
   it('lists failed imports in words, never the raw error', async () => {
@@ -204,18 +210,8 @@ describe('admin overview', () => {
     expect(out).toMatch(/aria-label="Select [^"]*oxiv\.calicotab\.com[^"]*"/);
   });
 
-  // Final review (2026-10-31): withheld pages are not failing; they get a
-  // line of their own and no place in the failing counts.
-  it('counts withheld pages apart, and only when there are some', async () => {
-    expect(await renderPage(full)).not.toContain('Withheld by the tournament');
-    const out = await renderPage({ ...empty, withheld: 3 });
-    expect(out).toContain('Every tracked tournament loaded in full');
-    expect(out).toMatch(/Withheld by the tournament: <[^>]+>3<[^>]+> pages, not retried/);
-  });
-
   it('states both empty states when nothing is failing', async () => {
     const out = await renderPage(empty);
-    expect(out).toContain('Every tracked tournament loaded in full');
     expect(out).toContain('No failed imports');
     expect(out).not.toContain('Retry selected');
   });
@@ -242,7 +238,7 @@ describe('admin overview: is it in the database? (Task 5b)', () => {
 
   it('links every tournament and offers the lookup, which posts its text', async () => {
     const out = await renderPage(full);
-    expect(out).toMatch(/href="\/admin\/tournaments"[^>]*>All tournaments →</);
+    expect(out).not.toContain('All tournaments');
     expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
     expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
     expect(out).toContain('>Look up<');

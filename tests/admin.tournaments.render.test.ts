@@ -7,8 +7,9 @@ import type { TournamentList } from '@/lib/admin/tournamentList';
 // compiles them with the classic one.
 (globalThis as { React?: typeof React }).React = React;
 
-// Server-render checks for /admin/tournaments (Task 5b): the pager, the two
-// empty states, a URL search, and that a pasted private URL is never echoed.
+// Server-render checks for the Tournaments tab of /admin (Task 5b, moved by
+// R3): the pager, the two empty states, a URL search, and that a pasted private
+// URL is never echoed.
 
 const h = vi.hoisted(() => ({
   list: vi.fn(),
@@ -23,6 +24,14 @@ vi.mock('@/lib/admin/tournamentList', () => ({
   TOURNAMENTS_PER_PAGE: 20,
 }));
 vi.mock('@/lib/admin/tournamentLookup', () => ({ lookupTournament: h.lookup }));
+// The shell's other reads are not under test here.
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+}));
+vi.mock('@/lib/admin/accuracy', () => ({
+  getAccuracyOverview: vi.fn(async () => null),
+}));
 vi.mock('next/navigation', () => ({
   // Throws as Next's does, so the page stops where it redirects.
   redirect: h.redirect,
@@ -49,9 +58,11 @@ const row = (i: number): TournamentList['rows'][number] => ({
   onCvs: 3,
 });
 
-async function render(searchParams: Record<string, string>): Promise<string> {
-  const { default: Page } = await import('@/app/(app)/admin/tournaments/page');
-  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
+async function render(searchParams: Record<string, string> = {}): Promise<string> {
+  const { default: Page } = await import('@/app/(app)/admin/page');
+  return renderToStaticMarkup(
+    await Page({ searchParams: Promise.resolve({ tab: 'tournaments', ...searchParams }) }),
+  );
 }
 
 beforeEach(() => {
@@ -71,11 +82,12 @@ describe('/admin/tournaments', () => {
     const out = await render({ q: 'tournament', page: '2' });
 
     expect(h.list).toHaveBeenCalledWith({ page: 2, q: 'tournament' });
-    expect(out.match(/<h1[^>]*>Tournaments in the database<\/h1>/g)).toHaveLength(1);
+    expect(out.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(out).toMatch(/<h2[^>]*>Tournaments in the database<\/h2>/);
     expect(out).toContain('21–40 of 45 · page 2 of 3');
     expect(out).toMatch(/<nav aria-label="Tournament pages"/);
-    expect(out).toContain('href="/admin/tournaments?q=tournament"');
-    expect(out).toContain('href="/admin/tournaments?q=tournament&amp;page=3"');
+    expect(out).toContain('href="/admin?tab=tournaments&amp;q=tournament"');
+    expect(out).toContain('href="/admin?tab=tournaments&amp;q=tournament&amp;page=3"');
     expect(out).toContain('href="/admin/tournaments/21"');
     expect(out).toContain('Old parser');
     expect(out).toContain('Partly loaded');
@@ -108,7 +120,7 @@ describe('/admin/tournaments with a pasted URL', () => {
   // Review of a00d4c0: the flight data carries the search params, so a
   // private ?q= is redirected to its public form before anything renders.
   it('redirects a private URL in ?q= to its public form, scheme or not', async () => {
-    const PUBLIC_Q = `/admin/tournaments?q=${encodeURIComponent('https://oxiv.calicotab.com/oxiv2025/')}`;
+    const PUBLIC_Q = `/admin?tab=tournaments&q=${encodeURIComponent('https://oxiv.calicotab.com/oxiv2025/')}`;
     for (const q of [
       `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`,
       `oxiv.calicotab.com/oxiv2025/PrivateURLs/${KEY}/`,

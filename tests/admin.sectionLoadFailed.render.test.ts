@@ -34,9 +34,14 @@ vi.mock('@/lib/admin/parserWarnings', async (orig) => ({
     throw new Error('warnings down');
   }),
 }));
+// The shell's summary line has its own suite (admin.shell.render.test.ts).
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
-    tournament: { count: vi.fn(async () => 12) },
+    tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 0) },
   },
@@ -67,7 +72,10 @@ describe('/admin when a ledger cannot be read', () => {
   it('still renders, each failed section saying so, and logs each failure', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { default: AdminPage } = await import('@/app/(app)/admin/page');
-    const html = renderToStaticMarkup(await AdminPage());
+    let html = '';
+    for (const tab of ['tournaments', 'imports', 'reports', 'parser', 'review', 'tools']) {
+      html += renderToStaticMarkup(await AdminPage({ searchParams: Promise.resolve({ tab }) }));
+    }
     expect(html).toContain('Admin: operator tools');
     expect(html).toContain('Couldn&#x27;t load the review set');
     expect(html).toContain('Couldn&#x27;t load the CV reports');

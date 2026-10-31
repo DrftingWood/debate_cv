@@ -4,7 +4,7 @@ import { Cols, Nil, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataT
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { TournamentListRow } from '@/lib/admin/tournamentList';
-import { relativeTime } from '@/lib/utils/relativeTime';
+import { ScrapedTime } from '@/components/admin/ScrapedTime';
 
 /**
  * One page of "Tournaments in the database": twenty rows, newest scrape
@@ -65,12 +65,7 @@ function TournamentRow({ row, now }: { row: TournamentListRow; now: Date }) {
       </Td>
       <Td className="align-top">{row.format ?? <Nil title="No format stored" />}</Td>
       <Td className="align-top">
-        <time
-          dateTime={row.scrapedAt.toISOString()}
-          className="block font-mono tabular-nums text-ink-soft"
-        >
-          {relativeTime(row.scrapedAt, now)}
-        </time>
+        <ScrapedTime date={row.scrapedAt} now={now} />
         {row.parserCurrent ? null : <Badge variant="warning">Old parser</Badge>}
       </Td>
       <Td numeric className="align-top">
