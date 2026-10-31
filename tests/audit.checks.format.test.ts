@@ -11,7 +11,7 @@ describe('format_missing', () => {
   it('is registered with weight 3 and a label, and the version moved on', () => {
     expect(CHECK_WEIGHTS.format_missing).toBe(3);
     expect(CHECK_LABELS.format_missing).toBe('Format');
-    expect(CHECKS_VERSION).toBe('2026-10-31.9');
+    expect(CHECKS_VERSION).toBe('2026-10-31.10');
   });
 
   it('passes when a format is recorded', () => {

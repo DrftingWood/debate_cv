@@ -66,7 +66,7 @@ describe('rooms_consistent: teams that withdrew', () => {
 });
 
 describe('rooms_consistent: short rounds withdrawals do not explain', () => {
-  it('still warns when the missing teams come back in a later round (a lost room)', () => {
+  it('still notes a room lost when the missing teams come back in a later round', () => {
     const r4 = without(fifty, ['T49', 'T50']);
     const c = check(
       inputs({
@@ -76,10 +76,11 @@ describe('rooms_consistent: short rounds withdrawals do not explain', () => {
       }),
       'rooms_consistent',
     );
-    expect(c.status).toBe('warn');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toMatch(/only noted/);
     expect(keys(c)).toEqual(['round:4']);
   });
-  it('still warns when the withdrawals explain only part of a short round', () => {
+  it('still notes a short round the withdrawals explain only in part', () => {
     // T50 withdrew after R4, which leaves 49 teams: still 25 rooms. R5 is a
     // room short because T49 also sat it out, and T49 is back in R6.
     const r5 = without(fifty, ['T49', 'T50']);
@@ -92,7 +93,8 @@ describe('rooms_consistent: short rounds withdrawals do not explain', () => {
       }),
       'rooms_consistent',
     );
-    expect(c.status).toBe('warn');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toMatch(/only noted/);
     expect(keys(c)).toEqual(['round:5']);
   });
   it('a last round several rooms short still fails: likelier a cut-short page', () => {
