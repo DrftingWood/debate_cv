@@ -28,11 +28,20 @@ export const dynamic = 'force-dynamic';
 
 const Comment = z.string().trim().min(1).max(COMMENT_MAX);
 
+/**
+ * A parser warning is flagged by `<parser>|<headline>`, kept as written and
+ * exported. Real headlines are scrubbed before they are grouped
+ * (parserWarnings.ts), so a key carrying a `privateurls` segment was not one
+ * the page offered: it is refused rather than stored with a key in it.
+ */
+const Item = z
+  .object({ source: z.enum(SOURCES), sourceId: z.string().min(1).max(300) })
+  .refine((i) => i.source !== 'parser_warning' || !/privateurls/i.test(i.sourceId), {
+    message: 'private',
+  });
+
 const PostBody = z.object({
-  items: z
-    .array(z.object({ source: z.enum(SOURCES), sourceId: z.string().min(1).max(300) }))
-    .min(1)
-    .max(200),
+  items: z.array(Item).min(1).max(200),
   priority: z.enum(PRIORITIES),
   comment: Comment,
 });

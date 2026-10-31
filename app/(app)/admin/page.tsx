@@ -51,6 +51,16 @@ export default async function AdminPage({
   // millisecond apart cannot disagree about "just now".
   const now = new Date();
 
+  // The ledgers are sections among many: if one's read fails, the rest of
+  // /admin (the operator tools above all) must still load, and that section
+  // says plainly that it could not be read.
+  const orNull =
+    <T,>(what: string) =>
+    (err: unknown): T | null => {
+      console.error(`admin: ${what} failed to load`, err);
+      return null;
+    };
+
   const [
     tournaments,
     discoveredUrls,
@@ -71,24 +81,24 @@ export default async function AdminPage({
     // 200: the tile and "Retry all n" must state the real number.
     prisma.ingestJob.count({ where: { status: { in: ['failed', 'abandoned'] } } }),
     getScrapeHealth(),
-    listParserWarnings({ page: readPage(search.warningsPage), now }),
+    listParserWarnings({ page: readPage(search.warningsPage), now }).catch(
+      orNull<Awaited<ReturnType<typeof listParserWarnings>>>('parser warnings'),
+    ),
     listCvReports({
       page: readPage(search.reportsPage),
       status: readReportFilter(search.reportsStatus),
-    }),
-    // The accuracy overview is one section among many: if its read fails,
-    // the rest of /admin (the operator tools above all) must still load, and
-    // the section says plainly that it could not be read.
-    getAccuracyOverview().catch((err: unknown) => {
-      console.error('admin: accuracy overview failed to load', err);
-      return null;
-    }),
+    }).catch(orNull<Awaited<ReturnType<typeof listCvReports>>>('CV reports')),
+    getAccuracyOverview().catch(
+      orNull<Awaited<ReturnType<typeof getAccuracyOverview>>>('accuracy overview'),
+    ),
     // Open and done, so "Show done" needs no second request; read once here
     // for both the review set and the Failed imports rows' "Flagged" badge.
-    loadReviewSet({ status: 'all' }),
+    loadReviewSet({ status: 'all' }).catch(
+      orNull<Awaited<ReturnType<typeof loadReviewSet>>>('review set'),
+    ),
   ]);
   const flaggedImports = new Map<string, Priority>(
-    reviewSet
+    (reviewSet ?? [])
       .filter((f) => f.source === 'import' && f.status === 'open')
       .map((f) => [f.sourceId, f.priority]),
   );

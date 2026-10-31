@@ -1,4 +1,5 @@
 import { ReviewSetTable, type ReviewRow } from '@/components/admin/ReviewSetTable';
+import { LoadFailed } from '@/components/admin/LoadFailed';
 import type { ReviewFlagView } from '@/lib/admin/reviewSet';
 import { sortFlags } from '@/lib/admin/reviewSetTypes';
 import { relativeTime } from '@/lib/utils/relativeTime';
@@ -54,9 +55,15 @@ export function toReviewRows(flags: readonly ReviewFlagView[], now: Date): Revie
  * "Flagged for review" on /admin, after Failed imports (owner, 2026-10-31:
  * "a separate set that you can later pick for review"). The page loads the
  * set once and hands it here and to Failed imports, whose rows show which
- * are already flagged.
+ * are already flagged. Null flags mean the read failed: the section says so.
  */
-export function ReviewSetSection({ flags, now }: { flags: readonly ReviewFlagView[]; now: Date }) {
+export function ReviewSetSection({
+  flags,
+  now,
+}: {
+  flags: readonly ReviewFlagView[] | null;
+  now: Date;
+}) {
   return (
     <section aria-labelledby="review-set" className="space-y-stack rounded-lg border p-panel">
       <div>
@@ -68,7 +75,11 @@ export function ReviewSetSection({ flags, now }: { flags: readonly ReviewFlagVie
           Export the set to hand it to whoever picks it up.
         </p>
       </div>
-      <ReviewSetTable rows={toReviewRows(flags, now)} />
+      {flags ? (
+        <ReviewSetTable rows={toReviewRows(flags, now)} />
+      ) : (
+        <LoadFailed what="the review set" />
+      )}
     </section>
   );
 }

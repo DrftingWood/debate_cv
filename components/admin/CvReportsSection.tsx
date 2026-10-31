@@ -4,6 +4,7 @@ import { buttonClasses } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
 import { CvReportsTable, type CvReportRow } from '@/components/admin/CvReportsTable';
+import { LoadFailed } from '@/components/admin/LoadFailed';
 import { adminHref, type SearchValues } from '@/lib/admin/adminHref';
 import type { CvReportList, CvReportView } from '@/lib/admin/cvReports';
 import {
@@ -62,7 +63,8 @@ export function CvReportsSection({
   now,
   search,
 }: {
-  list: CvReportList;
+  /** Null when the read failed: the section says so. */
+  list: CvReportList | null;
   now: Date;
   search: SearchValues;
 }) {
@@ -87,8 +89,10 @@ export function CvReportsSection({
           <DownloadSimple className="h-3.5 w-3.5" aria-hidden /> Export CSV
         </a>
       </div>
-      {list.anyReports ? <StatusFilter current={list.status} search={search} /> : null}
-      {list.total === 0 ? (
+      {list?.anyReports ? <StatusFilter current={list.status} search={search} /> : null}
+      {!list ? (
+        <LoadFailed what="the CV reports" />
+      ) : list.total === 0 ? (
         <EmptyState
           title={list.anyReports ? emptyTitle(list.status) : 'No CV reports yet'}
           description={
