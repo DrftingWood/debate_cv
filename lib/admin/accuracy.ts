@@ -22,33 +22,15 @@ import { RESCRAPE_PIECE_CAP, type SuggestedPiece } from '@/lib/admin/accuracyAct
  * (parseChecks) decide what a stored check means, so a row written by an
  * older or newer CHECKS_VERSION can never break the page. A few thousand
  * audits of a few KB each is fine for an admin page; if the table grows past
- * that, the counts move into SQL and only the 200 lowest keep their checks.
+ * that, the counts move into SQL.
  */
 
-/** Rows in the ledger table, lowest score first. */
-const LOWEST_CAP = 200;
 /** Tournaments listed under each open question. */
 const QUESTION_LIST_CAP = 50;
 /** An audit older than this is counted as not audited (run.ts's STALE_MS). */
 const STALE_MS = 24 * 60 * 60 * 1000;
 
 export type Band = ReturnType<typeof band>;
-
-export type AccuracyRow = {
-  id: string;
-  name: string;
-  /** The tournament's public tab, never a private URL; null when unparseable. */
-  tabUrl: string | null;
-  /** When the tournament was last scraped, for the "In database" cell. */
-  scrapedAt: Date | null;
-  score: number;
-  band: Band;
-  failed: Array<{ code: CheckCode; label: string }>;
-  /** Pieces of failing and warning checks, deduplicated, at most 40. */
-  suggested: SuggestedPiece[];
-  usersAffected: number;
-  computedAt: Date;
-};
 
 export type OpenQuestion = {
   code: AssumptionCode;
@@ -74,7 +56,6 @@ export type AccuracyOverview = {
   stale: number;
   /** Every tournament, audited or not: the denominator of `stale`. */
   tournaments: number;
-  lowest: AccuracyRow[];
   openQuestions: OpenQuestion[];
 };
 
@@ -275,10 +256,9 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
   const bands: Record<Band, number> = { good: 0, check: 0, rescrape: 0 };
   for (const a of audits) bands[band(a.score)] += 1;
 
-  const lowest = [...audits].sort(byScore).slice(0, LOWEST_CAP);
   const questions = decidedBy(audits);
   const listed = [...questions.values()].flatMap((list) => list.slice(0, QUESTION_LIST_CAP));
-  const names = await namesFor([...new Set([...lowest, ...listed].map((a) => a.id))]);
+  const names = await namesFor([...new Set(listed.map((a) => a.id))]);
   const describe = (id: bigint) =>
     names.get(id) ?? { name: `Tournament ${id}`, tabUrl: null, scrapedAt: null };
 
@@ -290,19 +270,6 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
     checked: countChecked(audits),
     stale: Math.max(0, tournaments - fresh),
     tournaments,
-    lowest: lowest.map((a) => ({
-      id: a.id.toString(),
-      ...describe(a.id),
-      score: a.score,
-      band: band(a.score),
-      failed: [...new Set(a.checks.filter(isFailing).map((c) => c.code))].map((code) => ({
-        code,
-        label: CHECK_LABELS[code],
-      })),
-      suggested: suggestedPieces(a.checks),
-      usersAffected: a.usersAffected,
-      computedAt: a.computedAt,
-    })),
     openQuestions: openQuestionsOf(questions, describe),
   };
 }

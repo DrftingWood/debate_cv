@@ -30,7 +30,6 @@ vi.mock('@/lib/admin/accuracy', () => ({
     failingByCheck: [],
     stale: 0,
     tournaments: 0,
-    lowest: [],
     openQuestions: [],
   })),
 }));

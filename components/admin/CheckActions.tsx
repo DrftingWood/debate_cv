@@ -83,6 +83,10 @@ function CheckedLine({
           type="button"
           variant="ghost"
           size="sm"
+          // Busy while its own undo runs (the progress line says so); blocked,
+          // like Mark checked, while another press on the page is running.
+          loading={marking.undoing !== ''}
+          aria-disabled={marking.blocked(subject) || undefined}
           aria-label={`Undo the mark on ${label} of ${tournamentName}`}
           onClick={() => marking.undo([{ kind: 'check', subject }])}
         >

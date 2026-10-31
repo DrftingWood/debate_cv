@@ -1,7 +1,9 @@
+import { useId } from 'react';
 import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/Button';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
+import { cn } from '@/lib/utils/cn';
 import { adminTabHref } from '@/lib/admin/adminTabs';
 import type { AccuracyOverview } from '@/lib/admin/accuracy';
 import { filterParams, type TournamentFilters } from '@/lib/admin/tournamentFilters';
@@ -38,7 +40,7 @@ export function TournamentFilterChips({
   const question = overview.openQuestions[0];
   return (
     <div className="space-y-tight">
-      <ChipsIntro />
+      <ChipsIntro stale={overview.stale} of={overview.tournaments} />
       <ChipGroup label="Score band">
         <Chip label="Any band" to={href({ band: null })} on={!filters.band} />
         {BANDS.map((b) => (
@@ -75,6 +77,7 @@ export function TournamentFilterChips({
           <Chip
             label={`Open question: ${QUESTION_CHIP[question.code]}`}
             n={question.count}
+            wrap
             to={href({ question: question.code })}
             on={filters.question === question.code}
           />
@@ -86,13 +89,21 @@ export function TournamentFilterChips({
 }
 
 /** What the chips do, with Audit now beside it (it is what fills the counts). */
-function ChipsIntro() {
+function ChipsIntro({ stale, of }: { stale: number; of: number }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-tight">
-      <p className="max-w-prose text-body text-ink-soft">
-        Lowest score first. Choose a chip to see only those tournaments; choose it again to clear
-        it.
-      </p>
+      <div className="space-y-hair">
+        <p className="max-w-prose text-body text-ink-soft">
+          Lowest score first. Choose a chip to see only those tournaments; choose it again to clear
+          it.
+        </p>
+        {/* The stale-audit signal the old tiles carried: how many are due. */}
+        <p className="text-caption text-ink-soft">
+          {stale === 0
+            ? 'All audited in the last 24 h'
+            : `${stale.toLocaleString('en-GB')} of ${of.toLocaleString('en-GB')} not audited in 24 h`}
+        </p>
+      </div>
       <AuditNowButton />
     </div>
   );
@@ -113,13 +124,33 @@ function chipHref(filters: TournamentFilters, q: string) {
   };
 }
 
-function Chip({ label, n, to, on }: { label: string; n?: number; to: string; on: boolean }) {
+/**
+ * One chip. `wrap` lets a long label (the open question's) break over lines
+ * and grow in height instead of running past a 390 px screen; the short chips
+ * keep the button's single line.
+ */
+function Chip({
+  label,
+  n,
+  to,
+  on,
+  wrap = false,
+}: {
+  label: string;
+  n?: number;
+  to: string;
+  on: boolean;
+  wrap?: boolean;
+}) {
   return (
-    <li>
+    <li className={wrap ? 'max-w-full' : undefined}>
       <Link
         href={to}
         aria-current={on ? 'true' : undefined}
-        className={buttonClasses({ variant: on ? 'primary' : 'outline', size: 'sm' })}
+        className={cn(
+          buttonClasses({ variant: on ? 'primary' : 'outline', size: 'sm' }),
+          wrap && 'h-auto min-h-8 py-1 text-left whitespace-normal',
+        )}
       >
         {label}
         {n == null ? null : (
@@ -146,12 +177,17 @@ function QuestionRule({ rule, status }: { rule: string; status: string }) {
   );
 }
 
-/** One labelled row of chips; the label names the group for a screen reader too. */
+/** One labelled row of chips. */
 function ChipGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  const id = useId();
+  // A group named by its visible label, not a navigation landmark: three
+  // landmarks of chips would crowd a screen reader's landmark list.
   return (
-    <nav aria-label={`Show tournaments by ${label.toLowerCase()}`} className="space-y-hair">
-      <p className="data-label">{label}</p>
+    <div role="group" aria-labelledby={id} className="space-y-hair">
+      <p id={id} className="data-label">
+        {label}
+      </p>
       <ul className="flex flex-wrap gap-inline">{children}</ul>
-    </nav>
+    </div>
   );
 }

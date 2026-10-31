@@ -107,35 +107,6 @@ const overview: AccuracyOverview = {
   failingByCheck: [{ code: 'rounds_complete', label: 'Rounds complete', count: 4 }],
   stale: 3,
   tournaments: 43,
-  lowest: [
-    {
-      id: '5',
-      name: 'Oxford IV 2025',
-      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
-      scrapedAt: new Date(NOW - 7_200_000),
-      score: 42,
-      band: 'rescrape',
-      failed: ['champion', 'rounds_complete', 'panels', 'motions', 'partners'].map((code) => ({
-        code: code as 'champion',
-        label: code,
-      })),
-      suggested: [round('3'), round('4'), { kind: 'team', key: '', label: 'Team tab', url: null }],
-      usersAffected: 2,
-      computedAt: new Date(NOW - 3_600_000),
-    },
-    {
-      id: '8',
-      name: 'Cambridge Open',
-      tabUrl: null,
-      scrapedAt: null,
-      score: 88,
-      band: 'check',
-      failed: [],
-      suggested: [],
-      usersAffected: 0,
-      computedAt: new Date(NOW - 60_000),
-    },
-  ],
   openQuestions: [
     {
       code: 'no_open_bracket_champion',
@@ -164,7 +135,6 @@ const empty: AccuracyOverview = {
   bands: { good: 0, check: 0, rescrape: 0 },
   checked: 0,
   failingByCheck: [],
-  lowest: [],
   openQuestions: [],
 };
 
@@ -262,6 +232,37 @@ describe('Tournaments tab filter chips (R5)', () => {
       /<details[^>]*>.*APDA Varsity\/Novice.*On hold — owner to decide.*<\/details>/,
     );
     expect(out).not.toMatch(/<h[2-4][^>]*>Open questions</);
+  });
+});
+
+describe('Tournaments tab filter chips: caption, wrapping and groups (R5)', () => {
+  it('says how many are not audited in 24 h, or that all are', async () => {
+    const some = words(await renderTournaments(overview));
+    expect(some).toContain('3 of 43 not audited in 24 h');
+    const none = words(await renderTournaments({ ...overview, stale: 0 }));
+    expect(none).toContain('All audited in the last 24 h');
+    expect(none).not.toContain('not audited in 24 h');
+  });
+
+  it('lets only the open-question chip wrap, so it fits at 390 px', async () => {
+    const out = await renderTournaments(overview);
+    const items = [...out.matchAll(/<li[^>]*>(?:(?!<\/li>)[\s\S])*<\/li>/g)].map((m) => m[0]);
+    const li = (text: string) => items.find((l) => l.includes(text))!;
+    const question = li('Open question: champion');
+    for (const c of ['whitespace-normal', 'h-auto', 'min-h-8', 'py-1', 'text-left']) {
+      expect(question).toContain(c);
+    }
+    expect(question).toMatch(/<li class="[^"]*max-w-full/);
+    expect(li('Rounds complete')).not.toContain('whitespace-normal');
+    expect(li('Rounds complete')).not.toContain('max-w-full');
+  });
+
+  it('names each chip group as a group by its visible label, not as a landmark', async () => {
+    const out = await renderTournaments(overview);
+    const groups = [...out.matchAll(/<div role="group" aria-labelledby="([^"]+)"/g)];
+    expect(groups).toHaveLength(3);
+    for (const [, id] of groups) expect(out).toMatch(new RegExp(`<p id="${id}"`));
+    expect(out).not.toContain('Show tournaments by');
   });
 
   it('nothing audited: says there is nothing to filter by, with Audit now', async () => {

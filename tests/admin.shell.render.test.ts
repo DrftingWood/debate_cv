@@ -141,7 +141,6 @@ beforeEach(() => {
     failingByCheck: [],
     stale: 0,
     tournaments: 1,
-    lowest: [],
     openQuestions: [],
   });
   h.inbox.mockResolvedValue({
@@ -238,7 +237,7 @@ describe('/admin Tools and Tournaments tabs', () => {
   it('puts the list and its filters in the Tournaments tab and reads nothing else', async () => {
     const out = await render({ tab: 'tournaments' });
     expect(out).toMatch(/<h2[^>]*>Tournaments in the database<\/h2>/);
-    expect(out).toContain('Show tournaments by score band');
+    expect(out).toContain('role="group"');
     expect(out).not.toContain('Data accuracy');
     expect(h.inbox).not.toHaveBeenCalled();
     expect(h.health).not.toHaveBeenCalled();

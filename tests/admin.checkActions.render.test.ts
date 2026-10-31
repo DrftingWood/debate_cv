@@ -127,6 +127,8 @@ describe('<AccuracyChecks> marks', () => {
     expect(li).toMatch(/Checked<\/span>/);
     expect(li).toContain('aria-label="Undo the mark on Motions of Oxford IV"');
     expect(li).toContain('>Undo<');
+    // Idle: not blocked, so no aria-disabled (Mark checked sets it only while another press runs).
+    expect(li).not.toContain('aria-disabled');
     expect(li).not.toContain('Mark checked');
     // The old finding stays, without repeating who checked it.
     expect(li).toContain('Was: 1 round has no motion.');

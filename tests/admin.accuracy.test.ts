@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
 
-const { getAccuracyOverview, parseChecks } = await import('@/lib/admin/accuracy');
+const { getAccuracyOverview, parseChecks, suggestedPieces } = await import('@/lib/admin/accuracy');
 const { rescrapeAction } = await import('@/lib/admin/accuracyActions');
 const { auditFailureMessage } = await import('@/lib/admin/actionMessage');
 
@@ -72,10 +72,8 @@ describe('getAccuracyOverview', () => {
     // 5 tournaments: 2 never audited, 1 audited 30 h ago.
     expect(o.stale).toBe(3);
     expect(o.tournaments).toBe(5);
-    expect(o.lowest.map((r) => r.score)).toEqual([50, 80, 100]);
-    expect(o.lowest[0]).toMatchObject({ id: '2', name: 'T2', usersAffected: 0 });
-    // The tab link is the public base, never the stored private URL.
-    expect(o.lowest[0]!.tabUrl).toBe('https://x.calicotab.com/t2/');
+    // Nothing renders a lowest-scores ledger any more; the list reads its own order.
+    expect(o).not.toHaveProperty('lowest');
   });
 
   it('lists failing checks, and suggests the deduped pieces of failing and warning checks', async () => {
@@ -91,25 +89,19 @@ describe('getAccuracyOverview', () => {
       audit(2, 90, { checks: [checks[0]] }),
     ]);
     const o = await getAccuracyOverview();
-    const row = o.lowest[0]!;
-    expect(row.failed).toEqual([
-      { code: 'rounds_complete', label: 'Rounds complete' },
-      { code: 'user_reports', label: 'User reports' },
-    ]);
-    expect(row.suggested.map((p) => p.key)).toEqual(['3', '4', '5']);
-    expect(row.suggested[0]).toEqual(piece('3'));
+    const suggested = suggestedPieces(parseChecks(checks));
+    expect(suggested.map((p) => p.key)).toEqual(['3', '4', '5']);
+    expect(suggested[0]).toEqual(piece('3'));
     expect(o.failingByCheck).toEqual([
       { code: 'rounds_complete', label: 'Rounds complete', count: 2 },
       { code: 'user_reports', label: 'User reports', count: 1 },
     ]);
   });
 
-  it("caps the suggestion at the rescrape route's 40 pieces", async () => {
+  it("caps the suggestion at the rescrape route's 40 pieces", () => {
     const pieces = Array.from({ length: 60 }, (_, i) => piece(String(i + 1)));
-    h.db.tournamentAudit.findMany.mockResolvedValue([
-      audit(1, 0, { checks: [{ code: 'rounds_complete', status: 'fail', detail: '', pieces }] }),
-    ]);
-    expect((await getAccuracyOverview()).lowest[0]!.suggested).toHaveLength(40);
+    const checks = [{ code: 'rounds_complete', status: 'fail', detail: '', pieces }];
+    expect(suggestedPieces(parseChecks(checks))).toHaveLength(40);
   });
 
   it('counts the tournaments each open question decided, most suspect first', async () => {
@@ -141,7 +133,7 @@ describe('getAccuracyOverview', () => {
   it('nothing audited: no score, and every tournament is due', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([]);
     const o = await getAccuracyOverview();
-    expect(o).toMatchObject({ weighted: null, n: 0, stale: 5, lowest: [] });
+    expect(o).toMatchObject({ weighted: null, n: 0, stale: 5 });
     expect(o.openQuestions[0]!.count).toBe(0);
   });
 });

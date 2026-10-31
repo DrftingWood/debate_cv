@@ -109,7 +109,7 @@ describe('props crossing into client components carry no private key', () => {
     expectNoKey(rows);
   });
 
-  it('accuracy overview rows, with their suggested piece links', async () => {
+  it('accuracy overview', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([
       {
         tournamentId: 1n,
@@ -127,9 +127,7 @@ describe('props crossing into client components carry no private key', () => {
       },
     ]);
     const o = await getAccuracyOverview();
-    const rows = o.lowest;
-    expect(rows[0]!.suggested[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
-    expectNoKey(rows);
+    expectNoKey(o);
     expectNoKey(o.openQuestions);
   });
 
