@@ -86,6 +86,8 @@ export type ParsedCheck = {
   /** Who marked the check checked and when, if the audit applied a mark. */
   checkedBy?: string;
   checkedAt?: Date;
+  /** What the check said before the mark made it a pass. */
+  wasStatus?: 'fail' | 'warn';
 };
 
 const STATUSES: readonly string[] = ['pass', 'warn', 'fail', 'na'];
@@ -107,13 +109,18 @@ function parsePiece(v: unknown): SuggestedPiece | null {
 }
 
 /**
- * A stored mark (run.ts's applyMark), only when both halves are readable:
- * a name without a date, or a date that does not parse, is dropped whole.
+ * A stored mark (run.ts's applyMark), only when every part is readable: a
+ * name without a date, a date that does not parse, or an unknown former
+ * status drops the mark whole.
  */
-function parseMark(c: Record<string, unknown>): { checkedBy?: string; checkedAt?: Date } {
+function parseMark(
+  c: Record<string, unknown>,
+): Pick<ParsedCheck, 'checkedBy' | 'checkedAt' | 'wasStatus'> {
   if (typeof c.checkedBy !== 'string' || !c.checkedBy || typeof c.checkedAt !== 'string') return {};
+  if (c.wasStatus !== 'fail' && c.wasStatus !== 'warn') return {};
   const at = new Date(c.checkedAt);
-  return Number.isNaN(at.getTime()) ? {} : { checkedBy: c.checkedBy, checkedAt: at };
+  if (Number.isNaN(at.getTime())) return {};
+  return { checkedBy: c.checkedBy, checkedAt: at, wasStatus: c.wasStatus };
 }
 
 /**

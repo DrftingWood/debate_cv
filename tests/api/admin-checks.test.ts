@@ -11,7 +11,7 @@ vi.mock('@/lib/db', () =>
 const requireAdminMock = vi.fn();
 vi.mock('@/lib/admin', () => ({ requireAdmin: requireAdminMock }));
 const runAuditMock = vi.fn();
-vi.mock('@/lib/audit/run', () => ({ runAudit: runAuditMock }));
+vi.mock('@/lib/audit/run', () => ({ runAuditReport: runAuditMock }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
 
 const { POST, DELETE } = await import('@/app/api/admin/checks/route');
@@ -27,7 +27,7 @@ const statements = () => prismaMock.$executeRaw.mock.calls.map((c) => c[0] as Sq
 beforeEach(() => {
   resetPrismaMock();
   requireAdminMock.mockReset().mockResolvedValue('admin@example.com');
-  runAuditMock.mockReset().mockResolvedValue(1);
+  runAuditMock.mockReset().mockResolvedValue({ audited: 1, applied: new Set<string>() });
   prismaMock.$executeRaw.mockResolvedValue(1);
   prismaMock.$transaction.mockImplementation(async (ops: unknown) =>
     Array.isArray(ops) ? Promise.all(ops) : ops,
@@ -62,7 +62,7 @@ describe('POST /api/admin/checks', () => {
       note: 'looked at the tab',
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ marked: 4 });
+    expect(await res.json()).toEqual({ marked: 4, applied: 0 });
     const writes = statements();
     expect(writes).toHaveLength(4);
     expect(writes[0]!.values).toEqual([
@@ -76,11 +76,24 @@ describe('POST /api/admin/checks', () => {
     expect(runAuditMock.mock.calls[0][0]).toEqual([5n, 9n]);
   });
 
+  it('applied counts only the requested check marks the re-audit applied', async () => {
+    // 5:panels took effect; 5:partners' data changed (not applied); 5:motions
+    // was applied but marked earlier, not in this request.
+    runAuditMock.mockResolvedValue({ audited: 1, applied: new Set(['5:panels', '5:motions']) });
+    const res = await send('POST', {
+      items: [
+        { kind: 'check', subject: '5:panels', fingerprint: FP },
+        { kind: 'check', subject: '5:partners', fingerprint: FP },
+      ],
+    });
+    expect(await res.json()).toEqual({ marked: 2, applied: 1 });
+  });
+
   it('does not re-audit when no item is a tournament check', async () => {
     const res = await send('POST', {
       items: [{ kind: 'report', subject: '12', fingerprint: FP }],
     });
-    expect(await res.json()).toEqual({ marked: 1 });
+    expect(await res.json()).toEqual({ marked: 1, applied: 0 });
     expect(runAuditMock).not.toHaveBeenCalled();
   });
 });

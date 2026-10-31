@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin';
 import { markAllChecked, MARK_KINDS, NOTE_MAX, undoMark } from '@/lib/admin/adminChecks';
-import { runAudit } from '@/lib/audit/run';
+import { runAuditReport } from '@/lib/audit/run';
 import { CHECK_LABELS } from '@/lib/audit/types';
 
 export const runtime = 'nodejs';
@@ -12,7 +12,8 @@ export const maxDuration = 60;
 
 /**
  * "Mark checked" (lib/admin/adminChecks.ts), admin only:
- *   - POST marks up to 200 items checked → { marked };
+ *   - POST marks up to 200 items checked → { marked, applied }, where
+ *     applied counts the check marks the re-audit scored as a pass;
  *   - DELETE undoes one mark → { ok: true }.
  * A tournament check's mark changes that tournament's score, so both re-audit
  * the tournaments they touched before replying: the page the admin sees next
@@ -93,16 +94,20 @@ function tournamentsOf(items: Array<{ kind: string; subject: string }>): bigint[
 
 /**
  * Re-audits in chunks of 25 (run.ts's sweep size): a bulk mark can touch up
- * to 200 tournaments, and one runAudit loads and writes its whole batch in a
- * single transaction. If this fails after the marks were stored, the marks
- * stand and the admin sees an error; the next audit of those tournaments
- * (a re-scrape, the cron's sweep or "Audit now") applies them.
+ * to 200 tournaments, and one audit loads and writes its whole batch in a
+ * single transaction. Returns the subjects whose mark took effect. If this
+ * fails after the marks were stored, the marks stand and the admin sees an
+ * error; the next audit of those tournaments (a re-scrape, the cron's sweep
+ * or "Audit now") applies them.
  */
 const REAUDIT_CHUNK = 25;
-async function reaudit(ids: bigint[]): Promise<void> {
+async function reaudit(ids: bigint[]): Promise<Set<string>> {
+  const applied = new Set<string>();
   for (let i = 0; i < ids.length; i += REAUDIT_CHUNK) {
-    await runAudit(ids.slice(i, i + REAUDIT_CHUNK));
+    const report = await runAuditReport(ids.slice(i, i + REAUDIT_CHUNK));
+    for (const s of report.applied) applied.add(s);
   }
+  return applied;
 }
 
 export async function POST(req: Request) {
@@ -115,8 +120,12 @@ export async function POST(req: Request) {
     const marked = await markAllChecked(
       items.map((it) => ({ ...it, note: note || null, by: who.email })),
     );
-    await reaudit(tournamentsOf(items));
-    return NextResponse.json({ marked });
+    const took = await reaudit(tournamentsOf(items));
+    // How many of the check marks just saved counted in the score. Fewer
+    // than were sent means the data had changed since the admin looked (the
+    // fingerprint no longer matched): saved, but not applied.
+    const applied = items.filter((it) => it.kind === 'check' && took.has(it.subject)).length;
+    return NextResponse.json({ marked, applied });
   } catch (err) {
     return serverError('mark', err);
   }

@@ -119,6 +119,26 @@ export async function undoMark(kind: MarkKind, subject: string): Promise<void> {
 
 type MarkRow = Mark & { subject: string };
 
+let warnedMissing = false;
+
+const fieldOf = (v: unknown, k: string): unknown =>
+  typeof v === 'object' && v !== null ? Reflect.get(v, k) : undefined;
+
+/**
+ * Postgres's "undefined table" (42P01) for AdminCheck, raw or as Prisma's
+ * P2010 "raw query failed" wrapper, which carries the database code in
+ * `meta`. Matched narrowly so any other failure still surfaces.
+ */
+function isMissingTable(err: unknown): boolean {
+  const code = fieldOf(err, 'code');
+  const metaCode = fieldOf(fieldOf(err, 'meta'), 'code');
+  if (code === '42P01' || (code === 'P2010' && metaCode === '42P01')) return true;
+  const text = [err instanceof Error ? err.message : '', fieldOf(fieldOf(err, 'meta'), 'message')]
+    .filter((t): t is string => typeof t === 'string')
+    .join(' ');
+  return /relation "AdminCheck" does not exist/.test(text);
+}
+
 /**
  * The marks of the given subjects of one kind, keyed by subject. Whether a
  * mark still holds (its fingerprint matches) is the caller's question: only
@@ -127,10 +147,23 @@ type MarkRow = Mark & { subject: string };
 export async function marksFor(kind: MarkKind, subjects: string[]): Promise<Map<string, Mark>> {
   const out = new Map<string, Mark>();
   if (subjects.length === 0) return out;
-  const rows = await prisma.$queryRaw<MarkRow[]>(Prisma.sql`
-    SELECT "subject", "fingerprint", "checkedBy", "checkedAt", "note"
-    FROM "AdminCheck"
-    WHERE "kind" = ${kind} AND "subject" IN (${Prisma.join(subjects)})`);
+  let rows: MarkRow[];
+  try {
+    rows = await prisma.$queryRaw<MarkRow[]>(Prisma.sql`
+      SELECT "subject", "fingerprint", "checkedBy", "checkedAt", "note"
+      FROM "AdminCheck"
+      WHERE "kind" = ${kind} AND "subject" IN (${Prisma.join(subjects)})`);
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    // No table, so no mark can exist: answer none rather than fail every
+    // audit on a database the migration has not reached yet (preview builds
+    // skip migrations; dev databases lag). Said once, not once per audit.
+    if (!warnedMissing) {
+      warnedMissing = true;
+      console.warn('[admin-checks] AdminCheck table missing; audits run without marks');
+    }
+    return out;
+  }
   for (const r of rows) {
     out.set(r.subject, {
       fingerprint: r.fingerprint,

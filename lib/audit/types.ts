@@ -43,6 +43,8 @@ export type CheckResult = {
    */
   checkedBy?: string;
   checkedAt?: string;
+  /** What the check said before the mark made it a pass. */
+  wasStatus?: 'fail' | 'warn';
 };
 
 /**

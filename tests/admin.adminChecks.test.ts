@@ -144,3 +144,29 @@ describe('markChecked, marksFor, undoMark', () => {
     expect(insert.values).toContain(subject);
   });
 });
+
+describe('marksFor on a database without the AdminCheck table', () => {
+  // Preview builds skip migrations and dev databases lag: a missing table
+  // means no mark can exist, so audits must carry on with none.
+  const missing = (wrapped: boolean) =>
+    wrapped
+      ? Object.assign(new Error('Raw query failed. Code: `42P01`.'), {
+          code: 'P2010',
+          meta: { code: '42P01', message: 'relation "AdminCheck" does not exist' },
+        })
+      : Object.assign(new Error('relation "AdminCheck" does not exist'), { code: '42P01' });
+
+  it('answers no marks, warning once per process, for both error shapes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    h.db.$queryRaw.mockRejectedValueOnce(missing(true)).mockRejectedValueOnce(missing(false));
+    expect((await marksFor('check', ['5:panels'])).size).toBe(0);
+    expect((await marksFor('check', ['5:panels'])).size).toBe(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('rethrows any other failure', async () => {
+    h.db.$queryRaw.mockRejectedValueOnce(new Error('connection reset'));
+    await expect(marksFor('check', ['5:panels'])).rejects.toThrow('connection reset');
+  });
+});

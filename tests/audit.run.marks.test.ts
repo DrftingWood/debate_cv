@@ -23,7 +23,7 @@ vi.mock('@/lib/admin/adminChecks', async (orig) => ({
   marksFor: h.marksFor,
 }));
 
-const { runAudit } = await import('@/lib/audit/run');
+const { runAudit, runAuditReport } = await import('@/lib/audit/run');
 const { runChecks } = await import('@/lib/audit/checks');
 const { fingerprintOf } = await import('@/lib/admin/adminChecks');
 const { PARSER_VERSION } = await import('@/lib/calicotab/version');
@@ -104,7 +104,20 @@ describe('runAudit with marks', () => {
       detail: `Checked by owner on 31 Oct 2026. Was: ${target.detail}`,
       checkedBy: 'owner@example.com',
       checkedAt: checkedAt.toISOString(),
+      wasStatus: 'fail',
     });
+  });
+
+  it('runAuditReport names the marks that took effect, and only those', async () => {
+    const fingerprint = fingerprintOf('check', { status: target.status, detail: target.detail });
+    const mark = { fingerprint, checkedBy: 'o@x', checkedAt, note: null };
+    const other = raw.find((c) => c.status === 'fail' && c.code !== target.code);
+    const marks = new Map([[subject, mark]]);
+    if (other) marks.set(`5:${other.code}`, { ...mark, fingerprint: 'f'.repeat(16) });
+    h.marksFor.mockResolvedValue(marks);
+    const report = await runAuditReport([5n]);
+    expect(report.audited).toBe(1);
+    expect([...report.applied]).toEqual([subject]);
   });
 
   it('a mismatched fingerprint (the data changed) leaves the fail', async () => {
@@ -133,11 +146,21 @@ describe('parseChecks reads the mark back', () => {
         pieces: [],
         checkedBy: 'owner@example.com',
         checkedAt: checkedAt.toISOString(),
+        wasStatus: 'warn',
       },
-      { code: 'panels', status: 'fail', detail: 'x', pieces: [], checkedBy: 7, checkedAt: 'nope' },
+      {
+        code: 'panels',
+        status: 'fail',
+        detail: 'x',
+        pieces: [],
+        checkedBy: 7,
+        checkedAt: 'nope',
+        wasStatus: 'pass',
+      },
     ]);
-    expect(marked).toMatchObject({ checkedBy: 'owner@example.com', checkedAt });
+    expect(marked).toMatchObject({ checkedBy: 'owner@example.com', checkedAt, wasStatus: 'warn' });
     expect(junk?.checkedBy).toBeUndefined();
     expect(junk?.checkedAt).toBeUndefined();
+    expect(junk?.wasStatus).toBeUndefined();
   });
 });
