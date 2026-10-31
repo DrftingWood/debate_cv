@@ -13,6 +13,7 @@ import { adminTabHref } from '@/lib/admin/adminTabs';
 import type { CheckCode } from '@/lib/audit/types';
 import type { AccuracyOverview } from '@/lib/admin/accuracy';
 import type { BalanceStats, UnbalancedMotion } from '@/lib/admin/captured';
+import { canonicalPosition } from '@/lib/cv/speakerStats';
 import { UNBALANCED_LIMIT } from '@/lib/admin/captured';
 
 const points = (v: number | null) => (v == null ? null : v.toFixed(2));
@@ -213,7 +214,7 @@ function ByType({ byType }: { byType: BalanceStats['byType'] }) {
 /** "OG 2.30 · OO 1.70 · CG 0.80 · CO 1.20": the seats in their fixed order. */
 const seatsText = (m: UnbalancedMotion, fmt: (v: number) => string) =>
   orderSeats(m.seats)
-    .map((s) => `${s.pos} ${fmt(s.value)}`)
+    .map((s) => `${canonicalPosition(s.pos)} ${fmt(s.value)}`)
     .join(' · ');
 
 /**
