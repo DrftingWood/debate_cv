@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
-import { ExportErrorsButton } from '@/components/DashboardActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { buttonClasses } from '@/components/ui/Button';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
@@ -83,9 +82,6 @@ function CheckAndTag() {
         <Link href="/admin/tags" className={buttonClasses({ variant: 'outline', size: 'sm' })}>
           Review tag proposals →
         </Link>
-        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
-          the 2026-06 IA pass; it is operator tooling, not a debater need. */}
-        <ExportErrorsButton />
       </div>
     </section>
   );

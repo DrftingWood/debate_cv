@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AccuracyOverview } from '@/lib/admin/accuracy';
-import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
+import type { ImportList } from '@/lib/admin/importsList';
 
 // The components use the automatic JSX runtime under Next; this runner
 // compiles them with the classic one.
@@ -17,7 +17,10 @@ const h = vi.hoisted(() => ({ accuracy: null as unknown, health: null as unknown
 
 vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' })) }));
 vi.mock('@/lib/admin/accuracy', () => ({ getAccuracyOverview: vi.fn(async () => h.accuracy) }));
-vi.mock('@/lib/admin/scrapeHealth', () => ({ getScrapeHealth: vi.fn(async () => h.health) }));
+vi.mock('@/lib/admin/importsList', async (orig) => ({
+  ...(await orig<typeof import('@/lib/admin/importsList')>()),
+  listImports: vi.fn(async () => h.health),
+}));
 // The shell's summary line has its own suite (admin.shell.render.test.ts).
 vi.mock('@/lib/admin/summary', () => ({
   getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
@@ -49,45 +52,34 @@ vi.mock('@/components/ui/Toast', () => ({
 const NOW = Date.now();
 const PRIVATE = 'https://oxiv.calicotab.com/oxiv2025/privateurls/abc123/';
 
-const health: ScrapeHealth = {
-  tracked: 2,
-  withheld: 0,
-  partlyLoaded: 1,
-  failingPieces: 1,
-  retriesDue: 0,
-  stuck: 0,
-  failingByKind: [{ kind: 'round', count: 1 }],
-  partlyLoadedTournaments: [
+// The row's tab address is a private URL on purpose: only the public form may reach an href.
+const health: ImportList = {
+  rows: [
     {
-      id: BigInt(5),
-      name: 'Oxford IV 2025',
-      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
-      scrapedAt: new Date(NOW - 7_200_000),
-      lastAttemptAt: new Date(NOW - 60_000),
-      failed: [
-        {
-          kind: 'round',
-          key: '3',
-          label: 'R3',
-          httpStatus: 500,
-          attempts: 1,
-          nextRetryAt: new Date(NOW + 60_000),
-        },
-      ],
-    },
-  ],
-  failedJobs: [
-    {
-      id: 'job-1',
-      url: PRIVATE,
-      userEmail: 'maya@example.com',
-      attempts: 3,
-      lastError: 'HTTP 503',
-      finishedAt: new Date(NOW - 60_000),
-      stored: null,
+      key: 'oxiv.calicotab.com/oxiv2025',
+      section: 'failing',
+      name: 'oxiv.calicotab.com/oxiv2025',
+      tournamentId: null,
+      tabUrl: PRIVATE,
       tab: { state: 'missing', tournamentId: null, errors: [] },
+      error: 'The tab site had a problem on its side.',
+      attempts: 3,
+      users: ['maya@example.com'],
+      moreUsers: 0,
+      latest: new Date(NOW - 60_000),
+      jobIds: ['job-1'],
+      scrapedAt: null,
+      fingerprint: '0123456789abcdef',
+      checked: null,
+      changed: false,
     },
   ],
+  total: 1,
+  page: 1,
+  pages: 1,
+  filter: 'failing',
+  counts: { failing: 1, covered: 0, checked: 0 },
+  truncated: false,
 };
 
 const round = (key: string) => ({
@@ -288,9 +280,9 @@ describe('tournament URLs are public links (owner, 2026-10-31)', () => {
 
   it('failed imports and accuracy rows link the public tab', async () => {
     const out = await renderPage(overview);
-    // Failed imports: the short URL is the link text.
+    // Failed imports: the tournament's address is the link text.
     expect(out).toMatch(
-      /<a href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/" target="_blank" rel="noopener noreferrer" aria-label="oxiv\.calicotab\.com\/oxiv2025\/…, opens in a new tab"/,
+      /<a href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/" target="_blank" rel="noopener noreferrer" aria-label="oxiv\.calicotab\.com\/oxiv2025, opens in a new tab"/,
     );
     expect(out).not.toContain('abc123');
   });

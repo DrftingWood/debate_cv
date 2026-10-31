@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/admin';
 import { markAllChecked, MARK_KINDS, NOTE_MAX, undoMark } from '@/lib/admin/adminChecks';
+import { acknowledgeReports } from '@/lib/admin/reportMarks';
 import { runAuditReport } from '@/lib/audit/run';
 import { CHECK_LABELS } from '@/lib/audit/types';
 
@@ -117,8 +118,11 @@ export async function POST(req: Request) {
   if (!parsed.success) return badRequest();
   const { items, note } = parsed.data;
   try {
+    // A report's mark acknowledges it, and its fingerprint is the status it
+    // has after that (reportMarks.ts).
+    const toMark = await acknowledgeReports(items);
     const marked = await markAllChecked(
-      items.map((it) => ({ ...it, note: note || null, by: who.email })),
+      toMark.map((it) => ({ ...it, note: note || null, by: who.email })),
     );
     const took = await reaudit(tournamentsOf(items));
     // How many of the check marks just saved counted in the score. Fewer

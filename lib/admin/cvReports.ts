@@ -76,11 +76,17 @@ const isId = (id: string) => /^\d{1,18}$/.test(id);
 export async function listCvReports({
   page,
   status = 'open',
+  ids,
 }: {
   page: number;
   status?: ReportFilter;
+  /** Only these reports (the Checked filter's marked ones). */
+  ids?: readonly string[];
 }): Promise<CvReportList> {
-  const where = status === 'all' ? {} : { status };
+  const where = {
+    ...(status === 'all' ? {} : { status }),
+    ...(ids ? { id: { in: [...ids] } } : {}),
+  };
   // Counted first, so a page past the end clamps to the last one.
   const total = await prisma.cvErrorReport.count({ where });
   const anyReports = total > 0 || (status !== 'all' && (await prisma.cvErrorReport.count()) > 0);

@@ -44,6 +44,11 @@ export const TAB_SCOPED_PARAMS = [
   'reportsPage',
   'reportsStatus',
   'warningsPage',
+  'imports',
+  'importsPage',
+  'parser',
+  'review',
+  'reviewPage',
   'kinds',
   'inboxPage',
 ] as const;

@@ -98,3 +98,7 @@ export function parseKinds(value: string | string[] | undefined): InboxKind[] {
 
 /** The kinds as the address writes them; empty for "all". */
 export const kindsParam = (kinds: readonly InboxKind[]): string => kinds.join(',');
+
+/** Why a "? Check" status has no stored tournament behind it (the Inbox and the Imports tab say the same). */
+export const CHECK_REASON =
+  'Stored or not is unknown: the address matches more than one stored tournament, or none it can name. Search the tournament list by name.';

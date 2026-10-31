@@ -174,3 +174,34 @@ export async function marksFor(kind: MarkKind, subjects: string[]): Promise<Map<
   }
   return out;
 }
+
+/**
+ * Every mark of one kind, newest first (at most `limit`), keyed by subject.
+ * The tabs' Checked filters start from this: a mark whose item is gone from
+ * its source simply finds no row to show. A missing table answers none, as
+ * marksFor does.
+ */
+export async function listMarks(kind: MarkKind, limit = 1000): Promise<Map<string, Mark>> {
+  const out = new Map<string, Mark>();
+  let rows: MarkRow[];
+  try {
+    rows = await prisma.$queryRaw<MarkRow[]>(Prisma.sql`
+      SELECT "subject", "fingerprint", "checkedBy", "checkedAt", "note"
+      FROM "AdminCheck"
+      WHERE "kind" = ${kind}
+      ORDER BY "checkedAt" DESC, "subject" ASC
+      LIMIT ${limit}`);
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    return out;
+  }
+  for (const r of rows) {
+    out.set(r.subject, {
+      fingerprint: r.fingerprint,
+      checkedBy: r.checkedBy,
+      checkedAt: r.checkedAt,
+      note: r.note,
+    });
+  }
+  return out;
+}

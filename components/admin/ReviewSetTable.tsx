@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DownloadSimple } from '@/components/ui/icons';
 import { Badge } from '@/components/ui/Badge';
@@ -66,15 +67,30 @@ function PriorityBadge({ priority }: { priority: Priority }) {
  * "Flagged for review": the review set as a ledger, high to low and then
  * the longest waiting first. Each row's priority and comment can be edited
  * in place and the row marked done; done rows wait behind "Show done".
+ *
+ * `rows` is one page (20, paged by the server through `?reviewPage=`), done
+ * rows included only while `showDone` (`?review=all`) is on, so the page
+ * and its pager agree on what is listed. `doneCount` and `anyFlags` are over
+ * the whole set, to tell "nothing flagged" from "nothing open".
  */
-export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
-  const [showDone, setShowDone] = useState(false);
+export function ReviewSetTable({
+  rows,
+  showDone,
+  doneCount,
+  anyFlags,
+  toggleHref,
+}: {
+  rows: readonly ReviewRow[];
+  showDone: boolean;
+  doneCount: number;
+  anyFlags: boolean;
+  /** The address that turns "Show done" on, or off when it is on. */
+  toggleHref: string;
+}) {
   const patch = usePatchFlag();
-  const open = rows.filter((r) => r.status === 'open');
-  const visible = showDone ? rows : open;
-  const { shown, more } = useFirstRows(visible);
+  const { shown, more } = useFirstRows(rows);
   const panel = useRef<HTMLDivElement>(null);
-  const toggle = useRef<HTMLButtonElement>(null);
+  const toggle = useRef<HTMLAnchorElement>(null);
   // With done rows hidden, "Mark done" takes its row off the page, and the
   // button with it; focus goes on down the list instead of back to <body>
   // (UX-7). With them shown the row stays, and so does focus.
@@ -89,26 +105,18 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
           { panel: panel.current, toggle: toggle.current },
         );
 
-  if (rows.length === 0) {
-    return (
-      <EmptyState
-        title="Nothing flagged yet"
-        description="Tick failed imports, CV reports or parser warnings and press Add to review set. They wait here with their priority and comment."
-        headingLevel={3}
-      />
-    );
-  }
+  if (!anyFlags) return <NothingFlagged />;
 
   return (
     <div className="space-y-tight">
       <ReviewSetBar
         toggleRef={toggle}
         showDone={showDone}
-        onToggle={() => setShowDone((v) => !v)}
-        done={rows.length - open.length}
+        toggleHref={toggleHref}
+        done={doneCount}
       />
       <ActionStatus message={patch.message} error={patch.error} />
-      {visible.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
           title="Nothing open"
           description="Every flagged item is done. Press Show done to see them."
@@ -126,6 +134,17 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
   );
 }
 
+/** The set has never had a flag in it. */
+function NothingFlagged() {
+  return (
+    <EmptyState
+      title="Nothing flagged yet"
+      description="Tick failed imports, CV reports or parser warnings and press Add to review set. They wait here with their priority and comment."
+      headingLevel={3}
+    />
+  );
+}
+
 /**
  * "Show done" and the two exports. The exports follow the toggle, so the
  * file downloaded holds what is on screen (every row, not only the first
@@ -134,12 +153,12 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
 function ReviewSetBar({
   toggleRef,
   showDone,
-  onToggle,
+  toggleHref,
   done,
 }: {
-  toggleRef: RefObject<HTMLButtonElement | null>;
+  toggleRef: RefObject<HTMLAnchorElement | null>;
   showDone: boolean;
-  onToggle: () => void;
+  toggleHref: string;
   done: number;
 }) {
   const status = showDone ? 'all' : 'open';
@@ -153,17 +172,16 @@ function ReviewSetBar({
   );
   return (
     <div className="flex flex-wrap items-center gap-inline">
-      {/* A toggle with a fixed label: its state is aria-pressed (UX-12). */}
-      <Button
+      {/* A link with a fixed label: the page lists done rows or not, which
+          aria-current says (UX-12). */}
+      <Link
         ref={toggleRef}
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-pressed={showDone}
-        onClick={onToggle}
+        href={toggleHref}
+        aria-current={showDone ? 'true' : undefined}
+        className={buttonClasses({ variant: showDone ? 'primary' : 'outline', size: 'sm' })}
       >
         Show done
-      </Button>
+      </Link>
       <span className="font-mono text-caption tabular-nums text-ink-soft">{done} done</span>
       {exportLink('json', 'Export JSON')}
       {exportLink('csv', 'Export CSV')}

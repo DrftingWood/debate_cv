@@ -90,6 +90,9 @@ describe('POST /api/admin/checks', () => {
   });
 
   it('does not re-audit when no item is a tournament check', async () => {
+    // A report's mark acknowledges it first (tests/api/admin-checks.reports.test.ts).
+    prismaMock.cvErrorReport.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.cvErrorReport.findMany.mockResolvedValue([{ id: '12', status: 'acknowledged' }]);
     const res = await send('POST', {
       items: [{ kind: 'report', subject: '12', fingerprint: FP }],
     });

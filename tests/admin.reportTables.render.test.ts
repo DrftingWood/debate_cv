@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { CvReportList, CvReportView } from '@/lib/admin/cvReports';
-import type { ParserWarningList, ParserWarningView } from '@/lib/admin/parserWarnings';
+import type { ParserList, ParserRowData } from '@/lib/admin/parserList';
 
 // The component files use the automatic JSX runtime under Next; this runner
 // compiles them with the classic one.
@@ -69,7 +69,7 @@ const reports = (over: Partial<CvReportList> = {}): CvReportList => ({
   ...over,
 });
 
-const warningRow = (over: Partial<ParserWarningView> = {}): ParserWarningView => ({
+const warningRow = (over: Partial<ParserRowData> = {}): ParserRowData => ({
   key: 'parseTabs|Bad row',
   parserName: 'parseTabs',
   headline: 'Bad row',
@@ -95,14 +95,19 @@ const warningRow = (over: Partial<ParserWarningView> = {}): ParserWarningView =>
     },
   ],
   moreTournaments: 3,
+  fingerprint: '0123456789abcdef',
+  checked: null,
+  changed: false,
   ...over,
 });
 
-const warnings = (over: Partial<ParserWarningList> = {}): ParserWarningList => ({
+const warnings = (over: Partial<ParserList> = {}): ParserList => ({
   rows: [warningRow()],
   total: 1,
   page: 1,
   pages: 1,
+  filter: 'problems',
+  counts: { problems: 1, info: 4, checked: 0 },
   ...over,
 });
 
@@ -195,9 +200,9 @@ describe('CV error reports, empty', () => {
 describe('parser warnings', () => {
   it('renders the ledger with counts, tournaments and their Tab status', () => {
     const out = html(h(ParserWarningsSection, { list: warnings(), now: NOW, search: SEARCH }));
-    expect(out).toMatch(/<h2[^>]*>Recent parser warnings<\/h2>/);
-    expect(out).toContain('from the latest 2,000 parser runs');
-    for (const head of ['Parser', 'Warning', 'Count', 'Latest', 'Tournaments']) {
+    expect(out).toMatch(/<h2[^>]*>Parser warnings<\/h2>/);
+    expect(out).toContain('From the latest 2,000 parser runs.');
+    for (const head of ['Parser', 'Warning', 'Count', 'Latest', 'Tournaments', 'Actions']) {
       expect(out).toMatch(new RegExp(`<th[^>]*>${head}</th>`));
     }
     expect(out).toMatch(/<td class="[^"]*cell-num[^"]*"[^>]*>12<\/td>/);
@@ -223,7 +228,7 @@ describe('parser warnings', () => {
         search: {},
       }),
     );
-    expect(out).toContain('No parser warnings in the last 30 days');
+    expect(out).toContain('No parser problems need you');
     expect(out).not.toContain('<table');
   });
 });

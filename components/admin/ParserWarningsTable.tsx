@@ -4,8 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { TabLink } from '@/components/admin/TabLink';
+import { MarkControls } from '@/components/admin/MarkControls';
 import { TabStatus } from '@/components/admin/TabStatus';
 import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
+import type { MarkCell } from '@/lib/admin/markCell';
 import type { TabState } from '@/lib/admin/tabStatus';
 
 /** A warning group as the server prepared it: scrubbed text, public tab addresses, time in words. */
@@ -19,6 +21,8 @@ export type WarningRow = {
   sample: string;
   tournaments: Array<{ id: string | null; name: string; tabUrl: string | null; tab: TabState }>;
   moreTournaments: number;
+  /** Mark checked / Undo; null on an informational group, which is an expected state. */
+  mark: MarkCell | null;
 };
 
 /**
@@ -62,8 +66,8 @@ export function ParserWarningsTable({ rows }: { rows: readonly WarningRow[] }) {
   );
 }
 
-// Below md the parser, count, time and tournaments fold into the Warning
-// cell, so a phone shows the checkbox and a card per warning (UX-30). The
+// Below md the parser, count, time, tournaments and actions fold into the
+// Warning cell, so a phone shows the checkbox and a card per warning (UX-30). The
 // hidden <col>s are hidden with their cells (see FailedJobsTable).
 const WARNING_COLUMNS = [
   '3rem',
@@ -72,6 +76,7 @@ const WARNING_COLUMNS = [
   { className: 'hidden md:table-column md:w-20' },
   { className: 'hidden md:table-column md:w-24' },
   { className: 'hidden md:table-column md:w-72' },
+  { className: 'hidden md:table-column md:w-56' },
 ];
 
 function WarningsTable({
@@ -110,7 +115,8 @@ function WarningsTable({
             Count
           </Th>
           <Th className="hidden md:table-cell">Latest</Th>
-          <Th className="hidden pr-stack md:table-cell">Tournaments</Th>
+          <Th className="hidden md:table-cell">Tournaments</Th>
+          <Th className="hidden pr-stack md:table-cell">Actions</Th>
         </tr>
       </thead>
       <tbody>
@@ -161,6 +167,7 @@ function WarningRowView({
             <time dateTime={row.latest.iso}>{row.latest.text}</time>
           </p>
           <Tournaments row={row} />
+          <Actions row={row} />
         </div>
       </Td>
       <Td numeric className="hidden align-top md:table-cell">
@@ -169,11 +176,22 @@ function WarningRowView({
       <Td className="hidden align-top font-mono tabular-nums text-ink-soft md:table-cell">
         <time dateTime={row.latest.iso}>{row.latest.text}</time>
       </Td>
-      <Td className="hidden pr-stack align-top whitespace-normal md:table-cell">
+      <Td className="hidden align-top whitespace-normal md:table-cell">
         <Tournaments row={row} />
+      </Td>
+      <Td className="hidden pr-stack align-top whitespace-normal md:table-cell">
+        <Actions row={row} />
       </Td>
     </Tr>
   );
+}
+
+/** Mark checked or Undo; an informational group says why it has neither. */
+function Actions({ row }: { row: WarningRow }) {
+  if (!row.mark) {
+    return <span className="text-caption text-ink-soft">Expected, nothing to check</span>;
+  }
+  return <MarkControls cell={row.mark} name={`${row.parserName}: ${row.headline}`} />;
 }
 
 /** Up to five tournaments, each with its Tab status and "Tab ↗", then "+n more". */

@@ -8,6 +8,7 @@ import { classifyWarning, isPlainProblem } from '@/lib/admin/parserClass';
 import { loadWarningGroups, tournamentsOf, type WarningGroup } from '@/lib/admin/parserWarnings';
 import type { FlagSource, Priority } from '@/lib/admin/reviewSetTypes';
 import { matchJobs } from '@/lib/admin/scrapeHealth';
+import type { StoredRef } from '@/lib/admin/tournamentLookup';
 import { scrubComment } from '@/lib/admin/scrub';
 import { parseTabAddress } from '@/lib/admin/tabAddress';
 import { ambiguousTab, loadTabStates, tabState, UNMATCHABLE_TAB } from '@/lib/admin/tabStatus';
@@ -69,9 +70,9 @@ type Draft = Omit<InboxItem, 'reviewFlag' | 'flagItems'> & {
   group?: WarningGroup;
 };
 
-type MarkState = 'none' | 'covered' | 'changed';
+export type MarkState = 'none' | 'covered' | 'changed';
 
-function markState(mark: Mark | undefined, fingerprint: string): MarkState {
+export function markState(mark: Mark | undefined, fingerprint: string): MarkState {
   if (!mark) return 'none';
   return mark.fingerprint === fingerprint ? 'covered' : 'changed';
 }
@@ -181,7 +182,7 @@ async function checkDrafts(): Promise<Draft[]> {
 }
 
 /** Stored names and public tab addresses, one query; a private key never leaves here. */
-async function namesOf(ids: string[]) {
+export async function namesOf(ids: string[]) {
   const unique = [...new Set(ids)].filter((id) => /^\d{1,18}$/.test(id));
   if (unique.length === 0) return new Map<string, { name: string; tabUrl: string | null }>();
   const rows = await prisma.tournament.findMany({
@@ -269,7 +270,7 @@ async function reportDrafts(): Promise<Draft[]> {
 
 // ---- import --------------------------------------------------------------
 
-type JobRow = {
+export type JobRow = {
   id: string;
   userId: string;
   url: string;
@@ -282,24 +283,29 @@ type JobRow = {
 const MAX_JOB_PAGES = 10;
 
 /**
- * Failed or abandoned jobs whose tournament is not stored, newest first,
- * bounded at CANDIDATE_CAP unstored jobs. Stored tournaments are excluded
+ * Failed or abandoned jobs on one side of the stored line, newest first,
+ * bounded at CANDIDATE_CAP jobs of that side. `unstored` (the Inbox's) holds
+ * the jobs whose tournament is not stored: stored tournaments are excluded
  * before the cap counts, so a large "covered by stored copy" backlog cannot
- * push unstored failures out of the window: the newest jobs are read a page
- * at a time and matched, until CANDIDATE_CAP unstored jobs are held or the
- * jobs run out. The scan itself is bounded at MAX_JOB_PAGES pages
- * (MAX_JOB_PAGES x CANDIDATE_CAP rows): past that ceiling it stops and the
- * result is truncated, so a huge stored-copy backlog cannot make every
- * Inbox load walk the whole table.
+ * push unstored failures out of the window. `stored` (the Imports tab's
+ * "Covered by stored copy") is the mirror image and also returns each job's
+ * stored tournament. The newest jobs are read a page at a time and matched,
+ * until CANDIDATE_CAP jobs of the wanted side are held or the jobs run out.
+ * The scan itself is bounded at MAX_JOB_PAGES pages (MAX_JOB_PAGES x
+ * CANDIDATE_CAP rows): past that ceiling it stops and the result is
+ * truncated, so a huge backlog cannot make every load walk the whole table.
  */
-async function readUnstoredJobs(): Promise<{
+export async function readFailedJobs(side: 'unstored' | 'stored'): Promise<{
   jobs: JobRow[];
   ambiguous: Map<string, number>;
+  /** Each job's stored tournament; filled for the `stored` side only. */
+  refs: Map<string, StoredRef>;
   /** The page ceiling was hit with older failures still unread. */
   truncated: boolean;
 }> {
   const jobs: JobRow[] = [];
   const ambiguous = new Map<string, number>();
+  const refs = new Map<string, StoredRef>();
   let truncated = false;
   for (let pageNo = 0; pageNo < MAX_JOB_PAGES && jobs.length < CANDIDATE_CAP; pageNo++) {
     const skip = pageNo * CANDIDATE_CAP;
@@ -320,8 +326,10 @@ async function readUnstoredJobs(): Promise<{
     });
     const match = await matchJobs(page);
     for (const j of page) {
-      if (match.stored.has(j.id) || jobs.length >= CANDIDATE_CAP) continue;
+      const ref = match.stored.get(j.id);
+      if (!!ref !== (side === 'stored') || jobs.length >= CANDIDATE_CAP) continue;
       jobs.push(j);
+      if (ref) refs.set(j.id, ref);
       const n = match.ambiguous.get(j.id);
       if (n) ambiguous.set(j.id, n);
     }
@@ -329,10 +337,15 @@ async function readUnstoredJobs(): Promise<{
     // A full last page under the ceiling and short of the cap: more exist.
     if (pageNo === MAX_JOB_PAGES - 1 && jobs.length < CANDIDATE_CAP) truncated = true;
   }
-  return { jobs, ambiguous, truncated };
+  return { jobs, ambiguous, refs, truncated };
 }
 
-type JobGroup = { jobs: JobRow[]; status: TabStatusValue; tabUrl: string | null; name: string };
+export type JobGroup = {
+  jobs: JobRow[];
+  status: TabStatusValue;
+  tabUrl: string | null;
+  name: string;
+};
 
 /**
  * The jobs whose tournament is not stored, one group per tournament across
@@ -377,24 +390,41 @@ function importPrint(g: JobGroup): { category: string; fingerprint: string } {
   return { category, fingerprint: fingerprintOf('import', { errorCategory: category, attempts }) };
 }
 
-/** Unstored failed-import groups no matching mark covers; shared by the list and the count. */
-async function openImportGroups() {
-  const { jobs, ambiguous, truncated } = await readUnstoredJobs();
+export type ImportGroupState = {
+  subject: string;
+  g: JobGroup;
+  category: string;
+  fingerprint: string;
+  state: MarkState;
+  /** The mark on the group, whether or not it still holds. */
+  mark: Mark | undefined;
+};
+
+/**
+ * Every unstored failed-import group with the state of its mark. The Imports
+ * tab's Checked filter and "All" read this; the Inbox's open set below is
+ * the part no matching mark covers.
+ */
+export async function allImportGroups(): Promise<{
+  groups: ImportGroupState[];
+  truncated: boolean;
+}> {
+  const { jobs, ambiguous, truncated } = await readFailedJobs('unstored');
   const groups = groupUnstored(jobs, { stored: new Map(), ambiguous });
   const marks = await marksFor('import', [...groups.keys()]);
-  const out: Array<{
-    subject: string;
-    g: JobGroup;
-    category: string;
-    fingerprint: string;
-    state: MarkState;
-  }> = [];
+  const out: ImportGroupState[] = [];
   for (const [subject, g] of groups) {
     const { category, fingerprint } = importPrint(g);
-    const state = markState(marks.get(subject), fingerprint);
-    if (state !== 'covered') out.push({ subject, g, category, fingerprint, state });
+    const mark = marks.get(subject);
+    out.push({ subject, g, category, fingerprint, state: markState(mark, fingerprint), mark });
   }
-  return { open: out, truncated };
+  return { groups: out, truncated };
+}
+
+/** Unstored failed-import groups no matching mark covers; shared by the list and the count. */
+export async function openImportGroups() {
+  const { groups, truncated } = await allImportGroups();
+  return { open: groups.filter((x) => x.state !== 'covered'), truncated };
 }
 
 async function importDrafts(): Promise<{ drafts: Draft[]; truncated: boolean }> {
@@ -422,8 +452,15 @@ async function importDrafts(): Promise<{ drafts: Draft[]; truncated: boolean }> 
 
 // ---- parser --------------------------------------------------------------
 
-/** Problem warning groups no matching mark covers; shared by the list and the count. */
-async function openParserGroups(now: Date) {
+export type ParserGroupState = {
+  g: WarningGroup;
+  fingerprint: string;
+  state: MarkState;
+  mark: Mark | undefined;
+};
+
+/** Every problem warning group (bounded) with the state of its mark. */
+export async function allParserGroups(now: Date): Promise<ParserGroupState[]> {
   const problems = (await loadWarningGroups(now))
     .filter((g) => classifyWarning(g.headline) === 'problem')
     .slice(0, CANDIDATE_CAP);
@@ -431,13 +468,16 @@ async function openParserGroups(now: Date) {
     'parser',
     problems.map((g) => g.key),
   );
-  const out: Array<{ g: WarningGroup; fingerprint: string; state: MarkState }> = [];
-  for (const g of problems) {
+  return problems.map((g) => {
     const fingerprint = fingerprintOf('parser', { count: g.count });
-    const state = markState(marks.get(g.key), fingerprint);
-    if (state !== 'covered') out.push({ g, fingerprint, state });
-  }
-  return out;
+    const mark = marks.get(g.key);
+    return { g, fingerprint, state: markState(mark, fingerprint), mark };
+  });
+}
+
+/** Problem warning groups no matching mark covers; shared by the list and the count. */
+export async function openParserGroups(now: Date) {
+  return (await allParserGroups(now)).filter((x) => x.state !== 'covered');
 }
 
 async function parserDrafts(now: Date): Promise<Draft[]> {

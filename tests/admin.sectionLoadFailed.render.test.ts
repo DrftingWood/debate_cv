@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
 
 (globalThis as { React?: typeof React }).React = React;
 
@@ -15,7 +14,12 @@ vi.mock('@/lib/admin/accuracy', () => ({
     throw new Error('accuracy down');
   }),
 }));
-vi.mock('@/lib/admin/scrapeHealth', () => ({ getScrapeHealth: vi.fn(async () => health) }));
+vi.mock('@/lib/admin/importsList', async (orig) => ({
+  ...(await orig<typeof import('@/lib/admin/importsList')>()),
+  listImports: vi.fn(async () => {
+    throw new Error('imports down');
+  }),
+}));
 vi.mock('@/lib/admin/reviewSet', async (orig) => ({
   ...(await orig<typeof import('@/lib/admin/reviewSet')>()),
   loadReviewSet: vi.fn(async () => {
@@ -30,7 +34,7 @@ vi.mock('@/lib/admin/cvReports', async (orig) => ({
 }));
 vi.mock('@/lib/admin/parserWarnings', async (orig) => ({
   ...(await orig<typeof import('@/lib/admin/parserWarnings')>()),
-  listParserWarnings: vi.fn(async () => {
+  loadWarningGroups: vi.fn(async () => {
     throw new Error('warnings down');
   }),
 }));
@@ -58,18 +62,6 @@ vi.mock('@/components/ui/Toast', () => ({
   useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
 }));
 
-const health: ScrapeHealth = {
-  tracked: 0,
-  withheld: 0,
-  partlyLoaded: 0,
-  failingPieces: 0,
-  retriesDue: 0,
-  stuck: 0,
-  failingByKind: [],
-  partlyLoadedTournaments: [],
-  failedJobs: [],
-};
-
 describe('/admin when a ledger cannot be read', () => {
   it('still renders, each failed section saying so, and logs each failure', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -80,14 +72,21 @@ describe('/admin when a ledger cannot be read', () => {
     }
     expect(html).toContain('Admin: operator tools');
     expect(html).toContain('Couldn&#x27;t load the review set');
+    expect(html).toContain('Couldn&#x27;t load the imports');
     expect(html).toContain('Couldn&#x27;t load the CV reports');
     expect(html).toContain('Couldn&#x27;t load the parser warnings');
     expect(html).toContain('Couldn&#x27;t load the filters');
     expect(html).toContain('Flagged for review');
     expect(html).toContain('CV error reports');
-    expect(html).toContain('Recent parser warnings');
+    expect(html).toContain('Parser warnings');
     const logged = log.mock.calls.map((c) => String(c[0]));
-    for (const what of ['review set', 'CV reports', 'parser warnings', 'accuracy overview']) {
+    for (const what of [
+      'failed imports',
+      'review set',
+      'CV reports',
+      'parser warnings',
+      'accuracy overview',
+    ]) {
       expect(logged).toContain(`admin: ${what} failed to load`);
     }
     log.mockRestore();

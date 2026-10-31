@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
  * component under components/admin/tabs, each guarding its own reads so a
  * failure says so inside that panel and leaves the strip and the other tabs
  * working. Panels page through the address with their own parameters
- * (`?reportsPage=`, `?warningsPage=`, `?q=`, `?page=`), kept apart by
+ * (`?reportsPage=`, `?warningsPage=`, `?importsPage=`, `?reviewPage=`, `?q=`, `?page=`), kept apart by
  * adminHref.
  */
 export default async function AdminPage({
@@ -80,13 +80,13 @@ async function renderPanel(tab: AdminTab, search: SearchValues, now: Date) {
     case 'tournaments':
       return TournamentsTab({ search, now });
     case 'imports':
-      return ImportsTab({ now });
+      return ImportsTab({ search, now });
     case 'reports':
       return ReportsTab({ search, now });
     case 'parser':
       return ParserTab({ search, now });
     case 'review':
-      return ReviewSetTab({ now });
+      return ReviewSetTab({ search, now });
     case 'tools':
       return ToolsTab();
   }

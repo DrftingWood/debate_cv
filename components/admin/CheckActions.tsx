@@ -46,6 +46,13 @@ export function CheckActionsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** The page's one marking hook, for any row that marks something (MarkControls). */
+export function useMarking(): Marking {
+  const marking = useContext(MarkingContext);
+  if (!marking) throw new Error('This row needs a CheckActionsProvider around it');
+  return marking;
+}
+
 export type CheckActionsProps = {
   tournamentName: string;
   label: string;
@@ -58,8 +65,7 @@ export type CheckActionsProps = {
 };
 
 export function CheckActions(props: CheckActionsProps) {
-  const marking = useContext(MarkingContext);
-  if (!marking) throw new Error('CheckActions needs a CheckActionsProvider around it');
+  const marking = useMarking();
   if (props.checkedWords) return <CheckedLine {...props} marking={marking} />;
   if (props.fingerprint)
     return <OpenCheckButtons {...props} fingerprint={props.fingerprint} marking={marking} />;

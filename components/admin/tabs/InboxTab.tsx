@@ -6,6 +6,7 @@ import { InboxTable, type InboxRow } from '@/components/admin/InboxTable';
 import { LoadFailed } from '@/components/admin/LoadFailed';
 import { adminHref, type SearchValues } from '@/lib/admin/adminHref';
 import {
+  CHECK_REASON,
   INBOX_KINDS,
   INBOX_PER_PAGE,
   kindsParam,
@@ -31,10 +32,6 @@ const CHIP_LABEL: Record<InboxKind, string> = {
   import: 'Imports',
   parser: 'Parser',
 };
-
-/** Why a "? Check" status has no stored tournament behind it. */
-const CHECK_REASON =
-  'Stored or not is unknown: the address matches more than one stored tournament, or none it can name. Search the tournament list by name.';
 
 /** The status cell's state for an item: its stored tournament's, or the lack of one. */
 function tabOf(item: InboxItem): TabState {

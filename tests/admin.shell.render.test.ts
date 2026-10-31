@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
+import type { ImportList } from '@/lib/admin/importsList';
 
 // The component files use the automatic JSX runtime under Next; this runner
 // compiles them with the classic one.
@@ -14,7 +14,7 @@ import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
 const h = vi.hoisted(() => ({
   accuracy: vi.fn(),
   inbox: vi.fn(),
-  health: vi.fn(),
+  imports: vi.fn(),
   cvReports: vi.fn(),
   warnings: vi.fn(),
   reviewSet: vi.fn(),
@@ -36,11 +36,14 @@ vi.mock('@/lib/admin/summary', () => ({
   readOverview: () => h.accuracy(),
 }));
 vi.mock('@/lib/admin/accuracy', () => ({ getAccuracyOverview: h.accuracy }));
-vi.mock('@/lib/admin/scrapeHealth', () => ({ getScrapeHealth: h.health }));
+vi.mock('@/lib/admin/importsList', async (orig) => ({
+  ...(await orig<typeof import('@/lib/admin/importsList')>()),
+  listImports: h.imports,
+}));
 vi.mock('@/lib/admin/cvReports', () => ({ listCvReports: h.cvReports }));
 vi.mock('@/lib/admin/parserWarnings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/admin/parserWarnings')>()),
-  listParserWarnings: h.warnings,
+  loadWarningGroups: h.warnings,
 }));
 vi.mock('@/lib/admin/reviewSet', () => ({ loadReviewSet: h.reviewSet }));
 vi.mock('@/lib/admin/tournamentList', () => ({
@@ -68,28 +71,34 @@ vi.mock('@/components/ui/Toast', () => ({
 const NOW = Date.now();
 const epoch = new Date(0);
 
-const health: ScrapeHealth = {
-  tracked: 1,
-  withheld: 0,
-  partlyLoaded: 0,
-  failingPieces: 0,
-  retriesDue: 0,
-  stuck: 0,
-  failingByKind: [],
-  partlyLoadedTournaments: [],
-  failedJobs: [
+// A stored tournament the failed import is covered by, with the Re-ingest-all marker as its scrape time.
+const importList: ImportList = {
+  rows: [
     {
-      id: 'job-1',
-      url: 'https://oxiv.calicotab.com/oxiv2025/',
-      userEmail: 'maya@example.com',
-      attempts: 3,
-      lastError: null,
-      finishedAt: new Date(NOW - 3_600_000),
-      // Stored, with the Re-ingest-all marker as its scrape time.
-      stored: { id: '5', name: 'Oxford IV 2025', scrapedAt: epoch },
+      key: 'stored:5',
+      section: 'covered',
+      name: 'Oxford IV 2025',
+      tournamentId: '5',
+      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
       tab: { state: 'partial', tournamentId: '5', errors: [] },
+      error: 'The tournament page was not found.',
+      attempts: 3,
+      users: ['maya@example.com'],
+      moreUsers: 0,
+      latest: new Date(NOW - 3_600_000),
+      jobIds: ['job-1'],
+      scrapedAt: epoch,
+      fingerprint: null,
+      checked: null,
+      changed: false,
     },
   ],
+  total: 1,
+  page: 1,
+  pages: 1,
+  filter: 'covered',
+  counts: { failing: 0, covered: 1, checked: 0 },
+  truncated: false,
 };
 
 const listed = (scrapedAt: Date) => ({
@@ -127,7 +136,7 @@ const text = (html: string) =>
     .replace(/ \)/g, ')');
 
 beforeEach(() => {
-  for (const fn of [h.accuracy, h.inbox, h.health, h.cvReports, h.warnings, h.reviewSet]) {
+  for (const fn of [h.accuracy, h.inbox, h.imports, h.cvReports, h.warnings, h.reviewSet]) {
     fn.mockReset();
   }
   h.tournaments.mockReset();
@@ -150,9 +159,9 @@ beforeEach(() => {
     pages: 1,
     counts: { check: 0, report: 0, import: 0, parser: 0 },
   });
-  h.health.mockResolvedValue(health);
+  h.imports.mockResolvedValue(importList);
   h.cvReports.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1, status: 'open' });
-  h.warnings.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1 });
+  h.warnings.mockResolvedValue([]);
   h.reviewSet.mockResolvedValue([]);
   h.tournaments.mockResolvedValue(listed(epoch));
 });
@@ -192,17 +201,17 @@ describe('/admin shell', () => {
     expect(out).toMatch(/<h2[^>]*>Failed imports<\/h2>/);
     expect(out).not.toContain('Data accuracy');
     expect(out).not.toContain('Flagged for review');
-    expect(h.health).toHaveBeenCalled();
+    expect(h.imports).toHaveBeenCalled();
+    expect(out).toContain('Export errors');
     expect(h.accuracy).not.toHaveBeenCalled();
     expect(h.inbox).not.toHaveBeenCalled();
     expect(h.cvReports).not.toHaveBeenCalled();
     expect(h.warnings).not.toHaveBeenCalled();
-    // Read for the rows' "Flagged" badges.
-    expect(h.reviewSet).toHaveBeenCalled();
+    expect(h.reviewSet).not.toHaveBeenCalled();
   });
 
   it('keeps a failed read to its own panel, saying so', async () => {
-    h.health.mockRejectedValue(new Error('db down'));
+    h.imports.mockRejectedValue(new Error('db down'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const out = await render({ tab: 'imports' });
     expect(out).toContain('Couldn&#x27;t load');
@@ -218,7 +227,8 @@ describe('/admin Tools and Tournaments tabs', () => {
     for (const href of ['/cv/verify', '/cv/tags', '/admin/tags']) {
       expect(out).toContain(`href="${href}"`);
     }
-    expect(out).toContain('Export errors');
+    // Export errors moved to the Imports tab, with the data it dumps.
+    expect(out).not.toContain('Export errors');
     expect(text(out)).toContain('Discovered URLs 40');
     expect(text(out)).toContain('Locked URLs 40');
     expect(out).toContain('Re-ingest all');
@@ -240,14 +250,14 @@ describe('/admin Tools and Tournaments tabs', () => {
     expect(out).toContain('role="group"');
     expect(out).not.toContain('Data accuracy');
     expect(h.inbox).not.toHaveBeenCalled();
-    expect(h.health).not.toHaveBeenCalled();
+    expect(h.imports).not.toHaveBeenCalled();
   });
 
   it('never renders 1970, whichever tab shows a re-scrape marker', async () => {
     for (const tab of ['inbox', 'tournaments', 'imports', 'reports', 'parser', 'review', 'tools']) {
       expect(await render({ tab })).not.toContain('1970');
     }
-    expect(await render({ tab: 'imports' })).toContain('Re-scrape queued');
+    expect(await render({ tab: 'imports', imports: 'covered' })).toContain('Re-scrape queued');
   });
 });
 
