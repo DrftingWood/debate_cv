@@ -9,7 +9,7 @@ vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => ({ prisma
 
 const { tabState, pieceErrorText, loadTabStates, MAX_TAB_ERRORS } =
   await import('@/lib/admin/tabStatus');
-const { addToReviewSet, loadReviewSet, reviewSetCsv, scrubComment, sortFlags } =
+const { addToReviewSet, loadReviewSet, reviewSetCsv, scrubComment, sortFlags, updateFlag } =
   await import('@/lib/admin/reviewSet');
 
 const KEY = 'k3yS3cr3t';
@@ -206,5 +206,67 @@ describe('reading the review set', () => {
       'id,source,source_id,priority,status,comment,url,tournament_id,tournament_name,last_error,attempts,tab,tab_errors,created_by,created_at,detail',
     );
     expect(rest.join('\n')).toContain('"say ""hi"", then\nmore"');
+  });
+
+  // Review leftover: a cap on the newest rows of every status let an old open
+  // flag fall off once a thousand newer ones were done.
+  it("reads every open flag, and only the newest done ones, for 'all'", async () => {
+    prismaMock.reviewFlag.findMany
+      .mockResolvedValueOnce([flag({ id: 1n, createdAt: d('2020-01-01') })])
+      .mockResolvedValueOnce([flag({ id: 2n, status: 'done' })]);
+    const flags = await loadReviewSet({ status: 'all' });
+    expect(flags.map((f) => [f.id, f.status])).toEqual([
+      ['2', 'done'],
+      ['1', 'open'],
+    ]);
+    const [openQ, doneQ] = prismaMock.reviewFlag.findMany.mock.calls.map((c) => c[0]);
+    expect(openQ.where).toEqual({ status: 'open' });
+    expect(openQ.take).toBeUndefined();
+    expect(doneQ.where).toEqual({ status: { not: 'open' } });
+    expect(doneQ.take).toBe(1000);
+  });
+});
+
+describe('one open flag per item, under a lock', () => {
+  const lockSql = () =>
+    (prismaMock.$executeRaw.mock.calls[0]?.[0] as readonly string[] | undefined)?.join('?');
+
+  it('takes the review-set lock before reading the open flags it adds to', async () => {
+    prismaMock.reviewFlag.findMany.mockResolvedValue([]);
+    prismaMock.reviewFlag.createMany.mockResolvedValue({ count: 1 });
+    await addToReviewSet({
+      items: [{ source: 'parser_warning', sourceId: 'p|w' }],
+      priority: 'low',
+      comment: '',
+      createdBy: 'a@b.c',
+    });
+    expect(lockSql()).toBe("SELECT pg_advisory_xact_lock(hashtext('review_set'))");
+    expect(prismaMock.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      prismaMock.reviewFlag.findMany.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('reopens a done flag inside the same lock, and refuses while another is open', async () => {
+    prismaMock.reviewFlag.findUnique.mockResolvedValue({
+      id: 3n,
+      source: 'import',
+      sourceId: 'j1',
+      status: 'done',
+    });
+    prismaMock.reviewFlag.findFirst.mockResolvedValueOnce({ id: 4n });
+    expect(await updateFlag({ id: 3n, status: 'open' })).toBe('already_open');
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(lockSql()).toBe("SELECT pg_advisory_xact_lock(hashtext('review_set'))");
+    expect(prismaMock.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      prismaMock.reviewFlag.findUnique.mock.invocationCallOrder[0]!,
+    );
+    expect(prismaMock.reviewFlag.update).not.toHaveBeenCalled();
+
+    prismaMock.reviewFlag.findFirst.mockResolvedValueOnce(null);
+    expect(await updateFlag({ id: 3n, status: 'open' })).toBe('ok');
+    expect(prismaMock.reviewFlag.update).toHaveBeenCalledWith({
+      where: { id: 3n },
+      data: { status: 'open' },
+    });
   });
 });

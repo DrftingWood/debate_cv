@@ -215,7 +215,10 @@ describe('GET /api/admin/review-set', () => {
 
   it('reads done flags too with status=all, and rejects an unknown format', async () => {
     await get('status=all');
-    expect(prismaMock.reviewFlag.findMany.mock.calls[0][0].where).toEqual({});
+    // Every open flag, then the newest done ones.
+    expect(prismaMock.reviewFlag.findMany.mock.calls[1][0].where).toEqual({
+      status: { not: 'open' },
+    });
     expect((await get('format=xml')).status).toBe(400);
   });
 });

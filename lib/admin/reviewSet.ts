@@ -39,8 +39,23 @@ export type { FlagDetail } from '@/lib/admin/reviewSetSources';
  * reduced to its public form, because the comment goes into the export.
  */
 
-/** The most flags read at once: far more than a person triages, and a bound on the export. */
-const READ_CAP = 1000;
+/**
+ * The most done flags read at once: far more than a person looks back on,
+ * and a bound on the export. Open flags are not capped: they are the work
+ * still to do, and a cap on the newest rows of every status would let an
+ * old open flag fall off the list once enough newer ones were marked done.
+ */
+const DONE_CAP = 1000;
+
+/**
+ * Serialises every write that decides whether an item already has an open
+ * flag (adding, and reopening a done one). Without it two admins adding the
+ * same import at once could both read "no open flag" and both create one.
+ * Transaction-scoped, so it is released at commit or rollback.
+ */
+async function lockReviewSet(tx: { $executeRaw: typeof prisma.$executeRaw }) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('review_set'))`;
+}
 
 export { scrubComment };
 
@@ -104,6 +119,7 @@ export async function addToReviewSet(input: {
   for (const i of items) bySource.set(i.source, [...(bySource.get(i.source) ?? []), i.sourceId]);
 
   return prisma.$transaction(async (tx) => {
+    await lockReviewSet(tx);
     const open = await tx.reviewFlag.findMany({
       where: {
         status: 'open',
@@ -151,29 +167,34 @@ export async function updateFlag(input: {
   comment?: string;
   status?: FlagStatus;
 }): Promise<UpdateResult> {
-  const current = await prisma.reviewFlag.findUnique({
-    where: { id: input.id },
-    select: { id: true, source: true, sourceId: true, status: true },
-  });
-  if (!current) return 'not_found';
-  if (input.status === 'open' && current.status !== 'open') {
-    const other = await prisma.reviewFlag.findFirst({
-      where: {
-        source: current.source,
-        sourceId: current.sourceId,
-        status: 'open',
-        id: { not: current.id },
-      },
-      select: { id: true },
-    });
-    if (other) return 'already_open';
-  }
   const data: { priority?: Priority; comment?: string; status?: FlagStatus } = {};
   if (input.priority) data.priority = input.priority;
   if (input.comment !== undefined) data.comment = scrubComment(input.comment);
   if (input.status) data.status = input.status;
-  await prisma.reviewFlag.update({ where: { id: input.id }, data });
-  return 'ok';
+  // The reopen check and the write share one locked transaction, as adding
+  // does, so a flag cannot be reopened while another add opens a second one.
+  return prisma.$transaction(async (tx) => {
+    await lockReviewSet(tx);
+    const current = await tx.reviewFlag.findUnique({
+      where: { id: input.id },
+      select: { id: true, source: true, sourceId: true, status: true },
+    });
+    if (!current) return 'not_found' as const;
+    if (input.status === 'open' && current.status !== 'open') {
+      const other = await tx.reviewFlag.findFirst({
+        where: {
+          source: current.source,
+          sourceId: current.sourceId,
+          status: 'open',
+          id: { not: current.id },
+        },
+        select: { id: true },
+      });
+      if (other) return 'already_open' as const;
+    }
+    await tx.reviewFlag.update({ where: { id: input.id }, data });
+    return 'ok' as const;
+  });
 }
 
 /** A flag as the page and the export show it: public address, error in words, live Tab state. */
@@ -198,6 +219,27 @@ export type ReviewFlagView = {
   createdAt: Date;
 };
 
+/** Every open flag, and with 'all' the newest done ones on top (DONE_CAP). */
+async function readFlagRows(status: 'open' | 'all') {
+  const include = { tournament: { select: { id: true, name: true } } } as const;
+  const [openRows, doneRows] = await Promise.all([
+    prisma.reviewFlag.findMany({
+      where: { status: 'open' },
+      orderBy: { createdAt: 'desc' },
+      include,
+    }),
+    status === 'all'
+      ? prisma.reviewFlag.findMany({
+          where: { status: { not: 'open' } },
+          orderBy: { createdAt: 'desc' },
+          take: DONE_CAP,
+          include,
+        })
+      : Promise.resolve([]),
+  ]);
+  return [...openRows, ...doneRows];
+}
+
 /**
  * The set as stored, high to low. An import flag also reads its job again:
  * its current error and attempts, and its stored tournament, so a tab that
@@ -206,12 +248,7 @@ export type ReviewFlagView = {
 export async function loadReviewSet(
   opts: { status?: 'open' | 'all'; order?: 'oldest' | 'newest' } = {},
 ): Promise<ReviewFlagView[]> {
-  const rows = await prisma.reviewFlag.findMany({
-    where: opts.status === 'all' ? {} : { status: 'open' },
-    orderBy: { createdAt: 'desc' },
-    take: READ_CAP,
-    include: { tournament: { select: { id: true, name: true } } },
-  });
+  const rows = await readFlagRows(opts.status ?? 'open');
   if (rows.length === 0) return [];
 
   const importIds = [...new Set(rows.filter((r) => r.source === 'import').map((r) => r.sourceId))];
