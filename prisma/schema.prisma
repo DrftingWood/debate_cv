@@ -272,6 +272,7 @@ model Tournament {
   tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
   scrapePieces         ScrapePiece[]
+  staff                TournamentStaff[]
   audit                TournamentAudit?
   reviewFlags          ReviewFlag[]
 
@@ -427,6 +428,7 @@ model Person {
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
   rejections        PersonRejection[]
   appearanceCandidates AppearanceCandidate[]
+  staffNames           TournamentStaff[]
 
   @@index([claimedByUserId])
   // Created by migration 20260725162000_person_suppression but never
@@ -690,6 +692,32 @@ model EliminationResult {
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, stage, entityType, entityName])
+}
+
+/// A name the tab's home page lists under its Tournament Staff block as part
+/// of the adjudication core (CA / CAP / DCA / "Core" / "Adjudication"), read
+/// by the home scrape piece. personId is set only on an unambiguous match to
+/// someone in the tournament's participant list; an ambiguous or unknown name
+/// stays unlinked. Rewritten whole each time the piece loads.
+model TournamentStaff {
+  id           BigInt   @id @default(autoincrement())
+  tournamentId BigInt
+  name         String
+  /// normalizePersonName(name): the key a name is deduplicated by.
+  nameKey      String
+  /// 'core' (the only role read so far).
+  role         String
+  /// 'staff_block': the home page text. Participants-list Adj Core ticks live
+  /// on TournamentParticipant.judgeTypeTag, not here.
+  source       String   @default("staff_block")
+  personId     BigInt?
+  createdAt    DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person     Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, role, nameKey])
+  @@index([personId])
 }
 
 model JudgeAssignment {

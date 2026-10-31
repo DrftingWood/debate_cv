@@ -52,6 +52,12 @@ export type AuditInputs = {
   speakerParticipants: number;
   speakersWithScores: number;
   judgeParticipants: number;
+  /**
+   * People named as adjudication core: judges with the participants list's
+   * Adj Core tick, plus the names under the home page's Tournament Staff
+   * block. Zero means neither source names anyone.
+   */
+  coreNamed: number;
   /** Distinct persons with round_results judge rows. */
   roundResultJudges: number;
   judgesByRound: Record<number, { chairs: number; judges: number }>;

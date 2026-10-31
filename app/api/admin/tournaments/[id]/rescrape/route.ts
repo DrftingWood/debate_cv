@@ -25,7 +25,7 @@ const Body = z.object({
     z
       .array(
         z.object({
-          kind: z.enum(['team', 'speaker', 'participants', 'motions', 'break', 'round']),
+          kind: z.enum(['team', 'speaker', 'participants', 'motions', 'home', 'break', 'round']),
           key: z.string().max(300),
         }),
       )

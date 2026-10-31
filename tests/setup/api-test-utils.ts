@@ -94,6 +94,7 @@ export const prismaMock = {
   appearanceCandidate: makeModelMock(),
   scrapePiece: makeModelMock(),
   reviewFlag: makeModelMock(),
+  tournamentStaff: makeModelMock(),
   // Two shapes:
   //   prisma.$transaction([...promises]) → resolves all in array
   //   prisma.$transaction(async (tx) => ..., opts?) → invokes callback with

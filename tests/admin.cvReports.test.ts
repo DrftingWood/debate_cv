@@ -170,6 +170,7 @@ describe('suggested pages', () => {
         speakerParticipants: 0,
         speakersWithScores: 0,
         judgeParticipants: 0,
+        coreNamed: 1,
         roundResultJudges: 0,
         judgesByRound: {},
         motionRounds: [],

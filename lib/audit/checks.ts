@@ -39,7 +39,7 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.7';
+export const CHECKS_VERSION = '2026-10-31.8';
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;
@@ -133,6 +133,36 @@ function checkFormatMissing(inputs: AuditInputs): CheckResult {
   );
 }
 
+/**
+ * Nobody named as adjudication core. Two sources count: the participants
+ * list's Adj Core tick and the names under the home page's Tournament Staff
+ * block (CA / CAP / DCA / Core / Adjudication), both counted into coreNamed.
+ * Only a warning, since a tab may truly have no core. It applies only when
+ * the participants list was read: a list that failed, or that the tournament
+ * keeps private, says nothing about who the core was. A list read before
+ * pieces were recorded is recognised by the judges on record. The fix reads
+ * the participants list and the home page again.
+ */
+function checkCoreMissing(inputs: AuditInputs): CheckResult {
+  const list = inputs.pieces.find((p) => p.kind === 'participants');
+  const read = list ? list.status === 'ok' : inputs.judgeParticipants > 0;
+  if (!read) return result('core_missing', 'na', 'The participants list has not been read.');
+  if (inputs.coreNamed > 0) {
+    const n = inputs.coreNamed;
+    return result(
+      'core_missing',
+      'pass',
+      `${n} ${plural(n, 'person is', 'people are')} named as adjudication core.`,
+    );
+  }
+  return result(
+    'core_missing',
+    'warn',
+    'No adjudication core is named: the participants list ticks no one as Adj Core and the home page names none.',
+    [tabPiece(inputs.pieces, 'participants'), tabPiece(inputs.pieces, 'home')],
+  );
+}
+
 /** What reportPieces reads: the recorded pieces and what says how many prelims there were. */
 export type ReportPieceInputs = Pick<AuditInputs, 'pieces' | 'prelimRoundCount' | 'roundRows'>;
 
@@ -192,6 +222,7 @@ export function runChecks(inputs: AuditInputs, currentParserVersion: string): Ch
     checkScrapeIncomplete(inputs),
     checkParserStale(inputs.parserVersion, currentParserVersion),
     checkFormatMissing(inputs),
+    checkCoreMissing(inputs),
     checkUserReports(inputs),
   ];
   return withoutWithheld(results, inputs.pieces);

@@ -32,6 +32,7 @@ describe('runChecks', () => {
       'scrape_incomplete',
       'parser_stale',
       'format_missing',
+      'core_missing',
       'user_reports',
     ]);
   });

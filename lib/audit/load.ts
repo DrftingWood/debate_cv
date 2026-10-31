@@ -50,6 +50,7 @@ function empty(t: {
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,
+    coreNamed: 0,
     roundResultJudges: 0,
     judgesByRound: {},
     motionRounds: [],
@@ -166,6 +167,32 @@ function queryScored(ids: bigint[]) {
   });
 }
 
+/**
+ * People named as adjudication core by either source: judges the participants
+ * list ticks Adj Core for (judgeTypeTag, stored 'core'), and names the home
+ * page's Tournament Staff block lists. Counts only: the check asks whether
+ * anyone is named, not who.
+ */
+function queryCore(ids: bigint[]) {
+  const tournamentId = { in: ids };
+  return Promise.all([
+    prisma.tournamentParticipant.groupBy({
+      by: ['tournamentId'],
+      where: {
+        tournamentId,
+        judgeTypeTag: { equals: 'core', mode: 'insensitive' },
+        roles: { some: { role: 'judge' } },
+      },
+      _count: { _all: true },
+    }),
+    prisma.tournamentStaff.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId, role: 'core' },
+      _count: { _all: true },
+    }),
+  ]);
+}
+
 type RedactedRow = { tournamentId: bigint; teamName: string; redactedSpeakers: number | null };
 
 /**
@@ -180,13 +207,14 @@ function redactedRows(ids: bigint[]) {
 }
 
 async function queryBatch(ids: bigint[]) {
-  const [rows, counts, scored, redacted] = await Promise.all([
+  const [rows, counts, scored, redacted, core] = await Promise.all([
     queryRows(ids),
     queryCounts(ids),
     queryScored(ids),
     redactedRows(ids),
+    queryCore(ids),
   ]);
-  return { all: [...rows, ...counts] as const, scored, redacted };
+  return { all: [...rows, ...counts] as const, scored, redacted, core };
 }
 
 type BatchRows = Awaited<ReturnType<typeof queryBatch>>['all'];
@@ -284,7 +312,11 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
   }
 }
 
-function addExtra(out: Map<bigint, LoadedAudit>, { scored, redacted }: Extra) {
+function addExtra(out: Map<bigint, LoadedAudit>, { scored, redacted, core }: Extra) {
+  for (const g of core.flat()) {
+    const a = out.get(g.tournamentId);
+    if (a) a.coreNamed += g._count._all;
+  }
   for (const g of scored) {
     const a = out.get(g.tournamentId);
     if (a) a.speakersWithScores = g._count._all;

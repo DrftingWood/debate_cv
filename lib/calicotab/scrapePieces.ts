@@ -8,7 +8,10 @@ import type { ApiTabsResult } from './tabbycatApi';
 // results round) so a single flaky page can be retried and re-scraped alone
 // instead of failing or redoing the whole tournament.
 
-export type PieceKind = 'team' | 'speaker' | 'participants' | 'motions' | 'break' | 'round';
+// 'home' is the tab's landing page, read for its Tournament Staff block (the
+// adjudication core named there); it has no rows of its own to clear.
+export type PieceKind =
+  'team' | 'speaker' | 'participants' | 'motions' | 'home' | 'break' | 'round';
 
 export type PieceRef = { kind: PieceKind; key: string };
 
@@ -68,6 +71,7 @@ const TAB_LABELS: Record<Exclude<PieceKind, 'break' | 'round'>, string> = {
   speaker: 'Speaker tab',
   participants: 'Participants',
   motions: 'Motions',
+  home: 'Home page',
 };
 
 /**

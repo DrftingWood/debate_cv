@@ -20,6 +20,8 @@ export function inputs(over: Partial<AuditInputs> = {}): AuditInputs {
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,
+    // Someone is named core by default, so tests of other checks do not meet core_missing.
+    coreNamed: 1,
     roundResultJudges: 0,
     judgesByRound: {},
     motionRounds: [],

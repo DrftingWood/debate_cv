@@ -74,7 +74,7 @@ export function toPieceCard(p: PieceRow, now: Date): PieceCard {
 
 // The order the tab site's own menu lists them in; breaks come after the
 // single tabs, by name, since a tournament has a variable number of them.
-const TAB_ORDER: PieceKind[] = ['team', 'speaker', 'participants', 'motions', 'break'];
+const TAB_ORDER: PieceKind[] = ['team', 'speaker', 'participants', 'motions', 'home', 'break'];
 
 /** Team, speaker, participants, motions, then each break by label. */
 export function orderTabs<T extends { kind: PieceKind; label: string }>(tabs: readonly T[]): T[] {

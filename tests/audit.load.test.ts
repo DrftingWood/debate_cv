@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   teamResult: { findMany: vi.fn() },
   eliminationResult: { findMany: vi.fn() },
   tournamentParticipant: { groupBy: vi.fn() },
+  tournamentStaff: { groupBy: vi.fn() },
   judgeAssignment: { groupBy: vi.fn() },
   motion: { groupBy: vi.fn() },
   scrapePiece: { findMany: vi.fn() },
@@ -63,22 +64,28 @@ function seedRows() {
 }
 
 function seedCounts() {
-  // Three groupings: speakers by team, judges, and speakers with any score
-  // (a total, or per-round scores on a tab that publishes only an average).
+  // Four groupings: speakers by team, judges, speakers with any score (a
+  // total, or per-round scores on a tab that publishes only an average) and
+  // judges ticked Adj Core (the first of the two core sources).
   db.tournamentParticipant.groupBy.mockImplementation(
-    async (args: { by: string[]; where: { roles: { some: { role: string } }; OR?: unknown } }) =>
-      args.by.includes('teamName')
-        ? [
-            { tournamentId: 1n, teamName: 'Oxford A', _count: { _all: 2 } },
-            { tournamentId: 1n, teamName: null, _count: { _all: 1 } },
-            { tournamentId: 2n, teamName: 'Lone', _count: { _all: 1 } },
-          ]
-        : args.where.OR
+    async (args: {
+      by: string[];
+      where: { roles: { some: { role: string } }; OR?: unknown; judgeTypeTag?: unknown };
+    }) =>
+      args.where.judgeTypeTag
+        ? [{ tournamentId: 1n, _count: { _all: 1 } }]
+        : args.by.includes('teamName')
           ? [
-              { tournamentId: 1n, _count: { _all: 3 } },
-              { tournamentId: 2n, _count: { _all: 1 } },
+              { tournamentId: 1n, teamName: 'Oxford A', _count: { _all: 2 } },
+              { tournamentId: 1n, teamName: null, _count: { _all: 1 } },
+              { tournamentId: 2n, teamName: 'Lone', _count: { _all: 1 } },
             ]
-          : [{ tournamentId: 1n, _count: { _all: 4 } }],
+          : args.where.OR
+            ? [
+                { tournamentId: 1n, _count: { _all: 3 } },
+                { tournamentId: 2n, _count: { _all: 1 } },
+              ]
+            : [{ tournamentId: 1n, _count: { _all: 4 } }],
   );
   // Team-tab redacted counts: one known, one never counted.
   db.$queryRaw.mockResolvedValue([
@@ -99,6 +106,8 @@ function seedCounts() {
           { tournamentId: 1n, roundNumber: 2, panelRole: null, _count: { _all: 1 } },
         ],
   );
+  // The home page's staff block names two more for tournament 1.
+  db.tournamentStaff.groupBy.mockResolvedValue([{ tournamentId: 1n, _count: { _all: 2 } }]);
   db.motion.groupBy.mockResolvedValue([
     { tournamentId: 1n, roundNumber: 2 },
     { tournamentId: 1n, roundNumber: 1 },
@@ -152,6 +161,8 @@ const TOURNAMENT_1 = {
   speakerParticipants: 3,
   speakersWithScores: 3,
   judgeParticipants: 4,
+  // One Adj Core tick on the list plus two names from the home page.
+  coreNamed: 3,
   roundResultJudges: 3,
   judgesByRound: { 1: { chairs: 2, judges: 6 }, 2: { chairs: 0, judges: 1 } },
   motionRounds: [1, 2],
@@ -185,6 +196,7 @@ describe('loadAuditInputs', () => {
       redactedByTeam: { Lone: null },
       speakersWithScores: 1,
       judgeParticipants: 0,
+      coreNamed: 0,
       roundResultJudges: 0,
       judgesByRound: {},
       motionRounds: [],
@@ -212,7 +224,8 @@ describe('loadAuditInputs: queries', () => {
     expect(db.discoveredUrl.groupBy).toHaveBeenCalledTimes(1);
     // A role lives on a joined table, and distinct judges need their own
     // grouping: two grouped queries each, still per batch, not per tournament.
-    expect(db.tournamentParticipant.groupBy).toHaveBeenCalledTimes(3);
+    expect(db.tournamentParticipant.groupBy).toHaveBeenCalledTimes(4);
+    expect(db.tournamentStaff.groupBy).toHaveBeenCalledTimes(1);
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
     expect(db.judgeAssignment.groupBy).toHaveBeenCalledTimes(2);
   });
@@ -253,5 +266,23 @@ describe('loadAuditInputs: queries', () => {
   it('an empty batch queries nothing', async () => {
     expect((await loadAuditInputs([])).size).toBe(0);
     expect(db.tournament.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadAuditInputs: adjudication core', () => {
+  it('counts Adj Core judges case-insensitively, and the staff block names, by tournament', async () => {
+    await loadAuditInputs([1n, 2n]);
+    const core = db.tournamentParticipant.groupBy.mock.calls
+      .map((c) => c[0])
+      .find((a: { where: { judgeTypeTag?: unknown } }) => a.where.judgeTypeTag);
+    expect(core.where).toEqual({
+      tournamentId: { in: [1n, 2n] },
+      judgeTypeTag: { equals: 'core', mode: 'insensitive' },
+      roles: { some: { role: 'judge' } },
+    });
+    expect(db.tournamentStaff.groupBy.mock.calls[0][0].where).toEqual({
+      tournamentId: { in: [1n, 2n] },
+      role: 'core',
+    });
   });
 });

@@ -117,7 +117,13 @@ export function suggest(p: AuditPiece): SuggestedPiece {
   return { kind: p.kind, key: p.key, label: p.label, url: p.url ? publicPieceUrl(p.url) : null };
 }
 
-const TAB_LABELS = { team: 'Team tab', speaker: 'Speaker tab', motions: 'Motions' } as const;
+const TAB_LABELS = {
+  team: 'Team tab',
+  speaker: 'Speaker tab',
+  motions: 'Motions',
+  participants: 'Participants',
+  home: 'Home page',
+} as const;
 
 /**
  * A single tab page. Suggested even when no piece was recorded: its key is

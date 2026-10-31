@@ -74,7 +74,15 @@ export type ParsedCheck = {
 };
 
 const STATUSES: readonly string[] = ['pass', 'warn', 'fail', 'na'];
-const KINDS: readonly string[] = ['team', 'speaker', 'participants', 'motions', 'break', 'round'];
+const KINDS: readonly string[] = [
+  'team',
+  'speaker',
+  'participants',
+  'motions',
+  'home',
+  'break',
+  'round',
+];
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);

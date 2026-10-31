@@ -3,8 +3,10 @@ import { prisma } from '@/lib/db';
 import { ClearDataButton, FullWipeButton, ReingestAllButton } from '@/components/AdminActions';
 import { IngestProgressTracker } from '@/components/IngestProgressTracker';
 import { buttonClasses } from '@/components/ui/Button';
+import { FillCoresButton } from '@/components/admin/FillCoresButton';
 import { FillFormatsButton } from '@/components/admin/FillFormatsButton';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
+import { countMissingCores } from '@/lib/admin/coreFill';
 import { orNull } from '@/lib/admin/orNull';
 
 /**
@@ -14,12 +16,13 @@ import { orNull } from '@/lib/admin/orNull';
  * sit beside Re-ingest all, which they explain (it skips the locked ones).
  */
 export async function ToolsTab() {
-  const [discovered, locked, noFormat] = await Promise.all([
+  const [discovered, locked, noFormat, noCore] = await Promise.all([
     prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
     prisma.discoveredUrl
       .count({ where: { reingestLocked: true } })
       .catch(orNull('locked URL count')),
     prisma.tournament.count({ where: { format: null } }).catch(orNull('missing format count')),
+    countMissingCores().catch(orNull('missing adjudication core count')),
   ]);
   const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-GB'));
   const reingestable =
@@ -32,6 +35,7 @@ export async function ToolsTab() {
       <LookupSection />
       <CheckAndTag />
       <FillFormats missing={noFormat} />
+      <FillCores missing={noCore} />
       <ReingestAll
         discovered={count(discovered)}
         locked={count(locked)}
@@ -111,6 +115,34 @@ function FillFormats({ missing }: { missing: number | null }) {
         </p>
       ) : (
         <FillFormatsButton missing={missing} />
+      )}
+    </section>
+  );
+}
+
+// Tournaments that name no adjudication core (R10). Unlike the format fill this
+// fetches: it reads each tournament's public home page, and its participants
+// list if that was never read, so a press goes over only 20.
+function FillCores({ missing }: { missing: number | null }) {
+  return (
+    <section aria-labelledby="fill-cores" className="space-y-stack rounded-lg border p-panel">
+      <div>
+        <h2 id="fill-cores" className="font-display text-h3 font-medium text-ink">
+          Fill missing adjudication cores
+        </h2>
+        <p className="mt-hair max-w-prose text-body text-ink-soft">
+          Reads the Tournament Staff block on each tab&rsquo;s home page for tournaments that name
+          no CA, CAP or core panel, and the participants list where it was never read. A tournament
+          whose page names nobody is left as it is. Only the home page and the participants list are
+          fetched, never the whole tab.
+        </p>
+      </div>
+      {missing === null ? (
+        <p className="text-body text-ink-soft">
+          Couldn&rsquo;t count the tournaments with no adjudication core.
+        </p>
+      ) : (
+        <FillCoresButton missing={missing} />
       )}
     </section>
   );

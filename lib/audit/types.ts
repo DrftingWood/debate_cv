@@ -20,6 +20,7 @@ export type CheckCode =
   | 'scrape_incomplete'
   | 'parser_stale'
   | 'format_missing'
+  | 'core_missing'
   | 'user_reports';
 
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'na';
@@ -83,6 +84,7 @@ export const CHECK_WEIGHTS: Record<Exclude<CheckCode, 'user_reports'>, number> =
   scrape_incomplete: 10,
   parser_stale: 3,
   format_missing: 3,
+  core_missing: 2,
 };
 
 export const CHECK_LABELS: Record<CheckCode, string> = {
@@ -100,6 +102,7 @@ export const CHECK_LABELS: Record<CheckCode, string> = {
   scrape_incomplete: 'Scrape incomplete',
   parser_stale: 'Old parser',
   format_missing: 'Format',
+  core_missing: 'Adjudication core',
   user_reports: 'User reports',
 };
 
