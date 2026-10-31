@@ -4,6 +4,7 @@ import { stripAttendanceTag } from '@/lib/calicotab/names';
 import { isAdjudicationCoreRole } from '@/lib/calicotab/judgeStats';
 import { parseJsValue } from './parseJsValue';
 import { extractFromCheerio } from './cheerioToVue';
+import { breakColumns, teamBreakRank } from './breakColumns';
 
 // ── Vue.js data types ────────────────────────────────────────────────────────
 // Tabbycat renders all tab/results/break pages via a Vue component that reads
@@ -1050,41 +1051,6 @@ export function parseRoundResults(
 
 // ── parseBreakPage ───────────────────────────────────────────────────────────
 
-/**
- * Remarks Tabbycat prints where a ranked team is not in this break. They are
- * BreakingTeam.Remark in tabbycat/breakqual/models.py (TabbycatDebate/tabbycat):
- * Capped (C), Ineligible (I), Different break (D), Disqualified (d), Lost coin
- * toss (t), Withdrawn (w), plus Reserve (R) and Absent (A).
- */
-const NOT_BREAKING =
-  /withdr[ae]w|ineligible|not eligible|different break|capped|disqualified|lost coin toss|reserve|absent|did not break/i;
-
-/** Column whose key or title is exactly one of the names (header-name match). */
-function vueColExact(heads: VueHead[], ...names: string[]): number {
-  return heads.findIndex((h) =>
-    [h.key, h.title].some((v) => v != null && names.includes(v.trim().toLowerCase())),
-  );
-}
-
-type BreakCols = { breakCol: number; remarkCol: number; rkCol: number };
-
-/**
- * A team row's break rank, or 'out' when the row is not a breaker: a remark
- * ("(withdrawn)", "(different break)"), or a blank/dash Break cell. Break
- * wins over Rk; with no Break column Rk is the rank, as before.
- */
-function teamBreakRank(row: VueCell[], cols: BreakCols): number | null | 'out' {
-  const { breakCol, remarkCol, rkCol } = cols;
-  if (remarkCol >= 0 && NOT_BREAKING.test(cellText(row[remarkCol]))) return 'out';
-  if (breakCol < 0) return rkCol >= 0 ? parseRank(row[rkCol]) : null;
-  const text = cellText(row[breakCol]);
-  // Blank, a dash or a parenthesised remark means "did not break".
-  if (text === '' || /^[-–—]+$/.test(text) || /^\(.*\)$/.test(text)) return 'out';
-  if (NOT_BREAKING.test(text)) return 'out';
-  // Anything else that is not a number keeps the standing rank.
-  return parseRank(row[breakCol]) ?? (rkCol >= 0 ? parseRank(row[rkCol]) : null);
-}
-
 function breakPageFromVue(
   tables: VueTable[],
   isAdj: boolean,
@@ -1094,27 +1060,9 @@ function breakPageFromVue(
   if (!table?.head?.length || !table?.data?.length) return null;
   const heads = table.head;
 
-  // Adjudicator breaks are binary in real Tabbycat data — a judge either
-  // breaks (qualifies to adjudicate outrounds) or doesn't. Some installs
-  // happen to render a row index in their break-tab table that looks like
-  // a "rank" column to a generic header matcher, but it isn't a meaningful
-  // rank. Don't extract a rank for adjudicator rows so we don't end up
-  // displaying a phantom "rank:N" badge on /cv/verify.
-  //
-  // A team break tab has two rank-like columns: "Rk", the team's standing in
-  // the tab (withdrawn teams and teams that broke in another category still
-  // have one), and "Break", the break rank — or a remark such as
-  // "(withdrawn)" where the team did not break. Break is authoritative when
-  // the tab has it; Rk is read only on tabs that show no Break column.
-  const breakCol = isAdj ? -1 : vueColExact(heads, 'break');
-  const remarkCol = isAdj ? -1 : vueColExact(heads, 'remark', 'remarks');
-  const exactRk = isAdj ? -1 : vueColExact(heads, 'rk', 'rank', '#');
-  const rkCol = isAdj
-    ? -1
-    : exactRk >= 0
-      ? exactRk
-      : vueColExcluding(heads, new Set([breakCol, remarkCol]), 'rank', '#');
-  const cols: BreakCols = { breakCol, remarkCol, rkCol };
+  // Adjudicator breaks are binary (a judge breaks or doesn't), so judges get
+  // no rank. Teams: Break column rank, non-breakers left out (breakColumns.ts).
+  const cols = isAdj ? null : breakColumns(heads);
   const nameCol = vueCol(heads, 'team', 'adjudicator', 'name');
   const instCol = vueCol(heads, 'inst', 'school');
   const scoreCol = vueCol(heads, 'score', 'pts', 'point', 'total');
@@ -1123,7 +1071,7 @@ function breakPageFromVue(
   for (const row of table.data) {
     const entityName = nameCol >= 0 ? nameText(row[nameCol]) : nameText(row[0]);
     if (!entityName) continue;
-    const rank = isAdj ? null : teamBreakRank(row, cols);
+    const rank = cols && teamBreakRank(cols, row, cellText, parseRank);
     if (rank === 'out') continue;
     rows.push({
       rank,
