@@ -17,6 +17,10 @@ const h = vi.hoisted(() => ({
     scrapePiece: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     ingestJob: { findMany: vi.fn() },
     discoveredUrl: { findMany: vi.fn() },
+    reviewFlag: { findMany: vi.fn() },
+    cvErrorReport: { findMany: vi.fn(), count: vi.fn() },
+    parserRun: { findMany: vi.fn() },
+    teamResult: { groupBy: vi.fn() },
   },
 }));
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
@@ -30,6 +34,12 @@ const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy')
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
 const { asLookupUrl, hasPrivateKeyPath, searchBoxValue } = await import('@/lib/admin/tabAddress');
+const { loadReviewSet, reviewSetCsv, toExportRecord } = await import('@/lib/admin/reviewSet');
+const { toReviewRows } = await import('@/components/admin/ReviewSetSection');
+const { listCvReports } = await import('@/lib/admin/cvReports');
+const { toCvReportRows } = await import('@/components/admin/CvReportsSection');
+const { listParserWarnings } = await import('@/lib/admin/parserWarnings');
+const { toWarningRows } = await import('@/components/admin/ParserWarningsSection');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
 
@@ -221,5 +231,130 @@ describe('shortUrl', () => {
   it('never echoes a link it cannot read', () => {
     expect(shortUrl(`not a url /privateurls/${KEY}/`)).toBe('Unreadable link');
     expect(shortUrl(PRIVATE)).toBe('oxiv.calicotab.com/oxiv2025/…');
+  });
+});
+
+describe('the Tab column and the review set carry no private key (Task 5c)', () => {
+  it('FailedJobsTable rows: the Tab cell lists failed pages in words', async () => {
+    const health = await getScrapeHealth();
+    const rows = toFailedJobRows(health.failedJobs, NOW, new Map([['j1', 'high']]));
+    expect(rows[0]!.tab).toEqual({
+      state: 'partial',
+      tournamentId: '1',
+      errors: ['R3: HTTP 500 Internal Server Error'],
+    });
+    expect(rows[0]!.flag).toEqual({ priority: 'high' });
+    expectNoKey(rows);
+  });
+
+  it('ReviewSetTable rows and both exports, even with a key pasted into a comment', async () => {
+    h.db.reviewFlag.findMany.mockResolvedValue([
+      {
+        id: 1n,
+        source: 'import',
+        sourceId: 'j1',
+        // A row written before the address was made public must still not leak.
+        url: PRIVATE,
+        tournamentId: 1n,
+        tournament: { id: 1n, name: 'Oxford IV' },
+        priority: 'high',
+        comment: `see ${PRIVATE}results/round/3/`,
+        status: 'open',
+        createdBy: 'admin@example.com',
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    ]);
+    h.db.ingestJob.findMany.mockResolvedValue([
+      { id: 'j1', url: PRIVATE, userId: 'u1', attempts: 3, lastError: `fetch failed ${PRIVATE}` },
+    ]);
+    const flags = await loadReviewSet();
+    expect(flags[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expectNoKey(toReviewRows(flags, NOW));
+    expectNoKey(flags.map(toExportRecord));
+    expectNoKey(reviewSetCsv(flags));
+  });
+});
+
+/** A CV report and a parser run full of private URLs (Task 5d). */
+function seedReportsAndWarnings() {
+  h.db.cvErrorReport.count.mockResolvedValue(1);
+  h.db.cvErrorReport.findMany.mockResolvedValue([
+    {
+      id: 'r1',
+      userId: 'u1',
+      tournamentIds: ['1'],
+      categories: ['wrong_speaker_rank'],
+      comment: `my private link ${PRIVATE}tab/speaker/ and oxiv.calicotab.com/x/privateurls/${KEY}`,
+      status: 'open',
+      createdAt: NOW,
+      resolvedAt: null,
+      user: { name: 'Maya', email: 'maya@example.com' },
+    },
+  ]);
+  h.db.tournament.findMany.mockResolvedValue([
+    { id: 1n, name: 'Oxford IV', sourceUrlRaw: PRIVATE, prelimRoundCount: 3, scrapedAt: NOW },
+  ]);
+  h.db.teamResult.groupBy.mockResolvedValue([]);
+  h.db.parserRun.findMany.mockResolvedValue([
+    {
+      parserName: 'parseTabs',
+      warnings: [`Bad row — at ${PRIVATE}tab/team/ (privateurls/${KEY})`],
+      createdAt: NOW,
+      sourceDocument: { url: `${PRIVATE}tab/team/` },
+    },
+  ]);
+}
+
+describe('CV reports and parser warnings carry no private key (Task 5d)', () => {
+  beforeEach(seedReportsAndWarnings);
+
+  it('CvReportsTable rows: tab links, suggested pieces and the comment', async () => {
+    const list = await listCvReports({ page: 1 });
+    const rows = toCvReportRows(list.rows, NOW);
+    expect(rows[0]!.tournaments[0]!.tabUrl).toBe('https://oxiv.calicotab.com/oxiv2025/');
+    expect(rows[0]!.tournaments[0]!.suggested.length).toBeGreaterThan(0);
+    expectNoKey(rows);
+  });
+
+  it('ParserWarningsTable rows: matched tournaments, headline and sample', async () => {
+    const list = await listParserWarnings({ page: 1, now: NOW });
+    const rows = toWarningRows(list.rows, NOW);
+    expect(rows[0]!.tournaments[0]).toMatchObject({ id: '1', name: 'Oxford IV' });
+    expectNoKey(rows);
+  });
+
+  it('the review set export of a CV report and a parser warning', async () => {
+    const flag = (id: bigint, source: string, sourceId: string) => ({
+      id,
+      source,
+      sourceId,
+      url: '',
+      tournamentId: null,
+      tournament: null,
+      priority: 'high',
+      comment: `see ${PRIVATE}`,
+      status: 'open',
+      createdBy: 'admin@example.com',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    h.db.reviewFlag.findMany.mockResolvedValue([
+      flag(1n, 'cv_report', 'r1'),
+      flag(2n, 'parser_warning', 'parseTabs|Bad row'),
+    ]);
+    const flags = await loadReviewSet();
+    const records = flags.map(toExportRecord);
+    const report = records.find((r) => r.source === 'cv_report')!;
+    expect(report.detail).toMatchObject({
+      reporter: { name: 'Maya', email: 'maya@example.com' },
+      categories: ['Wrong speaker rank'],
+      tournaments: [{ id: '1', name: 'Oxford IV' }],
+    });
+    const warning = records.find((r) => r.source === 'parser_warning')!;
+    expect(warning.detail).toMatchObject({ parser: 'parseTabs', headline: 'Bad row', count: 1 });
+    expectNoKey(records);
+    expectNoKey(reviewSetCsv(flags));
+    expectNoKey(toReviewRows(flags, NOW));
   });
 });

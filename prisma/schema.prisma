@@ -273,6 +273,7 @@ model Tournament {
   appearanceCandidates AppearanceCandidate[]
   scrapePieces         ScrapePiece[]
   audit                TournamentAudit?
+  reviewFlags          ReviewFlag[]
 
   @@index([year])
   @@index([format])
@@ -331,6 +332,42 @@ model TournamentAudit {
 
   @@index([score])
   @@index([computedAt])
+}
+
+/// An item an admin set aside for a later, closer look (owner, 2026-10-31:
+/// "prioritize some errors and bring to a separate set that you can later
+/// pick for review - prioritize and add a comment"). One set for every kind
+/// of problem (Ruling 16): `source` says what was flagged and `sourceId`
+/// which one: an IngestJob id ('import'), a CvErrorReport id ('cv_report'),
+/// or a parser-warning group key `<parserName>|<headline>`
+/// ('parser_warning'). Not a foreign key, because the three point at
+/// different tables and a flag should outlive a retried job.
+///
+/// At most one 'open' flag per (source, sourceId), enforced in
+/// lib/admin/reviewSet.ts: flagging again refreshes it. `url` is always the
+/// public tab address ('' when there is none), never a private URL: the set
+/// is exported for a later session to read.
+model ReviewFlag {
+  id           BigInt      @id @default(autoincrement())
+  /// 'import' | 'cv_report' | 'parser_warning'
+  source       String
+  sourceId     String
+  url          String
+  tournamentId BigInt?
+  /// 'high' | 'medium' | 'low'
+  priority     String
+  /// At most 1000 characters, checked at the API.
+  comment      String
+  /// 'open' | 'done'
+  status       String      @default("open")
+  /// The admin's email.
+  createdBy    String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority])
+  @@index([source, sourceId])
 }
 
 model Person {

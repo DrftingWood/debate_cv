@@ -70,6 +70,8 @@ lib/
   notifications/write.ts      In-app feed writer (bell icon; no email/push by design)
   sharing/slug.ts             Public CV slug helpers
   cvErrorReports/categories.ts
+  audit/                      Tournament accuracy checks (checks*.ts, pure), score + bands (score.ts), load/run (TournamentAudit writes; after scrapes, cron sweep, "Audit now")
+  admin/                      Admin read models: scrapeHealth (failed imports + Tab state), accuracy, tournamentLookup (host+slug matching), reviewSet (ReviewFlag set + export), cvReports, parserWarnings (React-cached, bounded read)
   utils/                      api, cn (clsx+tw-merge), csv, site
 
 components/

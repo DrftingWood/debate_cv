@@ -34,7 +34,8 @@ const BASELINE = {
   // affectedTournaments.ts).
   // 72 -> 69 (2026-10-27, after main 73 -> 72): the knockout-motion PR removed two in
   // lib/cv/motionEntries.ts and one in app/(app)/cv/motions/page.tsx.
-  nonNull: 69,
+  // 69 -> 68 (2026-10-31): the data-accuracy part 2 review fixes removed one.
+  nonNull: 68,
   eslintDisableUnexplained: 2,
 };
 

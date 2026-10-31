@@ -64,3 +64,28 @@ export function lookupFailureMessage(failure: FailureLike): string {
   if (failure.error === 'bad_request') return 'That is too long to be a tab URL.';
   return lookup(SHARED, failure.error) ?? generic(failure);
 }
+
+const REVIEW_SET: Record<string, string> = {
+  ...SHARED,
+  // The page checks the comment and the selection before it sends, so a
+  // bad request here is a stale page or a hand-made call.
+  bad_request: 'That could not be saved. Reload the page and try again.',
+  not_found: 'That flag no longer exists. Reload the page to see the current set.',
+  already_open: 'This item is already open in the review set. Reload the page to see it.',
+};
+
+/** Why adding to, or editing, the review set did not work. */
+export function reviewSetFailureMessage(failure: FailureLike): string {
+  return lookup(REVIEW_SET, failure.error) ?? generic(failure);
+}
+
+const CV_REPORT: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That status could not be saved. Reload the page and try again.',
+  not_found: 'This report no longer exists. Reload the page to see the current list.',
+};
+
+/** Why a CV report's new status did not save. */
+export function cvReportFailureMessage(failure: FailureLike): string {
+  return lookup(CV_REPORT, failure.error) ?? generic(failure);
+}

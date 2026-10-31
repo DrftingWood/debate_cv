@@ -96,6 +96,8 @@ describe('getScrapeHealth', () => {
         finishedAt: d('2026-10-02'),
         // Not a tab URL, so no tournament can be stored for it.
         stored: null,
+        // Task 5c: so nothing of its tab is loaded either.
+        tab: { state: 'missing', tournamentId: null, errors: [] },
       },
     ]);
     expect(prismaMock.ingestJob.findMany.mock.calls[0][0]).toMatchObject({
@@ -123,6 +125,32 @@ describe('getScrapeHealth: withheld pages', () => {
       ...prismaMock.scrapePiece.groupBy.mock.calls,
     ].map((c) => (c[0] as { where: { status: string } }).where.status);
     expect(statuses.filter((s) => s !== 'failed')).toEqual(['withheld']);
+  });
+});
+
+// Browser check (Task 6): a tab-site address with no slug read "✗ Not loaded"
+// and "Not stored" in Failed imports, though nothing can be matched to it.
+describe('getScrapeHealth: an import with no slug', () => {
+  it('says "? Check", not "✗ Not loaded"', async () => {
+    prismaMock.tournament.count.mockResolvedValue(0);
+    prismaMock.scrapePiece.count.mockResolvedValue(0);
+    prismaMock.scrapePiece.groupBy.mockResolvedValue([]);
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
+    prismaMock.tournament.findMany.mockResolvedValue([]);
+    prismaMock.ingestJob.findMany.mockResolvedValue([
+      {
+        id: 'j9',
+        url: 'https://bare.calicotab.com/privateurls/k3y/',
+        attempts: 2,
+        lastError: 'timed out',
+        finishedAt: d('2026-10-02'),
+        user: { email: 'a@b.c' },
+      },
+    ]);
+    const [job] = (await getScrapeHealth()).failedJobs;
+    expect(job!.stored).toBeNull();
+    expect(job!.tab.state).toBe('check');
+    expect(job!.tab.errors[0]).toMatch(/names no tournament/);
   });
 });
 
