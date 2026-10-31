@@ -313,7 +313,14 @@ function Tournaments({ tournaments }: { tournaments: readonly Tournament[] }) {
           )}
           <div className="flex flex-wrap items-baseline gap-x-tight gap-y-hair text-caption">
             <TabStatus tab={t.tab} name={t.name} open={false} />
-            <TabLink url={t.tabUrl} text="Tab" of={t.name} missing="No public tab" />
+            <TabLink
+              url={t.tabUrl}
+              text="Tab"
+              of={t.name}
+              missing="No public tab"
+              // 24px tall, the WCAG 2.2 target minimum (axe, Task 6).
+              className="inline-flex min-h-6 items-center"
+            />
           </div>
         </li>
       ))}
