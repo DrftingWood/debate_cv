@@ -3,7 +3,14 @@ import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { publicPieceUrl } from '@/lib/audit/types';
 import { storedMatchesByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
-import { ambiguousTab, loadTabStates, tabState, type TabState } from '@/lib/admin/tabStatus';
+import {
+  ambiguousTab,
+  loadTabStates,
+  tabState,
+  UNMATCHABLE_TAB,
+  type TabState,
+} from '@/lib/admin/tabStatus';
+import { parseTabAddress } from '@/lib/admin/tabAddress';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -145,11 +152,16 @@ async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
   const jobs = await loadFailedJobs();
   const { stored: storedByJob, ambiguous } = await matchJobs(jobs);
   const tabs = await loadTabStates([...storedByJob.values()].map((r) => r.id));
-  const tabOf = (id: string): TabState => {
-    const ref = storedByJob.get(id);
+  // Not stored, as far as can be told: two stored rows on its address, or
+  // a tab-site address with no slug to match on, is "? Check" (in both the
+  // Tab and the In database cells), not a false "✗ Not loaded".
+  const tabOf = (j: { id: string; url: string }): TabState => {
+    const ref = storedByJob.get(j.id);
     if (ref) return tabs.get(ref.id) ?? tabState(ref.id, []);
-    const n = ambiguous.get(id);
-    return n ? ambiguousTab(n) : tabState(null, []);
+    const n = ambiguous.get(j.id);
+    if (n) return ambiguousTab(n);
+    const address = parseTabAddress(j.url);
+    return address && !address.slug ? UNMATCHABLE_TAB : tabState(null, []);
   };
   return jobs.map((j) => ({
     id: j.id,
@@ -159,7 +171,7 @@ async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
     lastError: j.lastError,
     finishedAt: j.finishedAt,
     stored: storedByJob.get(j.id) ?? null,
-    tab: tabOf(j.id),
+    tab: tabOf(j),
   }));
 }
 

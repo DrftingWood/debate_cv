@@ -128,6 +128,32 @@ describe('getScrapeHealth: withheld pages', () => {
   });
 });
 
+// Browser check (Task 6): a tab-site address with no slug read "✗ Not loaded"
+// and "Not stored" in Failed imports, though nothing can be matched to it.
+describe('getScrapeHealth: an import with no slug', () => {
+  it('says "? Check", not "✗ Not loaded"', async () => {
+    prismaMock.tournament.count.mockResolvedValue(0);
+    prismaMock.scrapePiece.count.mockResolvedValue(0);
+    prismaMock.scrapePiece.groupBy.mockResolvedValue([]);
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
+    prismaMock.tournament.findMany.mockResolvedValue([]);
+    prismaMock.ingestJob.findMany.mockResolvedValue([
+      {
+        id: 'j9',
+        url: 'https://bare.calicotab.com/privateurls/k3y/',
+        attempts: 2,
+        lastError: 'timed out',
+        finishedAt: d('2026-10-02'),
+        user: { email: 'a@b.c' },
+      },
+    ]);
+    const [job] = (await getScrapeHealth()).failedJobs;
+    expect(job!.stored).toBeNull();
+    expect(job!.tab.state).toBe('check');
+    expect(job!.tab.errors[0]).toMatch(/names no tournament/);
+  });
+});
+
 describe('getTournamentPieces', () => {
   it('returns null for an unknown tournament', async () => {
     prismaMock.tournament.findUnique.mockResolvedValue(null);
