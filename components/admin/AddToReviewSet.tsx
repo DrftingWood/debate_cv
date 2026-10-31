@@ -329,7 +329,9 @@ function AddForm({ n, priority, comment, pending, onSubmit, onCancel }: AddFormP
     <form
       noValidate
       aria-label="Add to review set"
-      className="panel-inset space-y-tight rounded-md p-stack"
+      // min-w-60: inside a narrow table cell at 390 px the form was 99 px wide and
+      // its comment box 65 px (R7 browser check); the cell grows, the table scrolls.
+      className="panel-inset min-w-60 space-y-tight rounded-md p-stack"
       onKeyDown={escapeCloses(onCancel)}
       onSubmit={(e) => {
         e.preventDefault();
