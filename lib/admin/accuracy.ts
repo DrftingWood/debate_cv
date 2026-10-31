@@ -50,6 +50,12 @@ export type AccuracyOverview = {
   onCvs: number;
   bands: Record<Band, number>;
   failingByCheck: Array<{ code: CheckCode; label: string; count: number }>;
+  /**
+   * The same per check for warnings that are not failing. Some checks only
+   * ever warn (an adjudication core no page names), so a failing count alone
+   * would read zero for them.
+   */
+  warningByCheck: Array<{ code: CheckCode; label: string; count: number }>;
   /** Audited tournaments with at least one check marked checked (the "Checked" chip). */
   checked: number;
   /** Tournaments never audited or last audited over 24 h ago. */
@@ -197,11 +203,17 @@ async function namesFor(ids: bigint[]) {
   );
 }
 
-function countFailing(audits: Audit[]): AccuracyOverview['failingByCheck'] {
+/** A warning that is not failing (open user reports fail; isFailing). */
+export const isWarning = (c: ParsedCheck) => c.status === 'warn' && !isFailing(c);
+
+function countChecks(
+  audits: Audit[],
+  counted: (c: ParsedCheck) => boolean,
+): AccuracyOverview['failingByCheck'] {
   const counts = new Map<CheckCode, number>();
   for (const a of audits) {
     // A tournament counts once per check, however its JSON repeats it.
-    for (const code of new Set(a.checks.filter(isFailing).map((c) => c.code))) {
+    for (const code of new Set(a.checks.filter(counted).map((c) => c.code))) {
       counts.set(code, (counts.get(code) ?? 0) + 1);
     }
   }
@@ -282,7 +294,8 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
     ...databaseScore(audits),
     onCvs: audits.filter((a) => a.usersAffected > 0).length,
     bands,
-    failingByCheck: countFailing(audits),
+    failingByCheck: countChecks(audits, isFailing),
+    warningByCheck: countChecks(audits, isWarning),
     checked: countChecked(audits),
     stale: Math.max(0, tournaments - fresh),
     tournaments,

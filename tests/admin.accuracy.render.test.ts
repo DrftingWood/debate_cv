@@ -98,6 +98,7 @@ const overview: AccuracyOverview = {
   bands: { good: 25, check: 10, rescrape: 5 },
   checked: 2,
   failingByCheck: [{ code: 'rounds_complete', label: 'Rounds complete', count: 4 }],
+  warningByCheck: [{ code: 'core_missing', label: 'Adjudication core', count: 7 }],
   stale: 3,
   tournaments: 43,
   ignored: 2,
@@ -129,6 +130,7 @@ const empty: AccuracyOverview = {
   bands: { good: 0, check: 0, rescrape: 0 },
   checked: 0,
   failingByCheck: [],
+  warningByCheck: [],
   openQuestions: [],
 };
 
@@ -182,6 +184,7 @@ describe('Tournaments tab filter chips (R5)', () => {
     expect(out).toContain('Check 10');
     expect(out).toContain('Re-scrape 5');
     expect(out).toContain('Rounds complete 4');
+    expect(out).toContain('Warning Adjudication core 7');
     expect(out).toContain('Checked by an admin 2');
     expect(out).toContain('Open question: champion when no Open bracket 1');
     expect(out).not.toContain('Data accuracy');
@@ -254,7 +257,7 @@ describe('Tournaments tab filter chips: caption, wrapping and groups (R5)', () =
   it('names each chip group as a group by its visible label, not as a landmark', async () => {
     const out = await renderTournaments(overview);
     const groups = [...out.matchAll(/<div role="group" aria-labelledby="([^"]+)"/g)];
-    expect(groups).toHaveLength(3);
+    expect(groups).toHaveLength(4);
     for (const [, id] of groups) expect(out).toMatch(new RegExp(`<p id="${id}"`));
     expect(out).not.toContain('Show tournaments by');
   });

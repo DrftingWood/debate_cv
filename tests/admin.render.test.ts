@@ -29,6 +29,7 @@ vi.mock('@/lib/admin/accuracy', () => ({
     bands: { good: 0, check: 0, rescrape: 0 },
     checked: 0,
     failingByCheck: [],
+    warningByCheck: [],
     stale: 0,
     tournaments: 0,
     openQuestions: [],
