@@ -101,32 +101,40 @@ describe('rooms_consistent', () => {
     expect(c.status).toBe('pass');
     expect(c.detail).toBe('All 3 prelim rounds have 16 rooms.');
   });
-  it('16/16/12 rooms fails naming R3', () => {
+  it('a late drop of 16/16/12 is noted, naming R3, and is not a fault', () => {
     const c = check(inputs({ roundRows: bpRows([64, 64, 48]) }), 'rooms_consistent');
-    expect(c.status).toBe('fail');
-    expect(c.detail).toBe('R3 has 12 rooms; the other rounds have 16.');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('R3 has 12 rooms; the other rounds have 16. Noted only.');
     expect(keys(c)).toEqual(['round:3']);
   });
   it('one room off within a tenth passes with a note (the four teams are back in R3)', () => {
     const c = check(inputs({ roundRows: bpRows([64, 60, 64]) }), 'rooms_consistent');
     expect(c.status).toBe('pass');
-    expect(c.detail).toBe(
-      'R2 has 15 rooms; the other rounds have 16. Within a tenth, so only noted.',
-    );
+    expect(c.detail).toBe('R2 has 15 rooms; the other rounds have 16. Noted only.');
   });
   it('a swing team rounds up, so 61 BP teams is 16 rooms', () => {
     expect(check(inputs({ roundRows: bpRows([64, 61, 64]) }), 'rooms_consistent').status).toBe(
       'pass',
     );
   });
-  it('an even count uses the true median: 16/16/12/12 is a median of 14', () => {
+  it('16/16/12/12 is a late drop from 16: R3 and R4 are noted', () => {
     const c = check(
       inputs({ prelimRoundCount: 4, roundRows: bpRows([64, 64, 48, 48]) }),
       'rooms_consistent',
     );
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe(
+      'R3 has 12 rooms and R4 has 12 rooms; the other rounds have 16. Noted only.',
+    );
+  });
+  it('an even count uses the true median: 12/12/16/16 is a median of 14', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 4, roundRows: bpRows([48, 48, 64, 64]) }),
+      'rooms_consistent',
+    );
     expect(c.status).toBe('fail');
     expect(c.detail).toBe(
-      'R1 has 16 rooms, R2 has 16 rooms, R3 has 12 rooms and R4 has 12 rooms; the median is 14.',
+      'R1 has 12 rooms, R2 has 12 rooms, R3 has 16 rooms and R4 has 16 rooms; the median is 14.',
     );
   });
   it('an even count with an odd one out: 16/16/16/12 has a median of 16', () => {
@@ -134,7 +142,7 @@ describe('rooms_consistent', () => {
       inputs({ prelimRoundCount: 4, roundRows: bpRows([64, 64, 64, 48]) }),
       'rooms_consistent',
     );
-    expect(c.detail).toBe('R4 has 12 rooms; the other rounds have 16.');
+    expect(c.detail).toBe('R4 has 12 rooms; the other rounds have 16. Noted only.');
   });
   it('na with no prelim rows', () => {
     expect(check(inputs(), 'rooms_consistent').status).toBe('na');
@@ -148,9 +156,7 @@ describe('rooms_consistent: a tenth', () => {
       'rooms_consistent',
     );
     expect(c.status).toBe('pass');
-    expect(c.detail).toBe(
-      'R3 has 29 rooms; the other rounds have 32. Within a tenth, so only noted.',
-    );
+    expect(c.detail).toBe('R3 has 29 rooms; the other rounds have 32. Noted only.');
     expect(keys(c)).toEqual(['round:3']);
   });
   it('four rooms off 32 is more than a tenth and fails', () => {
@@ -160,10 +166,18 @@ describe('rooms_consistent: a tenth', () => {
     );
     expect(c.status).toBe('fail');
   });
-  it('one room off but over 10% fails', () => {
-    expect(check(inputs({ roundRows: bpRows([32, 32, 28]) }), 'rooms_consistent').status).toBe(
+  it('one room off but over 10% fails when the later rounds come back', () => {
+    expect(check(inputs({ roundRows: bpRows([32, 28, 32]) }), 'rooms_consistent').status).toBe(
       'fail',
     );
+  });
+  it('a small late drop passes without a note', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 5, roundRows: bpRows([128, 128, 128, 128, 124]) }),
+      'rooms_consistent',
+    );
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('All 5 prelim rounds have 32 rooms, bar a small drop late in the tab.');
   });
 });
 

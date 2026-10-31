@@ -113,24 +113,42 @@ function roomsAfterWithdrawals(inputs: AuditInputs): Map<number, number> {
 }
 
 /**
- * Rounds are compared with the median round, not with R1, because a short R1
- * (a late draw release, a missing page) is exactly what this should catch. A
- * round below the median that teams withdrew before is judged instead against
- * the rooms its remaining field fills (roomsAfterWithdrawals), and passes
- * without a note when they match; a short round with no withdrawal to
- * explain it is judged as before. Only a round that would merely be noted is
- * re-judged: a round missing more than a tenth of the rooms at the end of the
- * tab looks like withdrawals by construction, but is far likelier a results
- * page cut short, so it fails as before. With only notes the check passes
- * and names the rounds, so the page still shows them.
+ * The rounds that drop and stay down to the end of the tab: those of the
+ * last non-increasing run with fewer rooms than the run's first round. Teams
+ * withdraw as a tournament goes on, so this is normal and costs nothing:
+ * 16/16/12/12 drops at R3 and R4, while 25/25/24/25/25 has no late drop (R3
+ * comes back, so it is a lost room, not a withdrawal).
+ */
+function lateDrop(rooms: Map<number, number>): { head: number; rounds: Set<number> } {
+  const order = [...rooms].sort((a, b) => a[0] - b[0]).map(([, n]) => n);
+  const rounds = [...rooms.keys()].sort((a, b) => a - b);
+  let start = order.length - 1;
+  while (start > 0 && (order[start - 1] ?? 0) >= (order[start] ?? 0)) start--;
+  const head = order[start] ?? 0;
+  const dropped = rounds.filter((_, i) => i > start && (order[i] ?? 0) < head);
+  return { head, rounds: new Set(dropped) };
+}
+
+/**
+ * Rounds before any late drop (lateDrop) are compared with their median, not
+ * with R1, because a short R1 (a late draw release, a missing page) is
+ * exactly what this should catch: more than a tenth off fails, a tenth or
+ * less is only noted. A round below the median that teams withdrew before is
+ * judged instead against the rooms its remaining field fills
+ * (roomsAfterWithdrawals). A late drop is never a fault (owner, 2026-10-31):
+ * a small one passes unmentioned and one of more than a tenth is noted.
+ * With only notes the check passes and names the rounds, so the tournament's
+ * page still shows them.
  */
 export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
   const rooms = roomsByRound(inputs);
   if (rooms.size === 0)
     return result('rooms_consistent', 'na', 'No prelim round results are stored.');
-  const typical = median([...rooms.values()]);
+  const late = lateDrop(rooms);
+  const typical = median([...rooms].filter(([r]) => !late.rounds.has(r)).map(([, n]) => n));
   const afterWithdrawals = roomsAfterWithdrawals(inputs);
   const statusOf = (round: number, n: number): RoomStatus => {
+    if (late.rounds.has(round)) return roomStatus(n, typical) === 'fail' ? 'note' : 'pass';
     const status = roomStatus(n, typical);
     const expected = afterWithdrawals.get(round);
     if (status !== 'note' || n >= typical || expected == null) return status;
@@ -140,23 +158,24 @@ export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
     .map(([round, n]) => ({ round, n, status: statusOf(round, n) }))
     .filter((o) => o.status !== 'pass');
   if (odd.length === 0) {
+    const tail = late.rounds.size > 0 ? ', bar a small drop late in the tab' : '';
     return result(
       'rooms_consistent',
       'pass',
-      `All ${rooms.size} prelim rounds have ${typical} rooms.`,
+      `All ${rooms.size} prelim rounds have ${typical} rooms${tail}.`,
     );
   }
   const listed = listText(odd.map((o) => `R${o.round} has ${o.n} ${plural(o.n, 'room', 'rooms')}`));
-  // A round not listed equals the median, so "the other rounds" is exact when
-  // there are any; with an even split (16/16/12/12) no round sits at the
-  // median and the sentence names the median itself.
+  // A round not listed sits at the median, so "the other rounds" is exact when
+  // there are any; with an even split no round sits at the median and the
+  // sentence names the median itself.
   const others =
     odd.length < rooms.size ? `the other rounds have ${typical}` : `the median is ${typical}`;
   const failing = odd.some((o) => o.status === 'fail');
   return result(
     'rooms_consistent',
     failing ? 'fail' : 'pass',
-    failing ? `${listed}; ${others}.` : `${listed}; ${others}. Within a tenth, so only noted.`,
+    failing ? `${listed}; ${others}.` : `${listed}; ${others}. Noted only.`,
     odd.map((o) => prelimPiece(inputs.pieces, o.round)),
   );
 }
