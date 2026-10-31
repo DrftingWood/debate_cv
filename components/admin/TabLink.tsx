@@ -63,7 +63,7 @@ export function TabLink({
       className={cn(
         asButton
           ? buttonClasses({ variant: 'outline', size: 'sm' })
-          : 'text-ink underline-offset-4 hover:underline',
+          : 'inline-flex min-h-6 items-center text-ink underline-offset-4 hover:underline',
         className,
       )}
     >
