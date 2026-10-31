@@ -77,7 +77,7 @@ describe('rooms_consistent: short rounds withdrawals do not explain', () => {
       'rooms_consistent',
     );
     expect(c.status).toBe('pass');
-    expect(c.detail).toMatch(/only noted/);
+    expect(c.detail).toMatch(/Noted only/);
     expect(keys(c)).toEqual(['round:4']);
   });
   it('still notes a short round the withdrawals explain only in part', () => {
@@ -94,10 +94,10 @@ describe('rooms_consistent: short rounds withdrawals do not explain', () => {
       'rooms_consistent',
     );
     expect(c.status).toBe('pass');
-    expect(c.detail).toMatch(/only noted/);
+    expect(c.detail).toMatch(/Noted only/);
     expect(keys(c)).toEqual(['round:5']);
   });
-  it('a last round several rooms short still fails: likelier a cut-short page', () => {
+  it('a last round several rooms short is a late drop: noted, not a fault', () => {
     const r5 = names('T', 40);
     const c = check(
       inputs({
@@ -107,7 +107,8 @@ describe('rooms_consistent: short rounds withdrawals do not explain', () => {
       }),
       'rooms_consistent',
     );
-    expect(c.status).toBe('fail');
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe('R5 has 20 rooms; the other rounds have 25. Noted only.');
   });
 });
 
