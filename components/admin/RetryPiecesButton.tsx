@@ -29,7 +29,7 @@ export function rescrapeSummary(data: RescrapeResponse): string {
 
 /**
  * "Retry failed" for one partly loaded tournament: re-fetches only the
- * pieces that failed, now, instead of waiting for the next cron retry.
+ * pieces that failed. Nothing retries them on its own: the cron does not (it's the admin's call, and slow retries were a large share of Fluid compute).
  *
  * Not destructive (a piece that fails again keeps the rows it had), so no
  * confirmation. The outcome is a toast when the request ran, since that is

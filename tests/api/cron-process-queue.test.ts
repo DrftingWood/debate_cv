@@ -16,8 +16,6 @@ vi.mock('@/lib/calicotab/ingest', () => ({
   isDeadlockError: () => false,
 }));
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
-const retryDuePieces = vi.fn();
-vi.mock('@/lib/calicotab/partialScrape', () => ({ retryDuePieces }));
 const auditStale = vi.fn();
 vi.mock('@/lib/audit/run', () => ({ auditStale }));
 // The background scan is covered in tests/gmail.backgroundScan.test.ts; here only the wiring.
@@ -51,8 +49,6 @@ beforeEach(() => {
     peakInFlight: 0,
     elapsedMs: 1,
   });
-  retryDuePieces.mockReset();
-  retryDuePieces.mockResolvedValue({ tournaments: 0, loaded: 0, failed: 0 });
   auditStale.mockReset();
   auditStale.mockResolvedValue(0);
   scanDueMailboxes.mockReset();
@@ -76,16 +72,9 @@ describe('POST /api/cron/process-queue', () => {
     expect(afterCallbacks).toHaveLength(0);
   });
 
-  it('retries failed pieces after the drain, on their own smaller allowance', async () => {
-    const before = Date.now();
-    retryDuePieces.mockResolvedValue({ tournaments: 2, loaded: 3, failed: 1 });
+  it('does not retry failed pieces: that is an admin action', async () => {
     const body = await (await POST(req())).json();
-    expect(body.piecesRetried).toEqual({ tournaments: 2, loaded: 3, failed: 1 });
-    const { deadline } = retryDuePieces.mock.calls[0]![0] as { deadline: number };
-    // 35s, not the whole 55s tick: slow retries kept every tick near the
-    // full function duration (the Fluid compute bill).
-    expect(deadline).toBeGreaterThanOrEqual(before + 35_000);
-    expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
+    expect(body).not.toHaveProperty('piecesRetried');
   });
 
   it('?respond=early answers 202 first and drains after the response', async () => {
@@ -130,19 +119,15 @@ describe('POST /api/cron/process-queue', () => {
 });
 
 describe('stale audits in the tick', () => {
-  it('audits stale tournaments after the piece retry, 50 at most, within the tick budget', async () => {
+  it('audits stale tournaments, 50 at most, within the tick budget', async () => {
     const order: string[] = [];
-    retryDuePieces.mockImplementation(async () => {
-      order.push('retry');
-      return { tournaments: 0, loaded: 0, failed: 0 };
-    });
     auditStale.mockImplementation(async () => {
       order.push('audit');
       return 7;
     });
     const before = Date.now();
     const body = await (await POST(req())).json();
-    expect(order).toEqual(['retry', 'audit']);
+    expect(order).toEqual(['audit']);
     expect(body.audited).toBe(7);
     const { limit, deadline } = auditStale.mock.calls[0]![0] as { limit: number; deadline: number };
     expect(limit).toBe(50);

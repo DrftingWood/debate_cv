@@ -110,13 +110,15 @@ describe('partly loaded mark', () => {
       }),
     );
     expect(judging).toContain(TEXT);
-    expect(judging).toContain('Some pages of this tournament&#x27;s tab didn&#x27;t load.');
+    expect(judging).toContain(
+      'Some pages of this tournament&#x27;s tab didn&#x27;t load, so some of its figures may be incomplete.',
+    );
   });
 });
 
 describe('partly loaded description', () => {
   const SENTENCE =
-    'Some pages of this tournament&#x27;s tab didn&#x27;t load. We retry them automatically.';
+    'Some pages of this tournament&#x27;s tab didn&#x27;t load, so some of its figures may be incomplete.';
 
   // The badge must be focusable and its aria-describedby must resolve to an
   // sr-only element holding the verbatim sentence (cards and tables).

@@ -2,7 +2,8 @@ import { useId } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Tooltip } from '@/components/ui/Tooltip';
 
-const EXPLANATION = "Some pages of this tournament's tab didn't load. We retry them automatically.";
+const EXPLANATION =
+  "Some pages of this tournament's tab didn't load, so some of its figures may be incomplete.";
 
 /**
  * The mark on a tournament whose scrape left a tab or round page failed.
