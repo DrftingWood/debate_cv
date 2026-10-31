@@ -36,11 +36,13 @@ function empty(t: {
   format: string | null;
   prelimRoundCount: number | null;
   parserVersion: string | null;
+  pagesRefreshedUnder: string | null;
 }): LoadedAudit {
   return {
     format: t.format,
     prelimRoundCount: t.prelimRoundCount,
     parserVersion: t.parserVersion,
+    pagesRefreshedUnder: t.pagesRefreshedUnder,
     teamTab: [],
     roundRows: [],
     outrounds: [],
@@ -50,6 +52,7 @@ function empty(t: {
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,
+    coreNamed: 0,
     roundResultJudges: 0,
     judgesByRound: {},
     motionRounds: [],
@@ -65,7 +68,13 @@ function queryRows(ids: bigint[]) {
   return Promise.all([
     prisma.tournament.findMany({
       where: { id: tournamentId },
-      select: { id: true, format: true, prelimRoundCount: true, parserVersion: true },
+      select: {
+        id: true,
+        format: true,
+        prelimRoundCount: true,
+        parserVersion: true,
+        pagesRefreshedUnder: true,
+      },
     }),
     // Round 0 is the team tab; rounds ≥ 1 are prelims. Null rounds (none are
     // written today) would be neither, so they are left in the database.
@@ -122,7 +131,15 @@ function queryCounts(ids: bigint[]) {
     }),
     prisma.scrapePiece.findMany({
       where: { tournamentId },
-      select: { tournamentId: true, kind: true, key: true, label: true, status: true, url: true },
+      select: {
+        tournamentId: true,
+        kind: true,
+        key: true,
+        label: true,
+        status: true,
+        reason: true,
+        url: true,
+      },
     }),
     // A report names tournaments by id as strings (CvErrorReport.tournamentIds).
     prisma.cvErrorReport.findMany({
@@ -158,6 +175,32 @@ function queryScored(ids: bigint[]) {
   });
 }
 
+/**
+ * People named as adjudication core by either source: judges the participants
+ * list ticks Adj Core for (judgeTypeTag, stored 'core'), and names the home
+ * page's Tournament Staff block lists. Counts only: the check asks whether
+ * anyone is named, not who.
+ */
+function queryCore(ids: bigint[]) {
+  const tournamentId = { in: ids };
+  return Promise.all([
+    prisma.tournamentParticipant.groupBy({
+      by: ['tournamentId'],
+      where: {
+        tournamentId,
+        judgeTypeTag: { equals: 'core', mode: 'insensitive' },
+        roles: { some: { role: 'judge' } },
+      },
+      _count: { _all: true },
+    }),
+    prisma.tournamentStaff.groupBy({
+      by: ['tournamentId'],
+      where: { tournamentId, role: 'core' },
+      _count: { _all: true },
+    }),
+  ]);
+}
+
 type RedactedRow = { tournamentId: bigint; teamName: string; redactedSpeakers: number | null };
 
 /**
@@ -172,13 +215,14 @@ function redactedRows(ids: bigint[]) {
 }
 
 async function queryBatch(ids: bigint[]) {
-  const [rows, counts, scored, redacted] = await Promise.all([
+  const [rows, counts, scored, redacted, core] = await Promise.all([
     queryRows(ids),
     queryCounts(ids),
     queryScored(ids),
     redactedRows(ids),
+    queryCore(ids),
   ]);
-  return { all: [...rows, ...counts] as const, scored, redacted };
+  return { all: [...rows, ...counts] as const, scored, redacted, core };
 }
 
 type BatchRows = Awaited<ReturnType<typeof queryBatch>>['all'];
@@ -259,6 +303,7 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
       key: p.key,
       label: p.label,
       status: p.status as AuditPiece['status'],
+      reason: p.reason,
       url: p.url,
     });
   }
@@ -275,7 +320,11 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
   }
 }
 
-function addExtra(out: Map<bigint, LoadedAudit>, { scored, redacted }: Extra) {
+function addExtra(out: Map<bigint, LoadedAudit>, { scored, redacted, core }: Extra) {
+  for (const g of core.flat()) {
+    const a = out.get(g.tournamentId);
+    if (a) a.coreNamed += g._count._all;
+  }
   for (const g of scored) {
     const a = out.get(g.tournamentId);
     if (a) a.speakersWithScores = g._count._all;

@@ -13,6 +13,7 @@ import {
   type FlagItem,
   type Priority,
 } from '@/lib/admin/reviewSetTypes';
+import { usePageFlight } from '@/components/admin/pageFlight';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
@@ -147,7 +148,8 @@ function useSendFlags(noun: string) {
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [flight] = useState(singleFlight);
+  const [own] = useState(singleFlight);
+  const flight = usePageFlight(own);
 
   const send = (
     body: { items: readonly FlagItem[]; priority: Priority; comment: string },
@@ -190,9 +192,16 @@ function useSendFlags(noun: string) {
  * ticked rows is said beside the button; an empty comment is said under the
  * field, which is marked invalid and takes focus (UX-15).
  */
+type ReviewOptions = {
+  noun: string;
+  onAdded: () => void;
+  /** The trigger's words; "Add to review set" unless the caller says how many. */
+  label?: string;
+};
+
 export function useAddToReviewSet(
   items: readonly FlagItem[],
-  { noun, onAdded }: { noun: string; onAdded: () => void },
+  { noun, onAdded, label = 'Add to review set' }: ReviewOptions,
 ) {
   const [open, setOpen] = useState(false);
   const form = useFlagForm();
@@ -232,7 +241,7 @@ export function useAddToReviewSet(
         setOpen((v) => !v);
       }}
     >
-      Add to review set
+      {label}
     </Button>
   );
 
@@ -255,7 +264,9 @@ export function useAddToReviewSet(
     </div>
   );
 
-  return { button, panel };
+  // `open` lets another control (a row's "Review later") bring the form up;
+  // the form then takes focus itself, as it does when the button opens it.
+  return { button, panel, open: () => setOpen(true) };
 }
 
 /** Closes a form and puts focus back on its trigger, once the form has gone. */
@@ -318,7 +329,9 @@ function AddForm({ n, priority, comment, pending, onSubmit, onCancel }: AddFormP
     <form
       noValidate
       aria-label="Add to review set"
-      className="panel-inset space-y-tight rounded-md p-stack"
+      // min-w-60: inside a narrow table cell at 390 px the form was 99 px wide and
+      // its comment box 65 px (R7 browser check); the cell grows, the table scrolls.
+      className="panel-inset min-w-60 space-y-tight rounded-md p-stack"
       onKeyDown={escapeCloses(onCancel)}
       onSubmit={(e) => {
         e.preventDefault();

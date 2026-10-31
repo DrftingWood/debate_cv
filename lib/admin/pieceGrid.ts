@@ -24,8 +24,9 @@ export type PieceCard = {
   label: string;
   status: 'ok' | 'failed' | 'withheld';
   /**
-   * "Loaded", "Failed · HTTP 504" (just "Failed" when no status came back)
-   * or "Withheld by the tournament".
+   * "Loaded", "Failed · HTTP 504" (just "Failed" when no status came back),
+   * "Withheld by the tournament", or "Not published" when it never put the
+   * page up.
    */
   pill: string;
   /** What the time is: when it loaded, or when it was last tried and failed. */
@@ -40,7 +41,9 @@ export const pieceId = (p: { kind: string; key: string }) => `${p.kind}:${p.key}
 
 function pillText(p: PieceRow): string {
   if (p.status === 'ok') return 'Loaded';
-  if (p.status === 'withheld') return 'Withheld by the tournament';
+  if (p.status === 'withheld') {
+    return p.reason === 'not_published' ? 'Not published' : 'Withheld by the tournament';
+  }
   return p.httpStatus != null ? `Failed · HTTP ${p.httpStatus}` : 'Failed';
 }
 
@@ -71,7 +74,7 @@ export function toPieceCard(p: PieceRow, now: Date): PieceCard {
 
 // The order the tab site's own menu lists them in; breaks come after the
 // single tabs, by name, since a tournament has a variable number of them.
-const TAB_ORDER: PieceKind[] = ['team', 'speaker', 'participants', 'motions', 'break'];
+const TAB_ORDER: PieceKind[] = ['team', 'speaker', 'participants', 'motions', 'home', 'break'];
 
 /** Team, speaker, participants, motions, then each break by label. */
 export function orderTabs<T extends { kind: PieceKind; label: string }>(tabs: readonly T[]): T[] {

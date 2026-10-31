@@ -1220,3 +1220,53 @@ describe('buildCvData ties: teamRankTied and speakerRankTied', () => {
     expect(cv.speakerRows.find((r) => r.tournamentId === 1n)!.speakerRankTied).toBe(false);
   });
 });
+
+describe('buildCvData: core named by the home page staff block (R10 ruling 16)', () => {
+  /** T2's judge row with its stored tag set to `tag` for one build. */
+  async function judgeRowWithTag(tag: string | null) {
+    const judge = MY_PARTICIPATIONS[2]!;
+    const saved = judge.judgeTypeTag;
+    judge.judgeTypeTag = tag;
+    try {
+      return await buildCvData(USER);
+    } finally {
+      judge.judgeTypeTag = saved;
+    }
+  }
+
+  it('a staff row linked to the user makes the row core without any Adj Core tick', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([{ tournamentId: 2n }]);
+    const cv = await judgeRowWithTag('Adjudicator');
+    expect(cv.judgeRows[0]!.judgeTypeTag).toBe('core');
+    expect(cv.highlights.adjCoreCount).toBe(1);
+    // Read for the claimed people only, by exact link, never by candidate.
+    const where = prismaMock.tournamentStaff.findMany.mock.calls[0]![0].where;
+    expect(where.personId).toEqual({ in: expect.arrayContaining([10n, 11n]) });
+    expect(where.role).toBe('core');
+    expect(JSON.stringify(where, (_k, v) => (typeof v === 'bigint' ? String(v) : v))).not.toContain(
+      'candidate',
+    );
+  });
+
+  it('a participants re-read that rewrites the tag does not lose it', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([{ tournamentId: 2n }]);
+    // The list now says plain judge, as a re-read of a list with no tick would.
+    expect((await judgeRowWithTag('normal')).judgeRows[0]!.judgeTypeTag).toBe('core');
+    expect((await judgeRowWithTag(null)).judgeRows[0]!.judgeTypeTag).toBe('core');
+  });
+
+  it('removing the staff row removes it from the CV', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([{ tournamentId: 2n }]);
+    expect((await judgeRowWithTag('Adjudicator')).judgeRows[0]!.judgeTypeTag).toBe('core');
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([]);
+    const cv = await judgeRowWithTag('Adjudicator');
+    expect(cv.judgeRows[0]!.judgeTypeTag).toBe('Adjudicator');
+    expect(cv.highlights.adjCoreCount).toBe(0);
+  });
+
+  it('an existing Adj Core tick is unaffected, with or without a staff row', async () => {
+    expect((await judgeRowWithTag('core')).judgeRows[0]!.judgeTypeTag).toBe('core');
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([{ tournamentId: 2n }]);
+    expect((await judgeRowWithTag('core')).judgeRows[0]!.judgeTypeTag).toBe('core');
+  });
+});

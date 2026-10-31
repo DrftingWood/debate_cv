@@ -22,33 +22,15 @@ import { RESCRAPE_PIECE_CAP, type SuggestedPiece } from '@/lib/admin/accuracyAct
  * (parseChecks) decide what a stored check means, so a row written by an
  * older or newer CHECKS_VERSION can never break the page. A few thousand
  * audits of a few KB each is fine for an admin page; if the table grows past
- * that, the counts move into SQL and only the 200 lowest keep their checks.
+ * that, the counts move into SQL.
  */
 
-/** Rows in the ledger table, lowest score first. */
-const LOWEST_CAP = 200;
 /** Tournaments listed under each open question. */
 const QUESTION_LIST_CAP = 50;
 /** An audit older than this is counted as not audited (run.ts's STALE_MS). */
 const STALE_MS = 24 * 60 * 60 * 1000;
 
 export type Band = ReturnType<typeof band>;
-
-export type AccuracyRow = {
-  id: string;
-  name: string;
-  /** The tournament's public tab, never a private URL; null when unparseable. */
-  tabUrl: string | null;
-  /** When the tournament was last scraped, for the "In database" cell. */
-  scrapedAt: Date | null;
-  score: number;
-  band: Band;
-  failed: Array<{ code: CheckCode; label: string }>;
-  /** Pieces of failing and warning checks, deduplicated, at most 40. */
-  suggested: SuggestedPiece[];
-  usersAffected: number;
-  computedAt: Date;
-};
 
 export type OpenQuestion = {
   code: AssumptionCode;
@@ -68,11 +50,14 @@ export type AccuracyOverview = {
   onCvs: number;
   bands: Record<Band, number>;
   failingByCheck: Array<{ code: CheckCode; label: string; count: number }>;
+  /** Audited tournaments with at least one check marked checked (the "Checked" chip). */
+  checked: number;
   /** Tournaments never audited or last audited over 24 h ago. */
   stale: number;
   /** Every tournament, audited or not: the denominator of `stale`. */
   tournaments: number;
-  lowest: AccuracyRow[];
+  /** Tournaments an admin set to ignored; not counted anywhere above. */
+  ignored: number;
   openQuestions: OpenQuestion[];
 };
 
@@ -83,10 +68,23 @@ export type ParsedCheck = {
   detail: string;
   pieces: SuggestedPiece[];
   assumptions: AssumptionCode[];
+  /** Who marked the check checked and when, if the audit applied a mark. */
+  checkedBy?: string;
+  checkedAt?: Date;
+  /** What the check said before the mark made it a pass. */
+  wasStatus?: 'fail' | 'warn';
 };
 
 const STATUSES: readonly string[] = ['pass', 'warn', 'fail', 'na'];
-const KINDS: readonly string[] = ['team', 'speaker', 'participants', 'motions', 'break', 'round'];
+const KINDS: readonly string[] = [
+  'team',
+  'speaker',
+  'participants',
+  'motions',
+  'home',
+  'break',
+  'round',
+];
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -101,6 +99,21 @@ function parsePiece(v: unknown): SuggestedPiece | null {
   // an href is someone's identity.
   const url = typeof v.url === 'string' ? publicPieceUrl(v.url) : null;
   return { kind: v.kind as PieceKind, key: v.key, label, url };
+}
+
+/**
+ * A stored mark (run.ts's applyMark), only when every part is readable: a
+ * name without a date, a date that does not parse, or an unknown former
+ * status drops the mark whole.
+ */
+function parseMark(
+  c: Record<string, unknown>,
+): Pick<ParsedCheck, 'checkedBy' | 'checkedAt' | 'wasStatus'> {
+  if (typeof c.checkedBy !== 'string' || !c.checkedBy || typeof c.checkedAt !== 'string') return {};
+  if (c.wasStatus !== 'fail' && c.wasStatus !== 'warn') return {};
+  const at = new Date(c.checkedAt);
+  if (Number.isNaN(at.getTime())) return {};
+  return { checkedBy: c.checkedBy, checkedAt: at, wasStatus: c.wasStatus };
 }
 
 /**
@@ -124,6 +137,7 @@ export function parseChecks(json: unknown): ParsedCheck[] {
       detail: typeof c.detail === 'string' ? c.detail : '',
       pieces: pieces.filter((p): p is SuggestedPiece => p != null),
       assumptions,
+      ...parseMark(c),
     });
   }
   return out;
@@ -134,7 +148,7 @@ export function parseChecks(json: unknown): ParsedCheck[] {
  * reports (user_reports has no fail status; a person saying "this is wrong"
  * is the strongest hint there is).
  */
-const isFailing = (c: ParsedCheck) =>
+export const isFailing = (c: ParsedCheck) =>
   c.status === 'fail' || (c.code === 'user_reports' && c.status === 'warn');
 
 /** Union of failing and warning pieces, first seen first, capped at the route's limit. */
@@ -207,9 +221,33 @@ function decidedBy(audits: Audit[]): Map<AssumptionCode, Audit[]> {
   return out;
 }
 
+/** Each unsettled rule with how many audits it decided and the lowest-scoring few. */
+function openQuestionsOf(
+  questions: Map<AssumptionCode, Audit[]>,
+  describe: (id: bigint) => { name: string; tabUrl: string | null; scrapedAt: Date | null },
+): OpenQuestion[] {
+  return [...questions].map(([code, list]) => ({
+    code,
+    ...ASSUMPTIONS[code],
+    count: list.length,
+    tournaments: list
+      .slice(0, QUESTION_LIST_CAP)
+      .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
+  }));
+}
+
+/** Audits with at least one check an admin has vouched for. */
+const countChecked = (audits: Audit[]) =>
+  audits.filter((a) => a.checks.some((c) => c.checkedBy)).length;
+
 export async function getAccuracyOverview(): Promise<AccuracyOverview> {
-  const [rows, tournaments] = await Promise.all([
+  // Test and demo tournaments an admin set to ignored are left out of the
+  // score, the bands, the counts and the open questions; `ignored` says how
+  // many there are, for the Tournaments tab's chip.
+  const live = { tournament: { ignored: false } };
+  const [rows, tournaments, ignored] = await Promise.all([
     prisma.tournamentAudit.findMany({
+      where: live,
       select: {
         tournamentId: true,
         score: true,
@@ -218,7 +256,8 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
         checks: true,
       },
     }),
-    prisma.tournament.count(),
+    prisma.tournament.count({ where: { ignored: false } }),
+    prisma.tournament.count({ where: { ignored: true } }),
   ]);
   const audits: Audit[] = rows.map((r) => ({
     id: r.tournamentId,
@@ -233,10 +272,9 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
   const bands: Record<Band, number> = { good: 0, check: 0, rescrape: 0 };
   for (const a of audits) bands[band(a.score)] += 1;
 
-  const lowest = [...audits].sort(byScore).slice(0, LOWEST_CAP);
   const questions = decidedBy(audits);
   const listed = [...questions.values()].flatMap((list) => list.slice(0, QUESTION_LIST_CAP));
-  const names = await namesFor([...new Set([...lowest, ...listed].map((a) => a.id))]);
+  const names = await namesFor([...new Set(listed.map((a) => a.id))]);
   const describe = (id: bigint) =>
     names.get(id) ?? { name: `Tournament ${id}`, tabUrl: null, scrapedAt: null };
 
@@ -245,28 +283,10 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
     onCvs: audits.filter((a) => a.usersAffected > 0).length,
     bands,
     failingByCheck: countFailing(audits),
+    checked: countChecked(audits),
     stale: Math.max(0, tournaments - fresh),
     tournaments,
-    lowest: lowest.map((a) => ({
-      id: a.id.toString(),
-      ...describe(a.id),
-      score: a.score,
-      band: band(a.score),
-      failed: [...new Set(a.checks.filter(isFailing).map((c) => c.code))].map((code) => ({
-        code,
-        label: CHECK_LABELS[code],
-      })),
-      suggested: suggestedPieces(a.checks),
-      usersAffected: a.usersAffected,
-      computedAt: a.computedAt,
-    })),
-    openQuestions: [...questions].map(([code, list]) => ({
-      code,
-      ...ASSUMPTIONS[code],
-      count: list.length,
-      tournaments: list
-        .slice(0, QUESTION_LIST_CAP)
-        .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
-    })),
+    ignored,
+    openQuestions: openQuestionsOf(questions, describe),
   };
 }

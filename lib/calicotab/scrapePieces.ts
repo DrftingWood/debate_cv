@@ -8,7 +8,10 @@ import type { ApiTabsResult } from './tabbycatApi';
 // results round) so a single flaky page can be retried and re-scraped alone
 // instead of failing or redoing the whole tournament.
 
-export type PieceKind = 'team' | 'speaker' | 'participants' | 'motions' | 'break' | 'round';
+// 'home' is the tab's landing page, read for its Tournament Staff block (the
+// adjudication core named there); it has no rows of its own to clear.
+export type PieceKind =
+  'team' | 'speaker' | 'participants' | 'motions' | 'home' | 'break' | 'round';
 
 export type PieceRef = { kind: PieceKind; key: string };
 
@@ -25,6 +28,12 @@ export type PieceOutcome = PieceRef & {
    * existence. Set only when true.
    */
   withheld?: true;
+  /**
+   * Why a withheld piece is withheld: the tournament refused the page
+   * ('withheld', the default) or never published it ('not_published': no
+   * menu link, or a round page with columns and no rows). Stored on the piece.
+   */
+  reason?: 'withheld' | 'not_published';
 };
 
 /**
@@ -62,6 +71,7 @@ const TAB_LABELS: Record<Exclude<PieceKind, 'break' | 'round'>, string> = {
   speaker: 'Speaker tab',
   participants: 'Participants',
   motions: 'Motions',
+  home: 'Home page',
 };
 
 /**
@@ -210,7 +220,14 @@ export async function recordPieceOutcomes(
     const where = { tournamentId_kind_key: { tournamentId, kind: o.kind, key: o.key } };
     const base = { label: o.label, url: o.url, lastAttemptAt: now };
     if (o.ok) {
-      const ok = { ...base, status: 'ok', attempts: 0, loadedAt: now, nextRetryAt: null };
+      const ok = {
+        ...base,
+        status: 'ok',
+        attempts: 0,
+        loadedAt: now,
+        nextRetryAt: null,
+        reason: null,
+      };
       await prisma.scrapePiece.upsert({
         where,
         create: {
@@ -226,12 +243,20 @@ export async function recordPieceOutcomes(
       continue;
     }
     if (o.withheld) {
+      // Absence is not an answer: a piece inferred from a missing link
+      // (reason not_published, no HTTP status) never overwrites a page that
+      // loaded or failed for real. Only a fetch answer may change those.
+      if (o.reason === 'not_published' && o.httpStatus == null) {
+        const prior = await prisma.scrapePiece.findUnique({ where });
+        if (prior && prior.status !== 'withheld') continue;
+      }
       const withheld = {
         ...base,
         status: 'withheld',
         httpStatus: o.httpStatus,
         lastError: o.error,
         nextRetryAt: null,
+        reason: o.reason ?? 'withheld',
       };
       await prisma.scrapePiece.upsert({
         where,
@@ -240,7 +265,13 @@ export async function recordPieceOutcomes(
       });
       continue;
     }
-    const failed = { ...base, status: 'failed', httpStatus: o.httpStatus, lastError: o.error };
+    const failed = {
+      ...base,
+      status: 'failed',
+      httpStatus: o.httpStatus,
+      lastError: o.error,
+      reason: null,
+    };
     const row = await prisma.scrapePiece.upsert({
       where,
       create: { tournamentId, kind: o.kind, key: o.key, ...failed, attempts: 1 },

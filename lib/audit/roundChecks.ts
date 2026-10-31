@@ -2,6 +2,8 @@ import type { AuditInputs } from './auditInputs';
 import {
   expectedPrelims,
   isSwingTeam,
+  heldRoundsSentence,
+  heldSentence,
   isWithheld,
   listText,
   median,
@@ -31,6 +33,8 @@ import type { CheckResult, CheckStatus } from './types';
  * 404) is not expected: its absence is the tournament's choice and no
  * re-scrape fills it. Rows stored before the page was hidden still count.
  */
+const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
 export function checkRoundsComplete(inputs: AuditInputs): CheckResult {
   const all = expectedPrelims(inputs);
   if (all.length === 0) {
@@ -40,11 +44,10 @@ export function checkRoundsComplete(inputs: AuditInputs): CheckResult {
   const hidden = withheldPrelims(inputs.pieces);
   const held = all.filter((n) => hidden.has(n) && !have.has(n));
   const expected = all.filter((n) => !held.includes(n));
-  const heldText = listText(held.map((n) => `R${n}`));
   if (expected.length === 0) {
-    return result('rounds_complete', 'na', `The tournament withholds the results of ${heldText}.`);
+    return result('rounds_complete', 'na', `${capital(heldRoundsSentence(inputs.pieces, held))}.`);
   }
-  const note = held.length > 0 ? `; the tournament withholds ${heldText}` : '';
+  const note = held.length > 0 ? `; ${heldRoundsSentence(inputs.pieces, held, false)}` : '';
   const missing = expected.filter((n) => !have.has(n));
   if (missing.length === 0) {
     return result(
@@ -164,7 +167,7 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
     // apply until the tournament publishes it. With no withheld record, a
     // missing tab is our gap and still fails.
     if (isWithheld(inputs.pieces, 'team')) {
-      return result('team_coverage', 'na', 'The tournament withholds its team tab.');
+      return result('team_coverage', 'na', heldSentence(inputs.pieces, 'team', 'team tab'));
     }
     return result('team_coverage', 'fail', 'There is no team tab.', pieces);
   }
@@ -178,7 +181,16 @@ export function checkTeamCoverage(inputs: AuditInputs): CheckResult {
       .filter((k) => tab.has(k)),
   );
   if (r1.size === 0 && withheldPrelims(inputs.pieces).has(1)) {
-    return result('team_coverage', 'na', 'The tournament withholds its R1 results.');
+    const unpublished = heldRoundsSentence(inputs.pieces, [1]).endsWith(
+      'published with no results',
+    );
+    return result(
+      'team_coverage',
+      'na',
+      unpublished
+        ? 'R1 was published with no results.'
+        : 'The tournament withholds its R1 results.',
+    );
   }
   const share = r1.size / tab.size;
   const status: CheckStatus = share < 0.8 ? 'fail' : share < 0.95 ? 'warn' : 'pass';
@@ -194,7 +206,7 @@ export function checkPartners(inputs: AuditInputs): CheckResult {
   const tab = [...teamTabKeys(inputs)];
   if (tab.length === 0) {
     const detail = isWithheld(inputs.pieces, 'team')
-      ? 'The tournament withholds its team tab.'
+      ? heldSentence(inputs.pieces, 'team', 'team tab')
       : 'There is no team tab to check partners on.';
     return result('partners', 'na', detail);
   }
@@ -318,12 +330,11 @@ function pointMismatches(inputs: AuditInputs, field: 'points' | 'wins') {
 /** Why no team could be checked, naming a withheld page when one is the reason. */
 function noPointsDetail(inputs: AuditInputs, field: 'points' | 'wins'): string {
   if (inputs.teamTab.length === 0 && isWithheld(inputs.pieces, 'team')) {
-    return 'The tournament withholds its team tab.';
+    return heldSentence(inputs.pieces, 'team', 'team tab');
   }
   const hidden = [...withheldPrelims(inputs.pieces)].sort((a, b) => a - b);
   if (hidden.length > 0) {
-    const names = listText(hidden.map((n) => `R${n}`));
-    return `The tournament withholds the results of ${names}, so no team's total can be checked.`;
+    return `${capital(heldRoundsSentence(inputs.pieces, hidden))}, so no team's total can be checked.`;
   }
   return `No team has ${field} on both the team tab and the rounds.`;
 }

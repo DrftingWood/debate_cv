@@ -117,7 +117,13 @@ export function suggest(p: AuditPiece): SuggestedPiece {
   return { kind: p.kind, key: p.key, label: p.label, url: p.url ? publicPieceUrl(p.url) : null };
 }
 
-const TAB_LABELS = { team: 'Team tab', speaker: 'Speaker tab', motions: 'Motions' } as const;
+const TAB_LABELS = {
+  team: 'Team tab',
+  speaker: 'Speaker tab',
+  motions: 'Motions',
+  participants: 'Participants',
+  home: 'Home page',
+} as const;
 
 /**
  * A single tab page. Suggested even when no piece was recorded: its key is
@@ -186,6 +192,34 @@ export function isWithheld(pieces: AuditPiece[], kind: AuditPiece['kind'], key?:
   return pieces.some(
     (p) => p.status === 'withheld' && p.kind === kind && (key == null || p.key === key),
   );
+}
+
+/**
+ * "The tournament hasn't published its team tab." when it never put the page
+ * up, "... withholds its team tab." when it refuses it. Same na either way;
+ * only the words differ.
+ */
+export function heldSentence(pieces: AuditPiece[], kind: AuditPiece['kind'], noun: string): string {
+  const unpublished = pieces.some(
+    (p) => p.kind === kind && p.status === 'withheld' && p.reason === 'not_published',
+  );
+  return `The tournament ${unpublished ? "hasn't published" : 'withholds'} its ${noun}.`;
+}
+
+/**
+ * The reason prelims `nums` have no results: "R3 was published with no
+ * results" when every one of them loaded empty, else "the tournament
+ * withholds the results of R3".
+ */
+export function heldRoundsSentence(pieces: AuditPiece[], nums: number[], resultsOf = true): string {
+  const names = nums.map((n) => `R${n}`);
+  const empty = nums.every((n) =>
+    pieces.some((p) => p.kind === 'round' && p.key === String(n) && p.reason === 'not_published'),
+  );
+  if (empty) {
+    return `${listText(names)} ${names.length === 1 ? 'was' : 'were'} published with no results`;
+  }
+  return `the tournament withholds ${resultsOf ? 'the results of ' : ''}${listText(names)}`;
 }
 
 /** Prelim round numbers whose results page the tournament withholds. */

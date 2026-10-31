@@ -160,6 +160,7 @@ describe('suggested pages', () => {
       {
         format: null,
         prelimRoundCount: 3,
+        pagesRefreshedUnder: null,
         parserVersion: null,
         teamTab: [],
         roundRows: [],
@@ -170,6 +171,7 @@ describe('suggested pages', () => {
         speakerParticipants: 0,
         speakersWithScores: 0,
         judgeParticipants: 0,
+        coreNamed: 1,
         roundResultJudges: 0,
         judgesByRound: {},
         motionRounds: [],

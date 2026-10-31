@@ -33,13 +33,18 @@ export async function postJson<T = unknown>(url: string, body?: unknown): Promis
   return sendJson<T>('POST', url, body);
 }
 
+/** DELETE with a JSON body, with the same defensive parsing as `postJson`. */
+export async function deleteJson<T = unknown>(url: string, body?: unknown): Promise<ApiResult<T>> {
+  return sendJson<T>('DELETE', url, body);
+}
+
 /** PATCH, with the same defensive parsing as `postJson`. */
 export async function patchJson<T = unknown>(url: string, body?: unknown): Promise<ApiResult<T>> {
   return sendJson<T>('PATCH', url, body);
 }
 
 async function sendJson<T>(
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'DELETE',
   url: string,
   body?: unknown,
 ): Promise<ApiResult<T>> {

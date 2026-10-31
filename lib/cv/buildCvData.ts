@@ -19,6 +19,7 @@ import {
   placementHighlights,
 } from '@/lib/cv/teamPlacement';
 import { isJudgeParticipant } from '@/lib/cv/roleClassification';
+import { effectiveJudgeTag, loadStaffCoreTournaments } from '@/lib/cv/staffCore';
 import { pickPrelimRoundCount, prelimMaxFromRoundCounts } from '@/lib/calicotab/prelimRoundCount';
 import { displayNameFor } from '@/lib/privacy/suppression';
 import { deriveOpenBreak, type CvOpenBreak, type StandingLike } from '@/lib/cv/breakMargin';
@@ -1310,10 +1311,15 @@ export async function buildCvData(
     }
   }
 
+  // Core named by a home page's staff block and linked to the user by an exact
+  // name (lib/cv/staffCore.ts), read here so it is never stale.
+  const staffCoreTournaments = await loadStaffCoreTournaments(claimedPersonIds, tournamentIds);
+
   const judgeRows: CvJudgeRow[] = [];
   for (const [tid, p] of judgeByTournament.entries()) {
     const t = tournamentById.get(tid);
     if (!t) continue;
+    const judgeTypeTag = effectiveJudgeTag(p.judgeTypeTag, staffCoreTournaments.has(tid));
     const stats = judgeInroundsByTournament.get(tid);
     const lastOutroundJudged = deepestOutroundAcrossRoles(
       p.lastOutroundChaired,
@@ -1328,7 +1334,7 @@ export async function buildCvData(
       totalTeams: t.totalTeams,
       sourceUrl: publicTournamentUrl(t.sourceUrlRaw),
       myName: myNameByTournament.get(tid) ?? myDisplayName,
-      judgeTypeTag: p.judgeTypeTag,
+      judgeTypeTag,
       inroundsJudged: stats ? stats.size : null,
       inroundsChaired: p.chairedPrelimRounds,
       judgedRoundNumbers: [...(judgedRoundsByTournament.get(tid) ?? [])].sort((x, y) => x - y),
@@ -1342,7 +1348,7 @@ export async function buildCvData(
         !!lastOutroundJudged ||
         judgeBrokeTournaments.has(tid) ||
         coreJudgingBreak(
-          p.judgeTypeTag,
+          judgeTypeTag,
           (stats?.size ?? 0) > 0 ||
             (judgedRoundsByTournament.get(tid)?.size ?? 0) > 0 ||
             (judgedStagesByTournament.get(tid)?.size ?? 0) > 0,

@@ -1,3 +1,5 @@
+'use client';
+
 import { useId } from 'react';
 import Link from 'next/link';
 import { Tooltip } from '@/components/ui/Tooltip';

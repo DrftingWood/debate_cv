@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
-import { relativeTime } from '@/lib/utils/relativeTime';
+import { scrapedStamp } from '@/lib/utils/scrapedLabel';
 
 /**
  * Whether a row's tournament is stored, as the server worked it out: its id,
@@ -12,7 +12,8 @@ import { relativeTime } from '@/lib/utils/relativeTime';
 export type InDatabase = {
   id: string;
   name?: string;
-  scraped: { text: string; iso: string } | null;
+  /** `iso` is null for the re-scrape marker, which has no real date. */
+  scraped: { text: string; iso: string | null } | null;
 } | null;
 
 /** The cell's value from a stored row's id and scrape time, against the page's clock. */
@@ -24,9 +25,7 @@ export function inDatabase(
   return {
     id: stored.id.toString(),
     ...(stored.name ? { name: stored.name } : {}),
-    scraped: stored.scrapedAt
-      ? { text: relativeTime(stored.scrapedAt, now), iso: stored.scrapedAt.toISOString() }
-      : null,
+    scraped: stored.scrapedAt ? scrapedStamp(stored.scrapedAt, now) : null,
   };
 }
 
@@ -82,12 +81,18 @@ export function InDatabaseCell({
         </>
       ) : null}
       {stored.scraped ? (
-        <time
-          dateTime={stored.scraped.iso}
-          className="block font-mono text-caption tabular-nums text-ink-soft"
-        >
-          {stored.scraped.text}
-        </time>
+        stored.scraped.iso ? (
+          <time
+            dateTime={stored.scraped.iso}
+            className="block font-mono text-caption tabular-nums text-ink-soft"
+          >
+            {stored.scraped.text}
+          </time>
+        ) : (
+          <span className="block font-mono text-caption tabular-nums text-ink-soft">
+            {stored.scraped.text}
+          </span>
+        )
       ) : null}
     </span>
   );

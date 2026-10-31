@@ -262,6 +262,16 @@ model Tournament {
   scrapeClaimedAt      DateTime?
   scrapedAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  /// Set by an admin on a test or demo tournament so it leaves the admin
+  /// scores, Inbox, lists and Captured stats. It hides nothing from a user's
+  /// own CV: ignoring is an admin-side view filter, never a deletion.
+  ignored              Boolean  @default(false)
+  /// PARSER_VERSION under which an admin's old-parser refresh last re-read
+  /// every recorded page. Distinct from parserVersion on purpose: only a full
+  /// ingest writes that one, since a page-level refresh does not redo the
+  /// format, the unpublished-page decisions or the tournament-wide fields. The
+  /// Old parser check passes on either, with different wording.
+  pagesRefreshedUnder  String?
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]
@@ -272,6 +282,7 @@ model Tournament {
   tagProposals         TagProposal[]
   appearanceCandidates AppearanceCandidate[]
   scrapePieces         ScrapePiece[]
+  staff                TournamentStaff[]
   audit                TournamentAudit?
   reviewFlags          ReviewFlag[]
 
@@ -297,6 +308,11 @@ model ScrapePiece {
   status        String
   httpStatus    Int?
   lastError     String?
+  /// Why a 'withheld' piece is withheld: 'withheld' (the tournament refuses
+  /// the page) or 'not_published' (no menu link, or a round page with columns
+  /// and no rows). Null for ok and failed pieces. Read by the audit, which
+  /// treats both alike, and by the piece grid's pill.
+  reason        String?
   /// Consecutive failures; reset to 0 by a success. Drives the back-off in
   /// retryDelayMs (lib/calicotab/scrapePieces.ts).
   attempts      Int        @default(0)
@@ -370,6 +386,32 @@ model ReviewFlag {
   @@index([source, sourceId])
 }
 
+/// "Mark checked" (owner, 2026-10-31: "if i am supposed check something, i
+/// should be able to mark it"): an admin's word that an item they were asked
+/// to look at is right. `kind` says what was checked ('check' | 'report' |
+/// 'import' | 'parser') and `subject` which one: `<tournamentId>:<code>` for
+/// a tournament check, a CvErrorReport id, `<host>/<slug>` or a job id for an
+/// import, `<parserName>|<headline>` for a parser warning. Not a foreign key,
+/// for the same reason as ReviewFlag. `fingerprint` hashes what the admin saw
+/// (lib/admin/adminChecks.ts): when the data changes it stops matching and
+/// the mark is ignored, so the item comes back. A checked tournament check
+/// counts as a pass in the audit score (lib/audit/run.ts). Read and written
+/// through raw SQL, so code does not depend on a client generated after this
+/// model was added.
+model AdminCheck {
+  id          BigInt   @id @default(autoincrement())
+  kind        String
+  subject     String
+  fingerprint String
+  /// At most 500 characters, checked at the API.
+  note        String?
+  /// The admin's email.
+  checkedBy   String
+  checkedAt   DateTime @default(now())
+
+  @@unique([kind, subject])
+}
+
 model Person {
   id                BigInt   @id @default(autoincrement())
   displayName       String
@@ -396,6 +438,8 @@ model Person {
   discoveredOnUrls  DiscoveredUrl[]       @relation("DiscoveredUrlPerson")
   rejections        PersonRejection[]
   appearanceCandidates AppearanceCandidate[]
+  staffNames           TournamentStaff[]       @relation("StaffLink")
+  staffCandidates      TournamentStaff[]       @relation("StaffCandidate")
 
   @@index([claimedByUserId])
   // Created by migration 20260725162000_person_suppression but never
@@ -659,6 +703,40 @@ model EliminationResult {
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, stage, entityType, entityName])
+}
+
+/// A name the tab's home page lists under its Tournament Staff block as part
+/// of the adjudication core (CA / CAP / DCA / "Core" / "Adjudication"), read
+/// by the home scrape piece. personId is set ONLY on an exact full-name match
+/// (case, diacritics and spacing folded, two tokens or more) to exactly one
+/// person in the tournament's participant list: that link alone gives the
+/// person a core role on their CV, read at display time. A looser match
+/// (a middle name dropped, tokens reordered) is kept as candidatePersonId for
+/// the admin to see and has no CV effect; an ambiguous, single-word or
+/// unknown name stays unlinked. Rewritten whole each time the piece loads.
+model TournamentStaff {
+  id           BigInt   @id @default(autoincrement())
+  tournamentId BigInt
+  name         String
+  /// normalizePersonName(name): the key a name is deduplicated by.
+  nameKey      String
+  /// 'core' (the only role read so far).
+  role         String
+  /// 'staff_block': the home page text. Participants-list Adj Core ticks live
+  /// on TournamentParticipant.judgeTypeTag, not here.
+  source       String   @default("staff_block")
+  personId     BigInt?
+  /// A possible, unconfirmed match. Never read for the CV.
+  candidatePersonId BigInt?
+  createdAt    DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  person     Person?    @relation("StaffLink", fields: [personId], references: [id], onDelete: SetNull)
+  candidate  Person?    @relation("StaffCandidate", fields: [candidatePersonId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, role, nameKey])
+  @@index([personId])
+  @@index([candidatePersonId])
 }
 
 model JudgeAssignment {

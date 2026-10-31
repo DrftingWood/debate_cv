@@ -10,6 +10,10 @@ import { AccuracyChecks } from '@/components/admin/AccuracyChecks';
 import { getTournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
 import { getTournamentPieces } from '@/lib/admin/scrapeHealth';
 import { TabLink } from '@/components/admin/TabLink';
+import { StaffNames } from '@/components/admin/StaffNames';
+import { getTournamentStaff } from '@/lib/admin/tournamentStaff';
+import { IgnoreTournament } from '@/components/admin/IgnoreTournament';
+import { looksLikeTestTournament } from '@/lib/admin/ignoreSuggestion';
 
 export const metadata: Metadata = {
   title: 'Tournament pieces · Admin',
@@ -40,7 +44,7 @@ export default async function AdminTournamentPiecesPage({
   // BigInt(' 5') quietly reads 5.
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
-  const [data, audit] = await Promise.all([
+  const [data, audit, staff] = await Promise.all([
     getTournamentPieces(BigInt(id)),
     // The checks are extra: if reading them fails, the grid and re-scrape
     // must stay usable. The panel then says the read failed rather than
@@ -50,6 +54,11 @@ export default async function AdminTournamentPiecesPage({
       console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
       return 'failed' as const;
     }),
+    // Extra, like the checks: a failed read leaves the list empty, not the page broken.
+    getTournamentStaff(BigInt(id)).catch((err: unknown) => {
+      console.error(`admin: staff names for tournament ${id} failed to load`, err);
+      return [];
+    }),
   ]);
   if (!data) notFound();
 
@@ -58,17 +67,11 @@ export default async function AdminTournamentPiecesPage({
   const now = new Date();
   const tabs = orderTabs(data.tabs.map((p) => toPieceCard(p, now)));
   const rounds = data.rounds.map((p) => toPieceCard(p, now));
-  const total = tabs.length + rounds.length;
-  const failed = [...tabs, ...rounds].filter((p) => p.status === 'failed').length;
+  const cards = [...tabs, ...rounds];
 
   return (
     <div className="space-y-group">
-      <PageHeader
-        name={data.tournament.name}
-        sourceUrl={data.tournament.sourceUrl}
-        total={total}
-        failed={failed}
-      />
+      <PageHeader name={data.tournament.name} sourceUrl={data.tournament.sourceUrl} cards={cards} />
 
       <AccuracyChecks
         tournamentId={id}
@@ -78,7 +81,11 @@ export default async function AdminTournamentPiecesPage({
         now={now}
       />
 
-      {total === 0 ? (
+      <StaffNames rows={staff} />
+
+      <IgnoreSection id={id} name={data.tournament.name} ignored={data.tournament.ignored} />
+
+      {cards.length === 0 ? (
         <EmptyState
           title="No pieces recorded yet"
           description="They are recorded from the next scrape."
@@ -99,17 +106,35 @@ export default async function AdminTournamentPiecesPage({
   );
 }
 
+// Ignore control; the suggestion is the name's alone, never an automatic ignore.
+function IgnoreSection({ id, name, ignored }: { id: string; name: string; ignored: boolean }) {
+  return (
+    <IgnoreTournament
+      tournamentId={id}
+      tournamentName={name}
+      ignored={ignored}
+      looksLikeTest={looksLikeTestTournament(name)}
+    />
+  );
+}
+
+// Withheld pages (the tournament keeps them back) are counted apart from the
+// failures: they are its choice, not a fault.
+const countStatus = (cards: Array<{ status: string }>, status: 'failed' | 'withheld') =>
+  cards.filter((p) => p.status === status).length;
+
 function PageHeader({
   name,
   sourceUrl,
-  total,
-  failed,
+  cards,
 }: {
   name: string;
   sourceUrl: string;
-  total: number;
-  failed: number;
+  cards: Array<{ status: string }>;
 }) {
+  const total = cards.length;
+  const failed = countStatus(cards, 'failed');
+  const withheld = countStatus(cards, 'withheld');
   return (
     <header className="space-y-tight">
       <div className="kicker">ADMIN · TOURNAMENT</div>
@@ -121,7 +146,7 @@ function PageHeader({
         <p className="font-mono text-caption tabular-nums text-ink-soft">
           {total === 0
             ? 'No pieces tracked'
-            : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed`}
+            : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed${withheld > 0 ? ` · ${withheld} withheld` : ''}`}
         </p>
         <div className="flex flex-wrap items-center gap-inline">
           {/* A new tab, so the grid keeps its place; TabLink keeps the

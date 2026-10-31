@@ -19,7 +19,7 @@ const MAX_CHARS = 500;
  * "Is this tournament in the database?": one search box for /admin and
  * /admin/tournaments, so there is one implementation (owner, 2026-10-31).
  *
- * A name goes to /admin/tournaments?q=, the paged list of matches. A URL is
+ * A name goes to /admin?tab=tournaments&q=, the paged list of matches. A URL is
  * looked up in place through POST /api/admin/lookup and answered in the
  * live region under the box: a pasted private URL then travels in a request
  * body, never in an address bar, a history entry or a server log, and the
@@ -106,7 +106,7 @@ function useLookup(value: string) {
     const url = asLookupUrl(q);
     if (!url) {
       setAnswer(null);
-      startTransition(() => router.push(`/admin/tournaments?q=${encodeURIComponent(q)}`));
+      startTransition(() => router.push(`/admin?tab=tournaments&q=${encodeURIComponent(q)}`));
       return;
     }
     startTransition(async () => {

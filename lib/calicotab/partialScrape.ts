@@ -13,7 +13,10 @@ import {
 import { isIngestDeadlineError } from './fetchSession';
 import type { NavigationStructure } from './parseNav';
 import { publicTournamentBase } from './prescrape';
+import { recordStaffFromHome } from './staffStore';
 import {
+  pieceLabel,
+  pieceOutcome,
   pieceRefForUrl,
   recordPieceOutcomes,
   recordPiecesNotReached,
@@ -103,23 +106,44 @@ export async function rescrapePieces(
   if (requested.length === 0) return result;
 
   const landing = await landingFor(tournament, requested, opts.deadline);
+  if (landing === 'gone') return { ...result, notOnTab: requested };
   if (!landing) return { ...result, failed: requested };
   const { base, loaded } = landing;
 
+  // The home page is the landing page just fetched: its piece needs no
+  // request of its own and no fetch-phase machinery (no tab to narrow the nav
+  // to, no rows to clear). It is read after the tabs, so a participants list
+  // re-read in the same press is what its names are linked against.
+  const tabs = requested.filter((p) => p.kind !== 'home');
+  await scrapeTabs(tournamentId, tabs, landing, result);
+  if (tabs.length < requested.length) {
+    await readHome(tournamentId, base, loaded.landingHtml, result);
+  }
+  return result;
+}
+
+/** The tab, break and round pieces of a re-scrape, written under the scrape claim. */
+async function scrapeTabs(
+  tournamentId: bigint,
+  tabs: PieceRef[],
+  landing: Awaited<ReturnType<typeof loadPublicLanding>>,
+  result: PartialResult,
+): Promise<void> {
+  const { base, loaded } = landing;
   // A piece the tab no longer links (a round withdrawn, a break category
   // renamed) has nothing to fetch. Its stored rows stay: clearing them on
   // the strength of a missing link would delete data no page replaces. Its
   // ScrapePiece row goes, though: it is no longer a piece of the tournament,
   // and a 'failed' row left behind would be asked for again on every retry.
   const onNav = navPieceIds(loaded.snapshot.navigation);
-  const only = requested.filter((p) => onNav.has(refId(p)));
-  result.notOnTab = requested.filter((p) => !onNav.has(refId(p)));
+  const only = tabs.filter((p) => onNav.has(refId(p)));
+  result.notOnTab = tabs.filter((p) => !onNav.has(refId(p)));
   if (result.notOnTab.length > 0) {
     await prisma.scrapePiece.deleteMany({
       where: { tournamentId, OR: result.notOnTab.map((p) => ({ kind: p.kind, key: p.key })) },
     });
   }
-  if (only.length === 0) return result;
+  if (only.length === 0) return;
 
   const claim = await acquireScrapeClaim(tournamentId);
   if (claim === 'busy') throw new ScrapeBusyError(base);
@@ -138,7 +162,7 @@ export async function rescrapePieces(
     if (isIngestDeadlineError(err)) {
       await recordCutOff(tournamentId, only, err);
       result.failed = only;
-      return result;
+      return;
     }
     // Every requested page failed. runFullScrape has recorded each failure
     // (so its back-off advances); to the caller that is a result, not an
@@ -150,7 +174,35 @@ export async function rescrapePieces(
     // failure before it, so the next attempt need not wait out the TTL.
     await releaseScrapeClaim(tournamentId);
   }
-  return result;
+}
+
+/**
+ * Reads the Tournament Staff block off the landing page already in hand and
+ * records the home piece: loaded when the names are stored, failed (and so
+ * retried on the usual back-off) when the write fails. The page is the public
+ * tab address, never a private URL.
+ */
+async function readHome(
+  tournamentId: bigint,
+  base: string,
+  landingHtml: string,
+  result: PartialResult,
+): Promise<void> {
+  const ref = { kind: 'home' as const, key: '' };
+  try {
+    await recordStaffFromHome(tournamentId, landingHtml);
+    await recordPieceOutcomes(tournamentId, [pieceOutcome('home', base, { status: 200 })]);
+    result.loaded.push(ref);
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { stage: 'home-piece' },
+      extra: { tournamentId: String(tournamentId) },
+    });
+    await recordPieceOutcomes(tournamentId, [
+      pieceOutcome('home', base, { status: null, error: 'could not store the staff block' }),
+    ]);
+    result.failed.push(ref);
+  }
 }
 
 /** The pieces asked for, one entry each; `'failed'` reads them from the table. */
@@ -174,12 +226,17 @@ async function requestedPieces(
  * The tournament's public landing page, checked to lead back to it. Any
  * failure counts as an attempt for the requested pieces before it is thrown;
  * a deadline is not thrown but answered with null (every piece failed).
+ *
+ * A landing page the tournament refuses or has removed (404 or 410) is not a
+ * failure of the home piece: the page is not there to read. The piece is
+ * recorded withheld (R8: never retried, no "partly loaded" mark), and when
+ * home is all that was asked for the answer is 'gone', not an error.
  */
 async function landingFor(
   tournament: { id: bigint; sourceUrlRaw: string },
   refs: PieceRef[],
   deadline: number | undefined,
-): Promise<Awaited<ReturnType<typeof loadPublicLanding>> | null> {
+): Promise<Awaited<ReturnType<typeof loadPublicLanding>> | 'gone' | null> {
   const target = { tournamentId: tournament.id, refs };
   let publicUrl: string;
   try {
@@ -204,8 +261,26 @@ async function landingFor(
     }
     return landing;
   } catch (err) {
-    await notReached(target, err, true);
+    const status = (err as { httpStatus?: unknown }).httpStatus;
+    const gone = status === 404 || status === 410;
+    const home = refs.find((p) => p.kind === 'home');
+    if (gone && home) {
+      await recordPieceOutcomes(tournament.id, [
+        {
+          ...home,
+          label: pieceLabel('home', publicUrl),
+          url: publicUrl,
+          ok: false,
+          httpStatus: status,
+          error: `the home page answered HTTP ${status}`,
+          withheld: true,
+        },
+      ]);
+    }
+    const rest = gone ? refs.filter((p) => p.kind !== 'home') : refs;
+    await notReached({ tournamentId: tournament.id, refs: rest }, err, true);
     if (isIngestDeadlineError(err)) return null;
+    if (gone && rest.length === 0) return 'gone';
     throw err;
   }
 }

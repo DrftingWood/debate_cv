@@ -2,9 +2,11 @@ import * as Sentry from '@sentry/nextjs';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
+import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
 import { CHECKS_VERSION, runChecks } from './checks';
 import { loadAuditInputs } from './load';
 import { scoreTournament } from './score';
+import { checkedWords } from './checkedLabel';
 import type { CheckResult } from './types';
 
 /**
@@ -33,7 +35,36 @@ function checksJson(checks: CheckResult[]): Prisma.InputJsonArray {
     detail: c.detail,
     pieces: c.pieces.map((p) => ({ kind: p.kind, key: p.key, label: p.label, url: p.url })),
     assumptions: c.assumptions ?? [],
+    // Only on a checked check: a JSON value cannot hold undefined, and an
+    // absent key reads back as "not checked" (parseChecks).
+    ...(c.checkedBy != null && c.checkedAt != null && c.wasStatus != null
+      ? { checkedBy: c.checkedBy, checkedAt: c.checkedAt, wasStatus: c.wasStatus }
+      : {}),
   }));
+}
+
+/** The subject an AdminCheck mark of one tournament check is stored under. */
+export const checkSubject = (tournamentId: bigint, code: string) => `${tournamentId}:${code}`;
+
+/**
+ * A check whose mark still matches what it says now becomes a pass, before
+ * scoring, so the admin's "the data is right" raises the score. The old
+ * finding stays in the detail, because the tables show what was vouched for.
+ * A mark whose fingerprint differs is about data that has since changed, so
+ * it is ignored and the check counts as it stands.
+ */
+function applyMark(check: CheckResult, mark: Mark | undefined): CheckResult {
+  if (!mark || (check.status !== 'fail' && check.status !== 'warn')) return check;
+  if (mark.fingerprint !== fingerprintOf('check', check)) return check;
+  return {
+    ...check,
+    status: 'pass',
+    detail: `${checkedWords(mark.checkedBy, mark.checkedAt)}. Was: ${check.detail}`,
+    checkedBy: mark.checkedBy,
+    checkedAt: mark.checkedAt.toISOString(),
+    // Kept so the tables can tell a vouched-for fail from a vouched-for warn.
+    wasStatus: check.status,
+  };
 }
 
 /**
@@ -42,11 +73,48 @@ function checksJson(checks: CheckResult[]): Prisma.InputJsonArray {
  * share one transaction so a batch is stored whole or not at all.
  */
 export async function runAudit(tournamentIds: bigint[]): Promise<number> {
-  if (tournamentIds.length === 0) return 0;
+  return (await runAuditReport(tournamentIds)).audited;
+}
+
+export type AuditReport = {
+  /** Audits written. */
+  audited: number;
+  /**
+   * Subjects (`<tournamentId>:<code>`) whose mark took effect: its
+   * fingerprint matched, so the check was scored as a pass. "Mark checked"
+   * compares this with what it just marked, so the page can say when a mark
+   * was saved but the data had already changed.
+   */
+  applied: Set<string>;
+};
+
+/** runAudit, also naming the marks that took effect. */
+export async function runAuditReport(tournamentIds: bigint[]): Promise<AuditReport> {
+  const applied = new Set<string>();
+  if (tournamentIds.length === 0) return { audited: 0, applied };
   const loaded = await loadAuditInputs(tournamentIds);
   const computedAt = new Date();
-  const writes = [...loaded].map(([tournamentId, inputs]) => {
-    const checks = runChecks(inputs, PARSER_VERSION);
+  const raw = [...loaded].map(([tournamentId, inputs]) => ({
+    tournamentId,
+    inputs,
+    checks: runChecks(inputs, PARSER_VERSION),
+  }));
+  // One read for the whole batch, and only of checks a mark could change.
+  const marks = await marksFor(
+    'check',
+    raw.flatMap(({ tournamentId, checks }) =>
+      checks
+        .filter((c) => c.status === 'fail' || c.status === 'warn')
+        .map((c) => checkSubject(tournamentId, c.code)),
+    ),
+  );
+  const writes = raw.map(({ tournamentId, inputs, checks: found }) => {
+    const checks = found.map((c) => {
+      const subject = checkSubject(tournamentId, c.code);
+      const out = applyMark(c, marks.get(subject));
+      if (out !== c) applied.add(subject);
+      return out;
+    });
     const data = {
       score: scoreTournament(checks, inputs.openReports.length),
       checks: checksJson(checks),
@@ -61,7 +129,7 @@ export async function runAudit(tournamentIds: bigint[]): Promise<number> {
     });
   });
   if (writes.length > 0) await prisma.$transaction(writes);
-  return writes.length;
+  return { audited: writes.length, applied };
 }
 
 /**

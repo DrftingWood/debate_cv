@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-10-31 - Admin redesign (R1 to R12), seed and browser check (R7)
+
+- **Owner request.** Make /admin a place to act, not read: one Inbox of what needs the owner, with Fix, Mark checked and Review later; the old sections become tabs. Spec: `docs/superpowers/specs/2026-10-31-admin-redesign-design.md`; plan: `docs/superpowers/plans/2026-10-31-admin-redesign.md`.
+- **Shell.** Tabs Inbox, Tournaments, Captured, Imports, Reports, Parser, Review set, Tools on `?tab=`; moving tabs drops `q`, `page` and the other tab-scoped params and keeps the rest (`band`, `check` stay). Summary line: "Needs you N · Accuracy S (Good g · Check c · Re-scrape r) · Imports to review N · Queue N" ("Imports to review" is the unstored failures, matching the Imports tab: ruling 9; the brief's wording was "Imports failing").
+- **Per task.**
+  - R1 "Mark checked": `AdminCheck` marks with a fingerprint of what the admin saw; a changed fingerprint brings the item back as "Changed since you checked it". A checked tournament check counts as a pass in the score. `POST/DELETE /api/admin/checks`.
+  - R2 Inbox: check, report, import and parser items in one list, 20 a page. A failed import whose tournament is stored never appears (it sits under "Covered by stored copy"). Info-class parser notes never appear.
+  - R3 shell and tabs; R4 Inbox UI with toast Undo and bulk mark; R5 Tournaments tab with check filters and the detail page; R6 Imports, Reports and Parser tabs.
+  - R8 "not published" counts as withheld (never a fault). R9 missing-format check, "Infer format", "Fill missing formats". R10 adjudication-core check and fill, from the Adj Core tick and the home page's Tournament Staff block. R12 old-parser refresh, motion/break/speaker gaps, "Fill years from names", Ignore for test tournaments. R11 Captured tab.
+  - R7 (this entry): `scripts/seed-admin-redesign.ts` and a measured browser check; defects it found are fixed in their own commits (see the branch log): Tournaments tab crashed in a Server Component (TabStatus), inline tab-link and Warning-badge axe failures, and the Prisma 7 missing-table error not recognised by its code.
+- **Migrations** (all additive; `20261031150000` sorts after every migration already on main): `20261031150000_admin_checks` (AdminCheck), `20261031160000_scrape_piece_reason`, `20261031170000_tournament_staff`, `20261031180000_tournament_ignored` (ignored, pagesRefreshedUnder). `CHECKS_VERSION` is `2026-10-31.9`; the cron re-audits everything under it. No `PARSER_VERSION` bump.
+- **Seed.** Against a LOCAL database only (the script prints the host and exits unless it is localhost, 127.0.0.1 or ::1): `set -a; . ./.env.local; set +a; npx vite-node -c vitest.config.ts scripts/seed-admin-redesign.ts`. It prints a session cookie for maya@example.com (set `ADMIN_EMAIL=maya@example.com`; `next dev`, and under a worktree whose node_modules is a junction use `next dev --webpack`). Audits come from the app's own engine.
+- **Rollback.** Revert the merge commit. The migrations are additive, so leaving the tables and columns is safe; to remove them, `DROP TABLE "AdminCheck"`, `DROP TABLE "TournamentStaff"`, drop the `ScrapePiece.reason`, `Tournament.ignored` and `Tournament.pagesRefreshedUnder` columns, and delete the four `_prisma_migrations` rows.
+
+---
+
 ## 2026-10-31 - Data accuracy, part 2: failed-import Tab status, review set, report tables
 
 - **Owner requests.** "tick if fully loaded in tab, ? if partially load (hover to see the errors) and X if not loaded"; "prioritize some errors and bring to a separate set that you can later pick for review - prioritize and add a comment"; CV reports and parser warnings as tables an admin can act on. Standing rule: a URL that scraped properly is never highlighted. Plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (Tasks 5c, 5d, 6).

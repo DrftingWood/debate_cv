@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/Badge';
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { LookupResult } from '@/lib/admin/tournamentLookup';
-import { relativeTime } from '@/lib/utils/relativeTime';
+import { scrapedStamp } from '@/lib/utils/scrapedLabel';
 
 /**
  * A lookup's answer as it crosses the wire: the API sends the scrape date as
@@ -44,7 +44,7 @@ export function LookupResultView({ result, now }: { result: LookupView; now: Dat
       </p>
     );
   }
-  const scraped = new Date(result.scrapedAt);
+  const stamp = scrapedStamp(new Date(result.scrapedAt), now);
   return (
     <div className="space-y-hair">
       <p className="flex flex-wrap items-baseline gap-x-tight gap-y-hair text-ui">
@@ -52,9 +52,13 @@ export function LookupResultView({ result, now }: { result: LookupView; now: Dat
         <TabLink url={result.publicUrl} text="Tab" of={result.name} className="text-caption" />
       </p>
       <p className="flex flex-wrap items-center gap-x-tight gap-y-hair text-caption text-ink-soft">
-        <time dateTime={result.scrapedAt} className="font-mono tabular-nums">
-          Stored {relativeTime(scraped, now)}
-        </time>
+        {stamp.iso ? (
+          <time dateTime={stamp.iso} className="font-mono tabular-nums">
+            Stored {stamp.text}
+          </time>
+        ) : (
+          <span className="font-mono tabular-nums">{stamp.text}</span>
+        )}
         {result.parserCurrent ? null : <Badge variant="warning">Old parser</Badge>}
         {result.score != null && result.band ? (
           <span className="inline-flex items-baseline gap-inline">

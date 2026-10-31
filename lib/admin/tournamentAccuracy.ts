@@ -2,8 +2,10 @@ import { prisma } from '@/lib/db';
 import { band } from '@/lib/audit/score';
 import { ASSUMPTIONS, CHECK_LABELS, type CheckCode, type CheckStatus } from '@/lib/audit/types';
 import { CHECKS_VERSION } from '@/lib/audit/checks';
-import { parseChecks, suggestedPieces, type Band } from '@/lib/admin/accuracy';
+import { parseChecks, suggestedPieces, type Band, type ParsedCheck } from '@/lib/admin/accuracy';
 import type { SuggestedPiece } from '@/lib/admin/accuracyActions';
+import { fingerprintOf } from '@/lib/admin/adminChecks';
+import { checkedWords } from '@/lib/audit/checkedLabel';
 
 /**
  * Read model for the "Accuracy checks" panel on /admin/tournaments/[id]:
@@ -24,6 +26,20 @@ export type CheckView = {
   pieces: SuggestedPiece[];
   /** Unsettled rules that decided this result, titled for the "Open question" note. */
   questions: Array<{ code: string; title: string }>;
+  /** The AdminCheck subject a mark of this check is stored under (`<tournamentId>:<code>`). */
+  subject: string;
+  /**
+   * What "Mark checked" stores for a failing or warning check: the
+   * fingerprint of the finding as it reads now, which is also what the audit
+   * compares a mark with. Null for a check with nothing to mark.
+   */
+  fingerprint: string | null;
+  /**
+   * Set when a mark vouches for this check: "Checked by owner on 31 Oct
+   * 2026" (the name, never the address) and what the check said before.
+   * Its `detail` then holds the old finding without that sentence.
+   */
+  checked: { words: string; was: 'fail' | 'warn' } | null;
 };
 
 export type TournamentAccuracy = {
@@ -50,14 +66,28 @@ export async function getTournamentAccuracy(id: bigint): Promise<TournamentAccur
     band: band(row.score),
     computedAt: row.computedAt,
     outdated: row.checksVersion !== CHECKS_VERSION,
-    checks: checks.map((c) => ({
-      code: c.code,
-      label: CHECK_LABELS[c.code],
-      status: c.status,
-      detail: c.detail,
-      pieces: c.pieces,
-      questions: c.assumptions.map((a) => ({ code: a, title: ASSUMPTIONS[a].title })),
-    })),
+    checks: checks.map((c) => toView(id, c)),
     suggested: suggestedPieces(checks),
+  };
+}
+
+/** One stored check as the page shows it, with what Mark checked and Undo need. */
+function toView(id: bigint, c: ParsedCheck): CheckView {
+  const markable = c.status === 'fail' || c.status === 'warn';
+  const words =
+    c.checkedBy && c.checkedAt && c.wasStatus ? checkedWords(c.checkedBy, c.checkedAt) : null;
+  return {
+    code: c.code,
+    label: CHECK_LABELS[c.code],
+    status: c.status,
+    // The audit stores "<words>. Was: <finding>"; the page shows the words
+    // beside Undo, so the detail keeps only the finding.
+    detail:
+      words && c.detail.startsWith(`${words}. `) ? c.detail.slice(words.length + 2) : c.detail,
+    pieces: c.pieces,
+    questions: c.assumptions.map((a) => ({ code: a, title: ASSUMPTIONS[a].title })),
+    subject: `${id}:${c.code}`,
+    fingerprint: markable ? fingerprintOf('check', { status: c.status, detail: c.detail }) : null,
+    checked: words && c.wasStatus ? { words, was: c.wasStatus } : null,
   };
 }

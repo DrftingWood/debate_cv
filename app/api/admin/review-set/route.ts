@@ -9,6 +9,7 @@ import {
   PRIORITIES,
   reviewSetCsv,
   SOURCES,
+  parseAuditCheckId,
   toExportRecord,
   updateFlag,
 } from '@/lib/admin/reviewSet';
@@ -38,6 +39,9 @@ const Item = z
   .object({ source: z.enum(SOURCES), sourceId: z.string().min(1).max(300) })
   .refine((i) => i.source !== 'parser_warning' || !/privateurls/i.test(i.sourceId), {
     message: 'private',
+  })
+  .refine((i) => i.source !== 'audit_check' || parseAuditCheckId(i.sourceId) != null, {
+    message: 'not a check',
   });
 
 const PostBody = z.object({

@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Review of 2ec9cde: a prop handed from a server component to a 'use client'
 // one is serialised into the page's RSC payload whatever the client renders,
 // so sanitising only the href (TabLink) is not enough. These build the exact
-// row arrays the server passes to FailedJobsTable, PartlyLoadedTable,
-// AccuracyTable and PieceGrid, from stored data full of private URLs, and
+// row arrays the server passes to ImportGroupsTable,
+// the accuracy overview and PieceGrid, from stored data full of private URLs, and
 // check the serialised props carry no private key.
 
 const KEY = 'k3yS3cr3t';
@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
     tournamentAudit: { findMany: vi.fn(), findUnique: vi.fn() },
     scrapePiece: { count: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
     ingestJob: { findMany: vi.fn() },
+    user: { findMany: vi.fn() },
     discoveredUrl: { findMany: vi.fn() },
     reviewFlag: { findMany: vi.fn() },
     cvErrorReport: { findMany: vi.fn(), count: vi.fn() },
@@ -24,12 +25,16 @@ const h = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
+// No admin has marked anything: the reads below are about what crosses to the client.
+vi.mock('@/lib/admin/adminChecks', async (orig) => ({
+  ...(await orig<typeof import('@/lib/admin/adminChecks')>()),
+  marksFor: async () => new Map(),
+}));
 
-const { getScrapeHealth, getTournamentPieces } = await import('@/lib/admin/scrapeHealth');
+const { getTournamentPieces } = await import('@/lib/admin/scrapeHealth');
 const { getAccuracyOverview } = await import('@/lib/admin/accuracy');
-const { toPartlyLoadedRows } = await import('@/components/admin/ScrapeHealthSection');
-const { toFailedJobRows } = await import('@/components/admin/FailedImportsSection');
-const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
+const { listImports } = await import('@/lib/admin/importsList');
+const { toImportRows } = await import('@/components/admin/tabs/ImportsTab');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
@@ -38,7 +43,7 @@ const { loadReviewSet, reviewSetCsv, toExportRecord } = await import('@/lib/admi
 const { toReviewRows } = await import('@/components/admin/ReviewSetSection');
 const { listCvReports } = await import('@/lib/admin/cvReports');
 const { toCvReportRows } = await import('@/components/admin/CvReportsSection');
-const { listParserWarnings } = await import('@/lib/admin/parserWarnings');
+const { listParser } = await import('@/lib/admin/parserList');
 const { toWarningRows } = await import('@/components/admin/ParserWarningsSection');
 
 const NOW = new Date('2026-10-31T12:00:00Z');
@@ -85,32 +90,27 @@ beforeEach(() => {
     {
       id: 'j1',
       url: PRIVATE,
+      userId: 'u1',
       attempts: 3,
       lastError: `fetch failed for ${PRIVATE}`,
       finishedAt: NOW,
-      user: { email: 'a@b.c' },
+      scheduledAt: NOW,
     },
   ]);
+  h.db.user.findMany.mockResolvedValue([{ id: 'u1', email: 'a@b.c' }]);
 });
 
 describe('props crossing into client components carry no private key', () => {
-  it('PartlyLoadedTable rows', async () => {
-    const health = await getScrapeHealth();
-    const rows = toPartlyLoadedRows(health, NOW);
+  it('ImportGroupsTable rows', async () => {
+    const list = await listImports({ filter: 'all', page: 1 });
+    const rows = toImportRows(list.rows, NOW);
     expect(rows[0]!.tabUrl).toBe('https://oxiv.calicotab.com/oxiv2025/');
-    expectNoKey(rows);
-  });
-
-  it('FailedJobsTable rows', async () => {
-    const health = await getScrapeHealth();
-    const rows = toFailedJobRows(health.failedJobs, NOW);
-    expect(rows[0]!.href).toBe('https://oxiv.calicotab.com/oxiv2025/');
-    // Task 5b: the "In database" cell found its tournament by host and slug.
+    // Task 5b: the stored tournament was found by host and slug.
     expect(rows[0]!.stored).toMatchObject({ id: '1' });
     expectNoKey(rows);
   });
 
-  it('AccuracyTable rows, with their suggested piece links', async () => {
+  it('accuracy overview', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([
       {
         tournamentId: 1n,
@@ -128,9 +128,7 @@ describe('props crossing into client components carry no private key', () => {
       },
     ]);
     const o = await getAccuracyOverview();
-    const rows = toAccuracyRows(o.lowest, NOW);
-    expect(rows[0]!.suggested[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
-    expectNoKey(rows);
+    expectNoKey(o);
     expectNoKey(o.openQuestions);
   });
 
@@ -145,7 +143,7 @@ describe('props crossing into client components carry no private key', () => {
 });
 
 describe('the In database cell carries no private key (Task 5b)', () => {
-  it('FailedJobsTable rows linked through DiscoveredUrl.tournamentId', async () => {
+  it('ImportGroupsTable rows linked through DiscoveredUrl.tournamentId', async () => {
     h.db.discoveredUrl.findMany.mockResolvedValue([
       {
         userId: 'u1',
@@ -161,11 +159,11 @@ describe('the In database cell carries no private key (Task 5b)', () => {
         attempts: 1,
         lastError: null,
         finishedAt: NOW,
-        user: { email: null },
+        scheduledAt: NOW,
       },
     ]);
-    const health = await getScrapeHealth();
-    const rows = toFailedJobRows(health.failedJobs, NOW);
+    const list = await listImports({ filter: 'covered', page: 1 });
+    const rows = toImportRows(list.rows, NOW);
     expect(rows[0]!.stored).toMatchObject({ id: '9' });
     expectNoKey(rows);
   });
@@ -235,15 +233,14 @@ describe('shortUrl', () => {
 });
 
 describe('the Tab column and the review set carry no private key (Task 5c)', () => {
-  it('FailedJobsTable rows: the Tab cell lists failed pages in words', async () => {
-    const health = await getScrapeHealth();
-    const rows = toFailedJobRows(health.failedJobs, NOW, new Map([['j1', 'high']]));
+  it('ImportGroupsTable rows: the Tab cell lists failed pages in words', async () => {
+    const list = await listImports({ filter: 'covered', page: 1 });
+    const rows = toImportRows(list.rows, NOW);
     expect(rows[0]!.tab).toEqual({
       state: 'partial',
       tournamentId: '1',
       errors: ['R3: HTTP 500 Internal Server Error'],
     });
-    expect(rows[0]!.flag).toEqual({ priority: 'high' });
     expectNoKey(rows);
   });
 
@@ -318,7 +315,7 @@ describe('CV reports and parser warnings carry no private key (Task 5d)', () => 
   });
 
   it('ParserWarningsTable rows: matched tournaments, headline and sample', async () => {
-    const list = await listParserWarnings({ page: 1, now: NOW });
+    const list = await listParser({ filter: 'problems', page: 1, now: NOW });
     const rows = toWarningRows(list.rows, NOW);
     expect(rows[0]!.tournaments[0]).toMatchObject({ id: '1', name: 'Oxford IV' });
     expectNoKey(rows);

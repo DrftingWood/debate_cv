@@ -9,8 +9,10 @@ import { useToast } from '@/components/ui/Toast';
 import { TabLink } from '@/components/admin/TabLink';
 import { TabStatus } from '@/components/admin/TabStatus';
 import { ActionStatus, FIELD_CLASS, useAddToReviewSet } from '@/components/admin/AddToReviewSet';
+import { MarkControls } from '@/components/admin/MarkControls';
 import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
 import type { SuggestedPiece } from '@/lib/admin/accuracyActions';
+import type { MarkCell } from '@/lib/admin/markCell';
 import { cvReportFailureMessage } from '@/lib/admin/actionMessage';
 import { REPORT_STATUS_LABEL, REPORT_STATUSES, type ReportStatus } from '@/lib/admin/cvReportTypes';
 import type { TabState } from '@/lib/admin/tabStatus';
@@ -36,6 +38,11 @@ export type CvReportRow = {
   categories: Array<{ code: string; label: string }>;
   comment: string;
   status: ReportStatus;
+  /**
+   * Mark checked, which acknowledges the report, or "Checked by X on D ·
+   * Undo"; null on a closed report with no mark.
+   */
+  mark: MarkCell | null;
 };
 
 type Tournament = CvReportRow['tournaments'][number];
@@ -150,7 +157,7 @@ type StatusApi = ReturnType<typeof useReportStatus>;
 // phone shows a card per report (UX-30), with nothing cut away. The hidden
 // <col>s are hidden with their cells: a fixed-layout table places cells by
 // position, so a col left in while its cells are display:none would shift
-// every cell one column to the left (see FailedJobsTable).
+// every cell one column to the left (see ImportGroupsTable).
 const REPORT_COLUMNS = [
   '3rem',
   { className: 'hidden md:table-column md:w-24' },
@@ -259,7 +266,7 @@ function ReportRow({
       </Td>
       <Td className="hidden align-top md:table-cell">{select}</Td>
       <Td className="hidden pr-stack align-top md:table-cell">
-        <Actions tournaments={row.tournaments} />
+        <Actions row={row} />
       </Td>
     </Tr>
   );
@@ -278,7 +285,7 @@ function PhoneFold({ row, select }: { row: CvReportRow; select: ReactNode }) {
       <Categories categories={row.categories} />
       <Comment text={row.comment} />
       {select}
-      <Actions tournaments={row.tournaments} />
+      <Actions row={row} />
     </div>
   );
 }
@@ -392,7 +399,16 @@ function StatusSelect({ row, status }: { row: CvReportRow; status: StatusApi }) 
  * at. A report about identity points at no page, and an unstored
  * tournament has nothing to re-scrape: each says so in words (UX-27).
  */
-function Actions({ tournaments }: { tournaments: readonly Tournament[] }) {
+function Actions({ row }: { row: CvReportRow }) {
+  return (
+    <div className="space-y-tight">
+      <RescrapeActions tournaments={row.tournaments} />
+      {row.mark ? <MarkControls cell={row.mark} name={`the report from ${row.reporter}`} /> : null}
+    </div>
+  );
+}
+
+function RescrapeActions({ tournaments }: { tournaments: readonly Tournament[] }) {
   const stored = tournaments.filter((t) => t.stored);
   if (stored.length === 0) return <span className="text-caption text-ink-soft">Not stored</span>;
   return (

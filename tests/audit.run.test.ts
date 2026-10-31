@@ -12,6 +12,9 @@ const h = vi.hoisted(() => ({
     tournament: { findMany: vi.fn() },
     tournamentAudit: { findMany: vi.fn(), upsert: vi.fn() },
     $transaction: vi.fn(),
+    // AdminCheck marks (lib/admin/adminChecks.ts): none here; the marks'
+    // effect is in audit.run.marks.test.ts.
+    $queryRaw: vi.fn(),
   },
 }));
 vi.mock('@/lib/audit/load', () => ({ loadAuditInputs: h.load }));
@@ -30,6 +33,7 @@ function inputs(over: Partial<Loaded> = {}): Loaded {
     format: 'BP',
     prelimRoundCount: 1,
     parserVersion: PARSER_VERSION,
+    pagesRefreshedUnder: null,
     teamTab: [],
     roundRows: [],
     outrounds: [],
@@ -39,6 +43,7 @@ function inputs(over: Partial<Loaded> = {}): Loaded {
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,
+    coreNamed: 1,
     roundResultJudges: 0,
     judgesByRound: {},
     motionRounds: [],
@@ -61,6 +66,7 @@ beforeEach(() => {
   h.db.tournamentAudit.findMany.mockReset().mockResolvedValue([]);
   h.db.tournamentAudit.upsert.mockReset().mockImplementation((args: unknown) => args);
   h.db.$transaction.mockReset().mockImplementation(async (ops: unknown[]) => ops);
+  h.db.$queryRaw.mockReset().mockResolvedValue([]);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 

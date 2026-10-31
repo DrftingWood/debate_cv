@@ -32,6 +32,7 @@ import {
   partialWarning,
   pieceLoaded,
   pieceOutcome,
+  pieceRefForUrl,
   piecesToClear,
   recordPieceOutcomes,
   wantsPiece,
@@ -39,6 +40,7 @@ import {
   type PieceOutcome,
   type PieceRef,
 } from './scrapePieces';
+import { emptyRoundOutcome, roundPublishedEmpty, unpublishedTabOutcomes } from './unpublished';
 import {
   dedupeJudgeHits,
   judgeHitsFromRounds,
@@ -84,6 +86,7 @@ import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
 import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
 import { isPlaceholderPersonName } from './names';
+import { rematchStaffNames } from './staffStore';
 import {
   assignMotionRounds,
   isPrelimRoundLabel,
@@ -161,6 +164,12 @@ type FetchedTabs = {
   pieceOutcomes: PieceOutcome[];
   /** The pieces that loaded (outcomes with ok), for a partial re-scrape's scoped deletes. */
   fetchedPieces: PieceRef[];
+  /**
+   * Pieces the tournament never published (unlinked tabs, empty round pages),
+   * recorded as withheld beside the outcomes. Kept apart from them so no
+   * `!ok` test (nothing-loaded abort, whole-tournament refresh) reads one as a failure.
+   */
+  unpublishedPieces: PieceOutcome[];
 };
 
 type RegressionGuardResult =
@@ -486,7 +495,7 @@ export async function runFullScrape(
     // for each piece: without the record, attempts never grow and the retry
     // back-off never advances, so the retry cron would ask again every tick.
     if (options.only && loaded.existing) {
-      await recordPieceOutcomes(loaded.existing.id, outcomes);
+      await recordPieceOutcomes(loaded.existing.id, [...outcomes, ...fetched.unpublishedPieces]);
     }
     throw new NothingLoadedError(
       `Aborting ingest: no page loaded — ` +
@@ -524,7 +533,7 @@ export async function runFullScrape(
   );
   const result = await finalizePostTransaction(loaded, fetched, txResult, userId);
   // Only after the write: a piece is "ok" because its rows are stored.
-  await recordPieceOutcomes(txResult.tournamentId, outcomes);
+  await recordPieceOutcomes(txResult.tournamentId, [...outcomes, ...fetched.unpublishedPieces]);
   if (afterWrite) await afterWrite({ fetched, persons, tournamentId: txResult.tournamentId });
   console.info('[ingest] write phase', {
     url: loaded.normalized,
@@ -1324,6 +1333,7 @@ export async function fetchAndParseTabs(
   }
   const mergedParticipantRows = [...participantByName.values()];
 
+  const unpublishedPieces: PieceOutcome[] = [];
   const rounds = roundPages
     .filter((x): x is RoundPage => !!x)
     .map((page) => {
@@ -1335,7 +1345,16 @@ export async function fetchAndParseTabs(
       // page heading.
       const navLabel = nav.resultsRoundLabels?.[u];
       const r = parseRoundResults(html, u, navLabel);
-      if (r.teamResults.length === 0) {
+      // Columns but no rows: the round was never published. Its page did
+      // load, so its outcome moves from the loaded list to the unpublished one.
+      if (r.teamResults.length === 0 && roundPublishedEmpty(html)) {
+        const key = pieceRefForUrl('round', u).key;
+        const at = pieceOutcomes.findIndex((o) => o.kind === 'round' && o.key === key && o.ok);
+        if (at >= 0) {
+          const [done] = pieceOutcomes.splice(at, 1);
+          unpublishedPieces.push(emptyRoundOutcome(done));
+        }
+      } else if (r.teamResults.length === 0) {
         fetchWarnings.push(`parse: round ${u} → 0 results — ${diagnoseVueData(html, ['team'])}`);
       }
       return r;
@@ -1401,6 +1420,8 @@ export async function fetchAndParseTabs(
   // lib/calicotab/breakCategoryResolve.ts for the priority table + tests.
   const { rankByTeam: teamBreakRankByTeam } = resolveTeamBreaks(breakRows);
 
+  // Tabs the menu never linked (judged on the full nav, before `only` cut it).
+  unpublishedPieces.push(...unpublishedTabOutcomes(fullNav, pieceOutcomes, only));
   const fetchLevelFailures = fetchWarnings.filter((w) => w.startsWith('fetch:'));
 
   return {
@@ -1421,6 +1442,7 @@ export async function fetchAndParseTabs(
     fetchLevelFailures,
     pieceOutcomes,
     fetchedPieces: pieceOutcomes.filter((o) => o.ok).map(({ kind, key }) => ({ kind, key })),
+    unpublishedPieces,
   };
 }
 
@@ -2115,6 +2137,12 @@ async function writeIngestTransaction(
           create: { tournamentParticipantId: participant.id, role: 'judge' },
         });
       }
+
+      // The participants are stored: a staff-block name linked to someone before
+      // this write may no longer be unique (a namesake joined), or may now have
+      // its exact match. Re-check the links here, in the same transaction, so the
+      // CV never reads a role off a link that no longer holds. No fetch.
+      await rematchStaffNames(tx, t.id);
 
       // Break rows -> elimination_results. The row's existence (stage +
       // entityName) is the signal readers use — adjudicator-break detection

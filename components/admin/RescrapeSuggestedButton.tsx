@@ -26,10 +26,12 @@ export function RescrapeSuggestedButton({
   tournamentId,
   tournamentName,
   suggested,
+  asFix = false,
 }: {
   tournamentId: string;
   tournamentName: string;
   suggested: readonly SuggestedPiece[];
+  asFix?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -67,6 +69,7 @@ export function RescrapeSuggestedButton({
       pending={pending}
       error={error}
       onRun={run}
+      asFix={asFix}
     />
   );
 }
@@ -82,34 +85,45 @@ export function RescrapeSuggestedView({
   pending,
   error,
   onRun,
+  asFix = false,
 }: {
   tournamentName: string;
   suggested: readonly SuggestedPiece[];
   pending: boolean;
   error: string | null;
   onRun: () => void;
+  /** The Inbox's "Fix": that word on the button, the re-scrape named in its accessible name. */
+  asFix?: boolean;
 }) {
   const errorId = useId();
   const statusId = useId();
   const action = rescrapeAction(suggested);
+  // In a left-aligned cell the words under the button start at its edge.
+  const align = asFix ? 'text-left' : 'text-right';
   return (
-    <div className="flex flex-col items-end gap-hair">
+    <div className={`flex flex-col gap-hair ${asFix ? 'items-start' : 'items-end'}`}>
       <Button
         type="button"
         variant="outline"
         size="sm"
         loading={pending}
         leftIcon={<ArrowClockwise className="h-4 w-4" aria-hidden />}
-        aria-label={pending ? `Re-scraping ${tournamentName}` : action.name(tournamentName)}
+        aria-label={
+          pending
+            ? `Re-scraping ${tournamentName}`
+            : asFix
+              ? `Fix: ${action.name(tournamentName)}`
+              : action.name(tournamentName)
+        }
         aria-describedby={error ? errorId : pending ? statusId : undefined}
         onClick={onRun}
       >
-        {pending ? action.busyLabel : action.label}
+        {pending ? action.busyLabel : asFix ? 'Fix' : action.label}
       </Button>
       <p
         id={statusId}
         role="status"
-        className="max-w-64 text-right text-caption whitespace-normal text-ink-soft empty:hidden"
+        className={`max-w-64 ${align} text-caption whitespace-normal text-ink-soft empty:hidden`}
       >
         {pending ? action.status(tournamentName) : null}
       </p>
@@ -117,7 +131,7 @@ export function RescrapeSuggestedView({
         <p
           id={errorId}
           role="alert"
-          className="max-w-64 text-right text-caption whitespace-normal text-destructive"
+          className={`max-w-64 ${align} text-caption whitespace-normal text-destructive`}
         >
           {error}
         </p>

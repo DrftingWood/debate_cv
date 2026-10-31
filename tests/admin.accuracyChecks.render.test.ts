@@ -116,9 +116,9 @@ describe('<AccuracyChecks>', () => {
     expect(html).toContain(`href="${BASE}"`);
     expect(html).toContain('R3');
     expect(html).toContain('R2');
-    // The open question links to the overview's panel.
+    // The open question opens the Tournaments tab filtered to it.
     expect(html).toContain('Open question: Champion when a tab has no Open bracket');
-    expect(html).toContain('href="/admin#open-questions"');
+    expect(html).toContain('href="/admin?tab=tournaments&amp;question=no_open_bracket_champion"');
     expect(html.toLowerCase()).not.toContain('privateurls');
     expect(html).not.toContain('k3yS3cr3t');
   });

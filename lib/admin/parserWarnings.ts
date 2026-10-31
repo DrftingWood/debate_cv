@@ -187,8 +187,14 @@ export async function listParserWarnings({
   const pages = Math.max(1, Math.ceil(total / WARNINGS_PER_PAGE));
   const shown = clampPage(page, pages);
   const slice = groups.slice((shown - 1) * WARNINGS_PER_PAGE, shown * WARNINGS_PER_PAGE);
+  const rows = await warningViews(slice);
+  return { rows, total, page: shown, pages };
+}
+
+/** A page of groups as rows: each with its first five tournaments and how many more. */
+export async function warningViews(slice: readonly WarningGroup[]): Promise<ParserWarningView[]> {
   const lists = await tournamentsOf(slice);
-  const rows = slice.map(({ urls: _urls, ...g }, i): ParserWarningView => {
+  return slice.map(({ urls: _urls, ...g }, i): ParserWarningView => {
     const all = lists[i] ?? [];
     return {
       ...g,
@@ -196,7 +202,6 @@ export async function listParserWarnings({
       moreTournaments: Math.max(0, all.length - TOURNAMENTS_SHOWN),
     };
   });
-  return { rows, total, page: shown, pages };
 }
 
 /**

@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReviewFlagView } from '@/lib/admin/reviewSet';
-import type { FailedJobRow } from '@/components/admin/FailedJobsTable';
+import type { ImportRow } from '@/components/admin/ImportGroupsTable';
 
 // The component files use the automatic JSX runtime under Next; this runner
 // compiles them with the classic one.
 (globalThis as { React?: typeof React }).React = React;
 
 // Task 5c render checks: the Tab cell's three states, the Failed imports
-// table's new column and "Flagged" badge, and the "Flagged for review"
+// table's Tab column, and the "Flagged for review"
 // ledger with and without flags.
 
 vi.mock('next/navigation', () => ({
@@ -22,7 +22,8 @@ vi.mock('@/components/ui/Toast', () => ({
 }));
 
 const { TabStatus } = await import('@/components/admin/TabStatus');
-const { FailedJobsTable } = await import('@/components/admin/FailedJobsTable');
+const { ImportGroupsTable } = await import('@/components/admin/ImportGroupsTable');
+const { CheckActionsProvider } = await import('@/components/admin/CheckActions');
 const { ReviewSetSection } = await import('@/components/admin/ReviewSetSection');
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
@@ -74,65 +75,131 @@ describe('the Tab cell', () => {
   });
 });
 
-const job = (over: Partial<FailedJobRow>): FailedJobRow => ({
-  id: 'j1',
-  user: 'maya@example.com',
-  url: 'oxiv.calicotab.com/oxiv2025/…',
-  href: 'https://oxiv.calicotab.com/oxiv2025/',
+const job = (over: Partial<ImportRow>): ImportRow => ({
+  key: 'oxiv.calicotab.com/oxiv2025',
+  section: 'failing',
+  name: 'oxiv.calicotab.com/oxiv2025',
+  tournamentId: null,
+  tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+  tab: { state: 'missing', tournamentId: null, errors: [] },
+  error: 'The tournament page was not found.',
   attempts: 3,
-  error: 'The tab site had a problem on its side. Retry later.',
-  when: null,
-  stored: { id: '5', name: 'Oxford IV', scraped: null },
-  tab: { state: 'loaded', tournamentId: '5', errors: [] },
-  flag: null,
+  users: ['maya@example.com'],
+  moreUsers: 0,
+  latest: null,
+  jobIds: ['j1'],
+  stored: null,
+  mark: {
+    kind: 'import',
+    subject: 'oxiv.calicotab.com/oxiv2025',
+    fingerprint: '0123456789abcdef',
+    checkedWords: null,
+    changed: false,
+  },
   ...over,
 });
 
+const table = (rows: ImportRow[], retryJobIds: string[] = []) =>
+  html(h(CheckActionsProvider, null, h(ImportGroupsTable, { rows, retryJobIds })));
+
 describe('Failed imports with the Tab column', () => {
-  it('puts Tab first after the checkbox, with a column that stays on a phone', () => {
-    const out = html(h(FailedJobsTable, { rows: [job({})], total: 1 }));
+  it('puts Tab first, with one column per cell, the status moving under the name on a phone', () => {
+    const out = table([job({})]);
     const heads = [...out.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((m) => m[1]);
     expect(heads[1]).toBe('Tab');
-    // Every column hidden below md is hidden as a col too, so cells keep
-    // their columns; the Tab col is not one of them.
+    // The widths sit in a colgroup that is hidden below md with the cards, so
+    // the columns match the cells at md and up.
+    expect(out).toMatch(/<colgroup class="max-md:hidden">/);
     const cols = [...out.matchAll(/<col( class="([^"]*)")?\s*(style="[^"]*")?\/?>/g)];
     expect(cols).toHaveLength(heads.length);
-    expect(cols[1]![2] ?? '').not.toContain('hidden');
-    const hiddenHeads = [...out.matchAll(/<th scope="col" class="([^"]*)"/g)].filter((m) =>
-      /(^|\s)hidden(\s|$)/.test(m[1]!),
-    ).length;
-    const hiddenCols = cols.filter((c) => /(^|\s)hidden(\s|$)/.test(c[2] ?? '')).length;
-    expect(hiddenCols).toBe(hiddenHeads);
+    // The Tab column is hidden below md; the status is repeated in the card.
+    expect(out).toMatch(/<th scope="col" class="hidden md:table-cell">Tab<\/th>/);
+    expect(out).toMatch(/<div class="mt-tight space-y-tight md:hidden"><[^>]*>/);
   });
 
-  // Review leftover: an ambiguous address read "? Check" under Tab but
-  // "Not stored" under In database.
-  it('says "? Check" in both cells for an address that matched no single stored row', () => {
-    const out = html(
-      h(FailedJobsTable, {
-        rows: [
-          job({
-            stored: null,
-            tab: { state: 'check', tournamentId: null, errors: ['2 stored tournaments share it.'] },
-          }),
-        ],
-        total: 1,
+  // An address that matched no single stored row is "? Check", never a
+  // false "Not loaded".
+  it('says "? Check", not "Not loaded", for an address that matched no single stored row', () => {
+    const out = table([
+      job({
+        tab: { state: 'check', tournamentId: null, errors: ['2 stored tournaments share it.'] },
       }),
-    );
-    expect(out).not.toContain('Not stored');
-    expect(out.match(/\?<\/span>(&nbsp;|\s)*Check/g)).toHaveLength(2);
+    ]);
+    expect(out).not.toContain('Not loaded');
+    expect(out).toMatch(/\?<\/span>(&nbsp;|\s)*Check/);
+  });
+});
+
+describe('Failed imports: actions', () => {
+  it('offers Fix, Mark checked and Review later on a failing row, and none on a covered one', () => {
+    const out = table([
+      job({}),
+      job({ key: 'stored:5', section: 'covered', name: 'Oxford IV', mark: null }),
+    ]);
+    // Twice each: the desktop cell and the phone card of the one failing row.
+    expect(out.match(/>Mark checked</g)).toHaveLength(2);
+    expect(out.match(/>Fix</g)).toHaveLength(2);
+    expect(out.match(/Review later/g)).toHaveLength(2);
+    expect(out).toContain('Nothing to do: the user already has this tournament');
   });
 
-  it('marks a row already in the review set, and offers the action', () => {
-    const out = html(
-      h(FailedJobsTable, {
-        rows: [job({ flag: { priority: 'high' } }), job({ id: 'j2', flag: null })],
-        total: 2,
-      }),
+  it('puts a checkbox only on failing rows, and Retry selected and Retry all n above them', () => {
+    const out = table(
+      [job({}), job({ key: 'stored:5', section: 'covered', name: 'Oxford IV', mark: null })],
+      ['j1', 'j2', 'j3'],
     );
-    expect(out.match(/Flagged · High/g)).toHaveLength(1);
-    expect(out).toMatch(/<button[^>]*aria-expanded="false"[^>]*>.*Add to review set/);
+    expect(out.match(/type="checkbox"/g)).toHaveLength(2); // the header and the failing row
+    expect(out).toContain('aria-label="Select oxiv.calicotab.com/oxiv2025"');
+    expect(out).not.toContain('aria-label="Select Oxford IV"');
     expect(out).toContain('Retry selected');
+    expect(out).toContain('Retry all 3');
+    expect(out).toContain('0 selected');
+    // The status line is there from the first render, empty.
+    expect(out).toMatch(/role="status"[^>]*><\/p>/);
+  });
+
+  it('offers no retry bar or checkbox when every row is covered', () => {
+    const out = table([job({ section: 'covered', mark: null })]);
+    expect(out).not.toContain('Retry selected');
+    expect(out).not.toContain('type="checkbox"');
+  });
+
+  it('a checked row has Undo, no Fix and no Review later', () => {
+    const out = table([
+      job({
+        mark: {
+          kind: 'import',
+          subject: 'oxiv.calicotab.com/oxiv2025',
+          fingerprint: '0123456789abcdef',
+          checkedWords: 'Checked by owner on 30 Oct 2026',
+          changed: false,
+        },
+      }),
+    ]);
+    expect(out).toContain('>Undo<');
+    expect(out).not.toContain('>Fix<');
+    expect(out).not.toContain('Review later');
+  });
+
+  // A mark says the failure is expected: Retry selected must not requeue it.
+  it('has no checkbox on a checked row and no retry bar when only checked rows are listed', () => {
+    const checkedRow = job({
+      mark: {
+        kind: 'import',
+        subject: 'oxiv.calicotab.com/oxiv2025',
+        fingerprint: '0123456789abcdef',
+        checkedWords: 'Checked by owner on 30 Oct 2026',
+        changed: false,
+      },
+    });
+    const only = table([checkedRow]);
+    expect(only).not.toContain('type="checkbox"');
+    expect(only).not.toContain('Retry selected');
+    // Beside an open row, the open row alone is tickable.
+    const mixed = table([checkedRow, job({ key: 'b', name: 'b.calicotab.com/b' })]);
+    expect(mixed.match(/type="checkbox"/g)).toHaveLength(2); // header and the open row
+    expect(mixed).not.toContain('aria-label="Select oxiv.calicotab.com/oxiv2025"');
+    expect(mixed).toContain('Retry selected');
   });
 });
 
@@ -230,7 +297,7 @@ describe('Flagged for review', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // Done items wait behind "Show done".
     expect(out).not.toContain('finished');
-    expect(out).toMatch(/<button[^>]*aria-pressed="false"[^>]*>Show done/);
+    expect(out).toMatch(/<a [^>]*href="[^"]*"[^>]*>Show done<\/a>/);
     expect(out).toContain('href="/api/admin/review-set?format=json&amp;status=open"');
     expect(out).toContain('href="/api/admin/review-set?format=csv&amp;status=open"');
     expect(out).toMatch(/aria-label="Priority for Oxford IV"/);

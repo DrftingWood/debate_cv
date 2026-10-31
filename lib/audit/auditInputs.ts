@@ -8,6 +8,12 @@ import type { PieceRef } from '@/lib/calicotab/scrapePieces';
 export type AuditPiece = PieceRef & {
   label: string;
   status: 'ok' | 'failed' | 'withheld';
+  /**
+   * Why a withheld piece is withheld: 'not_published' when the tournament
+   * never put it up (no menu link, or a round page with no rows); the checks
+   * treat it like any withheld page and only the wording differs.
+   */
+  reason?: string | null;
   url: string | null;
 };
 
@@ -21,6 +27,8 @@ export type AuditInputs = {
   format: string | null;
   prelimRoundCount: number | null;
   parserVersion: string | null;
+  /** The parser version under which every recorded page was last refreshed (Tournament.pagesRefreshedUnder). */
+  pagesRefreshedUnder: string | null;
   /** TeamResult standings rows (roundNumber 0). */
   teamTab: Array<{ team: string; points: number | null; wins: number | null }>;
   /** TeamResult prelim rows (roundNumber ≥ 1). */
@@ -46,6 +54,12 @@ export type AuditInputs = {
   speakerParticipants: number;
   speakersWithScores: number;
   judgeParticipants: number;
+  /**
+   * People named as adjudication core: judges with the participants list's
+   * Adj Core tick, plus the names under the home page's Tournament Staff
+   * block. Zero means neither source names anyone.
+   */
+  coreNamed: number;
   /** Distinct persons with round_results judge rows. */
   roundResultJudges: number;
   judgesByRound: Record<number, { chairs: number; judges: number }>;

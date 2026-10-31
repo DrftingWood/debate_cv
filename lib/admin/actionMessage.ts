@@ -89,3 +89,26 @@ const CV_REPORT: Record<string, string> = {
 export function cvReportFailureMessage(failure: FailureLike): string {
   return lookup(CV_REPORT, failure.error) ?? generic(failure);
 }
+
+const MARK: Record<string, string> = {
+  ...SHARED,
+  // The page sends only the marks it was given, so a bad request is a stale
+  // page or a hand-made call.
+  bad_request: 'That could not be saved. Reload the page and try again.',
+};
+
+/** Why "Mark checked", or its Undo, did not work. */
+export function markFailureMessage(failure: FailureLike): string {
+  return lookup(MARK, failure.error) ?? generic(failure);
+}
+
+const FORMAT: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That could not be run. Reload the page and try again.',
+  not_found: 'This tournament no longer exists. Reload the page to see the current list.',
+};
+
+/** Why "Infer format" or "Fill missing formats" did not run. */
+export function formatFailureMessage(failure: FailureLike): string {
+  return lookup(FORMAT, failure.error) ?? generic(failure);
+}

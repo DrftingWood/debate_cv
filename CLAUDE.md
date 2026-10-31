@@ -43,7 +43,7 @@ app/                          Next.js App Router (routes + API handlers)
   u/                          Public CV at /u/<slug>
   settings/                   Disconnect, delete account, export JSON, sharing
   onboarding/                 First-run flow
-  admin/                      Admin tools (gated via lib/admin.ts); admin/tournaments/[id] is the per-page scrape grid with re-scrape picker
+  admin/                      Admin tools (gated via lib/admin.ts): one /admin page with ?tab= Inbox, Tournaments, Captured, Imports, Reports, Parser, Review set, Tools; admin/tournaments/[id] is the per-page scrape grid with re-scrape picker, check marks, staff names, Ignore
   privacy/, terms/            Static legal pages
   api/
     auth/[...nextauth]/       NextAuth v5 handler
@@ -71,7 +71,7 @@ lib/
   sharing/slug.ts             Public CV slug helpers
   cvErrorReports/categories.ts
   audit/                      Tournament accuracy checks (checks*.ts, pure), score + bands (score.ts), load/run (TournamentAudit writes; after scrapes, cron sweep, "Audit now")
-  admin/                      Admin read models: scrapeHealth (failed imports + Tab state), accuracy, tournamentLookup (host+slug matching), reviewSet (ReviewFlag set + export), cvReports, parserWarnings (React-cached, bounded read)
+  admin/                      Admin read models: inbox + adminChecks (Mark checked, fingerprinted), captured (size, geography, formats, motion balance), formatFill/yearFill/coreFill/oldParserFill (bulk fills from stored data), scrapeHealth (failed imports + Tab state), accuracy, tournamentLookup (host+slug matching), reviewSet (ReviewFlag set + export), cvReports, parserWarnings (React-cached, bounded read)
   utils/                      api, cn (clsx+tw-merge), csv, site
 
 components/

@@ -1,9 +1,13 @@
 import { Badge } from '@/components/ui/Badge';
 import { StatusPill, type Status } from '@/components/ui/StatusPill';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
+import { CheckActions, CheckActionsProvider } from '@/components/admin/CheckActions';
+import { RefreshOldFixButton } from '@/components/admin/RefreshOldFixButton';
+import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { TournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
+import { adminTabHref } from '@/lib/admin/adminTabs';
 import type { CheckStatus } from '@/lib/audit/types';
 import { relativeTime } from '@/lib/utils/relativeTime';
 
@@ -17,6 +21,10 @@ const PILL: Record<CheckStatus, { status: Status; label: string }> = {
   fail: { status: 'failed', label: 'Fail' },
   na: { status: 'unavailable', label: 'Not applicable' },
 };
+
+// A check an admin has vouched for is a pass in the score, but it says who
+// vouched, so it is a state of its own and not a plain "Pass".
+const CHECKED_PILL = { status: 'done', label: 'Checked' } as const;
 
 /**
  * "Accuracy checks" above the piece grid: this tournament's score, each
@@ -73,18 +81,33 @@ export function AccuracyChecks({
 
       <AuditNotes audit={audit} />
       {audit && audit.checks.length > 0 ? (
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {audit.checks.map((c) => (
-            <CheckRow key={c.code} check={c} />
-          ))}
-        </ul>
+        <CheckActionsProvider>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {audit.checks.map((c) => (
+              <CheckRow
+                key={c.code}
+                check={c}
+                tournamentId={tournamentId}
+                tournamentName={tournamentName}
+              />
+            ))}
+          </ul>
+        </CheckActionsProvider>
       ) : null}
     </section>
   );
 }
 
-function CheckRow({ check: c }: { check: TournamentAccuracy['checks'][number] }) {
-  const pill = PILL[c.status];
+function CheckRow({
+  check: c,
+  tournamentId,
+  tournamentName,
+}: {
+  check: TournamentAccuracy['checks'][number];
+  tournamentId: string;
+  tournamentName: string;
+}) {
+  const pill = c.checked ? CHECKED_PILL : PILL[c.status];
   return (
     <li className="space-y-hair px-tight py-inline">
       <div className="flex flex-wrap items-center justify-between gap-inline">
@@ -108,13 +131,53 @@ function CheckRow({ check: c }: { check: TournamentAccuracy['checks'][number] })
       ) : null}
       {c.questions.map((q) => (
         <p key={q.code} className="text-caption text-ink-soft">
-          <a href="/admin#open-questions" className="underline underline-offset-4">
+          <a
+            href={adminTabHref('tournaments', { question: q.code })}
+            className="underline underline-offset-4"
+          >
             Open question: {q.title}
           </a>
         </p>
       ))}
+      <CheckFix c={c} tournamentId={tournamentId} tournamentName={tournamentName} />
+      <CheckActions
+        tournamentName={tournamentName}
+        label={c.label}
+        subject={c.subject}
+        fingerprint={c.fingerprint}
+        checkedWords={c.checked?.words ?? null}
+      />
     </li>
   );
+}
+
+/**
+ * A check's own fix, where it has one. The missing format is read from the
+ * stored rounds (the pages above are what it falls back to when they cannot
+ * decide); the old-parser finding has the Tools tab's refresh.
+ */
+function CheckFix({
+  c,
+  tournamentId,
+  tournamentName,
+}: {
+  c: TournamentAccuracy['checks'][number];
+  tournamentId: string;
+  tournamentName: string;
+}) {
+  if (c.code === 'format_missing' && c.status === 'fail') {
+    return (
+      <InferFormatButton
+        tournamentId={tournamentId}
+        tournamentName={tournamentName}
+        pieces={c.pieces}
+      />
+    );
+  }
+  if (c.code === 'parser_stale' && c.status === 'warn') {
+    return <RefreshOldFixButton tournamentId={tournamentId} tournamentName={tournamentName} />;
+  }
+  return null;
 }
 
 /** Words, not colour, for an audit that is out of date or has no rows. */

@@ -15,10 +15,13 @@ export type CheckCode =
   | 'points_add_up'
   | 'outround_shape'
   | 'break_matches'
+  | 'break_unstored'
   | 'speaker_tab'
   | 'motions'
   | 'scrape_incomplete'
   | 'parser_stale'
+  | 'format_missing'
+  | 'core_missing'
   | 'user_reports';
 
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'na';
@@ -35,6 +38,16 @@ export type CheckResult = {
    * the result rests only on rules the owner has agreed.
    */
   assumptions?: AssumptionCode[];
+  /**
+   * Set when an admin marked this check checked and the mark still matches
+   * the finding (lib/admin/adminChecks.ts): the check then counts as a pass,
+   * and these say who vouched for it and when (ISO 8601), so the tables can
+   * show it.
+   */
+  checkedBy?: string;
+  checkedAt?: string;
+  /** What the check said before the mark made it a pass. */
+  wasStatus?: 'fail' | 'warn';
 };
 
 /**
@@ -67,10 +80,13 @@ export const CHECK_WEIGHTS: Record<Exclude<CheckCode, 'user_reports'>, number> =
   points_add_up: 10,
   outround_shape: 5,
   break_matches: 5,
+  break_unstored: 3,
   speaker_tab: 7,
   motions: 3,
   scrape_incomplete: 10,
   parser_stale: 3,
+  format_missing: 3,
+  core_missing: 2,
 };
 
 export const CHECK_LABELS: Record<CheckCode, string> = {
@@ -83,10 +99,13 @@ export const CHECK_LABELS: Record<CheckCode, string> = {
   points_add_up: 'Points add up',
   outround_shape: 'Outround shape',
   break_matches: 'Break size',
+  break_unstored: 'Break stored',
   speaker_tab: 'Speaker tab',
   motions: 'Motions',
   scrape_incomplete: 'Scrape incomplete',
   parser_stale: 'Old parser',
+  format_missing: 'Format',
+  core_missing: 'Adjudication core',
   user_reports: 'User reports',
 };
 

@@ -1,22 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
+import type { ImportList, ImportRowData } from '@/lib/admin/importsList';
 
 // The component files use the automatic JSX runtime under Next; this runner
 // compiles them with the classic one.
 (globalThis as { React?: typeof React }).React = React;
 
-// Server-render checks for the admin overview (Task 8 of the partial-scrapes
-// plan): the scrape-health section and the failed-imports table, with data
-// and without. The page's data sources are mocked; the client components
-// render their first paint through react-dom/server.
+// Server-render checks for the admin overview: the failed-imports ledger
+// (Task R6: grouped per tournament, stored ones apart), with data and
+// without. The page's data sources are mocked; the client components render
+// their first paint through react-dom/server.
 
-const health = vi.hoisted(() => ({ current: null as unknown }));
+const imports = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' })) }));
-vi.mock('@/lib/admin/scrapeHealth', () => ({
-  getScrapeHealth: vi.fn(async () => health.current),
+vi.mock('@/lib/admin/importsList', async (orig) => ({
+  ...(await orig<typeof import('@/lib/admin/importsList')>()),
+  listImports: vi.fn(async () => imports.current),
 }));
 // The accuracy section has its own render suite (admin.accuracy.render.test.ts).
 vi.mock('@/lib/admin/accuracy', () => ({
@@ -26,16 +27,24 @@ vi.mock('@/lib/admin/accuracy', () => ({
     n: 0,
     onCvs: 0,
     bands: { good: 0, check: 0, rescrape: 0 },
+    checked: 0,
     failingByCheck: [],
     stale: 0,
     tournaments: 0,
-    lowest: [],
     openQuestions: [],
   })),
+}));
+// The shell's summary line has its own suite (admin.shell.render.test.ts).
+vi.mock('@/lib/admin/summary', () => ({
+  getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
+  readInbox: vi.fn(),
+  // The Tournaments tab's cached overview is the mocked accuracy read.
+  readOverview: async () => (await import('@/lib/admin/accuracy')).getAccuracyOverview(),
 }));
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
+    tournamentAudit: { findMany: vi.fn(async () => []) },
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 3) },
     parserRun: { findMany: vi.fn(async () => []) },
@@ -56,121 +65,100 @@ vi.mock('@/components/ui/Toast', () => ({
 const NOW = Date.now();
 const minutes = (n: number) => new Date(NOW + n * 60_000);
 
-const full: ScrapeHealth = {
-  tracked: 9,
-  withheld: 0,
-  partlyLoaded: 2,
-  failingPieces: 4,
-  retriesDue: 1,
-  stuck: 2,
-  failingByKind: [
-    { kind: 'round', count: 3 },
-    { kind: 'speaker', count: 1 },
-  ],
-  partlyLoadedTournaments: [
-    {
-      id: BigInt(5),
-      name: 'Oxford IV 2025',
-      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
-      scrapedAt: minutes(-600),
-      lastAttemptAt: minutes(-90),
-      failed: [
-        {
-          kind: 'round',
-          key: '3',
-          label: 'R3',
-          httpStatus: 503,
-          attempts: 5,
-          nextRetryAt: null,
-        },
-        {
-          kind: 'speaker',
-          key: '',
-          label: 'Speaker tab',
-          httpStatus: null,
-          attempts: 5,
-          nextRetryAt: null,
-        },
-      ],
-    },
-    {
-      id: BigInt(8),
-      name: 'Cambridge Open',
-      tabUrl: null,
-      scrapedAt: minutes(-600),
-      lastAttemptAt: minutes(-10),
-      failed: [
-        {
-          kind: 'round',
-          key: '1',
-          label: 'R1',
-          httpStatus: 500,
-          attempts: 1,
-          nextRetryAt: minutes(30),
-        },
-      ],
-    },
-  ],
-  failedJobs: [
-    {
-      id: 'job-1',
-      url: 'https://oxiv.calicotab.com/oxiv2025/privateurls/abc123/',
-      userEmail: 'maya@example.com',
-      attempts: 3,
-      lastError: 'HTTP 503 Service Unavailable at fetchPage (lib/calicotab/fetch.ts:88)',
-      finishedAt: minutes(-120),
-      stored: { id: '5', name: 'Oxford IV 2025', scrapedAt: minutes(-600) },
-      tab: { state: 'partial', tournamentId: '5', errors: ['R3: HTTP 503 Service Unavailable'] },
-    },
-    {
-      id: 'job-2',
-      url: 'https://newt.calicotab.com/newt2026/privateurls/zzz999/',
-      userEmail: 'sam@example.com',
-      attempts: 3,
-      lastError: null,
-      finishedAt: minutes(-30),
-      stored: null,
-      tab: { state: 'missing', tournamentId: null, errors: [] },
-    },
-  ],
+const base: ImportRowData = {
+  key: '',
+  section: 'failing',
+  name: '',
+  tournamentId: null,
+  tabUrl: null,
+  tab: { state: 'missing', tournamentId: null, errors: [] },
+  error: '',
+  attempts: 3,
+  users: [],
+  moreUsers: 0,
+  latest: null,
+  jobIds: [],
+  scrapedAt: null,
+  fingerprint: null,
+  checked: null,
+  changed: false,
 };
 
-const empty: ScrapeHealth = {
-  tracked: 0,
-  withheld: 0,
-  partlyLoaded: 0,
-  failingPieces: 0,
-  retriesDue: 0,
-  stuck: 0,
-  failingByKind: [],
-  partlyLoadedTournaments: [],
-  failedJobs: [],
+// One tournament that is not stored (two users failed on it) and one the
+// stored copy covers (partly loaded).
+const failing: ImportRowData = {
+  ...base,
+  key: 'newt.calicotab.com/newt2026',
+  name: 'newt.calicotab.com/newt2026',
+  tabUrl: 'https://newt.calicotab.com/newt2026/privateurls/zzz999/',
+  error: 'The tournament page was not found.',
+  users: ['sam@example.com', 'noor@example.com'],
+  latest: minutes(-30),
+  jobIds: ['job-2', 'job-3'],
+  fingerprint: '0123456789abcdef',
+};
+const covered: ImportRowData = {
+  ...base,
+  key: 'stored:5',
+  section: 'covered',
+  name: 'Oxford IV 2025',
+  tournamentId: '5',
+  tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+  tab: { state: 'partial', tournamentId: '5', errors: ['R3: HTTP 503 Service Unavailable'] },
+  error: 'The tab site had a problem on its side.',
+  users: ['maya@example.com'],
+  latest: minutes(-120),
+  jobIds: ['job-1'],
+  scrapedAt: minutes(-600),
 };
 
-async function renderPage(data: ScrapeHealth): Promise<string> {
-  health.current = data;
+const list = (rows: ImportRowData[], filter: ImportList['filter']): ImportList => ({
+  rows,
+  total: rows.length,
+  page: 1,
+  pages: 1,
+  filter,
+  counts: { failing: 1, covered: 1, checked: 0 },
+  retryJobIds: [],
+  truncated: false,
+});
+const full = list([failing, covered], 'all');
+const empty = list([], 'failing');
+
+async function renderPage(data: ImportList): Promise<string> {
+  imports.current = data;
+  return renderTabs(['tournaments', 'imports', 'review', 'tools'], { imports: 'all' });
+}
+
+/**
+ * The tabs this suite reads, rendered one after another: each tab is its own
+ * request now, and these checks are about the sections, not the strip.
+ */
+async function renderTabs(tabs: string[], extra: Record<string, string> = {}): Promise<string> {
   const { default: AdminPage } = await import('@/app/(app)/admin/page');
-  return renderToStaticMarkup(await AdminPage());
+  const out: string[] = [];
+  for (const tab of tabs) {
+    out.push(
+      renderToStaticMarkup(await AdminPage({ searchParams: Promise.resolve({ tab, ...extra }) })),
+    );
+  }
+  return out.join('\n');
 }
 
 describe('admin overview', () => {
   beforeEach(() => {
-    health.current = null;
+    imports.current = null;
   });
 
-  it('shows scrape health with a row per partly loaded tournament', async () => {
+  // Owner, 2026-10-31: the section said "Every tracked tournament loaded in
+  // full", which is not news; partly loaded tournaments reach the Inbox as
+  // checks instead.
+  it('no longer renders the Scrape health section or the state tiles', async () => {
     const out = await renderPage(full);
-    expect(out).toMatch(/<h2[^>]*>Scrape health<\/h2>/);
-    expect(out).toContain('Partly loaded tournaments');
-    expect(out).toContain('href="/admin/tournaments/5"');
-    expect(out).toMatch(/<button[^>]*aria-label="Retry failed[^"]*Oxford IV 2025[^"]*"/);
-    expect(out).toContain('Needs you');
-    // The bars name the kinds in words and the total states its sample.
-    expect(out).toContain('Speaker tab');
-    expect(out).toContain('4 failing pieces across 2 tournaments');
-    expect(out).toMatch(
-      /Retries due now: <[^>]+>1<.*Waiting for an admin \(5 failures\): <[^>]+>2</,
-    );
+    expect(out).not.toContain('Scrape health');
+    expect(out).not.toContain('Partly loaded tournaments');
+    expect(out).not.toContain('Current state');
+    expect(out).not.toContain('of 9 tracked');
   });
 
   // Final review of PR #265: an unguarded accuracy read took all of /admin down.
@@ -179,70 +167,56 @@ describe('admin overview', () => {
     vi.mocked(mod.getAccuracyOverview).mockRejectedValueOnce(new Error('db down'));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const out = await renderPage(full);
-    expect(out).toContain('Scrape health');
-    expect(out).toContain('Couldn&#x27;t load the accuracy overview');
+    expect(out).toContain('Failed imports');
+    expect(out).toContain('Couldn&#x27;t load the filters');
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
 
-  it('turns the current state into tiles, with partly loaded and failed jobs', async () => {
-    const out = await renderPage(full);
-    expect(out).toContain('Partly loaded');
-    expect(out).toContain('of 9 tracked');
-    expect(out).toContain('Failed jobs');
-  });
-
-  it('lists failed imports in words, never the raw error', async () => {
+  it('lists failed imports in words, one row per tournament with its users', async () => {
     const out = await renderPage(full);
     expect(out).toMatch(/<h2[^>]*>Failed imports<\/h2>/);
-    expect(out).toContain('oxiv.calicotab.com/oxiv2025/…');
-    expect(out).not.toContain('abc123');
+    // The public tab address only: the private key never reaches the markup.
+    expect(out).toContain('href="https://newt.calicotab.com/newt2026/"');
+    expect(out).not.toContain('zzz999');
+    expect(out).toContain('The tournament page was not found.');
     expect(out).toContain('The tab site had a problem on its side.');
-    expect(out).not.toContain('fetch.ts');
-    expect(out).toContain('Retry selected');
-    expect(out).toMatch(/Retry all 3/);
-    expect(out).toMatch(/aria-label="Select [^"]*oxiv\.calicotab\.com[^"]*"/);
+    expect(out).toContain('sam@example.com');
+    expect(out).toContain('noor@example.com');
+    expect(out).toContain('Mark checked');
+    expect(out).toContain('Export errors');
   });
 
-  // Final review (2026-10-31): withheld pages are not failing; they get a
-  // line of their own and no place in the failing counts.
-  it('counts withheld pages apart, and only when there are some', async () => {
-    expect(await renderPage(full)).not.toContain('Withheld by the tournament');
-    const out = await renderPage({ ...empty, withheld: 3 });
-    expect(out).toContain('Every tracked tournament loaded in full');
-    expect(out).toMatch(/Withheld by the tournament: <[^>]+>3<[^>]+> pages, not retried/);
-  });
-
-  it('states both empty states when nothing is failing', async () => {
+  it('states why when nothing is failing', async () => {
     const out = await renderPage(empty);
-    expect(out).toContain('Every tracked tournament loaded in full');
-    expect(out).toContain('No failed imports');
-    expect(out).not.toContain('Retry selected');
+    expect(out).toContain('No failed import needs you');
+    expect(out).not.toContain('Mark checked');
   });
 });
 
 describe('admin overview: is it in the database? (Task 5b)', () => {
   beforeEach(() => {
-    health.current = null;
+    imports.current = null;
   });
 
-  // Task 5b: each failed import says whether its tournament is stored.
-  it('says per failed import whether its tournament is in the database', async () => {
+  // Task 5b: a failed import says whether its tournament is stored. Since
+  // Task R6 the stored ones are listed apart, as covered by the stored copy.
+  it('says a covered tournament is stored, and not stored ones are not marked as stored', async () => {
     const out = await renderPage(full);
-    const rows = out.split('<tr').filter((r) => r.includes('Select '));
-    const oxford = rows.find((r) => r.includes('oxiv.calicotab.com'))!;
+    const rows = out.split('<tr');
+    const oxford = rows.find((r) => r.includes('Oxford IV 2025'))!;
     const newt = rows.find((r) => r.includes('newt.calicotab.com'))!;
     expect(oxford).toContain('Stored');
-    expect(oxford).toMatch(/href="\/admin\/tournaments\/5"[^>]*>Open</);
+    expect(oxford).toMatch(/href="\/admin\/tournaments\/5"/);
     expect(oxford).toContain('10 h ago');
-    expect(newt).toContain('Not stored');
+    expect(oxford).toContain('the user already has this tournament from the stored copy');
+    expect(newt).not.toContain('Stored');
     expect(newt).not.toContain('/admin/tournaments/');
-    expect(out).toMatch(/<th[^>]*>In database<\/th>/);
   });
 
   it('links every tournament and offers the lookup, which posts its text', async () => {
     const out = await renderPage(full);
-    expect(out).toMatch(/href="\/admin\/tournaments"[^>]*>All tournaments →</);
+    expect(out).not.toContain('All tournaments');
     expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
     expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
     expect(out).toContain('>Look up<');
@@ -261,8 +235,6 @@ describe('admin overview: tab status and the review set (Task 5c)', () => {
     const review = out.indexOf('>Flagged for review</h2>');
     expect(failed).toBeGreaterThan(0);
     expect(review).toBeGreaterThan(failed);
-    // No other section between them.
-    expect(out.slice(failed + '>Failed imports</h2>'.length, review)).not.toContain('</h2>');
     expect(out).toContain('Nothing flagged yet');
   });
 });
