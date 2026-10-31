@@ -7,7 +7,7 @@ import type { ImportList } from '@/lib/admin/importsList';
 // compiles them with the classic one.
 (globalThis as { React?: typeof React }).React = React;
 
-// The tabbed /admin (Task R3): the summary line and seven tabs above every
+// The tabbed /admin (Task R3): the summary line and eight tabs above every
 // panel, only the active tab's data read, the old /admin/tournaments address
 // redirecting into its tab, and no "1970" anywhere an operator can see.
 
@@ -169,7 +169,7 @@ beforeEach(() => {
 });
 
 describe('/admin shell', () => {
-  it('shows the summary line and the seven tabs, in order, under one h1', async () => {
+  it('shows the summary line and the eight tabs, in order, under one h1', async () => {
     const out = await render();
     expect(text(out)).toContain(
       'Needs you 7 · Accuracy 91 (Good 915 · Check 414 · Re-scrape 55) · Imports to review 3 · Queue 12',
@@ -178,6 +178,7 @@ describe('/admin shell', () => {
     expect(labels).toEqual([
       'Inbox',
       'Tournaments',
+      'Captured',
       'Imports',
       'Reports',
       'Parser',

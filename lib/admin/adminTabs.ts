@@ -9,6 +9,7 @@ import { resolveTab } from '@/lib/utils/tabParam';
 export const ADMIN_TABS = [
   { value: 'inbox', label: 'Inbox' },
   { value: 'tournaments', label: 'Tournaments' },
+  { value: 'captured', label: 'Captured' },
   { value: 'imports', label: 'Imports' },
   { value: 'reports', label: 'Reports' },
   { value: 'parser', label: 'Parser' },

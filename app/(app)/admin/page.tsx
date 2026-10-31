@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/admin';
 import { AdminTabs } from '@/components/admin/AdminTabs';
 import { SummaryLine } from '@/components/admin/SummaryLine';
+import { CapturedTab } from '@/components/admin/tabs/CapturedTab';
 import { ImportsTab } from '@/components/admin/tabs/ImportsTab';
 import { InboxTab } from '@/components/admin/tabs/InboxTab';
 import { ParserTab } from '@/components/admin/tabs/ParserTab';
@@ -79,6 +80,8 @@ async function renderPanel(tab: AdminTab, search: SearchValues, now: Date) {
       return InboxTab({ search, now });
     case 'tournaments':
       return TournamentsTab({ search, now });
+    case 'captured':
+      return CapturedTab();
     case 'imports':
       return ImportsTab({ search, now });
     case 'reports':
