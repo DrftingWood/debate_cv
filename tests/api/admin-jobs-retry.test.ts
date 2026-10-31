@@ -34,12 +34,13 @@ describe('POST /api/admin/jobs/retry', () => {
     expect(prismaMock.ingestJob.updateMany).not.toHaveBeenCalled();
   });
 
-  it('{all:true} resets every failed or abandoned job', async () => {
+  it('{all:true} resets failed or abandoned jobs, at most 200 a call', async () => {
     const res = await call({ all: true });
     expect(await res.json()).toEqual({ requeued: 3, skippedLocked: 0 });
     expect(prismaMock.ingestJob.findMany.mock.calls[0][0].where).toEqual({
       status: { in: ['failed', 'abandoned'] },
     });
+    expect(prismaMock.ingestJob.findMany.mock.calls[0][0].take).toBe(200);
     const arg = prismaMock.ingestJob.updateMany.mock.calls[0][0];
     expect(arg.data).toMatchObject({
       status: 'pending',
@@ -49,6 +50,14 @@ describe('POST /api/admin/jobs/retry', () => {
       finishedAt: null,
     });
     expect(arg.data.scheduledAt).toBeInstanceOf(Date);
+  });
+
+  it('answers a database error as JSON, not an unhandled 500', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    prismaMock.ingestJob.findMany.mockRejectedValue(new Error('db down'));
+    const res = await call({ all: true });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'server_error' });
   });
 
   it('{ids} narrows to those jobs but still only failed/abandoned ones', async () => {

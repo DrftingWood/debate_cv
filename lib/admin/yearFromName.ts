@@ -33,12 +33,13 @@ const FIRST_FULL_YEAR = 2000;
 
 /**
  * Words that make the number after them a count ("Round 16", "Top-16", "R-16",
- * "Under-18", "U19", "Division 20", "Level 18", "Week 24"). Any run of space,
+ * "Under-18", "U19", "Division 20", "Level 18", "Week 24", "Season 18",
+ * "Edition 16", "Class 16", "Batch 21"). Any run of space,
  * '#', '_' or '-' may sit between the word and the number. A one-letter word
  * counts only when it stands alone, so "ERR 26" is not "R 26".
  */
 const COUNT_BEFORE =
-  /(?:^|[^a-z])(?:rounds?|rd|ro|r|top|under|u|division|div|level|week|session|grade|day|hours?|h|years?|teams?|speakers?|rooms?|group|pool|part|pt)[\s#_-]*$/i;
+  /(?:^|[^a-z])(?:rounds?|rd|ro|r|top|under|u|division|div|level|week|session|grade|day|hours?|h|years?|teams?|speakers?|rooms?|group|pool|part|pt|season|edition|class|batch)[\s#_-]*$/i;
 /**
  * Words that make the number before them a count ("16 teams", "24 Hour
  * Debate", "20 Years of X", "24h"), and ordinal endings glued to it ("21st").

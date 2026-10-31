@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { IngestJobStatus } from '@prisma/client';
+import { IngestJobStatus, type Prisma } from '@prisma/client';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 
@@ -11,6 +11,9 @@ const Body = z.union([
   z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) }),
   z.object({ all: z.literal(true) }),
 ]);
+
+/** Most jobs one call touches: `all` is the oldest-first next batch of this size, so a caller repeats it. */
+const MAX_JOBS = 200;
 
 export async function POST(req: Request) {
   try {
@@ -29,9 +32,27 @@ export async function POST(req: Request) {
   const where =
     'ids' in parsed.data ? { id: { in: parsed.data.ids }, status: dead } : { status: dead };
 
+  try {
+    return await requeue(where, dead);
+  } catch (err) {
+    // A database error is said as JSON, not left as an unhandled 500 page.
+    console.error('admin jobs retry failed', err);
+    return NextResponse.json({ error: 'server_error' }, { status: 500 });
+  }
+}
+
+async function requeue(
+  where: Prisma.IngestJobWhereInput,
+  dead: { in: IngestJobStatus[] },
+): Promise<NextResponse> {
+  // Bounded: `all` would otherwise load every dead job and send one huge
+  // `in` list to the update (the parameter limit). Nothing in the UI sends it
+  // (importRetry batches ids), but the route stays safe if something does.
   const deadJobs = await prisma.ingestJob.findMany({
     where,
     select: { id: true, userId: true, url: true },
+    orderBy: { scheduledAt: 'asc' },
+    take: MAX_JOBS,
   });
   // A locked URL is the user's "don't touch this" flag; reingest-all and
   // enqueueUrl honour it, so a bulk retry must too.
