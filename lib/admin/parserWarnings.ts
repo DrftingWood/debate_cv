@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { prisma } from '@/lib/db';
 import { parseTabAddress } from '@/lib/admin/tabAddress';
 import { storedMatchesByUrl } from '@/lib/admin/tournamentLookup';
@@ -39,6 +40,7 @@ export const TOURNAMENTS_SHOWN = 5;
 const HEADLINE_CHARS = 200;
 const SAMPLE_CHARS = 200;
 const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
 
 export type WarningGroup = {
   /** `<parserName>|<headline>`: the review set's sourceId for the group. */
@@ -135,12 +137,26 @@ export function groupWarnings(runs: readonly RunLike[]): WarningGroup[] {
     );
 }
 
-/** Every group over the bounded read: the newest 2,000 runs with warnings in 30 days. */
-export async function loadWarningGroups(now: Date): Promise<WarningGroup[]> {
+/**
+ * Where the 30-day window starts, floored to the minute. /admin reads the
+ * groups for its ledger and the review set reads them again for its flagged
+ * warnings, each with its own clock; on one minute they share a key, so the
+ * request-scoped cache below answers both from one read.
+ */
+export function warningWindowStart(now: Date): number {
+  const since = now.getTime() - WARNING_WINDOW_DAYS * DAY_MS;
+  return Math.floor(since / MINUTE_MS) * MINUTE_MS;
+}
+
+/**
+ * React's cache(), so it lasts one server request: the page and the review
+ * set share the read, and the next request reads afresh.
+ */
+const readWarningGroups = cache(async (sinceMs: number): Promise<WarningGroup[]> => {
   const runs = await prisma.parserRun.findMany({
     where: {
       warnings: { isEmpty: false },
-      createdAt: { gte: new Date(now.getTime() - WARNING_WINDOW_DAYS * DAY_MS) },
+      createdAt: { gte: new Date(sinceMs) },
     },
     orderBy: { createdAt: 'desc' },
     take: WARNING_RUN_CAP,
@@ -152,6 +168,11 @@ export async function loadWarningGroups(now: Date): Promise<WarningGroup[]> {
     },
   });
   return groupWarnings(runs);
+});
+
+/** Every group over the bounded read: the newest 2,000 runs with warnings in 30 days. */
+export function loadWarningGroups(now: Date): Promise<WarningGroup[]> {
+  return readWarningGroups(warningWindowStart(now));
 }
 
 export async function listParserWarnings({
@@ -224,7 +245,9 @@ function tabOf(
  * What the review set's export says about flagged warnings: the group's
  * parser, headline, count and a few tournaments by name, read again from
  * the same bounded window. A warning no longer in it keeps its parser and
- * headline (from its sourceId) with a null count.
+ * headline (from its sourceId) with a null count. That sourceId was written
+ * by a client, so the fallback is scrubbed as a group's headline is: a
+ * hand-made flag must not carry a private URL into the export.
  */
 export async function warningDetails(
   keys: string[],
@@ -253,8 +276,8 @@ export async function warningDetails(
       return [
         key,
         {
-          parser: hit?.g.parserName ?? (sep > 0 ? key.slice(0, sep) : key),
-          headline: hit?.g.headline ?? (sep > 0 ? key.slice(sep + 1) : ''),
+          parser: hit?.g.parserName ?? scrubComment(sep > 0 ? key.slice(0, sep) : key),
+          headline: hit?.g.headline ?? scrubComment(sep > 0 ? key.slice(sep + 1) : ''),
           count: hit?.g.count ?? null,
           sampleTournaments: (hit?.list ?? [])
             .slice(0, TOURNAMENTS_SHOWN)
