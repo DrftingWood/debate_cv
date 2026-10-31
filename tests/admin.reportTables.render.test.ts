@@ -135,7 +135,9 @@ describe('CV error reports', () => {
     expect(out).toContain('Not loaded');
     expect(out).toMatch(/href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/"[^>]*>Tab/);
     // A 24px target (WCAG 2.2 SC 2.5.8; axe flagged 34x18 in the browser check).
-    expect(out).toMatch(/href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/"[^>]*class="[^"]*min-h-6/);
+    expect(out).toMatch(
+      /href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/"[^>]*class="[^"]*min-h-6/,
+    );
     expect(out).not.toContain('/admin/tournaments/99');
     expect(out).toContain('Wrong speaker rank');
     expect(out).toMatch(/aria-label="Status of the report from Maya"/);
