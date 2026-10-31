@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { fingerprintOf, listMarks, type Mark } from '@/lib/admin/adminChecks';
+import type { ReportFilter } from '@/lib/admin/cvReportTypes';
 
 /**
  * The CV reports whose mark still holds (the Reports tab's Checked filter),
@@ -23,4 +24,29 @@ export async function heldReportMarks(): Promise<Map<string, Mark>> {
     }
   }
   return held;
+}
+
+/**
+ * The Reports tab's chip figures: reports in each status, all of them, and
+ * the checked ones (marks that still hold). The status counts are one
+ * grouped query; the checked count is heldReportMarks.
+ */
+export async function reportCounts(): Promise<Record<ReportFilter | 'checked', number>> {
+  const [groups, held] = await Promise.all([
+    prisma.cvErrorReport.groupBy({ by: ['status'], _count: { _all: true } }),
+    heldReportMarks(),
+  ]);
+  const counts: Record<ReportFilter | 'checked', number> = {
+    open: 0,
+    acknowledged: 0,
+    fixed: 0,
+    wont_fix: 0,
+    all: 0,
+    checked: held.size,
+  };
+  for (const g of groups) {
+    counts[g.status] = g._count._all;
+    counts.all += g._count._all;
+  }
+  return counts;
 }

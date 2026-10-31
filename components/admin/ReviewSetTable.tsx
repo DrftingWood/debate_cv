@@ -230,7 +230,7 @@ type PatchApi = ReturnType<typeof usePatchFlag>;
 // Below md the priority, Tab status, comment and time fold into the name
 // cell, so a phone shows two columns, the item and its actions (UX-30).
 // Their <col>s are hidden with their cells, or every cell would land one
-// column to the left (see FailedJobsTable). The actions keep 9rem: the
+// column to the left (see ImportGroupsTable). The actions keep 9rem: the
 // priority select over two short buttons.
 const REVIEW_COLUMNS = [
   { className: 'hidden md:table-column md:w-28' },

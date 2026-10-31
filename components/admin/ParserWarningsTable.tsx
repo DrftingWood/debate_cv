@@ -68,7 +68,7 @@ export function ParserWarningsTable({ rows }: { rows: readonly WarningRow[] }) {
 
 // Below md the parser, count, time, tournaments and actions fold into the
 // Warning cell, so a phone shows the checkbox and a card per warning (UX-30). The
-// hidden <col>s are hidden with their cells (see FailedJobsTable).
+// hidden <col>s are hidden with their cells (see ImportGroupsTable).
 const WARNING_COLUMNS = [
   '3rem',
   { className: 'hidden md:table-column md:w-32' },

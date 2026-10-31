@@ -99,19 +99,19 @@ const job = (over: Partial<ImportRow>): ImportRow => ({
   ...over,
 });
 
-const table = (rows: ImportRow[]) =>
-  html(h(CheckActionsProvider, null, h(ImportGroupsTable, { rows })));
+const table = (rows: ImportRow[], retryJobIds: string[] = []) =>
+  html(h(CheckActionsProvider, null, h(ImportGroupsTable, { rows, retryJobIds })));
 
 describe('Failed imports with the Tab column', () => {
   it('puts Tab first, with a column that stays on a phone and columns that match the cells', () => {
     const out = table([job({})]);
     const heads = [...out.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((m) => m[1]);
-    expect(heads[0]).toBe('Tab');
+    expect(heads[1]).toBe('Tab');
     // Every column hidden below md is hidden as a col too, so cells keep
     // their columns; the Tab col is not one of them.
     const cols = [...out.matchAll(/<col( class="([^"]*)")?\s*(style="[^"]*")?\/?>/g)];
     expect(cols).toHaveLength(heads.length);
-    expect(cols[0]![2] ?? '').not.toContain('hidden');
+    expect(cols[1]![2] ?? '').not.toContain('hidden');
     const hiddenHeads = [...out.matchAll(/<th scope="col" class="([^"]*)"/g)].filter((m) =>
       /(^|\s)hidden(\s|$)/.test(m[1]!),
     ).length;
@@ -130,16 +130,57 @@ describe('Failed imports with the Tab column', () => {
     expect(out).not.toContain('Not loaded');
     expect(out).toMatch(/\?<\/span>(&nbsp;|\s)*Check/);
   });
+});
 
-  it('offers Fix and Mark checked on a failing row, and neither on a covered one', () => {
+describe('Failed imports: actions', () => {
+  it('offers Fix, Mark checked and Review later on a failing row, and none on a covered one', () => {
     const out = table([
       job({}),
       job({ key: 'stored:5', section: 'covered', name: 'Oxford IV', mark: null }),
     ]);
+    // Twice each: the desktop cell and the phone card of the one failing row.
     expect(out.match(/>Mark checked</g)).toHaveLength(2);
     expect(out.match(/>Fix</g)).toHaveLength(2);
-    // Twice each: the desktop cell and the phone card of the one failing row.
+    expect(out.match(/Review later/g)).toHaveLength(2);
     expect(out).toContain('Nothing to do: the user already has this tournament');
+  });
+
+  it('puts a checkbox only on failing rows, and Retry selected and Retry all n above them', () => {
+    const out = table(
+      [job({}), job({ key: 'stored:5', section: 'covered', name: 'Oxford IV', mark: null })],
+      ['j1', 'j2', 'j3'],
+    );
+    expect(out.match(/type="checkbox"/g)).toHaveLength(2); // the header and the failing row
+    expect(out).toContain('aria-label="Select oxiv.calicotab.com/oxiv2025"');
+    expect(out).not.toContain('aria-label="Select Oxford IV"');
+    expect(out).toContain('Retry selected');
+    expect(out).toContain('Retry all 3');
+    expect(out).toContain('0 selected');
+    // The status line is there from the first render, empty.
+    expect(out).toMatch(/role="status"[^>]*><\/p>/);
+  });
+
+  it('offers no retry bar or checkbox when every row is covered', () => {
+    const out = table([job({ section: 'covered', mark: null })]);
+    expect(out).not.toContain('Retry selected');
+    expect(out).not.toContain('type="checkbox"');
+  });
+
+  it('a checked row has Undo, no Fix and no Review later', () => {
+    const out = table([
+      job({
+        mark: {
+          kind: 'import',
+          subject: 'oxiv.calicotab.com/oxiv2025',
+          fingerprint: '0123456789abcdef',
+          checkedWords: 'Checked by owner on 30 Oct 2026',
+          changed: false,
+        },
+      }),
+    ]);
+    expect(out).toContain('>Undo<');
+    expect(out).not.toContain('>Fix<');
+    expect(out).not.toContain('Review later');
   });
 });
 

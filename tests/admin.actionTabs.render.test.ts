@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   parser: vi.fn(),
   reports: vi.fn(),
   held: vi.fn(),
+  counts: vi.fn(),
   marks: vi.fn(),
 }));
 
@@ -41,7 +42,10 @@ vi.mock('@/lib/admin/parserList', async (orig) => ({
   listParser: h.parser,
 }));
 vi.mock('@/lib/admin/cvReports', () => ({ listCvReports: h.reports }));
-vi.mock('@/lib/admin/reportsChecked', () => ({ heldReportMarks: h.held }));
+vi.mock('@/lib/admin/reportsChecked', () => ({
+  heldReportMarks: h.held,
+  reportCounts: h.counts,
+}));
 vi.mock('@/lib/admin/adminChecks', async (orig) => ({
   ...(await orig<typeof import('@/lib/admin/adminChecks')>()),
   marksFor: h.marks,
@@ -84,6 +88,7 @@ const importList = (over: Partial<ImportList> = {}): ImportList => ({
   pages: 1,
   filter: 'failing',
   counts: { failing: 1, covered: 5, checked: 2 },
+  retryJobIds: [],
   truncated: false,
   ...over,
 });
@@ -92,6 +97,14 @@ beforeEach(() => {
   for (const fn of Object.values(h)) fn.mockReset();
   h.marks.mockResolvedValue(new Map());
   h.held.mockResolvedValue(new Map());
+  h.counts.mockResolvedValue({
+    open: 4,
+    acknowledged: 2,
+    fixed: 7,
+    wont_fix: 1,
+    all: 14,
+    checked: 3,
+  });
 });
 
 describe('Imports tab', () => {
@@ -244,7 +257,11 @@ describe('Reports tab', () => {
     const out = await tab(ReportsTab({ search: {}, now: NOW }));
     expect(h.reports).toHaveBeenCalledWith({ page: 1, status: 'open' });
     expect(out).toContain('>Mark checked<');
-    expect(out).toMatch(/<a[^>]*href="\/admin\?reportsStatus=checked#cv-reports"[^>]*>Checked</);
+    expect(out).toMatch(/<a[^>]*href="\/admin\?reportsStatus=checked#cv-reports"[^>]*>Checked/);
+    // The same chips as Imports and Parser, with counts.
+    for (const chip of ['Open 4', 'Acknowledged 2', 'Fixed 7', 'All 14', 'Checked 3']) {
+      expect(text(out)).toContain(chip);
+    }
   });
 
   it('shows a held mark as Checked by, with Undo, and a stale mark as changed', async () => {
@@ -278,7 +295,9 @@ describe('Reports tab', () => {
     expect(out).toContain('>Undo<');
     expect(out).toContain('Changed since you checked it');
   });
+});
 
+describe('Reports tab: Checked view', () => {
   it('the Checked filter lists the reports whose mark holds', async () => {
     const mark = {
       fingerprint: fingerprintOf('report', { status: 'acknowledged' }),
@@ -294,7 +313,8 @@ describe('Reports tab', () => {
     expect(h.reports).toHaveBeenCalledWith({ page: 1, status: 'all', ids: ['r1'] });
     expect(text(out)).toContain('Checked by owner on 30 Oct 2026');
     expect(out).toContain('>Undo<');
-    expect(out).toMatch(/aria-current="page"[^>]*>Checked</);
+    expect(out).toMatch(/aria-current="true"[^>]*>Checked/);
+    expect(out).toContain('Undo keeps it Acknowledged');
   });
 });
 

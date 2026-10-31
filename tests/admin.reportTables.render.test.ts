@@ -158,7 +158,7 @@ describe('CV error reports', () => {
     expect(out).toContain('href="/admin?warningsPage=3&amp;reportsPage=3#cv-reports"');
     // The status filter starts again from page 1 and keeps the warnings page.
     expect(out).toContain('href="/admin?warningsPage=3&amp;reportsStatus=all#cv-reports"');
-    expect(out).toMatch(/aria-current="page"[^>]*>Open</);
+    expect(out).toMatch(/aria-current="true"[^>]*>Open</);
   });
 
   it('counts a single page too', () => {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { retryFailureMessage } from '@/lib/admin/actionMessage';
 import { postJson } from '@/lib/utils/api';
+import { usePageFlight } from '@/components/admin/pageFlight';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
 /**
@@ -69,7 +70,8 @@ function useRetry(jobIds: readonly string[], subject: string) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [flight] = useState(singleFlight);
+  const [own] = useState(singleFlight);
+  const flight = usePageFlight(own);
 
   const run = () => {
     if (pending || flight.busy) return;

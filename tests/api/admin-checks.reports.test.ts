@@ -30,9 +30,10 @@ const ACK_PRINT = fingerprintOf('report', { status: 'acknowledged' });
 beforeEach(() => {
   resetPrismaMock();
   prismaMock.$executeRaw.mockResolvedValue(1);
-  prismaMock.$transaction.mockImplementation(async (ops: unknown) =>
-    Array.isArray(ops) ? Promise.all(ops) : ops,
-  );
+  prismaMock.$transaction.mockImplementation(async (ops: unknown) => {
+    if (typeof ops === 'function') return ops(prismaMock);
+    return Array.isArray(ops) ? Promise.all(ops) : ops;
+  });
   prismaMock.cvErrorReport.updateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -47,6 +48,13 @@ describe('Mark checked on a CV report', () => {
     });
     expect(writes()[0]!.values).toEqual(['report', 'r1', ACK_PRINT, null, 'admin@example.com']);
     expect(ACK_PRINT).not.toBe(OPEN_PRINT);
+  });
+
+  it('writes the acknowledgement and the mark in one transaction', async () => {
+    prismaMock.cvErrorReport.findMany.mockResolvedValue([{ id: 'r1', status: 'acknowledged' }]);
+    await send({ items: [{ kind: 'report', subject: 'r1', fingerprint: OPEN_PRINT }] });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(typeof prismaMock.$transaction.mock.calls[0]![0]).toBe('function');
   });
 
   it('keeps the true status for a report already closed, and drops one that is gone', async () => {

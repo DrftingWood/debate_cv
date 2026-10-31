@@ -90,7 +90,7 @@ export type Mark = {
  * replaces the fingerprint, note, author and time, because the new mark is
  * about the data as it is now.
  */
-function upsertSql(m: MarkInput): Prisma.Sql {
+export function upsertSql(m: MarkInput): Prisma.Sql {
   return Prisma.sql`
     INSERT INTO "AdminCheck" ("kind", "subject", "fingerprint", "note", "checkedBy")
     VALUES (${m.kind}, ${m.subject}, ${m.fingerprint}, ${m.note ?? null}, ${m.by})

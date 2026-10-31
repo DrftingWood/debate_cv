@@ -79,6 +79,11 @@ export type ImportList = {
   filter: ImportsFilter;
   /** Rows of each view, whatever the filter: the chips' figures. */
   counts: { failing: number; covered: number; checked: number };
+  /**
+   * Every job of the failing groups (all pages), for "Retry all n"; empty on a
+   * view with nothing to retry (covered or checked only).
+   */
+  retryJobIds: string[];
   /** The job scan hit its page ceiling: older failures were not read. */
   truncated: boolean;
 };
@@ -216,6 +221,8 @@ export async function listImports({
     pages,
     filter,
     counts,
+    retryJobIds:
+      filter === 'failing' || filter === 'all' ? failing.flatMap((b) => b.row.jobIds) : [],
     truncated: unstored.truncated || stored.truncated,
   };
 }

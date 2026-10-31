@@ -79,6 +79,7 @@ const health: ImportList = {
   pages: 1,
   filter: 'failing',
   counts: { failing: 1, covered: 0, checked: 0 },
+  retryJobIds: [],
   truncated: false,
 };
 

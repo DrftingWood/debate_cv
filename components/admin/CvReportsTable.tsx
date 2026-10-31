@@ -157,7 +157,7 @@ type StatusApi = ReturnType<typeof useReportStatus>;
 // phone shows a card per report (UX-30), with nothing cut away. The hidden
 // <col>s are hidden with their cells: a fixed-layout table places cells by
 // position, so a col left in while its cells are display:none would shift
-// every cell one column to the left (see FailedJobsTable).
+// every cell one column to the left (see ImportGroupsTable).
 const REPORT_COLUMNS = [
   '3rem',
   { className: 'hidden md:table-column md:w-24' },

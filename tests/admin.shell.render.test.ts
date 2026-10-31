@@ -98,6 +98,7 @@ const importList: ImportList = {
   pages: 1,
   filter: 'covered',
   counts: { failing: 0, covered: 1, checked: 0 },
+  retryJobIds: [],
   truncated: false,
 };
 

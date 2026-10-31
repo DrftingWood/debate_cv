@@ -8,6 +8,7 @@ import { markedWords, undoOutcome, undoTargets } from '@/lib/admin/inboxActions'
 import type { InboxMarkItem } from '@/lib/admin/inboxTypes';
 import type { MarkTarget } from '@/lib/admin/inboxActions';
 import { deleteJson, postJson } from '@/lib/utils/api';
+import { usePageFlight } from '@/components/admin/pageFlight';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
 type MarkResponse = { marked: number; applied: number };
@@ -27,7 +28,8 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [flight] = useState(singleFlight);
+  const [own] = useState(singleFlight);
+  const flight = usePageFlight(own);
 
   const { undo, undoing } = useUndo(flight, pending, startTransition);
 

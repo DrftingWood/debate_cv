@@ -13,6 +13,7 @@ import {
   type FlagItem,
   type Priority,
 } from '@/lib/admin/reviewSetTypes';
+import { usePageFlight } from '@/components/admin/pageFlight';
 import { postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
@@ -147,7 +148,8 @@ function useSendFlags(noun: string) {
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [flight] = useState(singleFlight);
+  const [own] = useState(singleFlight);
+  const flight = usePageFlight(own);
 
   const send = (
     body: { items: readonly FlagItem[]; priority: Priority; comment: string },

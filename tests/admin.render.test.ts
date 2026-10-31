@@ -119,6 +119,7 @@ const list = (rows: ImportRowData[], filter: ImportList['filter']): ImportList =
   pages: 1,
   filter,
   counts: { failing: 1, covered: 1, checked: 0 },
+  retryJobIds: [],
   truncated: false,
 });
 const full = list([failing, covered], 'all');

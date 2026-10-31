@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { DownloadSimple } from '@/components/ui/icons';
 import { buttonClasses } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
+import { ViewChips } from '@/components/admin/ViewChips';
 import { CheckActionsProvider } from '@/components/admin/CheckActions';
 import { CvReportsTable, type CvReportRow } from '@/components/admin/CvReportsTable';
 import { LoadFailed } from '@/components/admin/LoadFailed';
@@ -94,6 +94,7 @@ export function CvReportsSection({
   now,
   search,
   marks,
+  counts,
   checkedView = false,
 }: {
   /** Null when the read failed: the section says so. */
@@ -102,6 +103,8 @@ export function CvReportsSection({
   search: SearchValues;
   /** The marks of the reports on the page, by report id. */
   marks?: ReadonlyMap<string, Mark>;
+  /** Reports in each status, all, and checked: the chips' figures. */
+  counts?: Record<ReportFilter | 'checked', number>;
   checkedView?: boolean;
 }) {
   return (
@@ -113,7 +116,7 @@ export function CvReportsSection({
           </h2>
           <p className="mt-hair text-body text-ink-soft">
             {checkedView
-              ? 'Reports you marked checked. Undo puts one back; Mark checked on an open report acknowledges it.'
+              ? 'Reports you marked checked. Undo keeps it Acknowledged: the mark goes, the status stays.'
               : 'Reports users sent from their CV page, newest first. Open ones need you: Mark checked acknowledges a report once you have looked at it. Tab says how much of each tournament is stored.'}
           </p>
         </div>
@@ -125,7 +128,11 @@ export function CvReportsSection({
         </a>
       </div>
       {list?.anyReports || checkedView ? (
-        <StatusFilter current={checkedView ? null : (list?.status ?? 'open')} search={search} />
+        <StatusFilter
+          current={checkedView ? 'checked' : (list?.status ?? 'open')}
+          search={search}
+          counts={counts}
+        />
       ) : null}
       {list ? (
         <Listing list={list} now={now} search={search} marks={marks} checkedView={checkedView} />
@@ -184,49 +191,33 @@ function Listing({
   );
 }
 
-/** Open, Acknowledged, Fixed, Won't fix, All: links, the current one marked (UX-12). */
+/** Open, Acknowledged, Fixed, Won't fix, All, Checked: the shared view chips, with counts. */
 function StatusFilter({
   current,
   search,
+  counts,
 }: {
-  /** The chosen status; null when the Checked view is. */
-  current: ReportFilter | null;
+  current: ReportFilter | 'checked';
   search: SearchValues;
+  counts?: Record<ReportFilter | 'checked', number>;
 }) {
+  const keys = [...REPORT_FILTERS, 'checked'] as const;
+  const label = (k: (typeof keys)[number]) =>
+    k === 'checked' ? 'Checked' : REPORT_FILTER_LABEL[k];
   return (
-    <nav aria-label="Show CV reports by status">
-      <ul className="flex flex-wrap gap-inline">
-        {REPORT_FILTERS.map((f) => (
-          <li key={f}>
-            <Link
-              href={adminHref(
-                search,
-                { reportsStatus: f === 'open' ? null : f, reportsPage: null },
-                HASH,
-              )}
-              aria-current={f === current ? 'page' : undefined}
-              className={buttonClasses({
-                variant: f === current ? 'primary' : 'outline',
-                size: 'sm',
-              })}
-            >
-              {REPORT_FILTER_LABEL[f]}
-            </Link>
-          </li>
-        ))}
-        <li>
-          <Link
-            href={adminHref(search, { reportsStatus: 'checked', reportsPage: null }, HASH)}
-            aria-current={current === null ? 'page' : undefined}
-            className={buttonClasses({
-              variant: current === null ? 'primary' : 'outline',
-              size: 'sm',
-            })}
-          >
-            Checked
-          </Link>
-        </li>
-      </ul>
-    </nav>
+    <ViewChips
+      label="Show CV reports by status"
+      chips={keys.map((k) => ({
+        key: k,
+        label: label(k),
+        count: counts?.[k],
+        href: adminHref(
+          search,
+          { reportsStatus: k === 'open' ? null : k, reportsPage: null },
+          HASH,
+        ),
+        on: k === current,
+      }))}
+    />
   );
 }

@@ -162,7 +162,7 @@ function Body({ list, search, now }: { list: ImportList; search: SearchValues; n
             always
           />
           <CheckActionsProvider>
-            <ImportGroupsTable rows={toImportRows(list.rows, now)} />
+            <ImportGroupsTable rows={toImportRows(list.rows, now)} retryJobIds={list.retryJobIds} />
           </CheckActionsProvider>
         </>
       )}

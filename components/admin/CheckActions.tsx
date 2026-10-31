@@ -1,9 +1,11 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
+import { PageFlightContext } from '@/components/admin/pageFlight';
 import { useMarkChecked } from '@/components/admin/useMarkChecked';
+import { singleFlight } from '@/lib/utils/singleFlight';
 
 /**
  * The buttons on one check of a tournament's page: "Mark checked" and "Review
@@ -24,6 +26,18 @@ const MarkingContext = createContext<Marking | null>(null);
 const noop = () => {};
 
 export function CheckActionsProvider({ children }: { children: ReactNode }) {
+  // One flight for the whole page: the marks, Undo, Fix, Review later and the
+  // bulk retries all run through it (pageFlight.ts), so none overlaps another.
+  const [flight] = useState(singleFlight);
+  return (
+    <PageFlightContext.Provider value={flight}>
+      <MarkingScope>{children}</MarkingScope>
+    </PageFlightContext.Provider>
+  );
+}
+
+/** Below the flight, so useMarkChecked finds it. */
+function MarkingScope({ children }: { children: ReactNode }) {
   // Nothing is ticked on this page, so there is no selection to clear.
   const marking = useMarkChecked(noop);
   return (

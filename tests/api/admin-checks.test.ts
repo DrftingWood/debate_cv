@@ -29,9 +29,10 @@ beforeEach(() => {
   requireAdminMock.mockReset().mockResolvedValue('admin@example.com');
   runAuditMock.mockReset().mockResolvedValue({ audited: 1, applied: new Set<string>() });
   prismaMock.$executeRaw.mockResolvedValue(1);
-  prismaMock.$transaction.mockImplementation(async (ops: unknown) =>
-    Array.isArray(ops) ? Promise.all(ops) : ops,
-  );
+  prismaMock.$transaction.mockImplementation(async (ops: unknown) => {
+    if (typeof ops === 'function') return ops(prismaMock);
+    return Array.isArray(ops) ? Promise.all(ops) : ops;
+  });
 });
 
 describe('admin only', () => {

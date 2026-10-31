@@ -180,6 +180,43 @@ describe('marks', () => {
   });
 });
 
+describe('count equality with the Inbox (held and changed marks)', () => {
+  const subject = 'new.calicotab.com/new2026';
+  const markWith = (fingerprint: string) =>
+    h.marks.set(
+      'import',
+      new Map([
+        [subject, { fingerprint, checkedBy: 'o@x.org', checkedAt: daysAgo(1), note: null }],
+      ]),
+    );
+
+  it('a held mark leaves both counts at zero', async () => {
+    twoKinds();
+    const open = await listImports({ filter: 'failing', page: 1 });
+    markWith(open.rows[0]!.fingerprint!);
+    const list = await listImports({ filter: 'failing', page: 1 });
+    expect(list.counts.failing).toBe(0);
+    expect(list.counts.failing).toBe((await countInbox(NOW)).import);
+  });
+
+  it('a changed mark keeps both counts at one', async () => {
+    twoKinds();
+    markWith('0123456789abcdef');
+    const list = await listImports({ filter: 'failing', page: 1 });
+    expect(list.counts.failing).toBe(1);
+    expect(list.counts.failing).toBe((await countInbox(NOW)).import);
+  });
+});
+
+describe('Retry all', () => {
+  it('names every job of the failing groups, none of the covered or checked ones', async () => {
+    twoKinds();
+    const failing = await listImports({ filter: 'failing', page: 1 });
+    expect(failing.retryJobIds).toEqual(['j1', 'j2']);
+    expect((await listImports({ filter: 'covered', page: 1 })).retryJobIds).toEqual([]);
+  });
+});
+
 describe('all, paging and the filter word', () => {
   it('all lists failing first, then checked, then covered', async () => {
     twoKinds();
