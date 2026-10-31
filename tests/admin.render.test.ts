@@ -173,6 +173,18 @@ describe('admin overview', () => {
     );
   });
 
+  // Final review of PR #265: an unguarded accuracy read took all of /admin down.
+  it('still renders when the accuracy overview cannot be read, and says so', async () => {
+    const mod = await import('@/lib/admin/accuracy');
+    vi.mocked(mod.getAccuracyOverview).mockRejectedValueOnce(new Error('db down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const out = await renderPage(full);
+    expect(out).toContain('Scrape health');
+    expect(out).toContain('Couldn&#x27;t load the accuracy overview');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('turns the current state into tiles, with partly loaded and failed jobs', async () => {
     const out = await renderPage(full);
     expect(out).toContain('Partly loaded');

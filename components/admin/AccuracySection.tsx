@@ -35,7 +35,15 @@ export function toAccuracyRows(lowest: AccuracyOverview['lowest'], now: Date): A
  * model comes with the rest of the page, and the client parts (the table's
  * fold, the two buttons) get rows that are ready to show.
  */
-export function AccuracySection({ overview, now }: { overview: AccuracyOverview; now: Date }) {
+export function AccuracySection({
+  overview,
+  now,
+}: {
+  /** Null when the overview could not be read: the section says so. */
+  overview: AccuracyOverview | null;
+  now: Date;
+}) {
+  if (!overview) return <AccuracyUnavailable />;
   const o = overview;
   return (
     <section aria-labelledby="data-accuracy" className="space-y-stack rounded-lg border p-panel">
@@ -75,6 +83,22 @@ export function AccuracySection({ overview, now }: { overview: AccuracyOverview;
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+/** The section when its read failed: the heading stays, with the reason in words. */
+function AccuracyUnavailable() {
+  return (
+    <section aria-labelledby="data-accuracy" className="space-y-stack rounded-lg border p-panel">
+      <h2 id="data-accuracy" className="font-display text-h3 font-medium text-ink">
+        Data accuracy
+      </h2>
+      <EmptyState
+        title="Couldn't load the accuracy overview"
+        description="The rest of this page is unaffected. Reload to try again."
+        headingLevel={3}
+      />
     </section>
   );
 }

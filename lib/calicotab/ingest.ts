@@ -82,6 +82,7 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
+import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
 import { isPlaceholderPersonName } from './names';
 import {
   assignMotionRounds,
@@ -153,6 +154,8 @@ type FetchedTabs = {
   prelimRoundCount: number | null;
   format: ReturnType<typeof inferTournamentFormat>;
   teamBreakRankByTeam: Map<string, number>;
+  /** Redacted speakers per team from the participants list; null when it was not read. */
+  redactedByTeam: Map<string, number> | null;
   fetchLevelFailures: string[];
   /** One per page the scrape tried; an API answer counts for the tab it stands in for. */
   pieceOutcomes: PieceOutcome[];
@@ -1414,6 +1417,7 @@ export async function fetchAndParseTabs(
     prelimRoundCount,
     format,
     teamBreakRankByTeam,
+    redactedByTeam: participantRows.length > 0 ? redactedSpeakersByTeam(participantRows) : null,
     fetchLevelFailures,
     pieceOutcomes,
     fetchedPieces: pieceOutcomes.filter((o) => o.ok).map(({ kind, key }) => ({ kind, key })),
@@ -1800,6 +1804,8 @@ async function writeIngestTransaction(
           });
         }
       }
+      // Redacted speakers per team, so the audit does not read them as missing.
+      await recordRedactedSpeakers(tx, t.id, fetched.redactedByTeam);
 
       // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
       // rather than delete-then-recreate, and only when this parse actually

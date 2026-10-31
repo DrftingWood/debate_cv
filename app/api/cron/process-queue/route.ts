@@ -9,11 +9,12 @@ import { resetStuckRunning } from '@/lib/queue';
 import { drainQueue, DRAIN_CONCURRENCY } from '@/lib/queueDrain';
 import { prisma } from '@/lib/db';
 import { revokeAndForgetGmailToken } from '@/lib/gmail/client';
-import { isRefreshTokenInvalid } from '@/lib/gmail/errors';
+import { isGmailScopeMissing, isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
 import { retryDuePieces } from '@/lib/calicotab/partialScrape';
 import { auditStale } from '@/lib/audit/run';
+import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -135,7 +136,8 @@ async function runBackgroundScan() {
         return rows.map((r) => r.userId);
       },
       scan: scanMailbox,
-      isGrantGone: isRefreshTokenInvalid,
+      // A grant without Gmail access is as useless as a revoked one.
+      isGrantGone: (err) => isRefreshTokenInvalid(err) || isGmailScopeMissing(err),
       forgetGrant: revokeAndForgetGmailToken,
       markAttempted: async (userId) => {
         await prisma.gmailToken.update({ where: { userId }, data: { lastScannedAt: new Date() } });
@@ -151,8 +153,8 @@ async function runBackgroundScan() {
   );
 }
 
-// A scan failure must never stop the drain.
-async function scanSafely() {
+/** The background Gmail scan. A scan failure must never stop the drain. */
+async function scanSafely(): Promise<Awaited<ReturnType<typeof runBackgroundScan>>> {
   try {
     return await runBackgroundScan();
   } catch (err) {
@@ -205,13 +207,29 @@ async function auditSafely(startedAt: number) {
   }
 }
 
+/**
+ * Stored tournaments first, for every user: linked with no request, so they
+ * are not held behind live scrapes for the one calicotab slot. A failure here
+ * must never stop the drain.
+ */
+async function linkStoredFirstForAll(): Promise<number> {
+  try {
+    return await linkStoredJobsFirst();
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'stored-first' },
+    });
+    return 0;
+  }
+}
+
 async function runOnce() {
   const startedAt = Date.now();
   try {
     await resetStuckRunning({});
 
     const scan = await scanSafely();
-
+    const storedLinked = await linkStoredFirstForAll();
     const report = await drainQueue(
       {
         ingest: (url, userId, { deadline }) => ingestPrivateUrl(url, userId, { deadline }),
@@ -269,6 +287,7 @@ async function runOnce() {
     // truncated one, which is exactly the state worth alerting on.
     return NextResponse.json({
       processed: report.processed,
+      storedLinked,
       results,
       scan,
       pruned,

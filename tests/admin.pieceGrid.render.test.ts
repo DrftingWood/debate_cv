@@ -99,9 +99,14 @@ describe('per-tournament piece grid', () => {
   it('still shows the grid when the accuracy checks cannot be read', async () => {
     const mod = await import('@/lib/admin/tournamentAccuracy');
     vi.mocked(mod.getTournamentAccuracy).mockRejectedValueOnce(new Error('db down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const out = await renderPage();
     expect(out).toContain('Re-scrape selected');
-    expect(out).toContain('Not audited yet');
+    // A failed read is said as such: "Not audited yet" would be untrue.
+    expect(out).toContain('Couldn’t load the accuracy checks');
+    expect(out).not.toContain('Not audited yet');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('groups the pieces under Tabs and Rounds, with their status in words', async () => {

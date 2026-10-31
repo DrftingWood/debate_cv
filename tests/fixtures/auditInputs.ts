@@ -16,6 +16,7 @@ export function inputs(over: Partial<AuditInputs> = {}): AuditInputs {
     outrounds: [],
     breakRows: [],
     speakersByTeam: {},
+    redactedByTeam: {},
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,

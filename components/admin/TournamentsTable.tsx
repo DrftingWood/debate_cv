@@ -58,7 +58,7 @@ function TournamentRow({ row, now }: { row: TournamentListRow; now: Date }) {
         </Link>
       </Td>
       <Td className="align-top">
-        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
+        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="No tab" />
       </Td>
       <Td numeric className="align-top">
         {row.year ?? <Nil title="No year stored" />}

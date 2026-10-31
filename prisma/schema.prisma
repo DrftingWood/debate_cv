@@ -531,21 +531,21 @@ model SpeakerRoundScore {
 }
 
 model TeamResult {
-  id            BigInt   @id @default(autoincrement())
-  tournamentId  BigInt
-  teamName      String
-  roundNumber   Int?
-  rank          Int?
-  wins          Int?
-  points        Decimal?
+  id               BigInt   @id @default(autoincrement())
+  tournamentId     BigInt
+  teamName         String
+  roundNumber      Int?
+  rank             Int?
+  wins             Int?
+  points           Decimal?
   /// Rooms won and rooms placed second, on the roundNumber=0 standings row.
   /// BP scores 3/2/1/0; these are among the tiebreaks a tournament can rank
   /// on, but the order is the tournament's own setting — most tabs in the
   /// corpus separate teams level on points by speaker score first, so a
   /// team can sit above another with more firsts. Null for the two-team
   /// formats, which publish a wins column instead.
-  firsts        Int?
-  seconds       Int?
+  firsts           Int?
+  seconds          Int?
   /// Team side in this round as shown on the round-results page — "OG" /
   /// "OO" / "CG" / "CO" on BP layouts, or whatever the position/side
   /// column said on two-team formats. Null on roundNumber=0 standings
@@ -553,7 +553,15 @@ model TeamResult {
   /// ingested before the parser started persisting it (the value was
   /// parsed and discarded for those — re-ingest backfills it). Feeds the
   /// by-position slice on /cv/stats.
-  position      String?
+  position         String?
+  /// Speakers of this team who are redacted (opted out of the public tabs),
+  /// on the roundNumber=0 row, counted from the participants list (the
+  /// speaker tab's redacted rows carry no team). Ingest stores no person for
+  /// a redacted row, so the data-accuracy audit adds this to the stored
+  /// speakers before calling a team short of partners. Null means never
+  /// counted: rows written before the column, or a scrape that did not read
+  /// the participants list. Written by lib/calicotab/redactedCounts.ts.
+  redactedSpeakers Int?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 

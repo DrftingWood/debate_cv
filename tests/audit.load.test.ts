@@ -15,6 +15,7 @@ const db = vi.hoisted(() => ({
   scrapePiece: { findMany: vi.fn() },
   cvErrorReport: { findMany: vi.fn() },
   discoveredUrl: { groupBy: vi.fn() },
+  $queryRaw: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({ prisma: db }));
 
@@ -62,15 +63,28 @@ function seedRows() {
 }
 
 function seedCounts() {
-  db.tournamentParticipant.groupBy.mockImplementation(async (args: { by: string[] }) =>
-    args.by.includes('teamName')
-      ? [
-          { tournamentId: 1n, teamName: 'Oxford A', _count: { _all: 2, speakerScoreTotal: 2 } },
-          { tournamentId: 1n, teamName: null, _count: { _all: 1, speakerScoreTotal: 0 } },
-          { tournamentId: 2n, teamName: 'Lone', _count: { _all: 1, speakerScoreTotal: 1 } },
-        ]
-      : [{ tournamentId: 1n, _count: { _all: 4 } }],
+  // Three groupings: speakers by team, judges, and speakers with any score
+  // (a total, or per-round scores on a tab that publishes only an average).
+  db.tournamentParticipant.groupBy.mockImplementation(
+    async (args: { by: string[]; where: { roles: { some: { role: string } }; OR?: unknown } }) =>
+      args.by.includes('teamName')
+        ? [
+            { tournamentId: 1n, teamName: 'Oxford A', _count: { _all: 2 } },
+            { tournamentId: 1n, teamName: null, _count: { _all: 1 } },
+            { tournamentId: 2n, teamName: 'Lone', _count: { _all: 1 } },
+          ]
+        : args.where.OR
+          ? [
+              { tournamentId: 1n, _count: { _all: 3 } },
+              { tournamentId: 2n, _count: { _all: 1 } },
+            ]
+          : [{ tournamentId: 1n, _count: { _all: 4 } }],
   );
+  // Team-tab redacted counts: one known, one never counted.
+  db.$queryRaw.mockResolvedValue([
+    { tournamentId: 1n, teamName: 'Oxford A', redactedSpeakers: 1 },
+    { tournamentId: 2n, teamName: 'Lone', redactedSpeakers: null },
+  ]);
   db.judgeAssignment.groupBy.mockImplementation(async (args: { by: string[] }) =>
     args.by.includes('personId')
       ? [
@@ -110,47 +124,54 @@ function seedCounts() {
 }
 
 beforeEach(() => {
-  for (const model of Object.values(db)) for (const fn of Object.values(model)) fn.mockReset();
+  for (const model of Object.values(db)) {
+    if (typeof model === 'function') model.mockReset();
+    else for (const fn of Object.values(model)) fn.mockReset();
+  }
   seedRows();
   seedCounts();
 });
 
+/** What tournament 1's seeded rows map to. */
+const TOURNAMENT_1 = {
+  format: 'BP',
+  prelimRoundCount: 2,
+  parserVersion: 'v9',
+  teamTab: [{ team: 'Oxford A', points: 5, wins: null }],
+  roundRows: [
+    { team: 'Oxford A', round: 1, points: 3, wins: null, position: 'OG' },
+    { team: 'Oxford A', round: 2, points: null, wins: 1, position: 'CO' },
+  ],
+  outrounds: [
+    { stage: 'Grand Final', team: 'Oxford A', result: 'won' },
+    { stage: 'Grand Final', team: 'Cam B', result: 'lost' },
+  ],
+  breakRows: [{ stage: 'Open', team: 'Oxford A' }],
+  speakersByTeam: { 'Oxford A': 2 },
+  redactedByTeam: { 'Oxford A': 1 },
+  speakerParticipants: 3,
+  speakersWithScores: 3,
+  judgeParticipants: 4,
+  roundResultJudges: 3,
+  judgesByRound: { 1: { chairs: 2, judges: 6 }, 2: { chairs: 0, judges: 1 } },
+  motionRounds: [1, 2],
+  pieces: [
+    {
+      kind: 'round',
+      key: '1',
+      label: 'Round 1',
+      status: 'failed',
+      url: 'https://x.calicotab.com/t/privateurls/k/',
+    },
+  ],
+  openReports: [{ categories: ['wrong_teammate'] }],
+  usersAffected: 2,
+};
+
 describe('loadAuditInputs', () => {
   it('maps the batch rows into AuditInputs per tournament', async () => {
     const map = await loadAuditInputs([1n, 2n]);
-    expect(map.get(1n)).toEqual({
-      format: 'BP',
-      prelimRoundCount: 2,
-      parserVersion: 'v9',
-      teamTab: [{ team: 'Oxford A', points: 5, wins: null }],
-      roundRows: [
-        { team: 'Oxford A', round: 1, points: 3, wins: null, position: 'OG' },
-        { team: 'Oxford A', round: 2, points: null, wins: 1, position: 'CO' },
-      ],
-      outrounds: [
-        { stage: 'Grand Final', team: 'Oxford A', result: 'won' },
-        { stage: 'Grand Final', team: 'Cam B', result: 'lost' },
-      ],
-      breakRows: [{ stage: 'Open', team: 'Oxford A' }],
-      speakersByTeam: { 'Oxford A': 2 },
-      speakerParticipants: 3,
-      speakersWithScores: 2,
-      judgeParticipants: 4,
-      roundResultJudges: 3,
-      judgesByRound: { 1: { chairs: 2, judges: 6 }, 2: { chairs: 0, judges: 1 } },
-      motionRounds: [1, 2],
-      pieces: [
-        {
-          kind: 'round',
-          key: '1',
-          label: 'Round 1',
-          status: 'failed',
-          url: 'https://x.calicotab.com/t/privateurls/k/',
-        },
-      ],
-      openReports: [{ categories: ['wrong_teammate'] }],
-      usersAffected: 2,
-    });
+    expect(map.get(1n)).toEqual(TOURNAMENT_1);
   });
 
   it('a tournament with no rows gets empty inputs, and reports reach every id they name', async () => {
@@ -161,6 +182,8 @@ describe('loadAuditInputs', () => {
       outrounds: [],
       breakRows: [],
       speakersByTeam: { Lone: 1 },
+      redactedByTeam: { Lone: null },
+      speakersWithScores: 1,
       judgeParticipants: 0,
       roundResultJudges: 0,
       judgesByRound: {},
@@ -189,7 +212,8 @@ describe('loadAuditInputs: queries', () => {
     expect(db.discoveredUrl.groupBy).toHaveBeenCalledTimes(1);
     // A role lives on a joined table, and distinct judges need their own
     // grouping: two grouped queries each, still per batch, not per tournament.
-    expect(db.tournamentParticipant.groupBy).toHaveBeenCalledTimes(2);
+    expect(db.tournamentParticipant.groupBy).toHaveBeenCalledTimes(3);
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
     expect(db.judgeAssignment.groupBy).toHaveBeenCalledTimes(2);
   });
 
@@ -211,6 +235,18 @@ describe('loadAuditInputs: queries', () => {
       tournamentId: ids,
       entityType: 'team',
       OR: [{ result: { in: ['won', 'lost'] } }, { result: null }],
+    });
+  });
+
+  it('a speaker counts as scored with a total or with any per-round score', async () => {
+    await loadAuditInputs([1n, 2n]);
+    const scored = db.tournamentParticipant.groupBy.mock.calls
+      .map((c) => c[0])
+      .find((a: { where: { OR?: unknown } }) => a.where.OR);
+    expect(scored.where).toEqual({
+      tournamentId: { in: [1n, 2n] },
+      roles: { some: { role: 'speaker' } },
+      OR: [{ speakerScoreTotal: { not: null } }, { speakerRoundScores: { some: {} } }],
     });
   });
 

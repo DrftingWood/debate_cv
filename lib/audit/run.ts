@@ -5,6 +5,7 @@ import { PARSER_VERSION } from '@/lib/calicotab/version';
 import { CHECKS_VERSION, runChecks } from './checks';
 import { loadAuditInputs } from './load';
 import { scoreTournament } from './score';
+import type { CheckResult } from './types';
 
 /**
  * Computing and storing tournament audits, and the three ways they run
@@ -20,6 +21,22 @@ const CHUNK = 25;
 const STALE_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * The stored form of a tournament's check results. Spelled out field by field,
+ * not cast, so the JSON column holds exactly what parseChecks reads back, and
+ * an optional field reaches it as an empty list rather than as undefined
+ * (which a JSON value cannot hold).
+ */
+function checksJson(checks: CheckResult[]): Prisma.InputJsonArray {
+  return checks.map((c) => ({
+    code: c.code,
+    status: c.status,
+    detail: c.detail,
+    pieces: c.pieces.map((p) => ({ kind: p.kind, key: p.key, label: p.label, url: p.url })),
+    assumptions: c.assumptions ?? [],
+  }));
+}
+
+/**
  * Loads, checks, scores and stores the audit of each tournament, returning
  * how many were written. Ids with no Tournament row are skipped. The upserts
  * share one transaction so a batch is stored whole or not at all.
@@ -32,7 +49,7 @@ export async function runAudit(tournamentIds: bigint[]): Promise<number> {
     const checks = runChecks(inputs, PARSER_VERSION);
     const data = {
       score: scoreTournament(checks, inputs.openReports.length),
-      checks: checks as unknown as Prisma.InputJsonValue,
+      checks: checksJson(checks),
       usersAffected: inputs.usersAffected,
       checksVersion: CHECKS_VERSION,
       computedAt,

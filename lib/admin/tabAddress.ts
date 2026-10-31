@@ -30,9 +30,13 @@ export function parseTabAddress(input: string): TabAddress | null {
   return { host: u.host, slug, publicUrl: slug ? `${u.origin}/${slug}/` : null };
 }
 
-/** Does the text carry a `/privateurls/` segment, i.e. someone's private key? */
+/**
+ * Does the text carry a `privateurls` path segment, i.e. someone's private
+ * key? Also at the very start, so a bare `privateurls/KEY` pasted on its own
+ * is caught and never sent off as a name search.
+ */
 export function hasPrivateKeyPath(q: string): boolean {
-  return /\/privateurls(\/|$)/i.test(q);
+  return /(^|\/)privateurls(\/|$)/i.test(q);
 }
 
 /**
@@ -45,7 +49,11 @@ export function hasPrivateKeyPath(q: string): boolean {
 export function asLookupUrl(q: string): string | null {
   const text = q.trim();
   const candidates = [text];
-  if (hasPrivateKeyPath(text) && !/^[a-z][\w+.-]*:/i.test(text)) {
+  // A bare `privateurls/KEY` has no host to give a scheme to: prefixing it
+  // would read `privateurls` as the host and leave the key looking like a
+  // public path, which searchBoxValue would then echo back.
+  const hostless = /^\/*privateurls(\/|$)/i.test(text);
+  if (hasPrivateKeyPath(text) && !hostless && !/^[a-z][\w+.-]*:/i.test(text)) {
     candidates.unshift(`https://${text.replace(/^\/+/, '')}`);
   }
   for (const c of candidates) {

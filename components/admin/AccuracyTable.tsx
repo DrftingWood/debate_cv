@@ -95,7 +95,7 @@ function AccuracyRowView({ row }: { row: AccuracyTableRow }) {
         <FailingCell row={row} />
       </Td>
       <Td className="align-top">
-        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
+        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="No tab" />
       </Td>
       <Td className="align-top">
         {/* The name already links the tournament's page: no second "Open". */}

@@ -7,8 +7,12 @@ import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 // names are not in the tournament.
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => ({ prisma: m.prismaMock })));
 
-const { linkFromStoredTournament, matchStoredParticipant, requeueUnmatchedStoredLinks } =
-  await import('@/lib/calicotab/storedFirst');
+const {
+  linkFromStoredTournament,
+  linkStoredJobsFirst,
+  matchStoredParticipant,
+  requeueUnmatchedStoredLinks,
+} = await import('@/lib/calicotab/storedFirst');
 const { isCalicotabHost } = await import('@/lib/calicotab/fetchSession');
 const { PARSER_VERSION } = await import('@/lib/calicotab/version');
 
@@ -178,5 +182,71 @@ describe('isCalicotabHost', () => {
     expect(isCalicotabHost('OXIV.calicotab.com')).toBe(true);
     expect(isCalicotabHost('calicotab.com.evil.example')).toBe(false);
     expect(isCalicotabHost('t.herokuapp.com')).toBe(false);
+  });
+});
+
+describe('linkStoredJobsFirst: the stored pass before the queue', () => {
+  // Owner, 2026-10-30: go through every new private URL first and load the
+  // ones the pre-scrape already has; only then work through the ones that
+  // need calicotab. Before, the queue ran first-come, first-served, so a
+  // stored tournament waited behind a slow live scrape for the one
+  // calicotab slot, although linking it needs no request.
+  const OTHER = 'https://newtourney.calicotab.com/nt2026/privateurls/zzz999/';
+  const claimedIds = () =>
+    prismaMock.ingestJob.updateMany.mock.calls
+      .filter((c) => (c[0] as { data: { status?: string } }).data.status === 'running')
+      .map((c) => (c[0] as { where: { id: string } }).where.id);
+  const doneIds = () =>
+    prismaMock.ingestJob.update.mock.calls
+      .map((c) => c[0] as { where: { id: string }; data: { status?: string } })
+      .filter((a) => a.data.status === 'done')
+      .map((a) => a.where.id);
+  const putBack = () =>
+    prismaMock.ingestJob.updateMany.mock.calls
+      .map((c) => c[0] as { where: { id: string }; data: Record<string, unknown> })
+      .filter((a) => a.data.status === 'pending');
+
+  beforeEach(() => {
+    prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ingestJob.update.mockResolvedValue({ userId: 'u1' } as never);
+    prismaMock.ingestJob.findMany.mockResolvedValue([
+      { id: 'live', userId: 'u1', url: OTHER },
+      { id: 'stored', userId: 'u1', url: URL_ },
+    ]);
+  });
+
+  it('links the stored tournament with no request and leaves the live one for the queue', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    storedTournament({ claimed: ['Maya Rao'], names: ['Maya Rao'] });
+    prismaMock.tournament.findMany.mockImplementation((async (args: {
+      where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> };
+    }) => (args.where.OR[0]!.sourceUrlRaw.startsWith.includes('oxiv') ? [stored()] : [])) as never);
+
+    const linked = await linkStoredJobsFirst({ userId: 'u1' });
+
+    expect(linked).toBe(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(claimedIds()).toEqual(['stored']);
+    expect(doneIds()).toEqual(['stored']);
+    expect(putBack()).toEqual([]);
+  });
+
+  it('puts a stored job back, attempt untouched, when the user’s names are not in it', async () => {
+    storedTournament({ claimed: ['Maya Rao'], names: ['Someone Else'] });
+    prismaMock.tournament.findMany.mockImplementation((async (args: {
+      where: { OR: Array<{ sourceUrlRaw: { startsWith: string } }> };
+    }) => (args.where.OR[0]!.sourceUrlRaw.startsWith.includes('oxiv') ? [stored()] : [])) as never);
+
+    expect(await linkStoredJobsFirst({ userId: 'u1' })).toBe(0);
+    expect(doneIds()).toEqual([]);
+    expect(putBack().map((a) => a.where.id)).toEqual(['stored']);
+    expect(putBack()[0]!.data).not.toHaveProperty('attempts');
+  });
+
+  it('skips a job another drain claimed first', async () => {
+    storedTournament({ claimed: ['Maya Rao'], names: ['Maya Rao'] });
+    prismaMock.ingestJob.updateMany.mockResolvedValue({ count: 0 });
+    expect(await linkStoredJobsFirst({ userId: 'u1' })).toBe(0);
+    expect(prismaMock.discoveredUrl.updateMany).not.toHaveBeenCalled();
   });
 });

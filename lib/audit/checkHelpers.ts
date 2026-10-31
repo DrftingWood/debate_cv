@@ -44,6 +44,17 @@ export function teamKey(name: string): string {
 }
 
 /**
+ * A swing team ("Swing 1", "Swing Team", "swing"): the tab room's stand-in,
+ * which Tabbycat lists on the team tab, often with no rounds at all, and
+ * whose "Speaker N" members ingest deliberately stores no person for. It is
+ * no real team, so it neither owes R1 a row nor needs partners. A team whose
+ * name only starts with the letters ("Swingers United") is real.
+ */
+export function isSwingTeam(name: string): boolean {
+  return /^swing\b/i.test(name.trim());
+}
+
+/**
  * Prelim rows only. With a known round count, rows past it (an outround a
  * loader might pass by mistake) are left out.
  */
@@ -160,10 +171,54 @@ export function breakPieces(pieces: AuditPiece[], bracket?: string): SuggestedPi
     .map(suggest);
 }
 
+// ── withheld pieces ─────────────────────────────────────────────────────
+//
+// A page the tournament itself refuses (an unreleased Tabbycat tab answers
+// 404) is recorded as 'withheld'. No re-scrape can bring it, and its absence
+// is the tournament's choice, not a gap in our data, so a check that rests on
+// a withheld page answers 'na' rather than marking the tournament down, and
+// a withheld page is never suggested for a re-scrape.
+
+const refKey = (p: { kind: string; key: string }) => `${p.kind}\u0000${p.key}`;
+
+/** Whether the tournament withholds this page (any key of `kind` when no key is given). */
+export function isWithheld(pieces: AuditPiece[], kind: AuditPiece['kind'], key?: string): boolean {
+  return pieces.some(
+    (p) => p.status === 'withheld' && p.kind === kind && (key == null || p.key === key),
+  );
+}
+
+/** Prelim round numbers whose results page the tournament withholds. */
+export function withheldPrelims(pieces: AuditPiece[]): Set<number> {
+  return new Set(
+    pieces
+      .filter((p) => p.kind === 'round' && p.status === 'withheld' && /^\d+$/.test(p.key))
+      .filter((p) => matchStage(p.label) == null)
+      .map((p) => Number(p.key)),
+  );
+}
+
+/** Outround results pages the tournament withholds. */
+export function withheldOutroundPieces(pieces: AuditPiece[]): AuditPiece[] {
+  return outroundRoundPieces(pieces).filter((p) => p.status === 'withheld');
+}
+
+/**
+ * Suggestions with every withheld page taken out. Applied once to every
+ * check's result (runChecks) so no check, however it found its pieces
+ * (suggest, tabPiece, a made-up prelim piece), can queue a page no retry can
+ * bring.
+ */
+export function withoutWithheld(results: CheckResult[], pieces: AuditPiece[]): CheckResult[] {
+  const hidden = new Set(pieces.filter((p) => p.status === 'withheld').map(refKey));
+  if (hidden.size === 0) return results;
+  return results.map((r) => ({ ...r, pieces: r.pieces.filter((p) => !hidden.has(refKey(p))) }));
+}
+
 export function dedupePieces(pieces: SuggestedPiece[]): SuggestedPiece[] {
   const seen = new Set<string>();
   return pieces.filter((p) => {
-    const k = `${p.kind}\u0000${p.key}`;
+    const k = refKey(p);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;

@@ -35,6 +35,7 @@ function inputs(over: Partial<Loaded> = {}): Loaded {
     outrounds: [],
     breakRows: [],
     speakersByTeam: {},
+    redactedByTeam: {},
     speakerParticipants: 0,
     speakersWithScores: 0,
     judgeParticipants: 0,

@@ -10,9 +10,10 @@ export const maxDuration = 60;
 
 // "Audit now" for stale tournaments is one bounded batch: the admin gets an
 // answer inside the function's lifetime, and the cron's sweep picks up the
-// rest. The deadline leaves 5s before the platform would kill the function.
+// rest. The deadline leaves 10s before the platform would kill the function:
+// a chunk already running when it passes must still finish and reply.
 const STALE_LIMIT = 100;
-const DEADLINE_MS = 55_000;
+const DEADLINE_MS = 50_000;
 
 // Digits only, as in the rescrape route: BigInt() alone would accept '0x10'
 // and ' 5 '. Strict objects so a body carrying both shapes is refused.

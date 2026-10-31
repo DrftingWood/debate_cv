@@ -104,8 +104,8 @@ describe('rooms_consistent', () => {
     expect(c.detail).toBe('R3 has 12 rooms; the other rounds have 16.');
     expect(keys(c)).toEqual(['round:3']);
   });
-  it('one room off within 10% warns', () => {
-    const c = check(inputs({ roundRows: bpRows([64, 64, 60]) }), 'rooms_consistent');
+  it('one room off within 10% warns (the four teams are back in R3, so none withdrew)', () => {
+    const c = check(inputs({ roundRows: bpRows([64, 60, 64]) }), 'rooms_consistent');
     expect(c.status).toBe('warn');
   });
   it('one room off but over 10% fails', () => {
@@ -174,6 +174,9 @@ describe('team_coverage', () => {
 describe('partners', () => {
   const tab = names('T', 20).map((team) => ({ team, points: null, wins: null }));
   const two = Object.fromEntries(tab.map((t) => [t.team, 2]));
+  // Every count known: no team's speakers were redacted (see
+  // audit.checks.realdata.test.ts for the unknown and redacted cases).
+  const redactedByTeam = Object.fromEntries(tab.map((t) => [t.team, 0]));
   it('pass when every team has the minimum; a 5-person WSDC squad is fine', () => {
     const c = check(
       inputs({
@@ -186,7 +189,10 @@ describe('partners', () => {
     expect(c.status).toBe('pass');
   });
   it('warn when 1-10% are short', () => {
-    const c = check(inputs({ teamTab: tab, speakersByTeam: { ...two, T1: 1 } }), 'partners');
+    const c = check(
+      inputs({ teamTab: tab, speakersByTeam: { ...two, T1: 1 }, redactedByTeam }),
+      'partners',
+    );
     expect(c.status).toBe('warn');
     expect(c.detail).toBe('1 of 20 teams has fewer than 2 speakers on record.');
     expect(keys(c)).toEqual(['speaker:']);
@@ -194,7 +200,12 @@ describe('partners', () => {
   it('fail over 10%; Asian Parliamentary needs three', () => {
     expect(
       check(
-        inputs({ format: 'Asian Parliamentary', teamTab: tab, speakersByTeam: two }),
+        inputs({
+          format: 'Asian Parliamentary',
+          teamTab: tab,
+          speakersByTeam: two,
+          redactedByTeam,
+        }),
         'partners',
       ).status,
     ).toBe('fail');

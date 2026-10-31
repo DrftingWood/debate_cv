@@ -76,7 +76,13 @@ export default async function AdminPage({
       page: readPage(search.reportsPage),
       status: readReportFilter(search.reportsStatus),
     }),
-    getAccuracyOverview(),
+    // The accuracy overview is one section among many: if its read fails,
+    // the rest of /admin (the operator tools above all) must still load, and
+    // the section says plainly that it could not be read.
+    getAccuracyOverview().catch((err: unknown) => {
+      console.error('admin: accuracy overview failed to load', err);
+      return null;
+    }),
     // Open and done, so "Show done" needs no second request; read once here
     // for both the review set and the Failed imports rows' "Flagged" badge.
     loadReviewSet({ status: 'all' }),

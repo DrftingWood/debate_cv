@@ -16,6 +16,7 @@ describe('userMessage', () => {
     [401, 'unauthorized', /session has expired/],
     [400, 'no_gmail_token', /Gmail is not connected/],
     [401, 'token_invalid', /Reconnect Gmail/],
+    [403, 'gmail_scope_missing', /tick the box/],
     [400, 'bad_request', /Reload the page/],
     [400, 'not_a_private_url', /not a Tabbycat private URL/],
     [404, 'not_found', /no longer exists/],

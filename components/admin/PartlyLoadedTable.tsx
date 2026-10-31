@@ -80,7 +80,7 @@ function PartlyLoadedRowView({ row }: { row: PartlyLoadedRow }) {
         </Link>
       </Td>
       <Td>
-        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="None" />
+        <TabLink url={row.tabUrl} text="Tab" of={row.name} missing="No tab" />
       </Td>
       <Td>
         {/* The name already links the tournament's page: no second "Open". */}
