@@ -91,6 +91,14 @@ export function CvReportsTable({ rows }: { rows: readonly CvReportRow[] }) {
   );
 }
 
+/** What the status line says when a Status change arrives during a save. */
+export const BUSY_MESSAGE = 'Wait for the last save to finish.';
+
+/** Null when a Status change may be sent; else the words for the status line. */
+export function statusSaveBlocked(pending: boolean, busy: boolean): string | null {
+  return pending || busy ? BUSY_MESSAGE : null;
+}
+
 /**
  * The Status select's PATCH, one at a time across the table (UX-17). The
  * select shows the new value at once; a failure puts it back and says why
@@ -107,7 +115,14 @@ function useReportStatus() {
   const [flight] = useState(singleFlight);
 
   const save = (row: CvReportRow, next: ReportStatus) => {
-    if (pending || flight.busy) return;
+    // A change while the last save or its refresh is still running is not
+    // sent; the select snaps back, and the status line says why rather than
+    // dropping it in silence.
+    const blocked = statusSaveBlocked(pending, flight.busy);
+    if (blocked) {
+      setMessage(blocked);
+      return;
+    }
     setError(null);
     setShown((s) => ({ ...s, [row.id]: next }));
     setMessage(`Saving the report from ${row.reporter}…`);

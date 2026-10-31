@@ -204,31 +204,35 @@ describe('suggested pages', () => {
   });
 });
 
+const patchReport = (id: string, body: unknown) =>
+  PATCH(
+    new Request(`http://x/api/admin/cv-reports/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ id }) },
+  );
+
 describe('PATCH /api/admin/cv-reports/[id]', () => {
-  const patch = (id: string, body: unknown) =>
-    PATCH(
-      new Request(`http://x/api/admin/cv-reports/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
-      { params: Promise.resolve({ id }) },
-    );
+  const patch = patchReport;
 
   beforeEach(() => {
     prismaMock.cvErrorReport.updateMany.mockResolvedValue({ count: 1 });
   });
 
-  it('sets resolvedAt when a report is fixed or will not be fixed', async () => {
+  it('sets resolvedAt when an open report is fixed or will not be fixed', async () => {
     for (const status of ['fixed', 'wont_fix']) {
+      // Not closed yet: the keep-the-stamp update matches nothing.
+      prismaMock.cvErrorReport.updateMany.mockResolvedValueOnce({ count: 0 });
       const res = await patch('r1', { status });
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ ok: true });
     }
     const calls = prismaMock.cvErrorReport.updateMany.mock.calls;
-    expect(calls[0]![0].where).toEqual({ id: 'r1' });
-    expect(calls[0]![0].data.status).toBe('fixed');
-    expect(calls[0]![0].data.resolvedAt).toBeInstanceOf(Date);
+    expect(calls[1]![0].where).toEqual({ id: 'r1' });
+    expect(calls[1]![0].data.status).toBe('fixed');
     expect(calls[1]![0].data.resolvedAt).toBeInstanceOf(Date);
+    expect(calls[3]![0].data.resolvedAt).toBeInstanceOf(Date);
   });
 
   it('clears resolvedAt when a report is opened again or acknowledged', async () => {
@@ -242,6 +246,7 @@ describe('PATCH /api/admin/cv-reports/[id]', () => {
   it('answers 404 for a report that is gone, and 400 for a bad body', async () => {
     prismaMock.cvErrorReport.updateMany.mockResolvedValue({ count: 0 });
     const gone = await patch('r9', { status: 'fixed' });
+    expect((await patch('r9', { status: 'open' })).status).toBe(404);
     expect(gone.status).toBe(404);
     expect(await gone.json()).toEqual({ error: 'not_found' });
     for (const body of [{ status: 'closed' }, {}, null]) {
@@ -262,5 +267,23 @@ describe('PATCH /api/admin/cv-reports/[id]', () => {
     );
     expect((await patch('r1', { status: 'fixed' })).status).toBe(401);
     expect(prismaMock.cvErrorReport.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/admin/cv-reports/[id] between closed statuses', () => {
+  beforeEach(() => {
+    prismaMock.cvErrorReport.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  // Review leftover: fixed → won't fix re-stamped the time it was closed.
+  it("keeps resolvedAt when a closed report moves between fixed and won't fix", async () => {
+    const res = await patchReport('r1', { status: 'wont_fix' });
+    expect(res.status).toBe(200);
+    const calls = prismaMock.cvErrorReport.updateMany.mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![0]).toEqual({
+      where: { id: 'r1', resolvedAt: { not: null } },
+      data: { status: 'wont_fix' },
+    });
   });
 });

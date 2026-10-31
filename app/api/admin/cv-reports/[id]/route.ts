@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
  * acknowledged, fixed and won't fix, from the Status select on the /admin
  * ledger. Fixed and won't fix close the report, so they stamp `resolvedAt`
  * (the user's /settings/reports page reads it); any other status reopens
- * it and clears the stamp. Admin only; errors are codes, worded by the page
+ * it and clears the stamp. Moving between fixed and won't fix keeps the
+ * stamp: the report was closed then, and is still closed. Admin only; errors are codes, worded by the page
  * (lib/admin/actionMessage.ts): 400 bad_request, 401/403, 404 not_found.
  */
 
@@ -40,10 +41,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     // updateMany, so a report that is gone is a count of 0 (a 404), not a
     // thrown P2025 to tell apart from a real failure.
-    const { count } = await prisma.cvErrorReport.updateMany({
-      where: { id },
-      data: { status, resolvedAt: RESOLVED_STATUSES.includes(status) ? new Date() : null },
-    });
+    const count = RESOLVED_STATUSES.includes(status)
+      ? await prisma.$transaction(async (tx) => {
+          // Already closed: only the status changes, so resolvedAt stays.
+          const kept = await tx.cvErrorReport.updateMany({
+            where: { id, resolvedAt: { not: null } },
+            data: { status },
+          });
+          if (kept.count > 0) return kept.count;
+          const closed = await tx.cvErrorReport.updateMany({
+            where: { id },
+            data: { status, resolvedAt: new Date() },
+          });
+          return closed.count;
+        })
+      : (
+          await prisma.cvErrorReport.updateMany({
+            where: { id },
+            data: { status, resolvedAt: null },
+          })
+        ).count;
     if (count === 0) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
