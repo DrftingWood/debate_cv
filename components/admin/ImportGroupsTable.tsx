@@ -44,10 +44,10 @@ const noop = () => {};
 // checkbox beside a card that holds the tournament, its status, users, error,
 // attempts, time and actions, so nothing is wider than the phone. At md and
 // up the fixed columns add to 63 rem and the Error column takes the rest
-// (about 165 px at 1280) and wraps. The table's 72 rem minimum keeps Error at
-// least 9 rem wide (a Windows scrollbar still fits at 1280): on a narrower panel it scrolls sideways rather than
-// crushing Error to nothing and painting it over Attempts. The <colgroup>
-// is hidden below md with its cells, since a fixed-layout table assigns cells
+// (about 165 px at 1280) and wraps. The table's 72 rem minimum keeps Error
+// at least 9 rem wide and still fits 1280 beside a Windows scrollbar; on a
+// narrower panel it scrolls sideways rather than crushing Error to nothing
+// and painting it over Attempts. The <colgroup> is hidden below md with its cells, since a fixed-layout table assigns cells
 // to columns by position.
 const COLUMNS = [
   '3rem',
