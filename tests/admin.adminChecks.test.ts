@@ -165,6 +165,24 @@ describe('marksFor on a database without the AdminCheck table', () => {
     warn.mockRestore();
   });
 
+  it('reads the Prisma 7 pg-adapter shape: the database code sits under meta.driverAdapterError.cause', async () => {
+    // Observed against Postgres 17 through @prisma/adapter-pg (R7): code P2010,
+    // and meta has no `code` at all. The message text is not relied on here.
+    const err = Object.assign(new Error('Raw query failed.'), {
+      code: 'P2010',
+      meta: {
+        driverAdapterError: {
+          name: 'DriverAdapterError',
+          cause: { originalCode: '42P01', kind: 'TableDoesNotExist', table: 'AdminCheck' },
+        },
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    h.db.$queryRaw.mockRejectedValueOnce(err);
+    expect((await marksFor('check', ['5:panels'])).size).toBe(0);
+    warn.mockRestore();
+  });
+
   it('rethrows any other failure', async () => {
     h.db.$queryRaw.mockRejectedValueOnce(new Error('connection reset'));
     await expect(marksFor('check', ['5:panels'])).rejects.toThrow('connection reset');
