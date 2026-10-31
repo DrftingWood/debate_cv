@@ -49,6 +49,7 @@ const h = vi.hoisted(() => ({
   emptyRound: null as string | null,
 }));
 vi.mock('@/lib/admin/deletedTournaments', () => ({ refuseDeletedSite: async () => {} }));
+vi.mock('@/lib/calicotab/tabMoves', () => ({ currentTabUrl: async (u: string) => u }));
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: h.captureMessage, captureException: vi.fn() }));
 vi.mock('@/lib/calicotab/provenance', () => ({
@@ -75,7 +76,6 @@ vi.mock('@/lib/audit/load', () => ({ loadAuditInputs: h.loadAuditInputs }));
 vi.mock('@/lib/calicotab/yearFromEmail', () => ({
   fillTournamentYearFromEmails: async () => null,
 }));
-
 vi.mock('@/lib/calicotab/fetch', () => ({
   FETCH_MIN_INTERVAL_MS: 0,
   LANDING_FETCH_TIMEOUT_MS: 30_000,
