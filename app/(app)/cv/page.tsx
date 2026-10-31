@@ -15,6 +15,7 @@ import { CvDownloadButton } from '@/components/CvDownloadButton';
 import { GmailDisconnectedNotice } from '@/components/GmailDisconnectedNotice';
 import { OpenYearOnHash } from '@/components/OpenYearOnHash';
 import { RecordHeader } from '@/components/RecordHeader';
+import { readCvCategory } from '@/lib/cv/categoryFilter';
 import { RecordPartners } from '@/components/RecordPartners';
 import { JudgingLedger, SpeakingLedger } from '@/components/RecordLedger';
 import { openYears, recordYears } from '@/lib/cv/periodTotal';
@@ -51,7 +52,7 @@ const TABS = ['ledger', 'adjudication', 'partners'] as const;
 export default async function CvPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string | string[] }>;
+  searchParams?: Promise<{ tab?: string | string[]; cat?: string | string[] }>;
 } = {}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
@@ -113,11 +114,9 @@ export default async function CvPage({
     now,
   );
   const partners = partnerOverview(speakerRows, new Set(marksRow?.proAmMarks ?? []));
-  const tab = resolveTab(
-    (await searchParams)?.tab,
-    TABS,
-    speakerRows.length > 0 ? 'ledger' : 'adjudication',
-  );
+  const params = await searchParams;
+  const category = readCvCategory(params?.cat);
+  const tab = resolveTab(params?.tab, TABS, speakerRows.length > 0 ? 'ledger' : 'adjudication');
 
   // The data's date, not today's: "compiled" used to change on every visit
   // and read as a fact about the record (CV-10).
@@ -207,6 +206,8 @@ export default async function CvPage({
             summary={summary}
             countUp
             collapsible
+            category={category}
+            categoryHref={(cat) => (cat ? `/cv?cat=${cat}` : '/cv')}
           />
           <OpenYearOnHash />
           {/* Every panel prints, one after another (globals.css). */}

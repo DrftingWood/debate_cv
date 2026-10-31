@@ -4,6 +4,8 @@ import { CareerChart } from '@/components/ui/CareerChart';
 import { CollapsibleCharts } from '@/components/CollapsibleCharts';
 import type { CvJudgeRow, CvSpeakerRow } from '@/lib/cv/buildCvData';
 import { judgingSeries, speakingSeries } from '@/lib/cv/careerChart';
+import { CvCategoryFilter } from '@/components/CvCategoryFilter';
+import { categoryCounts, rowsForCategory, type CvCategory } from '@/lib/cv/categoryFilter';
 
 /**
  * The Record header's figures (redesign, owner decisions 5, 12 and 13,
@@ -24,6 +26,8 @@ export function RecordHeader({
   summary,
   countUp = false,
   collapsible = false,
+  category = null,
+  categoryHref,
 }: {
   speakerRows: CvSpeakerRow[];
   judgeRows: CvJudgeRow[];
@@ -44,6 +48,14 @@ export function RecordHeader({
    * them open: there the charts are the point.
    */
   collapsible?: boolean;
+  /**
+   * The speaking chart's category (owner, 2026-10-31); null shows every
+   * tournament. Only that chart reads it: the tiles, the judging chart and
+   * everything below keep their figures.
+   */
+  category?: CvCategory | null;
+  /** Gives the chart a category filter, linking each choice to this address. */
+  categoryHref?: (cat: CvCategory | null) => string;
 }) {
   const fig = (value: number, id: string) =>
     countUp ? <CountUp value={value} id={`record-${id}`} /> : value;
@@ -89,11 +101,20 @@ export function RecordHeader({
   const charts = (
     <div className={grid}>
       {speaks ? (
-        <CareerChart
-          kind="speaking"
-          title="Speaking, by year"
-          series={speakingSeries(speakerRows)}
-        />
+        <div className="space-y-stack">
+          {categoryHref ? (
+            <CvCategoryFilter
+              active={category}
+              counts={categoryCounts(speakerRows)}
+              href={categoryHref}
+            />
+          ) : null}
+          <CareerChart
+            kind="speaking"
+            title="Speaking, by year"
+            series={speakingSeries(rowsForCategory(speakerRows, category))}
+          />
+        </div>
       ) : null}
       {judges ? (
         <CareerChart
