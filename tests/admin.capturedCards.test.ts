@@ -98,3 +98,29 @@ describe('the unbalanced motions below md', () => {
     expect(plain(html)).toContain('Prop 70.0% · Opp 30.0%');
   });
 });
+
+describe('the by-type tables below md', () => {
+  const withTypes: BalanceStats = {
+    ...balance,
+    byType: {
+      shown: [
+        {
+          type: 'THW',
+          balance: foldBalance([
+            ...['OG', 'OO', 'CG', 'CO'].map((p) => seat(p, 40, 60)),
+            { position: 'Prop', rows: 40, pointsRows: 0, pointsSum: 0, winRows: 40, winSum: 20 },
+            { position: 'Opp', rows: 40, pointsRows: 0, pointsSum: 0, winRows: 40, winSum: 20 },
+          ]),
+        },
+      ],
+      tooFew: [],
+    },
+  };
+  const out = renderToStaticMarkup(React.createElement(BalanceBody, { balance: withTypes }));
+  it('drop the Rooms column (col, header and cell together) and say the rooms under the type', () => {
+    expect(out).toContain('hidden md:table-column');
+    expect(out).toContain('hidden md:table-cell');
+    expect(plain(out)).toContain('≈ 40 rooms');
+    expect(out).toContain('md:hidden');
+  });
+});

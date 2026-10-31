@@ -69,6 +69,13 @@ function SplitBars({ balance }: { balance: Balance }) {
   );
 }
 
+/** Below md the Rooms column is not there (285 px has no room for it); its figure sits under the type. */
+function RoomsNote({ rooms }: { rooms: number }) {
+  return (
+    <span className="mt-hair block text-caption text-ink-soft md:hidden">≈ {num(rooms)} rooms</span>
+  );
+}
+
 type TypeRow = BalanceStats['byType']['shown'][number];
 
 /** Four-team rooms per motion type: average points in each seat. */
@@ -76,28 +83,46 @@ function BpTypeTable({ rows }: { rows: TypeRow[] }) {
   return (
     <TableScroll>
       <Table label="Average points by position, per motion type, four-team rooms">
-        <Cols widths={[undefined, '4.5rem', '4.5rem', '4.5rem', '4.5rem', '5rem']} />
+        <Cols
+          widths={[
+            undefined,
+            { className: 'w-12 md:w-[4.5rem]' },
+            { className: 'w-12 md:w-[4.5rem]' },
+            { className: 'w-12 md:w-[4.5rem]' },
+            { className: 'w-12 md:w-[4.5rem]' },
+            { className: 'hidden md:table-column md:w-20' },
+          ]}
+        />
         <thead>
           <tr>
-            <Th>Type (BP)</Th>
+            <Th>
+              Type<span className="sr-only"> (BP)</span>
+            </Th>
             {['OG', 'OO', 'CG', 'CO'].map((p) => (
               <Th key={p} numeric>
                 {p}
               </Th>
             ))}
-            <Th numeric>≈ Rooms</Th>
+            <Th numeric className="hidden md:table-cell">
+              ≈ Rooms
+            </Th>
           </tr>
         </thead>
         <tbody>
           {rows.map((t) => (
             <Tr key={t.type}>
-              <Td rowHeader>{t.type || 'Untyped'}</Td>
+              <Td rowHeader>
+                {t.type || 'Untyped'}
+                <RoomsNote rooms={t.balance.bp.rooms} />
+              </Td>
               {t.balance.bp.positions.map((p) => (
-                <Td key={p.pos} numeric>
+                <Td key={p.pos} numeric className="max-md:text-caption">
                   {cell(points(p.avg))}
                 </Td>
               ))}
-              <Td numeric>{num(t.balance.bp.rooms)}</Td>
+              <Td numeric className="hidden md:table-cell">
+                {num(t.balance.bp.rooms)}
+              </Td>
             </Tr>
           ))}
         </tbody>
@@ -111,25 +136,39 @@ function TwoTypeTable({ rows }: { rows: TypeRow[] }) {
   return (
     <TableScroll>
       <Table label="Win share by side, per motion type, two-team rooms">
-        <Cols widths={[undefined, '5.5rem', '5.5rem', '5rem']} />
+        <Cols
+          widths={[
+            undefined,
+            { className: 'w-20 md:w-[5.5rem]' },
+            { className: 'w-20 md:w-[5.5rem]' },
+            { className: 'hidden md:table-column md:w-20' },
+          ]}
+        />
         <thead>
           <tr>
             <Th>Type (two-team)</Th>
             <Th numeric>Prop</Th>
             <Th numeric>Opp</Th>
-            <Th numeric>≈ Rooms</Th>
+            <Th numeric className="hidden md:table-cell">
+              ≈ Rooms
+            </Th>
           </tr>
         </thead>
         <tbody>
           {rows.map((t) => (
             <Tr key={t.type}>
-              <Td rowHeader>{t.type || 'Untyped'}</Td>
+              <Td rowHeader>
+                {t.type || 'Untyped'}
+                <RoomsNote rooms={t.balance.two.rooms} />
+              </Td>
               {t.balance.two.positions.map((p) => (
-                <Td key={p.pos} numeric>
+                <Td key={p.pos} numeric className="max-md:text-caption">
                   {cell(share(p.share))}
                 </Td>
               ))}
-              <Td numeric>{num(t.balance.two.rooms)}</Td>
+              <Td numeric className="hidden md:table-cell">
+                {num(t.balance.two.rooms)}
+              </Td>
             </Tr>
           ))}
         </tbody>
@@ -420,7 +459,13 @@ export function CoverageBody({ rows }: { rows: CoverageRow[] }) {
         <thead>
           <tr>
             <Th>Gap</Th>
-            <Th numeric>Tournaments (audited)</Th>
+            <Th numeric>
+              {/* "Count" below md: the long label needs 195 px and the table 285. */}
+              <span aria-hidden className="md:hidden">
+                Count
+              </span>
+              <span className="sr-only md:not-sr-only">Tournaments (audited)</span>
+            </Th>
             <Th>See and fix</Th>
           </tr>
         </thead>
