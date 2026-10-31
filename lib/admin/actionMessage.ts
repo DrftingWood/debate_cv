@@ -147,3 +147,14 @@ const TAB_MOVE: Record<string, string> = {
 export function tabMoveFailureMessage(failure: FailureLike): string {
   return lookup(TAB_MOVE, failure.error) ?? generic(failure);
 }
+
+const DETAILS: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That could not be saved. Reload the page and try again.',
+  not_found: 'This tournament no longer exists. Reload the page to see the current list.',
+};
+
+/** Why saving a tournament's format, year or region did not work. */
+export function detailsFailureMessage(failure: FailureLike): string {
+  return lookup(DETAILS, failure.error) ?? generic(failure);
+}

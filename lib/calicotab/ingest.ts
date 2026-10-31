@@ -72,6 +72,7 @@ import {
 } from './fingerprint';
 import { refuseDeletedSite } from '@/lib/admin/deletedTournaments';
 import { currentTabUrl } from './tabMoves';
+import { scrapeDetailWrites } from '@/lib/admin/tournamentDetails';
 import { PARSER_VERSION } from './version';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
@@ -1715,6 +1716,17 @@ async function writeIngestTransaction(
       // credential (lib/cv/publicTournamentUrl.ts). The user's own private URL
       // lives on their DiscoveredUrl, which is all a re-ingest needs.
       const storedSourceUrl = publicTournamentUrl(normalized);
+      // A format or year an admin set by hand is never overwritten by a scrape.
+      const kept = scrapeDetailWrites(
+        (
+          await tx.tournament.findUnique({
+            where: { fingerprint: tournamentFingerprint },
+            select: { manualFields: true },
+          })
+        )?.manualFields ?? [],
+        { format, year },
+        Boolean(options.only),
+      );
       const t = await tx.tournament.upsert({
         where: { fingerprint: tournamentFingerprint },
         update: {
@@ -1725,11 +1737,11 @@ async function writeIngestTransaction(
           // undefined, so a null inference keeps the stored value. A partial
           // re-scrape sees a slice of the tournament, too little to infer
           // its format from, so it never writes one.
-          format: options.only ? undefined : (format ?? undefined),
+          format: kept.format,
           // Likewise a year: a pre-scrape re-run reads no email date, and must
           // not erase the year a user's link gave the tournament
           // (fillTournamentYearFromEmails).
-          year: year ?? undefined,
+          year: kept.year,
           totalParticipants: storedParticipants,
           totalTeams: storedTeams,
           prelimRoundCount,
