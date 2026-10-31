@@ -80,6 +80,20 @@ describe('seat order', () => {
       'Opp',
     ]);
   });
+  it('orders the stored long names too (the live tab listed Closing Government first)', () => {
+    const stored = [
+      'Closing Government',
+      'Closing Opposition',
+      'Opening Government',
+      'Opening Opposition',
+    ];
+    expect(orderSeats(stored.map((pos) => ({ pos }))).map((s) => s.pos)).toEqual([
+      'Opening Government',
+      'Opening Opposition',
+      'Closing Government',
+      'Closing Opposition',
+    ]);
+  });
 });
 
 describe('the unbalanced motions below md', () => {

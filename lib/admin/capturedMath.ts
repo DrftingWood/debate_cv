@@ -50,10 +50,14 @@ export type TwoSeat = (typeof TWO_SEATS)[number];
 /** The order seats are always read in: the four BP seats, then the two sides. */
 const SEAT_ORDER: readonly string[] = [...BP_SEATS, ...TWO_SEATS];
 
-/** Seats in the fixed reading order; the database hands them back alphabetically. */
+/**
+ * Seats in the fixed reading order; the database hands them back alphabetically.
+ * Ranked by canonical seat, since the stored spelling is whatever the results
+ * page said ("Closing Government" sorted first on the live tab before this).
+ */
 export function orderSeats<T extends { pos: string }>(seats: readonly T[]): T[] {
   const rank = (pos: string) => {
-    const i = SEAT_ORDER.indexOf(pos);
+    const i = SEAT_ORDER.indexOf(canonicalPosition(pos));
     return i === -1 ? SEAT_ORDER.length : i;
   };
   return [...seats].sort((a, b) => rank(a.pos) - rank(b.pos));
