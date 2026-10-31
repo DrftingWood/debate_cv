@@ -171,7 +171,7 @@ export function NameAndStatus({ row }: { row: InboxRow }) {
           url={row.tabUrl}
           text={row.name}
           of={row.name}
-          className="font-mono text-caption"
+          className="font-mono text-caption [overflow-wrap:anywhere]"
         />
       ) : (
         <span className="font-medium text-ink">{row.name}</span>
