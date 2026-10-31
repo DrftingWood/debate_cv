@@ -107,13 +107,11 @@ describe('rooms_consistent', () => {
     expect(c.detail).toBe('R3 has 12 rooms; the other rounds have 16.');
     expect(keys(c)).toEqual(['round:3']);
   });
-  it('one room off within 10% warns (the four teams are back in R3, so none withdrew)', () => {
+  it('one room off within a tenth passes with a note (the four teams are back in R3)', () => {
     const c = check(inputs({ roundRows: bpRows([64, 60, 64]) }), 'rooms_consistent');
-    expect(c.status).toBe('warn');
-  });
-  it('one room off but over 10% fails', () => {
-    expect(check(inputs({ roundRows: bpRows([32, 32, 28]) }), 'rooms_consistent').status).toBe(
-      'fail',
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe(
+      'R2 has 15 rooms; the other rounds have 16. Within a tenth, so only noted.',
     );
   });
   it('a swing team rounds up, so 61 BP teams is 16 rooms', () => {
@@ -140,6 +138,32 @@ describe('rooms_consistent', () => {
   });
   it('na with no prelim rows', () => {
     expect(check(inputs(), 'rooms_consistent').status).toBe('na');
+  });
+});
+
+describe('rooms_consistent: a tenth', () => {
+  it('three rooms off 32 is within a tenth, so it is noted, not flagged', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 5, roundRows: bpRows([128, 128, 116, 128, 128]) }),
+      'rooms_consistent',
+    );
+    expect(c.status).toBe('pass');
+    expect(c.detail).toBe(
+      'R3 has 29 rooms; the other rounds have 32. Within a tenth, so only noted.',
+    );
+    expect(keys(c)).toEqual(['round:3']);
+  });
+  it('four rooms off 32 is more than a tenth and fails', () => {
+    const c = check(
+      inputs({ prelimRoundCount: 5, roundRows: bpRows([128, 128, 112, 128, 128]) }),
+      'rooms_consistent',
+    );
+    expect(c.status).toBe('fail');
+  });
+  it('one room off but over 10% fails', () => {
+    expect(check(inputs({ roundRows: bpRows([32, 32, 28]) }), 'rooms_consistent').status).toBe(
+      'fail',
+    );
   });
 });
 

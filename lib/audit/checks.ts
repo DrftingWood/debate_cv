@@ -44,7 +44,7 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.9';
+export const CHECKS_VERSION = '2026-10-31.10';
 
 /**
  * No speakers on record. That is na unless the speaker tab is linked but never

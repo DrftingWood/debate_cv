@@ -15,7 +15,7 @@ describe('registry', () => {
   it('break_unstored has weight 3 and a label, and the version moved on', () => {
     expect(CHECK_WEIGHTS.break_unstored).toBe(3);
     expect(CHECK_LABELS.break_unstored).toBe('Break stored');
-    expect(CHECKS_VERSION).toBe('2026-10-31.9');
+    expect(CHECKS_VERSION).toBe('2026-10-31.10');
   });
 });
 

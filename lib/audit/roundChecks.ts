@@ -17,7 +17,6 @@ import {
   teamKey,
   teamsPerRoom,
   withheldPrelims,
-  worst,
 } from './checkHelpers';
 import type { CheckResult, CheckStatus } from './types';
 
@@ -66,11 +65,17 @@ export function checkRoundsComplete(inputs: AuditInputs): CheckResult {
 }
 
 /** Off by one room warns; more than one room, or more than 10% of the typical round, fails. */
-function roomStatus(rooms: number, typical: number): CheckStatus {
+/**
+ * A round more than a tenth off the rooms it should have fails; a smaller
+ * difference is only noted. Late withdrawals and a dropped swing room put a
+ * big tab a room or three out with nothing lost, and the Inbox filled with
+ * them, so a note is shown on the tournament's page and nothing is raised.
+ */
+type RoomStatus = 'pass' | 'note' | 'fail';
+function roomStatus(rooms: number, typical: number): RoomStatus {
   const diff = Math.abs(rooms - typical);
   if (diff === 0) return 'pass';
-  if (diff > 1 || diff > 0.1 * typical) return 'fail';
-  return 'warn';
+  return diff > 0.1 * typical ? 'fail' : 'note';
 }
 
 /**
@@ -111,12 +116,13 @@ function roomsAfterWithdrawals(inputs: AuditInputs): Map<number, number> {
  * Rounds are compared with the median round, not with R1, because a short R1
  * (a late draw release, a missing page) is exactly what this should catch. A
  * round below the median that teams withdrew before is judged instead against
- * the rooms its remaining field fills (roomsAfterWithdrawals); a short round
- * with no withdrawal to explain it is judged as before. Only a round that
- * would merely warn is re-judged: a round missing more than a room, or more
- * than a tenth of the rooms, at the end of the tab looks like withdrawals by
- * construction, but is far likelier a results page cut short, so it fails
- * as before.
+ * the rooms its remaining field fills (roomsAfterWithdrawals), and passes
+ * without a note when they match; a short round with no withdrawal to
+ * explain it is judged as before. Only a round that would merely be noted is
+ * re-judged: a round missing more than a tenth of the rooms at the end of the
+ * tab looks like withdrawals by construction, but is far likelier a results
+ * page cut short, so it fails as before. With only notes the check passes
+ * and names the rounds, so the page still shows them.
  */
 export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
   const rooms = roomsByRound(inputs);
@@ -124,10 +130,10 @@ export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
     return result('rooms_consistent', 'na', 'No prelim round results are stored.');
   const typical = median([...rooms.values()]);
   const afterWithdrawals = roomsAfterWithdrawals(inputs);
-  const statusOf = (round: number, n: number): CheckStatus => {
+  const statusOf = (round: number, n: number): RoomStatus => {
     const status = roomStatus(n, typical);
     const expected = afterWithdrawals.get(round);
-    if (status !== 'warn' || n >= typical || expected == null) return status;
+    if (status !== 'note' || n >= typical || expected == null) return status;
     return roomStatus(n, expected);
   };
   const odd = [...rooms]
@@ -146,10 +152,11 @@ export function checkRoomsConsistent(inputs: AuditInputs): CheckResult {
   // median and the sentence names the median itself.
   const others =
     odd.length < rooms.size ? `the other rounds have ${typical}` : `the median is ${typical}`;
+  const failing = odd.some((o) => o.status === 'fail');
   return result(
     'rooms_consistent',
-    worst(odd.map((o) => o.status)),
-    `${listed}; ${others}.`,
+    failing ? 'fail' : 'pass',
+    failing ? `${listed}; ${others}.` : `${listed}; ${others}. Within a tenth, so only noted.`,
     odd.map((o) => prelimPiece(inputs.pieces, o.round)),
   );
 }
