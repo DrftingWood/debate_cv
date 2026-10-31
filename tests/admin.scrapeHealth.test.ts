@@ -65,6 +65,7 @@ describe('getScrapeHealth', () => {
         user: { email: 'a@b.c' },
       },
     ]);
+    prismaMock.discoveredUrl.findMany.mockResolvedValue([]);
 
     const h = await getScrapeHealth();
     expect(h).toMatchObject({
@@ -93,6 +94,8 @@ describe('getScrapeHealth', () => {
         attempts: 3,
         lastError: 'boom',
         finishedAt: d('2026-10-02'),
+        // Not a tab URL, so no tournament can be stored for it.
+        stored: null,
       },
     ]);
     expect(prismaMock.ingestJob.findMany.mock.calls[0][0]).toMatchObject({

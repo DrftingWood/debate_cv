@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { auditAfterScrape } from '@/lib/audit/run';
 import {
   FETCH_MIN_INTERVAL_MS,
   fetchHtmlWithProvenance,
@@ -81,6 +82,7 @@ import { resolveTeamBreaks } from './breakCategoryResolve';
 import { buildPersonIndex, findPersonId, personNameMatches } from './personMatch';
 import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
+import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
 import { isPlaceholderPersonName } from './names';
 import {
   assignMotionRounds,
@@ -152,6 +154,8 @@ type FetchedTabs = {
   prelimRoundCount: number | null;
   format: ReturnType<typeof inferTournamentFormat>;
   teamBreakRankByTeam: Map<string, number>;
+  /** Redacted speakers per team from the participants list; null when it was not read. */
+  redactedByTeam: Map<string, number> | null;
   fetchLevelFailures: string[];
   /** One per page the scrape tried; an API answer counts for the tab it stands in for. */
   pieceOutcomes: PieceOutcome[];
@@ -533,7 +537,22 @@ export async function runFullScrape(
     participants: fetched.totalParticipants ?? null,
     teams: fetched.totalTeams ?? null,
   });
+  // After the write-phase log, so its writeMs times the write only, and after
+  // afterWrite, so a partial re-scrape's judge panels are counted.
+  await auditIfTimeLeft(loaded.fetchSession, txResult.tournamentId);
   return result;
+}
+
+/**
+ * Re-scores the tournament's data accuracy against what was just written.
+ * Best-effort: auditAfterScrape catches its own errors, so it never fails the
+ * ingest. Skipped when the deadline is close: the job still has to be marked
+ * done before the platform's kill, and the cron's sweep audits the tournament
+ * later as missing or stale.
+ */
+async function auditIfTimeLeft(session: FetchSession, tournamentId: bigint): Promise<void> {
+  if (session.remainingMs() < AUDIT_MIN_REMAINING_MS) return;
+  await auditAfterScrape(tournamentId);
 }
 
 // ─── Concurrent-scrape claim ──────────────────────────────────────────────
@@ -573,6 +592,8 @@ export function writeReserveMs(
   return WRITE_RESERVE_BASE_MS + WRITE_RESERVE_PER_ROW_MS * ((participants ?? 0) + (teams ?? 0));
 }
 const WRITE_RESERVE_BASE_MS = 4_000;
+/** Time an ingest must have left to run its after-scrape audit. */
+const AUDIT_MIN_REMAINING_MS = 5_000;
 const WRITE_RESERVE_PER_ROW_MS = 14;
 
 const SCRAPE_CLAIM_TTL_MS = 2 * 60 * 1000;
@@ -1396,6 +1417,7 @@ export async function fetchAndParseTabs(
     prelimRoundCount,
     format,
     teamBreakRankByTeam,
+    redactedByTeam: participantRows.length > 0 ? redactedSpeakersByTeam(participantRows) : null,
     fetchLevelFailures,
     pieceOutcomes,
     fetchedPieces: pieceOutcomes.filter((o) => o.ok).map(({ kind, key }) => ({ kind, key })),
@@ -1782,6 +1804,8 @@ async function writeIngestTransaction(
           });
         }
       }
+      // Redacted speakers per team, so the audit does not read them as missing.
+      await recordRedactedSpeakers(tx, t.id, fetched.redactedByTeam);
 
       // Motions: per-row upsert keyed on (tournamentId, roundLabel, seq)
       // rather than delete-then-recreate, and only when this parse actually

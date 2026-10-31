@@ -15,6 +15,9 @@ import { StatRow, StatTile } from '@/components/ui/StatTile';
 import { ScrapeHealthSection } from '@/components/admin/ScrapeHealthSection';
 import { FailedImportsSection } from '@/components/admin/FailedImportsSection';
 import { getScrapeHealth } from '@/lib/admin/scrapeHealth';
+import { AccuracySection } from '@/components/admin/AccuracySection';
+import { getAccuracyOverview } from '@/lib/admin/accuracy';
+import { TournamentLookup } from '@/components/admin/TournamentLookup';
 
 export const metadata: Metadata = {
   title: 'Admin',
@@ -39,6 +42,7 @@ export default async function AdminPage() {
     health,
     recentParserRuns,
     cvReports,
+    accuracy,
   ] = await Promise.all([
     prisma.tournament.count(),
     prisma.discoveredUrl.count(),
@@ -61,6 +65,13 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: { user: { select: { name: true, email: true } } },
+    }),
+    // The accuracy overview is one section among many: if its read fails,
+    // the rest of /admin (the operator tools above all) must still load, and
+    // the section says plainly that it could not be read.
+    getAccuracyOverview().catch((err: unknown) => {
+      console.error('admin: accuracy overview failed to load', err);
+      return null;
     }),
   ]);
 
@@ -135,14 +146,39 @@ export default async function AdminPage() {
           />
           <StatTile label="Failed jobs" value={failedJobCount.toLocaleString('en-GB')} />
         </StatRow>
-        {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
-            the 2026-06 IA pass — it's operator tooling, not a debater need. */}
-        <ExportErrorsButton />
+        <div className="flex flex-wrap items-center gap-inline">
+          <Link
+            href="/admin/tournaments"
+            className={buttonClasses({ variant: 'outline', size: 'sm' })}
+          >
+            All tournaments →
+          </Link>
+          {/* Raw ingest-error dump (.txt). Lived on the user dashboard until
+              the 2026-06 IA pass — it's operator tooling, not a debater need. */}
+          <ExportErrorsButton />
+        </div>
+      </section>
+
+      {/* The same search box as /admin/tournaments (owner, 2026-10-31: "a
+          view if that tournament is present in the database or not"). */}
+      <section aria-labelledby="in-database" className="space-y-stack rounded-lg border p-panel">
+        <div>
+          <h2 id="in-database" className="font-display text-h3 font-medium text-ink">
+            Is it in the database?
+          </h2>
+          <p className="mt-hair text-body text-ink-soft">
+            Paste a tab or private URL to see whether its tournament is stored, or type part of a
+            name to list the matches.
+          </p>
+        </div>
+        <TournamentLookup />
       </section>
 
       <ScrapeHealthSection health={health} now={now} />
 
       <FailedImportsSection jobs={health.failedJobs} total={failedJobCount} now={now} />
+
+      <AccuracySection overview={accuracy} now={now} />
 
       {/* Tags and Verify used to sit in the CV sub-bar (admins only). That
           bar went with the 2026-10-29 navigation change, so the operator

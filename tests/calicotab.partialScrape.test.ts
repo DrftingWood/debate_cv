@@ -30,6 +30,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
+// The audit after a write has its own tests (audit.run.test.ts).
+vi.mock('@/lib/audit/run', () => ({ auditAfterScrape: async () => {} }));
 vi.mock('@/lib/calicotab/provenance', () => ({
   recordParserRun: vi.fn(async () => undefined),
   collectRegistrationWarnings: () => [],

@@ -18,6 +18,21 @@ vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' }
 vi.mock('@/lib/admin/scrapeHealth', () => ({
   getScrapeHealth: vi.fn(async () => health.current),
 }));
+// The accuracy section has its own render suite (admin.accuracy.render.test.ts).
+vi.mock('@/lib/admin/accuracy', () => ({
+  getAccuracyOverview: vi.fn(async () => ({
+    weighted: null,
+    unweighted: null,
+    n: 0,
+    onCvs: 0,
+    bands: { good: 0, check: 0, rescrape: 0 },
+    failingByCheck: [],
+    stale: 0,
+    tournaments: 0,
+    lowest: [],
+    openQuestions: [],
+  })),
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
@@ -55,6 +70,8 @@ const full: ScrapeHealth = {
     {
       id: BigInt(5),
       name: 'Oxford IV 2025',
+      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
+      scrapedAt: minutes(-600),
       lastAttemptAt: minutes(-90),
       failed: [
         {
@@ -78,6 +95,8 @@ const full: ScrapeHealth = {
     {
       id: BigInt(8),
       name: 'Cambridge Open',
+      tabUrl: null,
+      scrapedAt: minutes(-600),
       lastAttemptAt: minutes(-10),
       failed: [
         {
@@ -99,6 +118,16 @@ const full: ScrapeHealth = {
       attempts: 3,
       lastError: 'HTTP 503 Service Unavailable at fetchPage (lib/calicotab/fetch.ts:88)',
       finishedAt: minutes(-120),
+      stored: { id: '5', name: 'Oxford IV 2025', scrapedAt: minutes(-600) },
+    },
+    {
+      id: 'job-2',
+      url: 'https://newt.calicotab.com/newt2026/privateurls/zzz999/',
+      userEmail: 'sam@example.com',
+      attempts: 3,
+      lastError: null,
+      finishedAt: minutes(-30),
+      stored: null,
     },
   ],
 };
@@ -141,6 +170,18 @@ describe('admin overview', () => {
     );
   });
 
+  // Final review of PR #265: an unguarded accuracy read took all of /admin down.
+  it('still renders when the accuracy overview cannot be read, and says so', async () => {
+    const mod = await import('@/lib/admin/accuracy');
+    vi.mocked(mod.getAccuracyOverview).mockRejectedValueOnce(new Error('db down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const out = await renderPage(full);
+    expect(out).toContain('Scrape health');
+    expect(out).toContain('Couldn&#x27;t load the accuracy overview');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('turns the current state into tiles, with partly loaded and failed jobs', async () => {
     const out = await renderPage(full);
     expect(out).toContain('Partly loaded');
@@ -174,6 +215,35 @@ describe('admin overview', () => {
     expect(out).toContain('Every tracked tournament loaded in full');
     expect(out).toContain('No failed imports');
     expect(out).not.toContain('Retry selected');
+  });
+});
+
+describe('admin overview: is it in the database? (Task 5b)', () => {
+  beforeEach(() => {
+    health.current = null;
+  });
+
+  // Task 5b: each failed import says whether its tournament is stored.
+  it('says per failed import whether its tournament is in the database', async () => {
+    const out = await renderPage(full);
+    const rows = out.split('<tr').filter((r) => r.includes('Select '));
+    const oxford = rows.find((r) => r.includes('oxiv.calicotab.com'))!;
+    const newt = rows.find((r) => r.includes('newt.calicotab.com'))!;
+    expect(oxford).toContain('Stored');
+    expect(oxford).toMatch(/href="\/admin\/tournaments\/5"[^>]*>Open</);
+    expect(oxford).toContain('10 h ago');
+    expect(newt).toContain('Not stored');
+    expect(newt).not.toContain('/admin/tournaments/');
+    expect(out).toMatch(/<th[^>]*>In database<\/th>/);
+  });
+
+  it('links every tournament and offers the lookup, which posts its text', async () => {
+    const out = await renderPage(full);
+    expect(out).toMatch(/href="\/admin\/tournaments"[^>]*>All tournaments →</);
+    expect(out).toMatch(/<form[^>]*action="\/api\/admin\/lookup\/search"[^>]*method="post"/);
+    expect(out).toMatch(/<label[^>]*>Tournament or private URL<\/label>/);
+    expect(out).toContain('>Look up<');
+    expect(out).toMatch(/role="status"[^>]*aria-live="polite"/);
   });
 });
 

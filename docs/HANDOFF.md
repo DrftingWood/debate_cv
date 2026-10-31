@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-10-31 - Data accuracy score, part 1 (through the tournaments page)
+
+- **Owner request.** A broad logic check of every tournament, combined with user reports, giving the database an accuracy score in the admin view. Failed checks are hints for partial re-scrapes. Spec: `docs/superpowers/specs/2026-10-31-data-accuracy-design.md`; plan: `docs/superpowers/plans/2026-10-31-data-accuracy.md` (tasks 0–5b in this PR).
+- **Checks** (`lib/audit/checks.ts` and helpers, pure): champion, rounds complete, rooms per round, teams in rounds, partners, panels (only where every judge's panels are stored), points add up, outround shape, break size, speaker tab, motions, scrape incomplete, old parser, plus open user reports.
+  - Each check is weighted; pass earns its weight, warn half, fail nothing, and na drops out.
+  - Each open report costs 10 points, capped at 30. Bands: 90+ Good, 70–89 Check, below 70 Re-scrape.
+  - A check whose page the tournament withholds (an unreleased team or speaker tab, hidden round or outround results, all recorded as `withheld` pieces) is "not applicable", never a failure, and a withheld page is never suggested for re-scrape (`CHECKS_VERSION` 2026-10-31.3).
+  - **Open question (owner):** when a tab has no Open bracket (schools Senior/Junior, APDA Varsity/Novice), the bracket with the most outround teams names the champion. The APDA case is on hold, so these tournaments show on the admin page under "Open questions".
+- **Stored** in `TournamentAudit` (migration `20261031100000_tournament_audit`, additive). Audits are written:
+  - after every scrape write, best-effort, skipped with under 5 s left;
+  - by the cron sweep, 50 a tick (missing, older than 24 h, or older checks), with a failing tournament isolated;
+  - by "Audit now" on the admin page.
+- **Admin:**
+  - a "Data accuracy" section: score weighted by users' CVs, bands, a failing-checks chart, the lowest 200 with "Re-scrape suggested", and Open questions;
+  - an "Accuracy checks" panel on each tournament page, with "Select suggested" in the piece grid;
+  - every tournament and page URL is a clickable link to the PUBLIC tab (private keys never reach the page, its data payload, the address bar or logs);
+  - "In database" cells;
+  - `/admin/tournaments`: every stored tournament, 20 per page with Next, searchable by name or URL.
+- **Real-data fixes** (six properly scraped tournaments, `CHECKS_VERSION` 2026-10-31.4): rooms per round excuses a round one room short because teams withdrew; swing teams are left out of team coverage and partners; a speaker with only per-round scores (average-only tabs) counts as scored; partners adds redacted speakers, recorded by ingest from the participants list into `TeamResult.redactedSpeakers` (migration `20261031130000_team_redacted_speakers`, additive, nullable; null until a tournament is re-scraped, and then only teams with no speakers are flagged). Rollback: `ALTER TABLE "TeamResult" DROP COLUMN "redactedSpeakers"`.
+- Also: a break-only scrape run fills missing break ranks and never overwrites one stored from another category.
+- **Next PR (part 2):** failed-imports tab status (✓ / ? / ✗) and the prioritised review set; CV reports and parser warnings as paged, actionable tables; seed data and a browser check.
+- **Rollback.** Revert the merge commit, then `DROP TABLE "TournamentAudit"` and delete its `_prisma_migrations` row.
+
+---
+
 ## 2026-10-30 - Partial scrapes: keep what loaded, retry the rest, show it
 
 - **Problem.** One failed tab or round page used to fail the whole import, or leave a tournament silently thin. Calicotab is slow and flaky (see the entry below), so a single 503 on the speaker tab cost a user the whole tournament.

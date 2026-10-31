@@ -13,6 +13,7 @@ import { isGmailScopeMissing, isRefreshTokenInvalid } from '@/lib/gmail/errors';
 import { scanDueMailboxes } from '@/lib/gmail/backgroundScan';
 import { scanMailbox } from '@/lib/gmail/scanUser';
 import { retryDuePieces } from '@/lib/calicotab/partialScrape';
+import { auditStale } from '@/lib/audit/run';
 import { linkStoredJobsFirst } from '@/lib/calicotab/storedFirst';
 
 export const runtime = 'nodejs';
@@ -181,6 +182,31 @@ async function retryPiecesSafely(startedAt: number) {
   }
 }
 
+/*
+ * Data-accuracy audits of tournaments with none, or one older than a day or
+ * from an older CHECKS_VERSION: up to AUDIT_MAX a tick, last, so imports and
+ * piece retries keep priority, within the same TIME_BUDGET_MS. Every scrape
+ * write already audits its tournament; this sweep covers what that misses
+ * (the backlog, a failed after-scrape audit, a rule change). A failure here is
+ * reported and never fails the tick.
+ */
+const AUDIT_MAX = 50;
+// auditStale only checks its deadline before each chunk, so the last chunk
+// must be able to start this long before the tick's budget ends and finish.
+const AUDIT_CHUNK_HEADROOM_MS = 5_000;
+
+async function auditSafely(startedAt: number) {
+  try {
+    const deadline = startedAt + TIME_BUDGET_MS - AUDIT_CHUNK_HEADROOM_MS;
+    return await auditStale({ limit: AUDIT_MAX, deadline });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { route: 'api/cron/process-queue', stage: 'audit' },
+    });
+    return null;
+  }
+}
+
 /**
  * Stored tournaments first, for every user: linked with no request, so they
  * are not held behind live scrapes for the one calicotab slot. A failure here
@@ -226,6 +252,7 @@ async function runOnce() {
     );
     const { results, stoppedForBudget } = report;
     const piecesRetried = await retryPiecesSafely(startedAt);
+    const audited = await auditSafely(startedAt);
 
     // Retention pass for pipeline history (superseded SourceDocument
     // snapshots + stale ParserRuns). Gated to the 03:00 UTC hour: this
@@ -265,6 +292,7 @@ async function runOnce() {
       scan,
       pruned,
       piecesRetried,
+      audited,
       stoppedForBudget,
       peakInFlight: report.peakInFlight,
       elapsedMs: report.elapsedMs,

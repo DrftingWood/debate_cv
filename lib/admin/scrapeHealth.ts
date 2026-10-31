@@ -1,6 +1,8 @@
 import { IngestJobStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
+import { publicPieceUrl } from '@/lib/audit/types';
+import { storedTournamentIdsByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
 
 /**
  * Read model for the admin scrape-health and tournament-pieces pages. Counts
@@ -34,6 +36,14 @@ export type ScrapeHealth = {
   partlyLoadedTournaments: Array<{
     id: bigint;
     name: string;
+    /**
+     * The public tab address, made public HERE: these rows feed a client
+     * table, and anything a client component is handed is serialised into
+     * the page, so a stored private URL must never get that far.
+     */
+    tabUrl: string | null;
+    /** For the "In database" cell: when the tournament was last scraped. */
+    scrapedAt: Date | null;
     failed: FailedPiece[];
     lastAttemptAt: Date;
   }>;
@@ -44,6 +54,8 @@ export type ScrapeHealth = {
     attempts: number;
     lastError: string | null;
     finishedAt: Date | null;
+    /** The stored tournament this URL belongs to, or null (the "In database" cell). */
+    stored: StoredRef | null;
   }>;
 };
 
@@ -58,9 +70,69 @@ async function loadFailedJobs() {
       attempts: true,
       lastError: true,
       finishedAt: true,
+      userId: true,
       user: { select: { email: true } },
     },
   });
+}
+
+/**
+ * The stored tournament behind each failed job, keyed by job id. A job whose
+ * DiscoveredUrl was linked to a tournament (an earlier import of it worked)
+ * uses that link; the rest are matched by host and slug in one batched
+ * query, which is how a never-imported private URL of a pre-scraped
+ * tournament is found.
+ */
+/** A user's URL as one map key; NUL cannot occur in either part. */
+const jobKey = (j: { userId: string; url: string }) => `${j.userId}\u0000${j.url}`;
+
+async function storedForJobs(
+  jobs: Array<{ id: string; userId: string; url: string }>,
+): Promise<Map<string, StoredRef>> {
+  if (jobs.length === 0) return new Map();
+  const urls = [...new Set(jobs.map((j) => j.url))];
+  const [links, byUrl] = await Promise.all([
+    prisma.discoveredUrl.findMany({
+      where: {
+        tournamentId: { not: null },
+        url: { in: urls },
+        userId: { in: [...new Set(jobs.map((j) => j.userId))] },
+      },
+      select: {
+        userId: true,
+        url: true,
+        tournament: { select: { id: true, name: true, scrapedAt: true } },
+      },
+    }),
+    storedTournamentIdsByUrl(urls),
+  ]);
+  const linked = new Map<string, StoredRef>();
+  for (const l of links) {
+    if (!l.tournament) continue;
+    const { id, name, scrapedAt } = l.tournament;
+    linked.set(jobKey(l), { id: id.toString(), name, scrapedAt });
+  }
+  const out = new Map<string, StoredRef>();
+  for (const j of jobs) {
+    const ref = linked.get(jobKey(j)) ?? byUrl.get(j.url);
+    if (ref) out.set(j.id, ref);
+  }
+  return out;
+}
+
+/** The failed-imports list, each job with its stored tournament (or null). */
+async function loadFailedJobsStored(): Promise<ScrapeHealth['failedJobs']> {
+  const jobs = await loadFailedJobs();
+  const storedByJob = await storedForJobs(jobs);
+  return jobs.map((j) => ({
+    id: j.id,
+    url: j.url,
+    userEmail: j.user.email,
+    attempts: j.attempts,
+    lastError: j.lastError,
+    finishedAt: j.finishedAt,
+    stored: storedByJob.get(j.id) ?? null,
+  }));
 }
 
 async function loadFailedDetail(ids: bigint[]) {
@@ -81,7 +153,7 @@ async function loadFailedDetail(ids: bigint[]) {
     }),
     prisma.tournament.findMany({
       where: { id: { in: ids } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, sourceUrlRaw: true, scrapedAt: true },
     }),
   ]);
   return { pieces, tournaments };
@@ -104,7 +176,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
         where: failed,
         _max: { lastAttemptAt: true },
       }),
-      loadFailedJobs(),
+      loadFailedJobsStored(),
     ]);
 
   const newest = byTournament
@@ -114,7 +186,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
   const ids = newest.map((t) => t.id);
 
   const { pieces, tournaments } = await loadFailedDetail(ids);
-  const nameById = new Map(tournaments.map((t) => [t.id, t.name] as const));
+  const byId = new Map(tournaments.map((t) => [t.id, t] as const));
 
   return {
     tracked,
@@ -126,7 +198,9 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
     failingByKind: byKind.map((g) => ({ kind: g.kind as PieceKind, count: g._count._all })),
     partlyLoadedTournaments: newest.map((t) => ({
       id: t.id,
-      name: nameById.get(t.id) ?? `Tournament ${t.id}`,
+      name: byId.get(t.id)?.name ?? `Tournament ${t.id}`,
+      tabUrl: publicPieceUrl(byId.get(t.id)?.sourceUrlRaw ?? ''),
+      scrapedAt: byId.get(t.id)?.scrapedAt ?? null,
       lastAttemptAt: t.lastAttemptAt,
       failed: pieces
         .filter((p) => p.tournamentId === t.id)
@@ -139,14 +213,7 @@ export async function getScrapeHealth(): Promise<ScrapeHealth> {
           nextRetryAt: p.nextRetryAt,
         })),
     })),
-    failedJobs: failedJobRows.map((j) => ({
-      id: j.id,
-      url: j.url,
-      userEmail: j.user.email,
-      attempts: j.attempts,
-      lastError: j.lastError,
-      finishedAt: j.finishedAt,
-    })),
+    failedJobs: failedJobRows,
   };
 }
 
@@ -161,6 +228,11 @@ export type PieceRow = {
   lastAttemptAt: Date;
   nextRetryAt: Date | null;
   lastError: string | null;
+  /**
+   * The page's address as stored: it may be a private URL, so it only
+   * leaves the server through toPieceCard, which makes it public.
+   */
+  url?: string | null;
 };
 
 /** Numeric round keys ascending, then the outrounds (non-numeric keys) by label. */
@@ -196,6 +268,7 @@ export async function getTournamentPieces(id: bigint): Promise<{
       lastAttemptAt: true,
       nextRetryAt: true,
       lastError: true,
+      url: true,
     },
   });
   const all: PieceRow[] = rows.map((r) => ({

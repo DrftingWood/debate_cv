@@ -3,6 +3,8 @@ import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import { relativeTime } from '@/lib/utils/relativeTime';
 import { shortUrl } from '@/lib/utils/shortUrl';
+import { publicPieceUrl } from '@/lib/audit/types';
+import { inDatabase } from '@/components/admin/InDatabaseCell';
 
 const ERROR_CHARS = 80;
 
@@ -20,6 +22,7 @@ export function toFailedJobRows(jobs: ScrapeHealth['failedJobs'], now: Date): Fa
       id: j.id,
       user: j.userEmail,
       url: shortUrl(j.url),
+      href: publicPieceUrl(j.url),
       attempts: j.attempts,
       error:
         words && words.length > ERROR_CHARS
@@ -28,6 +31,7 @@ export function toFailedJobRows(jobs: ScrapeHealth['failedJobs'], now: Date): Fa
       when: j.finishedAt
         ? { text: relativeTime(j.finishedAt, now), iso: j.finishedAt.toISOString() }
         : null,
+      stored: inDatabase(j.stored, now),
     };
   });
 }

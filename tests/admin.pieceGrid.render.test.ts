@@ -19,6 +19,12 @@ vi.mock('@/lib/admin', () => ({ requireAdmin: vi.fn(async () => ({ id: 'admin' }
 vi.mock('@/lib/admin/scrapeHealth', () => ({
   getTournamentPieces: vi.fn(async () => data.current),
 }));
+vi.mock('@/lib/admin/tournamentAccuracy', () => ({
+  getTournamentAccuracy: vi.fn(async () => null),
+}));
+vi.mock('@/components/ui/Toast', () => ({
+  useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
+}));
 vi.mock('@/lib/utils/api', () => ({ postJson: post }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
@@ -88,6 +94,19 @@ describe('per-tournament piece grid', () => {
   beforeEach(() => {
     data.current = fixture;
     post.mockReset();
+  });
+
+  it('still shows the grid when the accuracy checks cannot be read', async () => {
+    const mod = await import('@/lib/admin/tournamentAccuracy');
+    vi.mocked(mod.getTournamentAccuracy).mockRejectedValueOnce(new Error('db down'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const out = await renderPage();
+    expect(out).toContain('Re-scrape selected');
+    // A failed read is said as such: "Not audited yet" would be untrue.
+    expect(out).toContain('Couldn’t load the accuracy checks');
+    expect(out).not.toContain('Not audited yet');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('groups the pieces under Tabs and Rounds, with their status in words', async () => {

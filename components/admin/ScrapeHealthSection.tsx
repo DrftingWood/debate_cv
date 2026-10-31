@@ -1,6 +1,7 @@
 import { BarList } from '@/components/ui/BarList';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PartlyLoadedTable, type PartlyLoadedRow } from '@/components/admin/PartlyLoadedTable';
+import { inDatabase } from '@/components/admin/InDatabaseCell';
 import type { ScrapeHealth } from '@/lib/admin/scrapeHealth';
 import type { PieceKind } from '@/lib/calicotab/scrapePieces';
 import { relativeTime } from '@/lib/utils/relativeTime';
@@ -40,6 +41,24 @@ function nextRetry(
 }
 
 /**
+ * The client table's rows. Exported so a test can check exactly what is
+ * serialised into the page: ids as strings, times in words, and only the
+ * public tab address.
+ */
+export function toPartlyLoadedRows(health: ScrapeHealth, now: Date): PartlyLoadedRow[] {
+  return health.partlyLoadedTournaments.map((t) => ({
+    id: t.id.toString(),
+    name: t.name,
+    tabUrl: t.tabUrl,
+    // Every row here is stored (its pieces are); the cell still says when.
+    stored: inDatabase({ id: t.id, scrapedAt: t.scrapedAt }, now),
+    missing: t.failed.map((p) => p.label),
+    lastTried: { text: relativeTime(t.lastAttemptAt, now), iso: t.lastAttemptAt.toISOString() },
+    nextRetry: nextRetry(t.failed, now),
+  }));
+}
+
+/**
  * "Scrape health": which pieces of which tournaments are failing to load,
  * and the button that retries them. A server component: the read model is
  * fetched with the rest of the page, and every time is put into words here
@@ -51,13 +70,7 @@ export function ScrapeHealthSection({ health, now }: { health: ScrapeHealth; now
     .sort((a, b) => b.count - a.count || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
     .map((k) => ({ label: KIND_LABEL[k.kind], value: k.count }));
 
-  const rows: PartlyLoadedRow[] = health.partlyLoadedTournaments.map((t) => ({
-    id: t.id.toString(),
-    name: t.name,
-    missing: t.failed.map((p) => p.label),
-    lastTried: { text: relativeTime(t.lastAttemptAt, now), iso: t.lastAttemptAt.toISOString() },
-    nextRetry: nextRetry(t.failed, now),
-  }));
+  const rows = toPartlyLoadedRows(health, now);
 
   return (
     <section aria-labelledby="scrape-health" className="space-y-stack rounded-lg border p-panel">
