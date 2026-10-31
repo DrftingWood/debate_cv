@@ -33,6 +33,7 @@ vi.mock('@/lib/admin/summary', () => ({
     queue: 12,
   })),
   readInbox: h.inbox,
+  readOverview: () => h.accuracy(),
 }));
 vi.mock('@/lib/admin/accuracy', () => ({ getAccuracyOverview: h.accuracy }));
 vi.mock('@/lib/admin/scrapeHealth', () => ({ getScrapeHealth: h.health }));
@@ -160,7 +161,7 @@ describe('/admin shell', () => {
   it('shows the summary line and the seven tabs, in order, under one h1', async () => {
     const out = await render();
     expect(text(out)).toContain(
-      'Needs you 7 · Accuracy 91 (Good 915 · Check 414 · Re-scrape 55) · Imports failing 3 · Queue 12',
+      'Needs you 7 · Accuracy 91 (Good 915 · Check 414 · Re-scrape 55) · Imports to review 3 · Queue 12',
     );
     const labels = [...out.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
     expect(labels).toEqual([

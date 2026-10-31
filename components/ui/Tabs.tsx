@@ -1,8 +1,17 @@
 'use client';
 
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { urlWithTab } from '@/lib/utils/tabParam';
+import { tabKeyAction } from '@/lib/utils/tabKeys';
 import { usePrinting } from '@/components/ui/Deferred';
 
 /*
@@ -43,6 +52,12 @@ export type TabItem = {
    * (components/OpenYearOnHash.tsx).
    */
   anchor?: string;
+  /**
+   * Navigating mode only: the address of this tab. The tab is then a real
+   * link, so it works without JavaScript; a plain click is intercepted and
+   * handed to `onSelect`.
+   */
+  href?: string;
 };
 
 export function Tabs({
@@ -55,6 +70,7 @@ export function Tabs({
   selectLabel = 'Section',
   prominent = false,
   onSelect,
+  pending = false,
   className,
 }: {
   /** Accessible name of the tab list ("Statistics by role"). */
@@ -76,15 +92,25 @@ export function Tabs({
    * caller moves the address itself (a navigation that fetches the new
    * panel), so Tabs does not replaceState. Without it every panel is
    * already rendered and the switch is local.
+   *
+   * In this navigating mode the selected tab follows `initialValue` (the
+   * server's answer), not local state, so the old panel stays until the new
+   * one arrives; activation is manual (arrows move focus, Enter, Space or a
+   * click activate) because each switch is a round trip; and each tab is a
+   * link when its item has an `href`.
    */
   onSelect?: (value: string) => void;
+  /** Navigating mode: a switch is in flight; the list is marked busy. */
+  pending?: boolean;
   className?: string;
 }) {
   const fallback = items[0]?.value ?? '';
   const startValue = items.some((i) => i.value === initialValue)
     ? (initialValue as string)
     : fallback;
-  const [value, setValue] = useState(startValue);
+  const [localValue, setValue] = useState(startValue);
+  const navigating = !!onSelect;
+  const value = navigating ? startValue : localValue;
   // Panels are built the first time they are shown and kept after (owner
   // review 2026-10-29: hidden panels were most of the Record's 12,375 DOM
   // nodes). Printing builds them all, because Print to PDF prints every tab.
@@ -101,18 +127,18 @@ export function Tabs({
     setVisited((v) => (v.has(startValue) ? v : new Set([...v, startValue])));
   }
   const id = useId();
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabRefs = useRef<(HTMLElement | null)[]>([]);
   const tabId = (v: string) => `${id}-tab-${v}`;
   const panelId = (v: string) => `${id}-panel-${v}`;
   const vertical = orientation === 'vertical';
 
   const select = (next: string) => {
-    setValue(next);
-    setVisited((v) => (v.has(next) ? v : new Set([...v, next])));
     if (onSelect) {
       onSelect(next);
       return;
     }
+    setValue(next);
+    setVisited((v) => (v.has(next) ? v : new Set([...v, next])));
     window.history.replaceState(
       window.history.state,
       '',
@@ -121,18 +147,19 @@ export function Tabs({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const current = items.findIndex((i) => i.value === value);
-    const keys: Record<string, number> = {
-      [vertical ? 'ArrowDown' : 'ArrowRight']: current + 1,
-      [vertical ? 'ArrowUp' : 'ArrowLeft']: current - 1,
-      Home: 0,
-      End: items.length - 1,
-    };
-    if (!(e.key in keys)) return;
+    const focusedId = (e.target as HTMLElement).closest('[role="tab"]')?.id;
+    const focused = items.findIndex((i) => tabId(i.value) === focusedId);
+    const action = tabKeyAction({
+      key: e.key,
+      focused: focused >= 0 ? focused : items.findIndex((i) => i.value === value),
+      count: items.length,
+      vertical,
+      manual: navigating,
+    });
+    if (!action) return;
     e.preventDefault();
-    const next = (keys[e.key] + items.length) % items.length;
-    select(items[next].value);
-    tabRefs.current[next]?.focus();
+    if (action.activate !== undefined) select(items[action.activate].value);
+    if (action.focus !== undefined) tabRefs.current[action.focus]?.focus();
   };
 
   return (
@@ -159,6 +186,7 @@ export function Tabs({
         role="tablist"
         aria-label={label}
         aria-orientation={orientation}
+        aria-busy={navigating ? pending : undefined}
         onKeyDown={onKeyDown}
         className={cn(
           vertical
@@ -173,37 +201,56 @@ export function Tabs({
       >
         {items.map((item, i) => {
           const selected = item.value === value;
+          const shared = {
+            ref: (el: HTMLElement | null) => {
+              tabRefs.current[i] = el;
+            },
+            role: 'tab',
+            id: tabId(item.value),
+            'aria-selected': selected,
+            'aria-controls': panelId(item.value),
+            tabIndex: selected ? 0 : -1,
+            // Two cues for the current tab (UX-47): weight and an emerald
+            // rule (under a horizontal tab, beside a vertical one), never
+            // colour alone.
+            className: cn(
+              'shrink-0 transition-colors duration-120 motion-reduce:transition-none',
+              prominent ? 'text-body' : 'text-ui',
+              vertical
+                ? '-ml-px border-l-2 px-tight py-inline text-left coarse:min-h-11'
+                : cn(
+                    'border-b-2 px-inline whitespace-nowrap coarse:min-h-11',
+                    prominent ? 'py-stack' : 'py-tight',
+                  ),
+              selected
+                ? 'border-primary font-semibold text-ink'
+                : 'border-transparent text-ink-soft hover:text-ink',
+              vertical && selected && 'bg-surface-2',
+              // A switch in flight: the old panel stays, the list dims a little.
+              pending && 'opacity-70',
+            ),
+          };
+          if (navigating && item.href) {
+            return (
+              <Link
+                key={item.value}
+                {...shared}
+                href={item.href}
+                prefetch={false}
+                // A plain click navigates through onSelect; a modified click
+                // (new tab, new window) is left to the browser.
+                onClick={(e: MouseEvent<HTMLAnchorElement>) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  select(item.value);
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          }
           return (
-            <button
-              key={item.value}
-              ref={(el) => {
-                tabRefs.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              id={tabId(item.value)}
-              aria-selected={selected}
-              aria-controls={panelId(item.value)}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => select(item.value)}
-              // Two cues for the current tab (UX-47): weight and an emerald
-              // rule (under a horizontal tab, beside a vertical one), never
-              // colour alone.
-              className={cn(
-                'shrink-0 transition-colors duration-120 motion-reduce:transition-none',
-                prominent ? 'text-body' : 'text-ui',
-                vertical
-                  ? '-ml-px border-l-2 px-tight py-inline text-left coarse:min-h-11'
-                  : cn(
-                      'border-b-2 px-inline whitespace-nowrap coarse:min-h-11',
-                      prominent ? 'py-stack' : 'py-tight',
-                    ),
-                selected
-                  ? 'border-primary font-semibold text-ink'
-                  : 'border-transparent text-ink-soft hover:text-ink',
-                vertical && selected && 'bg-surface-2',
-              )}
-            >
+            <button key={item.value} type="button" {...shared} onClick={() => select(item.value)}>
               {item.label}
             </button>
           );

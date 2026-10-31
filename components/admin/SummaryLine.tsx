@@ -6,7 +6,7 @@ const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-G
 
 /**
  * "Needs you N · Accuracy S (Good g · Check c · Re-scrape r) · Imports
- * failing N · Queue N": the only figures above the tabs (spec 2026-10-31, "No
+ * to review N · Queue N": the only figures above the tabs (spec 2026-10-31, "No
  * other tiles"). Each links to the tab it counts. Plain text with separators,
  * not tiles: the numbers are the same ones the tabs show, said once.
  */
@@ -29,7 +29,7 @@ export function SummaryLine({ summary }: { summary: Summary }) {
         </>
       ) : null}
       <Sep />
-      <Figure tab="imports" label="Imports failing" value={count(summary.importsFailing)} />
+      <Figure tab="imports" label="Imports to review" value={count(summary.importsFailing)} />
       <Sep />
       <Figure tab="tools" label="Queue" value={count(summary.queue)} />
     </p>

@@ -28,6 +28,8 @@ vi.mock('@/lib/admin/tournamentLookup', () => ({ lookupTournament: h.lookup }));
 vi.mock('@/lib/admin/summary', () => ({
   getSummary: vi.fn(async () => ({ needsYou: 0, accuracy: null, importsFailing: 0, queue: 0 })),
   readInbox: vi.fn(),
+  // The Tournaments tab's cached overview is the mocked accuracy read.
+  readOverview: async () => (await import('@/lib/admin/accuracy')).getAccuracyOverview(),
 }));
 vi.mock('@/lib/admin/accuracy', () => ({
   getAccuracyOverview: vi.fn(async () => null),

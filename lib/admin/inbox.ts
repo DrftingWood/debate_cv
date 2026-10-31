@@ -200,7 +200,8 @@ const SUMMARY_CHARS = 160;
 const clip = (s: string) =>
   s.length > SUMMARY_CHARS ? `${s.slice(0, SUMMARY_CHARS - 1).trimEnd()}…` : s;
 
-async function reportDrafts(): Promise<Draft[]> {
+/** Open reports no matching mark covers; the set both the list and the count use. */
+async function openReports() {
   // Oldest first, so the cap keeps the reports that have waited longest.
   const reports = await prisma.cvErrorReport.findMany({
     where: { status: { in: [...OPEN_REPORT] } },
@@ -225,6 +226,11 @@ async function reportDrafts(): Promise<Draft[]> {
       return { r, fingerprint, state: markState(marks.get(r.id), fingerprint) };
     })
     .filter((x) => x.state !== 'covered');
+  return open;
+}
+
+async function reportDrafts(): Promise<Draft[]> {
+  const open = await openReports();
   const firstIds = open.map(({ r }) => r.tournamentIds.find((id) => /^\d{1,18}$/.test(id)));
   const ids = firstIds.filter((id): id is string => !!id);
   const [names, tabs] = await Promise.all([namesOf(ids), loadTabStates(ids)]);
@@ -366,15 +372,29 @@ function importPrint(g: JobGroup): { category: string; fingerprint: string } {
   return { category, fingerprint: fingerprintOf('import', { errorCategory: category, attempts }) };
 }
 
-async function importDrafts(): Promise<Draft[]> {
+/** Unstored failed-import groups no matching mark covers; shared by the list and the count. */
+async function openImportGroups() {
   const { jobs, ambiguous } = await readUnstoredJobs();
   const groups = groupUnstored(jobs, { stored: new Map(), ambiguous });
   const marks = await marksFor('import', [...groups.keys()]);
-  const out: Draft[] = [];
+  const out: Array<{
+    subject: string;
+    g: JobGroup;
+    category: string;
+    fingerprint: string;
+    state: MarkState;
+  }> = [];
   for (const [subject, g] of groups) {
     const { category, fingerprint } = importPrint(g);
     const state = markState(marks.get(subject), fingerprint);
-    if (state === 'covered') continue;
+    if (state !== 'covered') out.push({ subject, g, category, fingerprint, state });
+  }
+  return out;
+}
+
+async function importDrafts(): Promise<Draft[]> {
+  const out: Draft[] = [];
+  for (const { subject, g, category, fingerprint, state } of await openImportGroups()) {
     const ages = g.jobs.map((j) => (j.finishedAt ?? j.scheduledAt).getTime());
     out.push({
       key: `import:${subject}`,
@@ -396,7 +416,8 @@ async function importDrafts(): Promise<Draft[]> {
 
 // ---- parser --------------------------------------------------------------
 
-async function parserDrafts(now: Date): Promise<Draft[]> {
+/** Problem warning groups no matching mark covers; shared by the list and the count. */
+async function openParserGroups(now: Date) {
   const problems = (await loadWarningGroups(now))
     .filter((g) => classifyWarning(g.headline) === 'problem')
     .slice(0, CANDIDATE_CAP);
@@ -404,11 +425,18 @@ async function parserDrafts(now: Date): Promise<Draft[]> {
     'parser',
     problems.map((g) => g.key),
   );
-  const out: Draft[] = [];
+  const out: Array<{ g: WarningGroup; fingerprint: string; state: MarkState }> = [];
   for (const g of problems) {
     const fingerprint = fingerprintOf('parser', { count: g.count });
     const state = markState(marks.get(g.key), fingerprint);
-    if (state === 'covered') continue;
+    if (state !== 'covered') out.push({ g, fingerprint, state });
+  }
+  return out;
+}
+
+async function parserDrafts(now: Date): Promise<Draft[]> {
+  const out: Draft[] = [];
+  for (const { g, fingerprint, state } of await openParserGroups(now)) {
     out.push({
       key: `parser:${g.key}`,
       kind: 'parser',
@@ -481,6 +509,27 @@ async function openFlags(): Promise<Map<string, Priority>> {
     if (!had || PRIORITY_RANK[f.priority] < PRIORITY_RANK[had]) out.set(k, f.priority);
   }
   return out;
+}
+
+/**
+ * Only the per-kind counts, over the same sets listInbox counts (same
+ * candidate reads, same marks) but without building a single item: no
+ * tournament names, no tab states, no sorting. The summary line above every
+ * tab needs these on each render.
+ */
+export async function countInbox(now: Date = new Date()): Promise<Record<InboxKind, number>> {
+  const [check, report, imports, parser] = await Promise.all([
+    checkCandidates(),
+    openReports(),
+    openImportGroups(),
+    openParserGroups(now),
+  ]);
+  return {
+    check: check.length,
+    report: report.length,
+    import: imports.length,
+    parser: parser.length,
+  };
 }
 
 export async function listInbox({

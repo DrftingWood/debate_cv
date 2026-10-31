@@ -5,9 +5,10 @@ import { AccuracySection } from '@/components/admin/AccuracySection';
 import { LookupResultView, toLookupView } from '@/components/admin/LookupResult';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { TournamentsTable } from '@/components/admin/TournamentsTable';
-import { getAccuracyOverview } from '@/lib/admin/accuracy';
 import { adminTabHref } from '@/lib/admin/adminTabs';
 import { orNull } from '@/lib/admin/orNull';
+import { readOverview } from '@/lib/admin/summary';
+import { LoadFailed } from '@/components/admin/LoadFailed';
 import {
   asLookupUrl,
   hasPrivateKeyPath,
@@ -41,10 +42,13 @@ export async function TournamentsTab({ search, now }: { search: SearchValues; no
   // Read here, not in async children: the panel renders in one pass.
   const isUrl = q !== '' && looksLikeUrl(q);
   const [answer, list, accuracy] = await Promise.all([
-    isUrl ? lookupTournament(asLookupUrl(q) ?? q) : null,
-    isUrl ? null : listTournaments({ page, q: q || undefined }),
-    getAccuracyOverview().catch(orNull('accuracy overview')),
+    isUrl ? lookupTournament(asLookupUrl(q) ?? q).catch(orNull('tournament lookup')) : null,
+    isUrl ? null : listTournaments({ page, q: q || undefined }).catch(orNull('tournament list')),
+    readOverview().catch(orNull('accuracy overview')),
   ]);
+  // A failed read of the list or the lookup says so in the section, in words;
+  // the accuracy section below has its own notice.
+  const failed = (isUrl ? answer : list) === null;
 
   return (
     <div className="space-y-group">
@@ -55,7 +59,9 @@ export async function TournamentsTab({ search, now }: { search: SearchValues; no
         {/* The box is rendered from the request, so it shows a private URL's
             public form only (searchBoxValue): the key never reaches the HTML. */}
         <TournamentLookup defaultValue={searchBoxValue(q)} />
-        {answer ? (
+        {failed ? (
+          <LoadFailed what={isUrl ? 'the lookup' : 'the tournaments'} />
+        ) : answer ? (
           <section aria-label="Lookup result" className="panel p-stack">
             <LookupResultView result={toLookupView(answer)} now={now} />
           </section>

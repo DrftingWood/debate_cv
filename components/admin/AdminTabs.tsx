@@ -1,7 +1,7 @@
 'use client';
 
 import { useTransition, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs } from '@/components/ui/Tabs';
 import { ADMIN_TABS, switchTabHref, type AdminTab } from '@/lib/admin/adminTabs';
 
@@ -12,6 +12,10 @@ import { ADMIN_TABS, switchTabHref, type AdminTab } from '@/lib/admin/adminTabs'
  * switch. `router.replace` keeps Back leaving /admin instead of stepping
  * through tabs, as the other tab sets do. The tab-scoped parameters (a page
  * number, a search) do not follow to another tab (lib/admin/adminTabs.ts).
+ *
+ * Each tab is a real link to that address (without JavaScript the strip
+ * still reaches every tab), and while a switch is in flight the old panel
+ * stays and the strip is marked busy.
  */
 export function AdminTabs({
   active,
@@ -23,8 +27,9 @@ export function AdminTabs({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const search = useSearchParams().toString();
   return (
-    <div aria-busy={pending}>
+    <div>
       <Tabs
         label="Admin sections"
         param="tab"
@@ -32,12 +37,12 @@ export function AdminTabs({
         items={ADMIN_TABS.map((t) => ({
           value: t.value,
           label: t.label,
+          href: switchTabHref(search, t.value),
           panel: panels[t.value] ?? null,
         }))}
+        pending={pending}
         onSelect={(next) =>
-          startTransition(() =>
-            router.replace(switchTabHref(window.location.search, next as AdminTab)),
-          )
+          startTransition(() => router.replace(switchTabHref(search, next as AdminTab)))
         }
       />
     </div>

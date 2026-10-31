@@ -13,10 +13,12 @@ import { orNull } from '@/lib/admin/orNull';
 export async function ImportsTab({ now }: { now: Date }) {
   const [health, total, reviewSet] = await Promise.all([
     getScrapeHealth().catch(orNull('scrape health')),
-    prisma.ingestJob.count({ where: { status: { in: ['failed', 'abandoned'] } } }),
+    prisma.ingestJob
+      .count({ where: { status: { in: ['failed', 'abandoned'] } } })
+      .catch(orNull('failed import count')),
     loadReviewSet({ status: 'all' }).catch(orNull('review set')),
   ]);
-  if (!health) {
+  if (!health || total === null) {
     return (
       <section aria-labelledby="failed-imports" className="space-y-stack rounded-lg border p-panel">
         <h2 id="failed-imports" className="font-display text-h3 font-medium text-ink">
