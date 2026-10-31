@@ -158,24 +158,23 @@ export function foldBalance(rows: readonly RawBalanceRow[]): Balance {
 /**
  * The split per motion type. A type with fewer rooms than the threshold (BP
  * and two-team rooms together) is not shown as a split, only listed with its
- * room count, so a handful of rooms cannot read as a finding.
+ * room count for each kind, so a handful of rooms cannot read as a finding.
  */
 export function balanceByType(rows: ReadonlyArray<RawBalanceRow & { type: string }>) {
   const types = [...new Set(rows.map((r) => r.type))];
   const shown: Array<{ type: string; balance: Balance }> = [];
-  const tooFew: Array<{ type: string; rooms: number }> = [];
+  const tooFew: Array<{ type: string; bp: number; two: number }> = [];
   for (const type of types) {
     const balance = foldBalance(rows.filter((r) => r.type === type));
-    const rooms = balance.bp.rooms + balance.two.rooms;
     // Each kind of room is judged on its own: 25 four-team rooms and 25
     // two-team rooms are two small samples, not one of 50.
     if (Math.max(balance.bp.rooms, balance.two.rooms) >= BALANCE_MIN_ROOMS_TYPE)
       shown.push({ type, balance });
-    else tooFew.push({ type, rooms });
+    else tooFew.push({ type, bp: balance.bp.rooms, two: balance.two.rooms });
   }
   const roomsOf = (t: { balance: Balance }) => t.balance.bp.rooms + t.balance.two.rooms;
   shown.sort((a, b) => roomsOf(b) - roomsOf(a));
-  tooFew.sort((a, b) => b.rooms - a.rooms);
+  tooFew.sort((a, b) => b.bp + b.two - (a.bp + a.two));
   return { shown, tooFew };
 }
 

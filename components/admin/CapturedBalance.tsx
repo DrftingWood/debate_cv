@@ -42,7 +42,7 @@ function SplitBars({ balance }: { balance: Balance }) {
           note={
             bp.rooms === 0
               ? 'No four-team rooms with a recorded seat.'
-              : `Average team points by position (0 to 3), over ${num(bp.rooms)} rooms. n is team-rounds.`
+              : `Average team points by position (0 to 3), over ≈ ${num(bp.rooms)} rooms, all prelim rounds. n is team-rounds.`
           }
         >
           British Parliamentary
@@ -54,7 +54,7 @@ function SplitBars({ balance }: { balance: Balance }) {
           note={
             two.rooms === 0
               ? 'No two-team rooms with a recorded side.'
-              : `Share of rooms won by side, over ${num(two.rooms)} rooms. n is recorded results.`
+              : `Share of rooms won by side, over ≈ ${num(two.rooms)} rooms, all prelim rounds. n is recorded results.`
           }
         >
           Two-team formats
@@ -81,7 +81,7 @@ function BpTypeTable({ rows }: { rows: TypeRow[] }) {
                 {p}
               </Th>
             ))}
-            <Th numeric>Rooms</Th>
+            <Th numeric>≈ Rooms</Th>
           </tr>
         </thead>
         <tbody>
@@ -113,7 +113,7 @@ function TwoTypeTable({ rows }: { rows: TypeRow[] }) {
             <Th>Type (two-team)</Th>
             <Th numeric>Prop</Th>
             <Th numeric>Opp</Th>
-            <Th numeric>Rooms</Th>
+            <Th numeric>≈ Rooms</Th>
           </tr>
         </thead>
         <tbody>
@@ -132,6 +132,12 @@ function TwoTypeTable({ rows }: { rows: TypeRow[] }) {
       </Table>
     </TableScroll>
   );
+}
+
+/** "THP (25 BP · 25 two-team)": each kind of room apart, the empty kind left out. */
+function tooFewText(t: BalanceStats['byType']['tooFew'][number]): string {
+  const kinds = [t.bp > 0 ? `${num(t.bp)} BP` : '', t.two > 0 ? `${num(t.two)} two-team` : ''];
+  return `${t.type || 'Untyped'} (${kinds.filter(Boolean).join(' · ')})`;
 }
 
 /** The split per motion type, a table for each kind of room (they read in different units). */
@@ -154,8 +160,7 @@ function ByType({ byType }: { byType: BalanceStats['byType'] }) {
       {two.length > 0 ? <TwoTypeTable rows={two} /> : null}
       {byType.tooFew.length > 0 ? (
         <p className="max-w-prose text-caption text-ink-soft">
-          Too few rooms to split:{' '}
-          {byType.tooFew.map((t) => `${t.type || 'Untyped'} (${num(t.rooms)})`).join(', ')}.
+          Too few rooms to split: {byType.tooFew.map(tooFewText).join(', ')}.
         </p>
       ) : null}
     </div>
@@ -229,7 +234,7 @@ function Unbalanced({
   return (
     <div className="space-y-stack">
       <SubHead
-        note={`Up to ${UNBALANCED_LIMIT}, widest first; each has at least ${BALANCE_MIN_ROOMS_MOTION} rooms per seat. Spread: ${unit}.`}
+        note={`Up to ${UNBALANCED_LIMIT}, widest first; each has at least ${BALANCE_MIN_ROOMS_MOTION} rooms per seat. Spread: ${unit}. Rounds with one motion only.`}
       >
         {title}
       </SubHead>
@@ -282,7 +287,7 @@ export function balanceCaption(balance: BalanceStats): string {
   const rooms = balance.overall.bp.rooms + balance.overall.two.rooms;
   const unrecognised = balance.overall.unrecognised;
   return (
-    `Prelim rounds only, ${num(rooms)} rooms with a recorded side. ` +
+    `All prelim rounds, ≈ ${num(rooms)} rooms with a recorded side (rooms ≈ team-rounds ÷ 4 (BP) or ÷ 2). ` +
     `${num(balance.noSides)} team-rounds without recorded sides are excluded` +
     (unrecognised > 0 ? `, and ${num(unrecognised)} with a seat name not recognised` : '') +
     '.'
@@ -304,13 +309,25 @@ export type CoverageRow = {
 };
 
 /** The gap rows, counted from the accuracy overview's failing checks where it has them. */
-export function coverageRows(
-  overview: AccuracyOverview | null,
-  noYear: number | null,
-  unreleased: number | null,
-): CoverageRow[] {
+export function coverageRows({
+  overview,
+  noYear,
+  unreleased,
+  stored,
+}: {
+  overview: AccuracyOverview | null;
+  noYear: number | null;
+  unreleased: number | null;
+  /** All stored, not ignored: the Formats section's own total. */
+  stored: number | null;
+}): CoverageRow[] {
   const failing = (code: CheckCode) =>
     overview ? (overview.failingByCheck.find((c) => c.code === code)?.count ?? 0) : null;
+  // Which tournaments a count is over, said on every row: the checks' counts
+  // are over the audited ones, the year and unreleased counts over all stored,
+  // and the Formats section above counts the stored ones too.
+  const audited = `Of ${overview ? num(overview.n) : 'the'} audited tournaments`;
+  const all = `Of all ${stored == null ? '' : `${num(stored)} `}stored`;
   const list = (code: string) => adminTabHref('tournaments', { check: code });
   const tools = (hash: string) => `${adminTabHref('tools')}#${hash}`;
   return [
@@ -318,7 +335,7 @@ export function coverageRows(
       key: 'format',
       label: 'Missing format',
       count: failing('format_missing'),
-      note: 'Audited tournaments whose format is unknown.',
+      note: `${audited}: format unknown.`,
       list: list('format_missing'),
       fix: { href: tools('fill-formats'), text: 'Fill missing formats' },
     },
@@ -326,14 +343,14 @@ export function coverageRows(
       key: 'year',
       label: 'Missing year',
       count: noYear,
-      note: 'No check lists these; the count is the one on the Tools tab.',
+      note: `${all}: no year. No check lists these; the count is the Tools tab's.`,
       fix: { href: tools('fill-years'), text: 'Fill years from names' },
     },
     {
       key: 'core',
       label: 'Missing adjudication core',
       count: failing('core_missing'),
-      note: 'Audited tournaments with no core named.',
+      note: `${audited}: no core named.`,
       list: list('core_missing'),
       fix: { href: tools('fill-cores'), text: 'Fill missing adjudication cores' },
     },
@@ -341,13 +358,13 @@ export function coverageRows(
       key: 'unreleased',
       label: 'Unreleased tabs',
       count: unreleased,
-      note: 'Tournaments that keep a page back. Not a fault; nothing retries them.',
+      note: `${all}: a page is kept back. Not a fault; nothing retries them.`,
     },
     {
       key: 'parser',
       label: 'Old parser',
       count: failing('parser_stale'),
-      note: 'Audited tournaments stored by an older parser.',
+      note: `${audited}: stored by an older parser.`,
       list: list('parser_stale'),
       fix: { href: tools('refresh-old'), text: 'Refresh old-parser tournaments' },
     },
@@ -362,7 +379,7 @@ export function CoverageBody({ rows }: { rows: CoverageRow[] }) {
         <thead>
           <tr>
             <Th>Gap</Th>
-            <Th numeric>Tournaments</Th>
+            <Th numeric>Tournaments (audited)</Th>
             <Th>See and fix</Th>
           </tr>
         </thead>

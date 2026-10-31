@@ -77,7 +77,10 @@ const balance: BalanceStats = {
         ]),
       },
     ],
-    tooFew: [{ type: 'THR', rooms: 4 }],
+    tooFew: [
+      { type: 'THR', bp: 4, two: 0 },
+      { type: 'THP', bp: 25, two: 25 },
+    ],
   },
   unbalancedBp: [
     {
@@ -139,6 +142,7 @@ beforeEach(() => {
   h.unreleased.mockResolvedValue(6);
   h.noYear.mockResolvedValue(30);
   h.overview.mockResolvedValue({
+    n: 50,
     failingByCheck: [
       { code: 'format_missing', label: 'Format', count: 3 },
       { code: 'parser_stale', label: 'Old parser', count: 8 },
@@ -198,11 +202,14 @@ describe('Captured tab, motion sections', () => {
   it('shows the seat averages with n, the excluded team-rounds, the type split and the unbalanced list', async () => {
     const out = await render();
     const t = text(out);
-    expect(t).toContain('100 rooms with a recorded side');
+    expect(t).toContain('≈ 100 rooms with a recorded side');
     expect(t).toContain('36 team-rounds without recorded sides are excluded');
     expect(t).toContain('OG 1.70 · n 100');
     expect(t).toContain('CO 1.40 · n 100');
-    expect(t).toContain('Too few rooms to split: THR (4).');
+    expect(t).toContain('Too few rooms to split: THR (4 BP), THP (25 BP · 25 two-team).');
+    expect(t).toContain('rooms ≈ team-rounds ÷ 4 (BP) or ÷ 2');
+    expect(t).toContain('All prelim rounds');
+    expect(t.match(/Rounds with one motion only/g)).toHaveLength(2);
     expect(t).toContain('This House would ban zoos');
     expect(t).toContain('Round 3 · CG 1.00 · OG 2.10');
     expect(out).toContain('href="/admin/tournaments/5"');
@@ -211,7 +218,9 @@ describe('Captured tab, motion sections', () => {
     // The two-team list is empty: it says why, in words.
     expect(t).toContain('No motion has 8 rooms per seat with sides recorded.');
   });
+});
 
+describe('Captured tab, coverage and failures', () => {
   it('counts the gaps from the overview and links the filtered list and the bulk fix', async () => {
     const out = await render();
     expect(out).toContain('href="/admin?tab=tournaments&amp;check=format_missing"');
@@ -220,6 +229,11 @@ describe('Captured tab, motion sections', () => {
     expect(out).toContain('href="/admin?tab=tools#refresh-old"');
     const rows = [...out.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => text(m[1]!).trim());
     const row = (label: string) => rows.find((r) => r.startsWith(label))!;
+    expect(out).toContain('Tournaments (audited)');
+    expect(row('Missing format')).toContain('Of 50 audited tournaments');
+    expect(row('Missing year')).toContain('Of all 43 stored');
+    expect(row('Unreleased tabs')).toContain('Of all 43 stored');
+    expect(row('Old parser')).toContain('Of 50 audited tournaments');
     expect(row('Missing format')).toContain(' 3 ');
     expect(row('Missing year')).toContain(' 30 ');
     // No audit failed the core check, so the overview has none: zero, not a dash.

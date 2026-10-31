@@ -174,7 +174,7 @@ describe('readBalance', () => {
     expect(b.overall.bp.rooms).toBe(100);
     expect(b.overall.bp.positions.map((p) => p.avg)).toEqual([1.7, 1.5, 1.4, 1.4]);
     expect(b.byType.shown.map((t) => t.type)).toEqual(['THW']);
-    expect(b.byType.tooFew).toEqual([{ type: 'THR', rooms: 1 }]);
+    expect(b.byType.tooFew).toEqual([{ type: 'THR', bp: 1, two: 0 }]);
     // No two-team seat is stored, so that list is not even asked for.
     const asked = h.queryRaw.mock.calls.map(([q]) => q as Prisma.Sql);
     const bpQuery = asked.find((q) => textOf(q).includes('HAVING COUNT(*) = 4'))!;

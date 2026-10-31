@@ -213,7 +213,7 @@ export type BalanceStats = {
   noSides: number;
   byType: {
     shown: Array<{ type: string; balance: Balance }>;
-    tooFew: Array<{ type: string; rooms: number }>;
+    tooFew: Array<{ type: string; bp: number; two: number }>;
   };
   unbalancedBp: UnbalancedMotion[];
   unbalancedTwo: UnbalancedMotion[];
@@ -313,6 +313,9 @@ async function readUnbalancedBp(seats: string[]): Promise<UnbalancedMotion[]> {
            MIN(n)::int AS rooms, (MAX(val) - MIN(val))::float8 AS spread
     FROM seat
     GROUP BY mid
+    -- A motion needs exactly four seat groups. The seats are grouped by the
+    -- stored spelling, so a round that wrote one seat two ways ("OG" and
+    -- "Opening Government") shows five groups and the motion drops out here.
     HAVING COUNT(*) = 4 AND MIN(n) >= ${BALANCE_MIN_ROOMS_MOTION}
     ORDER BY spread DESC, rooms DESC
     LIMIT ${UNBALANCED_LIMIT}`);

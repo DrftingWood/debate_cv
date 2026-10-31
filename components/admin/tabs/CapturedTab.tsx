@@ -108,7 +108,7 @@ function TournamentSections({ data }: { data: Data }) {
 
 /** Motion types, how fair the seats were, and the coverage gaps that close the tab. */
 function MotionSections({ data }: { data: Data }) {
-  const { motions, balance, overview, noYear, unreleased } = data;
+  const { motions, balance, overview, noYear, unreleased, formatsYears } = data;
   return (
     <>
       <CapturedSection
@@ -132,7 +132,9 @@ function MotionSections({ data }: { data: Data }) {
         title="Coverage gaps"
         caption="Counts of tournaments, each linking to the list and the bulk fix."
       >
-        <CoverageBody rows={coverageRows(overview, noYear, unreleased)} />
+        <CoverageBody
+          rows={coverageRows({ overview, noYear, unreleased, stored: formatsYears?.total ?? null })}
+        />
       </CapturedSection>
     </>
   );

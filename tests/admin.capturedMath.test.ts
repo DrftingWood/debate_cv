@@ -123,7 +123,7 @@ describe('balanceByType', () => {
     expect(out.shown.map((t) => [t.type, t.balance.bp.rooms])).toEqual([
       ['THW', BALANCE_MIN_ROOMS_TYPE],
     ]);
-    expect(out.tooFew).toEqual([{ type: 'THR', rooms: 5 }]);
+    expect(out.tooFew).toEqual([{ type: 'THR', bp: 5, two: 0 }]);
   });
 });
 
@@ -138,7 +138,7 @@ describe('balanceByType, each kind of room on its own', () => {
       ...row(p, { pointsRows: 0, winRows: 25, winSum: 12 }),
     }));
     // 25 + 25 rooms is two small samples, not one of 50.
-    expect(balanceByType([...bp, ...two]).tooFew).toEqual([{ type: 'THP', rooms: 50 }]);
+    expect(balanceByType([...bp, ...two]).tooFew).toEqual([{ type: 'THP', bp: 25, two: 25 }]);
   });
 });
 
