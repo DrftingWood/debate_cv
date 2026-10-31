@@ -21,6 +21,37 @@ describe('classifyCoreRole', () => {
     expect(classifyCoreRole('Adj Core')).toBe('adj_core');
   });
 
+  test.each([
+    ['CAP', 'chief_adjudicator'],
+    ['DCAP', 'chief_adjudicator'],
+    ['CAs', 'chief_adjudicator'],
+    ['Deputy CAs', 'chief_adjudicator'],
+    ['Chief Adjudication Panel', 'chief_adjudicator'],
+    ['Chief Adjudicator Panel', 'chief_adjudicator'],
+    ['Deputy Chief Adjudicators', 'chief_adjudicator'],
+    ['Adj. Core', 'adj_core'],
+    ['Adj-Core', 'adj_core'],
+    ['Adjudication Core', 'adj_core'],
+    ['Adjudicator Core', 'adj_core'],
+    ['Core Adj', 'adj_core'],
+    ['Core Adjudicators', 'adj_core'],
+    ['Tab Directors', 'tab_director'],
+  ])('reads the hand-typed spelling %s as core', (text, kind) => {
+    expect(classifyCoreRole(text)).toBe(kind);
+  });
+
+  test('words that merely contain the letters are not core', () => {
+    for (const t of [
+      'Captain',
+      'Capetown',
+      'Equity',
+      'Casey',
+      'Adjudicator',
+      'Hardcore adjudicator',
+    ])
+      expect(classifyCoreRole(t)).toBeNull();
+  });
+
   test('a person who is both is read as the one who judges', () => {
     expect(classifyCoreRole('Tab Director and Chief Adjudicator')).toBe('chief_adjudicator');
   });
