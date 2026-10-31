@@ -45,6 +45,8 @@ const h = vi.hoisted(() => ({
   judyTag: null as string | null,
   // Per-test replacement for the motions page parse (null: the default two).
   motions: null as unknown[] | null,
+  // Per-test: a round URL whose page has columns but `data: []`.
+  emptyRound: null as string | null,
 }));
 
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
@@ -160,6 +162,7 @@ vi.mock('@/lib/calicotab/parseTabs', async (importActual) => ({
   // The real URL-to-stage mapping: a partial run clears a break piece by the
   // stage its rows are written under.
   breakPageKind: (await importActual<typeof import('@/lib/calicotab/parseTabs')>()).breakPageKind,
+  extractVueData: (await importActual<typeof import('@/lib/calicotab/parseTabs')>()).extractVueData,
   parseTeamTab: () => [
     {
       rank: 1,
@@ -242,7 +245,10 @@ vi.mock('@/lib/calicotab/parseTabs', async (importActual) => ({
             roundScores: [],
           },
         ],
-  parseRoundResults: (_html: string, url: string) => structuredClone(ROUNDS[url]),
+  parseRoundResults: (_html: string, url: string) => ({
+    ...(structuredClone(ROUNDS[url]) as object),
+    ...(h.emptyRound === url ? { teamResults: [], judgeAssignments: [] } : {}),
+  }),
   parseBreakPage: () => [
     {
       rank: 1,
@@ -307,6 +313,7 @@ import {
   runFullScrape,
 } from '@/lib/calicotab/ingest';
 import { computeFingerprint, normalizePersonName } from '@/lib/calicotab/fingerprint';
+import { piecesToClear } from '@/lib/calicotab/scrapePieces';
 import { PARSER_VERSION } from '@/lib/calicotab/version';
 import { resetMotionsChecks } from '@/lib/calicotab/prescrape';
 import { IngestDeadlineError } from '@/lib/calicotab/fetchSession';
@@ -455,6 +462,7 @@ beforeEach(() => {
   h.ownerName = null;
   h.judyTag = null;
   h.motions = null;
+  h.emptyRound = null;
   resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1353,6 +1361,31 @@ describe('fetchAndParseTabs: per-page outcomes and pieces', () => {
     const fetched = await fetchAndParseTabs(await load());
     expect(fetched.pieceOutcomes.map((o) => o.kind)).not.toContain('participants');
     expect(fetched.pieceOutcomes.every((o) => o.ok)).toBe(true);
+  });
+
+  it('a round with columns and no rows is not_published: not fetched-ok, not a failure, nothing cleared', async () => {
+    install();
+    h.emptyRound = R2;
+    const empty =
+      '<html><script>window.vueData = {"tablesData":[{"head":[{"key":"team","title":"Team"}],"data":[]}]}</script></html>';
+    h.fetchRound.mockImplementation(async (url: string) => ({
+      ...okPage(url),
+      html: url === R2 ? empty : `<html>${url}</html>`,
+    }));
+    const fetched = await fetchAndParseTabs(await load());
+    expect(fetched.fetchedPieces).not.toContainEqual({ kind: 'round', key: '2' });
+    expect(fetched.fetchedPieces).toContainEqual({ kind: 'round', key: '1' });
+    expect(fetched.pieceOutcomes.some((o) => !o.ok)).toBe(false);
+    expect(fetched.unpublishedPieces).toEqual([
+      expect.objectContaining({ kind: 'round', key: '2', withheld: true, reason: 'not_published' }),
+    ]);
+    // A partial run clears only what loaded, so the stored round 2 rows stay.
+    const cleared = piecesToClear(fetched.pieceOutcomes, {
+      rounds: fetched.rounds,
+      teamRowCount: 2,
+      breakStages: new Set(),
+    });
+    expect(cleared.some((c) => c.kind === 'round' && c.key === '2')).toBe(false);
   });
 
   it('fetches only the requested pieces', async () => {

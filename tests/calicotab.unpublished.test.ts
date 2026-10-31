@@ -58,6 +58,11 @@ describe('a tab the menu never links', () => {
       label: 'Team tab',
     });
   });
+  it('is not judged when only an institutions link was discovered', () => {
+    const n = nav([link('participants/institutions/', 'Institutions')]);
+    expect(n.meta.discovered).toEqual(['institutions']);
+    expect(unpublishedTabOutcomes(n, [])).toEqual([]);
+  });
   it('is not judged when the menu could not be read', () => {
     expect(unpublishedTabOutcomes(nav([]), [])).toEqual([]);
   });
@@ -109,6 +114,44 @@ describe('recording', () => {
       reason: 'not_published',
     });
     expect(ok.update).toMatchObject({ status: 'ok', reason: null });
+  });
+});
+
+describe('an absent link never downgrades a piece that loaded', () => {
+  const absent = (kind: 'team' | 'break', key: string) =>
+    ({
+      kind,
+      key,
+      label: 'x',
+      url: BASE,
+      ok: false,
+      httpStatus: null,
+      error: 'Not published by the tournament',
+      withheld: true,
+      reason: 'not_published',
+    }) as PieceOutcome;
+  it('leaves an ok or failed piece alone, and writes over a withheld or missing one', async () => {
+    resetPrismaMock();
+    prismaMock.scrapePiece.upsert.mockResolvedValue({});
+    prismaMock.scrapePiece.findUnique
+      .mockResolvedValueOnce({ status: 'ok' })
+      .mockResolvedValueOnce({ status: 'failed' })
+      .mockResolvedValueOnce({ status: 'withheld' })
+      .mockResolvedValueOnce(null);
+    await recordPieceOutcomes(5n, [
+      absent('team', ''),
+      absent('break', 'open'),
+      absent('team', ''),
+      absent('break', 'open'),
+    ]);
+    expect(prismaMock.scrapePiece.upsert).toHaveBeenCalledTimes(2);
+  });
+  it('a real 404 answer still withholds an ok piece', async () => {
+    resetPrismaMock();
+    prismaMock.scrapePiece.upsert.mockResolvedValue({});
+    prismaMock.scrapePiece.findUnique.mockResolvedValue({ status: 'ok' });
+    await recordPieceOutcomes(5n, [{ ...absent('team', ''), httpStatus: 404 }]);
+    expect(prismaMock.scrapePiece.upsert).toHaveBeenCalledTimes(1);
   });
 });
 

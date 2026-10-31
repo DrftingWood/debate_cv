@@ -239,6 +239,13 @@ export async function recordPieceOutcomes(
       continue;
     }
     if (o.withheld) {
+      // Absence is not an answer: a piece inferred from a missing link
+      // (reason not_published, no HTTP status) never overwrites a page that
+      // loaded or failed for real. Only a fetch answer may change those.
+      if (o.reason === 'not_published' && o.httpStatus == null) {
+        const prior = await prisma.scrapePiece.findUnique({ where });
+        if (prior && prior.status !== 'withheld') continue;
+      }
       const withheld = {
         ...base,
         status: 'withheld',

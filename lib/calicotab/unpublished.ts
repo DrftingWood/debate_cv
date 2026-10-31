@@ -100,7 +100,10 @@ export function unpublishedTabOutcomes(
   only?: PieceRef[],
 ): PieceOutcome[] {
   const { discovered, constructed } = fullNav.meta;
-  if (discovered.length === 0) return [];
+  // "Other tabs are linked" means a content tab or a results round, not just
+  // an institutions or break link.
+  const linked = ['teamTab', 'speakerTab', 'motionsTab', 'participants', 'resultsRounds'];
+  if (!discovered.some((d) => linked.includes(d))) return [];
   const out: PieceOutcome[] = [];
   for (const { nav, kind } of NAV_TABS) {
     const url = fullNav[nav];
