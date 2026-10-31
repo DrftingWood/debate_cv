@@ -147,6 +147,7 @@ beforeEach(() => {
       { code: 'format_missing', label: 'Format', count: 3 },
       { code: 'parser_stale', label: 'Old parser', count: 8 },
     ],
+    warningByCheck: [{ code: 'core_missing', label: 'Adjudication core', count: 5 }],
   });
 });
 
@@ -225,7 +226,7 @@ describe('Captured tab, coverage and failures', () => {
     const out = await render();
     expect(out).toContain('href="/admin?tab=tournaments&amp;check=format_missing"');
     expect(out).toContain('href="/admin?tab=tournaments&amp;check=parser_stale"');
-    expect(out).toContain('href="/admin?tab=tournaments&amp;check=core_missing"');
+    expect(out).toContain('href="/admin?tab=tournaments&amp;warn=core_missing"');
     expect(out).toContain('href="/admin?tab=tools#refresh-old"');
     const rows = [...out.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => text(m[1]!).trim());
     const row = (label: string) => rows.find((r) => r.startsWith(label))!;
@@ -236,8 +237,8 @@ describe('Captured tab, coverage and failures', () => {
     expect(row('Old parser')).toContain('Of 50 audited tournaments');
     expect(row('Missing format')).toContain(' 3 ');
     expect(row('Missing year')).toContain(' 30 ');
-    // No audit failed the core check, so the overview has none: zero, not a dash.
-    expect(row('Missing adjudication core')).toContain(' 0 ');
+    // The core check only warns, so the gap is its warning count.
+    expect(row('Missing adjudication core')).toContain(' 5 ');
     expect(row('Unreleased tabs')).toContain(' 6 ');
     expect(row('Old parser')).toContain(' 8 ');
   });

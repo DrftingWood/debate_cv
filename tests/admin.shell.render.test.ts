@@ -150,6 +150,7 @@ beforeEach(() => {
     bands: { good: 1, check: 0, rescrape: 0 },
     checked: 0,
     failingByCheck: [],
+    warningByCheck: [],
     stale: 0,
     tournaments: 1,
     openQuestions: [],

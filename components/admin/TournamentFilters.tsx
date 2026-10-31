@@ -66,6 +66,19 @@ export function TournamentFilterChips({
           ))}
         </ChipGroup>
       ) : null}
+      {overview.warningByCheck.length > 0 ? (
+        <ChipGroup label="Warning">
+          {overview.warningByCheck.map((c) => (
+            <Chip
+              key={c.code}
+              label={c.label}
+              n={c.count}
+              to={href({ warn: c.code })}
+              on={filters.warn === c.code}
+            />
+          ))}
+        </ChipGroup>
+      ) : null}
       <MarksAndRules overview={overview} filters={filters} href={href} />
       {question ? <QuestionRule rule={question.rule} status={question.status} /> : null}
     </div>

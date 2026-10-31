@@ -404,6 +404,9 @@ export function coverageRows({
 }): CoverageRow[] {
   const failing = (code: CheckCode) =>
     overview ? (overview.failingByCheck.find((c) => c.code === code)?.count ?? 0) : null;
+  // The core check only ever warns, so its gap is the warning count.
+  const warning = (code: CheckCode) =>
+    overview ? (overview.warningByCheck.find((c) => c.code === code)?.count ?? 0) : null;
   // Which tournaments a count is over, said on every row: the checks' counts
   // are over the audited ones, the year and unreleased counts over all stored,
   // and the Formats section above counts the stored ones too.
@@ -430,9 +433,9 @@ export function coverageRows({
     {
       key: 'core',
       label: 'Missing adjudication core',
-      count: failing('core_missing'),
+      count: warning('core_missing'),
       note: `${audited}: no core named.`,
-      list: list('core_missing'),
+      list: adminTabHref('tournaments', { warn: 'core_missing' }),
       fix: { href: tools('fill-cores'), text: 'Fill missing adjudication cores' },
     },
     {

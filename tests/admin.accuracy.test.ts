@@ -96,6 +96,10 @@ describe('getAccuracyOverview', () => {
       { code: 'rounds_complete', label: 'Rounds complete', count: 2 },
       { code: 'user_reports', label: 'User reports', count: 1 },
     ]);
+    // An open user report fails, so it is not counted again as a warning.
+    expect(o.warningByCheck).toEqual([
+      { code: 'rooms_consistent', label: 'Rooms per round', count: 1 },
+    ]);
   });
 
   it("caps the suggestion at the rescrape route's 40 pieces", () => {

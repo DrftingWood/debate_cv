@@ -224,6 +224,20 @@ describe('parseFilters and matchesFilters', () => {
     expect(parseFilters({ check: ['champion', 'panels'] })).toEqual({ check: 'champion' });
   });
 
+  it('reads a warning filter and matches only warnings that are not failing', () => {
+    expect(parseFilters({ warn: 'core_missing' })).toEqual({ warn: 'core_missing' });
+    expect(parseFilters({ warn: 'bogus' })).toEqual({});
+    const at = (status: 'warn' | 'fail') => ({
+      score: 90,
+      bandOf: 'good' as const,
+      checks: parseChecks([check('core_missing', status)]),
+    });
+    expect(matchesFilters(at('warn'), { warn: 'core_missing' })).toBe(true);
+    expect(matchesFilters(at('fail'), { warn: 'core_missing' })).toBe(false);
+    const report = { ...at('warn'), checks: parseChecks([check('user_reports', 'warn')]) };
+    expect(matchesFilters(report, { warn: 'user_reports' })).toBe(false);
+  });
+
   it('matches by the overview rule: open user reports count as failing', () => {
     const checks = parseChecks([check('user_reports', 'warn')]);
     const audit = { score: 60, bandOf: 'rescrape' as const, checks };

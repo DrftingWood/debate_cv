@@ -1,9 +1,10 @@
-import { isFailing, type Band, type ParsedCheck } from '@/lib/admin/accuracy';
+import { isFailing, isWarning, type Band, type ParsedCheck } from '@/lib/admin/accuracy';
 import { ASSUMPTIONS, CHECK_LABELS, type AssumptionCode, type CheckCode } from '@/lib/audit/types';
 
 /**
  * The Tournaments tab's filters, as the address writes them:
  *   - `?check=<code>`: tournaments failing that check;
+ *   - `?warn=<code>`: tournaments with that check a warning (isWarning);
  *   - `?band=good|check|rescrape`: tournaments in that score band;
  *   - `?question=<code>`: tournaments an unsettled rule decided;
  *   - `?checked=1`: tournaments with at least one mark applied;
@@ -16,6 +17,7 @@ import { ASSUMPTIONS, CHECK_LABELS, type AssumptionCode, type CheckCode } from '
  */
 export type TournamentFilters = {
   check?: CheckCode;
+  warn?: CheckCode;
   band?: Band;
   question?: AssumptionCode;
   checked?: true;
@@ -38,11 +40,13 @@ export function parseFilters(
   params: Record<string, string | string[] | undefined>,
 ): TournamentFilters {
   const check = first(params.check);
+  const warn = first(params.warn);
   const band = first(params.band);
   const question = first(params.question);
   const knownBand = BANDS.find((b) => b === band);
   return {
     ...(hasKey(CHECK_LABELS, check) ? { check } : {}),
+    ...(hasKey(CHECK_LABELS, warn) ? { warn } : {}),
     ...(knownBand ? { band: knownBand } : {}),
     ...(hasKey(ASSUMPTIONS, question) ? { question } : {}),
     ...(first(params.checked) === '1' ? { checked: true as const } : {}),
@@ -51,7 +55,8 @@ export function parseFilters(
 }
 
 /** True when a filter that needs the checks' JSON (not just the score) is named. */
-export const needsChecks = (f: TournamentFilters) => Boolean(f.check || f.question || f.checked);
+export const needsChecks = (f: TournamentFilters) =>
+  Boolean(f.check || f.warn || f.question || f.checked);
 
 /** True when any filter is named at all. */
 export const hasFilters = (f: TournamentFilters) => Boolean(f.band || needsChecks(f));
@@ -67,6 +72,7 @@ export function matchesFilters(
 ): boolean {
   if (f.band && audit.bandOf !== f.band) return false;
   if (f.check && !audit.checks.some((c) => c.code === f.check && isFailing(c))) return false;
+  if (f.warn && !audit.checks.some((c) => c.code === f.warn && isWarning(c))) return false;
   const { question } = f;
   if (question && !audit.checks.some((c) => c.assumptions.includes(question))) return false;
   if (f.checked && !audit.checks.some((c) => c.checkedBy)) return false;
@@ -77,6 +83,7 @@ export function matchesFilters(
 export function filterParams(f: TournamentFilters): Record<string, string> {
   return {
     ...(f.check ? { check: f.check } : {}),
+    ...(f.warn ? { warn: f.warn } : {}),
     ...(f.band ? { band: f.band } : {}),
     ...(f.question ? { question: f.question } : {}),
     ...(f.checked ? { checked: '1' } : {}),
