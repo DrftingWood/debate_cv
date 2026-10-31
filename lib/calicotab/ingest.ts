@@ -2159,6 +2159,41 @@ async function writeIngestTransaction(
         });
       }
 
+      // Judges the participants list does not name but the round results seat
+      // on a panel are on the roster too (owner, 2026-10-31: judge panels are
+      // inferred from the results tab). Some tabs publish no usable list at
+      // all, or leave staff off it (ANU Spring: its core sit on panels and in
+      // the Tournament Staff block, so the staff link below would otherwise
+      // find nobody to link to). A listed judge keeps their list tag; one
+      // found only on a panel has none. Judging HISTORY is still read only
+      // from the owner's private-URL page, as above.
+      const listed = new Set(mergedParticipantRows.map((p) => normalizePersonName(p.name)));
+      const onPanels = new Set<string>();
+      for (const round of rounds) {
+        for (const j of round.judgeAssignments) {
+          if (!listed.has(normalizePersonName(j.personName))) onPanels.add(j.personName);
+        }
+      }
+      for (const name of onPanels) {
+        const personId = lookupPersonId(name);
+        if (!personId) continue;
+        const participant = await tx.tournamentParticipant.upsert({
+          where: { tournamentId_personId: { tournamentId: t.id, personId } },
+          update: {},
+          create: { tournamentId: t.id, personId, teamName: null, judgeTypeTag: null },
+        });
+        await tx.participantRole.upsert({
+          where: {
+            tournamentParticipantId_role: {
+              tournamentParticipantId: participant.id,
+              role: 'judge',
+            },
+          },
+          update: {},
+          create: { tournamentParticipantId: participant.id, role: 'judge' },
+        });
+      }
+
       // The participants are stored: a staff-block name linked to someone before
       // this write may no longer be unique (a namesake joined), or may now have
       // its exact match. Re-check the links here, in the same transaction, so the
