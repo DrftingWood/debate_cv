@@ -133,3 +133,17 @@ const ALLOW: Record<string, string> = {
 export function allowFailureMessage(failure: FailureLike): string {
   return lookup(ALLOW, failure.error) ?? generic(failure);
 }
+
+const TAB_MOVE: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That could not be saved. Reload the page and try again.',
+  invalid_from: 'The old address is not a URL. Paste a link to the old tab.',
+  invalid_to: 'The new address must be an https link to a tab site, such as a calicotab.com tab.',
+  invalid_same: 'The old and new addresses are the same tab.',
+  not_found: 'This move is no longer on the list. Reload the page to see the current list.',
+};
+
+/** Why adding or removing a moved tab did not work. */
+export function tabMoveFailureMessage(failure: FailureLike): string {
+  return lookup(TAB_MOVE, failure.error) ?? generic(failure);
+}

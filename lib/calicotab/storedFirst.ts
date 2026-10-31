@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { markJobDone } from '@/lib/queue';
 import { isPrivateUrl, normalizePrivateUrl, privateUrlVariants } from '@/lib/gmail/extract';
+import { currentTabUrl } from './tabMoves';
 import { proximityToYou } from '@/lib/identity/nameProximity';
 import { storedTournamentFresh } from './prescrape';
 import { fillTournamentYearFromEmails } from './yearFromEmail';
@@ -74,7 +75,8 @@ type StoredTournament = NonNullable<Awaited<ReturnType<typeof findTournamentByHo
  * one goes the live way so its later rounds are not missed).
  */
 export async function findServableStoredTournament(url: string): Promise<StoredTournament | null> {
-  const normalized = normalizePrivateUrl(url);
+  // A moved tab is matched at its new address (tabMoves.ts).
+  const normalized = await currentTabUrl(normalizePrivateUrl(url));
   if (!isPrivateUrl(normalized)) return null;
   const parsed = new URL(normalized);
   const slug = parsed.pathname.split('/').filter(Boolean)[0] ?? null;

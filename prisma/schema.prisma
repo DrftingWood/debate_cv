@@ -434,6 +434,24 @@ model DeletedTournament {
   @@unique([host, slug])
 }
 
+/// A tab that moved to another address (owner, 2026-10-31). Every URL to
+/// fromHost/fromSlug is read from toHost/toSlug, keeping the rest of its
+/// path (lib/calicotab/tabMoves.ts). Slugs are '' for a root-hosted tab.
+/// Read and written through raw SQL, like AdminCheck.
+model TabMove {
+  id       BigInt   @id @default(autoincrement())
+  /// Lowercased.
+  fromHost String
+  fromSlug String   @default("")
+  toHost   String
+  toSlug   String   @default("")
+  /// The admin's email.
+  addedBy  String
+  addedAt  DateTime @default(now())
+
+  @@unique([fromHost, fromSlug])
+}
+
 model Person {
   id                BigInt   @id @default(autoincrement())
   displayName       String

@@ -9,8 +9,10 @@ import { FillYearsButton } from '@/components/admin/FillYearsButton';
 import { RefreshOldParserButton } from '@/components/admin/RefreshOldParserButton';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
 import { DeletedTournaments } from '@/components/admin/DeletedTournaments';
+import { TabMoves } from '@/components/admin/TabMoves';
 import { countMissingCores } from '@/lib/admin/coreFill';
 import { listDeleted } from '@/lib/admin/deletedTournaments';
+import { listTabMoves } from '@/lib/calicotab/tabMoves';
 import { countOldParser } from '@/lib/admin/oldParserFill';
 import { countMissingYears } from '@/lib/admin/yearFill';
 import { orNull } from '@/lib/admin/orNull';
@@ -22,19 +24,21 @@ import { orNull } from '@/lib/admin/orNull';
  * sit beside Re-ingest all, which they explain (it skips the locked ones).
  */
 export async function ToolsTab() {
-  const [discovered, locked, noFormat, noCore, noYear, oldParser, deleted] = await Promise.all([
-    prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
-    prisma.discoveredUrl
-      .count({ where: { reingestLocked: true } })
-      .catch(orNull('locked URL count')),
-    prisma.tournament
-      .count({ where: { format: null, ignored: false } })
-      .catch(orNull('missing format count')),
-    countMissingCores().catch(orNull('missing adjudication core count')),
-    countMissingYears().catch(orNull('missing year count')),
-    countOldParser().catch(orNull('old-parser count')),
-    listDeleted().catch(orNull('deleted tournaments')),
-  ]);
+  const [discovered, locked, noFormat, noCore, noYear, oldParser, deleted, moves] =
+    await Promise.all([
+      prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
+      prisma.discoveredUrl
+        .count({ where: { reingestLocked: true } })
+        .catch(orNull('locked URL count')),
+      prisma.tournament
+        .count({ where: { format: null, ignored: false } })
+        .catch(orNull('missing format count')),
+      countMissingCores().catch(orNull('missing adjudication core count')),
+      countMissingYears().catch(orNull('missing year count')),
+      countOldParser().catch(orNull('old-parser count')),
+      listDeleted().catch(orNull('deleted tournaments')),
+      listTabMoves().catch(orNull('moved tabs')),
+    ]);
   const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-GB'));
   const reingestable =
     discovered !== null && locked !== null ? Math.max(0, discovered - locked) : 0;
@@ -54,6 +58,7 @@ export async function ToolsTab() {
         locked={count(locked)}
         reingestable={reingestable}
       />
+      <TabMoves rows={moves} now={new Date()} />
       <DeletedTournaments rows={deleted} now={new Date()} />
       <DangerZone />
     </div>

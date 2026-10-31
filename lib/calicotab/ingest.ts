@@ -71,6 +71,7 @@ import {
   normalizePersonName,
 } from './fingerprint';
 import { refuseDeletedSite } from '@/lib/admin/deletedTournaments';
+import { currentTabUrl } from './tabMoves';
 import { PARSER_VERSION } from './version';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
@@ -267,7 +268,7 @@ export async function loadPublicLanding(
   url: string,
   deadline?: number,
 ): Promise<{ base: string; fingerprint: string; loaded: LoadedState }> {
-  const { base, host, slug } = publicTournamentBase(url);
+  const { base, host, slug } = publicTournamentBase(await currentTabUrl(url));
   // Before any fetch: a tab an admin deleted is never stored again. This
   // covers the pre-scrape and the partial re-scrape, which both start here.
   await refuseDeletedSite(base);
@@ -763,7 +764,8 @@ export async function loadLandingAndFingerprint(
   userId: string,
   deadline?: number,
 ): Promise<LoadedState> {
-  const normalized = normalizePrivateUrl(url);
+  // A tab recorded as moved is fetched at its new address (tabMoves.ts).
+  const normalized = await currentTabUrl(normalizePrivateUrl(url));
   // Re-validate here, not just at the API boundary. Jobs reach this
   // function from three places — /api/ingest/url, the queue drain, and the
   // admin re-ingest — and a URL persisted before the gate was tightened
@@ -771,7 +773,8 @@ export async function loadLandingAndFingerprint(
   if (!isPrivateUrl(normalized)) {
     throw new Error(`refusing to fetch non-private URL: ${normalized.slice(0, 120)}`);
   }
-  const urlVariants = privateUrlVariants(url);
+  // The user's URL as stored, in both spellings, and its new address if moved.
+  const urlVariants = [...new Set([...privateUrlVariants(url), normalized])];
   const parsedUrl = new URL(normalized);
   const tournamentSlug = parsedUrl.pathname.split('/').filter(Boolean)[0] ?? null;
   const discovered = await prisma.discoveredUrl.findFirst({
