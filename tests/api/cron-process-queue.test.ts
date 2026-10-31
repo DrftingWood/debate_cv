@@ -76,14 +76,16 @@ describe('POST /api/cron/process-queue', () => {
     expect(afterCallbacks).toHaveLength(0);
   });
 
-  it('retries failed pieces after the drain, within the tick budget', async () => {
+  it('retries failed pieces after the drain, on their own smaller allowance', async () => {
     const before = Date.now();
     retryDuePieces.mockResolvedValue({ tournaments: 2, loaded: 3, failed: 1 });
     const body = await (await POST(req())).json();
     expect(body.piecesRetried).toEqual({ tournaments: 2, loaded: 3, failed: 1 });
     const { deadline } = retryDuePieces.mock.calls[0]![0] as { deadline: number };
-    expect(deadline).toBeGreaterThanOrEqual(before + 55_000);
-    expect(deadline).toBeLessThanOrEqual(Date.now() + 55_000);
+    // 35s, not the whole 55s tick: slow retries kept every tick near the
+    // full function duration (the Fluid compute bill).
+    expect(deadline).toBeGreaterThanOrEqual(before + 35_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
   });
 
   it('?respond=early answers 202 first and drains after the response', async () => {

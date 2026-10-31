@@ -171,9 +171,15 @@ async function scanSafely(): Promise<Awaited<ReturnType<typeof runBackgroundScan
  * start; retryDuePieces starts no tournament without 20s left. A failure here
  * is reported and never fails the tick.
  */
+const RETRY_BUDGET_MS = 35_000;
+
 async function retryPiecesSafely(startedAt: number) {
   try {
-    return await retryDuePieces({ deadline: startedAt + TIME_BUDGET_MS });
+    // Own, smaller allowance: the pages being retried are the slow ones
+    // (10-40s each), and an uncapped retry pass kept every tick near the
+    // full 60s function duration, which is what Fluid compute bills.
+    const deadline = Math.min(startedAt + TIME_BUDGET_MS, Date.now() + RETRY_BUDGET_MS);
+    return await retryDuePieces({ deadline });
   } catch (err) {
     Sentry.captureException(err, {
       tags: { route: 'api/cron/process-queue', stage: 'piece-retry' },

@@ -100,7 +100,10 @@ export function CvNeedsAttentionBanners({
       }
     };
 
-    const handle = window.setInterval(tick, 8000);
+    // 15s, not 8s: every tick is a function invocation, and a 10-15 user
+    // onboarding wave multiplied 8s polls into a large share of the Fluid
+    // compute bill. A tournament takes minutes, so the banner loses nothing.
+    const handle = window.setInterval(tick, 15_000);
     return () => {
       cancelled = true;
       window.clearInterval(handle);
