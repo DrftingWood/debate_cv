@@ -245,3 +245,67 @@
   Screenshots go to the session scratchpad.
 - [ ] **Step 3:** HANDOFF entry (what changed, the migration, rollback); CLAUDE.md admin line.
 - [ ] **Step 4:** Full gate. Commit: `docs: admin redesign handoff, seed`
+
+
+---
+
+## Added 2026-10-31 (owner): fix data gaps from the admin page, plus a "Captured" tab
+
+Owner:
+> use the partial scrape and admin page take over tasks to fix format and cap missing issues as well … make a separate tab for tournaments captured — motion balance stats, motion type stats, tournament size and geography stats; think of other potential issues that can use the partial scrape … start reviewing and fixing
+
+Model for every dispatch from here: Sonnet.
+
+**Evidence from a live run (2026-10-31), "Re-scrape suggested" on the 50 lowest-scoring production tournaments:**
+- 89 pages loaded, 0 failed, 34 suggested pages not on the tab.
+- Only 2 scores rose (ANDL 2025 52→79, Lox Uhuru Worlds 2022 56→66). 48 were unchanged.
+- Checks still failing afterwards: Teams in rounds 45, Champion 18, Rooms per round 12, Rounds complete 10, Motions 10, Partners 9.
+- Example: TGS Sept 2021's R1–R4 pages load, but Tabbycat 2.12 renders `data: []`, "No Data Available".
+- Conclusion: most flags are things the tournament never published, not scrape gaps.
+
+### Task R8: "Not published" is never a failure
+- At scrape time, record as `withheld` (reason "not published"):
+  - a tab with no nav link (team, speaker, motions, break, participants), when the nav shows the tournament published others;
+  - a round page that loads with columns but `data: []`.
+
+  Use `ScrapePiece` with a new optional `reason` column (additive migration). The detail reads "The tournament hasn't published its team tab" or "R3 was published with no results".
+- The checks treat these exactly like withheld pages: na, never suggested.
+- Tests: an empty round page fixture (TGS-style), a nav without a team tab, and the TGS and Euphoria shapes. "Teams in rounds", "Rounds complete" and "Motions" should drop sharply once deployed.
+
+### Task R9: Missing format
+- A check `format_missing`. Fail when `Tournament.format` is null and the tab has rounds. Weight 3.
+- Fix action "Infer format": run the existing `inferTournamentFormat` on stored rounds and team sizes. If it can't decide, suggest re-scraping R1 and the team tab.
+- A Tools bulk action "Fill missing formats" goes over all tournaments with format null (bounded batches, a status line, a count of filled and not decidable).
+
+### Task R10: Missing adjudication core (CA / CAP)
+- Source A: the participants list's Adj Core column (`judgeTypeTag 'core'`; parse it if not parsed yet).
+- Source B: the "Tournament Staff" block on the tab home page (free text such as "Core Adjudication Panel: …", "Adjudication: …", "Chief Adjudicator(s): …"). Parse names under CA, CAP, DCA, Core and Adjudication headings. Store them as a role `core` with source `staff_block`, matched to people by name like judges; ambiguous names are not linked.
+- A check `core_missing`: warn when neither source names anyone, provided the participants list was read. It suggests the participants piece plus a new `home` piece (the tab home page). Weight 2.
+- No `PARSER_VERSION` bump. New data arrives through partial re-scrapes of `participants` and `home`. Tools gets a bulk "Fill missing adjudication cores" action, bounded.
+- Evidence and fixtures: `C:/Users/achar/reports/Missing tabs - CA and adjudication core roles 2026-10-27.md`. Expected outcomes are listed there (ASDC 2022, Vivaad 2022, Shri Ram Pre-ABP 2022, 13th CNLU, East Malaysia Open 2022, Pop Posting 2021 = core; SLS PD 2024, The Alfaaz Open = not core).
+
+### Task R11: The "Captured" tab (stats about the stored tournaments)
+A tab after Tournaments, in order:
+1. **Size:** the distribution of teams per tournament as bins (≤16, 17–32, 33–64, 65–128, 129+), the median, and the largest 10.
+2. **Geography:** tournaments by `region` (and by country where known), with an "Unknown region" count.
+3. **Formats and years:** counts, including "No format" and "No year" with links to the fixes.
+4. **Motion types:** the distribution of `Motion.motionType` and the top topics.
+5. **Motion balance:**
+   - BP: average points by position (OG / OO / CG / CO), and win share for two-team formats, over all prelim rounds;
+   - per motion type: the same split;
+   - the 20 most unbalanced motions (position spread, with at least 8 rooms), each linking its tournament.
+   - Every figure carries its sample size (UX-35).
+6. **Coverage gaps:** counts of missing format, missing year, missing core, unreleased tabs, old parser, with links to the filtered Tournaments list and the bulk fixes.
+
+Charts use `components/ui` primitives (BarList, StatTile) with text alternatives. Reads are aggregate queries, and the tab loads only when it's active.
+
+### Task R12: Other partial-scrape fixes
+Each is a check with a suggested piece, or a Tools bulk action, bounded:
+- **Old parser:** a tournament scraped by an older `PARSER_VERSION` gets a re-scrape of every recorded piece, rather than a full re-ingest. Tools: "Refresh old-parser tournaments (n)", 20 per run.
+- **Motions missing** where the nav links a motions page: re-scrape motions.
+- **Break published but not stored**: the nav has break tabs but there are no break rows. Re-scrape the break pieces.
+- **Speaker tab published but no scores stored**: re-scrape the speaker tab.
+- **Missing year:** read it from the tournament name ("Preworlds24", "Vienna IV 24", "ERR 26") when a 2- or 4-digit year is unambiguous. Tools action "Fill years from names". No scrape needed.
+- **Test tournaments** ("test", "DEMO", "minimal8team", blank name): an `ignored` flag, so they leave scores and lists. The admin toggles it.
+
+Order after R2: R8 → R3 → R4 → R5 → R6 → R9 → R10 → R12 → R11 → R7. Each follows the same loop (TDD, gate, task review, fixes). The R7 browser check covers the new tab and actions, and the owner list is updated as items land.
