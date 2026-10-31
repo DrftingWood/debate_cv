@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
  * Deletes a tournament, admin only, and records its tab address so it is
  * never ingested again (lib/admin/deletedTournaments.ts). The body must say
  * { confirm: true }: the page asks twice, and a bare POST deletes nothing.
- * A tournament on anyone's CV is refused with 409 `on_cvs` and its user
- * count. Answers { deleted: true, name }; errors are codes only.
+ * A tournament on users' CVs is deleted too and leaves them (owner,
+ * 2026-10-31). Answers { deleted: true, name, users }, users being how many
+ * CVs had it; errors are codes only.
  */
 const Body = z.object({ confirm: z.literal(true) }).strict();
 
@@ -35,9 +36,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const outcome = await deleteTournament(BigInt(id), admin);
     if (outcome.kind === 'not_found')
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
-    if (outcome.kind === 'on_cvs')
-      return NextResponse.json({ error: 'on_cvs', users: outcome.users }, { status: 409 });
-    return NextResponse.json({ deleted: true, name: outcome.name });
+    return NextResponse.json({ deleted: true, name: outcome.name, users: outcome.users });
   } catch (err) {
     Sentry.captureException(err, { tags: { route: 'api/admin/tournaments/delete' } });
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

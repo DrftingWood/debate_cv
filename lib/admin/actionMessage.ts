@@ -117,8 +117,6 @@ const DELETE: Record<string, string> = {
   ...SHARED,
   bad_request: 'That could not be run. Reload the page and try again.',
   not_found: 'This tournament no longer exists. Reload the page to see the current list.',
-  on_cvs:
-    'This tournament is on a user’s CV, so it cannot be deleted. Ignore it in admin stats instead.',
 };
 
 /** Why "Delete tournament" did not run. */
