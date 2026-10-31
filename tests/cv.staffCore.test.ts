@@ -41,3 +41,10 @@ describe('loadStaffCoreTournaments', () => {
     expect(prismaMock.tournamentStaff.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe('effectiveJudgeTag: case (round 2)', () => {
+  it('a stored "Core" or "CORE" reads as core, so every downstream check sees "core"', () => {
+    expect(effectiveJudgeTag('Core', false)).toBe('core');
+    expect(effectiveJudgeTag('CORE', true)).toBe('core');
+  });
+});

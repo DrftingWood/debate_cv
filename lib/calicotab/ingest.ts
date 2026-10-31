@@ -86,6 +86,7 @@ import { buildPrimaryTeamMap } from './primaryTeam';
 import { findRedactedOwnerRow } from './redactedSpeaker';
 import { recordRedactedSpeakers, redactedSpeakersByTeam } from './redactedCounts';
 import { isPlaceholderPersonName } from './names';
+import { rematchStaffNames } from './staffStore';
 import {
   assignMotionRounds,
   isPrelimRoundLabel,
@@ -2136,6 +2137,12 @@ async function writeIngestTransaction(
           create: { tournamentParticipantId: participant.id, role: 'judge' },
         });
       }
+
+      // The participants are stored: a staff-block name linked to someone before
+      // this write may no longer be unique (a namesake joined), or may now have
+      // its exact match. Re-check the links here, in the same transaction, so the
+      // CV never reads a role off a link that no longer holds. No fetch.
+      await rematchStaffNames(tx, t.id);
 
       // Break rows -> elimination_results. The row's existence (stage +
       // entityName) is the signal readers use — adjudicator-break detection

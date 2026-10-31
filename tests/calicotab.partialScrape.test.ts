@@ -301,6 +301,23 @@ describe('rescrapePieces: scoped deletes', () => {
     expect(fetchedUrls().sort()).toEqual([BASE, R3].sort());
   });
 
+  it('re-checks the staff-block links of the tournament after the write (R10 round 2)', async () => {
+    install();
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([
+      { id: 1n, name: 'Ada Lovelace', personId: 101n, candidatePersonId: null },
+    ]);
+    // The list now has two people of that name: the stored link must go.
+    prismaMock.tournamentParticipant.findMany.mockResolvedValue([
+      { personId: 101n, person: { displayName: 'Ada Lovelace' } },
+      { personId: 102n, person: { displayName: 'Ada Lovelace' } },
+    ]);
+    await rescrapePieces(7n, [{ kind: 'round', key: '3' }]);
+    expect(prismaMock.tournamentStaff.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { personId: null, candidatePersonId: null },
+    });
+  });
+
   it('an outround deletes only its stage', async () => {
     install();
     await rescrapePieces(7n, [{ kind: 'round', key: '7' }]);

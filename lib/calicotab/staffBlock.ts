@@ -56,10 +56,11 @@ const OTHER_LABELS = [
 ];
 
 // Where a core label may start: the start of the text or of a line, or right
-// after a separator (; | or an opening bracket). A label that follows other
+// after a separator (; | an opening bracket, or a closing one followed by a
+// space). A label that follows other
 // words is a qualified one and is not the core.
 const CORE_START = new RegExp(
-  String.raw`(?:^|[\n;|\[(])[ \t ]*(${CORE_LABELS.join('|')})[ \t ]*:`,
+  String.raw`(?:^|[\n;|\[(]|[\])](?=[ \t ]))[ \t ]*(${CORE_LABELS.join('|')})[ \t ]*:`,
   'giud',
 );
 // A known non-core label ends a list wherever it stands.

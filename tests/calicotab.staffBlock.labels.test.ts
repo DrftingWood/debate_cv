@@ -77,3 +77,16 @@ describe('short labels', () => {
     ).toEqual(['Ada Lovelace', 'Grace Hopper', 'Alan Turing', 'Kurt Godel']);
   });
 });
+
+describe('a core label after a closing bracket (round 2)', () => {
+  test('on one line, a core list after another bracketed list is read', () => {
+    expect(
+      parseStaffText('Equity Panel: [Cy Dee, Ed Fox] Core Adjudicators: [Al Bee, Gus Hall]'),
+    ).toEqual(['Al Bee', 'Gus Hall']);
+    expect(parseStaffText('Org Comm: (Cy Dee) CA: Al Bee')).toEqual(['Al Bee']);
+  });
+
+  test('a closing bracket not followed by space does not make a label', () => {
+    expect(parseStaffText('Tabulation: [Cy Dee]CA: Al Bee')).toEqual([]);
+  });
+});

@@ -35,6 +35,8 @@ export async function loadStaffCoreTournaments(
 
 /** The judge tag a CV shows: 'core' when either source says so, else the stored tag. */
 export function effectiveJudgeTag(stored: string | null, staffCore: boolean): string | null {
-  if (stored?.toLowerCase() === 'core') return stored;
-  return staffCore ? 'core' : stored;
+  // Lower-cased once here, so every later `=== 'core'` on the CV path agrees
+  // however the list spelled the tag.
+  if (staffCore || stored?.toLowerCase() === 'core') return 'core';
+  return stored;
 }

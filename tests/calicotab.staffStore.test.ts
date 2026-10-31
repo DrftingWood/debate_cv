@@ -5,7 +5,7 @@ vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockM
 
 import { prismaMock, resetPrismaMock } from './setup/api-test-utils';
 import { matchStaffName } from '@/lib/calicotab/staffMatch';
-import { recordStaffFromHome } from '@/lib/calicotab/staffStore';
+import { recordStaffFromHome, rematchStaffNames } from '@/lib/calicotab/staffStore';
 
 // R10 ruling 16: a staff name links to a person only on an exact full-name
 // match; a looser match is a candidate with no CV effect; the staff store
@@ -111,5 +111,68 @@ describe('recordStaffFromHome', () => {
     const read = await recordStaffFromHome(9n, '<html><body><h1>Welcome</h1></body></html>');
     expect(read).toEqual({ found: false, named: 0, linked: 0 });
     expect(prismaMock.tournamentStaff.deleteMany).toHaveBeenCalled();
+  });
+});
+
+describe('rematchStaffNames: a participants write re-checks stored links (round 2)', () => {
+  const staff = (
+    id: bigint,
+    name: string,
+    personId: bigint | null,
+    candidatePersonId: bigint | null = null,
+  ) => ({
+    id,
+    name,
+    personId,
+    candidatePersonId,
+  });
+  const listed = (personId: bigint, displayName: string) => ({
+    personId,
+    person: { displayName },
+  });
+
+  beforeEach(() => {
+    prismaMock.tournamentStaff.update.mockResolvedValue({});
+  });
+
+  it('a re-read that adds a namesake clears the link, with no candidate either', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([staff(1n, 'Ada Lovelace', 5n)]);
+    prismaMock.tournamentParticipant.findMany.mockResolvedValue([
+      listed(5n, 'Ada Lovelace'),
+      listed(6n, 'Ada Lovelace'),
+    ]);
+    expect(await rematchStaffNames(prismaMock as never, 9n)).toBe(1);
+    expect(prismaMock.tournamentStaff.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { personId: null, candidatePersonId: null },
+    });
+  });
+
+  it('a candidate becomes a link when the exact name turns up, and a link with no one left goes', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([
+      staff(1n, 'Rahul Sharma', null, 3n),
+      staff(2n, 'Grace Hopper', 8n),
+    ]);
+    prismaMock.tournamentParticipant.findMany.mockResolvedValue([listed(4n, 'Rahul Sharma')]);
+    await rematchStaffNames(prismaMock as never, 9n);
+    expect(prismaMock.tournamentStaff.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { personId: 4n, candidatePersonId: null },
+    });
+    expect(prismaMock.tournamentStaff.update).toHaveBeenCalledWith({
+      where: { id: 2n },
+      data: { personId: null, candidatePersonId: null },
+    });
+  });
+
+  it('rows whose match is unchanged are not written, and it reads nothing without staff rows', async () => {
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([staff(1n, 'Ada Lovelace', 5n)]);
+    prismaMock.tournamentParticipant.findMany.mockResolvedValue([listed(5n, 'Ada Lovelace')]);
+    expect(await rematchStaffNames(prismaMock as never, 9n)).toBe(0);
+    expect(prismaMock.tournamentStaff.update).not.toHaveBeenCalled();
+    prismaMock.tournamentStaff.findMany.mockResolvedValue([]);
+    prismaMock.tournamentParticipant.findMany.mockClear();
+    await rematchStaffNames(prismaMock as never, 9n);
+    expect(prismaMock.tournamentParticipant.findMany).not.toHaveBeenCalled();
   });
 });
