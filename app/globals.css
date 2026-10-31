@@ -647,9 +647,10 @@
     --success-foreground: 0 0% 100%;
 
     /* 42% lightness measured 3.61:1 on white — below AA for the 12.5px
-       "Partial draw" note and the "Gmail disconnected" label. 33% clears
-       4.5:1 on white, on surface-2, and on its own 6% tint. */
-    --warning: 33 82% 33%;
+       "Partial draw" note and the "Gmail disconnected" label. 33% cleared 4.5:1
+       on white but measured 4.44:1 for the Warning badge (a 10% tint on the
+       panel-inset grey, R7 axe run); 31% clears it there too. */
+    --warning: 33 82% 31%;
     --warning-foreground: 0 0% 100%;
 
     --destructive: 356 68% 45%;
