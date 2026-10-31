@@ -304,7 +304,7 @@ function Tournaments({ tournaments }: { tournaments: readonly Tournament[] }) {
           {t.stored ? (
             <Link
               href={`/admin/tournaments/${t.id}`}
-              className="text-ink underline underline-offset-4 hover:text-primary"
+              className="inline-flex min-h-6 items-center text-ink underline underline-offset-4 hover:text-primary"
             >
               {t.name}
             </Link>

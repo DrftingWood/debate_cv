@@ -128,6 +128,8 @@ describe('CV error reports', () => {
     expect(out).toContain('2 h ago');
     expect(out).toContain('Maya');
     expect(out).toMatch(/<a[^>]*href="\/admin\/tournaments\/7"[^>]*>Oxford IV<\/a>/);
+    // Its name link is a 24px target too, so the two do not crowd each other.
+    expect(out).toMatch(/<a[^>]*class="[^"]*min-h-6[^"]*"[^>]*href="\/admin\/tournaments\/7"/);
     expect(out).toContain('Partly');
     expect(out).toContain('R2: HTTP 503 Service Unavailable');
     expect(out).toContain('Not loaded');
@@ -199,6 +201,8 @@ describe('parser warnings', () => {
     expect(out).toMatch(/<td class="[^"]*cell-num[^"]*"[^>]*>12<\/td>/);
     expect(out).toContain('3 h ago');
     expect(out).toMatch(/<a[^>]*href="\/admin\/tournaments\/7"[^>]*>Oxford IV<\/a>/);
+    // Its name link is a 24px target too, so the two do not crowd each other.
+    expect(out).toMatch(/<a[^>]*class="[^"]*min-h-6[^"]*"[^>]*href="\/admin\/tournaments\/7"/);
     expect(out).toContain('Loaded');
     expect(out).toMatch(/\?<\/span>(&nbsp;|\s)*Check/);
     expect(out).not.toContain('Not loaded');
