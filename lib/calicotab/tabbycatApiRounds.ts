@@ -90,7 +90,16 @@ const roundSchema = z.object({ url: z.string(), seq: z.number(), name: z.string(
 
 const breakCategorySchema = z.object({ url: z.string(), slug: z.string(), name: z.string() });
 
-const breakingTeamSchema = z.object({ team: z.string(), rank: z.number().nullable() });
+// `rank` is the team's standing among the category's candidates; `break_rank`
+// (null for a team that did not break) and `remark` (a BreakingTeam.Remark
+// code such as "w" withdrawn, "d" disqualified, "t" lost coin toss) tell who
+// actually broke. Older installs omit both, hence optional.
+const breakingTeamSchema = z.object({
+  team: z.string(),
+  rank: z.number().nullable(),
+  break_rank: z.number().nullable().optional(),
+  remark: z.string().nullable().optional(),
+});
 
 const teamSchema = z.object({
   url: z.string(),
@@ -268,13 +277,24 @@ export function mapRoundResults(input: {
   return { roundNumber, roundLabel, isOutround, teamResults, judgeAssignments };
 }
 
+/** The teams that actually broke: no remark, and a break rank where the API gives one. */
+export function actualBreakers(
+  rows: ApiBreakingTeam[],
+): Array<{ team: string; rank: number | null }> {
+  return rows
+    .filter((b) => !b.remark && b.break_rank !== null)
+    .map((b) => ({ team: b.team, rank: b.break_rank ?? b.rank }));
+}
+
 /**
  * One break tab in the shape parseBreakPage returns.
  *
  * Team rows: the HTML table's first column is the team's rank on the break
  * list, ties shown as "31=" (parseBreakPage reads 31), and teams with a
- * remark — "(different break)" on an ESL tab — are ranked like the rest.
- * The API's `rank` is that column (WUDC 2023-2025, SIDO, Australs). Score is
+ * remark — "(different break)" on an ESL tab — are not breakers: they are
+ * left out, as the HTML parser leaves them out (see actualBreakers). The rank
+ * is the API's `break_rank`, falling back to `rank` where it is absent (WUDC 2023-2025, SIDO,
+ * Australs). Score is
  * the team's standings points, the page's points column.
  *
  * Adjudicator rows are the adjudicators flagged `breaking`, with no rank or
@@ -309,7 +329,7 @@ export function mapBreakPage(input: {
     input.teamStandings.map((s) => [s.team, metricNumber(s.metrics, 'points')]),
   );
   const rows: BreakRow[] = [];
-  for (const b of input.breakingTeams ?? []) {
+  for (const b of actualBreakers(input.breakingTeams ?? [])) {
     const team = teamByUrl.get(b.team);
     if (!team) continue;
     rows.push({
@@ -636,7 +656,7 @@ export async function fetchRestFromApi(
         result.breaks.set(u, { source: 'html', reason: breaking.reason });
         continue;
       }
-      if (!breakRanksConsistent(breaking.rows.map((b) => b.rank))) {
+      if (!breakRanksConsistent(actualBreakers(breaking.rows).map((b) => b.rank))) {
         result.breaks.set(u, { source: 'html', reason: `break ${kind.slug}: ranks skip numbers` });
         continue;
       }
