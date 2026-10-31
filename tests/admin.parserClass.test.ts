@@ -19,6 +19,10 @@ const INFO = [
   'nav: participants constructed as fallback',
   'tabs: team tab not released',
   'tabs: speaker tab not released',
+  'tabs: team tab released to top 8 only',
+  'tabs: speaker tab partial release',
+  'fetch: participants HTTP 403',
+  'fetch: participants HTTP 401',
   'nav: limited tab visibility may be intentional (e.g., schools/child-protection privacy settings)',
 ];
 
@@ -28,7 +32,9 @@ const PROBLEMS = [
   'parse: speakerTab → 0 rows',
   'parse: participants → 0 rows',
   'parse: 0 adjudicator rounds in private-URL Debates table',
-  'fetch: participants HTTP 403',
+  'fetch: team HTTP 403',
+  'fetch: speaker HTTP 404',
+  'fetch: participants HTTP 500',
   'fetch: round https://x.calicotab.com/x/results/round/2/ HTTP 500',
   'nav: resultsRounds not found',
 ];
@@ -63,7 +69,8 @@ describe('classifyWarning', () => {
 describe('isPlainProblem', () => {
   it('is true for the named problem shapes and false for an unknown headline', () => {
     expect(isPlainProblem('parse: teamTab → 0 rows')).toBe(true);
-    expect(isPlainProblem('fetch: participants HTTP 403')).toBe(true);
+    expect(isPlainProblem('fetch: team HTTP 403')).toBe(true);
+    expect(isPlainProblem('fetch: participants HTTP 403')).toBe(false);
     expect(isPlainProblem('nav: resultsRounds not found')).toBe(false);
     expect(isPlainProblem('nav: breakTabs not found (optional)')).toBe(false);
   });

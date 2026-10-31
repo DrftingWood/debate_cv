@@ -19,8 +19,24 @@
 export type WarningClass = 'problem' | 'info';
 
 /** Notes about how a tab is published, not faults in reading it. Checked first. */
-const INFO =
-  /likely finished|\(optional\)|constructed as fallback|not released|limited tab visibility/i;
+const INFO = new RegExp(
+  [
+    'likely finished',
+    '\(optional\)',
+    'constructed as fallback',
+    'not released',
+    'limited tab visibility',
+    // A tab published for the top N only (tabbycatApi.ts: "<tab> tab released
+    // to top N only") or in part is the tournament's own choice.
+    'released to top',
+    'partial release',
+    // A tournament withholding its participants list answers 401/403; that
+    // is a deliberate setting, not a fault. Other fetches (team, speaker,
+    // round) refusing or missing stay problems.
+    '^fetch: participants HTTP 40[13]',
+  ].join('|'),
+  'i',
+);
 
 /**
  * The problem shapes the parser writes on purpose: a page that read as empty,

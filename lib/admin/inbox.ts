@@ -44,7 +44,9 @@ import { ingestErrorCategory } from '@/lib/ingest/userMessage';
  * A properly scraped tournament is never highlighted (owner rule): every
  * item is something wrong or unconfirmed, and nothing else is read.
  *
- * Bounded reads: each kind reads at most CANDIDATE_CAP (1,000) candidates,
+ * Bounded reads: each kind reads at most CANDIDATE_CAP (1,000) candidates
+ * (for imports, 1,000 unstored failures: stored tournaments are excluded
+ * first, reading further pages as needed),
  * the item list is built, ordered and paged in memory over those, and the
  * per-kind counts are over the same bounded set. A thousand open items of
  * one kind is already a backlog no one pages through; past that the counts
@@ -271,22 +273,46 @@ type JobRow = {
   scheduledAt: Date;
 };
 
-/** Failed or abandoned jobs, newest first, bounded. */
-function readFailedJobs(): Promise<JobRow[]> {
-  return prisma.ingestJob.findMany({
-    where: { status: { in: [IngestJobStatus.failed, IngestJobStatus.abandoned] } },
-    orderBy: [{ finishedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
-    take: CANDIDATE_CAP,
-    select: {
-      id: true,
-      userId: true,
-      url: true,
-      attempts: true,
-      lastError: true,
-      finishedAt: true,
-      scheduledAt: true,
-    },
-  });
+/**
+ * Failed or abandoned jobs whose tournament is not stored, newest first,
+ * bounded at CANDIDATE_CAP unstored jobs. Stored tournaments are excluded
+ * before the cap counts, so a large "covered by stored copy" backlog cannot
+ * push unstored failures out of the window: the newest jobs are read a page
+ * at a time and matched, until CANDIDATE_CAP unstored jobs are held or the
+ * jobs run out.
+ */
+async function readUnstoredJobs(): Promise<{
+  jobs: JobRow[];
+  ambiguous: Map<string, number>;
+}> {
+  const jobs: JobRow[] = [];
+  const ambiguous = new Map<string, number>();
+  for (let skip = 0; jobs.length < CANDIDATE_CAP; skip += CANDIDATE_CAP) {
+    const page: JobRow[] = await prisma.ingestJob.findMany({
+      where: { status: { in: [IngestJobStatus.failed, IngestJobStatus.abandoned] } },
+      orderBy: [{ finishedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
+      skip,
+      take: CANDIDATE_CAP,
+      select: {
+        id: true,
+        userId: true,
+        url: true,
+        attempts: true,
+        lastError: true,
+        finishedAt: true,
+        scheduledAt: true,
+      },
+    });
+    const match = await matchJobs(page);
+    for (const j of page) {
+      if (match.stored.has(j.id) || jobs.length >= CANDIDATE_CAP) continue;
+      jobs.push(j);
+      const n = match.ambiguous.get(j.id);
+      if (n) ambiguous.set(j.id, n);
+    }
+    if (page.length < CANDIDATE_CAP) break;
+  }
+  return { jobs, ambiguous };
 }
 
 type JobGroup = { jobs: JobRow[]; status: TabStatusValue; tabUrl: string | null; name: string };
@@ -335,8 +361,8 @@ function importPrint(g: JobGroup): { category: string; fingerprint: string } {
 }
 
 async function importDrafts(): Promise<Draft[]> {
-  const jobs = await readFailedJobs();
-  const groups = groupUnstored(jobs, await matchJobs(jobs));
+  const { jobs, ambiguous } = await readUnstoredJobs();
+  const groups = groupUnstored(jobs, { stored: new Map(), ambiguous });
   const marks = await marksFor('import', [...groups.keys()]);
   const out: Draft[] = [];
   for (const [subject, g] of groups) {

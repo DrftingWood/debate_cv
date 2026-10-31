@@ -219,6 +219,25 @@ describe('import items', () => {
     expect(counts.import).toBe(0);
   });
 
+  it('excludes stored tournaments before the cap, reading further pages for unstored failures', async () => {
+    const storedPage = Array.from({ length: CANDIDATE_CAP }, (_, i) =>
+      job([`s${i}`, 'u1'], `https://s${i}.calicotab.com/s${i}/privateurls/k/`),
+    );
+    const lastPage = [job(['late', 'u2'], 'https://late.calicotab.com/late/privateurls/k/')];
+    h.db.ingestJob.findMany.mockResolvedValueOnce(storedPage).mockResolvedValueOnce(lastPage);
+    h.matchJobs.mockImplementation(async (jobs: Array<{ id: string }>) => ({
+      stored: new Map(
+        jobs
+          .filter((j) => j.id.startsWith('s'))
+          .map((j) => [j.id, { id: '5', name: 'Stored', scrapedAt: NOW }]),
+      ),
+      ambiguous: new Map(),
+    }));
+    const { rows, counts } = await listInbox({ page: 1, now: NOW });
+    expect(counts.import).toBe(1);
+    expect(rows.map((r) => r.key)).toEqual(['import:late.calicotab.com/late']);
+  });
+
   it('groups jobs per host and slug, counting distinct users; Retry covers them all', async () => {
     h.db.ingestJob.findMany.mockResolvedValue([
       job(['j1', 'u1'], 'https://n.calicotab.com/new/privateurls/k1/', 3),
@@ -288,14 +307,16 @@ describe('report and parser items', () => {
         20,
       ),
       group('parse: round https://p.calicotab.com/p/results/round/2/ → 0 results', 5),
-      group('fetch: participants HTTP 403', 4),
+      group('fetch: participants HTTP 403', 6),
+      group('tabs: team tab released to top 8 only', 5),
+      group('fetch: team HTTP 403', 4),
       group('nav: resultsRounds not found', 3),
     ]);
     const { rows, counts } = await listInbox({ page: 1, now: NOW });
     expect(counts.parser).toBe(3);
     expect(rows.map((r) => r.summary)).toEqual([
       expect.stringContaining('→ 0 results'),
-      expect.stringContaining('fetch: participants HTTP 403'),
+      expect.stringContaining('fetch: team HTTP 403'),
       expect.stringContaining('nav: resultsRounds not found'),
     ]);
     expect(rows.map((r) => r.severity)).toEqual(['fail', 'fail', 'warn']);
