@@ -1,3 +1,5 @@
+import { CHECK_LABELS } from '@/lib/audit/types';
+
 /**
  * The review set's vocabulary and its order, apart from its database code
  * (lib/admin/reviewSet.ts) so the client components that show and edit
@@ -17,8 +19,6 @@ export type FlagSource = (typeof SOURCES)[number];
 
 export const FLAG_STATUSES = ['open', 'done'] as const;
 export type FlagStatus = (typeof FLAG_STATUSES)[number];
-
-import { CHECK_LABELS } from '@/lib/audit/types';
 
 export const COMMENT_MAX = 1000;
 

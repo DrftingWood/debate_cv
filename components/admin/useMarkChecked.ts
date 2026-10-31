@@ -31,7 +31,7 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
   const [own] = useState(singleFlight);
   const flight = usePageFlight(own);
 
-  const { undo, undoing } = useUndo(flight, pending, startTransition);
+  const { undo, undoing } = useUndo(flight, startTransition);
 
   const mark = ({ id, items, keys, what }: MarkRequest) => {
     if (pending || flight.busy) return;
@@ -77,7 +77,6 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
  */
 function useUndo(
   flight: ReturnType<typeof singleFlight>,
-  pending: boolean,
   startTransition: (fn: () => Promise<void> | void) => void,
 ) {
   const router = useRouter();
@@ -85,7 +84,9 @@ function useUndo(
   const [undoing, setUndoing] = useState('');
   const undo = (items: readonly MarkTarget[]) => {
     const targets = undoTargets(items);
-    if (pending || flight.busy) {
+    // flight.busy is the guard: the Undo button sits in a toast that was made
+    // by an earlier render, so a transition flag captured here would be stale.
+    if (flight.busy) {
       toast.show({
         kind: 'error',
         title: 'Undo did not run',
