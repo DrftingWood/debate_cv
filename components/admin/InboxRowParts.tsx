@@ -175,6 +175,7 @@ export function NameAndStatus({ row }: { row: InboxRow }) {
           url={row.tabUrl}
           text={row.name}
           of={row.name}
+          breakable
           className="font-mono text-caption [overflow-wrap:anywhere]"
         />
       ) : (

@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { publicPieceUrl } from '@/lib/audit/types';
 import { buttonClasses } from '@/components/ui/Button';
 import { cn } from '@/lib/utils/cn';
@@ -25,6 +26,7 @@ export function TabLink({
   of,
   asButton = false,
   missing,
+  breakable = false,
   className,
 }: {
   url: string | null | undefined;
@@ -43,6 +45,12 @@ export function TabLink({
    * unlinked "Tab" would read as a broken link (UX-27: a real state gets a word).
    */
   missing?: string;
+  /**
+   * A host or path as the text: offer a line break after each "." and "/",
+   * so a narrow column wraps "twinopen2024.calicotab./com/twin" between parts
+   * rather than "calicotab.co/m" mid-word (R7 final check, Imports at 1280).
+   */
+  breakable?: boolean;
   className?: string;
 }) {
   const href = url ? publicPieceUrl(url) : null;
@@ -51,7 +59,7 @@ export function TabLink({
     return missing ? (
       <span className={cn('text-ink-soft', className)}>{missing}</span>
     ) : (
-      <span className={className}>{text}</span>
+      <span className={className}>{breakable ? breakAfterSeparators(text) : text}</span>
     );
   }
   return (
@@ -67,8 +75,19 @@ export function TabLink({
         className,
       )}
     >
-      {text}
+      {/* One span, so the inline-flex link keeps the text as a single item. */}
+      <span>{breakable ? breakAfterSeparators(text) : text}</span>
       <span aria-hidden> ↗</span>
     </a>
   );
+}
+
+/** The text with a <wbr> after each "." and "/". */
+function breakAfterSeparators(text: string) {
+  return text.split(/(?<=[./])/).map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 ? <wbr /> : null}
+      {part}
+    </Fragment>
+  ));
 }

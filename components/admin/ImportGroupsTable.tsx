@@ -301,6 +301,7 @@ function Name({ row }: { row: ImportRow }) {
         <TabLink
           url={row.tabUrl}
           text={row.name}
+          breakable
           className="font-mono text-caption [overflow-wrap:anywhere]"
         />
       )}
