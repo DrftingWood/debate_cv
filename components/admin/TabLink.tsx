@@ -75,8 +75,8 @@ export function TabLink({
         className,
       )}
     >
-      {/* One span, so the inline-flex link keeps the text as a single item. */}
-      <span>{breakable ? breakAfterSeparators(text) : text}</span>
+      {/* Broken text goes in one span, so the inline-flex link keeps it as a single item. */}
+      {breakable ? <span>{breakAfterSeparators(text)}</span> : text}
       <span aria-hidden> ↗</span>
     </a>
   );

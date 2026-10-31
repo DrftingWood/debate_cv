@@ -43,9 +43,10 @@ const noop = () => {};
 // Below md the table is a stack of cards like the Inbox's (UX-30): the
 // checkbox beside a card that holds the tournament, its status, users, error,
 // attempts, time and actions, so nothing is wider than the phone. At md and
-// up the fixed columns add to 63 rem less the Error column, which takes
-// whatever the panel has left (about 180 px at 1280) and wraps; the table
-// scrolls sideways only when the panel is narrower than 62 rem. The <colgroup>
+// up the fixed columns add to 63 rem and the Error column takes the rest
+// (about 165 px at 1280) and wraps. The table's 72 rem minimum keeps Error at
+// least 9 rem wide (a Windows scrollbar still fits at 1280): on a narrower panel it scrolls sideways rather than
+// crushing Error to nothing and painting it over Attempts. The <colgroup>
 // is hidden below md with its cells, since a fixed-layout table assigns cells
 // to columns by position.
 const COLUMNS = [
@@ -106,7 +107,7 @@ export function ImportGroupsTable({
       ) : null}
       <div className="panel overflow-hidden">
         <TableScroll>
-          <Table className="max-md:block md:min-w-[63rem] md:table-fixed" label="Failed imports">
+          <Table className="max-md:block md:min-w-[72rem] md:table-fixed" label="Failed imports">
             <Cols widths={COLUMNS} className="max-md:hidden" />
             <Head rows={rows} ticked={ticked} onToggle={toggle} />
             <tbody className="max-md:block">

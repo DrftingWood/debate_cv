@@ -69,7 +69,9 @@ export function ParserWarningsTable({ rows }: { rows: readonly WarningRow[] }) {
 
 // Below md the parser, count, time, tournaments and actions fold into the
 // Warning cell, so a phone shows the checkbox and a card per warning (UX-30). The
-// hidden <col>s are hidden with their cells (see ImportGroupsTable).
+// hidden <col>s are hidden with their cells (see ImportGroupsTable). At md and
+// up the fixed columns add to 45 rem; the 58 rem minimum keeps Warning at least
+// 13 rem wide, scrolling sideways on a narrower panel instead.
 const WARNING_COLUMNS = [
   '3rem',
   { className: 'hidden md:table-column md:w-28' },
@@ -92,7 +94,7 @@ function WarningsTable({
   const all = rows.length > 0 && rows.every((r) => ticked.has(r.key));
   const n = rows.length;
   return (
-    <Table className="table-fixed md:min-w-[48rem]" label="Recent parser warnings">
+    <Table className="table-fixed md:min-w-[58rem]" label="Recent parser warnings">
       <Cols widths={WARNING_COLUMNS} />
       <thead>
         <tr>
