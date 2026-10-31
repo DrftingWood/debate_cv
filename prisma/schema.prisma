@@ -370,6 +370,32 @@ model ReviewFlag {
   @@index([source, sourceId])
 }
 
+/// "Mark checked" (owner, 2026-10-31: "if i am supposed check something, i
+/// should be able to mark it"): an admin's word that an item they were asked
+/// to look at is right. `kind` says what was checked ('check' | 'report' |
+/// 'import' | 'parser') and `subject` which one: `<tournamentId>:<code>` for
+/// a tournament check, a CvErrorReport id, `<host>/<slug>` or a job id for an
+/// import, `<parserName>|<headline>` for a parser warning. Not a foreign key,
+/// for the same reason as ReviewFlag. `fingerprint` hashes what the admin saw
+/// (lib/admin/adminChecks.ts): when the data changes it stops matching and
+/// the mark is ignored, so the item comes back. A checked tournament check
+/// counts as a pass in the audit score (lib/audit/run.ts). Read and written
+/// through raw SQL, so code does not depend on a client generated after this
+/// model was added.
+model AdminCheck {
+  id          BigInt   @id @default(autoincrement())
+  kind        String
+  subject     String
+  fingerprint String
+  /// At most 500 characters, checked at the API.
+  note        String?
+  /// The admin's email.
+  checkedBy   String
+  checkedAt   DateTime @default(now())
+
+  @@unique([kind, subject])
+}
+
 model Person {
   id                BigInt   @id @default(autoincrement())
   displayName       String

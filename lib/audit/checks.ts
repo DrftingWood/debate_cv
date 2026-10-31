@@ -38,7 +38,7 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.4';
+export const CHECKS_VERSION = '2026-10-31.5';
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;

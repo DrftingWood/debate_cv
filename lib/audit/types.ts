@@ -35,6 +35,14 @@ export type CheckResult = {
    * the result rests only on rules the owner has agreed.
    */
   assumptions?: AssumptionCode[];
+  /**
+   * Set when an admin marked this check checked and the mark still matches
+   * the finding (lib/admin/adminChecks.ts): the check then counts as a pass,
+   * and these say who vouched for it and when (ISO 8601), so the tables can
+   * show it.
+   */
+  checkedBy?: string;
+  checkedAt?: string;
 };
 
 /**

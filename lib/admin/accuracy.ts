@@ -83,6 +83,9 @@ export type ParsedCheck = {
   detail: string;
   pieces: SuggestedPiece[];
   assumptions: AssumptionCode[];
+  /** Who marked the check checked and when, if the audit applied a mark. */
+  checkedBy?: string;
+  checkedAt?: Date;
 };
 
 const STATUSES: readonly string[] = ['pass', 'warn', 'fail', 'na'];
@@ -101,6 +104,16 @@ function parsePiece(v: unknown): SuggestedPiece | null {
   // an href is someone's identity.
   const url = typeof v.url === 'string' ? publicPieceUrl(v.url) : null;
   return { kind: v.kind as PieceKind, key: v.key, label, url };
+}
+
+/**
+ * A stored mark (run.ts's applyMark), only when both halves are readable:
+ * a name without a date, or a date that does not parse, is dropped whole.
+ */
+function parseMark(c: Record<string, unknown>): { checkedBy?: string; checkedAt?: Date } {
+  if (typeof c.checkedBy !== 'string' || !c.checkedBy || typeof c.checkedAt !== 'string') return {};
+  const at = new Date(c.checkedAt);
+  return Number.isNaN(at.getTime()) ? {} : { checkedBy: c.checkedBy, checkedAt: at };
 }
 
 /**
@@ -124,6 +137,7 @@ export function parseChecks(json: unknown): ParsedCheck[] {
       detail: typeof c.detail === 'string' ? c.detail : '',
       pieces: pieces.filter((p): p is SuggestedPiece => p != null),
       assumptions,
+      ...parseMark(c),
     });
   }
   return out;
