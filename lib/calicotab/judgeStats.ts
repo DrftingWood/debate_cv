@@ -137,10 +137,23 @@ export type CoreRoleKind = 'tab_director' | 'chief_adjudicator' | 'adj_core';
  */
 export function classifyCoreRole(roleText: string | null | undefined): CoreRoleKind | null {
   const t = (roleText ?? '').toLowerCase();
-  if (/\b(?:chief|deputy)\s+(?:chief\s+)?adjudicator\b/.test(t) || /\bd?ca\b/.test(t))
+  // Organisers type these by hand, so the spellings vary: "CAP" / "DCAP"
+  // (the chief adjudicator panel), "Chief Adjudication Panel", plurals
+  // ("CAs", "Deputy Chief Adjudicators"). Every one is core; missing them
+  // left the person an ordinary judge with no core mark or judging break.
+  if (
+    /\b(?:chief|deputy)\s+(?:chief\s+)?adjudicat(?:or|ion)s?\b/.test(t) ||
+    /\bd?ca[ps]?\b/.test(t)
+  )
     return 'chief_adjudicator';
-  if (/\b(?:adj[\s-]?core|core\s+adjudicator)\b/.test(t)) return 'adj_core';
-  if (/\btab[\s-]?director\b/.test(t)) return 'tab_director';
+  // "Adj Core", "Adj-Core", "Adj. Core", "Adjudication Core", "Core Adj",
+  // "Core Adjudicators".
+  if (
+    /\badj(?:udicat(?:or|ion)s?)?\.?[\s-]*core\b/.test(t) ||
+    /\bcore[\s-]+adj(?:udicat(?:or|ion)s?)?\b/.test(t)
+  )
+    return 'adj_core';
+  if (/\btab[\s-]?directors?\b/.test(t)) return 'tab_director';
   return null;
 }
 
