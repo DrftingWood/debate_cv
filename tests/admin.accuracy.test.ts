@@ -108,37 +108,23 @@ describe('getAccuracyOverview', () => {
     expect(suggestedPieces(parseChecks(checks))).toHaveLength(40);
   });
 
-  it('counts the tournaments each open question decided, most suspect first', async () => {
-    const assumed = {
+  it('a settled rule is no longer listed as an open question, whatever old audits carry', async () => {
+    const tagged = {
       code: 'champion',
       status: 'pass',
       detail: '',
       pieces: [],
       assumptions: ['no_open_bracket_champion', 'unknown_rule'],
     };
-    h.db.tournamentAudit.findMany.mockResolvedValue([
-      audit(1, 95, { checks: [assumed] }),
-      audit(2, 60, { checks: [assumed] }),
-      audit(3, 70, { checks: [{ ...assumed, assumptions: undefined }] }),
-    ]);
-    const [q] = (await getAccuracyOverview()).openQuestions;
-    expect(q).toMatchObject({
-      code: 'no_open_bracket_champion',
-      title: 'Champion when a tab has no Open bracket',
-      status: 'On hold — owner to decide',
-      count: 2,
-    });
-    expect(q!.tournaments).toEqual([
-      { id: '2', name: 'T2', tabUrl: 'https://x.calicotab.com/t2/' },
-      { id: '1', name: 'T1', tabUrl: 'https://x.calicotab.com/t1/' },
-    ]);
+    h.db.tournamentAudit.findMany.mockResolvedValue([audit(1, 95, { checks: [tagged] })]);
+    expect((await getAccuracyOverview()).openQuestions).toEqual([]);
   });
 
   it('nothing audited: no score, and every tournament is due', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([]);
     const o = await getAccuracyOverview();
     expect(o).toMatchObject({ weighted: null, n: 0, stale: 5 });
-    expect(o.openQuestions[0]!.count).toBe(0);
+    expect(o.openQuestions).toEqual([]);
   });
 });
 

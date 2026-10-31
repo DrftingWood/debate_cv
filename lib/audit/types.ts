@@ -57,14 +57,17 @@ export type CheckResult = {
  */
 export type AssumptionCode = 'no_open_bracket_champion';
 
-export const ASSUMPTIONS: Record<AssumptionCode, { title: string; rule: string; status: string }> =
-  {
-    no_open_bracket_champion: {
-      title: 'Champion when a tab has no Open bracket',
-      rule: 'When a tab has no Open bracket (for example schools Senior/Junior or APDA Varsity/Novice), the bracket with the most outround teams names the champion.',
-      status: 'On hold — owner to decide',
-    },
-  };
+export const ASSUMPTIONS: Record<
+  AssumptionCode,
+  { title: string; rule: string; status: string; settled?: true }
+> = {
+  no_open_bracket_champion: {
+    title: 'Champion when a tab has no Open bracket',
+    rule: 'Whoever wins a final is a champion: each bracket (Open, ESL, Novice, Senior, Varsity, tier finals) names its own.',
+    status: 'Settled 2026-10-31',
+    settled: true,
+  },
+};
 
 /**
  * Weight of each check in the tournament score. user_reports has none: it is
