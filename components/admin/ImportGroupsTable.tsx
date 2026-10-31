@@ -55,8 +55,8 @@ const COLUMNS = [
   { className: 'hidden md:table-column md:w-64' },
 ];
 
-/** A failing row can be ticked for "Retry selected"; a covered one has nothing to retry. */
-const tickable = (r: ImportRow) => r.section === 'failing';
+/** A failing, unchecked row can be ticked for "Retry selected": a checked one is expected, a covered one has nothing to retry. */
+const tickable = (r: ImportRow) => r.section === 'failing' && !r.mark?.checkedWords;
 
 /**
  * The Imports tab's ledger: one row per tournament (host and slug) across

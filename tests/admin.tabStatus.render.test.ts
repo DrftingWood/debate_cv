@@ -182,6 +182,27 @@ describe('Failed imports: actions', () => {
     expect(out).not.toContain('>Fix<');
     expect(out).not.toContain('Review later');
   });
+
+  // A mark says the failure is expected: Retry selected must not requeue it.
+  it('has no checkbox on a checked row and no retry bar when only checked rows are listed', () => {
+    const checkedRow = job({
+      mark: {
+        kind: 'import',
+        subject: 'oxiv.calicotab.com/oxiv2025',
+        fingerprint: '0123456789abcdef',
+        checkedWords: 'Checked by owner on 30 Oct 2026',
+        changed: false,
+      },
+    });
+    const only = table([checkedRow]);
+    expect(only).not.toContain('type="checkbox"');
+    expect(only).not.toContain('Retry selected');
+    // Beside an open row, the open row alone is tickable.
+    const mixed = table([checkedRow, job({ key: 'b', name: 'b.calicotab.com/b' })]);
+    expect(mixed.match(/type="checkbox"/g)).toHaveLength(2); // header and the open row
+    expect(mixed).not.toContain('aria-label="Select oxiv.calicotab.com/oxiv2025"');
+    expect(mixed).toContain('Retry selected');
+  });
 });
 
 const flag = (over: Partial<ReviewFlagView>): ReviewFlagView => ({

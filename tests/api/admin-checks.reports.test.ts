@@ -55,6 +55,8 @@ describe('Mark checked on a CV report', () => {
     await send({ items: [{ kind: 'report', subject: 'r1', fingerprint: OPEN_PRINT }] });
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(typeof prismaMock.$transaction.mock.calls[0]![0]).toBe('function');
+    // Up to 200 upserts: a longer limit than the default.
+    expect(prismaMock.$transaction.mock.calls[0]![1]).toEqual({ timeout: 15_000 });
   });
 
   it('keeps the true status for a report already closed, and drops one that is gone', async () => {

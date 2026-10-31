@@ -23,22 +23,26 @@ import { fingerprintOf, markAllChecked, upsertSql, type MarkInput } from '@/lib/
 export async function markWithAcknowledge(marks: readonly MarkInput[]): Promise<number> {
   const ids = [...new Set(marks.filter((m) => m.kind === 'report').map((m) => m.subject))];
   if (ids.length === 0) return markAllChecked([...marks]);
-  return prisma.$transaction(async (tx) => {
-    await tx.cvErrorReport.updateMany({
-      where: { id: { in: ids }, status: 'open' },
-      data: { status: 'acknowledged' },
-    });
-    const rows = await tx.cvErrorReport.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, status: true },
-    });
-    const status = new Map(rows.map((r) => [r.id, r.status] as const));
-    const stored = marks.flatMap((m): MarkInput[] => {
-      if (m.kind !== 'report') return [m];
-      const now = status.get(m.subject);
-      return now ? [{ ...m, fingerprint: fingerprintOf('report', { status: now }) }] : [];
-    });
-    for (const m of stored) await tx.$executeRaw(upsertSql(m));
-    return stored.length;
-  });
+  // Up to 200 upserts in one go: the default 5 s interactive limit is too tight on a cold pool.
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.cvErrorReport.updateMany({
+        where: { id: { in: ids }, status: 'open' },
+        data: { status: 'acknowledged' },
+      });
+      const rows = await tx.cvErrorReport.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, status: true },
+      });
+      const status = new Map(rows.map((r) => [r.id, r.status] as const));
+      const stored = marks.flatMap((m): MarkInput[] => {
+        if (m.kind !== 'report') return [m];
+        const now = status.get(m.subject);
+        return now ? [{ ...m, fingerprint: fingerprintOf('report', { status: now }) }] : [];
+      });
+      for (const m of stored) await tx.$executeRaw(upsertSql(m));
+      return stored.length;
+    },
+    { timeout: 15_000 },
+  );
 }
