@@ -196,21 +196,32 @@ const NAME_FORMATS: Array<[RegExp, string]> = [
  * Parliamentary open can call its sides Proposition — and the organiser
  * naming the format knows better than the tab's side labels.
  */
-export function inferTournamentFormat({
-  tournamentName,
-  teamRows,
-  speakerRows,
-  participantRows = [],
-  registrationSpeakers,
-  rounds,
-}: {
+export function inferTournamentFormat(input: FormatInput): string | null {
+  return decideTournamentFormat(input).format;
+}
+
+export type FormatInput = {
   tournamentName: string;
   teamRows: { speakers: string[] }[];
   speakerRows: { teamName: string | null }[];
   participantRows?: { role: string; teamName: string | null }[];
   registrationSpeakers: string[];
   rounds: { teamResults: { position: string | null }[] }[];
-}): string | null {
+};
+
+/**
+ * inferTournamentFormat with the numbered rule (1 to 5 above) that decided,
+ * for callers that trust some rules more than others: the admin fill from
+ * stored data accepts rules 1 to 4 and refuses the team-size guess (5).
+ */
+export function decideTournamentFormat({
+  tournamentName,
+  teamRows,
+  speakerRows,
+  participantRows = [],
+  registrationSpeakers,
+  rounds,
+}: FormatInput): { format: string | null; rule: 1 | 2 | 3 | 4 | 5 | null } {
   const name = tournamentName.toLowerCase();
 
   // Squad size, most representative source first: a median over the whole
@@ -241,27 +252,29 @@ export function inferTournamentFormat({
   const positions = rounds.flatMap((r) => r.teamResults.map((t) => t.position));
 
   // (1)
-  if (isBpShape(readSeats(positions))) return 'British Parliamentary';
+  if (isBpShape(readSeats(positions))) return { format: 'British Parliamentary', rule: 1 };
 
   // (2)
-  for (const [pattern, format] of NAME_FORMATS) if (pattern.test(name)) return format;
-  if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) return 'Policy';
+  for (const [pattern, format] of NAME_FORMATS) if (pattern.test(name)) return { format, rule: 2 };
+  if (/\bpolicy\b/.test(name) && !/public\s*policy/.test(name)) {
+    return { format: 'Policy', rule: 2 };
+  }
 
   // (3) Rooms that were read but aren't BP have already ruled out 2 → BP:
   // at two a side this answers Two-team Parliamentary before (5) is reached.
   const structural = inferFormatFromStructure({ positions, squadSize, tournamentName });
-  if (structural) return structural;
+  if (structural) return { format: structural, rule: 3 };
 
   // (4)
   if (/\bwudc\b|\beudc\b|\baudc\b|\bnaudc\b|\babp\b|\bbpp\b/.test(name)) {
-    return 'British Parliamentary';
+    return { format: 'British Parliamentary', rule: 4 };
   }
 
   // (5)
   if (squadSize != null) {
     const detected = detectFormatFromTeamSize(squadSize);
-    if (detected !== 'unknown') return detected;
+    if (detected !== 'unknown') return { format: detected, rule: 5 };
   }
 
-  return null;
+  return { format: null, rule: null };
 }

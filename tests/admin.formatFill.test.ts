@@ -24,19 +24,20 @@ const rooms = (id: bigint, seats: string[], rounds = 2): Row[] =>
     seats.map((position) => ({ tournamentId: id, roundNumber: r + 1, position })),
   ).flat();
 /** `teams` teams of `size` speakers each, as the participant grouping returns them. */
-const squads = (id: bigint, teams: number, size: number) =>
+const squads = (id: bigint, teams: number, size: number): Group[] =>
   Array.from({ length: teams }, (_, i) => ({
     tournamentId: id,
     teamName: `Team ${i}`,
     _count: { _all: size },
   }));
 
+type Group = { tournamentId: bigint; teamName: string | null; _count: { _all: number } };
 const BP = ['OG', 'OO', 'CG', 'CO'];
 
 function seed(
   tournaments: Array<{ id: bigint; name: string; format?: string | null }>,
   results: Row[],
-  groups: ReturnType<typeof squads>,
+  groups: Group[],
 ) {
   db.tournament.findMany.mockResolvedValue(
     tournaments.map((t) => ({ id: t.id, name: t.name, format: t.format ?? null })),
@@ -99,6 +100,41 @@ describe('inferStoredFormats', () => {
     expect(db.tournamentParticipant.groupBy).toHaveBeenCalledTimes(1);
     const where = db.teamResult.findMany.mock.calls[0]![0].where;
     expect(where.roundNumber).toEqual({ gte: 1 });
+  });
+});
+
+describe('no readable sides (ruling 14: a wrong format is worse than a null one)', () => {
+  const blank = (id: bigint, position: string | null): Row[] =>
+    rooms(id, ['x', 'y']).map((r) => ({ ...r, position }));
+
+  it.each([2, 3])('null seats and squads of %i stay undecided, never BP or Asian', async (size) => {
+    seed([{ id: 6n, name: 'Open' }], blank(6n, null), squads(6n, 8, size));
+    expect((await inferStoredFormats([6n])).get('6')).toBeNull();
+  });
+
+  it('blank seats are no better than null ones', async () => {
+    seed([{ id: 6n, name: 'Open' }], blank(6n, '  '), squads(6n, 8, 2));
+    expect((await inferStoredFormats([6n])).get('6')).toBeNull();
+  });
+
+  it('a name that states the format still decides without seats', async () => {
+    seed([{ id: 6n, name: 'Cambridge Asian Parliamentary' }], blank(6n, null), squads(6n, 8, 3));
+    expect((await inferStoredFormats([6n])).get('6')).toBe('Asian Parliamentary');
+  });
+
+  it('fillFormats leaves such a tournament null and unaudited', async () => {
+    seed([{ id: 6n, name: 'Open' }], blank(6n, null), squads(6n, 8, 2));
+    const out = await fillFormats([6n]);
+    expect(out.undecided).toEqual([6n]);
+    expect(db.tournament.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('skips a speaker group with no team name', async () => {
+    seed([{ id: 2n, name: 'Cup' }], rooms(2n, ['Government', 'Opposition']), [
+      ...squads(2n, 6, 3),
+      { tournamentId: 2n, teamName: null, _count: { _all: 40 } },
+    ]);
+    expect((await inferStoredFormats([2n])).get('2')).toBe('Asian Parliamentary');
   });
 });
 
@@ -165,6 +201,18 @@ describe('fillMissingBatch', () => {
     expect(db.tournament.count).toHaveBeenCalledWith({
       where: { format: null, id: { gt: 9n } },
     });
+  });
+
+  it('a full batch with more behind it hands back the last id as the cursor', async () => {
+    const ids = Array.from({ length: FILL_BATCH }, (_, i) => ({ id: BigInt(100 + i) }));
+    db.tournament.findMany
+      .mockResolvedValueOnce(ids)
+      .mockResolvedValueOnce(ids.map((t) => ({ id: t.id, name: 'X', format: null })));
+    db.teamResult.findMany.mockResolvedValue([]);
+    db.tournamentParticipant.groupBy.mockResolvedValue([]);
+    db.tournament.count.mockResolvedValue(12);
+    const out = await fillMissingBatch(null);
+    expect(out).toEqual({ filled: 0, undecided: FILL_BATCH, left: 12, next: '149' });
   });
 
   it('with nothing missing, reports zero and no cursor', async () => {

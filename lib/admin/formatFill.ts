@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { runAudit } from '@/lib/audit/run';
-import { inferTournamentFormat } from '@/lib/calicotab/format';
+import { decideTournamentFormat, type FormatInput } from '@/lib/calicotab/format';
 import { FILL_BATCH_SIZE } from '@/lib/admin/formatFillText';
 
 /**
@@ -23,8 +23,23 @@ export const FILL_BATCH = FILL_BATCH_SIZE;
 /** Re-audit chunk size, run.ts's sweep size. */
 const AUDIT_CHUNK = 25;
 
-type FormatInput = Parameters<typeof inferTournamentFormat>[0];
 type Seats = Array<{ position: string | null }>;
+
+/**
+ * What the stored data may decide (ruling 14: a wrong format is worse than a
+ * null one). Rules 1 to 4 of decideTournamentFormat (four-seat rooms, the
+ * name, two-team room shape with the squad size, the well-known BP
+ * championship names) read something the tournament itself states. Rule 5,
+ * the team size alone, is a guess that ingest accepts with the pages in hand
+ * but that must not stand here: TeamResult.position is null on tournaments
+ * ingested before sides were stored, and without a readable seat two or
+ * three speakers a side name BP and Asian Parliamentary for events that may
+ * be neither. Those stay undecided and the admin is told to re-scrape R1.
+ */
+function decideFromStored(input: FormatInput): string | null {
+  const { format, rule } = decideTournamentFormat(input);
+  return rule != null && rule <= 4 ? format : null;
+}
 
 /**
  * The inference input of each tournament, read with one query per table for
@@ -39,6 +54,9 @@ async function loadInputs(ids: bigint[]) {
       where: { id: tournamentId },
       select: { id: true, name: true, format: true },
     }),
+    // TeamResult holds prelim rounds only (ingest writes outrounds to
+    // EliminationResult), so `rounds` here is the prelims, which is what the
+    // room-shape rules read.
     prisma.teamResult.findMany({
       where: { tournamentId, roundNumber: { gte: 1 } },
       select: { tournamentId: true, roundNumber: true, position: true },
@@ -58,6 +76,7 @@ async function loadInputs(ids: bigint[]) {
         tournamentName: t.name,
         teamRows: [],
         speakerRows: [],
+        participantRows: [],
         registrationSpeakers: [],
         rounds: [],
       },
@@ -81,8 +100,15 @@ async function loadInputs(ids: bigint[]) {
   for (const g of squads) {
     if (g.teamName == null) continue;
     const entry = byId.get(String(g.tournamentId));
-    // A blank name per speaker is enough: the inference only counts them.
-    entry?.input.teamRows.push({ speakers: Array.from({ length: g._count._all }, () => '') });
+    // Squad evidence goes in as participant rows, the lowest-priority source
+    // the inference has (the team tab and speaker-tab groupings outrank it).
+    // It is all the database keeps: the team tab's speaker lists are not
+    // stored, and feeding counts in as `teamRows` would present them as the
+    // tab itself and let them outvote better evidence. One row per speaker is
+    // enough, the inference only counts them per team.
+    for (let i = 0; i < g._count._all; i++) {
+      entry?.input.participantRows?.push({ role: 'speaker', teamName: g.teamName });
+    }
   }
   return byId;
 }
@@ -91,7 +117,7 @@ async function loadInputs(ids: bigint[]) {
 export async function inferStoredFormats(ids: bigint[]): Promise<Map<string, string | null>> {
   const loaded = await loadInputs(ids);
   const out = new Map<string, string | null>();
-  for (const [key, { input }] of loaded) out.set(key, inferTournamentFormat(input));
+  for (const [key, { input }] of loaded) out.set(key, decideFromStored(input));
   return out;
 }
 
@@ -122,7 +148,7 @@ export async function fillFormats(ids: bigint[]): Promise<FillOutcome> {
       already.push(id);
       continue;
     }
-    const format = inferTournamentFormat(entry.input);
+    const format = decideFromStored(entry.input);
     if (!format) {
       undecided.push(id);
       continue;

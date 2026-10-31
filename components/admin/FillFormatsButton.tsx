@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { formatFailureMessage } from '@/lib/admin/actionMessage';
 import { FILL_BATCH_SIZE, fillSummary, type FillResponse } from '@/lib/admin/formatFillText';
 import { postJson } from '@/lib/utils/api';
+import { usePageFlight } from '@/components/admin/pageFlight';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
 /**
@@ -23,7 +24,8 @@ export function FillFormatsButton({ missing }: { missing: number }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<FillResponse | null>(null);
-  const [flight] = useState(singleFlight);
+  const [own] = useState(singleFlight);
+  const flight = usePageFlight(own);
 
   const run = () => {
     if (pending || flight.busy) return;
