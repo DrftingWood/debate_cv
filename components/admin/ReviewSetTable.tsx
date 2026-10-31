@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useFirstRows } from '@/components/ui/useFirstRows';
 import { TabLink } from '@/components/admin/TabLink';
 import { TabStatus } from '@/components/admin/TabStatus';
+import { focusTargetAfterDone, moveFocusAfterDone } from '@/components/admin/reviewSetFocus';
 import {
   ActionStatus,
   CommentField,
@@ -72,6 +73,21 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
   const open = rows.filter((r) => r.status === 'open');
   const visible = showDone ? rows : open;
   const { shown, more } = useFirstRows(visible);
+  const panel = useRef<HTMLDivElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  // With done rows hidden, "Mark done" takes its row off the page, and the
+  // button with it; focus goes on down the list instead of back to <body>
+  // (UX-7). With them shown the row stays, and so does focus.
+  const onDone = showDone
+    ? undefined
+    : (id: string) =>
+        moveFocusAfterDone(
+          focusTargetAfterDone(
+            shown.map((r) => r.id),
+            id,
+          ),
+          { panel: panel.current, toggle: toggle.current },
+        );
 
   if (rows.length === 0) {
     return (
@@ -86,6 +102,7 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
   return (
     <div className="space-y-tight">
       <ReviewSetBar
+        toggleRef={toggle}
         showDone={showDone}
         onToggle={() => setShowDone((v) => !v)}
         done={rows.length - open.length}
@@ -98,9 +115,9 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
           headingLevel={3}
         />
       ) : (
-        <div className="panel overflow-hidden">
+        <div ref={panel} className="panel overflow-hidden">
           <TableScroll>
-            <ReviewTable rows={shown} patch={patch} />
+            <ReviewTable rows={shown} patch={patch} onDone={onDone} />
           </TableScroll>
           {more}
         </div>
@@ -115,10 +132,12 @@ export function ReviewSetTable({ rows }: { rows: readonly ReviewRow[] }) {
  * page of it).
  */
 function ReviewSetBar({
+  toggleRef,
   showDone,
   onToggle,
   done,
 }: {
+  toggleRef: RefObject<HTMLButtonElement | null>;
   showDone: boolean;
   onToggle: () => void;
   done: number;
@@ -135,7 +154,14 @@ function ReviewSetBar({
   return (
     <div className="flex flex-wrap items-center gap-inline">
       {/* A toggle with a fixed label: its state is aria-pressed (UX-12). */}
-      <Button type="button" variant="outline" size="sm" aria-pressed={showDone} onClick={onToggle}>
+      <Button
+        ref={toggleRef}
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-pressed={showDone}
+        onClick={onToggle}
+      >
         Show done
       </Button>
       <span className="font-mono text-caption tabular-nums text-ink-soft">{done} done</span>
@@ -197,7 +223,15 @@ const REVIEW_COLUMNS = [
   { className: 'w-36 md:w-40' },
 ];
 
-function ReviewTable({ rows, patch }: { rows: readonly ReviewRow[]; patch: PatchApi }) {
+function ReviewTable({
+  rows,
+  patch,
+  onDone,
+}: {
+  rows: readonly ReviewRow[];
+  patch: PatchApi;
+  onDone?: (id: string) => void;
+}) {
   return (
     <Table className="table-fixed md:min-w-max" label="Flagged for review">
       <Cols widths={REVIEW_COLUMNS} />
@@ -213,14 +247,22 @@ function ReviewTable({ rows, patch }: { rows: readonly ReviewRow[]; patch: Patch
       </thead>
       <tbody>
         {rows.map((row) => (
-          <ReviewRowView key={row.id} row={row} patch={patch} />
+          <ReviewRowView key={row.id} row={row} patch={patch} onDone={onDone} />
         ))}
       </tbody>
     </Table>
   );
 }
 
-function ReviewRowView({ row, patch }: { row: ReviewRow; patch: PatchApi }) {
+function ReviewRowView({
+  row,
+  patch,
+  onDone,
+}: {
+  row: ReviewRow;
+  patch: PatchApi;
+  onDone?: (id: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
   const editorId = useId();
@@ -233,7 +275,7 @@ function ReviewRowView({ row, patch }: { row: ReviewRow; patch: PatchApi }) {
 
   return (
     <>
-      <Tr className={row.status === 'done' ? 'text-ink-soft' : undefined}>
+      <Tr data-flag={row.id} className={row.status === 'done' ? 'text-ink-soft' : undefined}>
         <Td className="hidden pl-stack md:table-cell">
           <PriorityBadge priority={row.priority} />
         </Td>
@@ -255,6 +297,7 @@ function ReviewRowView({ row, patch }: { row: ReviewRow; patch: PatchApi }) {
             editorId={editorId}
             editButton={editButton}
             onEdit={() => (editing ? closeEditor() : setEditing(true))}
+            onDone={onDone}
           />
         </Td>
       </Tr>
@@ -304,6 +347,7 @@ function RowActions({
   editorId,
   editButton,
   onEdit,
+  onDone,
 }: {
   row: ReviewRow;
   patch: PatchApi;
@@ -311,8 +355,12 @@ function RowActions({
   editorId: string;
   editButton: RefObject<HTMLButtonElement | null>;
   onEdit: () => void;
+  onDone?: (id: string) => void;
 }) {
   const isDone = row.status === 'done';
+  const after = isDone ? undefined : () => onDone?.(row.id);
+  const done = isDone ? 'Reopened' : 'Marked done';
+  const toggleDone = () => patch.run(row, { status: isDone ? 'open' : 'done' }, { done, after });
   return (
     <div className="flex flex-col items-start gap-hair">
       <PrioritySelect
@@ -340,13 +388,7 @@ function RowActions({
         variant="ghost"
         size="sm"
         aria-label={`${isDone ? 'Reopen' : 'Mark done'}: ${row.name}`}
-        onClick={() =>
-          patch.run(
-            row,
-            { status: isDone ? 'open' : 'done' },
-            { done: isDone ? 'Reopened' : 'Marked done' },
-          )
-        }
+        onClick={toggleDone}
       >
         {isDone ? 'Reopen' : 'Mark done'}
       </Button>

@@ -198,6 +198,11 @@ export function useAddToReviewSet(
   const form = useFlagForm();
   const req = useSendFlags(noun);
   const panelId = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  // Cancel, Escape and a sent form all close it; focus goes back to the
+  // button that opened it, not to <body>, which the form's removal would
+  // otherwise leave it on (UX-7).
+  const close = () => closeAndRefocus(setOpen, trigger.current);
 
   const submit = () => {
     if (req.busy()) return;
@@ -206,7 +211,7 @@ export function useAddToReviewSet(
     if (items.length === 0) return req.setError(`Tick at least one ${noun} to add.`);
     if (!form.check()) return;
     req.send({ items, priority: form.priority.value, comment: form.comment.value }, () => {
-      setOpen(false);
+      close();
       form.reset();
       onAdded();
     });
@@ -214,6 +219,7 @@ export function useAddToReviewSet(
 
   const button = (
     <Button
+      ref={trigger}
       type="button"
       variant="outline"
       size="sm"
@@ -239,7 +245,7 @@ export function useAddToReviewSet(
           comment={form.comment}
           pending={req.pending}
           onSubmit={submit}
-          onCancel={() => setOpen(false)}
+          onCancel={close}
         />
       ) : null}
       <ActionStatus
@@ -250,6 +256,24 @@ export function useAddToReviewSet(
   );
 
   return { button, panel };
+}
+
+/** Closes a form and puts focus back on its trigger, once the form has gone. */
+export function closeAndRefocus(
+  setOpen: (open: boolean) => void,
+  trigger: { focus: () => void } | null,
+) {
+  setOpen(false);
+  requestAnimationFrame(() => trigger?.focus());
+}
+
+/** Escape from anywhere in a form closes it (WCAG 2.1.2: no keyboard trap). */
+export function escapeCloses(onClose: () => void) {
+  return (e: { key: string; preventDefault: () => void }) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    onClose();
+  };
 }
 
 /** The form's two fields: priority (Medium to start) and the comment with its error. */
@@ -295,6 +319,7 @@ function AddForm({ n, priority, comment, pending, onSubmit, onCancel }: AddFormP
       noValidate
       aria-label="Add to review set"
       className="panel-inset space-y-tight rounded-md p-stack"
+      onKeyDown={escapeCloses(onCancel)}
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit();

@@ -227,7 +227,7 @@ describe('the "? Check" Tab state', () => {
       }),
     );
     expect(out).toMatch(/\?<\/span>(&nbsp;|\s)*Check/);
-    expect(out).toMatch(/<span[^>]*tabindex="0"[^>]*aria-describedby="[^"]+"/);
+    expect(out).toMatch(/<button type="button" aria-expanded="false" aria-describedby="[^"]+"/);
     expect(out).toContain('class="sr-only"><li>2 stored tournaments share this.</li>');
   });
 

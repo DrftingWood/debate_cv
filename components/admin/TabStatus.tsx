@@ -18,6 +18,10 @@ import type { TabState } from '@/lib/admin/tabStatus';
  * Tooltip is `fixed`: the cell sits in a scrolling table panel, which would
  * clip an absolutely placed label.
  *
+ * A phone has no hover, so the trigger is a button: a tap pins the list open
+ * and another tap (or Escape, or a tap elsewhere) puts it away, with
+ * `aria-expanded` saying which. Hover and keyboard focus still show it.
+ *
  * A stored tournament's "Open" goes to its admin page, named for the
  * tournament when the row knows it (UX-11). A cell whose tournament name
  * already links there passes `open={false}`, so the row has one link, not two.
@@ -101,13 +105,17 @@ function HoverList({
         wrap
         fixed
       >
-        <span
-          tabIndex={0}
-          aria-describedby={listId}
-          className={`inline-flex min-h-6 cursor-help items-center whitespace-nowrap rounded-sm underline decoration-dotted underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${className}`}
-        >
-          <span aria-hidden>?</span>&nbsp;{word}
-        </span>
+        {({ pinned, togglePin }) => (
+          <button
+            type="button"
+            aria-expanded={pinned}
+            aria-describedby={listId}
+            onClick={togglePin}
+            className={`inline-flex min-h-6 cursor-help items-center whitespace-nowrap rounded-sm text-left underline decoration-dotted underline-offset-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${className}`}
+          >
+            <span aria-hidden>?</span>&nbsp;{word}
+          </button>
+        )}
       </Tooltip>
       {/* Outside the trigger, so the description is not part of its name. */}
       <ul id={listId} className="sr-only">

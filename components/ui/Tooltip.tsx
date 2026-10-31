@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /*
@@ -37,10 +44,22 @@ import { cn } from '@/lib/utils/cn';
  * the viewport from the wrapper's box, so the table's scrolling panel does
  * not clip it. It stays a DOM child of the wrapper, so moving the pointer
  * onto it still counts as hovering, and it closes on any scroll rather than
- * float away from its control.
+ * float away from its control. A fixed label that would run past the
+ * bottom of the screen opens upwards instead, when there is more room above
+ * (a "? Partly" on the last rows of a table).
+ *
+ * Tap to pin (the Tab cell's error list): hover and focus are not there on
+ * a phone, so a list that is the cell's whole point needs a tap. Pass
+ * `children` as a function and it is handed `pinned` and `togglePin`: the
+ * trigger becomes a button whose `aria-expanded` is `pinned`, and a tap
+ * shows the label until the next tap, a tap elsewhere, Escape, focus
+ * leaving or a scroll. Hover and focus work as before.
  */
 
 type Side = 'top' | 'bottom' | 'left';
+
+/** What a function child is handed, for a trigger that pins the label on a tap. */
+export type PinApi = { pinned: boolean; togglePin: () => void };
 
 const OUTER: Record<Side, string> = {
   bottom: 'top-full pt-hair',
@@ -83,12 +102,24 @@ export function Tooltip({
   fixed?: boolean;
   /** Classes for the wrapper; a fixed-position control puts its positioning here. */
   className?: string;
-  children: ReactNode;
+  /** The control; as a function, a trigger that pins the label on a tap (see above). */
+  children: ReactNode | ((pin: PinApi) => ReactNode);
 }) {
   const [open, setOpen] = useState(false);
-  const [at, setAt] = useState<CSSProperties | null>(null);
+  const [pinned, setPinned] = useState(false);
+  const [at, setAt] = useState<{ style: CSSProperties; side: Side } | null>(null);
   const wrapper = useRef<HTMLSpanElement>(null);
+  const label = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | null>(null);
+  const visible = (open || pinned) && !disabled;
+  const place = () => {
+    if (fixed && wrapper.current)
+      setAt(fixedPosition(wrapper.current, label.current, { side, align }));
+  };
+  const togglePin = () => {
+    if (!pinned) place();
+    setPinned((p) => !p);
+  };
 
   const cancel = () => {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -97,7 +128,7 @@ export function Tooltip({
   const menuOpen = () => !!wrapper.current?.querySelector('[aria-expanded="true"]');
   const show = () => {
     if (disabled || menuOpen()) return;
-    if (fixed && wrapper.current) setAt(fixedPosition(wrapper.current, side, align));
+    place();
     setOpen(true);
   };
   const hide = () => {
@@ -105,19 +136,14 @@ export function Tooltip({
     setOpen(false);
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    const onScroll = () => setOpen(false);
-    document.addEventListener('keydown', onKey);
-    if (fixed) window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open, fixed]);
+  useDismiss(visible, {
+    fixed,
+    wrapper,
+    close: () => {
+      setOpen(false);
+      setPinned(false);
+    },
+  });
 
   useEffect(() => cancel, []);
 
@@ -136,17 +162,19 @@ export function Tooltip({
       onFocus={(e) => {
         if (e.target.matches(':focus-visible')) show();
       }}
-      onBlur={hide}
+      onBlur={() => {
+        hide();
+        setPinned(false);
+      }}
     >
-      {children}
+      <Trigger control={children} pin={{ pinned, togglePin }} />
       <span
+        ref={label}
         aria-hidden
-        style={fixed && at ? at : undefined}
+        style={fixed && at ? at.style : undefined}
         className={cn(
-          fixed && side !== 'left'
-            ? cn('fixed z-50', side === 'top' ? 'pb-hair' : 'pt-hair')
-            : cn('absolute z-50', OUTER[side], side !== 'left' && ALIGN[align]),
-          open && !disabled ? 'block' : 'hidden',
+          labelPlacement({ fixed, side, placed: at?.side, align }),
+          visible ? 'block' : 'hidden',
         )}
       >
         <span
@@ -162,12 +190,121 @@ export function Tooltip({
   );
 }
 
+/**
+ * Escape, a scroll (for a fixed label, which would float away) or a tap
+ * outside the control and its label closes an open or pinned label.
+ */
+function useDismiss(
+  visible: boolean,
+  {
+    fixed,
+    wrapper,
+    close,
+  }: { fixed: boolean; wrapper: RefObject<HTMLSpanElement | null>; close: () => void },
+) {
+  const onClose = useRef(close);
+  useEffect(() => {
+    onClose.current = close;
+  });
+  useEffect(() => {
+    if (!visible) return;
+    const shut = () => onClose.current();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') shut();
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (!wrapper.current?.contains(e.target as Node)) shut();
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    if (fixed) window.addEventListener('scroll', shut, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('scroll', shut, true);
+    };
+  }, [visible, fixed, wrapper]);
+}
+
+/** The label's positioning classes; a fixed label pads on the side it opened towards. */
+function labelPlacement({
+  fixed,
+  side,
+  placed,
+  align,
+}: {
+  fixed: boolean;
+  side: Side;
+  placed: Side | undefined;
+  align: keyof typeof ALIGN;
+}): string {
+  if (fixed && side !== 'left')
+    return cn('fixed z-50', (placed ?? side) === 'top' ? 'pb-hair' : 'pt-hair');
+  return cn('absolute z-50', OUTER[side], side !== 'left' && ALIGN[align]);
+}
+
+/**
+ * The control, or what a function child makes of the pin state. A component
+ * of its own, so the function is called while this renders, not handed the
+ * Tooltip's ref-reading callbacks in the middle of the Tooltip's render.
+ */
+function Trigger({
+  control,
+  pin,
+}: {
+  control: ReactNode | ((pin: PinApi) => ReactNode);
+  pin: PinApi;
+}) {
+  return <>{typeof control === 'function' ? control(pin) : control}</>;
+}
+
+/**
+ * Which way a `fixed` label opens: as asked, unless a downward label would
+ * run past the bottom of the screen and there is more room above.
+ */
+export function fixedSide(
+  side: Side,
+  box: { top: number; bottom: number },
+  { labelHeight, viewportHeight }: { labelHeight: number; viewportHeight: number },
+): Side {
+  if (side !== 'bottom') return side;
+  const below = viewportHeight - box.bottom;
+  return labelHeight > below && box.top > below ? 'top' : 'bottom';
+}
+
+/**
+ * The label's height, measured while it is closed: shown for the moment of
+ * the measurement, unseen, and put back at once, so it never paints in the
+ * wrong place.
+ */
+function closedHeight(label: HTMLElement | null): number {
+  if (!label) return 0;
+  const { display, visibility } = label.style;
+  label.style.visibility = 'hidden';
+  label.style.display = 'block';
+  const h = label.getBoundingClientRect().height;
+  label.style.display = display;
+  label.style.visibility = visibility;
+  return h;
+}
+
 /** Where a `fixed` label goes, from its control's box on screen. */
-function fixedPosition(el: HTMLElement, side: Side, align: keyof typeof ALIGN): CSSProperties {
+function fixedPosition(
+  el: HTMLElement,
+  label: HTMLElement | null,
+  { side: asked, align }: { side: Side; align: keyof typeof ALIGN },
+): { style: CSSProperties; side: Side } {
   const r = el.getBoundingClientRect();
+  const side = fixedSide(asked, r, {
+    labelHeight: closedHeight(label),
+    viewportHeight: window.innerHeight,
+  });
   const vertical: CSSProperties =
     side === 'top' ? { bottom: window.innerHeight - r.top } : { top: r.bottom };
-  if (align === 'start') return { ...vertical, left: r.left };
-  if (align === 'end') return { ...vertical, right: window.innerWidth - r.right };
-  return { ...vertical, left: r.left + r.width / 2, transform: 'translateX(-50%)' };
+  if (align === 'start') return { side, style: { ...vertical, left: r.left } };
+  if (align === 'end') return { side, style: { ...vertical, right: window.innerWidth - r.right } };
+  return {
+    side,
+    style: { ...vertical, left: r.left + r.width / 2, transform: 'translateX(-50%)' },
+  };
 }
