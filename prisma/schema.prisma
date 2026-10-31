@@ -412,6 +412,28 @@ model AdminCheck {
   @@unique([kind, subject])
 }
 
+/// A tab address an admin deleted from the database (owner, 2026-10-31).
+/// Ingest and the pre-scrape refuse it before any fetch, so it is never
+/// stored again until an admin allows it. Keyed by the site address, not the
+/// fingerprint: the fingerprint carries the name and year, which a later
+/// read can spell differently. `slug` is '' for a root-hosted tab; `tabUrl`
+/// is the public address only, never a private URL. Read and written through
+/// raw SQL, like AdminCheck.
+model DeletedTournament {
+  id        BigInt   @id @default(autoincrement())
+  /// Lowercased.
+  host      String
+  /// The first path segment, lowercased; '' when the tab is at the root.
+  slug      String   @default("")
+  name      String
+  tabUrl    String
+  /// The admin's email.
+  deletedBy String
+  deletedAt DateTime @default(now())
+
+  @@unique([host, slug])
+}
+
 model Person {
   id                BigInt   @id @default(autoincrement())
   displayName       String

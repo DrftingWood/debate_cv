@@ -112,3 +112,26 @@ const FORMAT: Record<string, string> = {
 export function formatFailureMessage(failure: FailureLike): string {
   return lookup(FORMAT, failure.error) ?? generic(failure);
 }
+
+const DELETE: Record<string, string> = {
+  ...SHARED,
+  bad_request: 'That could not be run. Reload the page and try again.',
+  not_found: 'This tournament no longer exists. Reload the page to see the current list.',
+  on_cvs:
+    'This tournament is on a user’s CV, so it cannot be deleted. Ignore it in admin stats instead.',
+};
+
+/** Why "Delete tournament" did not run. */
+export function deleteFailureMessage(failure: FailureLike): string {
+  return lookup(DELETE, failure.error) ?? generic(failure);
+}
+
+const ALLOW: Record<string, string> = {
+  ...SHARED,
+  not_found: 'This address is no longer on the list. Reload the page to see the current list.',
+};
+
+/** Why "Allow ingesting again" did not run. */
+export function allowFailureMessage(failure: FailureLike): string {
+  return lookup(ALLOW, failure.error) ?? generic(failure);
+}

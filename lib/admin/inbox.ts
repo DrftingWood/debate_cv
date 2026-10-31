@@ -1,4 +1,5 @@
 import { IngestJobStatus, type Prisma } from '@prisma/client';
+import { DELETED_MARKER } from '@/lib/admin/deletedTournaments';
 import { prisma } from '@/lib/db';
 import { CHECK_LABELS, publicPieceUrl } from '@/lib/audit/types';
 import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
@@ -324,7 +325,11 @@ export async function readFailedJobs(side: 'unstored' | 'stored'): Promise<{
   for (let pageNo = 0; pageNo < MAX_JOB_PAGES && jobs.length < CANDIDATE_CAP; pageNo++) {
     const skip = pageNo * CANDIDATE_CAP;
     const page: JobRow[] = await prisma.ingestJob.findMany({
-      where: { status: { in: [IngestJobStatus.failed, IngestJobStatus.abandoned] } },
+      where: {
+        status: { in: [IngestJobStatus.failed, IngestJobStatus.abandoned] },
+        // A tab an admin deleted is refused on purpose: not a failure to show.
+        OR: [{ lastError: null }, { NOT: { lastError: { startsWith: DELETED_MARKER } } }],
+      },
       orderBy: [{ finishedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
       skip,
       take: CANDIDATE_CAP,

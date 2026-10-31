@@ -133,7 +133,7 @@ const fieldOf = (v: unknown, k: string): unknown =>
  * R7). The message text is the last resort. Matched narrowly so any other
  * failure still surfaces.
  */
-function isMissingTable(err: unknown): boolean {
+export function isMissingTable(err: unknown): boolean {
   const code = fieldOf(err, 'code');
   const metaCode = fieldOf(fieldOf(err, 'meta'), 'code');
   const adapterCause = fieldOf(fieldOf(fieldOf(err, 'meta'), 'driverAdapterError'), 'cause');

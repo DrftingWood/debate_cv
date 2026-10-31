@@ -14,6 +14,8 @@ import { StaffNames } from '@/components/admin/StaffNames';
 import { getTournamentStaff } from '@/lib/admin/tournamentStaff';
 import { IgnoreTournament } from '@/components/admin/IgnoreTournament';
 import { looksLikeTestTournament } from '@/lib/admin/ignoreSuggestion';
+import { DeleteTournament } from '@/components/admin/DeleteTournament';
+import { cvUsers } from '@/lib/admin/deletedTournaments';
 
 export const metadata: Metadata = {
   title: 'Tournament pieces · Admin',
@@ -44,7 +46,7 @@ export default async function AdminTournamentPiecesPage({
   // BigInt(' 5') quietly reads 5.
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
-  const [data, audit, staff] = await Promise.all([
+  const [data, audit, staff, onCvs] = await Promise.all([
     getTournamentPieces(BigInt(id)),
     // The checks are extra: if reading them fails, the grid and re-scrape
     // must stay usable. The panel then says the read failed rather than
@@ -54,11 +56,8 @@ export default async function AdminTournamentPiecesPage({
       console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
       return 'failed' as const;
     }),
-    // Extra, like the checks: a failed read leaves the list empty, not the page broken.
-    getTournamentStaff(BigInt(id)).catch((err: unknown) => {
-      console.error(`admin: staff names for tournament ${id} failed to load`, err);
-      return [];
-    }),
+    staffOrNone(id),
+    cvUsersOrNull(id),
   ]);
   if (!data) notFound();
 
@@ -85,6 +84,8 @@ export default async function AdminTournamentPiecesPage({
 
       <IgnoreSection id={id} name={data.tournament.name} ignored={data.tournament.ignored} />
 
+      <DeleteTournament tournamentId={id} tournamentName={data.tournament.name} onCvs={onCvs} />
+
       {cards.length === 0 ? (
         <EmptyState
           title="No pieces recorded yet"
@@ -105,6 +106,20 @@ export default async function AdminTournamentPiecesPage({
     </div>
   );
 }
+
+// Extra, like the checks: a failed read leaves the list empty, not the page broken.
+const staffOrNone = (id: string) =>
+  getTournamentStaff(BigInt(id)).catch((err: unknown) => {
+    console.error(`admin: staff names for tournament ${id} failed to load`, err);
+    return [];
+  });
+
+// Extra too: unknown (null) leaves the delete to the route's own check.
+const cvUsersOrNull = (id: string) =>
+  cvUsers(BigInt(id)).catch((err: unknown) => {
+    console.error(`admin: CV users for tournament ${id} failed to load`, err);
+    return null;
+  });
 
 // Ignore control; the suggestion is the name's alone, never an automatic ignore.
 function IgnoreSection({ id, name, ignored }: { id: string; name: string; ignored: boolean }) {
