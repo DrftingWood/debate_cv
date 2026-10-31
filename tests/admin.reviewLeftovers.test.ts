@@ -18,7 +18,7 @@ vi.mock('@/components/ui/Toast', () => ({
 }));
 
 const { TabStatus } = await import('@/components/admin/TabStatus');
-const { fixedSide, Tooltip } = await import('@/components/ui/Tooltip');
+const { clampLeft, fixedSide, Tooltip } = await import('@/components/ui/Tooltip');
 const { focusTargetAfterDone } = await import('@/components/admin/reviewSetFocus');
 const { closeAndRefocus, escapeCloses } = await import('@/components/admin/AddToReviewSet');
 const { statusSaveBlocked, BUSY_MESSAGE } = await import('@/components/admin/CvReportsTable');
@@ -62,6 +62,16 @@ describe('a fixed label near the bottom of the screen', () => {
     expect(
       fixedSide('top', { top: 700, bottom: 724 }, { labelHeight: 180, viewportHeight: 844 }),
     ).toBe('top');
+  });
+});
+
+// Browser check: a 256px list opened at x=152 on a 390px phone ran 18px off
+// the right edge.
+describe('a fixed label near a side of the screen', () => {
+  it('moves left to stay 8px inside the right edge, and never past the left one', () => {
+    expect(clampLeft(152, 256, 390)).toBe(126);
+    expect(clampLeft(40, 256, 1280)).toBe(40);
+    expect(clampLeft(2, 100, 390)).toBe(8);
   });
 });
 

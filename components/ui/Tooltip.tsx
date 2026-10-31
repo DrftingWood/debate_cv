@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils/cn';
 
 /*
@@ -39,14 +40,21 @@ import { cn } from '@/lib/utils/cn';
  * also passes `align="end"`, so the open label grows leftwards; one at the
  * left edge passes `align="start"`, so it grows rightwards.
  *
- * `fixed` is that portal's cheaper stand-in, for a control inside a table
- * (the Tab cell's "? Partly", Task 5c): the open label is placed against
- * the viewport from the wrapper's box, so the table's scrolling panel does
- * not clip it. It stays a DOM child of the wrapper, so moving the pointer
- * onto it still counts as hovering, and it closes on any scroll rather than
- * float away from its control. A fixed label that would run past the
- * bottom of the screen opens upwards instead, when there is more room above
- * (a "? Partly" on the last rows of a table).
+ * `fixed` is that portal, for a control inside a table (the Tab cell's
+ * "? Partly", Task 5c): the open label is placed against the viewport from
+ * the wrapper's box and rendered into <body>. It has to leave the table's
+ * DOM, not only be `position: fixed`: `.table-scroll` has `contain: paint`
+ * (it keeps a wide table out of the page's width), and paint containment
+ * makes the scroller the containing block of a fixed descendant and clips
+ * it, so a label left inside opened off by the scroller's offset and was
+ * cut at its edge (browser check, 2026-10-31). Closed, it stays inline and
+ * hidden, so the server's HTML still carries it and its size can be
+ * measured. Leaving the control waits a moment before hiding, and entering
+ * the label cancels that, so moving the pointer onto it still counts as
+ * hovering; it closes on any scroll rather than float away from its control,
+ * and it is kept inside the screen's width. A fixed label that would run
+ * past the bottom of the screen opens upwards instead, when there is more
+ * room above (a "? Partly" on the last rows of a table).
  *
  * Tap to pin (the Tab cell's error list): hover and focus are not there on
  * a phone, so a list that is the cell's whole point needs a tap. Pass
@@ -74,6 +82,9 @@ const ALIGN = {
 } as const;
 
 const HOVER_DELAY_MS = 400;
+const LEAVE_DELAY_MS = 120;
+/** The least room a fixed label keeps from the screen's side edges. */
+const EDGE_PX = 8;
 
 export function Tooltip({
   content,
@@ -135,10 +146,15 @@ export function Tooltip({
     cancel();
     setOpen(false);
   };
+  const later = (fn: () => void) => {
+    cancel();
+    timer.current = window.setTimeout(fn, LEAVE_DELAY_MS);
+  };
 
   useDismiss(visible, {
     fixed,
     wrapper,
+    label,
     close: () => {
       setOpen(false);
       setPinned(false);
@@ -146,6 +162,20 @@ export function Tooltip({
   });
 
   useEffect(() => cancel, []);
+
+  const labelEl = (
+    <Bubble
+      labelRef={label}
+      fixed={fixed}
+      visible={visible}
+      at={at}
+      placement={{ side, align }}
+      wrap={wrap}
+      hover={{ enter: cancel, leave: () => later(hide) }}
+    >
+      {content}
+    </Bubble>
+  );
 
   return (
     <span
@@ -156,7 +186,9 @@ export function Tooltip({
         cancel();
         timer.current = window.setTimeout(show, HOVER_DELAY_MS);
       }}
-      onPointerLeave={hide}
+      // A fixed label is not inside the wrapper's box, so leaving waits a
+      // moment for the pointer to reach it (the label's enter cancels this).
+      onPointerLeave={fixed ? () => later(hide) : hide}
       // A click opens the control's menu or acts; the label has done its job.
       onPointerDown={hide}
       onFocus={(e) => {
@@ -168,23 +200,50 @@ export function Tooltip({
       }}
     >
       <Trigger control={children} pin={{ pinned, togglePin }} />
+      {fixed && visible ? createPortal(labelEl, document.body) : labelEl}
+    </span>
+  );
+}
+
+/** The label itself; a fixed one keeps the hover alive while the pointer is on it. */
+function Bubble({
+  labelRef,
+  fixed,
+  visible,
+  at,
+  placement: { side, align },
+  wrap,
+  hover,
+  children,
+}: {
+  labelRef: RefObject<HTMLSpanElement | null>;
+  fixed: boolean;
+  visible: boolean;
+  at: { style: CSSProperties; side: Side } | null;
+  placement: { side: Side; align: keyof typeof ALIGN };
+  wrap: boolean;
+  hover: { enter: () => void; leave: () => void };
+  children: ReactNode;
+}) {
+  return (
+    <span
+      ref={labelRef}
+      aria-hidden
+      onPointerEnter={fixed ? hover.enter : undefined}
+      onPointerLeave={fixed ? hover.leave : undefined}
+      style={fixed && at ? at.style : undefined}
+      className={cn(
+        labelPlacement({ fixed, side, placed: at?.side, align }),
+        visible ? 'block' : 'hidden',
+      )}
+    >
       <span
-        ref={label}
-        aria-hidden
-        style={fixed && at ? at.style : undefined}
         className={cn(
-          labelPlacement({ fixed, side, placed: at?.side, align }),
-          visible ? 'block' : 'hidden',
+          'block rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background shadow-md',
+          wrap ? 'w-max max-w-[16rem] whitespace-normal text-left' : 'whitespace-nowrap',
         )}
       >
-        <span
-          className={cn(
-            'block rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background shadow-md',
-            wrap ? 'w-max max-w-[16rem] whitespace-normal text-left' : 'whitespace-nowrap',
-          )}
-        >
-          {content}
-        </span>
+        {children}
       </span>
     </span>
   );
@@ -199,8 +258,15 @@ function useDismiss(
   {
     fixed,
     wrapper,
+    label,
     close,
-  }: { fixed: boolean; wrapper: RefObject<HTMLSpanElement | null>; close: () => void },
+  }: {
+    fixed: boolean;
+    /** The control's wrapper and the label: a tap on either is not "elsewhere". */
+    wrapper: RefObject<HTMLSpanElement | null>;
+    label: RefObject<HTMLSpanElement | null>;
+    close: () => void;
+  },
 ) {
   const onClose = useRef(close);
   useEffect(() => {
@@ -213,7 +279,8 @@ function useDismiss(
       if (e.key === 'Escape') shut();
     };
     const onPointer = (e: PointerEvent) => {
-      if (!wrapper.current?.contains(e.target as Node)) shut();
+      const t = e.target as Node;
+      if (!wrapper.current?.contains(t) && !label.current?.contains(t)) shut();
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onPointer);
@@ -223,7 +290,7 @@ function useDismiss(
       document.removeEventListener('pointerdown', onPointer);
       window.removeEventListener('scroll', shut, true);
     };
-  }, [visible, fixed, wrapper]);
+  }, [visible, fixed, wrapper, label]);
 }
 
 /** The label's positioning classes; a fixed label pads on the side it opened towards. */
@@ -277,15 +344,20 @@ export function fixedSide(
  * the measurement, unseen, and put back at once, so it never paints in the
  * wrong place.
  */
-function closedHeight(label: HTMLElement | null): number {
-  if (!label) return 0;
+function closedSize(label: HTMLElement | null): { width: number; height: number } {
+  if (!label) return { width: 0, height: 0 };
   const { display, visibility } = label.style;
   label.style.visibility = 'hidden';
   label.style.display = 'block';
-  const h = label.getBoundingClientRect().height;
+  const { width, height } = label.getBoundingClientRect();
   label.style.display = display;
   label.style.visibility = visibility;
-  return h;
+  return { width, height };
+}
+
+/** A left edge that keeps a label of `width` on the screen, `EDGE_PX` from either side. */
+export function clampLeft(left: number, width: number, viewportWidth: number): number {
+  return Math.max(EDGE_PX, Math.min(left, viewportWidth - width - EDGE_PX));
 }
 
 /** Where a `fixed` label goes, from its control's box on screen. */
@@ -295,13 +367,15 @@ function fixedPosition(
   { side: asked, align }: { side: Side; align: keyof typeof ALIGN },
 ): { style: CSSProperties; side: Side } {
   const r = el.getBoundingClientRect();
+  const size = closedSize(label);
   const side = fixedSide(asked, r, {
-    labelHeight: closedHeight(label),
+    labelHeight: size.height,
     viewportHeight: window.innerHeight,
   });
   const vertical: CSSProperties =
     side === 'top' ? { bottom: window.innerHeight - r.top } : { top: r.bottom };
-  if (align === 'start') return { side, style: { ...vertical, left: r.left } };
+  if (align === 'start')
+    return { side, style: { ...vertical, left: clampLeft(r.left, size.width, window.innerWidth) } };
   if (align === 'end') return { side, style: { ...vertical, right: window.innerWidth - r.right } };
   return {
     side,
