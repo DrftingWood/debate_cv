@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { buttonClasses } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
+import { CheckActionsProvider } from '@/components/admin/CheckActions';
 import { InboxTable, type InboxRow } from '@/components/admin/InboxTable';
 import { LoadFailed } from '@/components/admin/LoadFailed';
 import { adminHref, type SearchValues } from '@/lib/admin/adminHref';
@@ -171,7 +172,11 @@ function InboxBody({
             href={pageHref}
             always
           />
-          <InboxTable rows={toInboxRows(list.rows, now)} />
+          {/* The provider hands every Fix, Mark checked and Review later in the
+              table one flight, so a re-scrape and a mark never run together. */}
+          <CheckActionsProvider>
+            <InboxTable rows={toInboxRows(list.rows, now)} />
+          </CheckActionsProvider>
         </>
       )}
     </>
