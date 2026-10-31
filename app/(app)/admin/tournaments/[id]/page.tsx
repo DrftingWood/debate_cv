@@ -15,6 +15,15 @@ import { getTournamentStaff } from '@/lib/admin/tournamentStaff';
 import { IgnoreTournament } from '@/components/admin/IgnoreTournament';
 import { looksLikeTestTournament } from '@/lib/admin/ignoreSuggestion';
 import { DeleteTournament } from '@/components/admin/DeleteTournament';
+import { TournamentDetailsForm } from '@/components/admin/TournamentDetailsForm';
+import {
+  REGIONS,
+  TOURNAMENT_FORMATS,
+  YEAR_MAX,
+  YEAR_MIN,
+  getTournamentDetails,
+  type TournamentDetails,
+} from '@/lib/admin/tournamentDetails';
 import { cvUsers } from '@/lib/admin/deletedTournaments';
 
 export const metadata: Metadata = {
@@ -46,18 +55,12 @@ export default async function AdminTournamentPiecesPage({
   // BigInt(' 5') quietly reads 5.
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
-  const [data, audit, staff, onCvs] = await Promise.all([
+  const [data, audit, staff, onCvs, details] = await Promise.all([
     getTournamentPieces(BigInt(id)),
-    // The checks are extra: if reading them fails, the grid and re-scrape
-    // must stay usable. The panel then says the read failed rather than
-    // "Not audited yet", which would send the admin to audit a tournament
-    // that may well have been audited.
-    getTournamentAccuracy(BigInt(id)).catch((err: unknown) => {
-      console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
-      return 'failed' as const;
-    }),
+    accuracyOrFailed(id),
     staffOrNone(id),
     cvUsersOrNull(id),
+    detailsOrNull(id),
   ]);
   if (!data) notFound();
 
@@ -81,6 +84,8 @@ export default async function AdminTournamentPiecesPage({
       />
 
       <StaffNames rows={staff} />
+
+      <DetailsSection id={id} name={data.tournament.name} details={details} />
 
       <IgnoreSection id={id} name={data.tournament.name} ignored={data.tournament.ignored} />
 
@@ -107,6 +112,16 @@ export default async function AdminTournamentPiecesPage({
   );
 }
 
+// The checks are extra: if reading them fails, the grid and re-scrape must
+// stay usable. The panel then says the read failed rather than "Not audited
+// yet", which would send the admin to audit a tournament that may well have
+// been audited.
+const accuracyOrFailed = (id: string) =>
+  getTournamentAccuracy(BigInt(id)).catch((err: unknown) => {
+    console.error(`admin: accuracy checks for tournament ${id} failed to load`, err);
+    return 'failed' as const;
+  });
+
 // Extra, like the checks: a failed read leaves the list empty, not the page broken.
 const staffOrNone = (id: string) =>
   getTournamentStaff(BigInt(id)).catch((err: unknown) => {
@@ -120,6 +135,36 @@ const cvUsersOrNull = (id: string) =>
     console.error(`admin: CV users for tournament ${id} failed to load`, err);
     return null;
   });
+
+// Extra too: a failed read hides the format, year and region form, never the page.
+const detailsOrNull = (id: string) =>
+  getTournamentDetails(BigInt(id)).catch((err: unknown) => {
+    console.error(`admin: details for tournament ${id} failed to load`, err);
+    return null;
+  });
+
+// Format, year and region by hand.
+function DetailsSection({
+  id,
+  name,
+  details,
+}: {
+  id: string;
+  name: string;
+  details: TournamentDetails | null;
+}) {
+  if (!details) return null;
+  return (
+    <TournamentDetailsForm
+      tournamentId={id}
+      tournamentName={name}
+      details={details}
+      formats={TOURNAMENT_FORMATS}
+      regions={REGIONS}
+      yearRange={{ min: YEAR_MIN, max: YEAR_MAX }}
+    />
+  );
+}
 
 // Ignore control; the suggestion is the name's alone, never an automatic ignore.
 function IgnoreSection({ id, name, ignored }: { id: string; name: string; ignored: boolean }) {

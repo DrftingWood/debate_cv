@@ -272,6 +272,11 @@ model Tournament {
   /// format, the unpublished-page decisions or the tournament-wide fields. The
   /// Old parser check passes on either, with different wording.
   pagesRefreshedUnder  String?
+  /// The fields an admin set by hand on the tournament's page ("format",
+  /// "year", "region"; owner, 2026-10-31). A scrape leaves these alone, so a
+  /// later read cannot undo the admin's value; clearing a field on the page
+  /// hands it back to the automatic fill.
+  manualFields         String[] @default([])
 
   participants         TournamentParticipant[]
   teamResults          TeamResult[]
