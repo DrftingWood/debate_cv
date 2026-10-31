@@ -6,7 +6,7 @@ import { parseChecks, suggestedPieces, type ParsedCheck } from '@/lib/admin/accu
 import { clampPage } from '@/lib/admin/cvReportTypes';
 import { classifyWarning, isPlainProblem } from '@/lib/admin/parserClass';
 import { loadWarningGroups, tournamentsOf, type WarningGroup } from '@/lib/admin/parserWarnings';
-import type { Priority } from '@/lib/admin/reviewSetTypes';
+import type { FlagSource, Priority } from '@/lib/admin/reviewSetTypes';
 import { matchJobs } from '@/lib/admin/scrapeHealth';
 import { scrubComment } from '@/lib/admin/scrub';
 import { parseTabAddress } from '@/lib/admin/tabAddress';
@@ -64,8 +64,8 @@ export * from '@/lib/admin/inboxTypes';
  * An item before its review flag and (for parser) tournament are attached:
  * the review-set ids that would flag it, and a parser item's warning group.
  */
-type Draft = Omit<InboxItem, 'reviewFlag'> & {
-  flagIds: Array<{ source: string; id: string }>;
+type Draft = Omit<InboxItem, 'reviewFlag' | 'flagItems'> & {
+  flagIds: Array<{ source: FlagSource; id: string }>;
   group?: WarningGroup;
 };
 
@@ -295,9 +295,12 @@ const MAX_JOB_PAGES = 10;
 async function readUnstoredJobs(): Promise<{
   jobs: JobRow[];
   ambiguous: Map<string, number>;
+  /** The page ceiling was hit with older failures still unread. */
+  truncated: boolean;
 }> {
   const jobs: JobRow[] = [];
   const ambiguous = new Map<string, number>();
+  let truncated = false;
   for (let pageNo = 0; pageNo < MAX_JOB_PAGES && jobs.length < CANDIDATE_CAP; pageNo++) {
     const skip = pageNo * CANDIDATE_CAP;
     const page: JobRow[] = await prisma.ingestJob.findMany({
@@ -323,8 +326,10 @@ async function readUnstoredJobs(): Promise<{
       if (n) ambiguous.set(j.id, n);
     }
     if (page.length < CANDIDATE_CAP) break;
+    // A full last page under the ceiling and short of the cap: more exist.
+    if (pageNo === MAX_JOB_PAGES - 1 && jobs.length < CANDIDATE_CAP) truncated = true;
   }
-  return { jobs, ambiguous };
+  return { jobs, ambiguous, truncated };
 }
 
 type JobGroup = { jobs: JobRow[]; status: TabStatusValue; tabUrl: string | null; name: string };
@@ -374,7 +379,7 @@ function importPrint(g: JobGroup): { category: string; fingerprint: string } {
 
 /** Unstored failed-import groups no matching mark covers; shared by the list and the count. */
 async function openImportGroups() {
-  const { jobs, ambiguous } = await readUnstoredJobs();
+  const { jobs, ambiguous, truncated } = await readUnstoredJobs();
   const groups = groupUnstored(jobs, { stored: new Map(), ambiguous });
   const marks = await marksFor('import', [...groups.keys()]);
   const out: Array<{
@@ -389,12 +394,13 @@ async function openImportGroups() {
     const state = markState(marks.get(subject), fingerprint);
     if (state !== 'covered') out.push({ subject, g, category, fingerprint, state });
   }
-  return out;
+  return { open: out, truncated };
 }
 
-async function importDrafts(): Promise<Draft[]> {
+async function importDrafts(): Promise<{ drafts: Draft[]; truncated: boolean }> {
   const out: Draft[] = [];
-  for (const { subject, g, category, fingerprint, state } of await openImportGroups()) {
+  const { open, truncated } = await openImportGroups();
+  for (const { subject, g, category, fingerprint, state } of open) {
     const ages = g.jobs.map((j) => (j.finishedAt ?? j.scheduledAt).getTime());
     out.push({
       key: `import:${subject}`,
@@ -411,7 +417,7 @@ async function importDrafts(): Promise<Draft[]> {
       flagIds: g.jobs.map((j) => ({ source: 'import', id: j.id })),
     });
   }
-  return out;
+  return { drafts: out, truncated };
 }
 
 // ---- parser --------------------------------------------------------------
@@ -527,7 +533,7 @@ export async function countInbox(now: Date = new Date()): Promise<Record<InboxKi
   return {
     check: check.length,
     report: report.length,
-    import: imports.length,
+    import: imports.open.length,
     parser: parser.length,
   };
 }
@@ -541,13 +547,14 @@ export async function listInbox({
   kinds?: InboxKind[];
   now?: Date;
 }): Promise<InboxList> {
-  const [checks, reports, imports, parsers, flags] = await Promise.all([
+  const [checks, reports, imported, parsers, flags] = await Promise.all([
     checkDrafts(),
     reportDrafts(),
     importDrafts(),
     parserDrafts(now),
     openFlags(),
   ]);
+  const imports = imported.drafts;
   const counts: Record<InboxKind, number> = {
     check: checks.length,
     report: reports.length,
@@ -571,7 +578,8 @@ export async function listInbox({
       const p = flags.get(`${f.source}|${f.id}`);
       if (p && (!priority || PRIORITY_RANK[p] < PRIORITY_RANK[priority])) priority = p;
     }
-    return { ...item, reviewFlag: priority ? { priority } : null };
+    const flagItems = flagIds.map((f) => ({ source: f.source, sourceId: f.id }));
+    return { ...item, flagItems, reviewFlag: priority ? { priority } : null };
   });
-  return { rows, total, page: shown, pages, counts };
+  return { rows, total, page: shown, pages, counts, truncated: imported.truncated };
 }

@@ -89,3 +89,15 @@ const CV_REPORT: Record<string, string> = {
 export function cvReportFailureMessage(failure: FailureLike): string {
   return lookup(CV_REPORT, failure.error) ?? generic(failure);
 }
+
+const MARK: Record<string, string> = {
+  ...SHARED,
+  // The page sends only the marks it was given, so a bad request is a stale
+  // page or a hand-made call.
+  bad_request: 'That could not be saved. Reload the page and try again.',
+};
+
+/** Why "Mark checked", or its Undo, did not work. */
+export function markFailureMessage(failure: FailureLike): string {
+  return lookup(MARK, failure.error) ?? generic(failure);
+}

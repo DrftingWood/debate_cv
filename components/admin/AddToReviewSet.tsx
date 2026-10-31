@@ -190,9 +190,16 @@ function useSendFlags(noun: string) {
  * ticked rows is said beside the button; an empty comment is said under the
  * field, which is marked invalid and takes focus (UX-15).
  */
+type ReviewOptions = {
+  noun: string;
+  onAdded: () => void;
+  /** The trigger's words; "Add to review set" unless the caller says how many. */
+  label?: string;
+};
+
 export function useAddToReviewSet(
   items: readonly FlagItem[],
-  { noun, onAdded }: { noun: string; onAdded: () => void },
+  { noun, onAdded, label = 'Add to review set' }: ReviewOptions,
 ) {
   const [open, setOpen] = useState(false);
   const form = useFlagForm();
@@ -232,7 +239,7 @@ export function useAddToReviewSet(
         setOpen((v) => !v);
       }}
     >
-      Add to review set
+      {label}
     </Button>
   );
 
@@ -255,7 +262,9 @@ export function useAddToReviewSet(
     </div>
   );
 
-  return { button, panel };
+  // `open` lets another control (a row's "Review later") bring the form up;
+  // the form then takes focus itself, as it does when the button opens it.
+  return { button, panel, open: () => setOpen(true) };
 }
 
 /** Closes a form and puts focus back on its trigger, once the form has gone. */

@@ -1,6 +1,6 @@
 import type { MarkKind } from '@/lib/admin/adminChecks';
 import type { SuggestedPiece } from '@/lib/admin/accuracyActions';
-import type { Priority } from '@/lib/admin/reviewSetTypes';
+import type { FlagItem, Priority } from '@/lib/admin/reviewSetTypes';
 import type { TabState } from '@/lib/admin/tabStatus';
 
 /**
@@ -57,6 +57,8 @@ export type InboxItem = {
   fix: FixAction;
   /** What "Mark checked" stores, one per finding the item stands for. */
   markItems: InboxMarkItem[];
+  /** What "Review later" flags: the review-set ids behind the item (none for a check). */
+  flagItems: FlagItem[];
   /** The open review-set flag on the item, if any (a badge, not an item). */
   reviewFlag: { priority: Priority } | null;
   /** A mark exists but the data has changed since: "Changed since you checked it". */
@@ -70,4 +72,29 @@ export type InboxList = {
   pages: number;
   /** Items of each kind, whatever `kinds` filtered: the filter chips' counts. */
   counts: Record<InboxKind, number>;
+  /** The import scan hit its page ceiling: older failures were not read. */
+  truncated: boolean;
 };
+
+/** The kind badge's word and the filter chip's label (the shell's vocabulary). */
+export const KIND_LABEL: Record<InboxKind, string> = {
+  check: 'Accuracy',
+  report: 'CV report',
+  import: 'Import',
+  parser: 'Parser',
+};
+
+/**
+ * `?kinds=` as written ("check,import") to the kinds it names: unknown words
+ * and repeats dropped, and naming all four is the same as naming none (no
+ * filter), so one address means one list.
+ */
+export function parseKinds(value: string | string[] | undefined): InboxKind[] {
+  const raw = Array.isArray(value) ? value.join(',') : (value ?? '');
+  const named = new Set(raw.split(',').map((w) => w.trim()));
+  const kinds = INBOX_KINDS.filter((k) => named.has(k));
+  return kinds.length === INBOX_KINDS.length ? [] : kinds;
+}
+
+/** The kinds as the address writes them; empty for "all". */
+export const kindsParam = (kinds: readonly InboxKind[]): string => kinds.join(',');

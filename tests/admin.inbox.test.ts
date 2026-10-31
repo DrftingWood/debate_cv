@@ -267,16 +267,27 @@ describe('import items: the scan ceiling', () => {
       Array.from({ length: CANDIDATE_CAP }, (_, i) =>
         job([`s${n}-${i}`, 'u1'], `https://s${n}${i}.calicotab.com/s${n}${i}/privateurls/k/`),
       );
-    h.db.ingestJob.findMany.mockImplementation(async (args: { skip: number }) =>
-      mk(args.skip / CANDIDATE_CAP),
-    );
+    // Fails fast if the scan ever reads an eleventh page, rather than
+    // walking an endless table (and hanging CI).
+    h.db.ingestJob.findMany.mockImplementation(async (args: { skip: number }) => {
+      if (args.skip / CANDIDATE_CAP >= 10) throw new Error('read past the page ceiling');
+      return mk(args.skip / CANDIDATE_CAP);
+    });
     h.matchJobs.mockImplementation(async (jobs: Array<{ id: string }>) => ({
       stored: new Map(jobs.map((j) => [j.id, { id: '5', name: 'Stored', scrapedAt: NOW }])),
       ambiguous: new Map(),
     }));
-    const { counts } = await listInbox({ page: 1, now: NOW });
+    const { counts, truncated } = await listInbox({ page: 1, now: NOW });
     expect(counts.import).toBe(0);
     expect(h.db.ingestJob.findMany).toHaveBeenCalledTimes(10);
+    // Older failures were not scanned, and the list says so.
+    expect(truncated).toBe(true);
+  });
+
+  it('is not truncated when the jobs ran out before the ceiling', async () => {
+    h.db.ingestJob.findMany.mockResolvedValue([]);
+    const { truncated } = await listInbox({ page: 1, now: NOW });
+    expect(truncated).toBe(false);
   });
 });
 

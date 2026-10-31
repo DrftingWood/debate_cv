@@ -2,14 +2,19 @@ import { cache } from 'react';
 import { prisma } from '@/lib/db';
 import { getAccuracyOverview, type Band } from '@/lib/admin/accuracy';
 import { countInbox, listInbox } from '@/lib/admin/inbox';
+import { parseKinds, type InboxList } from '@/lib/admin/inboxTypes';
 import { band } from '@/lib/audit/score';
 import { orNull } from '@/lib/admin/orNull';
 
 /**
- * The inbox page, read once per request. The summary line (above every tab)
- * and the Inbox panel both need it, and a read is a scan of every source.
+ * The inbox page, read once per request. On the Inbox tab the summary line
+ * and the panel both need it, and a read is a scan of every source, so both
+ * go through here. `kinds` is the `?kinds=` words as written (a string, so
+ * React's cache() can tell two reads apart by value).
  */
-export const readInbox = cache((page: number) => listInbox({ page }));
+export const readInbox = cache((page: number, kinds: string) =>
+  listInbox({ page, kinds: parseKinds(kinds) }),
+);
 
 /**
  * The full accuracy overview, read once per request. Only the Tournaments tab
@@ -43,7 +48,13 @@ const readAccuracyCounts = cache(async () => {
   return { score: weightTotal === 0 ? null : Math.round(weightedSum / weightTotal), ...bands };
 });
 
-/** The inbox's per-kind counts, read once per request without building items. */
+/**
+ * The inbox's per-kind counts, read once per request without building items.
+ * Used on every tab but the Inbox, whose own page read already carries them.
+ * Only the accuracy count above avoids the audits' checks JSON: countInbox
+ * still reads it (bounded at CANDIDATE_CAP audits) to tell which checks a
+ * mark covers, it just builds no items.
+ */
 const readInboxCounts = cache(() => countInbox());
 
 /**
@@ -61,9 +72,14 @@ export type Summary = {
   queue: number | null;
 };
 
-export async function getSummary(): Promise<Summary> {
+/**
+ * `inbox` is the Inbox tab's own page read (readInbox) when that tab is the
+ * active one: its counts are the summary's, so the candidate scan runs once
+ * per render, not once for the panel and again for the line.
+ */
+export async function getSummary(inbox?: Promise<InboxList>): Promise<Summary> {
   const [counts, accuracy, queue] = await Promise.all([
-    readInboxCounts().catch(orNull('summary inbox')),
+    (inbox ? inbox.then((l) => l.counts) : readInboxCounts()).catch(orNull('summary inbox')),
     readAccuracyCounts().catch(orNull('summary accuracy')),
     prisma.ingestJob.count({ where: { status: 'pending' } }).catch(orNull('summary queue')),
   ]);

@@ -147,6 +147,9 @@ export function Tabs({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // Browser and OS shortcuts (Ctrl+Home, Alt+Left, Cmd+Arrow) are not the
+    // strip's keys: leave them to the browser.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const focusedId = (e.target as HTMLElement).closest('[role="tab"]')?.id;
     const focused = items.findIndex((i) => tabId(i.value) === focusedId);
     const action = tabKeyAction({

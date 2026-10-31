@@ -64,3 +64,28 @@ describe('getSummary', () => {
     expect(s.queue).toBe(4);
   });
 });
+
+describe('getSummary on the Inbox tab', () => {
+  it('takes the inbox counts from the one cached page read: the candidate scan runs once', async () => {
+    h.groupBy.mockResolvedValue([]);
+    h.listInbox.mockResolvedValue({
+      rows: [],
+      total: 9,
+      page: 1,
+      pages: 1,
+      counts: { check: 4, report: 2, import: 3, parser: 0 },
+      truncated: false,
+    });
+    const { getSummary, readInbox } = await import('@/lib/admin/summary');
+    // The tab's own read and the summary's, in one request (React's cache()
+    // is a pass-through outside a render, so the test shares the promise
+    // the page would).
+    const inbox = readInbox(1, '');
+    const s = await getSummary(inbox);
+    expect(await inbox).toMatchObject({ total: 9 });
+    expect(s.needsYou).toBe(9);
+    expect(s.importsFailing).toBe(3);
+    expect(h.countInbox).not.toHaveBeenCalled();
+    expect(h.listInbox).toHaveBeenCalledTimes(1);
+  });
+});

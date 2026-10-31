@@ -11,7 +11,9 @@ import { ReviewSetTab } from '@/components/admin/tabs/ReviewSetTab';
 import { ToolsTab } from '@/components/admin/tabs/ToolsTab';
 import { TournamentsTab } from '@/components/admin/tabs/TournamentsTab';
 import { readAdminTab, type AdminTab } from '@/lib/admin/adminTabs';
-import { getSummary } from '@/lib/admin/summary';
+import { getSummary, readInbox } from '@/lib/admin/summary';
+import { kindsParam, parseKinds } from '@/lib/admin/inboxTypes';
+import { readPage } from '@/lib/admin/cvReportTypes';
 import type { SearchValues } from '@/lib/admin/adminHref';
 
 export const metadata: Metadata = {
@@ -46,7 +48,13 @@ export default async function AdminPage({
   // millisecond apart cannot disagree about "just now".
   const now = new Date();
 
-  const [summary, panel] = await Promise.all([getSummary(), renderPanel(active, search, now)]);
+  // On the Inbox tab the panel and the summary line share one page read (its
+  // counts are the line's), so the candidate scan runs once per render.
+  const inbox =
+    active === 'inbox'
+      ? readInbox(readPage(search.inboxPage), kindsParam(parseKinds(search.kinds)))
+      : undefined;
+  const [summary, panel] = await Promise.all([getSummary(inbox), renderPanel(active, search, now)]);
 
   return (
     <div className="space-y-group">
@@ -68,7 +76,7 @@ export default async function AdminPage({
 async function renderPanel(tab: AdminTab, search: SearchValues, now: Date) {
   switch (tab) {
     case 'inbox':
-      return InboxTab();
+      return InboxTab({ search, now });
     case 'tournaments':
       return TournamentsTab({ search, now });
     case 'imports':

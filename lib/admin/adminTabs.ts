@@ -38,6 +38,8 @@ export const TAB_SCOPED_PARAMS = [
   'reportsPage',
   'reportsStatus',
   'warningsPage',
+  'kinds',
+  'inboxPage',
 ] as const;
 
 /** The /admin address for a tab: the plain address for the Inbox, `?tab=` otherwise. */
