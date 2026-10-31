@@ -34,6 +34,9 @@ vi.mock('@/lib/admin/summary', () => ({
 vi.mock('@/lib/admin/accuracy', () => ({
   getAccuracyOverview: vi.fn(async () => null),
 }));
+vi.mock('@/components/ui/Toast', () => ({
+  useToast: () => ({ toasts: [], show: vi.fn(), dismiss: vi.fn() }),
+}));
 vi.mock('next/navigation', () => ({
   // Throws as Next's does, so the page stops where it redirects.
   redirect: h.redirect,
@@ -56,7 +59,11 @@ const row = (i: number): TournamentList['rows'][number] => ({
   parserCurrent: i !== 21,
   score: i === 21 ? null : 92,
   band: i === 21 ? null : 'good',
-  partlyLoaded: i === 22,
+  tab:
+    i === 22
+      ? { state: 'partial', tournamentId: String(i), errors: ['R2: HTTP 503 Service Unavailable'] }
+      : { state: 'loaded', tournamentId: String(i), errors: [] },
+  withheld: i === 23 ? 2 : 0,
   onCvs: 3,
 });
 
@@ -83,7 +90,7 @@ describe('/admin/tournaments', () => {
     });
     const out = await render({ q: 'tournament', page: '2' });
 
-    expect(h.list).toHaveBeenCalledWith({ page: 2, q: 'tournament' });
+    expect(h.list).toHaveBeenCalledWith({ page: 2, q: 'tournament', filters: {} });
     expect(out.match(/<h1[ >]/g)).toHaveLength(1);
     expect(out).toMatch(/<h2[^>]*>Tournaments in the database<\/h2>/);
     expect(out).toContain('21–40 of 45 · page 2 of 3');
@@ -92,11 +99,66 @@ describe('/admin/tournaments', () => {
     expect(out).toContain('href="/admin?tab=tournaments&amp;q=tournament&amp;page=3"');
     expect(out).toContain('href="/admin/tournaments/21"');
     expect(out).toContain('Old parser');
-    expect(out).toContain('Partly loaded');
+    // The partial row (id 22) says so in the one status cell, with its retry.
+    expect(out).toContain('Partly');
     // The search box keeps the name that was searched.
     expect(out).toMatch(/<input[^>]*name="q"[^>]*value="tournament"/);
   });
+});
 
+describe('/admin/tournaments rows and filters (R5)', () => {
+  it('has one status cell and one Tab link per row, no In database column', async () => {
+    h.list.mockResolvedValue({
+      rows: [row(21), row(22), row(23)],
+      total: 3,
+      page: 1,
+      pages: 1,
+    });
+    const out = await render({});
+    expect(out).not.toMatch(/<th[^>]*>In database<\/th>/);
+    expect(out).not.toContain('Partly loaded');
+    expect(out.match(/aria-label="Tab of Tournament \d+, opens in a new tab"/g)).toHaveLength(3);
+    // Loaded rows say Loaded in words and symbol; none is highlighted.
+    expect(out.match(/Loaded<\/span>/g)).toHaveLength(2);
+    // Open is the name's own link, not a second one in the status cell.
+    expect(out).not.toMatch(/aria-label="Open Tournament/);
+  });
+
+  it('brings back Retry failed for a partial row and the withheld count, as words', async () => {
+    h.list.mockResolvedValue({ rows: [row(21), row(22), row(23)], total: 3, page: 1, pages: 1 });
+    const out = await render({});
+    expect(out.match(/Retry failed pieces of Tournament 22/g)).toHaveLength(1);
+    expect(out).not.toContain('Retry failed pieces of Tournament 21');
+    expect(out).toContain('2 pages withheld');
+    // A withheld count is not a failure: no warning badge wraps it.
+    expect(out).not.toMatch(/<span[^>]*warning[^>]*>[^<]*withheld/);
+  });
+
+  it('reads the filters from the address, keeps them in the pager and says when none match', async () => {
+    h.list.mockResolvedValue({
+      rows: Array.from({ length: 20 }, (_, i) => row(21 + i)),
+      total: 45,
+      page: 1,
+      pages: 3,
+    });
+    const out = await render({ check: 'champion', band: 'rescrape', bogus: 'x' });
+    expect(h.list).toHaveBeenCalledWith({
+      page: 1,
+      q: undefined,
+      filters: { check: 'champion', band: 'rescrape' },
+    });
+    expect(out).toContain(
+      'href="/admin?tab=tournaments&amp;check=champion&amp;band=rescrape&amp;page=2"',
+    );
+
+    h.list.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1 });
+    const none = await render({ check: 'champion' });
+    expect(none).toContain('No tournament matches these filters');
+    expect(none).not.toContain('No tournaments stored yet');
+  });
+});
+
+describe('/admin/tournaments empty states', () => {
   it('keeps "nothing stored" and "nothing matches" apart (UX-24)', async () => {
     h.list.mockResolvedValue({ rows: [], total: 0, page: 1, pages: 1 });
     const none = await render({});

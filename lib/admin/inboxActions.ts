@@ -39,8 +39,11 @@ export function bulkMarkPayload(
   return { items, keys, left };
 }
 
+/** A mark by what the route deletes it with. */
+export type MarkTarget = Pick<InboxMarkItem, 'kind' | 'subject'>;
+
 /** What Undo deletes: one target per mark just stored (the route takes one at a time). */
-export const undoTargets = (items: readonly InboxMarkItem[]) =>
+export const undoTargets = (items: readonly MarkTarget[]): MarkTarget[] =>
   items.map(({ kind, subject }) => ({ kind, subject }));
 
 /** The review-set flags for the ticked rows, each once (an import group may share jobs). */

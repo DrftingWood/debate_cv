@@ -31,6 +31,12 @@ export function readAdminTab(value: string | string[] | undefined): AdminTab {
  * Query parameters that belong to one tab's list (its search, its page, its
  * filter). Moving to another tab drops them: page 3 of the tournaments is not
  * a position in the CV reports. Anything else on the address is kept.
+ *
+ * The Tournaments tab's chips (`band`, `check`, `question`, `checked`) are
+ * deliberately not listed: they stay on the address across tabs, so a filter
+ * chosen there is still chosen when the owner comes back from the Inbox
+ * (decided in R3 for band and check; R5 treats the other two the same). No
+ * other tab reads them.
  */
 export const TAB_SCOPED_PARAMS = [
   'q',

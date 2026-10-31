@@ -26,6 +26,7 @@ vi.mock('@/lib/admin/accuracy', () => ({
     n: 0,
     onCvs: 0,
     bands: { good: 0, check: 0, rescrape: 0 },
+    checked: 0,
     failingByCheck: [],
     stale: 0,
     tournaments: 0,
@@ -43,6 +44,7 @@ vi.mock('@/lib/admin/summary', () => ({
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
+    tournamentAudit: { findMany: vi.fn(async () => []) },
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 3) },
     parserRun: { findMany: vi.fn(async () => []) },
@@ -195,7 +197,7 @@ describe('admin overview', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const out = await renderPage(full);
     expect(out).toContain('Failed imports');
-    expect(out).toContain('Couldn&#x27;t load the accuracy overview');
+    expect(out).toContain('Couldn&#x27;t load the filters');
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });

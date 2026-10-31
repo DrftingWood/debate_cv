@@ -28,6 +28,7 @@ vi.mock('@/lib/admin/summary', () => ({
 vi.mock('@/lib/db', () => ({
   prisma: {
     tournament: { count: vi.fn(async () => 12), findMany: vi.fn(async () => []) },
+    tournamentAudit: { findMany: vi.fn(async () => []) },
     discoveredUrl: { count: vi.fn(async () => 40) },
     ingestJob: { count: vi.fn(async () => 1) },
     parserRun: { findMany: vi.fn(async () => []) },
@@ -102,6 +103,7 @@ const overview: AccuracyOverview = {
   n: 40,
   onCvs: 12,
   bands: { good: 25, check: 10, rescrape: 5 },
+  checked: 2,
   failingByCheck: [{ code: 'rounds_complete', label: 'Rounds complete', count: 4 }],
   stale: 3,
   tournaments: 43,
@@ -160,6 +162,7 @@ const empty: AccuracyOverview = {
   n: 0,
   onCvs: 0,
   bands: { good: 0, check: 0, rescrape: 0 },
+  checked: 0,
   failingByCheck: [],
   lowest: [],
   openQuestions: [],
@@ -190,86 +193,87 @@ beforeEach(() => {
   h.accuracy = null;
 });
 
-describe('Data accuracy section', () => {
-  it('shows the score tiles with their samples', async () => {
-    const out = await renderPage(overview);
-    expect(out).toMatch(/<h2[^>]*>Data accuracy<\/h2>/);
-    expect(out).toContain('Accuracy score');
-    expect(out).toContain('across 40 tournaments · 12 on users&#x27; CVs');
-    expect(out).toContain('25 / 10 / 5');
-    expect(out).toContain('Not audited in 24 h');
-    expect(out).toContain('of 43 tournaments');
-    expect(out).toContain('Tournaments failing each check');
-    expect(out).toContain('Out of 40 audited tournaments');
+/** The page's visible words: tags gone, spaces folded. */
+const words = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+async function renderTournaments(
+  accuracy: AccuracyOverview | null,
+  search: Record<string, string> = {},
+): Promise<string> {
+  h.accuracy = accuracy;
+  const { default: AdminPage } = await import('@/app/(app)/admin/page');
+  return renderToStaticMarkup(
+    await AdminPage({ searchParams: Promise.resolve({ tab: 'tournaments', ...search }) }),
+  );
+}
+
+describe('Tournaments tab filter chips (R5)', () => {
+  it('counts each chip with the overview’s own figures', async () => {
+    const out = words(await renderTournaments(overview));
+    expect(out).toContain('Good 25');
+    expect(out).toContain('Check 10');
+    expect(out).toContain('Re-scrape 5');
+    expect(out).toContain('Rounds complete 4');
+    expect(out).toContain('Checked by an admin 2');
+    expect(out).toContain('Open question: champion when no Open bracket 1');
+    expect(out).not.toContain('Data accuracy');
   });
 
-  it('lists the lowest scores, linked, with a named re-scrape action', async () => {
-    const out = await renderPage(overview);
-    expect(out).toContain('href="/admin/tournaments/5"');
-    expect(out).toMatch(/Re-scrape<\/span>42/);
-    // Four badges, then the rest as a count.
-    expect(out).toContain('+1');
-    expect(out).toMatch(
-      /<button[^>]*aria-label="Re-scrape suggested \(3\) for Oxford IV 2025"[^>]*>.*Re-scrape suggested \(3\)/,
-    );
-    expect(out).toMatch(/aria-label="Re-scrape all failed for Cambridge Open"/);
-    expect(out).toContain('None failing');
-    // Cambridge Open has no public address: a word, not an unlinked "Tab".
-    // "No tab", the same words as the tournament ledger and Open questions.
-    expect(out).toMatch(/<td[^>]*><span class="text-ink-soft">No tab<\/span><\/td>/);
-  });
-
-  it('links the tab and each suggested page in a new tab', async () => {
-    const out = await renderPage(overview);
-    expect(out).toMatch(
-      /<a href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/" target="_blank" rel="noopener noreferrer" aria-label="Tab of Oxford IV 2025, opens in a new tab"[^>]*>Tab<span aria-hidden="true"> ↗<\/span><\/a>/,
-    );
-    expect(out).toContain('href="https://oxiv.calicotab.com/oxiv2025/results/round/3/"');
-    expect(out).toContain('aria-label="R3 of Oxford IV 2025, opens in a new tab"');
-    // No public URL: words, no link.
-    expect(out).not.toContain('Team tab of Oxford IV 2025');
-  });
-
-  it('shows each open question with what it decided', async () => {
-    const out = await renderPage(overview);
-    expect(out).toContain('Open questions');
-    expect(out).toContain('Champion when a tab has no Open bracket');
-    expect(out).toContain('APDA Varsity/Novice');
-    expect(out).toContain('On hold — owner to decide');
-    expect(out).toMatch(/Decided <span[^>]*>1<\/span> of 40 audited tournaments/);
-    expect(out).toContain('href="/admin/tournaments/9"');
-    expect(out).toContain('aria-label="Tab of Schools Cup, opens in a new tab"');
-    // Open questions sit after the tiles and before the chart.
+  it('has one chip per failing check, most-failed first', async () => {
+    const failing = [
+      { code: 'champion' as const, label: 'Champion', count: 9 },
+      { code: 'panels' as const, label: 'Panels', count: 3 },
+      { code: 'motions' as const, label: 'Motions', count: 1 },
+    ];
+    const out = words(await renderTournaments({ ...overview, failingByCheck: failing }));
     const at = (s: string) => out.indexOf(s);
-    expect(at('Not audited in 24 h')).toBeLessThan(at('Open questions'));
-    expect(at('Open questions')).toBeLessThan(at('Tournaments failing each check'));
+    expect(at('Champion 9')).toBeGreaterThan(-1);
+    expect(at('Champion 9')).toBeLessThan(at('Panels 3'));
+    expect(at('Panels 3')).toBeLessThan(at('Motions 1'));
   });
 
-  it('an open question that decided nothing says so', async () => {
-    const q = { ...overview.openQuestions[0]!, count: 0, tournaments: [] };
-    const out = await renderPage({ ...overview, openQuestions: [q] });
-    expect(out).toContain('It has not decided any of the 40 audited tournaments yet.');
+  it('links each chip to its filter, keeping the search and dropping the page', async () => {
+    const out = await renderTournaments(overview, { q: 'oxford', page: '2' });
+    const all = hrefs(out);
+    expect(all).toContain('/admin?tab=tournaments&amp;q=oxford&amp;check=rounds_complete');
+    expect(all).toContain('/admin?tab=tournaments&amp;q=oxford&amp;band=rescrape');
+    expect(all).toContain('/admin?tab=tournaments&amp;q=oxford&amp;checked=1');
+    expect(all).toContain(
+      '/admin?tab=tournaments&amp;q=oxford&amp;question=no_open_bracket_champion',
+    );
   });
 
-  it('nothing audited: the empty state, with Audit now as its action', async () => {
-    const out = await renderPage(empty);
-    expect(out).toContain('No tournaments audited yet');
-    expect(out.match(/>Audit now</g)).toHaveLength(1);
-    expect(out).not.toContain('Accuracy score');
+  it('marks the chosen chips and links them to clear themselves', async () => {
+    const out = await renderTournaments(overview, { check: 'rounds_complete', band: 'rescrape' });
+    expect(out).toMatch(/<a[^>]*aria-current="true"[^>]*href="[^"]*"[^>]*>Re-scrape/);
+    // Choosing a chosen chip again removes just that filter.
+    expect(hrefs(out)).toContain('/admin?tab=tournaments&amp;band=rescrape');
+    expect(hrefs(out)).toContain('/admin?tab=tournaments&amp;check=rounds_complete');
+    expect(out.match(/aria-current="true"/g)).toHaveLength(2);
   });
-});
 
-describe('Data accuracy: in the database (Task 5b)', () => {
-  // Task 5b: the accuracy table and the open-questions list say "Stored"
-  // with the scrape time. Their names already link the tournament's page,
-  // so the cell adds no second "Open" link.
-  it('says each listed tournament is stored, and when it was scraped', async () => {
-    const out = await renderPage(overview);
-    const section = out.slice(out.indexOf('id="data-accuracy"'));
-    expect(section).toMatch(/<th[^>]*>In database<\/th>/);
-    expect(section.match(/>Stored</g)!.length).toBeGreaterThanOrEqual(3);
-    expect(section).toContain('2 h ago');
-    expect(section).not.toMatch(/aria-label="Open /);
+  it('keeps the open question to one line, with its rule in a details', async () => {
+    const out = await renderTournaments(overview);
+    expect(out).toMatch(
+      /<details[^>]*>.*APDA Varsity\/Novice.*On hold — owner to decide.*<\/details>/,
+    );
+    expect(out).not.toMatch(/<h[2-4][^>]*>Open questions</);
+  });
+
+  it('nothing audited: says there is nothing to filter by, with Audit now', async () => {
+    const out = await renderTournaments(empty);
+    expect(words(out)).toContain('No tournament is audited yet, so there is nothing to filter by');
+    expect(out.match(/>Audit now</g)).toBeNull();
+  });
+
+  it('a failed overview read says the filters did not load; the list still shows', async () => {
+    const out = words(await renderTournaments(null));
+    expect(out).toContain('the filters');
+    expect(out).toContain('No tournaments stored yet');
   });
 });
 
@@ -287,9 +291,6 @@ describe('tournament URLs are public links (owner, 2026-10-31)', () => {
     expect(out).toMatch(
       /<a href="https:\/\/oxiv\.calicotab\.com\/oxiv2025\/" target="_blank" rel="noopener noreferrer" aria-label="oxiv\.calicotab\.com\/oxiv2025\/…, opens in a new tab"/,
     );
-    // The accuracy ledger's row: a Tab link beside the name. (The partly
-    // loaded table is no longer on the page; its tournaments reach the Inbox.)
-    expect(out.match(/aria-label="Tab of Oxford IV 2025, opens in a new tab"/g)).toHaveLength(1);
     expect(out).not.toContain('abc123');
   });
 });

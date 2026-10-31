@@ -58,17 +58,11 @@ export default async function AdminTournamentPiecesPage({
   const now = new Date();
   const tabs = orderTabs(data.tabs.map((p) => toPieceCard(p, now)));
   const rounds = data.rounds.map((p) => toPieceCard(p, now));
-  const total = tabs.length + rounds.length;
-  const failed = [...tabs, ...rounds].filter((p) => p.status === 'failed').length;
+  const cards = [...tabs, ...rounds];
 
   return (
     <div className="space-y-group">
-      <PageHeader
-        name={data.tournament.name}
-        sourceUrl={data.tournament.sourceUrl}
-        total={total}
-        failed={failed}
-      />
+      <PageHeader name={data.tournament.name} sourceUrl={data.tournament.sourceUrl} cards={cards} />
 
       <AccuracyChecks
         tournamentId={id}
@@ -78,7 +72,7 @@ export default async function AdminTournamentPiecesPage({
         now={now}
       />
 
-      {total === 0 ? (
+      {cards.length === 0 ? (
         <EmptyState
           title="No pieces recorded yet"
           description="They are recorded from the next scrape."
@@ -99,17 +93,23 @@ export default async function AdminTournamentPiecesPage({
   );
 }
 
+// Withheld pages (the tournament keeps them back) are counted apart from the
+// failures: they are its choice, not a fault.
+const countStatus = (cards: Array<{ status: string }>, status: 'failed' | 'withheld') =>
+  cards.filter((p) => p.status === status).length;
+
 function PageHeader({
   name,
   sourceUrl,
-  total,
-  failed,
+  cards,
 }: {
   name: string;
   sourceUrl: string;
-  total: number;
-  failed: number;
+  cards: Array<{ status: string }>;
 }) {
+  const total = cards.length;
+  const failed = countStatus(cards, 'failed');
+  const withheld = countStatus(cards, 'withheld');
   return (
     <header className="space-y-tight">
       <div className="kicker">ADMIN · TOURNAMENT</div>
@@ -121,7 +121,7 @@ function PageHeader({
         <p className="font-mono text-caption tabular-nums text-ink-soft">
           {total === 0
             ? 'No pieces tracked'
-            : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed`}
+            : `${total} ${total === 1 ? 'piece' : 'pieces'} · ${failed} failed${withheld > 0 ? ` · ${withheld} withheld` : ''}`}
         </p>
         <div className="flex flex-wrap items-center gap-inline">
           {/* A new tab, so the grid keeps its place; TabLink keeps the

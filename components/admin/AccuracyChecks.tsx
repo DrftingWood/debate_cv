@@ -1,9 +1,11 @@
 import { Badge } from '@/components/ui/Badge';
 import { StatusPill, type Status } from '@/components/ui/StatusPill';
 import { AuditNowButton } from '@/components/admin/AuditNowButton';
+import { CheckActions, CheckActionsProvider } from '@/components/admin/CheckActions';
 import { TabLink } from '@/components/admin/TabLink';
 import { BAND_BADGE } from '@/components/admin/bandBadge';
 import type { TournamentAccuracy } from '@/lib/admin/tournamentAccuracy';
+import { adminTabHref } from '@/lib/admin/adminTabs';
 import type { CheckStatus } from '@/lib/audit/types';
 import { relativeTime } from '@/lib/utils/relativeTime';
 
@@ -17,6 +19,10 @@ const PILL: Record<CheckStatus, { status: Status; label: string }> = {
   fail: { status: 'failed', label: 'Fail' },
   na: { status: 'unavailable', label: 'Not applicable' },
 };
+
+// A check an admin has vouched for is a pass in the score, but it says who
+// vouched, so it is a state of its own and not a plain "Pass".
+const CHECKED_PILL = { status: 'done', label: 'Checked' } as const;
 
 /**
  * "Accuracy checks" above the piece grid: this tournament's score, each
@@ -73,18 +79,26 @@ export function AccuracyChecks({
 
       <AuditNotes audit={audit} />
       {audit && audit.checks.length > 0 ? (
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {audit.checks.map((c) => (
-            <CheckRow key={c.code} check={c} />
-          ))}
-        </ul>
+        <CheckActionsProvider>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {audit.checks.map((c) => (
+              <CheckRow key={c.code} check={c} tournamentName={tournamentName} />
+            ))}
+          </ul>
+        </CheckActionsProvider>
       ) : null}
     </section>
   );
 }
 
-function CheckRow({ check: c }: { check: TournamentAccuracy['checks'][number] }) {
-  const pill = PILL[c.status];
+function CheckRow({
+  check: c,
+  tournamentName,
+}: {
+  check: TournamentAccuracy['checks'][number];
+  tournamentName: string;
+}) {
+  const pill = c.checked ? CHECKED_PILL : PILL[c.status];
   return (
     <li className="space-y-hair px-tight py-inline">
       <div className="flex flex-wrap items-center justify-between gap-inline">
@@ -108,11 +122,21 @@ function CheckRow({ check: c }: { check: TournamentAccuracy['checks'][number] })
       ) : null}
       {c.questions.map((q) => (
         <p key={q.code} className="text-caption text-ink-soft">
-          <a href="/admin#open-questions" className="underline underline-offset-4">
+          <a
+            href={adminTabHref('tournaments', { question: q.code })}
+            className="underline underline-offset-4"
+          >
             Open question: {q.title}
           </a>
         </p>
       ))}
+      <CheckActions
+        tournamentName={tournamentName}
+        label={c.label}
+        subject={c.subject}
+        fingerprint={c.fingerprint}
+        checkedWords={c.checked?.words ?? null}
+      />
     </li>
   );
 }

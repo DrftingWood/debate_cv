@@ -68,6 +68,8 @@ export type AccuracyOverview = {
   onCvs: number;
   bands: Record<Band, number>;
   failingByCheck: Array<{ code: CheckCode; label: string; count: number }>;
+  /** Audited tournaments with at least one check marked checked (the "Checked" chip). */
+  checked: number;
   /** Tournaments never audited or last audited over 24 h ago. */
   stale: number;
   /** Every tournament, audited or not: the denominator of `stale`. */
@@ -155,7 +157,7 @@ export function parseChecks(json: unknown): ParsedCheck[] {
  * reports (user_reports has no fail status; a person saying "this is wrong"
  * is the strongest hint there is).
  */
-const isFailing = (c: ParsedCheck) =>
+export const isFailing = (c: ParsedCheck) =>
   c.status === 'fail' || (c.code === 'user_reports' && c.status === 'warn');
 
 /** Union of failing and warning pieces, first seen first, capped at the route's limit. */
@@ -228,6 +230,25 @@ function decidedBy(audits: Audit[]): Map<AssumptionCode, Audit[]> {
   return out;
 }
 
+/** Each unsettled rule with how many audits it decided and the lowest-scoring few. */
+function openQuestionsOf(
+  questions: Map<AssumptionCode, Audit[]>,
+  describe: (id: bigint) => { name: string; tabUrl: string | null; scrapedAt: Date | null },
+): OpenQuestion[] {
+  return [...questions].map(([code, list]) => ({
+    code,
+    ...ASSUMPTIONS[code],
+    count: list.length,
+    tournaments: list
+      .slice(0, QUESTION_LIST_CAP)
+      .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
+  }));
+}
+
+/** Audits with at least one check an admin has vouched for. */
+const countChecked = (audits: Audit[]) =>
+  audits.filter((a) => a.checks.some((c) => c.checkedBy)).length;
+
 export async function getAccuracyOverview(): Promise<AccuracyOverview> {
   const [rows, tournaments] = await Promise.all([
     prisma.tournamentAudit.findMany({
@@ -266,6 +287,7 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
     onCvs: audits.filter((a) => a.usersAffected > 0).length,
     bands,
     failingByCheck: countFailing(audits),
+    checked: countChecked(audits),
     stale: Math.max(0, tournaments - fresh),
     tournaments,
     lowest: lowest.map((a) => ({
@@ -281,13 +303,6 @@ export async function getAccuracyOverview(): Promise<AccuracyOverview> {
       usersAffected: a.usersAffected,
       computedAt: a.computedAt,
     })),
-    openQuestions: [...questions].map(([code, list]) => ({
-      code,
-      ...ASSUMPTIONS[code],
-      count: list.length,
-      tournaments: list
-        .slice(0, QUESTION_LIST_CAP)
-        .map((a) => ({ id: a.id.toString(), ...describe(a.id) })),
-    })),
+    openQuestions: openQuestionsOf(questions, describe),
   };
 }

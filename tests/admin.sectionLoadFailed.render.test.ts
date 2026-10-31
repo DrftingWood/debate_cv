@@ -82,7 +82,7 @@ describe('/admin when a ledger cannot be read', () => {
     expect(html).toContain('Couldn&#x27;t load the review set');
     expect(html).toContain('Couldn&#x27;t load the CV reports');
     expect(html).toContain('Couldn&#x27;t load the parser warnings');
-    expect(html).toContain('Couldn&#x27;t load the accuracy overview');
+    expect(html).toContain('Couldn&#x27;t load the filters');
     expect(html).toContain('Flagged for review');
     expect(html).toContain('CV error reports');
     expect(html).toContain('Recent parser warnings');

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // one is serialised into the page's RSC payload whatever the client renders,
 // so sanitising only the href (TabLink) is not enough. These build the exact
 // row arrays the server passes to FailedJobsTable, PartlyLoadedTable,
-// AccuracyTable and PieceGrid, from stored data full of private URLs, and
+// the accuracy overview and PieceGrid, from stored data full of private URLs, and
 // check the serialised props carry no private key.
 
 const KEY = 'k3yS3cr3t';
@@ -29,7 +29,6 @@ const { getScrapeHealth, getTournamentPieces } = await import('@/lib/admin/scrap
 const { getAccuracyOverview } = await import('@/lib/admin/accuracy');
 const { toPartlyLoadedRows } = await import('@/components/admin/ScrapeHealthSection');
 const { toFailedJobRows } = await import('@/components/admin/FailedImportsSection');
-const { toAccuracyRows } = await import('@/components/admin/AccuracySection');
 const { getTournamentAccuracy } = await import('@/lib/admin/tournamentAccuracy');
 const { toPieceCard } = await import('@/lib/admin/pieceGrid');
 const { shortUrl } = await import('@/lib/utils/shortUrl');
@@ -110,7 +109,7 @@ describe('props crossing into client components carry no private key', () => {
     expectNoKey(rows);
   });
 
-  it('AccuracyTable rows, with their suggested piece links', async () => {
+  it('accuracy overview rows, with their suggested piece links', async () => {
     h.db.tournamentAudit.findMany.mockResolvedValue([
       {
         tournamentId: 1n,
@@ -128,7 +127,7 @@ describe('props crossing into client components carry no private key', () => {
       },
     ]);
     const o = await getAccuracyOverview();
-    const rows = toAccuracyRows(o.lowest, NOW);
+    const rows = o.lowest;
     expect(rows[0]!.suggested[0]!.url).toBe('https://oxiv.calicotab.com/oxiv2025/');
     expectNoKey(rows);
     expectNoKey(o.openQuestions);

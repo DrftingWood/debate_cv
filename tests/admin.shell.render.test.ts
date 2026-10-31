@@ -104,7 +104,8 @@ const listed = (scrapedAt: Date) => ({
       parserCurrent: true,
       score: 92,
       band: 'good',
-      partlyLoaded: false,
+      tab: { state: 'loaded', tournamentId: '5', errors: [] },
+      withheld: 0,
       onCvs: 3,
     },
   ],
@@ -135,8 +136,8 @@ beforeEach(() => {
     weighted: 91,
     unweighted: 90,
     n: 1,
-    onCvs: 1,
     bands: { good: 1, check: 0, rescrape: 0 },
+    checked: 0,
     failingByCheck: [],
     stale: 0,
     tournaments: 1,
@@ -234,9 +235,11 @@ describe('/admin Tools and Tournaments tabs', () => {
     expect(out).not.toContain('Scrape health');
   });
 
-  it('puts the accuracy section in the Tournaments tab and reads nothing else', async () => {
+  it('puts the list and its filters in the Tournaments tab and reads nothing else', async () => {
     const out = await render({ tab: 'tournaments' });
-    expect(out).toMatch(/<h2[^>]*>Data accuracy<\/h2>/);
+    expect(out).toMatch(/<h2[^>]*>Tournaments in the database<\/h2>/);
+    expect(out).toContain('Show tournaments by score band');
+    expect(out).not.toContain('Data accuracy');
     expect(h.inbox).not.toHaveBeenCalled();
     expect(h.health).not.toHaveBeenCalled();
   });
@@ -246,7 +249,6 @@ describe('/admin Tools and Tournaments tabs', () => {
       expect(await render({ tab })).not.toContain('1970');
     }
     expect(await render({ tab: 'imports' })).toContain('Re-scrape queued');
-    expect(await render({ tab: 'tournaments' })).toContain('Re-scrape queued');
   });
 });
 

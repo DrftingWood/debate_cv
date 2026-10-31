@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
-import { AccuracySection } from '@/components/admin/AccuracySection';
 import { LookupResultView, toLookupView } from '@/components/admin/LookupResult';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
+import { TournamentFilterChips } from '@/components/admin/TournamentFilters';
 import { TournamentsTable } from '@/components/admin/TournamentsTable';
 import { adminTabHref } from '@/lib/admin/adminTabs';
+import type { AccuracyOverview } from '@/lib/admin/accuracy';
 import { orNull } from '@/lib/admin/orNull';
 import { readOverview } from '@/lib/admin/summary';
 import { LoadFailed } from '@/components/admin/LoadFailed';
@@ -21,6 +22,12 @@ import {
   TOURNAMENTS_PER_PAGE,
   type TournamentList,
 } from '@/lib/admin/tournamentList';
+import {
+  filterParams,
+  hasFilters,
+  parseFilters,
+  type TournamentFilters,
+} from '@/lib/admin/tournamentFilters';
 import { lookupTournament } from '@/lib/admin/tournamentLookup';
 import type { SearchValues } from '@/lib/admin/adminHref';
 
@@ -29,8 +36,10 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 /**
  * Stored tournaments: the searchable, paged list (`?q=`, `?page=`; owner,
  * 2026-10-31: "a view if that tournament is present in the database or not",
- * then "20 per page, I click Next") above the data-accuracy section. Task R5
- * folds the accuracy section's tables into the list's filters.
+ * then "20 per page, I click Next"), lowest score first, under the filter
+ * chips that take the place of the old data-accuracy tables: a failing check
+ * (`?check=`), a score band (`?band=`), the open question (`?question=`) and
+ * tournaments with marks (`?checked=1`).
  *
  * `?q=` is a name (a case-insensitive part of it: the paged list of matches)
  * or a URL (resolved by host and slug: the one answer). A page past the end
@@ -39,11 +48,14 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
  */
 export async function TournamentsTab({ search, now }: { search: SearchValues; now: Date }) {
   const { q, page } = readSearch(search);
+  const filters = parseFilters(search);
   // Read here, not in async children: the panel renders in one pass.
   const isUrl = q !== '' && looksLikeUrl(q);
   const [answer, list, accuracy] = await Promise.all([
     isUrl ? lookupTournament(asLookupUrl(q) ?? q).catch(orNull('tournament lookup')) : null,
-    isUrl ? null : listTournaments({ page, q: q || undefined }).catch(orNull('tournament list')),
+    isUrl
+      ? null
+      : listTournaments({ page, q: q || undefined, filters }).catch(orNull('tournament list')),
     readOverview().catch(orNull('accuracy overview')),
   ]);
   // A failed read of the list or the lookup says so in the section, in words;
@@ -59,6 +71,9 @@ export async function TournamentsTab({ search, now }: { search: SearchValues; no
         {/* The box is rendered from the request, so it shows a private URL's
             public form only (searchBoxValue): the key never reaches the HTML. */}
         <TournamentLookup defaultValue={searchBoxValue(q)} />
+        {/* The chips are over the whole database, so they stay while a search or
+            lookup narrows the list below them. */}
+        <FilterChips overview={accuracy} filters={filters} q={q} />
         {failed ? (
           <LoadFailed what={isUrl ? 'the lookup' : 'the tournaments'} />
         ) : answer ? (
@@ -66,10 +81,9 @@ export async function TournamentsTab({ search, now }: { search: SearchValues; no
             <LookupResultView result={toLookupView(answer)} now={now} />
           </section>
         ) : list ? (
-          <TournamentPage q={q} list={list} now={now} />
+          <TournamentPage q={q} filters={filters} list={list} now={now} />
         ) : null}
       </section>
-      <AccuracySection overview={accuracy} now={now} />
     </div>
   );
 }
@@ -92,32 +106,79 @@ function readSearch(params: SearchValues): { q: string; page: number } {
   return { q, page: Number.isFinite(asked) ? asked : 1 };
 }
 
-/** One page of the list, or the empty state that fits (UX-24 keeps the two apart). */
-function TournamentPage({ q, list, now }: { q: string; list: TournamentList; now: Date }) {
-  if (list.total === 0) {
-    return q ? (
+/**
+ * The chips, or the reason there are none: a failed overview read says so
+ * in words (the list below still works), and a database with nothing audited
+ * has nothing to filter by yet.
+ */
+function FilterChips({
+  overview,
+  filters,
+  q,
+}: {
+  overview: AccuracyOverview | null;
+  filters: TournamentFilters;
+  q: string;
+}) {
+  if (!overview) return <LoadFailed what="the filters" />;
+  if (overview.n === 0) {
+    return (
+      <p className="max-w-prose text-body text-ink-soft">
+        No tournament is audited yet, so there is nothing to filter by. Audit now checks the next
+        batch.
+      </p>
+    );
+  }
+  return <TournamentFilterChips overview={overview} filters={filters} q={q} />;
+}
+
+/** Why the list is empty: the filters, the search, or nothing stored (UX-24 keeps them apart). */
+function NoRows({ q, filters }: { q: string; filters: TournamentFilters }) {
+  if (hasFilters(filters)) {
+    return (
       <EmptyState
-        // Echoed through searchBoxValue, like the box: text that is not a
-        // URL can still hold a pasted private key.
-        title={
-          searchBoxValue(q)
-            ? `Nothing matches '${searchBoxValue(q)}'`
-            : 'Nothing matches that search'
-        }
-        description="Search by part of the name, or paste the tournament's tab URL."
-        headingLevel={3}
-      />
-    ) : (
-      <EmptyState
-        title="No tournaments stored yet"
-        description="Tournaments are stored by the pre-scrape and by users' imports."
+        title="No tournament matches these filters"
+        description="Choose a chip again to clear it, or search by a different name."
         headingLevel={3}
       />
     );
   }
+  return q ? (
+    <EmptyState
+      // Echoed through searchBoxValue, like the box: text that is not a
+      // URL can still hold a pasted private key.
+      title={
+        searchBoxValue(q) ? `Nothing matches '${searchBoxValue(q)}'` : 'Nothing matches that search'
+      }
+      description="Search by part of the name, or paste the tournament's tab URL."
+      headingLevel={3}
+    />
+  ) : (
+    <EmptyState
+      title="No tournaments stored yet"
+      description="Tournaments are stored by the pre-scrape and by users' imports."
+      headingLevel={3}
+    />
+  );
+}
+
+/** One page of the list, or the empty state that fits (UX-24 keeps the two apart). */
+function TournamentPage({
+  q,
+  filters,
+  list,
+  now,
+}: {
+  q: string;
+  filters: TournamentFilters;
+  list: TournamentList;
+  now: Date;
+}) {
+  if (list.total === 0) return <NoRows q={q} filters={filters} />;
   const href = (n: number) =>
     adminTabHref('tournaments', {
       ...(q ? { q } : {}),
+      ...filterParams(filters),
       ...(n > 1 ? { page: String(n) } : {}),
     });
   const pager = (

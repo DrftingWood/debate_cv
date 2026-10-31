@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Task 5b: "is this tournament in the database?" The URL lookup, the
-// batched lookup the admin tables use per row, and the paged list read model
-// behind /admin/tournaments. The database is mocked; what is checked is what
-// each asks it and what comes back, above all that a private key never does.
+// Task 5b: "is this tournament in the database?" The URL lookup and the
+// batched lookup the admin tables use per row (the paged list read model has
+// its own suite, admin.tournamentList.test.ts). The database is mocked; what
+// is checked is what each asks it and what comes back, above all that a
+// private key never does.
 
 const KEY = 'k3yS3cr3t';
 const PRIVATE = `https://oxiv.calicotab.com/oxiv2025/privateurls/${KEY}/`;
@@ -19,7 +20,6 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/db', () => ({ prisma: h.db }));
 
 const { lookupTournament, storedTournamentIdsByUrl } = await import('@/lib/admin/tournamentLookup');
-const { listTournaments, TOURNAMENTS_PER_PAGE } = await import('@/lib/admin/tournamentList');
 const { PARSER_VERSION } = await import('@/lib/calicotab/version');
 
 const SCRAPED = new Date('2026-10-30T09:00:00Z');
@@ -155,63 +155,5 @@ describe('storedTournamentIdsByUrl', () => {
   it('asks nothing when no URL can be read', async () => {
     expect((await storedTournamentIdsByUrl(['garbage'])).size).toBe(0);
     expect(h.db.tournament.findMany).not.toHaveBeenCalled();
-  });
-});
-
-describe('listTournaments', () => {
-  it('reads page 2 with skip 20 and take 20, newest scrape first', async () => {
-    h.db.tournament.count.mockResolvedValue(45);
-    await listTournaments({ page: 2 });
-    const arg = h.db.tournament.findMany.mock.calls[0]![0];
-    expect(TOURNAMENTS_PER_PAGE).toBe(20);
-    expect(arg).toMatchObject({ skip: 20, take: 20 });
-    expect(arg.orderBy[0]).toEqual({ scrapedAt: 'desc' });
-  });
-
-  it('clamps a page past the end to the last page', async () => {
-    h.db.tournament.count.mockResolvedValue(45);
-    const r = await listTournaments({ page: 99 });
-    expect(r).toMatchObject({ total: 45, page: 3, pages: 3 });
-    expect(h.db.tournament.findMany.mock.calls[0]![0]).toMatchObject({ skip: 40 });
-  });
-
-  it('searches names case-insensitively', async () => {
-    await listTournaments({ page: 1, q: 'oxford' });
-    const where = { name: { contains: 'oxford', mode: 'insensitive' } };
-    expect(h.db.tournament.count.mock.calls[0]![0]).toEqual({ where });
-    expect(h.db.tournament.findMany.mock.calls[0]![0].where).toEqual(where);
-  });
-
-  it("fills score, partly loaded and on-CVs from batched reads of the page's ids", async () => {
-    h.db.tournament.count.mockResolvedValue(2);
-    h.db.tournament.findMany.mockResolvedValue([oxford, { ...oxford, id: 8n, name: 'Other' }]);
-    h.db.tournamentAudit.findMany.mockResolvedValue([{ tournamentId: 7n, score: 95 }]);
-    h.db.scrapePiece.groupBy.mockResolvedValue([{ tournamentId: 8n }]);
-    h.db.discoveredUrl.groupBy.mockResolvedValue([
-      { tournamentId: 7n, userId: 'u1' },
-      { tournamentId: 7n, userId: 'u2' },
-    ]);
-
-    const r = await listTournaments({ page: 1 });
-
-    for (const call of [
-      h.db.tournamentAudit.findMany,
-      h.db.scrapePiece.groupBy,
-      h.db.discoveredUrl.groupBy,
-    ]) {
-      expect(call).toHaveBeenCalledTimes(1);
-      expect(call.mock.calls[0]![0].where.tournamentId).toEqual({ in: [7n, 8n] });
-    }
-    expect(r.rows[0]).toMatchObject({
-      id: '7',
-      tabUrl: 'https://oxiv.calicotab.com/oxiv2025/',
-      score: 95,
-      band: 'good',
-      partlyLoaded: false,
-      onCvs: 2,
-      parserCurrent: true,
-    });
-    expect(r.rows[1]).toMatchObject({ score: null, band: null, partlyLoaded: true, onCvs: 0 });
-    expect(JSON.stringify(r.rows)).not.toContain(KEY);
   });
 });

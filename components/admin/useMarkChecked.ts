@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/Toast';
 import { markFailureMessage } from '@/lib/admin/actionMessage';
 import { markedWords, undoOutcome, undoTargets } from '@/lib/admin/inboxActions';
 import type { InboxMarkItem } from '@/lib/admin/inboxTypes';
+import type { MarkTarget } from '@/lib/admin/inboxActions';
 import { deleteJson, postJson } from '@/lib/utils/api';
 import { singleFlight } from '@/lib/utils/singleFlight';
 
@@ -55,6 +56,7 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
 
   return {
     mark,
+    undo,
     error,
     setError,
     undoing,
@@ -79,7 +81,7 @@ function useUndo(
   const router = useRouter();
   const toast = useToast();
   const [undoing, setUndoing] = useState('');
-  const undo = (items: readonly InboxMarkItem[]) => {
+  const undo = (items: readonly MarkTarget[]) => {
     const targets = undoTargets(items);
     if (pending || flight.busy) {
       toast.show({

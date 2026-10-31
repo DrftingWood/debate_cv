@@ -6,6 +6,7 @@ import { fingerprintOf, marksFor, type Mark } from '@/lib/admin/adminChecks';
 import { CHECKS_VERSION, runChecks } from './checks';
 import { loadAuditInputs } from './load';
 import { scoreTournament } from './score';
+import { checkedWords } from './checkedLabel';
 import type { CheckResult } from './types';
 
 /**
@@ -42,20 +43,6 @@ function checksJson(checks: CheckResult[]): Prisma.InputJsonArray {
   }));
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/**
- * "31 Oct 2026", in UTC. Spelled out rather than through Intl, whose short
- * month names differ between ICU versions ("Sep" against "Sept"), and this
- * sentence is stored.
- */
-function shortDate(d: Date): string {
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
-/** The part of an admin's email before the @: a name, without the address. */
-const nameOf = (email: string) => email.split('@')[0] || email;
-
 /** The subject an AdminCheck mark of one tournament check is stored under. */
 export const checkSubject = (tournamentId: bigint, code: string) => `${tournamentId}:${code}`;
 
@@ -72,7 +59,7 @@ function applyMark(check: CheckResult, mark: Mark | undefined): CheckResult {
   return {
     ...check,
     status: 'pass',
-    detail: `Checked by ${nameOf(mark.checkedBy)} on ${shortDate(mark.checkedAt)}. Was: ${check.detail}`,
+    detail: `${checkedWords(mark.checkedBy, mark.checkedAt)}. Was: ${check.detail}`,
     checkedBy: mark.checkedBy,
     checkedAt: mark.checkedAt.toISOString(),
     // Kept so the tables can tell a vouched-for fail from a vouched-for warn.
