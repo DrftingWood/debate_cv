@@ -294,7 +294,7 @@ Owner request, 2026-10-31:
 > for all the failed imports, i need a column in the tab with 3 symbols tick if fully loaded in tab, ? if partially load (hover to see the errors) and X if not loaded … i should be able prioritize some errors and bring to a separate set that you can later pick for review - prioritize and add a comment
 
 **Files:**
-- Modify: `prisma/schema.prisma` (model `ReviewFlag`), and create `prisma/migrations/20261031120000_review_flags/migration.sql` (additive)
+- Modify: `prisma/schema.prisma` (model `ReviewFlag`), and create `prisma/migrations/20261031140000_review_flags/migration.sql` (additive)
 - Create: `lib/admin/reviewSet.ts`, `app/api/admin/review-set/route.ts` (GET export, POST add, PATCH update), `components/admin/TabStatus.tsx`, `components/admin/ReviewSetSection.tsx` (server), `components/admin/ReviewSetTable.tsx` (client)
 - Modify: `components/admin/FailedJobsTable.tsx`, `components/admin/FailedImportsSection.tsx`, `lib/admin/scrapeHealth.ts`, `app/(app)/admin/page.tsx`
 - Test: `tests/admin.reviewSet.test.ts`, `tests/api/admin-review-set.test.ts`, `tests/admin.tabStatus.render.test.ts`, and an extension of `tests/admin.clientProps.test.ts`
