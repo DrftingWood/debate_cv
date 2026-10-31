@@ -28,6 +28,8 @@ const h = vi.hoisted(() => ({
   breakRows: null as unknown[] | null,
 }));
 
+// The deleted-tab refusal has its own tests (admin.deletedTournaments.test.ts).
+vi.mock('@/lib/admin/deletedTournaments', () => ({ refuseDeletedSite: async () => {} }));
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }));
 // The audit after a write has its own tests (audit.run.test.ts).

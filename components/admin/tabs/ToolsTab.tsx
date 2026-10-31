@@ -8,7 +8,9 @@ import { FillFormatsButton } from '@/components/admin/FillFormatsButton';
 import { FillYearsButton } from '@/components/admin/FillYearsButton';
 import { RefreshOldParserButton } from '@/components/admin/RefreshOldParserButton';
 import { TournamentLookup } from '@/components/admin/TournamentLookup';
+import { DeletedTournaments } from '@/components/admin/DeletedTournaments';
 import { countMissingCores } from '@/lib/admin/coreFill';
+import { listDeleted } from '@/lib/admin/deletedTournaments';
 import { countOldParser } from '@/lib/admin/oldParserFill';
 import { countMissingYears } from '@/lib/admin/yearFill';
 import { orNull } from '@/lib/admin/orNull';
@@ -20,7 +22,7 @@ import { orNull } from '@/lib/admin/orNull';
  * sit beside Re-ingest all, which they explain (it skips the locked ones).
  */
 export async function ToolsTab() {
-  const [discovered, locked, noFormat, noCore, noYear, oldParser] = await Promise.all([
+  const [discovered, locked, noFormat, noCore, noYear, oldParser, deleted] = await Promise.all([
     prisma.discoveredUrl.count().catch(orNull('discovered URL count')),
     prisma.discoveredUrl
       .count({ where: { reingestLocked: true } })
@@ -31,6 +33,7 @@ export async function ToolsTab() {
     countMissingCores().catch(orNull('missing adjudication core count')),
     countMissingYears().catch(orNull('missing year count')),
     countOldParser().catch(orNull('old-parser count')),
+    listDeleted().catch(orNull('deleted tournaments')),
   ]);
   const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-GB'));
   const reingestable =
@@ -51,6 +54,7 @@ export async function ToolsTab() {
         locked={count(locked)}
         reingestable={reingestable}
       />
+      <DeletedTournaments rows={deleted} now={new Date()} />
       <DangerZone />
     </div>
   );

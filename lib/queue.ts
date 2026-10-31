@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { IngestJobStatus, Prisma } from '@prisma/client';
 import { throttleKey } from '@/lib/calicotab/fetchSession';
+import { DELETED_MARKER } from '@/lib/admin/deletedTournaments';
 
 export async function enqueueUrl(userId: string, url: string): Promise<void> {
   // `reingestLocked` is the user-controlled "don't touch this URL" flag —
@@ -233,6 +234,8 @@ export function isPermanentError(error: string): boolean {
   // We don't match arbitrary 404s in nested tab fetches because those
   // can be transient (Tabbycat sometimes 404s a /tab/ URL during a
   // reindex) and the user might want to retry.
+  // A tab an admin deleted (deletedTournaments.ts): refused on purpose.
+  if (error.startsWith(DELETED_MARKER)) return true;
   return /fetch landing\b[^]*HTTP 404\b/.test(error);
 }
 

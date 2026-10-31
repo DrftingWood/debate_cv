@@ -70,6 +70,7 @@ import {
   inferTournamentYear,
   normalizePersonName,
 } from './fingerprint';
+import { refuseDeletedSite } from '@/lib/admin/deletedTournaments';
 import { PARSER_VERSION } from './version';
 import { publicTournamentUrl } from '@/lib/cv/publicTournamentUrl';
 import { collectRegistrationWarnings, recordParserRun } from './provenance';
@@ -200,6 +201,8 @@ export async function ingestPrivateUrl(
     deadline?: number;
   } = {},
 ): Promise<IngestResult> {
+  // A tab an admin deleted is never stored again (deletedTournaments.ts).
+  await refuseDeletedSite(url);
   // Stored data first (owner, 2026-10-30): a URL whose tournament is already
   // stored is linked without a request; its page is fetched later to verify.
   if (!options.force) {
@@ -265,6 +268,9 @@ export async function loadPublicLanding(
   deadline?: number,
 ): Promise<{ base: string; fingerprint: string; loaded: LoadedState }> {
   const { base, host, slug } = publicTournamentBase(url);
+  // Before any fetch: a tab an admin deleted is never stored again. This
+  // covers the pre-scrape and the partial re-scrape, which both start here.
+  await refuseDeletedSite(base);
   const fetchSession = new FetchSession({ deadline });
   const landingResult = await fetchHtmlWithProvenance(base, { session: fetchSession });
   // The status rides on the error so a partial re-scrape can record it

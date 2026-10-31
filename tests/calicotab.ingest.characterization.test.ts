@@ -48,7 +48,7 @@ const h = vi.hoisted(() => ({
   // Per-test: a round URL whose page has columns but `data: []`.
   emptyRound: null as string | null,
 }));
-
+vi.mock('@/lib/admin/deletedTournaments', () => ({ refuseDeletedSite: async () => {} }));
 vi.mock('@/lib/db', () => import('./setup/api-test-utils').then((m) => m.dbMockModule));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: h.captureMessage, captureException: vi.fn() }));
 vi.mock('@/lib/calicotab/provenance', () => ({
