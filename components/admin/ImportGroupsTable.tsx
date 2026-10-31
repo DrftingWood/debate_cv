@@ -9,6 +9,7 @@ import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
 import { InboxRetryButton } from '@/components/admin/InboxRetryButton';
 import { InDatabaseCell, type InDatabase } from '@/components/admin/InDatabaseCell';
 import { MarkControls } from '@/components/admin/MarkControls';
+import { ShortUrlText } from '@/components/admin/ShortUrlText';
 import { TabLink } from '@/components/admin/TabLink';
 import { TabStatus } from '@/components/admin/TabStatus';
 import { useRetryImports } from '@/components/admin/useRetryImports';
@@ -252,7 +253,7 @@ function ImportRowView({
         <Name row={row} />
         <div className="mt-tight space-y-tight md:hidden">
           <Users row={row} />
-          <p className="text-ink">{row.error}</p>
+          <ShortUrlText text={row.error} className="block text-ink" />
           <p className="font-mono text-caption tabular-nums text-ink-soft">
             {plural(row.attempts, 'attempt')}
             {row.latest ? ' · ' : ''}
@@ -264,7 +265,9 @@ function ImportRowView({
       <Td className="hidden align-top wrap-break-word whitespace-normal md:table-cell">
         <Users row={row} />
       </Td>
-      <Td className="hidden align-top whitespace-normal md:table-cell">{row.error}</Td>
+      <Td className="hidden align-top whitespace-normal md:table-cell">
+        <ShortUrlText text={row.error} />
+      </Td>
       <Td numeric className="hidden align-top md:table-cell">
         {row.attempts}
       </Td>

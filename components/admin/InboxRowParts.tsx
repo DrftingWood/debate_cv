@@ -8,6 +8,7 @@ import { InferFormatButton } from '@/components/admin/InferFormatButton';
 import { InboxRetryButton } from '@/components/admin/InboxRetryButton';
 import { RefreshOldFixButton } from '@/components/admin/RefreshOldFixButton';
 import { RescrapeSuggestedButton } from '@/components/admin/RescrapeSuggestedButton';
+import { ShortUrlText } from '@/components/admin/ShortUrlText';
 import { TabLink } from '@/components/admin/TabLink';
 import { TabStatus } from '@/components/admin/TabStatus';
 import type { InboxRow } from '@/components/admin/InboxTable';
@@ -188,7 +189,7 @@ export function NameAndStatus({ row }: { row: InboxRow }) {
 export function WhatIsWrong({ row }: { row: InboxRow }) {
   return (
     <>
-      <span className="text-ink">{row.summary}</span>
+      <ShortUrlText text={row.summary} className="text-ink" />
       {row.more > 0 ? <span className="text-ink-soft"> +{row.more} more</span> : null}
       <div className="flex flex-wrap gap-hair empty:hidden">
         {row.changed ? (

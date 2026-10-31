@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Cols, Table, TableScroll, Td, Th, Tr } from '@/components/ui/DataTable';
 import { TabLink } from '@/components/admin/TabLink';
 import { MarkControls } from '@/components/admin/MarkControls';
+import { ShortUrlText } from '@/components/admin/ShortUrlText';
 import { TabStatus } from '@/components/admin/TabStatus';
 import { useAddToReviewSet } from '@/components/admin/AddToReviewSet';
 import type { MarkCell } from '@/lib/admin/markCell';
@@ -157,9 +158,9 @@ function WarningRowView({
         {row.parserName}
       </Td>
       <Td rowHeader className="align-top whitespace-normal wrap-break-word">
-        <span className="text-ink">{row.headline}</span>
+        <ShortUrlText text={row.headline} className="text-ink" />
         {row.sample !== row.headline ? (
-          <span className="mt-hair block text-caption text-ink-soft">{row.sample}</span>
+          <ShortUrlText text={row.sample} className="mt-hair block text-caption text-ink-soft" />
         ) : null}
         <div className="mt-tight space-y-tight md:hidden">
           <p className="font-mono text-caption tabular-nums text-ink-soft">
