@@ -57,7 +57,9 @@ describe('the Tab cell', () => {
       }),
     );
     expect(out).toMatch(/\?<\/span>\s*Partly/);
-    const trigger = /<span[^>]*tabindex="0"[^>]*aria-describedby="([^"]+)"/.exec(out);
+    const trigger = /<button type="button" aria-expanded="false" aria-describedby="([^"]+)"/.exec(
+      out,
+    );
     expect(trigger).not.toBeNull();
     const id = trigger![1]!;
     const list = new RegExp(
@@ -101,6 +103,24 @@ describe('Failed imports with the Tab column', () => {
     ).length;
     const hiddenCols = cols.filter((c) => /(^|\s)hidden(\s|$)/.test(c[2] ?? '')).length;
     expect(hiddenCols).toBe(hiddenHeads);
+  });
+
+  // Review leftover: an ambiguous address read "? Check" under Tab but
+  // "Not stored" under In database.
+  it('says "? Check" in both cells for an address that matched no single stored row', () => {
+    const out = html(
+      h(FailedJobsTable, {
+        rows: [
+          job({
+            stored: null,
+            tab: { state: 'check', tournamentId: null, errors: ['2 stored tournaments share it.'] },
+          }),
+        ],
+        total: 1,
+      }),
+    );
+    expect(out).not.toContain('Not stored');
+    expect(out.match(/\?<\/span>(&nbsp;|\s)*Check/g)).toHaveLength(2);
   });
 
   it('marks a row already in the review set, and offers the action', () => {

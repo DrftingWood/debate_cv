@@ -348,7 +348,7 @@ function JobRow({
       <Td className="hidden whitespace-normal md:table-cell">{error}</Td>
       <Td className="hidden md:table-cell">
         {/* The Tab cell already links the tournament's page. */}
-        <InDatabaseCell stored={row.stored} open={false} />
+        <InDatabaseCell stored={row.stored} open={false} check={row.tab.state === 'check'} />
       </Td>
       <Td className="hidden pr-stack font-mono tabular-nums text-ink-soft md:table-cell">
         {row.when ? <time dateTime={row.when.iso}>{row.when.text}</time> : 'Not finished'}

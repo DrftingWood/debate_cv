@@ -6,7 +6,8 @@ import { relativeTime } from '@/lib/utils/relativeTime';
  * Whether a row's tournament is stored, as the server worked it out: its id,
  * its name (for the "Open" link's accessible name; omitted where the row
  * already names it) and when it was scraped, already in words so a client
- * table's first render matches the HTML. Null for "not stored".
+ * table's first render matches the HTML. Null for "not stored", or for an
+ * address that matched no single stored row (the cell's `check`).
  */
 export type InDatabase = {
   id: string;
@@ -40,7 +41,27 @@ export function inDatabase(
  * to one place on one row are one tab stop too many, and a screen reader's
  * list of links would read each tournament twice.
  */
-export function InDatabaseCell({ stored, open = true }: { stored: InDatabase; open?: boolean }) {
+export function InDatabaseCell({
+  stored,
+  open = true,
+  check = false,
+}: {
+  stored: InDatabase;
+  open?: boolean;
+  /**
+   * The row's address matched two or more stored tournaments, or names no
+   * slug (its Tab cell reads "? Check"): whether it is stored is unknown, so
+   * this cell says the same rather than a false "Not stored".
+   */
+  check?: boolean;
+}) {
+  if (!stored && check) {
+    return (
+      <span className="whitespace-nowrap text-ink">
+        <span aria-hidden>?</span> Check
+      </span>
+    );
+  }
   if (!stored) return <Badge variant="quiet">Not stored</Badge>;
   return (
     <span className="block">
