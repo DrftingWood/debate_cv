@@ -1,7 +1,16 @@
 import { prisma } from '@/lib/db';
 import { publicPieceUrl } from '@/lib/audit/types';
-import { storedForJobs } from '@/lib/admin/scrapeHealth';
-import { loadTabStates, NOT_APPLICABLE_TAB, tabState, type TabState } from '@/lib/admin/tabStatus';
+import { matchJobs } from '@/lib/admin/scrapeHealth';
+import { storedMatchesByUrl, type StoredRef } from '@/lib/admin/tournamentLookup';
+import { parseTabAddress } from '@/lib/admin/tabAddress';
+import {
+  ambiguousTab,
+  loadTabStates,
+  NOT_APPLICABLE_TAB,
+  tabState,
+  UNMATCHABLE_TAB,
+  type TabState,
+} from '@/lib/admin/tabStatus';
 import { ingestErrorCategory } from '@/lib/ingest/userMessage';
 import { csvLine } from '@/lib/utils/csv';
 import { scrubComment } from '@/lib/admin/scrub';
@@ -78,7 +87,10 @@ async function resolveItems(items: FlagItem[]): Promise<Map<string, Resolved>> {
       where: { id: { in: importIds } },
       select: { id: true, url: true, userId: true },
     });
-    const stored = await storedForJobs(jobs);
+    // The same match as Failed imports (matchJobs). An address that two
+    // stored rows share records no tournament: the flag is read again each
+    // time it is shown, and says "? Check" until the rows are told apart.
+    const { stored } = await matchJobs(jobs);
     for (const j of jobs) {
       const ref = stored.get(j.id);
       out.set(key({ source: 'import', sourceId: j.id }), {
@@ -240,6 +252,46 @@ async function readFlagRows(status: 'open' | 'all') {
   return [...openRows, ...doneRows];
 }
 
+type FlagRow = Awaited<ReturnType<typeof readFlagRows>>[number];
+type FlagJob = { id: string; url: string; userId: string };
+
+/**
+ * Each import flag's stored tournament, matched the way Failed imports
+ * matches (matchJobs), and the Tab state of one that has none. A flag whose
+ * job is gone (Clear data, or a lock, deleted it) is matched by its own
+ * public address instead, so a tournament scraped again since reads as
+ * loaded rather than a false "✗ Not loaded".
+ */
+async function matchImportFlags(rows: FlagRow[], jobById: ReadonlyMap<string, FlagJob>) {
+  const flagUrl = (r: FlagRow) => publicPieceUrl(r.url) ?? r.url;
+  const goneUrls = rows
+    .filter((r) => r.source === 'import' && !jobById.has(r.sourceId) && r.url)
+    .map(flagUrl);
+  const [byJob, byUrl] = await Promise.all([
+    matchJobs([...jobById.values()]),
+    goneUrls.length
+      ? storedMatchesByUrl(goneUrls)
+      : { stored: new Map<string, StoredRef>(), ambiguous: new Map<string, number>() },
+  ]);
+
+  const liveMatch = (r: FlagRow): StoredRef | undefined => {
+    if (r.source !== 'import') return undefined;
+    if (jobById.has(r.sourceId)) return byJob.stored.get(r.sourceId);
+    return byUrl.stored.get(flagUrl(r));
+  };
+  // As Failed imports words it (loadFailedJobsStored): two stored rows on
+  // its address, or a tab-site address with no slug, is "? Check"; only a
+  // real miss is "✗ Not loaded".
+  const unstoredImportTab = (r: FlagRow): TabState => {
+    const job = jobById.get(r.sourceId);
+    const n = job ? byJob.ambiguous.get(r.sourceId) : byUrl.ambiguous.get(flagUrl(r));
+    if (n) return ambiguousTab(n);
+    const address = parseTabAddress(job?.url ?? r.url);
+    return address && !address.slug ? UNMATCHABLE_TAB : tabState(null, []);
+  };
+  return { liveMatch, unstoredImportTab };
+}
+
 /**
  * The set as stored, high to low. An import flag also reads its job again:
  * its current error and attempts, and its stored tournament, so a tab that
@@ -259,10 +311,9 @@ export async function loadReviewSet(
       })
     : [];
   const jobById = new Map(jobs.map((j) => [j.id, j] as const));
-  const storedByJob = await storedForJobs(jobs);
-
+  const { liveMatch, unstoredImportTab } = await matchImportFlags(rows, jobById);
   const tournamentOf = (r: (typeof rows)[number]) => {
-    const live = r.source === 'import' ? storedByJob.get(r.sourceId) : undefined;
+    const live = liveMatch(r);
     if (live) return { id: live.id, name: live.name };
     return r.tournament ? { id: r.tournament.id.toString(), name: r.tournament.name } : null;
   };
@@ -292,7 +343,7 @@ export async function loadReviewSet(
       // first stored tournament's state, and a warning has none.
       tab:
         (tournament && tabs.get(tournament.id)) ||
-        (r.source === 'import' ? tabState(null, []) : NOT_APPLICABLE_TAB),
+        (r.source === 'import' ? unstoredImportTab(r) : NOT_APPLICABLE_TAB),
       detail:
         details.get(itemKey({ source: r.source as FlagSource, sourceId: r.sourceId })) ?? null,
       createdBy: r.createdBy,

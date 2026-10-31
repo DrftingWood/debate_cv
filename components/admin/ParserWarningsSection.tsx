@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
 import { ParserWarningsTable, type WarningRow } from '@/components/admin/ParserWarningsTable';
+import { LoadFailed } from '@/components/admin/LoadFailed';
 import { adminHref, type SearchValues } from '@/lib/admin/adminHref';
 import {
   WARNING_RUN_CAP,
@@ -44,7 +45,8 @@ export function ParserWarningsSection({
   now,
   search,
 }: {
-  list: ParserWarningList;
+  /** Null when the read failed: the section says so. */
+  list: ParserWarningList | null;
   now: Date;
   search: SearchValues;
 }) {
@@ -63,7 +65,9 @@ export function ParserWarningsSection({
           with.
         </p>
       </div>
-      {list.total === 0 ? (
+      {!list ? (
+        <LoadFailed what="the parser warnings" />
+      ) : list.total === 0 ? (
         <EmptyState
           title="No parser warnings in the last 30 days"
           description="Every parser run in that time finished without a warning."

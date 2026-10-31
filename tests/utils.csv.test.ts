@@ -30,4 +30,18 @@ describe('csvCell', () => {
     expect(csvCell('a=b')).toBe('a=b');
     expect(csvLine(['x', '=1', 2])).toBe("x,'=1,2");
   });
+
+  // Final review M1: a bullet in someone's own comment export showed a
+  // stray apostrophe; a dash that starts a formula is still guarded.
+  it('leaves a bullet alone, and still guards a dash that starts a formula', () => {
+    expect(csvCell('- R3 missing')).toBe('- R3 missing');
+    expect(csvCell('- R3 missing (judge)')).toBe('- R3 missing (judge)');
+    expect(csvCell('-2+3')).toBe("'-2+3");
+    expect(csvCell("-cmd|' /C calc'!A0")).toBe("'-cmd|' /C calc'!A0");
+    expect(csvCell("- cmd|' /C calc'!A0")).toBe("'- cmd|' /C calc'!A0");
+    expect(csvCell('- HYPERLINK("http://x")')).toBe(`"'- HYPERLINK(""http://x"")"`);
+    expect(csvCell('=1')).toBe("'=1");
+    expect(csvCell('+x')).toBe("'+x");
+    expect(csvCell('@x')).toBe("'@x");
+  });
 });

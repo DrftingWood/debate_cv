@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/db';
 import { csvLine } from '@/lib/utils/csv';
+import { scrubComment } from '@/lib/admin/scrub';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,7 +59,10 @@ export async function GET() {
         report.tournamentIds.join('; '),
         names.join('; '),
         report.categories.join('; '),
-        report.comment,
+        // A user may paste their own private URL into a report; the admin
+        // export is handed on, so it carries only the public form, as the
+        // ledger on /admin does (cvReports.ts).
+        scrubComment(report.comment),
         report.status,
         report.resolvedAt?.toISOString(),
       ]);
