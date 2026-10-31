@@ -23,12 +23,15 @@ import { usePrinting } from '@/components/ui/Deferred';
  * APG tabs pattern (UX-59): one tab stop for the whole list; arrow keys move
  * along it (Left/Right horizontal, Up/Down vertical), Home and End jump to
  * the ends; `aria-selected` and `aria-controls` tie each tab to its panel.
- * Activation is automatic, moving selects, because every panel is already
- * rendered, so switching costs nothing.
+ * In the default mode activation is automatic, moving selects, because every
+ * panel is already rendered, so switching costs nothing. In the navigating
+ * mode (`onSelect`, below) activation is manual: arrows move focus and Enter
+ * or Space activates, since each activation is a page navigation.
  *
- * Every panel is rendered and the inactive ones are `hidden`. The server has
- * computed all of them anyway (one buildCvData call), so a switch is
- * instant and needs no round trip.
+ * By default every panel is rendered and the inactive ones are `hidden`. The
+ * server has computed all of them anyway (one buildCvData call), so a switch
+ * is instant and needs no round trip. The navigating mode (the /admin shell)
+ * renders only the active panel: the others are not read at all.
  *
  * The selection lives in the URL (`?<param>=`, UX-60, UX-79) through
  * history.replaceState, the same reasoning as FilterableStats: a router

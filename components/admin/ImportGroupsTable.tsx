@@ -40,20 +40,23 @@ export type ImportRow = {
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const noop = () => {};
 
-// Below md the users, error, attempts, time and actions fold into the
-// tournament cell, so a phone shows the checkbox, the status and the card
-// (UX-30). The hidden <col>s are hidden with their cells: a fixed-layout
-// table assigns cells to columns by position, so a zero-width col left in
-// while its cells are display:none puts each cell one column to the left.
+// Below md the table is a stack of cards like the Inbox's (UX-30): the
+// checkbox beside a card that holds the tournament, its status, users, error,
+// attempts, time and actions, so nothing is wider than the phone. At md and
+// up the fixed columns add to 63 rem less the Error column, which takes
+// whatever the panel has left (about 180 px at 1280) and wraps; the table
+// scrolls sideways only when the panel is narrower than 62 rem. The <colgroup>
+// is hidden below md with its cells, since a fixed-layout table assigns cells
+// to columns by position.
 const COLUMNS = [
   '3rem',
-  { className: 'w-28 md:w-32' },
-  { className: 'md:w-64' },
-  { className: 'hidden md:table-column md:w-64' },
-  { className: 'hidden md:table-column md:w-72' },
-  { className: 'hidden md:table-column md:w-24' },
-  { className: 'hidden md:table-column md:w-28' },
-  { className: 'hidden md:table-column md:w-64' },
+  { className: 'md:w-28' },
+  { className: 'md:w-56' },
+  { className: 'md:w-56' },
+  { className: '' },
+  { className: 'md:w-20' },
+  { className: 'md:w-24' },
+  { className: 'md:w-56' },
 ];
 
 /** A failing, unchecked row can be ticked for "Retry selected": a checked one is expected, a covered one has nothing to retry. */
@@ -103,10 +106,10 @@ export function ImportGroupsTable({
       ) : null}
       <div className="panel overflow-hidden">
         <TableScroll>
-          <Table className="table-fixed md:min-w-max" label="Failed imports">
-            <Cols widths={COLUMNS} />
+          <Table className="max-md:block md:min-w-[63rem] md:table-fixed" label="Failed imports">
+            <Cols widths={COLUMNS} className="max-md:hidden" />
             <Head rows={rows} ticked={ticked} onToggle={toggle} />
-            <tbody>
+            <tbody className="max-md:block">
               {rows.map((row) => (
                 <ImportRowView
                   key={row.key}
@@ -187,13 +190,13 @@ function Head({
   const shown = rows.filter(tickable);
   const all = shown.length > 0 && shown.every((r) => ticked.has(r.key));
   return (
-    <thead>
+    <thead className="max-md:sr-only">
       <tr>
         <Th className="pl-stack">
           {shown.length > 0 ? (
             <input
               type="checkbox"
-              className="h-6 w-6 accent-primary align-middle"
+              className="h-6 w-6 accent-primary align-middle max-md:hidden"
               checked={all}
               onChange={() =>
                 onToggle(
@@ -207,10 +210,8 @@ function Head({
             <span className="sr-only">Select</span>
           )}
         </Th>
-        <Th>Tab</Th>
-        {/* On a phone the column shares the panel with Tab: the name wraps
-            there rather than run off the edge (hence the `!`). */}
-        <Th className="max-md:whitespace-normal!">Tournament</Th>
+        <Th className="hidden md:table-cell">Tab</Th>
+        <Th>Tournament</Th>
         <Th className="hidden md:table-cell">Users</Th>
         <Th className="hidden md:table-cell">Error</Th>
         <Th numeric className="hidden md:table-cell">
@@ -233,8 +234,8 @@ function ImportRowView({
   onToggle: () => void;
 }) {
   return (
-    <Tr>
-      <Td className="pl-stack align-top">
+    <Tr className="max-md:grid max-md:grid-cols-[3rem_minmax(0,1fr)] max-md:border-b max-md:border-border/30 max-md:py-tight">
+      <Td className="pl-stack align-top max-md:row-span-2 max-md:border-b-0">
         {tickable(row) ? (
           <input
             type="checkbox"
@@ -246,12 +247,16 @@ function ImportRowView({
           />
         ) : null}
       </Td>
-      <Td className="align-top">
+      <Td className="hidden align-top md:table-cell">
         <TabStatus tab={row.tab} name={row.name} open={false} />
       </Td>
-      <Td rowHeader className="align-top wrap-break-word whitespace-normal">
+      <Td
+        rowHeader
+        className="align-top [overflow-wrap:anywhere] whitespace-normal max-md:col-start-2 max-md:border-b-0"
+      >
         <Name row={row} />
         <div className="mt-tight space-y-tight md:hidden">
+          <TabStatus tab={row.tab} name={row.name} open={false} />
           <Users row={row} />
           <ShortUrlText text={row.error} className="block text-ink" />
           <p className="font-mono text-caption tabular-nums text-ink-soft">
@@ -262,10 +267,10 @@ function ImportRowView({
           <Actions row={row} />
         </div>
       </Td>
-      <Td className="hidden align-top wrap-break-word whitespace-normal md:table-cell">
+      <Td className="hidden align-top [overflow-wrap:anywhere] whitespace-normal md:table-cell">
         <Users row={row} />
       </Td>
-      <Td className="hidden align-top whitespace-normal md:table-cell">
+      <Td className="hidden align-top [overflow-wrap:anywhere] whitespace-normal md:table-cell">
         <ShortUrlText text={row.error} />
       </Td>
       <Td numeric className="hidden align-top md:table-cell">

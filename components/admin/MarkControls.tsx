@@ -30,9 +30,9 @@ export function MarkControls({ cell, name }: { cell: MarkCell; name: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          // Busy while its own undo runs (the shared status line says so);
+          // Busy only while this row's own undo runs (the shared status line says so);
           // blocked, like Mark checked, while another press is running.
-          loading={marking.undoing !== ''}
+          loading={marking.undoBusy(id)}
           aria-disabled={marking.blocked(id) || undefined}
           aria-label={`Undo the mark on ${name}`}
           onClick={() => marking.undo([{ kind: cell.kind, subject: cell.subject }])}

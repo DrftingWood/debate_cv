@@ -1,9 +1,8 @@
-import Link from 'next/link';
-import { buttonClasses } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pager } from '@/components/ui/Pager';
 import { CheckActionsProvider } from '@/components/admin/CheckActions';
 import { InboxTable, type InboxRow } from '@/components/admin/InboxTable';
+import { ViewChips } from '@/components/admin/ViewChips';
 import { LoadFailed } from '@/components/admin/LoadFailed';
 import { adminHref, type SearchValues } from '@/lib/admin/adminHref';
 import {
@@ -201,28 +200,18 @@ function KindChips({
 }) {
   const href = (next: InboxKind[]) =>
     adminHref(search, { kinds: next.length ? kindsParam(next) : null, inboxPage: null }, HASH);
-  const chip = (c: { key: string; label: string; count: number; to: string; on: boolean }) => (
-    <li key={c.key}>
-      <Link
-        href={c.to}
-        aria-current={c.on ? 'true' : undefined}
-        className={buttonClasses({ variant: c.on ? 'primary' : 'outline', size: 'sm' })}
-      >
-        {c.label} <span className="font-mono tabular-nums">{c.count}</span>
-      </Link>
-    </li>
-  );
   return (
-    <nav aria-label="Show Inbox items by kind">
-      <ul className="flex flex-wrap gap-inline">
-        {chip({ key: 'all', label: 'All', count: all, to: href([]), on: kinds.length === 0 })}
-        {INBOX_KINDS.map((k) => {
+    <ViewChips
+      label="Show Inbox items by kind"
+      chips={[
+        { key: 'all', label: 'All', count: all, href: href([]), on: kinds.length === 0 },
+        ...INBOX_KINDS.map((k) => {
           const on = kinds.includes(k);
           // Toggling keeps the kinds already chosen, in the inbox's order.
           const next = INBOX_KINDS.filter((x) => (x === k ? !on : kinds.includes(x)));
-          return chip({ key: k, label: CHIP_LABEL[k], count: counts[k], to: href(next), on });
-        })}
-      </ul>
-    </nav>
+          return { key: k, label: CHIP_LABEL[k], count: counts[k], href: href(next), on };
+        }),
+      ]}
+    />
   );
 }

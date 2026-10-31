@@ -72,12 +72,12 @@ export function ParserWarningsTable({ rows }: { rows: readonly WarningRow[] }) {
 // hidden <col>s are hidden with their cells (see ImportGroupsTable).
 const WARNING_COLUMNS = [
   '3rem',
-  { className: 'hidden md:table-column md:w-32' },
-  { className: 'md:w-96' },
+  { className: 'hidden md:table-column md:w-28' },
+  { className: '' },
+  { className: 'hidden md:table-column md:w-16' },
   { className: 'hidden md:table-column md:w-20' },
-  { className: 'hidden md:table-column md:w-24' },
-  { className: 'hidden md:table-column md:w-72' },
   { className: 'hidden md:table-column md:w-56' },
+  { className: 'hidden md:table-column md:w-48' },
 ];
 
 function WarningsTable({
@@ -92,7 +92,7 @@ function WarningsTable({
   const all = rows.length > 0 && rows.every((r) => ticked.has(r.key));
   const n = rows.length;
   return (
-    <Table className="table-fixed md:min-w-max" label="Recent parser warnings">
+    <Table className="table-fixed md:min-w-[48rem]" label="Recent parser warnings">
       <Cols widths={WARNING_COLUMNS} />
       <thead>
         <tr>
@@ -157,7 +157,7 @@ function WarningRowView({
       <Td className="hidden align-top font-mono text-caption wrap-break-word whitespace-normal md:table-cell">
         {row.parserName}
       </Td>
-      <Td rowHeader className="align-top whitespace-normal wrap-break-word">
+      <Td rowHeader className="align-top whitespace-normal [overflow-wrap:anywhere]">
         <ShortUrlText text={row.headline} className="text-ink" />
         {row.sample !== row.headline ? (
           <ShortUrlText text={row.sample} className="mt-hair block text-caption text-ink-soft" />

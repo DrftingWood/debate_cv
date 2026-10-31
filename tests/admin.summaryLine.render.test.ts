@@ -17,7 +17,25 @@ describe('SummaryLine', () => {
         }),
       ),
     );
-    expect(out).toBe('Needs you — · Accuracy — · Imports to review — · Queue —');
+    expect(out).toBe(
+      'Needs you — · Accuracy — · Imports to review — · Queue — · Counts unavailable',
+    );
+  });
+
+  it('does not say counts are unavailable when every read worked', () => {
+    const out = text(
+      renderToStaticMarkup(
+        createElement(SummaryLine, {
+          summary: {
+            needsYou: 3,
+            accuracy: { score: 90, good: 5, check: 1, rescrape: 0 },
+            importsFailing: 1,
+            queue: 0,
+          },
+        }),
+      ),
+    );
+    expect(out).not.toContain('unavailable');
   });
 });
 

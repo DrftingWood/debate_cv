@@ -103,20 +103,18 @@ const table = (rows: ImportRow[], retryJobIds: string[] = []) =>
   html(h(CheckActionsProvider, null, h(ImportGroupsTable, { rows, retryJobIds })));
 
 describe('Failed imports with the Tab column', () => {
-  it('puts Tab first, with a column that stays on a phone and columns that match the cells', () => {
+  it('puts Tab first, with one column per cell, the status moving under the name on a phone', () => {
     const out = table([job({})]);
     const heads = [...out.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((m) => m[1]);
     expect(heads[1]).toBe('Tab');
-    // Every column hidden below md is hidden as a col too, so cells keep
-    // their columns; the Tab col is not one of them.
+    // The widths sit in a colgroup that is hidden below md with the cards, so
+    // the columns match the cells at md and up.
+    expect(out).toMatch(/<colgroup class="max-md:hidden">/);
     const cols = [...out.matchAll(/<col( class="([^"]*)")?\s*(style="[^"]*")?\/?>/g)];
     expect(cols).toHaveLength(heads.length);
-    expect(cols[1]![2] ?? '').not.toContain('hidden');
-    const hiddenHeads = [...out.matchAll(/<th scope="col" class="([^"]*)"/g)].filter((m) =>
-      /(^|\s)hidden(\s|$)/.test(m[1]!),
-    ).length;
-    const hiddenCols = cols.filter((c) => /(^|\s)hidden(\s|$)/.test(c[2] ?? '')).length;
-    expect(hiddenCols).toBe(hiddenHeads);
+    // The Tab column is hidden below md; the status is repeated in the card.
+    expect(out).toMatch(/<th scope="col" class="hidden md:table-cell">Tab<\/th>/);
+    expect(out).toMatch(/<div class="mt-tight space-y-tight md:hidden"><[^>]*>/);
   });
 
   // An address that matched no single stored row is "? Check", never a

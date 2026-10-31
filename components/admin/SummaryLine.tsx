@@ -12,8 +12,14 @@ const count = (n: number | null) => (n === null ? '—' : n.toLocaleString('en-G
  */
 export function SummaryLine({ summary }: { summary: Summary }) {
   const a = summary.accuracy;
+  // A failed read shows a dash; say why, so a dash is not mistaken for zero.
+  const unavailable =
+    a === null ||
+    summary.needsYou === null ||
+    summary.importsFailing === null ||
+    summary.queue === null;
   return (
-    <p aria-label="Summary" className="text-body text-ink-soft">
+    <p role="group" aria-label="Summary" className="text-body text-ink-soft">
       <Figure tab="inbox" label="Needs you" value={count(summary.needsYou)} />
       <Sep />
       <Figure
@@ -32,6 +38,12 @@ export function SummaryLine({ summary }: { summary: Summary }) {
       <Figure tab="imports" label="Imports to review" value={count(summary.importsFailing)} />
       <Sep />
       <Figure tab="tools" label="Queue" value={count(summary.queue)} />
+      {unavailable ? (
+        <>
+          <Sep />
+          <span role="status">Counts unavailable</span>
+        </>
+      ) : null}
     </p>
   );
 }

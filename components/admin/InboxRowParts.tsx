@@ -32,7 +32,11 @@ export function RowActions({
 }) {
   return (
     <div className="flex flex-wrap items-start gap-inline">
-      <FixButton row={row} />
+      {/* Every kind of Fix (a link, or a button with its own icon) is at least one width,
+          so Mark checked starts at the same x on every row. */}
+      <div className="[&_a]:min-w-24 [&_a]:justify-center [&_button]:min-w-24 [&_button]:justify-center">
+        <FixButton row={row} />
+      </div>
       <Button
         type="button"
         variant="outline"

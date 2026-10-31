@@ -31,7 +31,7 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
   const [own] = useState(singleFlight);
   const flight = usePageFlight(own);
 
-  const { undo, undoing } = useUndo(flight, startTransition);
+  const { undo, undoing, undoBusy } = useUndo(flight, startTransition);
 
   const mark = ({ id, items, keys, what }: MarkRequest) => {
     if (pending || flight.busy) return;
@@ -62,6 +62,7 @@ export function useMarkChecked(onMarked: (keys: readonly string[]) => void) {
     error,
     setError,
     undoing,
+    undoBusy,
     busy: (id: string) => pending && running === id,
     blocked: (id: string) => pending && running !== id,
   };
@@ -82,6 +83,8 @@ function useUndo(
   const router = useRouter();
   const toast = useToast();
   const [undoing, setUndoing] = useState('');
+  // Whose marks are being taken back, so only those Undo buttons show busy.
+  const [undoingIds, setUndoingIds] = useState<readonly string[]>([]);
   const undo = (items: readonly MarkTarget[]) => {
     const targets = undoTargets(items);
     // flight.busy is the guard: the Undo button sits in a toast that was made
@@ -94,6 +97,7 @@ function useUndo(
       });
       return;
     }
+    setUndoingIds(targets.map((t) => `${t.kind}:${t.subject}`));
     startTransition(async () => {
       const outcome = await flight.run(async () => {
         let failed = 0;
@@ -109,9 +113,10 @@ function useUndo(
         return { failed, reason };
       });
       setUndoing('');
+      setUndoingIds([]);
       if (outcome) toast.show(undoOutcome(targets.length, outcome.failed, outcome.reason));
       startTransition(() => router.refresh());
     });
   };
-  return { undo, undoing };
+  return { undo, undoing, undoBusy: (id: string) => undoingIds.includes(id) };
 }
