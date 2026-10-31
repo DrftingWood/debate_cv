@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * rescrapePieces (lib/calicotab/partialScrape.ts): re-scrape one tab or one
+ * rescrapePieces, part 2 (what it refuses, reports and leaves alone). The first
+ * half is calicotab.partialScrape.scoped.test.ts; the harness is repeated here
+ * because vi.mock is per file. rescrapePieces re-scrapes one tab or one
  * round of a stored tournament and delete only that piece's rows.
  *
  * Mocked the same way as calicotab.ingest.characterization.test.ts: the
@@ -263,79 +265,6 @@ beforeEach(() => {
   resetMotionsChecks();
   vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-});
-
-describe('rescrapePieces: scoped deletes', () => {
-  it('rescraping round 3 deletes and rewrites only round 3', async () => {
-    install();
-    const result = await rescrapePieces(7n, [{ kind: 'round', key: '3' }]);
-
-    expect(result).toEqual({
-      tournamentId: 7n,
-      loaded: [{ kind: 'round', key: '3' }],
-      failed: [],
-      notOnTab: [],
-    });
-    const teamDeletes = callsOf(prismaMock.teamResult.deleteMany);
-    expect(teamDeletes).toEqual([{ where: { tournamentId: 7n, roundNumber: 3 } }]);
-    // No tournament-wide refresh: nothing is deleted by tournament alone.
-    for (const d of allDeletes()) expect(Object.keys(d.where)).not.toEqual(['tournamentId']);
-    expect(prismaMock.tournamentParticipant.deleteMany).not.toHaveBeenCalled();
-    // Round 3's judge panels are replaced through the pre-scrape's writer,
-    // scoped to round 3.
-    const judgeDeletes = callsOf(prismaMock.judgeAssignment.deleteMany);
-    expect(judgeDeletes).toEqual([
-      {
-        where: {
-          tournamentId: 7n,
-          source: 'round_results',
-          OR: [{ roundNumber: { in: [3] } }],
-        },
-      },
-    ]);
-    // Only round 3's rows are rewritten.
-    const rounds = callsOf(prismaMock.teamResult.upsert).map(
-      (c) => c.where.tournamentId_teamName_roundNumber.roundNumber,
-    );
-    expect(new Set(rounds)).toEqual(new Set([3]));
-    expect(fetchedUrls().sort()).toEqual([BASE, R3].sort());
-  });
-
-  it('re-checks the staff-block links of the tournament after the write (R10 round 2)', async () => {
-    install();
-    prismaMock.tournamentStaff.findMany.mockResolvedValue([
-      { id: 1n, name: 'Ada Lovelace', personId: 101n, candidatePersonId: null },
-    ]);
-    // The list now has two people of that name: the stored link must go.
-    prismaMock.tournamentParticipant.findMany.mockResolvedValue([
-      { personId: 101n, person: { displayName: 'Ada Lovelace' } },
-      { personId: 102n, person: { displayName: 'Ada Lovelace' } },
-    ]);
-    await rescrapePieces(7n, [{ kind: 'round', key: '3' }]);
-    expect(prismaMock.tournamentStaff.update).toHaveBeenCalledWith({
-      where: { id: 1n },
-      data: { personId: null, candidatePersonId: null },
-    });
-  });
-
-  it('an outround deletes only its stage', async () => {
-    install();
-    await rescrapePieces(7n, [{ kind: 'round', key: '7' }]);
-
-    expect(callsOf(prismaMock.eliminationResult.deleteMany)).toEqual([
-      {
-        where: {
-          tournamentId: 7n,
-          entityType: 'team',
-          stage: 'Grand Final',
-          result: { in: ['won', 'lost'] },
-        },
-      },
-    ]);
-    expect(callsOf(prismaMock.teamResult.deleteMany)).toEqual([
-      { where: { tournamentId: 7n, roundNumber: 7 } },
-    ]);
-  });
 });
 
 describe('rescrapePieces: what it refuses or reports', () => {
