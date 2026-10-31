@@ -297,6 +297,11 @@ model ScrapePiece {
   status        String
   httpStatus    Int?
   lastError     String?
+  /// Why a 'withheld' piece is withheld: 'withheld' (the tournament refuses
+  /// the page) or 'not_published' (no menu link, or a round page with columns
+  /// and no rows). Null for ok and failed pieces. Read by the audit, which
+  /// treats both alike, and by the piece grid's pill.
+  reason        String?
   /// Consecutive failures; reset to 0 by a success. Drives the back-off in
   /// retryDelayMs (lib/calicotab/scrapePieces.ts).
   attempts      Int        @default(0)

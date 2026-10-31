@@ -122,7 +122,15 @@ function queryCounts(ids: bigint[]) {
     }),
     prisma.scrapePiece.findMany({
       where: { tournamentId },
-      select: { tournamentId: true, kind: true, key: true, label: true, status: true, url: true },
+      select: {
+        tournamentId: true,
+        kind: true,
+        key: true,
+        label: true,
+        status: true,
+        reason: true,
+        url: true,
+      },
     }),
     // A report names tournaments by id as strings (CvErrorReport.tournamentIds).
     prisma.cvErrorReport.findMany({
@@ -259,6 +267,7 @@ function addRest(out: Map<bigint, LoadedAudit>, rows: BatchRows) {
       key: p.key,
       label: p.label,
       status: p.status as AuditPiece['status'],
+      reason: p.reason,
       url: p.url,
     });
   }

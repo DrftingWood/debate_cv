@@ -268,6 +268,8 @@ export type PieceRow = {
   lastAttemptAt: Date;
   nextRetryAt: Date | null;
   lastError: string | null;
+  /** Why a withheld piece is withheld; 'not_published' reads "Not published". */
+  reason?: string | null;
   /**
    * The page's address as stored: it may be a private URL, so it only
    * leaves the server through toPieceCard, which makes it public.
@@ -308,6 +310,7 @@ export async function getTournamentPieces(id: bigint): Promise<{
       lastAttemptAt: true,
       nextRetryAt: true,
       lastError: true,
+      reason: true,
       url: true,
     },
   });

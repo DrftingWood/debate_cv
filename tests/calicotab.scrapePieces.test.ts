@@ -134,6 +134,7 @@ describe('recordPieceOutcomes: withheld pages', () => {
       httpStatus: 403,
       lastError: 'HTTP 403',
       nextRetryAt: null,
+      reason: 'withheld',
     });
     expect(arg.create).toMatchObject({ status: 'withheld', attempts: 0, nextRetryAt: null });
     expect(prismaMock.scrapePiece.update).not.toHaveBeenCalled();

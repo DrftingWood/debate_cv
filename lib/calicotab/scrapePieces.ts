@@ -25,6 +25,12 @@ export type PieceOutcome = PieceRef & {
    * existence. Set only when true.
    */
   withheld?: true;
+  /**
+   * Why a withheld piece is withheld: the tournament refused the page
+   * ('withheld', the default) or never published it ('not_published': no
+   * menu link, or a round page with columns and no rows). Stored on the piece.
+   */
+  reason?: 'withheld' | 'not_published';
 };
 
 /**
@@ -210,7 +216,14 @@ export async function recordPieceOutcomes(
     const where = { tournamentId_kind_key: { tournamentId, kind: o.kind, key: o.key } };
     const base = { label: o.label, url: o.url, lastAttemptAt: now };
     if (o.ok) {
-      const ok = { ...base, status: 'ok', attempts: 0, loadedAt: now, nextRetryAt: null };
+      const ok = {
+        ...base,
+        status: 'ok',
+        attempts: 0,
+        loadedAt: now,
+        nextRetryAt: null,
+        reason: null,
+      };
       await prisma.scrapePiece.upsert({
         where,
         create: {
@@ -232,6 +245,7 @@ export async function recordPieceOutcomes(
         httpStatus: o.httpStatus,
         lastError: o.error,
         nextRetryAt: null,
+        reason: o.reason ?? 'withheld',
       };
       await prisma.scrapePiece.upsert({
         where,
@@ -240,7 +254,13 @@ export async function recordPieceOutcomes(
       });
       continue;
     }
-    const failed = { ...base, status: 'failed', httpStatus: o.httpStatus, lastError: o.error };
+    const failed = {
+      ...base,
+      status: 'failed',
+      httpStatus: o.httpStatus,
+      lastError: o.error,
+      reason: null,
+    };
     const row = await prisma.scrapePiece.upsert({
       where,
       create: { tournamentId, kind: o.kind, key: o.key, ...failed, attempts: 1 },

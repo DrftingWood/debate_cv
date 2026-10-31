@@ -8,6 +8,12 @@ import type { PieceRef } from '@/lib/calicotab/scrapePieces';
 export type AuditPiece = PieceRef & {
   label: string;
   status: 'ok' | 'failed' | 'withheld';
+  /**
+   * Why a withheld piece is withheld: 'not_published' when the tournament
+   * never put it up (no menu link, or a round page with no rows); the checks
+   * treat it like any withheld page and only the wording differs.
+   */
+  reason?: string | null;
   url: string | null;
 };
 

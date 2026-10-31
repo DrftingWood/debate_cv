@@ -24,8 +24,9 @@ export type PieceCard = {
   label: string;
   status: 'ok' | 'failed' | 'withheld';
   /**
-   * "Loaded", "Failed · HTTP 504" (just "Failed" when no status came back)
-   * or "Withheld by the tournament".
+   * "Loaded", "Failed · HTTP 504" (just "Failed" when no status came back),
+   * "Withheld by the tournament", or "Not published" when it never put the
+   * page up.
    */
   pill: string;
   /** What the time is: when it loaded, or when it was last tried and failed. */
@@ -40,7 +41,9 @@ export const pieceId = (p: { kind: string; key: string }) => `${p.kind}:${p.key}
 
 function pillText(p: PieceRow): string {
   if (p.status === 'ok') return 'Loaded';
-  if (p.status === 'withheld') return 'Withheld by the tournament';
+  if (p.status === 'withheld') {
+    return p.reason === 'not_published' ? 'Not published' : 'Withheld by the tournament';
+  }
   return p.httpStatus != null ? `Failed · HTTP ${p.httpStatus}` : 'Failed';
 }
 

@@ -2,6 +2,7 @@ import type { AuditInputs } from './auditInputs';
 import {
   breakPieces,
   expectedPrelims,
+  heldSentence,
   isWithheld,
   listText,
   outroundRoundPieces,
@@ -38,7 +39,7 @@ export { minSpeakers, teamsPerRoom } from './checkHelpers';
  * Bump when a check's rule changes, so the cron re-audits every tournament
  * instead of trusting results computed under the old rule.
  */
-export const CHECKS_VERSION = '2026-10-31.5';
+export const CHECKS_VERSION = '2026-10-31.6';
 
 function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   const { speakerParticipants: all, speakersWithScores: scored } = inputs;
@@ -50,7 +51,7 @@ function checkSpeakerTab(inputs: AuditInputs): CheckResult {
   // so the check does not apply rather than failing. A full set of scores
   // stored before the tab was pulled still passes.
   if (status !== 'pass' && isWithheld(inputs.pieces, 'speaker')) {
-    return result('speaker_tab', 'na', 'The tournament withholds its speaker tab.');
+    return result('speaker_tab', 'na', heldSentence(inputs.pieces, 'speaker', 'speaker tab'));
   }
   return result(
     'speaker_tab',
@@ -63,7 +64,7 @@ function checkSpeakerTab(inputs: AuditInputs): CheckResult {
 /** A tournament that withholds its motions page is not marked down for it. */
 function checkMotions(inputs: AuditInputs): CheckResult {
   if (inputs.pieces.some((p) => p.kind === 'motions' && p.status === 'withheld')) {
-    return result('motions', 'na', 'The tournament withholds its motions page.');
+    return result('motions', 'na', heldSentence(inputs.pieces, 'motions', 'motions page'));
   }
   const expected = expectedPrelims(inputs);
   if (expected.length === 0) {
