@@ -75,3 +75,10 @@ describe('isPlainProblem', () => {
     expect(isPlainProblem('nav: breakTabs not found (optional)')).toBe(false);
   });
 });
+
+describe('the (optional) rule', () => {
+  it('matches the parenthesised note, not the bare word', () => {
+    expect(classifyWarning('nav: breakTabs not found (optional)')).toBe('info');
+    expect(classifyWarning('parse: optional column → 0 rows')).toBe('problem');
+  });
+});

@@ -261,6 +261,25 @@ describe('import items', () => {
   });
 });
 
+describe('import items: the scan ceiling', () => {
+  it('stops the unstored-job scan at the page ceiling when every page is stored', async () => {
+    const mk = (n: number) =>
+      Array.from({ length: CANDIDATE_CAP }, (_, i) =>
+        job([`s${n}-${i}`, 'u1'], `https://s${n}${i}.calicotab.com/s${n}${i}/privateurls/k/`),
+      );
+    h.db.ingestJob.findMany.mockImplementation(async (args: { skip: number }) =>
+      mk(args.skip / CANDIDATE_CAP),
+    );
+    h.matchJobs.mockImplementation(async (jobs: Array<{ id: string }>) => ({
+      stored: new Map(jobs.map((j) => [j.id, { id: '5', name: 'Stored', scrapedAt: NOW }])),
+      ambiguous: new Map(),
+    }));
+    const { counts } = await listInbox({ page: 1, now: NOW });
+    expect(counts.import).toBe(0);
+    expect(h.db.ingestJob.findMany).toHaveBeenCalledTimes(10);
+  });
+});
+
 describe('report and parser items', () => {
   it('lists open and acknowledged reports, leaving out a marked one', async () => {
     h.db.cvErrorReport.findMany.mockResolvedValue([

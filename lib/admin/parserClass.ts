@@ -22,7 +22,7 @@ export type WarningClass = 'problem' | 'info';
 const INFO = new RegExp(
   [
     'likely finished',
-    '\(optional\)',
+    '\\(optional\\)',
     'constructed as fallback',
     'not released',
     'limited tab visibility',

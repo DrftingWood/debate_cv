@@ -273,13 +273,18 @@ type JobRow = {
   scheduledAt: Date;
 };
 
+const MAX_JOB_PAGES = 10;
+
 /**
  * Failed or abandoned jobs whose tournament is not stored, newest first,
  * bounded at CANDIDATE_CAP unstored jobs. Stored tournaments are excluded
  * before the cap counts, so a large "covered by stored copy" backlog cannot
  * push unstored failures out of the window: the newest jobs are read a page
  * at a time and matched, until CANDIDATE_CAP unstored jobs are held or the
- * jobs run out.
+ * jobs run out. The scan itself is bounded at MAX_JOB_PAGES pages
+ * (MAX_JOB_PAGES x CANDIDATE_CAP rows): past that ceiling it stops and the
+ * result is truncated, so a huge stored-copy backlog cannot make every
+ * Inbox load walk the whole table.
  */
 async function readUnstoredJobs(): Promise<{
   jobs: JobRow[];
@@ -287,7 +292,8 @@ async function readUnstoredJobs(): Promise<{
 }> {
   const jobs: JobRow[] = [];
   const ambiguous = new Map<string, number>();
-  for (let skip = 0; jobs.length < CANDIDATE_CAP; skip += CANDIDATE_CAP) {
+  for (let pageNo = 0; pageNo < MAX_JOB_PAGES && jobs.length < CANDIDATE_CAP; pageNo++) {
+    const skip = pageNo * CANDIDATE_CAP;
     const page: JobRow[] = await prisma.ingestJob.findMany({
       where: { status: { in: [IngestJobStatus.failed, IngestJobStatus.abandoned] } },
       orderBy: [{ finishedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
